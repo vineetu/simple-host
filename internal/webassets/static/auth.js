@@ -36,6 +36,13 @@
  *   updated_at are stamped by the server. Visitors never send SQL.
  *   The site's owner, signed in on the site's own address, gets owner rights
  *   for saved data (an admin page); SH.me() then returns site_owner: true.
+ *   There, on a table whose preset reads own (records, personal), the owner
+ *   may add a row for one signed-in visitor instead of themselves:
+ *   orders.add({items: '...'}, {for: visitorId}); visitorId (or that
+ *   person's sign-in email) comes from SH.storage.people() (also owner
+ *   only), the site's people with saved data or named-viewer status. for is
+ *   refused if that person has never signed in on this site, and the row is
+ *   stamped written by the owner, never looking like the visitor's own.
  *   SH.storage.kv('settings').get('theme') / .set('theme', 'dark') / .keys() / .delete(key)
  *   SH.storage.files('gallery').put('cover.webp', file) / .get(path) / .url(path) / .list() / .delete(path)
  *   An "anyone" action works without sign-in; a signed-in action without a session
@@ -748,7 +755,19 @@
           table: function (table) {
             var rows = base + "/tables/" + storageSegment(table, "table name") + "/rows";
             return {
-              add: function (values) { return checkedWrite(rows, "POST", values, name); },
+              // options.for: the owner only, on a table whose preset reads
+              // own (records, personal): add this row for one signed-in
+              // visitor (their visitor_id, or the email they signed in
+              // with) instead of the owner's own write. Refused
+              // (visitor_unknown) if they have never signed in on this
+              // site. The row is then stamped written by the owner.
+              add: function (values, options) {
+                var url = rows;
+                if (options && options["for"] != null && options["for"] !== "") {
+                  url += "?for=" + encodeURIComponent(options["for"]);
+                }
+                return checkedWrite(url, "POST", values, name);
+              },
               // where: {column: value}, at most three, equality only.
               list: function (options) {
                 // Also take order "-id" or "id desc" (a common way to ask for newest first).
@@ -824,7 +843,14 @@
           // lookup to choose between a claimed site and a path fallback.
           url: function (path) { return storageResolvedURL(objectURL(path)); }
         };
-      }
+      },
+      // The owner's pick list (site_owner only; see SH.me()): this site's
+      // people who have saved data or are named viewers, never everyone
+      // who merely signed in. {people: [{visitor_id, email, named_viewer,
+      // has_data, signed_in}]}; visitor_id is "" for a named viewer who has
+      // not signed in yet (not a usable table().add for target). Pass an
+      // entry's visitor_id or email as for.
+      people: function () { return request(storageURL("people")); }
     },
     collection: function (name) {
       var url = API_BASE + "/collections/" + encodeURIComponent(name);

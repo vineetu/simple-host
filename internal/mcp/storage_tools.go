@@ -119,6 +119,14 @@ func storageToolsFor(event bool) []Tool {
 			tool.OutputSchema = outObject(map[string]any{"response": anyJSON("Unchanged REST JSON response."), "status": outInteger("REST status code.")}, "response", "status")
 			tool = withoutSpamCheck(tool)
 		}
+		// for is Host only (review fix, SIM-358): named viewers and the
+		// canonical-email resolution it depends on are not a Simple Hack
+		// concept, so hack_event_storage_execute keeps its plain sql/params
+		// shape — one policy, matching the REST for gate and the people
+		// pick list's exclusion there.
+		if r.name == "storage_sql_execute" && !event {
+			tool = withOwnerForMode(tool, event)
+		}
 		tools = append(tools, tool)
 	}
 	return tools
@@ -250,6 +258,121 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite {
 		if err := c.storageVisitorRefs(site, response); err != nil {
 			return output{}, err
+		}
+	}
+	structured := map[string]any{"response": response, "status": res.status}
+	return output{Text: jsonText(structured), Structured: structured}, nil
+}
+
+// withOwnerForMode adds storage_sql_execute's dual mode (SIM-358, 2026-11-06):
+// an optional for, naming a signed-in visitor (a visitor reference, from
+// storage_visitor_emails or a row's visitor_id, or the email they signed in
+// with) this one row is added for, instead of as the owner's own raw SQL.
+// for replaces sql and params with table and values (the row's column
+// values, the same shape POST .../tables/{t}/rows takes); it is refused
+// (visitor_unknown) if the person has never signed in on this site, and the
+// row is stamped written by the owner, never looking like the visitor's own.
+//
+// This reuses storage_sql_execute's existing tool rather than adding a new
+// one (an input property is a smaller tool-list change than a new tool, and
+// the output shape — {response, status} — does not change either way) and
+// still goes through the one REST row-add path (POST .../tables/{t}/rows)
+// that auth.js's table().add(values, {for}) and the owner's API key use, so
+// every path shares the same app-service authorization (ResolveOwnerFor,
+// TableAdd). An alternative considered and rejected: parsing for out of an
+// ordinary INSERT statement's SQL text, so for could stay inside sql/params
+// unchanged; table+values avoids that parsing risk entirely, at the cost of
+// this one tool accepting two mutually exclusive input shapes.
+func withOwnerForMode(tool Tool, event bool) Tool {
+	props := map[string]any{}
+	for k, v := range tool.InputSchema["properties"].(map[string]any) {
+		props[k] = v
+	}
+	props["for"] = str("Optional: add this row for one signed-in visitor instead of running sql, on a table whose read is own (records, personal only; refused for_requires_own elsewhere) — a visitor reference (storage_visitor_emails, or a row's visitor_id) or the email they signed in with. Requires table and values in place of sql and params. Refused visitor_unknown if they have never signed in on this site (resolve or check first with storage_visitor_emails if unsure), or visitor_email_ambiguous if more than one signed-in person currently matches that email (use their reference instead). The row is stamped written by you, is visible to that visitor as yours rather than theirs, and does not notify your own subscriptions; a table's own trigger that fights that is caught and the whole add rolled back (written_by_tampered) rather than shipped half right. Host only, not Simple Hack.")
+	props["table"] = str("With for: the table to add the row to (as storage_sql_schema created it).")
+	props["values"] = map[string]any{"type": "object", "additionalProperties": anyJSON("A column value."), "description": "With for: the new row's column values, exactly as POST .../tables/{table}/rows takes them. Never set id, visitor_id, created_at, updated_at, or written_by; the server fills them and ignores anything sent for them."}
+	var required []string
+	for _, r := range tool.InputSchema["required"].([]string) {
+		if r != "sql" {
+			required = append(required, r)
+		}
+	}
+	schema := map[string]any{}
+	for k, v := range tool.InputSchema {
+		schema[k] = v
+	}
+	schema["properties"] = props
+	schema["required"] = required
+	tool.InputSchema = schema
+	inner := tool.run
+	name, suffix := tool.Name, "/sqlite/{name}/tables/{table}/rows"
+	tool.run = func(c *call, args map[string]any) (output, error) {
+		forRef, _ := args["for"].(string)
+		if strings.TrimSpace(forRef) == "" {
+			return inner(c, args)
+		}
+		if _, has := args["sql"]; has {
+			return output{}, fmt.Errorf("for replaces sql and params with table and values; send one pair or the other")
+		}
+		return runOwnerForAdd(c, name, suffix, args, event)
+	}
+	return tool
+}
+
+func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any, event bool) (output, error) {
+	var site string
+	var err error
+	if event {
+		site, err = stringArg(args, "event")
+	} else {
+		site, err = siteArg(args)
+	}
+	if err != nil {
+		return output{}, err
+	}
+	resource, err := stringArg(args, "name")
+	if err != nil {
+		return output{}, err
+	}
+	table, err := stringArg(args, "table")
+	if err != nil {
+		return output{}, fmt.Errorf("table is required with for")
+	}
+	values, ok := args["values"].(map[string]any)
+	if !ok {
+		return output{}, fmt.Errorf("values is required with for: the new row's column values")
+	}
+	forRef, _ := args["for"].(string)
+	forRef = strings.TrimSpace(forRef)
+	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && strings.HasPrefix(forRef, "v_") {
+		siteID, e := c.visitorSiteID(site)
+		if e != nil {
+			return output{}, e
+		}
+		forRef, e = c.server.cfg.VisitorRefs.Decode(siteID, forRef)
+		if e != nil {
+			return output{}, fmt.Errorf("for: invalid visitor reference")
+		}
+	}
+	body, err := json.Marshal(values)
+	if err != nil {
+		return output{}, err
+	}
+	base := "/v1/sites/" + url.PathEscape(site) + "/storage"
+	if event {
+		base = "/v1/hack/events/" + url.PathEscape(site) + "/website/storage"
+	}
+	path := base + strings.Replace(suffix, "{name}", url.PathEscape(resource), 1)
+	path = strings.Replace(path, "{table}", url.PathEscape(table), 1)
+	path += "?for=" + url.QueryEscape(forRef)
+	res := c.do("POST", path, body, nil)
+	if !res.ok() {
+		return output{}, restError(toolName, res)
+	}
+	var response any
+	if len(res.body) > 0 {
+		if json.Unmarshal(res.body, &response) != nil {
+			return output{}, fmt.Errorf("%s: server returned invalid JSON", toolName)
 		}
 	}
 	structured := map[string]any{"response": response, "status": res.status}

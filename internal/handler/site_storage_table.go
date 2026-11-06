@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 )
@@ -86,6 +87,29 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 		call := h.storageServiceCall(c)
 		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
 		svc := h.storageRequestSvc(r, c)
+		// for (add only): the owner adds this row on behalf of one signed-in
+		// visitor instead of themselves. A visitor_id or the email they
+		// signed in with; ResolveOwnerFor refuses anyone but the owner, and
+		// refuses a target who has never signed in on this site (clear code
+		// visitor_unknown, no pre-sign-in email binding).
+		if action == "add" {
+			if forRef := strings.TrimSpace(r.URL.Query().Get("for")); forRef != "" {
+				// Host only, the same policy as the people pick list and
+				// storage_visitor_emails's email direction: named viewers
+				// and this canonical-email resolution are not a Simple
+				// Hack concept.
+				if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event || h.ed.Storage().EventOwners {
+					storageError(w, 404, "for_not_available", "for is not available on Simple Hack")
+					return
+				}
+				resolved, err := svc.ResolveOwnerFor(r.Context(), call, forRef)
+				if err != nil {
+					writeTableError(w, err.(*appstorage.Error))
+					return
+				}
+				call.OwnerFor = resolved
+			}
+		}
 		in := appstorage.TableInput{Call: call, Table: table, ID: rowID}
 		in.Authorized = svc.AuthorizeTableWrite(r.Context(), in, action)
 		auth := in.Authorized.Authorization
@@ -160,9 +184,9 @@ func writeTableError(w http.ResponseWriter, e *appstorage.Error) {
 		return
 	case "forbidden":
 		status = http.StatusForbidden
-	case "row_not_found", "invalid_reference":
+	case "row_not_found", "invalid_reference", "visitor_unknown":
 		status = http.StatusNotFound
-	case "row_conflict", "resource_changed":
+	case "row_conflict", "resource_changed", "written_by_blocked", "written_by_tampered":
 		status = http.StatusConflict
 	case "site_full":
 		status = http.StatusInsufficientStorage

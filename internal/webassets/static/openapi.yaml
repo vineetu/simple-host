@@ -12280,21 +12280,44 @@ paths:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
       operationId: getSiteStorageVisitors
-      summary: Who sent a record (visitor_id to email; owner only)
+      summary: Who sent a record, or the other way (visitor_id and email; owner only)
       description: >-
         Owner only (key or connector). Turns visitor_id values from this site's saved
         data (the visitor_id column of read-own SQLite tables; `visitor_id` on KV keys
         and stored files, which only the owner's reads show) into the email each person
-        signs in with. Only people who signed in on this site as visitors resolve
+        signs in with, and, with email instead of (or combined with) id (SIM-358, 2026-11-06),
+        the other direction: the visitor_id they signed in as, for a `for` request or
+        ResolveOwnerFor directly. Only people who signed in on this site as visitors resolve
         (recorded by the server when a visitor session starts, never read from the
-        site's own tables; `found` false otherwise). 1 to 100 ids, comma-separated or repeated. Not on Simple Hack.
+        site's own tables; `found` false otherwise; no pre-sign-in email binding). 1 to 100 ids and/or emails total, comma-separated or repeated. Not on Simple Hack.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: sitename, required: true, schema: { type: string } }
-        - { in: query, name: id, required: true, schema: { type: string }, description: "visitor_id values, comma-separated (or repeat id=)" }
+        - { in: query, name: id, schema: { type: string }, description: "visitor_id values, comma-separated (or repeat id=)" }
+        - { in: query, name: email, schema: { type: string }, description: "Email addresses, comma-separated (or repeat email=). Combine with id, or give this alone." }
       responses:
-        '200': { description: 'visitors: [{visitor_id, email?, found}]' }
+        '200': { description: 'visitors: [{visitor_id?, email?, found}], one entry per id then per email, in that order' }
         '400': { description: invalid_visitor_id, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: forbidden (not the owner), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/sites/{sitename}/storage/people:
+    get:
+      x-audience: ["public-host"]
+      tags: ["Storage resources"]
+      operationId: getSiteStoragePeople
+      summary: The owner's pick list of this site's people (SIM-358, 2026-11-06)
+      description: >-
+        Owner only: the owner's key or connector token, or the owner signed in on the
+        site's own address (SH.me().site_owner; SH.storage.people() on the page). Lists
+        only this site's people who have saved data here (a SQLite row, a KV key, or a
+        stored file) or are named viewers — never everyone who has merely signed in
+        (the privacy rule). Each entry's visitor_id, when present, is a usable `for`
+        target; a named viewer who has not signed in yet is listed by email only
+        (visitor_id omitted, signed_in false), not yet usable.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: sitename, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 'people: [{visitor_id?, email?, named_viewer, has_data, signed_in}]' }
         '403': { description: forbidden (not the owner), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/usage:
     get:
@@ -12525,6 +12548,16 @@ paths:
         resource. Such a post is at most SPAM_CHECKED_POST_MAX_BYTES (413 post_too_large) with at most
         SPAM_CHECKED_POST_MAX_LINKS links (400 too_many_links), and RATE_LIMIT_SPAM_CHECKED_IP and
         RATE_LIMIT_SPAM_CHECKED_SITE apply (429). The same holds for adding a KV key.
+        The query param for (owner, or the owner signed in on the site's own address, only; SIM-358, 2026-11-06, review
+        fixes 2026-11-06) adds this row for one other signed-in visitor instead of the caller, by their visitor_id or the
+        email they signed in with, only on a table whose read is own (403 for_requires_own on any other table, checked on
+        the table's own matrix). It is refused (404 visitor_unknown) if they have never signed in on this site, or (400
+        visitor_email_ambiguous) if more than one signed-in person currently matches that email; there is no pre-sign-in
+        email binding. The server ignores any visitor_id or written_by the caller sends and sets them itself, visitor_id
+        to that visitor and written_by (added lazily, under the write lock, the first time a table is used this way;
+        409 written_by_blocked if a trigger or view appears to depend on the table) to owner, otherwise the empty string,
+        which is also written_by's value whenever for is absent, including a plain owner add. A row added this way does
+        not fire record.added to the owner's own subscriptions. Host only, 404 on Simple Hack and event storage.
       parameters:
       - $ref: '#/components/parameters/createIdempotencyKey'
       - in: path
@@ -12540,6 +12573,11 @@ paths:
       - in: path
         name: table
         required: true
+        schema:
+          type: string
+      - in: query
+        name: for
+        description: Owner (or owner-on-site) only. A visitor_id, or the email they signed in with, naming who this row is for.
         schema:
           type: string
       requestBody:
@@ -12562,7 +12600,7 @@ paths:
               schema: { $ref: '#/components/schemas/StorageRowCreated' }
         '400':
           description: 'invalid_rows: unknown table, invalid/injected column, order,
-            cursor or scalar value'
+            cursor or scalar value; visitor_email_ambiguous: for''s email currently matches more than one signed-in person'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -12572,17 +12610,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '403':
-          description: forbidden, csrf_required or site_locked
+          description: forbidden, csrf_required, site_locked, or for_requires_own (for on a table whose read is not own)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '404':
-          description: invalid_reference (parent missing or belongs to another visitor; identical response)
+          description: invalid_reference (parent missing or belongs to another visitor; identical response) or visitor_unknown (for names someone who has never signed in on this site)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '409':
-          description: row_conflict (generic uniqueness or constraint refusal)
+          description: row_conflict (generic uniqueness or constraint refusal), written_by_blocked (for''s lazy column upgrade refused because a trigger or view appears to depend on this table), or written_by_tampered (a trigger changed visitor_id or written_by as a side effect of this for insert; rolled back, SIM-358 round 2)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -12679,7 +12717,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StorageSQL' } } } }
       responses:
         '200': { description: 'changes: integer' }
-        '400': { description: 'Every SQL refusal says what happened and what to do, under a stable code (full list on the StorageSQL schema): sql_request, sql_params, sql_syntax, sql_multiple_statements, sql_param_count, sql_not_available, sql_use_query, sql_use_execute, sql_use_schema, sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_not_null_failed, sql_check_failed, sql_foreign_key_failed, sql_constraint_failed, sql_timeout, sql_value_too_large, sql_error, or visitor_id_required', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '400': { description: 'Every SQL refusal says what happened and what to do, under a stable code (full list on the StorageSQL schema): sql_request, sql_params, sql_syntax, sql_multiple_statements, sql_param_count, sql_not_available, sql_use_query, sql_use_execute, sql_use_schema, sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_not_null_failed, sql_check_failed, sql_foreign_key_failed, sql_constraint_failed, sql_timeout, sql_value_too_large, sql_error, visitor_id_required, or server_column (a CREATE TRIGGER/VIEW or ALTER naming written_by; SIM-358, 2026-11-06, a name match on the statement text, not a parser -- a positional INSERT elsewhere naming no column is unaffected, by design)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: table_preset_rename, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/files/{name}/objects:
     get:

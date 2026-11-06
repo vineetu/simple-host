@@ -220,27 +220,38 @@ func accessTools() []Tool {
 }
 
 // storageVisitorEmailsTool turns visitor_id values from a site's saved data
-// into the email each person signed in with, for the owner.
+// into the email each person signed in with, for the owner, or (emails,
+// added 2026-11-06 for SIM-358, the owner-adds-a-row-for-a-visitor ticket)
+// the other direction: an email into the visitor reference that names them
+// on this site, for ResolveOwnerFor or a later storage_sql_execute for
+// call. Reusing this existing tool's input, rather than a new tool, keeps
+// the tool list unchanged (ChatGPT freezes it); the output shape is also
+// unchanged, since visitor_id already carried an opaque reference either
+// way.
 func storageVisitorEmailsTool() Tool {
 	return Tool{
 		policy: toolPolicy{analytics: analyticsPolicy{structuredText: true, emailIdentity: true}, hackSiteExcluded: true},
 		Name:   "storage_visitor_emails",
 		Title:  "Who sent these records",
-		Description: "Turn visitor_id values from this site's saved data into the email each person signed in with, to answer \"who placed order 12?\" or \"who sent this?\". A visitor_id is on every row of a read-own SQLite table (storage_sql_query shows it) and, for you as the owner, on KV keys and stored files a visitor wrote (storage_get_kv, storage_list_kv_keys, storage_list_file_objects). " +
-			"Use only when the owner asks who sent particular entries; pass the visitor_id values from those rows. These are site-scoped references, and legacy raw IDs are also accepted. Only people who signed in on this site resolve. The emails are personal data: show them to the person, never put them in a page or in saved data.",
+		Description: "Turn visitor_id values from this site's saved data into the email each person signed in with, to answer \"who placed order 12?\" or \"who sent this?\", or the other way: turn an email into the visitor reference that names them on this site, to pass as for to storage_sql_execute (add a row on their behalf) or elsewhere a visitor reference is taken. A visitor_id is on every row of a read-own SQLite table (storage_sql_query shows it) and, for you as the owner, on KV keys and stored files a visitor wrote (storage_get_kv, storage_list_kv_keys, storage_list_file_objects). " +
+			"Give visitor_ids, emails, or both (site-scoped references and legacy raw IDs are accepted either way). Only people who signed in on this site resolve, matched against their current sign-in email, not a raw stored one; an email more than one signed-in person currently matches answers found: false rather than guess. There is no sign-in-less lookup by email. The emails are personal data: show them to the person, never put them in a page or in saved data.",
 		InputSchema: object(map[string]any{
 			"site": str(siteDesc),
 			"visitor_ids": map[string]any{"anyOf": []any{
 				map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string"}},
 				map[string]any{"type": "string"},
-			}, "description": "The visitor_id values from the requested rows, as an array or a JSON-encoded array."},
-		}, "site", "visitor_ids"),
+			}, "description": "The visitor_id values from the requested rows, as an array or a JSON-encoded array. Omit when giving emails instead."},
+			"emails": map[string]any{"anyOf": []any{
+				map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string"}},
+				map[string]any{"type": "string"},
+			}, "description": "Email addresses to resolve to a visitor reference, as an array or a JSON-encoded array. Combine with visitor_ids, or give this alone."},
+		}, "site"),
 		OutputSchema: outObject(map[string]any{
 			"site": outString(outSiteName),
-			"visitors": outArray("One entry per id asked.", outObject(map[string]any{
-				"visitor_id": outString("The id asked."),
-				"email":      outString("The email the person signs in with."),
-				"found":      outBool("false: the id never signed in on this site, or its account is gone."),
+			"visitors": outArray("One entry per id or email asked, in that order.", outObject(map[string]any{
+				"visitor_id": outString("The id asked (by visitor_ids), or the reference resolved for it (by emails); \"\" when an email did not resolve."),
+				"email":      outString("The email the person signs in with (by visitor_ids), or the email asked (by emails)."),
+				"found":      outBool("false: this id or email never signed in on this site, or its account is gone."),
 			}, "visitor_id", "found")),
 		}, "site", "visitors"),
 		Annotations: readOnly(),
@@ -261,27 +272,54 @@ func storageVisitorEmailsTool() Tool {
 					ids = append(ids, strings.TrimSpace(s))
 				}
 			}
-			if len(ids) == 0 || len(ids) > 100 {
-				return output{}, errors.New("visitor_ids is required: the visitor_id values from the rows")
+			rawEmails, _ := args["emails"].([]any)
+			if encoded, ok := args["emails"].(string); ok {
+				if json.Unmarshal([]byte(encoded), &rawEmails) != nil {
+					return output{}, errors.New("emails must be an array or JSON-encoded array")
+				}
+			}
+			var emails []string
+			for _, v := range rawEmails {
+				if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+					emails = append(emails, strings.ToLower(strings.TrimSpace(s)))
+				}
+			}
+			if len(ids)+len(emails) == 0 || len(ids)+len(emails) > 100 {
+				return output{}, errors.New("give 1 to 100 values total, in visitor_ids and/or emails")
+			}
+			siteID := ""
+			siteIDFor := func() (string, error) {
+				if siteID == "" {
+					var e error
+					siteID, e = c.visitorSiteID(name)
+					if e != nil {
+						return "", e
+					}
+				}
+				return siteID, nil
 			}
 			resolved := make([]string, len(ids))
-			siteID := ""
 			for i, id := range ids {
 				resolved[i] = strings.ToLower(id)
 				if strings.HasPrefix(id, "v_") {
-					if siteID == "" {
-						siteID, err = c.visitorSiteID(name)
-						if err != nil {
-							return output{}, err
-						}
+					sid, e := siteIDFor()
+					if e != nil {
+						return output{}, e
 					}
-					resolved[i], err = c.server.cfg.VisitorRefs.Decode(siteID, id)
+					resolved[i], err = c.server.cfg.VisitorRefs.Decode(sid, id)
 					if err != nil {
 						return output{}, err
 					}
 				}
 			}
-			res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/storage/visitors?id="+url.QueryEscape(strings.Join(resolved, ",")), nil, nil)
+			q := url.Values{}
+			if len(resolved) > 0 {
+				q.Set("id", strings.Join(resolved, ","))
+			}
+			if len(emails) > 0 {
+				q.Set("email", strings.Join(emails, ","))
+			}
+			res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/storage/visitors?"+q.Encode(), nil, nil)
 			if !res.ok() {
 				return output{}, restError("storage_visitor_emails", res)
 			}
@@ -295,7 +333,7 @@ func storageVisitorEmailsTool() Tool {
 			if err := json.Unmarshal(res.body, &body); err != nil {
 				return output{}, errors.New("storage_visitor_emails: server returned invalid JSON")
 			}
-			list := make([]any, 0, len(body.Visitors))
+			list := make([]any, 0, len(ids)+len(emails))
 			var lines []string
 			for i, id := range ids {
 				var email string
@@ -312,6 +350,32 @@ func storageVisitorEmailsTool() Tool {
 					lines = append(lines, id+": "+email)
 				} else {
 					lines = append(lines, id+": not found on this site")
+				}
+				list = append(list, item)
+			}
+			for _, email := range emails {
+				var rawID string
+				var found bool
+				for _, v := range body.Visitors {
+					if v.Email == email {
+						rawID, found = v.VisitorID, v.Found
+						break
+					}
+				}
+				item := map[string]any{"email": email, "found": found, "visitor_id": ""}
+				if found {
+					sid, e := siteIDFor()
+					if e != nil {
+						return output{}, e
+					}
+					ref, e := c.server.cfg.VisitorRefs.Encode(sid, rawID)
+					if e != nil {
+						return output{}, e
+					}
+					item["visitor_id"] = ref
+					lines = append(lines, email+": "+ref)
+				} else {
+					lines = append(lines, email+": not found on this site")
 				}
 				list = append(list, item)
 			}

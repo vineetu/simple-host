@@ -101,7 +101,12 @@ func analyticsSecretFieldForPolicy(policy toolPolicy, name string) bool {
 		// Teams redesign (2026-10-31): a team's link is a capability like its
 		// code (the join code it embeds), same treatment wherever it appears
 		// -- a rotated link, or the one on a team already read.
-		"link":
+		"link",
+		// for (SIM-358 review round 2, item B): names a visitor by email or
+		// by reference. Dropped unconditionally, not only when it looks like
+		// an email -- a raw visitor_id or even a v_ ref is a stable per-site
+		// identifier, globally correlatable the same way a key or code is.
+		"for":
 		return true
 	// Apply to a hackathon (2026-10-31 owner decision 5): AgentCat must not
 	// receive an applicant's city, country, age range or gender.

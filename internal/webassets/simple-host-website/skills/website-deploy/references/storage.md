@@ -108,7 +108,12 @@ default, and `tables` gives a table its own:
 
 Omit `tables` to keep the current table presets; `{}` clears them. A table whose
 preset uses `own` or lets visitors add gets the server-owned, indexed
-`visitor_id TEXT` column (do not declare it).
+`visitor_id TEXT` column (do not declare it), and, alongside it, a
+`written_by TEXT` column: `""` for a row the person in `visitor_id` added
+themselves (every row before this existed), `"owner"` for one the owner
+added on their behalf (`for`, below). Neither column is ever settable by a
+page; the owner forging `written_by = ""` to hide an add, or a visitor
+setting `visitor_id` or `written_by = "owner"`, is refused the same way.
 
 Pages never send SQL on a database with a preset. They use the table routes:
 `GET .../sqlite/{db}/tables/{t}/rows?order=&desc=1&limit=&after=&where.status=received`
@@ -395,6 +400,71 @@ order (`orders.list({where:{status:'placed'}})`) and sets a status
 trade-off of an admin page: while the owner is signed in on their own site, a bug
 or a malicious script on its pages could act on that site's data, so write
 visitors' text with `textContent`, never `innerHTML`.
+
+### The owner adds a row for one person (SIM-358)
+
+On a `records` or `personal` table, the owner may add a row on behalf of one
+already-signed-in person instead of waiting for them to add it — a coach
+assigning a client's program, a tutor replying to a student's message. The
+row's `visitor_id` becomes that person's, exactly as if they had added it
+themselves, and a second server-owned column, `written_by`, reads `"owner"`
+(otherwise `""`, including a plain add with no `for`) so the person's own
+reads never mistake it for their own write:
+
+```js
+// On the page, signed in as the owner on the site's own address.
+await SH.storage.sqlite('orders').table('orders').add(
+  {item: 'House blend, 1 lb'}, {for: pickedVisitorId}
+);
+```
+
+`storage_sql_execute` reaches the same path from a connector, by giving
+`table` and `values` instead of `sql` and `params`:
+
+```json
+{"site": "<site>", "name": "orders", "for": "client@example.com",
+ "table": "orders", "values": {"item": "House blend, 1 lb"}}
+```
+
+`for` only ever applies to a table whose read is `own` (`records`, `personal`)
+— refused `for_requires_own` on anything wider (`public`, `inbox`, `wall`,
+`comments`, `board`, `private`), where the row would otherwise be visible, or
+attributed, beyond that one person. `for` takes a `visitor_id` or the email
+that person signed in with (matched against their current sign-in email the
+same way `storage_visitor_emails`/`SH.me()` do, among people the server
+recorded as signed in on this site — never a raw username or OAuth-identity
+row alone, and never a guess among more than one match: `visitor_unknown`
+(404) if nobody matches, `visitor_email_ambiguous` if more than one does).
+There is no email binding before a first sign-in. It never fires
+`record.added` to the owner's own webhook subscriptions. `written_by` is
+added lazily, under the write lock, the first time a table is used this way
+— an existing `records`/`personal` table works without resaving its preset —
+and is refused (`written_by_blocked`) rather than risk reshaping a table a
+trigger or view depends on; a trigger that got written_by onto the table
+some other way, and then rewrites it as a side effect of a `for` insert, is
+caught after the fact and the whole add is rolled back
+(`written_by_tampered`). The owner's raw SQL console (`storage_sql_execute`
+without `for`) refuses a statement naming `written_by`, in `execute` and
+`schema` alike, so a new trigger or view cannot name it either — but this
+is a name match, not a parser: a positional `INSERT INTO t VALUES (...)`
+naming no column is not caught, by design (no SQL parsing was added to try
+to catch it). As always, raw SQL can still set `visitor_id` directly too.
+Provenance through `written_by` holds for rows added through the table
+routes, `auth.js`, and `for`; the raw SQL console remains exactly as
+unrestricted on server columns as it already was. Changing a table's
+preset later from `records`/`personal` to a wider read exposes an
+owner-added row the same as any other row there — expected behaviour of
+changing a preset, not specific to this feature. `for`, the pick list, and
+`storage_visitor_emails`'s `emails` direction
+are Host only (404 on Simple Hack and event storage): named viewers and this
+email resolution are not a Simple Hack concept. The owner's pick list of
+whom to add for: `SH.storage.people()` on the page, or
+`GET /v1/sites/<site>/storage/people` with the owner's key — people who have
+saved data here or are named viewers, each confirmed against the server's
+own sign-in record, never everyone who has merely signed in and never a raw
+table's content taken on trust. `storage_visitor_emails` also takes `emails`
+now, resolving each to the reference `for` takes, the same direction REST's
+`?email=` does. Worked example: `get_page_recipe` topic `people`.
 
 Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
 view (authors can remove their own), or `records` for photos only the sender and

@@ -20,4 +20,9 @@ type Call struct {
 	VisitorSessionID                        []byte
 	VisitorSessionUserID                    string
 	CSRFOK                                  bool
+	// OwnerFor: resolved and validated by ResolveOwnerFor, never taken
+	// directly from a request. Set only for an add by Owner or OwnerOnSite:
+	// the server stamps this visitor_id on the new row and marks it
+	// written_by the owner, instead of whatever the caller sent.
+	OwnerFor string
 }

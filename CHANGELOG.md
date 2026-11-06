@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-06: The owner can now add a row on a `records` or `personal` SQLite table on behalf of one signed-in visitor — a coach assigning a client's program, a tutor replying to a student — through `auth.js` (`table().add(values, {for})`), the REST API, or MCP (`storage_sql_execute` with `table`/`values`), by that visitor's reference or sign-in email; refused if they have never signed in on that site. The row is marked written by the owner, visible to the visitor, and never triggers the owner's own webhook subscriptions. A new owner-only pick list (`GET .../storage/people`, `SH.storage.people()`) shows the site's people who have saved data or are named viewers; `storage_visitor_emails` now also resolves emails to a visitor reference. New `get_page_recipe` topic `people` (SIM-358).
+
 2026-11-06: Simple Hack now has one name per person instead of one per event. Joining, applying, judging and accepting a co-organiser invite ask for a name only when your account doesn't already have one, and it's saved as your account name from then on; if you rename yourself on Account, that new name shows up in every event you're part of.
 
 2026-11-06: Simple Hack Event Basics lets organisers set start and end times with the schedule pickers. Empty times mean the start or end of the day; event dates show a time only when one is set (SIM-379).

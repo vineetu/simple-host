@@ -15,10 +15,10 @@ import (
 var recipeFiles embed.FS
 
 // One recipe per everyday job first (booking, inbox, public, portal), then one
-// per remaining storage preset, the owner's admin page, and the files gallery.
-// The aliases are the plain words people use for the same jobs; form is the
-// earlier name of inbox.
-var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "gallery", "wordpress",
+// per remaining storage preset, the owner's admin page, the files gallery,
+// and the owner/visitor page on one site (people). The aliases are the plain
+// words people use for the same jobs; form is the earlier name of inbox.
+var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "people", "gallery", "wordpress",
 	"reservation", "appointment", "quote", "waitlist", "contact", "form", "menu", "guestbook"}
 
 var recipeAliases = map[string]string{"form": "inbox", "quote": "inbox", "waitlist": "inbox", "contact": "inbox",
@@ -76,6 +76,13 @@ func HackPageRecipe(topic, site string) (string, error) {
 	if topic == "comments" || topic == "guestbook" {
 		return "", fmt.Errorf("topic %s is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post", topic)
 	}
+	// for, the people pick list, and the canonical-email resolution behind
+	// both are Host only (SIM-358 review round 2, item D): named viewers
+	// and this email resolution are not a Simple Hack concept, and the
+	// REST/MCP paths both already refuse for on Simple Hack regardless.
+	if topic == "people" {
+		return "", fmt.Errorf("topic people is not available on Simple Hack (for and the people pick list are Host only); use another topic")
+	}
 	text, err := PageRecipe(topic, site)
 	if err != nil {
 		return "", err
@@ -98,11 +105,40 @@ func HackPageRecipe(topic, site string) (string, error) {
 	return hackRecipeNote + text, nil
 }
 
-// hackPageRecipeTool is get_page_recipe for Simple Hack sites.
+// hackPageRecipeTool is get_page_recipe for Simple Hack sites. topic
+// people is removed from the enum entirely (not only refused at runtime,
+// review round 2 item D): for and the people pick list are Host only
+// (named viewers and the canonical-email resolution behind both are not a
+// Simple Hack concept), so there is no Simple Hack version of this recipe
+// to offer, unlike portal/comments/guestbook/wordpress below, which stay
+// listed and are refused with a reason when picked.
 func hackPageRecipeTool() Tool {
 	tool := pageRecipeTool()
 	tool.Description = strings.Replace(tool.Description, "; the owner's own photos go through create_upload_link, no page code", "", 1)
-	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there, nor comments or guestbook (no spam check there: use wall, where people sign in to post)."
+	tool.Description = strings.Replace(tool.Description, "people (one page, two views, for many signed-in visitors the owner also works with directly — a coach and clients, a tutor and students, a trainer and members: the owner picks a person, sees and adds to their rows, assigns from a template, replies by adding a row for them; each visitor sees only their own, marked as the owner's when the owner added it), ", "", 1)
+	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there, nor comments or guestbook (no spam check there: use wall, where people sign in to post); topic people does not exist there at all (for and the people pick list are Host only)."
+	hackTopics := make([]string, 0, len(recipeTopics))
+	for _, topic := range recipeTopics {
+		if topic != "people" {
+			hackTopics = append(hackTopics, topic)
+		}
+	}
+	props := map[string]any{}
+	for k, v := range tool.InputSchema["properties"].(map[string]any) {
+		props[k] = v
+	}
+	topicProp := map[string]any{}
+	for k, v := range props["topic"].(map[string]any) {
+		topicProp[k] = v
+	}
+	topicProp["enum"] = hackTopics
+	props["topic"] = topicProp
+	schema := map[string]any{}
+	for k, v := range tool.InputSchema {
+		schema[k] = v
+	}
+	schema["properties"] = props
+	tool.InputSchema = schema
 	tool.run = func(c *call, args map[string]any) (output, error) {
 		topic, err := stringArg(args, "topic")
 		if err != nil {
@@ -136,12 +172,14 @@ func pageRecipeTool() Tool {
 			"comments (a guestbook, comments, reviews, or questions anyone posts without signing in, after a spam check; the owner removes or approves posts), " +
 			"wall (reviews, comments, community posts everyone reads; people sign in to post, and can take back their own), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), " +
 			"personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner's own notes or log on the site), " +
-			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), gallery (photos visitors upload that everyone sees; the owner's own photos go through create_upload_link, no page code), " +
+			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), " +
+			"people (one page, two views, for many signed-in visitors the owner also works with directly — a coach and clients, a tutor and students, a trainer and members: the owner picks a person, sees and adds to their rows, assigns from a template, replies by adding a row for them; each visitor sees only their own, marked as the owner's when the owner added it), " +
+			"gallery (photos visitors upload that everyone sees; the owner's own photos go through create_upload_link, no page code), " +
 			"wordpress (moving the person's WordPress site here from their own export: the import link, the export clicks, and which Simple Host feature replaces each WordPress feature). " +
 			"Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. " +
 			"Call it before writing any page that saves what visitors send, shows saved data, or takes visitors' uploads; then run its setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
-			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, gallery, or wordpress. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
+			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, people, gallery, or wordpress. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),
 		}, "topic"),
 		OutputSchema: outObject(map[string]any{

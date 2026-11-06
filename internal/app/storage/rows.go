@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -104,6 +105,14 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 	if filter != "" && m.cols["visitor_id"] != "TEXT" {
 		return m, &Error{Code: "visitor_id_required", Message: "own needs the visitor_id TEXT column; set the policy again so the server adds it"}
 	}
+	if c.OwnerFor != "" {
+		if m.cols["visitor_id"] != "TEXT" {
+			return m, &Error{Code: "visitor_id_required", Message: "adding for someone needs the visitor_id TEXT column; set the policy again so the server adds it"}
+		}
+		if m.cols["written_by"] != "TEXT" {
+			return m, &Error{Code: "written_by_required", Message: "adding for someone needs the written_by TEXT column; set the policy again so the server adds it"}
+		}
+	}
 	m.rowid, err = runtime.RowID(conn, table, m.cols)
 	if err != nil {
 		return m, &Error{Code: "invalid_rows", Message: "invalid row request"}
@@ -123,6 +132,15 @@ func (s *Service) authorizeTable(ctx context.Context, c Call, table, action stri
 		return c, "", err.(*Error), false
 	}
 	c.CurrentMatrix = c.Resource.TableMatrix(table)
+	// for (ResolveOwnerFor) only applies to a table whose read is own
+	// (records, personal): anywhere wider, the row the owner "adds for"
+	// someone would be visible, or attributed, beyond that one visitor,
+	// which is exactly what own exists to prevent. Checked here, on the
+	// table's actual matrix, not on whether a visitor_id/written_by column
+	// happens to already exist.
+	if c.OwnerFor != "" && c.CurrentMatrix.Read != rules.WhoOwn {
+		return c, "", &Error{Code: "for_requires_own", Message: "for only adds a row on a table whose read is own (the records or personal presets); this table's read is " + c.CurrentMatrix.Read}, false
+	}
 	filter, err := s.Allow(&c, action, c.CurrentMatrix.Value(action))
 	if err != nil {
 		return c, filter, err.(*Error), err.(*Error).Allowed

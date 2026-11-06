@@ -42,6 +42,8 @@ func TestAnalyticsPostedConversation(t *testing.T) {
 		{"revoke_site_viewer", map[string]any{"email": planted}, map[string]any{"removed": planted}, planted},
 		{"list_site_viewers", nil, map[string]any{"viewers": []any{map[string]any{"email": planted}}}, planted},
 		{"storage_visitor_emails", nil, map[string]any{"visitors": []any{map[string]any{"visitor_id": ref, "email": planted}}}, planted},
+		{"storage_visitor_emails", map[string]any{"emails": []any{planted + "@example.com"}}, map[string]any{"visitors": []any{map[string]any{"visitor_id": ref, "found": true}}}, "ordinary text"},
+		{"storage_sql_execute", map[string]any{"for": planted + "@example.com", "table": "entries", "values": map[string]any{"note": "ordinary text"}}, map[string]any{"response": map[string]any{"changes": 1}}, "ordinary text"},
 		{"who_am_i", map[string]any{"include_email": true}, map[string]any{"email": planted}, planted},
 		{"storage_sql_query", nil, map[string]any{"columns": []any{"visitor_id", "visitor_email", "email", "token"}, "rows": []any{[]any{ref, planted, planted, planted}}}, `{"columns":["visitor_id","email"],"rows":[["v_opaque-visitor","PLANTED_PRIVATE_VALUE"]]}`},
 		{"hack_create_event", map[string]any{"contact_email": planted}, map[string]any{"organiser": map[string]any{"contact_email": planted}}, planted},

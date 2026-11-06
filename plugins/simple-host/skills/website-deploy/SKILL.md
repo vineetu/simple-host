@@ -34,6 +34,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 | favourites, measurements, a checklist, things each visitor keeps for themselves | `personal` | each person sees only their own |
 | the owner's own notes or log on the site | `private` | only the owner, signed in on the site |
 | a shop with a cart and orders | `records` | each customer sees their own orders; the owner sees all |
+| one page for an owner who works directly with many signed-in people (a coach and clients, a tutor and students) | `people` | the owner picks a person and adds to their rows (a program, a reply); each person sees only their own, marked as the owner's when the owner added it |
 | moving a WordPress or Squarespace site they own | `references/move-from-wordpress.md` (topic `wordpress`) | they export it, drop the files on a one-time page from `create_import_link`; then switch on each feature `get_import_report` lists |
 | moving another site they already have (Squarespace, Wix), "keep everything" | `references/move-a-site.md` | the same pages, look and paths; its forms, comments, guestbook and forum rebuilt with the topics above in the same pass |
 
@@ -80,6 +81,15 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 - **A page only the owner uses** (notes, a log, a list of entries). Topic `private` (`admin` to
   manage visitors' entries). The owner signs in on the page with their account email through the
   same sign-in box. Other jobs: the topic from the table.
+- **The owner works directly with many signed-in people** (a coach's clients, a tutor's
+  students). Topic `people`: one page, the owner's view and each person's, on a `records` or
+  `personal` table. The owner adds a row for one of them (a program, a reply) with
+  `table().add(values, {for: visitor_id or their email})` on the page, `storage_sql_execute`'s
+  `table`/`values` in place of `sql`/`params`, or the REST `for` query param; refused if that
+  person has never signed in on the site. `storage_visitor_emails` resolves an email either
+  direction. The owner's pick list of whom to add for is `SH.storage.people()` / `GET
+  .../storage/people` (owner only): people with saved data here or named-viewer status, never
+  everyone who has signed in. See `references/storage.md`.
 
 For ChatGPT, OpenAI, and Codex, use notifications if the owner asks to be told when entries arrive. In other apps, after building a form, offer notifications: use MCP Events if their app supports it, otherwise Notifications in the dashboard; read `references/notifications.md` (https://simple-host.app/v1/skills/website-deploy/references/notifications.md).
 
@@ -125,7 +135,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.95` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.97` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

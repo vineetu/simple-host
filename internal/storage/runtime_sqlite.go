@@ -102,6 +102,70 @@ func EnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(strin
 	return nil
 }
 
+// ErrWrittenBySchemaLocked is returned by EnsureWrittenByColumn when a
+// trigger or view's stored SQL appears to depend on the table, so altering
+// it could silently change what that trigger or view does (a SELECT * or
+// an INSERT ... SELECT * sees one more column than before).
+var ErrWrittenBySchemaLocked = fmt.Errorf("a trigger or view on this table may depend on its exact columns")
+
+// EnsureWrittenByColumn adds the server-owned written_by TEXT NOT NULL
+// DEFAULT ” column to table, lazily, the first time an owner add names
+// someone with for (SIM-358): unlike visitor_id (EnsureOwnTables, run at
+// preset-save time, on every table the preset's own/add rule needs), this
+// runs under the write lock, within the same locked window as the insert
+// it is for, so an existing records/personal table works on its very first
+// for use without the owner having to resave its preset.
+//
+// ” (the default, including every row before this column existed) means
+// the visitor in visitor_id wrote the row themselves; "owner" means the
+// owner added it on their behalf. The caller (ResolveOwnerFor's gate) only
+// ever calls this for a table whose read is own, so the column only ever
+// exists on an own-read table.
+//
+// Refuses (ErrWrittenBySchemaLocked) rather than risk a working trigger or
+// view silently changing shape: a conservative, table-name text match
+// against every stored trigger and view, not a true dependency analysis.
+// A false positive only means the owner removes or recreates that trigger
+// or view before using for here; it never applies the ALTER.
+func EnsureWrittenByColumn(conn *sqlite3.Conn, table string) error {
+	cols, err := TableColumns(conn, table)
+	if err != nil {
+		return err
+	}
+	if cols["written_by"] == "TEXT" {
+		return nil
+	}
+	if _, ok := cols["written_by"]; ok {
+		return fmt.Errorf("written_by TEXT required")
+	}
+	dependent, err := tableHasSchemaDependents(conn, table)
+	if err != nil {
+		return err
+	}
+	if dependent {
+		return ErrWrittenBySchemaLocked
+	}
+	return conn.Exec("ALTER TABLE " + Quote(table) + " ADD COLUMN written_by TEXT NOT NULL DEFAULT ''")
+}
+
+// tableHasSchemaDependents reports whether any trigger or view's stored SQL
+// text mentions table, a conservative stand-in for "depends on its current
+// columns" cheap enough to run on every for write.
+func tableHasSchemaDependents(conn *sqlite3.Conn, table string) (bool, error) {
+	stmt, _, err := conn.Prepare(`SELECT sql FROM sqlite_schema WHERE type IN ('trigger','view') AND sql IS NOT NULL`)
+	if err != nil {
+		return false, err
+	}
+	defer stmt.Close()
+	needle := strings.ToLower(table)
+	for stmt.Step() {
+		if strings.Contains(strings.ToLower(stmt.ColumnText(0)), needle) {
+			return true, nil
+		}
+	}
+	return false, stmt.Err()
+}
+
 // EnsureHoldTables gives each table that holds posts (need) the
 // server-owned approved_at TEXT column: NULL while a post waits for the
 // owner, a time once approved. Rows already in a table when the column is

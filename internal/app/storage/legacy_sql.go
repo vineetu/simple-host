@@ -11,8 +11,13 @@ import (
 	"github.com/vsriram/simple-host/internal/storage"
 	"io"
 	"log"
+	"regexp"
 	"strings"
 )
+
+// writtenByColumnRE matches the written_by identifier anywhere in a raw SQL
+// statement, quoted or not (SIM-358 review fix).
+var writtenByColumnRE = regexp.MustCompile(`(?i)\bwritten_by\b`)
 
 // LegacySQLInput contains the request and a deferred body reader.
 type LegacySQLInput struct {
@@ -86,6 +91,21 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 	}
 	if e := ValidateLegacySQL(req.SQL, req.Params); e != nil {
 		return LegacySQLResult{}, e
+	}
+	// written_by (SIM-358) is a server-owned column on the structured
+	// table-rows path (stampInsertValues/TableEdit); the owner's raw SQL
+	// console is a separate, pre-existing, unrestricted door that can
+	// still set visitor_id (documented, long-standing behaviour, left as
+	// is) but must not be able to forge written_by too. Cheap and
+	// deliberately coarse: any INSERT/UPDATE/DELETE naming the identifier
+	// anywhere is refused, rather than parsing the statement to see if it
+	// is really a write to that column. schema is refused the same way
+	// (review round 2): a CREATE TRIGGER/VIEW or ALTER body naming
+	// written_by could otherwise set or clear it as a side effect of an
+	// ordinary row-route insert, which runs with no authorizer for the
+	// owner (runTableWrite) and so cannot itself catch a trigger's write.
+	if (mode == "execute" || mode == "schema") && writtenByColumnRE.MatchString(req.SQL) {
+		return LegacySQLResult{}, &Error{Code: "server_column", Message: "written_by is set by the server; raw SQL may not reference it, including inside a trigger or view"}
 	}
 	sql, params := req.SQL, req.Params
 	var unlock func()

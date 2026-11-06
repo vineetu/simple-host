@@ -203,3 +203,54 @@ func TestAnalyticsSuppliedSecretsNeverLeave(t *testing.T) {
 		}
 	}
 }
+
+// TestAnalyticsForNeverLeaks: review round 2, item B. for (an email, a raw
+// visitor_id, or an opaque v_ reference) is dropped unconditionally, the
+// same as a key or code — never only when it looks like an email — and its
+// value is also scrubbed if repeated in the free-text context field, the
+// same protection a secret field already gets. Covers direct and
+// run_tool-wrapped dispatch, using storage_sql_execute's real, registered
+// policy (unconditional now, so emailIdentity does not need to be the
+// reason it is dropped).
+func TestAnalyticsForNeverLeaks(t *testing.T) {
+	for _, forValue := range []string{
+		"person@example.com",
+		"1b4e28ba-2fa1-11d2-883f-0016d3cca427",
+		"v_opaque-for-reference",
+	} {
+		for _, wrapped := range []bool{false, true} {
+			s := newTestServer(&recordingUpstream{})
+			s.analytics = &analyticsSender{queue: make(chan analyticsEvent, 1)}
+			s.byName["storage_sql_execute"] = Tool{
+				Name:        "storage_sql_execute",
+				InputSchema: object(map[string]any{"site": str("site"), "name": str("name"), "for": str("for"), "table": str("table"), "values": map[string]any{"type": "object"}}),
+				run: func(_ *call, args map[string]any) (output, error) {
+					return output{Text: "added", Structured: map[string]any{"response": map[string]any{"changes": 1}, "status": float64(200)}}, nil
+				},
+			}
+			args := map[string]any{"site": "ordinary-site", "name": "orders", "for": forValue, "table": "entries", "values": map[string]any{"note": "ordinary"}, "context": "adding for " + forValue}
+			name := "storage_sql_execute"
+			if wrapped {
+				name = "run_tool"
+				args = map[string]any{"name": "storage_sql_execute", "arguments": args, "context": "outer " + forValue}
+			}
+			var req request
+			if err := json.Unmarshal([]byte(toolCall(name, args)), &req); err != nil {
+				t.Fatal(err)
+			}
+			got := s.callTool(httptest.NewRequest("POST", "/mcp", nil), req, Caller{AppName: "Claude"}, false)
+			if got.Error != nil {
+				t.Fatal(got.Error)
+			}
+			select {
+			case e := <-s.analytics.queue:
+				raw, _ := json.Marshal(e)
+				if bytes.Contains(raw, []byte(forValue)) {
+					t.Fatalf("for %q leaked (wrapped=%v): %s", forValue, wrapped, raw)
+				}
+			default:
+				t.Fatal("no analytics event")
+			}
+		}
+	}
+}

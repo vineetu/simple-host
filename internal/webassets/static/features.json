@@ -1483,6 +1483,39 @@
      "evidence": "FEATURES.md §23 'Who sent each record (2026-10-10)' paragraph ('Hosted and small box; not Simple Hack (404 there)'); PARITY row 'Who sent each record (2026-10-10)'."
     },
     {
+     "id": "storage-owner-for-visitor",
+     "name": "Add a record for one signed-in visitor",
+     "line": "The owner adds a row on a records or personal table for one visitor who has already signed in, instead of waiting for them to add it.",
+     "who": "A coach who assigns a client's program, a tutor replying to a student, or any owner who works directly with many signed-in people one at a time.",
+     "how": "The row's visitor_id is set to that visitor, so only they (and the owner) see it, exactly as if they had added it themselves; a second column, written_by, is marked owner so it never looks like the visitor's own, in their own reads and anywhere else the row's columns show. The visitor must have signed in on that site at least once already; naming anyone else answers not found, with no email-only binding before a first sign-in. The owner's own subscriptions are not notified. The same check runs whether the owner uses their key, the connector, or is signed in on the site's own address; a pick list shows only people with saved data here or named-viewer status, never everyone who has signed in.",
+     "example": "A gym coach picks a client from the list, assigns this week's program, and replies to their check-in message; the client's own page shows both, marked as from the coach.",
+     "where": "Ask your AI app, or get_page_recipe topic people for one page with the owner's view and the client's.",
+     "limits": "Records and personal tables only (KV and files are not covered). The visitor needs a visitor identity on that site already.",
+     "editions": {
+      "host": "yes",
+      "hack": "yes",
+      "enterprise": "no",
+      "smallbox": "yes"
+     },
+     "editions_note": "The pick list and resolving a person by email are Host only (named viewers and storage_visitor_emails are not a Simple Hack concept); on Simple Hack the owner names the visitor by their reference instead. Enterprise is a later port.",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "Recipe: people",
+       "href": "/recipes/people"
+      },
+      {
+       "label": "API reference: storage",
+       "href": "/docs.html#storage-details"
+      }
+     ],
+     "covers": [
+      "storage-owner-for-visitor"
+     ],
+     "evidence": "FEATURES.md §23 'Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06)' paragraph; PARITY row 'Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06)'."
+    },
+    {
      "id": "storage-sql-errors",
      "name": "SQL errors that say what to fix",
      "line": "Every refused query, statement, or schema change carries a stable code and a message with the cause and the fix.",

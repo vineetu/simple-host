@@ -2958,6 +2958,83 @@ WHERE id = 12`, then `storage_visitor_emails`. Hosted and small box; not Simple 
 
 Routes: `/v1/sites/{sitename}/storage/visitors`.
 
+**Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06; review fixes <a id="storage-owner-for-visitor"></a>
+2026-11-06).** On a SQLite table whose preset reads `own` (`records`, `personal`) — checked on the
+table's actual matrix, never on whether a column happens to exist, so `for` is refused
+(403 `for_requires_own`) on `public`, `inbox`, `wall`, `comments`, `board` or `private`, where it
+would otherwise make a row visible, or attributed, beyond the one visitor it names — the owner may
+add a row on behalf of one already-signed-in visitor: the row's server-owned `visitor_id` is set to
+that visitor, so only that visitor (and the owner) sees it, exactly as if they had added it
+themselves — same column, same presets, no schema change for anyone who does not use this.
+Everything else about presets is unchanged, and under `records` the visitor can still read but never
+edit or delete the owner's row; under `personal` they can (same as their own rows; `written_by` is
+protected from a PATCH either way, by owner or visitor). The visitor must have a visitor identity on
+that site already (signed in at least once, recorded by the server, never taken from a table a raw
+owner SQL statement could have written); there is no pre-sign-in email binding, and a request naming
+anyone else answers 404 `visitor_unknown` (or 400 `visitor_email_ambiguous` for an email more than
+one signed-in person currently resolves to — refused, never guessed). A row the owner adds this way
+is marked `written_by` "owner" (a second server-owned column, `""` by default, meaning the visitor
+wrote it themselves — every row from before this feature existed included): visible to the visitor's
+own reads and in the owner's raw-file site export, and anywhere else the row's columns show, so it
+never looks like the visitor's own write. There is no separate History/undo feature for SQLite
+storage rows (unlike the older declared-data system's 30-day History) — `written_by` is simply one
+of the row's columns, so it needs no dashboard change to show. It does not fire `record.added` to
+the owner's own webhook subscriptions, whichever of the two owner paths below adds it — an
+owner-on-site add with no `for` still does, unchanged.
+
+`written_by` is added lazily, under the site's write lock, the first time a table is used this way
+— an existing `records`/`personal` table works on its very first `for` add, with no need to resave
+its preset — and the add is refused (409 `written_by_blocked`) rather than risk it, if a trigger or
+view's stored SQL appears to depend on the table (a conservative name match, not true dependency
+analysis: a false positive only means removing or recreating that trigger or view first).
+`storage_sql_execute` and the other raw-SQL routes are the owner's separate, pre-existing,
+unrestricted console (`fixed_routes_required` keeps pages off it); they refuse a statement naming
+`written_by` (400 `server_column`, in `execute` and `schema` alike, so a trigger or view cannot
+name it either) but, as always, can still set `visitor_id` directly — pre-existing, documented,
+unrestricted. This is a name match on the statement text, not a parser: an `INSERT INTO t VALUES
+(...)` that supplies `written_by` by column position, naming no column at all, is not caught (and,
+on purpose, this ticket does not add SQL parsing to try). The `written_by` guarantee — a row is
+marked `written_by` "owner" if and only if the owner added it on someone's behalf — holds for rows
+added through the table routes, `auth.js`, and `for`, the three paths below; the owner's raw SQL
+console remains exactly as unrestricted on server columns as it already was, including `visitor_id`
+and, through a positional `INSERT`, `written_by` too. Separately: changing a table's preset later
+from `records`/`personal` to a wider read exposes an owner-added row the same as any other row on
+that table — expected, pre-existing behaviour of changing a preset, not specific to this feature.
+
+Three paths, one app-service check (`ResolveOwnerFor`, `internal/app/storage/visitors.go`): the
+owner's REST key or connector token, and the owner signed in on the site's own address
+(`auth.js` `table(t).add(values, {for: ref})`), both add the `for` query parameter to
+`POST .../tables/{table}/rows`, a visitor_id or the email that visitor signed in with; and the MCP
+`storage_sql_execute` tool, which takes `for` (a visitor reference or an email) with `table` and
+`values` in place of `sql` and `params`, routed through the same REST call rather than raw SQL, so
+the same checks and the same `written_by` marker apply everywhere. An email resolves against the
+same canonical sign-in email `storage_visitor_emails`/`SH.me()` use (not a raw username or OAuth
+match alone), among people the server recorded as signed in on this site. `storage_visitor_emails`
+is reused rather than a new tool: it now also takes `emails`, resolving each to the visitor
+reference `for` takes (the output shape is unchanged either direction). The owner's pick list of
+whom a row may be added for, `GET /v1/sites/{sitename}/storage/people` (`SH.storage.people()` for a
+page signed in as the owner), lists only this site's people who have saved data here or are named
+viewers, each confirmed against the server's own sign-in record — never everyone who has merely
+signed in, and never a table's raw content taken on trust. `get_page_recipe` topic `people`: one
+page, an owner view (pick a person, see and add to their rows, assign from a template, reply by
+adding a row for them) and a visitor view (their own rows only), the general shape behind a coach
+and clients, a tutor and students, or any owner who works directly with many signed-in people one at
+a time. Hosted and small box only: `for`, the pick list, and `storage_visitor_emails`'s `emails`
+direction all answer 404 on Simple Hack and event storage (REST and MCP), one policy, since named
+viewers and this canonical-email resolution are not a Simple Hack concept; Enterprise is a later
+port (PARITY.md). Events stay id-only; `for`, `emails` and the for-mode's `values` are removed from
+what reaches AgentCat the same way other visitor-identity and secret fields are. Source:
+`internal/app/storage/{row_write,people,visitors,legacy_sql}.go`,
+`internal/storage/runtime_sqlite.go`, `internal/repository/storage/visitors.go`,
+`internal/handler/site_storage_{table,visitors}.go`,
+`internal/mcp/{access_tools,storage_tools,analytics_sanitize}.go`, `internal/mcp/recipes/people.md`;
+tests `internal/handler/site_storage_owner_for_test.go`,
+`internal/storage/runtime_sqlite_writtenby_test.go`, `internal/mcp/analytics_sanitize_test.go`.
+
+Routes: `/v1/sites/{sitename}/storage/people`; `for` on
+`POST /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows`; `email` on
+`GET /v1/sites/{sitename}/storage/visitors`.
+
 **Each person's records** (shipped hosted 2026-10-06; verified small-box v0.7.10; <a id="each-persons-records"></a>
 general pattern named 2026-10-08): people add records, each sees only their own
 with status and history, and the owner sees and updates all. Use own reads,

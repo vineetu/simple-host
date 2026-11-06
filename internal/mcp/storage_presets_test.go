@@ -24,7 +24,7 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 		if preset == "" {
 			preset = topic
 		}
-		if topic != "admin" && topic != "gallery" && topic != "wordpress" && !strings.Contains(text, `"preset": "`+preset+`"`) {
+		if topic != "admin" && topic != "people" && topic != "gallery" && topic != "wordpress" && !strings.Contains(text, `"preset": "`+preset+`"`) {
 			t.Fatalf("%s: does not set preset %s", topic, preset)
 		}
 	}
@@ -48,6 +48,14 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 	for _, topic := range recipeTopics {
 		if topic == "portal" {
 			continue // refused on Simple Hack (TestHackRefusesPortalRecipe)
+		}
+		if topic == "people" {
+			// for and the people pick list are Host only (review round 2);
+			// not offered on Simple Hack at all, not even in the enum.
+			if _, err := HackPageRecipe(topic, "team"); err == nil {
+				t.Fatal("people recipe served on Simple Hack")
+			}
+			continue
 		}
 		if topic == "wordpress" {
 			// Simple Hack has no import link: team sites are new builds.
@@ -81,6 +89,26 @@ func TestHackRefusesPortalRecipe(t *testing.T) {
 	}
 	if _, err := HackPageRecipe("booking", "team"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Simple Hack does not offer the people recipe at all (review round 2,
+// item D): for and the people pick list are Host only, so unlike
+// portal/comments/guestbook/wordpress (listed, refused with a reason),
+// people is removed from hack_get_page_recipe's topic enum entirely.
+func TestHackPeopleRecipeNotOffered(t *testing.T) {
+	if _, err := HackPageRecipe("people", "team"); err == nil {
+		t.Fatal("people recipe served on Simple Hack")
+	}
+	tool := hackPageRecipeTool()
+	topicEnum, _ := tool.InputSchema["properties"].(map[string]any)["topic"].(map[string]any)["enum"].([]string)
+	for _, topic := range topicEnum {
+		if topic == "people" {
+			t.Fatal("hack_get_page_recipe's topic enum still lists people")
+		}
+	}
+	if strings.Contains(tool.Description, "a coach and clients") {
+		t.Fatal("hack_get_page_recipe description still advertises the people recipe")
 	}
 }
 

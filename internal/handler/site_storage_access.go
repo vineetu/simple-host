@@ -194,7 +194,17 @@ func (h *SiteHandler) loadStorageResource(ctx context.Context, siteID, name stri
 // there; it covers custom domains and families, whose pages nginx serves
 // without ownerFrameGuard) or from a preview of an earlier version.
 func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
-	if c.visitorAI || c.visitorID == "" || c.resource.Access == nil {
+	if c.resource.Access == nil {
+		return false
+	}
+	return h.storageSiteOwnerOnSite(r, c)
+}
+
+// storageSiteOwnerOnSite is storageOwnerOnSite without the one-resource
+// preset check, for a site-level storage endpoint that names no resource
+// (the people pick list, SIM-358).
+func (h *SiteHandler) storageSiteOwnerOnSite(r *http.Request, c storageCall) bool {
+	if c.visitorAI || c.visitorID == "" {
 		return false
 	}
 	if !h.ed.Storage().EventOwners && c.visitorID != c.ownerID {

@@ -490,6 +490,7 @@ func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/resources", h.listStorageResources)
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/usage", h.getStorageUsage)
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/visitors", h.storageVisitors)
+	mux.HandleFunc("GET /v1/sites/{sitename}/storage/people", h.storagePeople)
 	mux.HandleFunc("PUT /v1/sites/{sitename}/storage/resources/{name}", h.putStorageResource)
 	mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/resources/{name}", h.deleteStorageResource)
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/kv/{name}/keys", h.storageKV)

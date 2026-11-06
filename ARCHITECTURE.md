@@ -180,6 +180,13 @@ Simple Hack has no person pages.
   truncate IPs to /24 or /48 (`internal/analytics`, `app/operations/apimetrics.go:truncateIP`).
 - Account middleware reads keys, not visitor cookies (`auth/middleware.go:Middleware`). Hosted
   pages use site-scoped visitor identity; do not embed an owner's key in a hosted page.
+- An owner add on behalf of a visitor (`for`, SIM-358) is resolved and validated once
+  (`app/storage.Service.ResolveOwnerFor`) and carried on `Call.OwnerFor`; `stampInsertValues`
+  (`app/storage/row_write.go`) is the only place that turns it into `visitor_id` and the
+  server-owned `written_by` column, for the owner's key, connector token, or the owner signed in
+  on the site's own address alike. Do not set `visitor_id` from caller-supplied values anywhere
+  else in that path; the owner's raw `storage_sql_execute`/`execute` SQL console is a separate,
+  pre-existing, unrestricted door and is not where this check runs.
 - Site gates include suspension/offline, passcodes or named viewers; unlisted is listing/robots
   policy, not an access lock. Reads are not universally public (`handler/passcode.go:siteGate`,
   `viewers.go`, `unlisted.go`, `internal/app/storage/access.go`). A shared site-wide passcode and

@@ -100,6 +100,7 @@ stage-and-entry-fixes
 standalone-full-platform-package
 state-existing-sites-only
 storage-comments
+storage-owner-for-visitor
 storage-presets
 storage-recipes
 storage-schema

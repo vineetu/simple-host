@@ -30,6 +30,19 @@ func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput, 
 		return 0, err
 	}
 	defer done()
+	if c.OwnerFor != "" {
+		// Lazy, same-locked-window upgrade (review fix, SIM-358): an
+		// existing records/personal table gets written_by on its first
+		// for use, not only on a resaved preset. authorizeTable already
+		// refused for on anything but an own-read table, so this never
+		// touches a wall/board/etc. table.
+		if err := runtime.EnsureWrittenByColumn(conn, in.Table); err != nil {
+			if errors.Is(err, runtime.ErrWrittenBySchemaLocked) {
+				return 0, &Error{Code: "written_by_blocked", Message: "a trigger or view on this table may depend on its exact columns; remove or recreate it before adding a row with for"}
+			}
+			return 0, &Error{Code: "internal_error", Message: "internal server error"}
+		}
+	}
 	meta, err := tableMetadata(conn, c, in.Table, filter)
 	if err != nil {
 		return 0, err
@@ -166,14 +179,31 @@ func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, err
 type InsertActor struct {
 	Owner, OwnerOnSite, Hold bool
 	StampID                  string
+	// OwnerFor: set only when Owner (or OwnerOnSite) is adding this row for
+	// another, already-validated, signed-in visitor (ResolveOwnerFor). It
+	// is the one way an owner write ends up with a non-empty visitor_id.
+	OwnerFor string
 }
 
-// stampInsertValues fills server-owned values for an insert.
+// stampInsertValues fills server-owned values for an insert. visitor_id and
+// written_by are always server-decided, never taken from the caller's
+// values: a visitor can set neither (self-authored, written_by ”); a plain
+// owner add leaves visitor_id empty (nobody's, written_by ”); only
+// OwnerFor, already checked by ResolveOwnerFor, produces a row stamped to
+// someone else's visitor_id and written_by "owner" — the server can never
+// be asked to forge the other direction.
 func stampInsertValues(cols map[string]string, values map[string]json.RawMessage, actor InsertActor) {
 	owner, ownerOnSite, hold, stampID := actor.Owner, actor.OwnerOnSite, actor.Hold, actor.StampID
 	encode := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
-	if !owner {
-		delete(values, "visitor_id")
+	delete(values, "visitor_id")
+	delete(values, "written_by")
+	// onBehalf: an on-behalf-of add, whether reached by the owner's API
+	// key/connector token or by the owner signed in on the site's own
+	// address (OwnerOnSite) — both resolve and validate OwnerFor the same
+	// way (ResolveOwnerFor), so both take this branch instead of the
+	// ordinary OwnerOnSite self-add path below.
+	onBehalf := (owner || ownerOnSite) && actor.OwnerFor != ""
+	if !owner && !onBehalf {
 		delete(values, "created_at")
 		delete(values, "updated_at")
 		if _, ok := cols["visitor_id"]; ok {
@@ -191,8 +221,22 @@ func stampInsertValues(cols map[string]string, values map[string]json.RawMessage
 				values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
 			}
 		}
-	} else if _, set := values["approved_at"]; hold && !set {
-		values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+	} else {
+		if _, set := values["approved_at"]; hold && !set {
+			values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+		}
+		if onBehalf {
+			if _, ok := cols["visitor_id"]; ok {
+				values["visitor_id"] = encode(actor.OwnerFor)
+			}
+		}
+	}
+	if _, ok := cols["written_by"]; ok {
+		writtenBy := ""
+		if onBehalf {
+			writtenBy = "owner"
+		}
+		values["written_by"] = encode(writtenBy)
 	}
 }
 
@@ -209,7 +253,7 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 			return 0, &Error{Code: "invalid_rows", Message: "the server assigns ids"}
 		}
 	}
-	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID)})
+	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID), OwnerFor: c.OwnerFor})
 	query, params, err := runtime.PrepareInsert(in.Table, meta.rowid, meta.cols, in.Values, !c.Owner)
 	if err != nil {
 		return 0, &Error{Code: "invalid_rows", Message: "invalid row request"}
@@ -226,10 +270,47 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 	if err = checkRowReferences(conn, c, in.Table, meta.rowid, id); err != nil {
 		return 0, err
 	}
+	if c.OwnerFor != "" {
+		// A trigger the owner's own (otherwise unrestricted) schema route
+		// created could still run as a side effect of this very INSERT and
+		// rewrite visitor_id or written_by afterward — runTableWrite
+		// installs no authorizer for c.Owner, so it cannot itself catch
+		// that (review round 2). Re-read the row, inside this same
+		// transaction, before committing; a mismatch rolls the whole add
+		// back rather than ship a row that looks like the visitor's own.
+		if err = verifyOwnerForRow(conn, in.Table, meta.rowid, id, c.OwnerFor); err != nil {
+			return 0, err
+		}
+	}
 	if err = s.finishTableWrite(conn, c, commit); err != nil {
 		return 0, err
 	}
 	return id, nil
+}
+
+// verifyOwnerForRow confirms an on-behalf-of insert's own values survived
+// unchanged (no trigger rewrote visitor_id or written_by as a side effect
+// of the same INSERT). Must run before the caller commits.
+func verifyOwnerForRow(conn *sqlite3.Conn, table, rowid string, id int64, target string) error {
+	stmt, _, err := conn.Prepare(`SELECT visitor_id, written_by FROM ` + runtime.Quote(table) + ` WHERE ` + rowid + ` = ?`)
+	if err != nil {
+		return &Error{Code: "internal_error", Message: "internal server error"}
+	}
+	defer stmt.Close()
+	if err := stmt.BindInt64(1, id); err != nil {
+		return &Error{Code: "internal_error", Message: "internal server error"}
+	}
+	if !stmt.Step() {
+		if err := stmt.Err(); err != nil {
+			return &Error{Code: "internal_error", Message: "internal server error"}
+		}
+		return &Error{Code: "written_by_tampered", Message: "a trigger on this table removed the row before the add could be verified; the add was rolled back"}
+	}
+	visitorID, writtenBy := stmt.ColumnText(0), stmt.ColumnText(1)
+	if visitorID != target || writtenBy != "owner" {
+		return &Error{Code: "written_by_tampered", Message: "a trigger on this table changed visitor_id or written_by after the insert; the add was rolled back"}
+	}
+	return nil
 }
 
 // TableEdit authorizes and performs the complete row update.
@@ -261,8 +342,8 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 	names := make([]string, 0, len(values))
 	for name := range values {
 		lower := strings.ToLower(name)
-		if lower == "visitor_id" || lower == "created_at" || lower == "updated_at" || lower == "rowid" || lower == "_rowid_" || lower == "oid" || pk[name] || meta.hold && !c.Owner && !c.OwnerOnSite && strings.EqualFold(name, "approved_at") {
-			return TableResult{}, &Error{Code: "server_column", Message: "id, visitor_id, created_at, and updated_at are set by the server"}
+		if lower == "visitor_id" || lower == "written_by" || lower == "created_at" || lower == "updated_at" || lower == "rowid" || lower == "_rowid_" || lower == "oid" || pk[name] || meta.hold && !c.Owner && !c.OwnerOnSite && strings.EqualFold(name, "approved_at") {
+			return TableResult{}, &Error{Code: "server_column", Message: "id, visitor_id, written_by, created_at, and updated_at are set by the server"}
 		}
 		if _, ok := meta.cols[name]; !ok {
 			return TableResult{}, &Error{Code: "invalid_rows", Message: "invalid row request"}
@@ -301,7 +382,13 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 
 func (s *Service) rowNotification(c Call, table, name, change string, id int64, values map[string]json.RawMessage) func() {
 	return func() {
-		if c.Owner || s.deps.Notify == nil {
+		// c.Owner (API key, connector token) already never notifies. A row
+		// added on behalf of a visitor (c.OwnerFor) must not either, even
+		// when reached through OwnerOnSite (auth.js on the owner's own
+		// site), which otherwise does notify like any other owner-on-site
+		// add: it is the owner's own write, not something to tell the
+		// owner's own subscriptions happened.
+		if c.Owner || c.OwnerFor != "" || s.deps.Notify == nil {
 			return
 		}
 		data := map[string]any{"table": table, "row_id": id}
