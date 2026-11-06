@@ -12,6 +12,6 @@ WITH candidates AS (
     FROM candidates
    ORDER BY user_id, named_at DESC, event_id DESC, source DESC
 )
-UPDATE users u SET display_name = latest.name
+UPDATE users u SET display_name = left(latest.name, 100)
   FROM latest
  WHERE u.id = latest.user_id AND COALESCE(btrim(u.display_name),'') = '';

@@ -29953,9 +29953,7 @@
                   },
                   "display_name": {
                     "type": "string",
-                    "description": "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored.",
-                    "minLength": 1,
-                    "maxLength": 100
+                    "description": "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored."
                   }
                 }
               }

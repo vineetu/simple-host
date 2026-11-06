@@ -66,6 +66,8 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 			accountName = strings.TrimSpace(u.DisplayName.String)
 		}
 	}
+	// The body carries the caller's own account name: never cache it.
+	w.Header().Set("Cache-Control", "no-store")
 	if h.rateLimited(w, r, caller) {
 		return
 	}

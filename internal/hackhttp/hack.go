@@ -1697,6 +1697,8 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 			accountName = strings.TrimSpace(u.DisplayName.String)
 		}
 	}
+	// The body carries the caller's own account name: never cache it.
+	w.Header().Set("Cache-Control", "no-store")
 	if h.rateLimited(w, r, caller) {
 		return
 	}
