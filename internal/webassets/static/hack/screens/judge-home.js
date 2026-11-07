@@ -1,3 +1,4 @@
+import { renderChecklist, checklistActionLabel } from '../checklist.js'
 import { href } from '../nav.js'
 import { errText } from './_judge-util.js'
 import { startTour } from '../tour.js'
@@ -55,12 +56,13 @@ export async function render(ctx) {
   bindDismiss(main, client, ui, slug, () => { if (ctx.alive()) ctx.refresh() })
   const body = main.querySelector('#jh-body')
 
-  let queueRes, confRes, preview
+  let queueRes, confRes, preview, checklistRes
   try {
-    ;[queueRes, confRes, preview] = await Promise.all([
+    ;[queueRes, confRes, preview, checklistRes] = await Promise.all([
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/queue`),
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts?mine=1`),
-      previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null)
+      previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null),
+      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/checklist?role=judge`)
     ])
   } catch (e) {
     if (client.isSignedOut(e)) return
@@ -123,9 +125,19 @@ export async function render(ctx) {
   // &walkthrough=1, which forces the guided tour open even if it was
   // dismissed before. tour.js itself checks judge_walkthrough_done.
   const openWalk = ctx.params.get('walkthrough') === '1'
-  body.innerHTML = top +
-    `<h2 class="section-title">Read first</h2><div class="list"><a class="r" href="${ui.esc(href('judge', slug, 'rubric'))}"><span class="main"><b>Rubric &amp; brief</b><span>Read it once before you start</span></span><span class="meta">Open</span></a></div>`
-    + judgeDangerZone(ui, preview, ev, detail.role === 'organiser')
+  body.innerHTML = top + judgeDangerZone(ui, preview, ev, detail.role === 'organiser')
+
+  if (checklistRes.ok) {
+    const checklist = checklistRes.data.checklist
+    const next = checklist.next
+    if (next?.kind === 'link' && next.item_id !== 'j.scores' && next.link) {
+      const hero = body.querySelector('.next')
+      if (hero) { hero.querySelector('h2').textContent = next.label; const link = hero.querySelector('a'); link.href = next.link.href; link.textContent = checklistActionLabel(next) }
+    }
+    const card = renderChecklist({ ui, checklist, title: 'Your checklist' })
+    const danger = body.querySelector('.danger-zone')
+    body.insertBefore(card, danger)
+  }
 
   const leaveBtn = body.querySelector('#leave-btn')
   if (leaveBtn && !leaveBtn.disabled) leaveBtn.addEventListener('click', () => openLeave({ api: client, ui, slug, title: ev.title, from: 'judge-home' }))

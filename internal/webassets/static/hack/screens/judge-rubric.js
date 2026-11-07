@@ -1,3 +1,4 @@
+import { bindAcknowledgement } from '../checklist.js'
 import { paragraphs } from './_judge-util.js'
 
 export function title() { return 'Rubric & brief' }
@@ -18,6 +19,7 @@ export async function render(ctx) {
     main.innerHTML += `<div class="note bad" role="alert">Cannot reach the server.</div>`
     return
   }
+  if (ctx.alive && !ctx.alive()) return
   if (!r.ok) {
     main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1></div></div><div class="note bad" role="alert">${ui.esc(r.data && r.data.error || 'Could not load the rubric.')}</div>`
     return
@@ -37,4 +39,5 @@ export async function render(ctx) {
     : ''
 
   main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>What each score means.</p></div></div>${rubricCard}${aboutCard}`
+  await bindAcknowledgement(ctx, { node: main.querySelector('.card'), id: 'j.rubric', label: "I've read it", role: 'judge' })
 }

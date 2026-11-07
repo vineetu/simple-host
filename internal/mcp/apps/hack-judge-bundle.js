@@ -1004,6 +1004,44 @@
     render: () => render2,
     title: () => title2
   });
+
+  // internal/handler/static/hack/checklist.js
+  async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after }) {
+    const { ui, api, event } = ctx;
+    const base = `/v1/hack/events/${encodeURIComponent(event.event.slug)}/checklist`;
+    const r = await api.api("GET", base + (role ? "?role=" + role : ""));
+    if (ctx.alive && !ctx.alive()) return;
+    if (!r.ok) {
+      ui.live(node)(ui.errText(r), "err");
+      return;
+    }
+    const item = r.data.checklist?.items.find((i) => i.id === id) || (id === "o.rubric-ready" ? r.data.checklist?.items.find((i) => i.id === "o.rubric") : null);
+    if (!item || item.id === id && item.state === "done" || !item.version && id !== "j.conflicts") return;
+    const button = ui.el("button", { class: "btn", type: "button", text: label });
+    button.disabled = !!ui.writeLockReason(event.event, event.admin_view);
+    node.append(button);
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        const result = await api.api("POST", base + "/acknowledgements/" + id, item.version ? { version: item.version } : {});
+        if (ctx.alive && !ctx.alive()) return;
+        if (!result.ok) {
+          ui.live(node)(ui.errText(result), "err", button);
+          if (result.data?.code === "stale_checklist_version" && ctx.refresh) await ctx.refresh();
+          else button.disabled = false;
+          return;
+        }
+        button.textContent = "Done";
+        ui.live(node)("Saved", "ok", button);
+        if (after) await after();
+      } catch (_) {
+        button.disabled = false;
+        ui.live(node)("Cannot reach the server.", "err", button);
+      }
+    });
+  }
+
+  // internal/handler/static/hack/screens/judge-queue.js
   function title2() {
     return "My teams";
   }
@@ -1105,6 +1143,10 @@
     ];
     const active = tabs.find((t) => t.id === ctx.params.get("tab")) || tabs.find((t) => t.count > 0) || tabs[0];
     main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>Teams you are scoring.</p></div></div>` + banner + `<nav class="subtabs" aria-label="My teams filters">${tabs.map((t) => `<a href="#" data-tab="${t.id}"${t.id === active.id ? ' aria-current="page"' : ""}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join("")}</nav>` + tabs.map((t) => `<section data-panel="${t.id}"${t.id === active.id ? "" : " hidden"}>${t.panel}</section>`).join("");
+    if (!locked && !resultsOut) {
+      await bindAcknowledgement(ctx, { node: main.querySelector("#conflicts"), id: "j.conflicts", label: "I don't know any of these teams", role: "judge" });
+      if (ctx.alive && !ctx.alive()) return;
+    }
     main.querySelectorAll("[data-tab]").forEach((a) => a.addEventListener("click", (e) => {
       e.preventDefault();
       main.querySelectorAll("[data-tab]").forEach((x) => x.removeAttribute("aria-current"));
@@ -1630,6 +1672,7 @@
       main.innerHTML += `<div class="note bad" role="alert">Cannot reach the server.</div>`;
       return;
     }
+    if (ctx.alive && !ctx.alive()) return;
     if (!r.ok) {
       main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1></div></div><div class="note bad" role="alert">${ui.esc(r.data && r.data.error || "Could not load the rubric.")}</div>`;
       return;
@@ -1642,6 +1685,7 @@
     const prizes = paragraphs(ev.prizes).map((p) => `<p>${ui.esc(p)}</p>`).join("");
     const aboutCard = about || rules || prizes ? `<section class="card">${about ? `<h3>About this event</h3>${about}` : ""}${rules ? `<hr class="rule"><h3>Rules</h3>${rules}` : ""}${prizes ? `<hr class="rule"><h3>Prizes</h3>${prizes}` : ""}</section>` : "";
     main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>What each score means.</p></div></div>${rubricCard}${aboutCard}`;
+    await bindAcknowledgement(ctx, { node: main.querySelector(".card"), id: "j.rubric", label: "I've read it", role: "judge" });
   }
 
   // internal/mcp/apps/entry/judge.js

@@ -1,6 +1,6 @@
 # Simple Hack navigation and checklists — SIM-388 / SIM-393
 
-Status: navigation slice 1 implemented locally · 2026-11-07 · checklist slice 2 remains planned.
+Status: navigation slice 1 and checklist server implemented locally · 2026-11-07 · checklist UI implemented locally; local browser and offline checks passed, full DB verification recorded in .shots/slice2/report.txt.
 
 ## Decisions after review (2026-11-07)
 

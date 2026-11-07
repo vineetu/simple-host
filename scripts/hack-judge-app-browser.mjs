@@ -115,7 +115,7 @@ async function shot(page, path) {
  let bytes = 0;
  for (let attempt = 0; attempt < 5; attempt++) {
   await waitForStableFrame(page);
-  await page.screenshot({path, fullPage:true});
+  await page.locator('iframe').screenshot({path});
   bytes = fs.statSync(path).size;
   if (bytes > 8000) return;
   await page.waitForTimeout(200);
@@ -151,7 +151,7 @@ async function assertOnScreen(frame, locator, label) {
 // SIM-344 phase 2): the real glue now calls these, not the originals, for
 // every read it makes on its own (queue, rubric, scores, conflicts all
 // carry participant-written text).
-const allowed = new Set(['hack_show_judge','hack_app_get_judge_queue','hack_app_get_rubric','hack_get_event','hack_app_get_judge_scores','hack_score_team','hack_app_get_my_conflicts','hack_declare_my_conflict','hack_remove_my_conflict','hack_preview_judge','hack_join_judge','hack_get_team_screenshot']);
+const allowed = new Set(['hack_get_checklist','hack_acknowledge_checklist_item','hack_show_judge','hack_app_get_judge_queue','hack_app_get_rubric','hack_get_event','hack_app_get_judge_scores','hack_score_team','hack_app_get_my_conflicts','hack_declare_my_conflict','hack_remove_my_conflict','hack_preview_judge','hack_join_judge','hack_get_team_screenshot']);
 const hostServer = http.createServer(async(req,res) => {
  try {
   const url = new URL(req.url, 'http://host');
@@ -237,8 +237,10 @@ try {
 
   // Rubric, reached from scoring's own link (no tool call: nav.js's href()
   // shim turns this into an in-frame '#v=rubric' switch).
-  await frame.locator('a:has-text("What do the scores mean?")').click();
+  await frame.locator('a:has-text("Rubric & brief")').click();
   await frame.locator('.card').first().waitFor();
+  const read = frame.getByRole('button',{name:"I've read it",exact:true});
+  if (await read.count()) { await read.click(); await frame.getByRole('button',{name:'Done',exact:true}).waitFor(); }
   await shot(page, out+'/'+filename+'-rubric.png');
 
   assert.deepEqual(errors, []);
@@ -258,7 +260,7 @@ try {
   await frame.locator('a.btn.sm:has-text("Score this team")').first().click();
   await frame.locator('.scale span').first().waitFor();
   const teamHeading = await frame.locator('.left h1').textContent();
-  await frame.locator('a:has-text("What do the scores mean?")').click();
+  await frame.locator('a:has-text("Rubric & brief")').click();
   await frame.locator('.card').first().waitFor();
   await assertOnScreen(frame, '[data-app-back]', 'rubric Back control');
   await frame.locator('[data-app-back]').click();

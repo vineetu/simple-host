@@ -79,7 +79,7 @@ async function shot(page, path) {
  let bytes = 0;
  for (let attempt = 0; attempt < 5; attempt++) {
   await waitForStableFrame(page);
-  await page.screenshot({path, fullPage:true});
+  await page.locator('iframe').screenshot({path});
   bytes = fs.statSync(path).size;
   if (bytes > 8000) return;
   await page.waitForTimeout(200);
@@ -105,7 +105,7 @@ async function assertOnScreen(frame, locator, label) {
 // every read it makes on its own and for the three writes whose body
 // carries a secret (stage change, a new join/judge link, a co-organiser
 // invite).
-const allowed = new Set(['hack_show_organiser','hack_app_get_people','hack_app_get_applications','hack_app_regenerate_code','hack_app_set_event_stage','hack_app_get_registration','hack_set_registration','hack_decide_application','hack_remove_person','hack_revoke_person_key','hack_remove_organiser','hack_app_create_organiser_invite','hack_revoke_organiser_invite','hack_app_get_rubric','hack_set_rubric','hack_app_get_judging_settings','hack_set_judging_settings','hack_app_get_conflicts','hack_set_judge_conflict','hack_remove_judge_conflict','hack_app_get_teams','hack_app_get_assignments','hack_generate_assignments','hack_app_get_judging_dashboard','hack_delete_former_judge_scores','hack_lock_judging','hack_unlock_judging']);
+const allowed = new Set(['hack_get_checklist','hack_set_checklist_not_needed','hack_show_organiser','hack_app_get_people','hack_app_get_applications','hack_app_regenerate_code','hack_app_set_event_stage','hack_app_get_registration','hack_set_registration','hack_decide_application','hack_remove_person','hack_revoke_person_key','hack_remove_organiser','hack_app_create_organiser_invite','hack_revoke_organiser_invite','hack_app_get_rubric','hack_set_rubric','hack_app_get_judging_settings','hack_set_judging_settings','hack_app_get_conflicts','hack_set_judge_conflict','hack_remove_judge_conflict','hack_app_get_teams','hack_app_get_assignments','hack_generate_assignments','hack_app_get_judging_dashboard','hack_delete_former_judge_scores','hack_lock_judging','hack_unlock_judging']);
 const hostServer = http.createServer(async(req,res) => {
  try {
   const url = new URL(req.url, 'http://host');
@@ -161,6 +161,21 @@ try {
   const frame=page.frameLocator('iframe');
   await frame.locator('.stat').first().waitFor();
   assert.match(await frame.locator('main').textContent(), /Participants/);
+  await frame.locator('[data-checklist-id]').first().waitFor();
+  const guide = (await rpc('tools/call', {name:'hack_get_checklist', arguments:{slug:fixture.event}})).structuredContent.checklist;
+  if (guide.next?.kind === 'link') {
+   assert.match(await frame.locator('.next h2').textContent(), new RegExp(guide.next.label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+   assert.match(await frame.locator('#ov-next-move').getAttribute('href'), /^https?:\/\//);
+  }
+  const faq = frame.locator('[data-checklist-id="o.faq"]');
+  if (await faq.count()) {
+   await faq.evaluate(row => { const d=row.closest('details'); if(d)d.open=true; });
+   await faq.getByRole('button',{name:'Not needed',exact:true}).click();
+   await frame.getByRole('button',{name:'Use this item',exact:true}).waitFor();
+   await frame.getByRole('button',{name:'Use this item',exact:true}).click();
+   await frame.locator('[data-checklist-id="o.faq"]').getByRole('button',{name:'Not needed',exact:true}).waitFor();
+  }
+
   assert.ok(await frame.locator('body').evaluate(el=>el.scrollWidth<=document.documentElement.clientWidth), 'overview view overflows at width '+width);
   await assertOnScreen(frame, '#ov-change-stage', host+'-'+width+' change-stage button');
   await assertOnScreen(frame, '.stat', host+'-'+width+' snapshot stat');

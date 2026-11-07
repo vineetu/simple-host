@@ -53,6 +53,7 @@
   // request, through the model's own tool list -- this view never calls
   // them.
   var ORGANISER_TOOLS = {
+    hack_get_checklist: 1, hack_set_checklist_not_needed: 1,
     hack_show_organiser: 1, hack_app_get_people: 1, hack_app_get_applications: 1,
     hack_app_regenerate_code: 1, hack_app_set_event_stage: 1, hack_app_get_registration: 1,
     hack_set_registration: 1, hack_decide_application: 1, hack_remove_person: 1,
@@ -65,6 +66,7 @@
     hack_app_set_judging_ends_at: 1
   };
   var WRITE_TOOLS = {
+    hack_set_checklist_not_needed: 1,
     hack_app_regenerate_code: 1, hack_app_set_event_stage: 1, hack_decide_application: 1,
     hack_remove_person: 1, hack_revoke_person_key: 1, hack_remove_organiser: 1,
     hack_app_create_organiser_invite: 1, hack_revoke_organiser_invite: 1, hack_set_registration: 1,
@@ -172,6 +174,9 @@
   }
   var SEG = '([^/]+)';
   var routes = [
+    route('GET', '/v1/hack/events/' + SEG + '/checklist', 'hack_get_checklist', ['slug']),
+    route('POST', '/v1/hack/events/' + SEG + '/checklist/not-needed/' + SEG, 'hack_set_checklist_not_needed', ['slug', 'item_id']),
+    route('DELETE', '/v1/hack/events/' + SEG + '/checklist/not-needed/' + SEG, 'hack_set_checklist_not_needed', ['slug', 'item_id']),
     route('GET', '/v1/hack/events/' + SEG + '/people', 'hack_app_get_people', ['slug'], { unwrap: true, appOnly: true }),
     route('GET', '/v1/hack/events/' + SEG + '/applications', 'hack_app_get_applications', ['slug'], { unwrap: true, appOnly: true }),
     route('POST', '/v1/hack/events/' + SEG + '/codes/' + SEG, 'hack_app_regenerate_code', ['slug', 'kind'], { unwrap: true, appOnly: true }),
@@ -296,6 +301,7 @@
       if (def.wrap) args.body = payload;
       else Object.assign(args, payload);
     }
+    if (def.tool === 'hack_set_checklist_not_needed') args.not_needed = method === 'POST';
     try {
       var data;
       if (def.appOnly) {
@@ -475,6 +481,13 @@
     } else if (!state.orgData) {
       showError('Could not load this event. Ask the model to reopen the organiser view.'); return;
     }
+      var guidance = await api('GET', '/v1/hack/events/' + encodeURIComponent(state.slug) + '/checklist');
+      if (generation !== renderGeneration) return;
+      if (guidance.ok) {
+        state.orgData.checklist = guidance.data.checklist;
+        var links = state.orgData.checklist.items.concat([state.orgData.checklist.next]).filter(Boolean);
+        links.forEach(function (item) { if (item.link && item.link.href.startsWith('/')) item.link.href = window.__hackOrgOrigin + item.link.href; });
+      }
     var screen = screens[view];
     if (!screen) { showError('That view is not available.'); return; }
     try {

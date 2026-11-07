@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	rules "github.com/vsriram/simple-host/internal/rules/hackevents"
 	"strings"
 )
 
@@ -16,7 +17,7 @@ func (s *Service) Rubric(ctx context.Context, eventID string) ([]model.RubricCri
 }
 
 // ReplaceRubric checks score deletion and replaces the criteria under the event lock.
-func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []model.RubricCriterion, ids []string, confirm bool) ([]model.RubricCriterion, error) {
+func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []model.RubricCriterion, ids []string, confirm bool, actorID ...string) ([]model.RubricCriterion, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -78,6 +79,11 @@ func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []mod
 	saved, err := entryrepo.ListRubric(ctx, tx, eventID)
 	if err != nil {
 		return nil, err
+	}
+	if ev.Stage == "closed" && len(actorID) > 0 {
+		if err = eventrepo.AcknowledgeChecklist(ctx, tx, eventID, "event", "o.rubric-ready", rules.RubricFingerprint(saved), actorID[0]); err != nil {
+			return nil, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err

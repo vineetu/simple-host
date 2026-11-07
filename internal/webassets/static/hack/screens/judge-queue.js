@@ -1,3 +1,4 @@
+import { bindAcknowledgement } from '../checklist.js'
 import { href } from '../nav.js'
 import { errText, newTabLink, siteHref, scoreTotals } from './_judge-util.js'
 
@@ -152,6 +153,10 @@ export async function render(ctx) {
     `<nav class="subtabs" aria-label="My teams filters">${tabs.map(t => `<a href="#" data-tab="${t.id}"${t.id === active.id ? ' aria-current="page"' : ''}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join('')}</nav>` +
     tabs.map(t => `<section data-panel="${t.id}"${t.id === active.id ? '' : ' hidden'}>${t.panel}</section>`).join('')
 
+  if (!locked && !resultsOut) {
+    await bindAcknowledgement(ctx, { node: main.querySelector('#conflicts'), id: 'j.conflicts', label: "I don't know any of these teams", role: 'judge' })
+    if (ctx.alive && !ctx.alive()) return
+  }
   main.querySelectorAll('[data-tab]').forEach(a => a.addEventListener('click', e => {
     e.preventDefault()
     main.querySelectorAll('[data-tab]').forEach(x => x.removeAttribute('aria-current'))

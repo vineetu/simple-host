@@ -1,3 +1,4 @@
+import { renderChecklist, bindChecklist, checklistActionLabel } from '../checklist.js'
 import { href, resolve } from '../nav.js'
 import { adminLock, stagePicker } from './_orgA-util.js'
 import { startTour } from '../tour.js'
@@ -108,16 +109,20 @@ export async function render(ctx) {
   const settingsHref = href('organiser', ev.slug, 'settings')
   const entriesHandInHref = resolve('o.entry-rules', ev.slug).href
 
-  const step = data.next_step || { kind: 'none' }
+  const guidance = data.checklist?.next
+  const step = data.checklist ? (guidance || { kind: 'none' }) : (data.next_step || { kind: 'none' })
+  if (step.blocked_reason) step.blocked = step.blocked_reason
   const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref)
+  if (step.kind === 'link' && step.link) Object.assign(content, { h2: step.label, sentence: '', button: checklistActionLabel(step), navHref: step.link.href })
+  if (data.checklist && step.kind === 'publish_results') Object.assign(content, { navHref: resultsHref, button: 'Preview' })
   // A schedule that acts (owner, 2026-11-02): when a schedule row lining up
   // with this move has come (next_step.cue, computed by the server), the
   // heading asks, e.g. "Kickoff is now. Open sign-up?". It only asks. The
   // move still waits for this button and its confirm.
   const cue = content.button && !content.blocked ? cueHeading(ui, ev, step) : ''
   if (cue) {
-    content.h2 = cue
-    content.cueNote = 'From your schedule. Nothing changes until you press ' + content.button + '.'
+    if (step.kind === 'link') content.cueNote = cueHeading(ui, ev, data.next_step)
+    else { content.h2 = cue; content.cueNote = 'From your schedule. Nothing changes until you press ' + content.button + '.' }
   }
 
   // C7 (owner decision 2026-10-30): the server's judges count includes
@@ -236,6 +241,11 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
     ? `<button class="btn danger" type="button" id="ov-end">End event</button>`
     : `<div class="note">Nobody joined, so there is nothing to end. You can delete the event in <a href="${ui.esc(settingsHref)}">Settings</a>.</div>`}</div></section>`}`
 
+  if (data.checklist) {
+    const card = renderChecklist({ ui, checklist: data.checklist, title: 'This stage' })
+    main.querySelector('.next').after(card)
+    bindChecklist(card, { api: client, slug: ev.slug, refresh: ctx.refresh, alive: ctx.alive, ui })
+  }
   adminLock(main, admin)
 
   if (openWalk) startTour('organiser', ctx, { force: true })

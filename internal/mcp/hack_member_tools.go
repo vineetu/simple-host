@@ -79,7 +79,7 @@ func hackMemberEventTools() []Tool {
 func memberTool(name, title, description, method, path string, input map[string]any, bodyKeys []string, annotations map[string]any) Tool {
 	schema := map[string]any{"type": "object", "additionalProperties": true}
 	if name == "hack_get_team_status" {
-		schema["properties"] = map[string]any{"can": hackAbilitiesSchema()}
+		schema["properties"] = map[string]any{"can": hackAbilitiesSchema(), "checklist": checklistNullableObject(hackChecklistSchema())}
 	}
 	if name == "hack_get_navigation" {
 		schema = outObject(map[string]any{"version": outInteger("Map version."), "screens": outArray("Screens.", map[string]any{"type": "object", "additionalProperties": true}), "targets": outArray("Destinations.", map[string]any{"type": "object", "additionalProperties": true}), "aliases": outArray("Old destinations.", map[string]any{"type": "object", "additionalProperties": true})}, "version", "screens", "targets", "aliases")

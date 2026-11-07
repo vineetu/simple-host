@@ -5,6 +5,9 @@ description: "Organise a hosted hackathon where anyone can build with AI, no cod
 
 # Run a hackathon on Simple Hack
 
+Use `hack_get_checklist` with the event slug and `role: "organiser"` for current guidance; follow `checklist.next` and confirm any change before writing.
+
+
 Hackathons, now for everyone. The organiser chooses the platform so college students,
 product managers, leaders and people who aren't programmers can compete with ideas.
 Participants describe an idea to their AI and it builds the team site. The best idea

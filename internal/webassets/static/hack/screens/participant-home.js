@@ -1,3 +1,4 @@
+import { renderChecklist } from '../checklist.js'
 import { href } from '../nav.js'
 import { startTour } from '../tour.js'
 import { previewLeave, openLeave, participantWarning } from '../leave.js'
@@ -48,14 +49,13 @@ function entrySectionHTML (ctx, ev, progress) {
   const esc = ui.esc
   const team = stepByID(progress, 'team'), summary = stepByID(progress, 'summary'), evidence = stepByID(progress, 'evidence'), submit = stepByID(progress, 'submit')
 
-  function row (step, num, titleText, subText, action) {
-    // `step.opt` (kit.css's existing dashed-tick style) marks a step that is
-    // settled but not actually a success -- the deadline-sweep "not
-    // submitted, still judged, Incomplete" outcome, so it never reads as a
-    // plain green checkmark.
-    const cls = [step.done ? 'done' : '', step.opt ? 'opt' : '', !step.done && progress.next === step.id ? 'now' : ''].filter(Boolean).join(' ')
-    const tick = step.done ? '<span class="tick">✓</span>' : '<span class="tick"><span class="num">' + num + '</span></span>'
-    return '<li class="' + cls + '">' + tick + '<span class="what"><b>' + esc(titleText) + '</b><span class="sub">' + esc(subText) + '</span></span>' + (action || '') + '</li>'
+  const rows = []
+  function row(step, num, label, detail, action) {
+    const id = 'p.' + ['team', 'summary', 'evidence', 'submit'][num - 1]
+    const source = ctx.event.checklist?.items.find(i => i.id === id)
+    rows.push({ ...source, id, group: 'current', label, detail, optional: false,
+      state: source?.state || (step.done ? 'done' : 'todo'), settled: !!step.opt, action })
+    return ''
   }
 
   const teamHref = href('participant', ev.slug, 'team')
@@ -101,7 +101,12 @@ function entrySectionHTML (ctx, ev, progress) {
   const smallText = deadlineSmallText(ui, ev, progress)
   const deadlineLine = progress.deadline ? ('<p class="deadline-line">' + countdownHTML + (smallText ? (countdownHTML ? ' ' : '') + '<small>' + esc(smallText) + '</small>' : '') + '</p>') : ''
 
-  return '<section class="card" data-tour="entry-checklist"><h2>Your entry</h2>' + deadlineLine + '<ul class="steps" style="margin-top:8px">' + r1 + r2 + r3 + r4 + '</ul></section>'
+  // The original Submit row has no `step.id`, so it has no .now ring.
+  // Keep that appearance along with the existing text and actions.
+  const card = renderChecklist({ ui, title: 'Your entry', before: deadlineLine, listStyle: 'margin-top:8px',
+    checklist: { items: rows, next: { item_id: progress.next === 'submit' ? '' : 'p.' + progress.next } }, renderAction: item => item.action })
+  card.setAttribute('data-tour', 'entry-checklist')
+  return card.outerHTML
 }
 
 function wireEntrySection (ctx, ev, progress) {

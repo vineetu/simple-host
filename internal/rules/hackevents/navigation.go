@@ -157,3 +157,11 @@ func ValidateNavigation(m NavigationMap) error {
 	}
 	return nil
 }
+
+// ChecklistTargets resolves checklist destinations through the shared navigation map.
+type ChecklistTargets struct{}
+
+func (ChecklistTargets) Resolve(targetID, slug string, params map[string]string) (ChecklistLink, bool) {
+	link, err := Resolve(targetID, slug, params)
+	return ChecklistLink{Screen: link.Screen, Section: link.Section, Tab: link.Tab, Href: link.Href}, err == nil
+}

@@ -3120,6 +3120,95 @@
     title: () => title
   });
 
+  // internal/handler/static/hack/checklist.js
+  function checklistActionLabel(item) {
+    return navigation.targets.find((t) => t.id === item.target_id)?.action_label || "Open";
+  }
+  var blockedText = {
+    entry_rules_closed: "Entry rules are closed.",
+    tie_rule_closed: "Tie-break is closed.",
+    scores_locked: "Scoring is locked.",
+    judging_closed: "Scoring is closed.",
+    judging_not_open: "Judging is not open yet.",
+    nothing_assigned: "No teams assigned yet.",
+    join_team_first: "Join a team first.",
+    teams_locked: "Teams are closed.",
+    entry_unavailable: "Entries are closed.",
+    conduct_record_only: "No acceptance recorded."
+  };
+  function renderChecklist({ ui, checklist, title: title4 = "Checklist", renderAction, before = "", listStyle = "" }) {
+    const card = ui.el("section", { class: "card" });
+    card.innerHTML = `<h2>${ui.esc(title4)}</h2>${before}`;
+    function list(items2) {
+      const ul = ui.el("ul", { class: "steps" });
+      if (listStyle) ul.setAttribute("style", listStyle);
+      items2.forEach((item, index) => {
+        const done = item.state === "done";
+        const opted = item.state === "not_needed";
+        const cls = [done ? "done" : "", item.optional || item.settled ? "opt" : "", !done && checklist.next?.item_id === item.id ? "now" : ""].filter(Boolean).join(" ");
+        const li = ui.el("li", { class: cls, "data-checklist-id": item.id, tabindex: "-1" });
+        const tick = done ? '<span class="tick">\u2713</span>' : `<span class="tick"><span class="num">${index + 1}</span></span>`;
+        const detail = [item.optional && !opted ? "Optional" : "", opted ? "Not needed" : item.detail || !done && blockedText[item.blocked_reason] || ""].filter(Boolean).join(" \xB7 ");
+        li.innerHTML = tick + `<span class="what"><b>${ui.esc(item.label)}</b><span class="sub">${ui.esc(detail)}</span></span>`;
+        const actions = item.can_dismiss ? ui.el("span", { class: "step-actions act" }) : li;
+        if (!done && !opted) {
+          const custom = renderAction?.(item);
+          if (typeof custom === "string") li.insertAdjacentHTML("beforeend", custom);
+          else if (custom) li.append(custom);
+          else if (!renderAction && item.actionable && item.link?.href) actions.append(ui.el("a", { class: `btn${checklist.next?.item_id === item.id ? " primary" : " quiet"} sm${item.can_dismiss ? "" : " act"}`, href: item.link.href, text: checklistActionLabel(item) }));
+        }
+        if (item.can_dismiss) {
+          actions.append(ui.el("button", { class: "btn quiet sm", type: "button", "data-checklist-mark": item.id, "data-restore": String(opted), "data-dismiss": "", text: opted ? "Use this item" : "Not needed" }));
+          li.append(actions);
+        }
+        ul.append(li);
+      });
+      return ul;
+    }
+    const items = checklist.items || [];
+    for (const [group, label] of [["earlier_required", "Earlier required"], ["current", ""], ["earlier_optional", "Earlier optional"], ["history", "History"]]) {
+      const rows = items.filter((i) => (i.group || "current") === group);
+      if (!rows.length) continue;
+      if (!label) card.append(list(rows));
+      else {
+        const details = ui.el("details", {});
+        details.open = group === "earlier_required" && rows.some((i) => i.actionable && i.state !== "done");
+        details.append(ui.el("summary", { text: label }), list(rows));
+        card.append(details);
+      }
+    }
+    return card;
+  }
+  function bindChecklist(node, { api, slug, refresh, alive = () => true, ui }) {
+    const live2 = ui.live(node);
+    node.querySelectorAll("[data-checklist-mark]").forEach((button) => button.addEventListener("click", async () => {
+      const id = button.dataset.checklistMark;
+      button.disabled = true;
+      try {
+        const r = await api.api(button.dataset.restore === "true" ? "DELETE" : "POST", `/v1/hack/events/${encodeURIComponent(slug)}/checklist/not-needed/${encodeURIComponent(id)}`);
+        if (!alive()) return;
+        if (!r.ok) {
+          button.disabled = false;
+          live2(ui.errText(r), "err", button);
+          return;
+        }
+        await refresh();
+        const row = document.querySelector(`[data-checklist-id="${id}"]`);
+        if (row) {
+          const details = row.closest("details");
+          if (details) details.open = true;
+          (row.querySelector("[data-checklist-mark]") || row).focus();
+          ui.live(row.closest("main") || row)("Saved", "ok");
+        }
+      } catch (_) {
+        if (alive()) {
+          button.disabled = false;
+          live2("Cannot reach the server.", "err", button);
+        }
+      }
+    }));
+  }
+
   // internal/handler/static/hack/screens/_orgA-util.js
   function adminLock(main, admin, ev) {
     const archived = !admin && ev && ev.stage === "archived";
@@ -3427,12 +3516,19 @@
     const resultsHref = href("organiser", ev.slug, "results");
     const settingsHref = href("organiser", ev.slug, "settings");
     const entriesHandInHref = resolve2("o.entry-rules", ev.slug).href;
-    const step = data.next_step || { kind: "none" };
+    const guidance = data.checklist?.next;
+    const step = data.checklist ? guidance || { kind: "none" } : data.next_step || { kind: "none" };
+    if (step.blocked_reason) step.blocked = step.blocked_reason;
     const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref);
+    if (step.kind === "link" && step.link) Object.assign(content, { h2: step.label, sentence: "", button: checklistActionLabel(step), navHref: step.link.href });
+    if (data.checklist && step.kind === "publish_results") Object.assign(content, { navHref: resultsHref, button: "Preview" });
     const cue = content.button && !content.blocked ? cueHeading(ui, ev, step) : "";
     if (cue) {
-      content.h2 = cue;
-      content.cueNote = "From your schedule. Nothing changes until you press " + content.button + ".";
+      if (step.kind === "link") content.cueNote = cueHeading(ui, ev, data.next_step);
+      else {
+        content.h2 = cue;
+        content.cueNote = "From your schedule. Nothing changes until you press " + content.button + ".";
+      }
     }
     let judgesOnly = counts.judges ?? 0;
     let pendingCount = 0;
@@ -3500,6 +3596,11 @@ ${archived ? "" : `
 <section class="card"><h2>Judge link</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Judge link" value="${ui.esc(org.judge_url || "")}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button></div></section>
 </div>`}
 ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div>${(counts.participants ?? 0) > 0 ? `<button class="btn danger" type="button" id="ov-end">End event</button>` : `<div class="note">Nobody joined, so there is nothing to end. You can delete the event in <a href="${ui.esc(settingsHref)}">Settings</a>.</div>`}</div></section>`}`;
+    if (data.checklist) {
+      const card = renderChecklist({ ui, checklist: data.checklist, title: "This stage" });
+      main.querySelector(".next").after(card);
+      bindChecklist(card, { api: client, slug: ev.slug, refresh: ctx.refresh, alive: ctx.alive, ui });
+    }
     adminLock(main, admin);
     if (openWalk) startTour("organiser", ctx, { force: true });
     else if (!autoTourTried) {

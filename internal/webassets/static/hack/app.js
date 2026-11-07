@@ -548,7 +548,11 @@ async function refreshEventList() {
     ctx.updateEvents?.(data.events)
   } catch (_) {}
 }
-window.addEventListener('focus', refreshEventList)
+window.addEventListener('focus', () => {
+  refreshEventList()
+  const match = resolveRoute(new URL(location.href))
+  if (['organiser-overview', 'judge-home', 'participant-home'].includes(match?.id)) activeContext?.refresh()
+})
 api.onEventsChanged(() => { initialData = null; refreshEventList() })
 document.getElementById('app').addEventListener('click', e => {
   const a = e.target.closest('a[href]')

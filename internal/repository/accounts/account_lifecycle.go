@@ -262,6 +262,7 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops
 		// row's own cascade takes keys, connected apps (grants, tokens,
 		// codes), sign-in identities and visitor sessions.
 		{`DELETE FROM sites WHERE user_id = $1`, []any{a.ID}},
+		{`DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1`, []any{a.ID}},
 		{`DELETE FROM users WHERE id = $1`, []any{a.ID}},
 	}
 	if a.Handle != "" {

@@ -139,7 +139,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 	for i, c := range req.Criteria {
 		ids[i] = c.ID
 	}
-	saved, err := h.entries.ReplaceRubric(r.Context(), a.event.ID, items, ids, req.ConfirmScoreDeletion)
+	saved, err := h.entries.ReplaceRubric(r.Context(), a.event.ID, items, ids, req.ConfirmScoreDeletion, a.user.ID)
 	if err != nil {
 		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict

@@ -44,12 +44,13 @@
   // a model's context on a read nobody in chat asked for. The originals
   // stay reachable only for an explicit chat request.
   var JUDGE_TOOLS = {
+    hack_get_checklist: 1, hack_acknowledge_checklist_item: 1,
     hack_show_judge: 1, hack_preview_judge: 1, hack_join_judge: 1,
     hack_app_get_judge_queue: 1, hack_app_get_rubric: 1, hack_get_event: 1,
     hack_app_get_judge_scores: 1, hack_score_team: 1, hack_app_get_my_conflicts: 1,
     hack_declare_my_conflict: 1, hack_remove_my_conflict: 1, hack_get_team_screenshot: 1
   };
-  var WRITE_TOOLS = { hack_join_judge: 1, hack_score_team: 1, hack_declare_my_conflict: 1, hack_remove_my_conflict: 1 };
+  var WRITE_TOOLS = { hack_acknowledge_checklist_item: 1, hack_join_judge: 1, hack_score_team: 1, hack_declare_my_conflict: 1, hack_remove_my_conflict: 1 };
   var MAX_CONCURRENT = 4;
   var inFlight = 0;
   var waiting = [];
@@ -111,6 +112,8 @@
   }
   var SEG = '([^/]+)';
   var routes = [
+    route('GET', '/v1/hack/events/' + SEG + '/checklist', 'hack_get_checklist', ['slug']),
+    route('POST', '/v1/hack/events/' + SEG + '/checklist/acknowledgements/' + SEG, 'hack_acknowledge_checklist_item', ['slug', 'item_id'], ['version']),
     route('GET', '/v1/hack/judge/' + SEG, 'hack_preview_judge', ['code']),
     // hack_join_judge's own schema (hack_member_tools.go) has no `answers`
     // property -- unlike hack_join_event, a judge invite asks no sign-up
@@ -187,6 +190,7 @@
     var matched = matchRoute(method, path);
     if (!matched) return { ok: false, status: 0, data: { error: 'This action is not available here.' } };
     var args = {};
+    if (matched.def.tool === 'hack_get_checklist') args.role = 'judge';
     for (var i = 0; i < matched.def.params.length; i++) args[matched.def.params[i]] = decodeURIComponent(matched.captures[i]);
     if (matched.def.bodyKeys && body && typeof body === 'object') {
       for (var k = 0; k < matched.def.bodyKeys.length; k++) {
@@ -208,6 +212,13 @@
         data = (twinResult._meta && twinResult._meta['simple-hack/app-only']) || null;
       } else {
         data = await app.callTool(matched.def.tool, args);
+      }
+      // The website supplies public-judge with its membership list. The
+      // frame has no shell/list loader, so check the previewed event here.
+      if (matched.def.tool === 'hack_preview_judge' && data.slug) {
+        var membership = await getEvent(data.slug);
+        state.memberships.splice(0, state.memberships.length);
+        if (membership.ok) state.memberships.push({ slug: data.slug });
       }
       var summarize = MODEL_CONTEXT_SUMMARY[matched.def.tool];
       if (summarize) app.updateModelContext(summarize(args)).catch(function () {});
@@ -274,16 +285,18 @@
   // Not persisted anywhere, not shown to the model: purely so "What do the
   // scores mean?" from a team's scoring screen can return to that same
   // team (Codex review, SIM-344).
-  var state = { slug: '', event: null, view: '', params: {}, history: [] };
+  var state = { slug: '', event: null, view: '', params: {}, history: [], memberships: [] };
   function paramsObj(map) {
     return { get: function (key) { return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : ''; } };
   }
   function ctxFor(view, params) {
     return {
       main: main,
+      refresh: function () { return renderView(view, params); },
       api: { api: api, isSignedOut: isSignedOut, getEvent: getEvent },
       ui: uiShim,
       event: { event: state.event },
+      events: state.memberships,
       me: { username: 'me', display_name: '' },
       params: paramsObj(params || {}),
       // This frame's own CSP is frame-src 'none': judge-scoring.js shows the

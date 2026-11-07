@@ -3,7 +3,7 @@ package mcp
 // hackFamilies returns the Simple Hack tool families in registration order.
 func hackFamilies() []familyTools {
 	families := []familyTools{
-		{family: famHackEvents, tools: hackEventTools()},
+		{family: famHackEvents, tools: append(hackEventTools(), hackChecklistTools()...)},
 		{family: famHackEntries, tools: hackEntryTools()},
 		{family: famStorage, tools: hackStorageTools()},
 		{family: famSites, tools: hackWebTools()},

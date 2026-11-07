@@ -5,6 +5,9 @@ description: "Judge entries in a Simple Hack event on simple-hack.app: join as j
 
 # Judge a hackathon
 
+Use `hack_get_checklist` with the event slug and `role: "judge"` for current guidance; follow `checklist.next` and confirm any change before writing.
+
+
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask.
 
 Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Hack**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone.

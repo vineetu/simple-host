@@ -1,3 +1,4 @@
+import { bindAcknowledgement } from '../checklist.js'
 import { href } from '../nav.js'
 export async function render(ctx) {
   const { main, ui } = ctx
@@ -257,6 +258,7 @@ ${closesHTML()}
     paintRubric()
     paintTie()
     setLive('Rubric saved', 'ok', btn)
+    await finalButton()
   }
 
 
@@ -267,4 +269,12 @@ ${closesHTML()}
   draftMode = settings.assignment_mode
   draftPerTeam = settings.judges_per_team
   paintRubric(); paintTie(); paintMode()
+  await finalButton()
+  async function finalButton() {
+    const actions = $('jg-rubric-save').parentElement
+    actions.querySelector('[data-rubric-final]')?.remove()
+    const slot = ui.el('span', { 'data-rubric-final': '' })
+    actions.append(slot)
+    await bindAcknowledgement(ctx, { node: slot, id: 'o.rubric-ready', label: 'Mark as final' })
+  }
 }

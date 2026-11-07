@@ -473,3 +473,4 @@ event page. A locked or full team refuses every way in.
 Site Sign in uses the account apex. Everyone taps Continue once per site, including named viewers; the choice is remembered. Sign out ends that browser's linked site sessions.
 
 Hack navigation: GET /v1/hack/navigation (hack_get_navigation) returns the shared screens and destination targets. Event reads and membership listings add can.manage, can.judge and can.take_part; organisers may enter their own judge area. Settings holds event rules; Event page holds Tracks.
+Simple Hack checklist guidance: hack_get_checklist (slug, optional role) returns current items and checklist.next; hack_set_checklist_not_needed marks/restores optional organiser items; hack_acknowledge_checklist_item confirms the current rubric version or own unversioned conflict review. These replay GET/POST/DELETE /v1/hack/events/{slug}/checklist and its not-needed/{item} or acknowledgements/{item} routes. Ended events are read-only.
