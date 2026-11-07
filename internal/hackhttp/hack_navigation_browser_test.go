@@ -103,6 +103,14 @@ func TestServeHackNavigationBrowser(t *testing.T) {
 			close(stop)
 		}
 	})
+	a.mux.HandleFunc("POST /_fixture/clear-results", func(wr http.ResponseWriter, r *http.Request) {
+		if _, err := a.database.Exec(`DELETE FROM event_results WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug); err != nil {
+			t.Error(err)
+			wr.WriteHeader(500)
+			return
+		}
+		wr.WriteHeader(204)
+	})
 	info := map[string]any{"url": a.srv.URL, "slug": w.slug, "multi_slug": extra[0], "past_slug": extra[2], "keys": map[string]string{"admin": a.admin, "organiser": w.org.key, "multi": multi.key, "judge": w.judge.key, "participant": w.teams[0].person.key, "new": fresh.key}}
 	raw, _ := json.Marshal(info)
 	if err := os.WriteFile(file, raw, 0600); err != nil {

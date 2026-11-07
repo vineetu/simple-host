@@ -10381,12 +10381,13 @@ paths:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:
         '200':
-          description: The rubric's criteria, in order
+          description: The rubric's criteria, in order, with the version to submit when acknowledging the displayed rubric.
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  version: { type: string, description: Version of these criteria for checklist acknowledgement. }
                   criteria:
                     type: array
                     items:
@@ -10441,7 +10442,7 @@ paths:
           description: The rubric after the replace
           content:
             application/json:
-              schema: { type: object, properties: { criteria: { type: array, items: { type: object } } } }
+              schema: { type: object, properties: { version: { type: string }, criteria: { type: array, items: { type: object } } } }
         '400': { description: "invalid_rubric or invalid_request", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }

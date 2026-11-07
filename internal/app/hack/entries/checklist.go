@@ -8,11 +8,12 @@ import (
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"reflect"
 )
 
-// ChecklistJudgingFacts reuses eligibility and JudgeDoneForTeam for checklist guidance.
+// ChecklistJudgingFacts shares batched eligibility, scores and standings for checklist guidance.
 type ChecklistJudgingFacts struct {
 	Judges, Organisers, Judgeable, JudgesDone, JudgesRequired int
 	AssignmentsReady                                          bool
@@ -28,23 +29,30 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 	if !organiser {
 		return s.checklistOwnJudging(ctx, ev, actorID)
 	}
-	completions, err := entryrepo.JudgeCompletionCounts(ctx, s.db, ev.ID, "")
-	if err != nil {
-		return f, err
-	}
-	judges, err := entryrepo.ListEventJudges(ctx, s.db, ev.ID)
-	if err != nil {
-		return f, err
-	}
 	rubric, err := entryrepo.ListRubric(ctx, s.db, ev.ID)
 	if err != nil {
 		return f, err
 	}
-	stored, err := entryrepo.ListEventEntries(ctx, s.db, ev.ID)
+	return s.ChecklistOrganiserJudging(ctx, s.db, ev, rubric)
+}
+
+// ChecklistOrganiserJudging shares the rubric already loaded by the checklist.
+func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querier, ev model.Event, rubric []model.RubricCriterion) (ChecklistJudgingFacts, error) {
+	var f ChecklistJudgingFacts
+	if ev.Stage != "closed" && ev.Stage != "judging" && ev.Stage != "results" && ev.Stage != "archived" {
+		return f, nil
+	}
+	scoresNeeded := ev.Stage != "closed"
+	completions := map[string]map[string]int{}
+	judges, err := entryrepo.ListEventJudges(ctx, q, ev.ID)
 	if err != nil {
 		return f, err
 	}
-	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
+	stored, err := entryrepo.ListEventEntries(ctx, q, ev.ID)
+	if err != nil {
+		return f, err
+	}
+	teams, err := entryrepo.ListTeamsWithMembers(ctx, q, ev.ID)
 	if err != nil {
 		return f, err
 	}
@@ -61,16 +69,23 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 		}
 	}
 	f.Judgeable = len(present)
-	rawScores, err := entryrepo.ListRawScores(ctx, s.db, ev.ID)
-	if err != nil {
-		return f, err
+	var rawScores []model.RawScoreRow
+	if scoresNeeded {
+		rawScores, err = entryrepo.ListRawScores(ctx, q, ev.ID)
+		if err != nil {
+			return f, err
+		}
 	}
 	scored := map[string]bool{}
 	for _, row := range rawScores {
 		scored[row.JudgeID] = true
+		if completions[row.JudgeID] == nil {
+			completions[row.JudgeID] = map[string]int{}
+		}
+		completions[row.JudgeID][row.TeamID]++
 	}
 
-	assignments, err := entryrepo.ListEventAssignments(ctx, s.db, ev.ID)
+	assignments, err := entryrepo.ListEventAssignments(ctx, q, ev.ID)
 	if err != nil {
 		return f, err
 	}
@@ -80,7 +95,7 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 			assigned[a.JudgeID] = true
 		}
 	}
-	panels, err := entryrepo.ListTrackPanels(ctx, s.db, ev.ID)
+	panels, err := entryrepo.ListTrackPanels(ctx, q, ev.ID)
 	if err != nil {
 		return f, err
 	}
@@ -89,6 +104,14 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 			assigned[p.JudgeID] = true
 		}
 	}
+	eligibility, err := entryrepo.EventJudgeEligibility(ctx, q, ev.ID)
+	if err != nil {
+		return f, err
+	}
+	tracks, err := entryrepo.EventTeamTracks(ctx, q, ev.ID)
+	if err != nil {
+		return f, err
+	}
 	coverage := map[string]int{}
 	for _, j := range judges {
 		if j.Role == "judge" {
@@ -96,10 +119,7 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 		} else {
 			f.Organisers++
 		}
-		eligible, err := entryrepo.EligibleJudgeTeams(ctx, s.db, ev.ID, j.ID)
-		if err != nil {
-			return f, err
-		}
+		eligible := eligibility[j.ID]
 		done := true
 		for id := range eligible {
 			coverage[id]++
@@ -133,24 +153,24 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 	}
 	f.AssignmentDetail = fmt.Sprintf("%d judgeable %s; %d needing more eligible judges after conflicts", f.Judgeable, checklistNoun(f.Judgeable, "team"), under)
 
-	results, err := s.ComputeResults(ctx, s.db, ev)
-	if err != nil {
-		return f, err
-	}
-	snapshot, err := entryrepo.GetEventResults(ctx, s.db, ev.ID)
-	if err != nil {
-		return f, err
-	}
 	if ev.JudgeAssignmentMode == "panel" {
 		missingTracks := 0
-		for _, r := range results {
-			if present[r.TeamID] && r.Track == nil {
+		for id := range present {
+			if tracks[id] == nil {
 				missingTracks++
 			}
 		}
 		if missingTracks > 0 {
 			f.AssignmentDetail += fmt.Sprintf("; %d %s without a track", missingTracks, checklistNoun(missingTracks, "team"))
 		}
+	}
+	if !scoresNeeded {
+		return f, nil
+	}
+	results := computeLoadedResults(ev, rubric, teams, rawScores, eligibility, tracks)
+	snapshot, err := entryrepo.GetEventResults(ctx, q, ev.ID)
+	if err != nil {
+		return f, err
 	}
 	f.Published = snapshot.Published
 	tied := false
@@ -162,7 +182,7 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 			tied = true
 		}
 	}
-	f.TiesDone = f.HasStandings && (!tied || snapshot.Published && checklistSnapshotMatches(results, snapshot.Snapshot))
+	f.TiesDone = f.HasStandings && (!tied || snapshot.Published && checklistSnapshotResolved(snapshot.Snapshot) && checklistSnapshotMatches(results, snapshot.Snapshot))
 	return f, nil
 }
 
@@ -301,4 +321,19 @@ func checklistNoun(n int, word string) string {
 		return word
 	}
 	return word + "s"
+}
+
+func checklistSnapshotResolved(snapshot []byte) bool {
+	var rows []struct {
+		Tied bool `json:"tied"`
+	}
+	if json.Unmarshal(snapshot, &rows) != nil {
+		return false
+	}
+	for _, row := range rows {
+		if row.Tied {
+			return false
+		}
+	}
+	return true
 }

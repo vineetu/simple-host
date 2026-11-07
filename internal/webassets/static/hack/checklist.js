@@ -79,22 +79,24 @@ export function bindChecklist(node, { api, slug, refresh, alive = () => true, ui
   }))
 }
 
-// Acknowledgements always use the fresh version supplied by the server.
-export async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after }) {
+// Rubric acknowledgements bind to the version delivered with the displayed criteria.
+export async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after, version }) {
   const { ui, api, event } = ctx
+  if (id !== 'j.conflicts' && !version) return
   const base = `/v1/hack/events/${encodeURIComponent(event.event.slug)}/checklist`
   const r = await api.api('GET', base + (role ? '?role=' + role : ''))
   if (ctx.alive && !ctx.alive()) return
   if (!r.ok) { ui.live(node)(ui.errText(r), 'err'); return }
   const item = r.data.checklist?.items.find(i => i.id === id) || (id === 'o.rubric-ready' ? r.data.checklist?.items.find(i => i.id === 'o.rubric') : null)
-  if (!item || (item.id === id && item.state === 'done') || (!item.version && id !== 'j.conflicts')) return
+  if (!item || (item.id === id && item.state === 'done' && (!version || item.version === version)) || (!version && !item.version && id !== 'j.conflicts')) return
+  const displayedVersion = version ?? item.version
   const button = ui.el('button', { class: 'btn', type: 'button', text: label })
   button.disabled = !!ui.writeLockReason(event.event, event.admin_view)
   node.append(button)
   button.addEventListener('click', async () => {
     button.disabled = true
     try {
-      const result = await api.api('POST', base + '/acknowledgements/' + id, item.version ? { version: item.version } : {})
+      const result = await api.api('POST', base + '/acknowledgements/' + id, displayedVersion ? { version: displayedVersion } : {})
       if (ctx.alive && !ctx.alive()) return
       if (!result.ok) {
         ui.live(node)(ui.errText(result), 'err', button)

@@ -26319,12 +26319,16 @@
         ],
         "responses": {
           "200": {
-            "description": "The rubric's criteria, in order",
+            "description": "The rubric's criteria, in order, with the version to submit when acknowledging the displayed rubric.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "version": {
+                      "type": "string",
+                      "description": "Version of these criteria for checklist acknowledgement."
+                    },
                     "criteria": {
                       "type": "array",
                       "items": {
@@ -26452,6 +26456,9 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "version": {
+                      "type": "string"
+                    },
                     "criteria": {
                       "type": "array",
                       "items": {

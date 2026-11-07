@@ -29,7 +29,8 @@ async function person(role, width) {
   const path = new URL(route.request().url()).pathname
   const file = 'internal/webassets/static' + path
   if (!fs.existsSync(file)) return route.continue()
-  const body = before ? execFileSync('git', ['show', 'HEAD:' + file]) : fs.readFileSync(file)
+  const pinned = file.endsWith('/screens/participant-home.js') || file.endsWith('/kit.css')
+  const body = before && pinned ? execFileSync('git', ['show', '07edf8f8:' + file]) : fs.readFileSync(file)
   await route.fulfill({ body, contentType: path.endsWith('.css') ? 'text/css' : 'text/javascript' })
  })
  await page.route('**/v1/hack/preferences', route => route.fulfill({ json: { organiser_walkthrough_done: true, judge_walkthrough_done: true, participant_walkthrough_done: true } }))
@@ -37,7 +38,7 @@ async function person(role, width) {
 }
 async function home(page, role) {
  await page.goto(info.url + `/e/${info.slug}/${{organiser:'manage?s=overview',judge:'judge?s=home',participant:'team?s=home'}[role]}`)
- await page.locator('[data-checklist-id]').first().waitFor()
+ await page.locator(role === 'participant' ? 'main h1' : '[data-checklist-id]').first().waitFor()
 }
 async function state(page, id, done) {
  await page.waitForFunction(({id, done}) => document.querySelector(`[data-checklist-id="${id}"]`)?.classList.contains('done') === done, {id, done})
@@ -76,11 +77,23 @@ try {
  const judge = await person('judge',1280)
  await home(judge.page,'judge')
  await rowPresentation(judge.page,1280)
+ await judge.page.route('**/checklist?role=judge', async route => {
+  await judge.page.unroute('**/checklist?role=judge')
+  const shownRubric=await api('organiser','GET',base+'/rubric')
+  await api('organiser','PUT',base+'/rubric',{criteria:shownRubric.criteria.map((c,i)=>({...c,description:c.description+(i===0?' Updated brief.':'')}))})
+  await route.continue()
+ })
  await judge.page.goto(info.url+`/e/${info.slug}/judge?s=rubric`)
+ const refused = judge.page.waitForResponse(r=>r.url().includes('/acknowledgements/j.rubric') && r.status()===409)
  await judge.page.getByRole('button',{name:"I've read it",exact:true}).click()
+ await refused
+ await judge.page.getByRole('button',{name:"I've read it",exact:true}).waitFor()
+ await judge.page.getByRole('button',{name:"I've read it",exact:true}).click()
+ await judge.page.getByRole('button',{name:'Done',exact:true}).waitFor()
  await home(judge.page,'judge'); await state(judge.page,'j.rubric',true)
  await judge.page.goto(info.url+`/e/${info.slug}/judge?s=queue&tab=conflicts#conflicts`)
  await judge.page.getByRole('button',{name:"I don't know any of these teams",exact:true}).click()
+ await judge.page.getByRole('button',{name:'Done',exact:true}).waitFor()
  await home(judge.page,'judge'); await state(judge.page,'j.conflicts',true)
  const queue = (await api('judge','GET',base+'/judge/queue')).queue
  assert.ok(queue.length >= 2)
@@ -89,11 +102,15 @@ try {
  assert.match(await judge.page.locator('[data-checklist-id="j.scores"]').innerText(),/1 of 2/)
  const next = (await api('judge','GET',base+'/checklist?role=judge')).checklist.next
  assert.ok(!next.link.href.includes(queue[0].team_id))
+ const conflictsReady = judge.page.waitForResponse(r=>r.url().includes('/checklist?role=judge'))
  await judge.page.goto(info.url+`/e/${info.slug}/judge?s=queue&tab=conflicts#conflicts`)
+ await conflictsReady
+ await judge.page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
  await judge.page.locator('[data-declare-conflict]').first().click()
  await judge.page.getByRole('button',{name:'Declare conflict',exact:true}).click()
  await judge.page.locator('[data-remove-conflict]').first().waitFor()
  await judge.context.close()
+ console.log('ok judge rubric race, acknowledgements, scores and conflicts')
  for (const width of [1280,390]) {
   const j = await person('judge',width); await home(j.page,'judge');
   assert.ok(!(await j.page.locator('[data-checklist-id="j.closes"]').innerText()).includes('Optional'))
@@ -126,7 +143,15 @@ try {
  await home(org.page,'organiser'); await state(org.page,'o.faq',true)
  assert.equal(await org.page.locator('[data-checklist-id="o.faq"] button').count(),0)
  assert.ok(!(await org.page.locator('[data-checklist-id="o.faq"]').innerText()).includes('Optional'))
+ await org.page.route('**/checklist', async route => {
+  await org.page.unroute('**/checklist')
+  const shownFinal=await api('organiser','GET',base+'/rubric')
+  await api('organiser','PUT',base+'/rubric',{criteria:shownFinal.criteria.map((c,i)=>({...c,description:c.description+(i===0?' Final brief.':'')}))})
+  await route.continue()
+ })
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=settings&tab=judging`)
+ await Promise.all([org.page.waitForResponse(r=>r.url().includes('/acknowledgements/o.rubric-ready') && r.status()===409),org.page.getByRole('button',{name:'Mark as final',exact:true}).click()])
+ await org.page.getByRole('button',{name:'Mark as final',exact:true}).waitFor()
  await Promise.all([org.page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes('/acknowledgements/o.rubric-ready')), org.page.getByRole('button',{name:'Mark as final',exact:true}).click()])
  await api('organiser','POST',base+'/stage',{stage:'closed'})
  await home(org.page,'organiser'); await state(org.page,'o.rubric-ready',true)
@@ -135,6 +160,37 @@ try {
  await org.page.locator('#deadline-input').fill('2026-12-01T18:00')
  await Promise.all([org.page.waitForResponse(r => r.request().method() === 'PATCH' && new URL(r.url()).pathname === base), org.page.locator('#deadline-save').click()])
  await home(org.page,'organiser'); await state(org.page,'o.deadline',true)
+ console.log('ok organiser rubric race and checklist writes')
+ // Published untied standings, then reopened scoring creates a new tie.
+ await api('organiser','POST',base+'/stage',{stage:'judging'})
+ await api('organiser','POST',base+'/judging/unlock',{reason:'Review scores'})
+ const tieQueue=(await api('organiser','GET',base+'/judge/queue')).queue
+ const tieRubric=(await api('organiser','GET',base+'/rubric')).criteria
+ for (let i=0;i<tieQueue.length;i++) await api('organiser','PUT',base+'/judge/scores/'+tieQueue[i].team_id,{scores:tieRubric.map(c=>({criterion_id:c.id,points:i+3})),comment:''})
+ await api('organiser','POST',base+'/judging/lock',{})
+ await api('organiser','POST',base+'/results/publish',{})
+ // Remove judge's conflict and align both judges' scores for the new tied group.
+ await api('organiser','POST',base+'/stage',{stage:'judging'})
+ await api('organiser','POST',base+'/judging/unlock',{reason:'Review scores'})
+ for (const c of (await api('judge','GET',base+'/conflicts?mine=1')).conflicts||[]) await api('judge','DELETE',base+'/conflicts/'+c.team_id)
+ for (const who of ['organiser','judge']) for (const team of (await api(who,'GET',base+'/judge/queue')).queue) await api(who,'PUT',base+'/judge/scores/'+team.team_id,{scores:tieRubric.map(c=>({criterion_id:c.id,points:3})),comment:''})
+ await api('organiser','POST',base+'/stage',{stage:'results'})
+ await home(org.page,'organiser'); await state(org.page,'o.ties',false)
+ await org.page.locator('[data-checklist-id="o.ties"] a').click()
+ await org.page.locator('.tie-group input').first().waitFor()
+ const tieInputs=await org.page.locator('.tie-group input').all()
+ assert.equal(tieInputs.length,2,'new tie must use current preview')
+ for (let i=0;i<tieInputs.length;i++) await tieInputs[i].fill(String(i+1))
+ await org.page.getByRole('button',{name:'Save order and publish',exact:true}).click()
+ await org.page.getByRole('dialog').getByRole('button',{name:'Publish again',exact:true}).click()
+ await org.page.getByRole('button',{name:"Don't send",exact:true}).click()
+ await home(org.page,'organiser'); await state(org.page,'o.ties',true)
+ await org.page.goto(info.url+`/e/${info.slug}/manage?s=results`)
+ await org.page.locator('.tie-group input').first().waitFor()
+ assert.deepEqual(await org.page.locator('.tie-group input').evaluateAll(inputs=>inputs.map(i=>i.value)),['1','2'],'valid published choices retained')
+ await api('organiser','POST',base+'/judging/unlock',{reason:'Continue fixture'})
+ assert.equal((await fetch(info.url+'/_fixture/clear-results',{method:'POST'})).status,204)
+ console.log('ok changed tie after publication: checklist to override and publish')
  // Participant visual proof uses the identical API facts for both renderers.
  await api('organiser','POST',base+'/stage',{stage:'building'})
  await api('participant','POST',base+'/entry/unsubmit',{})
@@ -147,7 +203,7 @@ try {
  await api('participant','PUT',base+'/entry',full)
  await home(participant.page,'participant'); await state(participant.page,'p.evidence',true)
  await participant.context.close()
- for (const variant of ['building','submitted','missing-evidence','no-team']) {
+ for (const variant of ['building','submitted','missing-evidence','settled-incomplete','team-extension','backwards-published','no-team']) {
   if (variant === 'submitted') {
    const p = await person('participant',1280); await home(p.page,'participant')
    await p.page.locator('#ph-submit-step').click()
@@ -155,23 +211,44 @@ try {
    await state(p.page,'p.submit',true); await p.context.close()
   }
   if (variant === 'missing-evidence') {await api('participant','POST',base+'/entry/unsubmit',{}); await api('participant','PUT',base+'/entry',{video_url:''})}
-  if (variant === 'no-team') await api('participant','POST',base+'/teams/leave',{})
+  if (variant === 'settled-incomplete') await api('organiser','POST',base+'/stage',{stage:'judging'})
+  if (variant === 'team-extension') {
+   await api('organiser','POST',base+'/stage',{stage:'building'})
+   await api('organiser','PATCH',base,{submission_deadline:new Date(Date.now()-3600000).toISOString()})
+   const ev=await api('participant','GET',base)
+   await api('organiser','PUT',base+'/teams/'+ev.me.team.slug+'/deadline',{deadline:new Date(Date.now()+7200000).toISOString()})
+  }
+  if (variant === 'backwards-published') {
+   await api('organiser','POST',base+'/stage',{stage:'results'})
+   await api('organiser','POST',base+'/results/publish',{})
+   await api('organiser','POST',base+'/stage',{stage:'building'})
+  }
+  if (variant === 'no-team') {assert.equal((await fetch(info.url+'/_fixture/clear-results',{method:'POST'})).status,204);await api('participant','POST',base+'/teams/leave',{})}
+  const participantFacts=await api('participant','GET',base)
+  if(variant==='settled-incomplete') assert.equal(participantFacts.progress.steps.find(s=>s.id==='submit').status,'not_submitted')
+  if(variant==='team-extension') assert.equal(participantFacts.progress.deadline_is_extension,true)
+  if(variant==='backwards-published') {assert.equal(participantFacts.event.stage,'building');assert.equal(participantFacts.event.results_published,true)}
   for (const width of [1280,390]) {
    const p = await person('participant',width)
    p.baseline(true); await p.page.goto(info.url+`/e/${info.slug}/team?s=home`)
-   await p.page.locator('[data-tour="entry-checklist"]').waitFor()
-   const oldPage = await p.page.screenshot({path:`${shots}/participant-${variant}-before-${width}.png`})
-   const old = await p.page.locator('[data-tour="entry-checklist"]').screenshot()
+   await p.page.locator('main h1').waitFor()
+   await p.page.screenshot({path:`${shots}/participant-${variant}-before-${width}.png`})
+   const oldPage=await p.page.locator('main').screenshot()
+   const oldCard=p.page.locator('[data-tour="entry-checklist"]')
+   const old = await oldCard.count() ? await oldCard.screenshot() : null
    p.baseline(false); await home(p.page,'participant')
-   const currentPage = await p.page.screenshot({path:`${shots}/participant-${variant}-${width}.png`})
+   await p.page.screenshot({path:`${shots}/participant-${variant}-${width}.png`})
+   const currentPage=await p.page.locator('main').screenshot()
    assert.ok(oldPage.equals(currentPage),`participant Home pixels: ${variant} ${width}`)
-   const current = await p.page.locator('[data-tour="entry-checklist"]').screenshot()
-   assert.ok(old.equals(current),`participant pixels: ${variant} ${width}`)
+   const currentCard=p.page.locator('[data-tour="entry-checklist"]')
+   const current = await currentCard.count() ? await currentCard.screenshot() : null
+   assert.ok(old ? current && old.equals(current) : current === null,`participant pixels: ${variant} ${width}`)
    if (variant==='submitted') await state(p.page,'p.submit',true)
    if (variant==='missing-evidence') await state(p.page,'p.evidence',false)
    if (variant==='no-team') await state(p.page,'p.team',false)
    await p.context.close()
   }
+  console.log('ok participant baseline',variant)
  }
  for (const stage of ['draft','open','building','closed','judging','results','archived']) {
   await api('organiser','POST',base+'/stage',{stage})

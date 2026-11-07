@@ -90,3 +90,6 @@ func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []mod
 	}
 	return saved, nil
 }
+
+// RubricVersion identifies the ordered content returned to the caller.
+func RubricVersion(criteria []model.RubricCriterion) string { return rules.RubricFingerprint(criteria) }

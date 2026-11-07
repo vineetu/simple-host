@@ -18,6 +18,7 @@ import (
 )
 
 type Link = rules.ChecklistLink
+type ChecklistTargets = rules.ChecklistTargets
 type Checklist = rules.Checklist
 type ChecklistNext = rules.ChecklistNext
 
@@ -86,7 +87,12 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			return Checklist{}, err
 		}
 		version := rules.RubricFingerprint(rubric)
-		judging, err := s.entries.ChecklistJudging(ctx, ev, subject, role == "organiser")
+		var judging entries.ChecklistJudgingFacts
+		if role == "organiser" {
+			judging, err = s.entries.ChecklistOrganiserJudging(ctx, s.db, ev, rubric)
+		} else {
+			judging, err = s.entries.ChecklistJudging(ctx, ev, subject, false)
+		}
 		if err != nil {
 			return Checklist{}, err
 		}

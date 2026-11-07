@@ -20,7 +20,7 @@ func (h *HackHandler) registerChecklists(mux *http.ServeMux, wrap func(http.Hand
 }
 
 func (h *HackHandler) checklistService() *events.ChecklistService {
-	return events.NewChecklist(h.database, h.entries, nil)
+	return events.NewChecklist(h.database, h.entries, checklistTargets{h})
 }
 
 func (h *HackHandler) readChecklist(ctx context.Context, ev model.Event, m model.EventMember, role string) (events.Checklist, error) {
@@ -121,4 +121,11 @@ func (h *HackHandler) writeChecklist(w http.ResponseWriter, r *http.Request, ver
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": events.MembershipAbilities(a.member), "checklist": list})
+}
+
+type checklistTargets struct{ h *HackHandler }
+
+func (t checklistTargets) Resolve(id, slug string, params map[string]string) (events.Link, bool) {
+	params["event_url"] = t.h.EventURL(slug)
+	return events.ChecklistTargets{}.Resolve(id, slug, params)
 }

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-07: Simple Hack checklist reads batch judging facts by stage, unresolved published ties stay actionable, and rubric acknowledgements use the version displayed. Results edits follow current ties; action links and read-only Home guidance use the event's actual state and address.
+
 2026-11-07: Simple Hack checklists number rows across groups, fold blocked earlier work, show No scores yet for empty judge progress, and use compact actions beside phone labels with Read, Check and Score for judges.
 
 2026-11-07: Simple Hack navigation and checklists: keep declared conflicts removable, refresh Your events, support collapsed switching and read-only admin inspection, correct checklist guidance and destinations, and batch score completion reads.

@@ -116,6 +116,11 @@ func Resolve(targetID, slug string, params map[string]string) (NavigationLink, e
 			continue
 		}
 		href := strings.ReplaceAll(t.HrefPattern, "{slug}", url.PathEscape(slug))
+		if t.HrefPattern == "{event_url}" {
+			if value := params["event_url"]; value != "" {
+				href = value
+			}
+		}
 		for k, v := range params {
 			href = strings.ReplaceAll(href, "{"+k+"}", url.QueryEscape(v))
 		}

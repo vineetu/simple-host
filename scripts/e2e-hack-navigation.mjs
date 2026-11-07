@@ -114,6 +114,8 @@ try {
  const adminView = await inspection.page.evaluate(async slug => (await fetch('/v1/hack/events/'+slug, {headers:{'X-API-Key':localStorage.apiKey}})).json(), info.slug)
  assert.deepEqual(adminView.can, {manage:false,judge:false,take_part:false})
  assert.equal(adminView.admin_view, true)
+ assert.match(await inspection.page.locator('main .next h2').innerText(), /Read-only view/)
+ assert.ok(!(await inspection.page.locator('main').innerText()).includes('This event has ended'))
  const memberships = await inspection.page.evaluate(async () => (await fetch('/v1/hack/events', {headers:{'X-API-Key':localStorage.apiKey}})).json())
  assert.equal((Array.isArray(memberships) ? memberships : memberships.events).length, 0, 'inspection counted as membership')
  await inspection.context.close()
@@ -245,6 +247,31 @@ try {
   await participant.page.screenshot({ path: `${shots}/participant-home-${width}.png` })
   await participant.context.close()
  }
+ // Stable Results-stage action targets: no ties, ties, and a publication.
+ const base='/v1/hack/events/'+info.slug
+ async function api(method,path,body) {
+  const response=await fetch(info.url+base+path,{method,headers:{'X-API-Key':info.keys.organiser,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})
+  const data=await response.json();assert.ok(response.ok,JSON.stringify(data));return data
+ }
+ await api('POST','/stage',{stage:'judging'})
+ await api('POST','/judging/unlock',{reason:'Anchor verification'})
+ const criteria=(await api('GET','/rubric')).criteria
+ const queue=(await api('GET','/judge/queue')).queue
+ for (const combination of ['no-ties','ties','published']) {
+  if(combination!=='published') for(let i=0;i<queue.length;i++) await api('PUT','/judge/scores/'+queue[i].team_id,{scores:criteria.map(c=>({criterion_id:c.id,points:combination==='ties'?3:i+3})),comment:''})
+  await api('POST','/stage',{stage:'results'})
+  if(combination==='published') await api('POST','/results/publish',{})
+  const anchorOrg=await person('organiser')
+  for(const id of ['o.end','o.publish',...(combination==='no-ties'?[]:['o.ties'])]) {
+   const target=map.targets.find(t=>t.id===id)
+   await open(anchorOrg.page,target.href_pattern.replace('{slug}',info.slug))
+   await anchorOrg.page.locator('#'+target.anchor).waitFor({state:'visible'})
+  }
+  await anchorOrg.context.close()
+  if(combination==='no-ties') {await api('POST','/stage',{stage:'judging'});await api('POST','/judging/unlock',{reason:'Anchor verification'})}
+ }
+ await api('POST','/stage',{stage:'closed'})
+ await api('POST','/judging/unlock',{reason:'Checklist fixture'})
  assert.deepEqual(errors, [])
  console.log('ok responsive select; 14 screenshots;', errors.length, 'browser errors')
  if (!process.env.KEEP_NAVIGATION_FIXTURE) await fetch(info.url + '/_fixture/stop', { method: 'POST' })

@@ -21,7 +21,7 @@ func TestNavigationMap(t *testing.T) {
 			t.Fatalf("invalid target: %+v", target)
 		}
 		seen[target.ID] = true
-		if _, err := Resolve(target.ID, "demo", map[string]string{"team": "team & 1"}); err != nil {
+		if _, err := Resolve(target.ID, "demo", map[string]string{"team": "team & 1", "event_url": "https://demo.example.org/"}); err != nil {
 			t.Fatal(err)
 		}
 	}

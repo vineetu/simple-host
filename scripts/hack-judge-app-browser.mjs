@@ -237,10 +237,23 @@ try {
 
   // Rubric, reached from scoring's own link (no tool call: nav.js's href()
   // shim turns this into an in-frame '#v=rubric' switch).
+  assert.equal((await fetch(fixture.url+'/_fixture/change-rubric',{method:'POST'})).status,204);
   await frame.locator('a:has-text("Rubric & brief")').click();
-  await frame.locator('.card').first().waitFor();
+  await frame.getByRole('heading',{name:'Rubric & brief',exact:true}).waitFor();
   const read = frame.getByRole('button',{name:"I've read it",exact:true});
-  if (await read.count()) { await read.click(); await frame.getByRole('button',{name:'Done',exact:true}).waitFor(); }
+  await read.waitFor();
+  {
+   // The frame must acknowledge its rendered version, even if a later checklist read sees new content.
+   assert.equal((await fetch(fixture.url+'/_fixture/change-rubric',{method:'POST'})).status,204)
+   const from=calls.length
+   await read.click()
+   await frame.getByRole('button',{name:"I've read it",exact:true}).waitFor()
+   await frame.getByRole('button',{name:"I've read it",exact:true}).click()
+   await frame.getByRole('button',{name:'Done',exact:true}).waitFor()
+   const acknowledgements=calls.slice(from).filter(c=>c.name==='hack_acknowledge_checklist_item')
+   assert.equal(acknowledgements.length,2,'stale acknowledgement must refresh before retry')
+   assert.notEqual(acknowledgements[0].arguments.version,acknowledgements[1].arguments.version)
+  }
   await shot(page, out+'/'+filename+'-rubric.png');
 
   assert.deepEqual(errors, []);
@@ -359,6 +372,7 @@ try {
  assert.ok(calls.some(c=>c.name==='hack_declare_my_conflict'));
  assert.ok(calls.some(c=>c.name==='hack_score_team'));
  assert.ok(calls.some(c=>c.name==='hack_join_judge'));
+ assert.ok(calls.filter(c=>c.name==='hack_acknowledge_checklist_item').length>=8,'each host/width case exercised stale rubric refusal and retry');
  assert.ok(calls.every(c=>allowed.has(c.name)));
  console.log(JSON.stringify({cases:cases.length,result:'passed'}));
 } finally {

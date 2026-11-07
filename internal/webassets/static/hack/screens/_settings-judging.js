@@ -28,6 +28,7 @@ export async function render(ctx) {
   // per page load — the stage doesn't change on this screen, only `locked`
   // does.
   let rubric = []
+  let rubricVersion = ''
   let settings = { assignment_mode: 'open', judges_per_team: 2, score_mode: 'raw', tie_criterion_id: '', public_scores: false, public_ranks: false }
   let conflicts = []
   let people = []
@@ -255,6 +256,7 @@ ${closesHTML()}
     btn.disabled = locked || !!adminLockReason
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     rubric = (r.data && r.data.criteria) || []
+    rubricVersion = r.data.version
     paintRubric()
     paintTie()
     setLive('Rubric saved', 'ok', btn)
@@ -264,7 +266,7 @@ ${closesHTML()}
 
   const [rubricR, settingsR] = await Promise.all([api('GET', base + '/rubric'), api('GET', base + '/judging/settings')])
   if (!ctx.alive()) return
-  if (rubricR.ok) rubric = rubricR.data.criteria || []
+  if (rubricR.ok) { rubric = rubricR.data.criteria || []; rubricVersion = rubricR.data.version }
   if (settingsR.ok) settings = settingsR.data
   draftMode = settings.assignment_mode
   draftPerTeam = settings.judges_per_team
@@ -275,6 +277,6 @@ ${closesHTML()}
     actions.querySelector('[data-rubric-final]')?.remove()
     const slot = ui.el('span', { 'data-rubric-final': '' })
     actions.append(slot)
-    await bindAcknowledgement(ctx, { node: slot, id: 'o.rubric-ready', label: 'Mark as final' })
+    await bindAcknowledgement(ctx, { node: slot, id: 'o.rubric-ready', label: 'Mark as final', version: rubricVersion })
   }
 }

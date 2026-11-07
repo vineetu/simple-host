@@ -35,7 +35,7 @@ export async function render(ctx) {
   const lockReason = archived ? "This event has ended. Settings can't change any more." : ''
 
   let results = null // array of rows once published, else null
-  let preview = [] // current standings, used to build overrides before first publish
+  let preview = [] // current standings, used to build tie overrides
   let previewOk = false // #11: only true once /judging/preview actually loaded -- a failed read must not be read as "every published team is now missing"
   let fullRanking = false
 
@@ -64,7 +64,7 @@ export async function render(ctx) {
   // note sits directly over the section where things actually do lock,
   // instead of over the whole page.
   main.innerHTML = `
-<div class="ph"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
+<div class="ph" id="res-publish-target"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
 <div class="note" id="res-status"></div>
 <p class="note warn" id="res-lock-hint" hidden>Lock judging first, on <a href="${ui.esc(href(role, slug, 'judging'))}">Judging</a>.</p>
 <section class="card" id="res-publish-section"><h2>Publish</h2>
@@ -163,13 +163,20 @@ export async function render(ctx) {
     body.appendChild(table)
   })
 
-  // --- tie override (from the last published snapshot once there is one,
-  // otherwise from the current standings, so a tie can be resolved before
-  // the very first publish too) ----------
+  // --- tie overrides from current standings, retaining valid published choices ----------
+  function savedPlace(row, group) {
+    const saved = (results || []).find(r => r.team_id === row.team_id)
+    if (!saved || saved.tie_decider !== 'organiser' || saved.total !== row.total) return null
+    const first = Number(row.rank)
+    if (saved.rank < first || saved.rank >= first + group.length) return null
+    // Keep choices only for the same tied group and unchanged scoring inputs.
+    if (!group.every(r => (results || []).some(old => old.team_id === r.team_id && old.total === r.total && old.rank >= first && old.rank < first + group.length))) return null
+    return saved.rank
+  }
   function paintOverride() {
     const box = $('res-override')
     box.textContent = ''
-    const rows = (results && results.length) ? results : preview
+    const rows = previewOk ? preview : (results || [])
     if (!rows || !rows.length) return
     const byRank = {}
     rows.forEach(row => {
@@ -191,7 +198,7 @@ export async function render(ctx) {
       byRank[rank].forEach(row => {
         const id = 'res-tie-' + row.team_id
         const label = ui.el('label', { for: id, text: row.team_name || 'A team' })
-        const input = ui.el('input', { class: 'input', id, type: 'number', min: '1', step: '1', value: String(row.rank) })
+        const input = ui.el('input', { class: 'input', id, type: 'number', min: '1', step: '1', value: String(savedPlace(row, byRank[rank]) ?? row.rank) })
         group.append(label, input)
         inputs.push({ team_id: row.team_id, input })
       })

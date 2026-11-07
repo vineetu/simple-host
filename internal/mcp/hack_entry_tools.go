@@ -195,6 +195,7 @@ func csvFilename(h http.Header, fallback string) string {
 }
 
 type hackRubric struct {
+	Version  string `json:"version"`
 	Criteria []struct {
 		ID          string `json:"id"`
 		Position    int    `json:"position"`
@@ -218,7 +219,7 @@ func hackRubricOutput(slug string, body []byte) (output, error) {
 			"weight": c.Weight, "max_points": c.MaxPoints,
 		})
 	}
-	out := map[string]any{"slug": slug, "criteria": items}
+	out := map[string]any{"slug": slug, "criteria": items, "version": parsed.Version}
 	return output{Text: jsonText(out), Structured: out}, nil
 }
 
@@ -372,7 +373,8 @@ func hackEntryTools() []Tool {
 
 func hackEntrySchemas() hackEntrySchemaSet {
 	rubric := outObject(map[string]any{
-		"slug": outString("The event name."),
+		"version": outString("Version of the displayed rubric; submit unchanged when acknowledging it."),
+		"slug":    outString("The event name."),
 		"criteria": outArray("The rubric, in display order.", outObject(map[string]any{
 			"id":          outString("Criterion ID to use when scoring."),
 			"position":    outInteger("Display order, starting at 1."),

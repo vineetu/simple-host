@@ -39,5 +39,5 @@ export async function render(ctx) {
     : ''
 
   main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>What each score means.</p></div></div>${rubricCard}${aboutCard}`
-  await bindAcknowledgement(ctx, { node: main.querySelector('.card'), id: 'j.rubric', label: "I've read it", role: 'judge' })
+  await bindAcknowledgement(ctx, { node: main.querySelector('.card'), id: 'j.rubric', label: "I've read it", role: 'judge', version: r.data.version })
 }

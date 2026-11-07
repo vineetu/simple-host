@@ -223,7 +223,7 @@
         "id": "public-event-page",
         "role": "visitor",
         "ability": null,
-        "path": "https://{slug}.simple-hack.app",
+        "path": "{event_url}",
         "section": null,
         "module": null,
         "renderer": "server"
@@ -1272,8 +1272,8 @@
         "screen": "organiser-overview",
         "section": "overview",
         "tab": null,
-        "anchor": "ov-end",
-        "href_pattern": "/e/{slug}/manage?s=overview#ov-end",
+        "anchor": "ov-end-target",
+        "href_pattern": "/e/{slug}/manage?s=overview#ov-end-target",
         "nav": false,
         "order": 590,
         "group": null,
@@ -1452,8 +1452,8 @@
         "screen": "organiser-results",
         "section": "results",
         "tab": null,
-        "anchor": "res-publish-section",
-        "href_pattern": "/e/{slug}/manage?s=results#res-publish-section",
+        "anchor": "res-publish-target",
+        "href_pattern": "/e/{slug}/manage?s=results#res-publish-target",
         "nav": false,
         "order": 710,
         "group": "Wrap up",
@@ -1498,7 +1498,7 @@
         "section": null,
         "tab": null,
         "anchor": null,
-        "href_pattern": "https://{slug}.simple-hack.app",
+        "href_pattern": "{event_url}",
         "nav": false,
         "order": 740,
         "group": "Run",
@@ -2269,7 +2269,7 @@
     const href2 = t.href_pattern.replace(/\{([^}]+)\}/g, (_, key) => {
       const value = key === "slug" ? slug : params[key];
       if (value == null) throw new Error("Missing navigation parameter: " + key);
-      return encodeURIComponent(value);
+      return key === "event_url" ? value : encodeURIComponent(value);
     });
     return { screen: t.screen, section: t.section, tab: t.tab, anchor: t.anchor, href: href2 };
   }
@@ -3458,7 +3458,7 @@
   }
   function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
     if (!step || step.kind === "none") {
-      return { h2: "This event has ended", sentence: "The public page stays up as a record.", confirmBody: "", button: null };
+      return { h2: ev.stage === "archived" ? "This event has ended" : ev.taken_down ? "This event is taken down" : "Read-only view", sentence: ev.stage === "archived" ? "The public page stays up as a record." : "", confirmBody: "", button: null };
     }
     if (step.kind === "entry_rules") {
       return { h2: step.label, sentence: "", button: step.label, navHref: entriesHref };
@@ -3584,7 +3584,7 @@
     main.innerHTML = `
 <div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>
 <p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
-${content.button ? `<section class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
+${content.button ? `<section${content.isEnd ? ' id="ov-end-target"' : ""} class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
 ${needsLines}
 <h2 class="section-title">Snapshot</h2>
@@ -3600,7 +3600,7 @@ ${archived ? "" : `
 <section class="card"><h2>Join link</h2><div class="copy"><input class="input mono" id="ov-join-url" aria-label="Join link" value="${ui.esc(org.join_url || "")}" readonly><button class="btn" type="button" id="ov-join-copy" data-admin-live>Copy</button></div></section>
 <section class="card"><h2>Judge link</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Judge link" value="${ui.esc(org.judge_url || "")}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button></div></section>
 </div>`}
-${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div>${(counts.participants ?? 0) > 0 ? `<button class="btn danger" type="button" id="ov-end">End event</button>` : `<div class="note">Nobody joined, so there is nothing to end. You can delete the event in <a href="${ui.esc(settingsHref)}">Settings</a>.</div>`}</div></section>`}`;
+${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-target"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div>${(counts.participants ?? 0) > 0 ? `<button class="btn danger" type="button" id="ov-end">End event</button>` : `<div class="note">Nobody joined, so there is nothing to end. You can delete the event in <a href="${ui.esc(settingsHref)}">Settings</a>.</div>`}</div></section>`}`;
     if (data.checklist) {
       const card = renderChecklist({ ui, checklist: data.checklist, title: "This stage" });
       main.querySelector(".next").after(card);

@@ -185,6 +185,14 @@ func TestServeHackJudgeAppBrowser(t *testing.T) {
 		}
 		w.WriteHeader(204)
 	})
+	f.app.mux.HandleFunc("POST /_fixture/change-rubric", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := f.app.database.Exec(`UPDATE rubric_criteria SET description=description || ' Revised brief.' WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, f.event); err != nil {
+			t.Error(err)
+			w.WriteHeader(500)
+			return
+		}
+		w.WriteHeader(204)
+	})
 	data, _ := json.Marshal(map[string]string{"url": f.app.srv.URL, "access": f.judgeAccess, "inviteAccess": f.inviteAccess, "event": f.event, "team": f.team, "judgeCode": f.judgeCode})
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)

@@ -111,6 +111,9 @@ type hackApp struct {
 }
 
 func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
+	return newHackAppDatabase(t, nil, eds...)
+}
+func newHackAppDatabase(t *testing.T, database *sql.DB, eds ...*edition.Edition) *hackApp {
 	t.Helper()
 	var ed *edition.Edition
 	if len(eds) > 0 {
@@ -122,7 +125,10 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
 	}
-	database, err := sql.Open("postgres", dsn)
+	var err error
+	if database == nil {
+		database, err = sql.Open("postgres", dsn)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

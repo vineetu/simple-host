@@ -265,6 +265,12 @@ func TestChecklistJudgingCompletionAndTies(t *testing.T) {
 	if _, err := w.a.database.Exec(`UPDATE events SET judging_locked_at=now() WHERE slug=$1`, w.slug); err != nil {
 		t.Fatal(err)
 	}
+	if r := w.call(t, "POST", "/results/publish", map[string]any{}, w.org); r.status != 200 {
+		t.Fatalf("publish unresolved: %d %s", r.status, r.body)
+	}
+	if items()["o.ties"]["state"] != "todo" {
+		t.Fatal("unresolved publication completed ties")
+	}
 	overrides := []map[string]any{{"team_id": w.teams[0].id, "rank": 1}, {"team_id": w.teams[1].id, "rank": 2}}
 	r := w.call(t, "POST", "/results/publish", map[string]any{"rank_overrides": overrides}, w.org)
 	if r.status != 200 {
@@ -721,5 +727,71 @@ func TestChecklistTakenDownGuidance(t *testing.T) {
 	}
 	if r := w.call(t, "POST", "/checklist/not-needed/o.faq", nil, w.org); r.status != 403 {
 		t.Fatalf("takedown write: %d", r.status)
+	}
+}
+
+func TestChecklistPartialTiePublication(t *testing.T) {
+	w := newJudgingWorld(t, 4, 1)
+	for i, team := range w.teams {
+		points := 1 + i/2
+		if _, err := w.a.database.Exec(`INSERT INTO event_scores(event_id,judge_id,team_id,criterion_id,points) SELECT event_id,$2,$3,id,$4 FROM rubric_criteria WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug, w.judges[0].id, team.id, points); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.setStage(t, "results")
+	if _, err := w.a.database.Exec(`UPDATE events SET judging_locked_at=now() WHERE slug=$1`, w.slug); err != nil {
+		t.Fatal(err)
+	}
+	overrides := []map[string]any{{"team_id": w.teams[2].id, "rank": 1}, {"team_id": w.teams[3].id, "rank": 2}}
+	for _, all := range []bool{false, true} {
+		if all {
+			overrides = append(overrides, map[string]any{"team_id": w.teams[0].id, "rank": 3}, map[string]any{"team_id": w.teams[1].id, "rank": 4})
+		}
+		r := w.call(t, "POST", "/results/publish", map[string]any{"rank_overrides": overrides}, w.org)
+		if r.status != 200 {
+			t.Fatalf("publish %d %s", r.status, r.body)
+		}
+		rows, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
+		if (rows["o.ties"]["state"] == "done") != all {
+			t.Fatalf("all=%v: %v", all, rows["o.ties"])
+		}
+	}
+}
+
+func TestChecklistDisplayedRubricVersionRace(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	for _, tc := range []struct {
+		id string
+		p  person
+	}{{"o.rubric-ready", w.org}, {"j.rubric", w.judges[0].person}} {
+		shown := w.call(t, "GET", "/rubric", nil, tc.p).json(t)
+		version, _ := shown["version"].(string)
+		if version == "" {
+			t.Fatal("missing displayed rubric version")
+		}
+		if _, err := w.a.database.Exec(`UPDATE rubric_criteria SET description=description || ' changed' WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug); err != nil {
+			t.Fatal(err)
+		}
+		r := w.call(t, "POST", "/checklist/acknowledgements/"+tc.id, map[string]string{"version": version}, tc.p)
+		if r.status != 409 || r.json(t)["code"] != "stale_checklist_version" {
+			t.Fatalf("stale render acknowledged: %d %s", r.status, r.body)
+		}
+		fresh := w.call(t, "GET", "/rubric", nil, tc.p).json(t)
+		r = w.call(t, "POST", "/checklist/acknowledgements/"+tc.id, map[string]any{"version": fresh["version"]}, tc.p)
+		if r.status != 200 {
+			t.Fatalf("fresh render refused: %d %s", r.status, r.body)
+		}
+	}
+}
+
+func TestChecklistPublicPageURL(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	w.setStage(t, "building")
+	for _, domain := range []string{"simple-hack.test", "hack.example.org"} {
+		w.a.hack.siteDomain = domain
+		link, ok := (checklistTargets{w.a.hack}).Resolve("o.public-page", w.slug, map[string]string{})
+		if !ok || link.Href != w.a.hack.EventURL(w.slug) {
+			t.Fatalf("public URL: %v", link)
+		}
 	}
 }

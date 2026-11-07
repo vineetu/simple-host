@@ -6,7 +6,7 @@ export function resolve(targetID, slug, params = {}) {
   const href = t.href_pattern.replace(/\{([^}]+)\}/g, (_, key) => {
     const value = key === 'slug' ? slug : params[key]
     if (value == null) throw new Error('Missing navigation parameter: ' + key)
-    return encodeURIComponent(value)
+    return key === 'event_url' ? value : encodeURIComponent(value)
   })
   return { screen: t.screen, section: t.section, tab: t.tab, anchor: t.anchor, href }
 }

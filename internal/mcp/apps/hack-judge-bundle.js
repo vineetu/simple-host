@@ -1006,8 +1006,9 @@
   });
 
   // internal/handler/static/hack/checklist.js
-  async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after }) {
+  async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after, version }) {
     const { ui, api, event } = ctx;
+    if (id !== "j.conflicts" && !version) return;
     const base = `/v1/hack/events/${encodeURIComponent(event.event.slug)}/checklist`;
     const r = await api.api("GET", base + (role ? "?role=" + role : ""));
     if (ctx.alive && !ctx.alive()) return;
@@ -1016,14 +1017,15 @@
       return;
     }
     const item = r.data.checklist?.items.find((i) => i.id === id) || (id === "o.rubric-ready" ? r.data.checklist?.items.find((i) => i.id === "o.rubric") : null);
-    if (!item || item.id === id && item.state === "done" || !item.version && id !== "j.conflicts") return;
+    if (!item || item.id === id && item.state === "done" && (!version || item.version === version) || !version && !item.version && id !== "j.conflicts") return;
+    const displayedVersion = version ?? item.version;
     const button = ui.el("button", { class: "btn", type: "button", text: label });
     button.disabled = !!ui.writeLockReason(event.event, event.admin_view);
     node.append(button);
     button.addEventListener("click", async () => {
       button.disabled = true;
       try {
-        const result = await api.api("POST", base + "/acknowledgements/" + id, item.version ? { version: item.version } : {});
+        const result = await api.api("POST", base + "/acknowledgements/" + id, displayedVersion ? { version: displayedVersion } : {});
         if (ctx.alive && !ctx.alive()) return;
         if (!result.ok) {
           ui.live(node)(ui.errText(result), "err", button);
@@ -1685,7 +1687,7 @@
     const prizes = paragraphs(ev.prizes).map((p) => `<p>${ui.esc(p)}</p>`).join("");
     const aboutCard = about || rules || prizes ? `<section class="card">${about ? `<h3>About this event</h3>${about}` : ""}${rules ? `<hr class="rule"><h3>Rules</h3>${rules}` : ""}${prizes ? `<hr class="rule"><h3>Prizes</h3>${prizes}` : ""}</section>` : "";
     main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>What each score means.</p></div></div>${rubricCard}${aboutCard}`;
-    await bindAcknowledgement(ctx, { node: main.querySelector(".card"), id: "j.rubric", label: "I've read it", role: "judge" });
+    await bindAcknowledgement(ctx, { node: main.querySelector(".card"), id: "j.rubric", label: "I've read it", role: "judge", version: r.data.version });
   }
 
   // internal/mcp/apps/entry/judge.js

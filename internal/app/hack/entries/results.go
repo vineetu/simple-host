@@ -28,32 +28,27 @@ func (s *Service) ComputeResults(ctx context.Context, q sqlkit.Querier, ev model
 	if err != nil {
 		return nil, err
 	}
-	eligible := map[string]map[string]bool{}
-	for _, r := range raw {
-		if _, ok := eligible[r.JudgeID]; !ok {
-			eligible[r.JudgeID], err = entryrepo.EligibleJudgeTeams(ctx, q, ev.ID, r.JudgeID)
-			if err != nil {
-				return nil, err
-			}
-		}
+	eligible, err := entryrepo.EventJudgeEligibility(ctx, q, ev.ID)
+	if err != nil {
+		return nil, err
 	}
-	tracks := make(map[string]*model.EventTrack, len(teams))
-	ids := make(map[string]string, len(teams))
-	for _, team := range teams {
-		track, err := entryrepo.TrackForTeam(ctx, q, ev.ID, team.ID)
-		if err != nil {
-			return nil, err
-		}
-		tracks[team.ID] = track
-		if track != nil {
-			ids[team.ID] = track.ID
-		}
+	tracks, err := entryrepo.EventTeamTracks(ctx, q, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	return computeLoadedResults(ev, rubric, teams, raw, eligible, tracks), nil
+}
+
+func computeLoadedResults(ev model.Event, rubric []model.RubricCriterion, teams []entryrepo.NamedTeam, raw []model.RawScoreRow, eligible map[string]map[string]bool, tracks map[string]*model.EventTrack) []TeamResult {
+	ids := map[string]string{}
+	for id, track := range tracks {
+		ids[id] = track.ID
 	}
 	tie := ""
 	if ev.TieCriterionID.Valid {
 		tie = ev.TieCriterionID.String
 	}
-	return hackentries.ComputeResults(hackentries.ResultsInput[model.EventTrack]{Rubric: rubric, Teams: teams, Raw: raw, Eligible: eligible, Tracks: tracks, TrackIDs: ids, ScoreMode: ev.ScoreMode, TieCriterionID: tie, HasTieCriterion: ev.TieCriterionID.Valid}), nil
+	return hackentries.ComputeResults(hackentries.ResultsInput[model.EventTrack]{Rubric: rubric, Teams: teams, Raw: raw, Eligible: eligible, Tracks: tracks, TrackIDs: ids, ScoreMode: ev.ScoreMode, TieCriterionID: tie, HasTieCriterion: ev.TieCriterionID.Valid})
 }
 
 // PublishResults computes and stores a snapshot in the existing transaction.

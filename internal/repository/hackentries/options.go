@@ -205,3 +205,55 @@ func TrackForTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID string)
 	}
 	return &t, nil
 }
+
+// EventJudgeEligibility loads current and former judging eligibility in one query.
+func EventJudgeEligibility(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]map[string]bool, error) {
+	rows, err := queryContext(ctx, q, `SELECT m.user_id,t.id FROM event_teams t JOIN events e ON e.id=t.event_id
+			JOIN event_members m ON m.event_id=e.id AND m.role IN ('judge', 'organiser')
+			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=m.user_id AND c.team_id=t.id)
+			AND `+EntryJudgeableSQL+`
+			AND (EXISTS (SELECT 1 FROM event_members tm WHERE tm.team_id=t.id) OR t.kept_after_leave)
+			AND (e.judge_assignment_mode='open'
+			OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=m.user_id AND a.team_id=t.id))
+			OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=m.user_id))) UNION SELECT f.user_id,t.id FROM event_former_judges f
+ JOIN event_teams t ON t.event_id=f.event_id AND t.id=ANY(f.counted_team_ids)
+ WHERE f.event_id=$1
+ AND NOT EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=f.event_id AND m.user_id=f.user_id AND m.role IN ('judge','organiser'))
+ AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=f.event_id AND c.judge_id=f.user_id AND c.team_id=t.id)
+ AND `+EntryJudgeableSQL+``, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]map[string]bool{}
+	for rows.Next() {
+		var judge, team string
+		if err := rows.Scan(&judge, &team); err != nil {
+			return nil, err
+		}
+		if out[judge] == nil {
+			out[judge] = map[string]bool{}
+		}
+		out[judge][team] = true
+	}
+	return out, rows.Err()
+}
+
+// EventTeamTracks loads all team tracks without per-team queries.
+func EventTeamTracks(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]*model.EventTrack, error) {
+	rows, err := queryContext(ctx, q, `SELECT m.id,x.id,x.slug,x.name,x.challenge,x.prize FROM event_teams m JOIN event_tracks x ON x.id=m.track_id AND x.event_id=m.event_id WHERE m.event_id=$1`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]*model.EventTrack{}
+	for rows.Next() {
+		var id string
+		var t model.EventTrack
+		if err := rows.Scan(&id, &t.ID, &t.Slug, &t.Name, &t.Challenge, &t.Prize); err != nil {
+			return nil, err
+		}
+		out[id] = &t
+	}
+	return out, rows.Err()
+}

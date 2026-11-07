@@ -82,7 +82,7 @@ func rubricJSON(items []model.RubricCriterion) map[string]any {
 			"max_points":  c.MaxPoints,
 		})
 	}
-	return map[string]any{"criteria": out}
+	return map[string]any{"criteria": out, "version": entryapp.RubricVersion(items)}
 }
 
 func (h *HackHandler) getRubric(w http.ResponseWriter, r *http.Request) {

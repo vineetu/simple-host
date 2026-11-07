@@ -35,7 +35,10 @@ type judgingWorld struct {
 
 func newJudgingWorld(t *testing.T, nTeams, nJudges int) *judgingWorld {
 	t.Helper()
-	a := newHackApp(t)
+	return newJudgingWorldApp(t, newHackApp(t), nTeams, nJudges)
+}
+func newJudgingWorldApp(t *testing.T, a *hackApp, nTeams, nJudges int) *judgingWorld {
+	t.Helper()
 	org := a.newPerson(t, "jg")
 	outsider := a.newPerson(t, "jx")
 	slug := uniqueSlug()
