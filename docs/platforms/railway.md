@@ -1,11 +1,12 @@
 # Run the small box on Railway
 
-Built 2026-10-27, verified locally (see "What was tested" below): no Railway account was
-available to this agent, so the exact container Railway would run — the same image, the same
-environment variables, a volume at the same path — was built and run against a local Postgres
-instead of a live Railway deploy. [SIM-212](https://linear.app/simple-hack/issue/SIM-212) ("Grok
-bot: create the Railway account, publish the Simple Host template, and test one deploy") covers
-the real end-to-end pass once an account exists; update this page's status line when that lands.
+Built 2026-10-27 and verified locally first; a real end-to-end pass against the existing
+Railway account ran 2026-11-06 (see "What was tested" below): build, migrations, sign-in,
+a published site, KV, and a restart all worked. The template itself is not published yet —
+the Railway connector and CLI used for the test cannot run **Generate Template from Project**
+or **Publish**; that step needs a signed-in dashboard or CLI session.
+[SIM-212](https://linear.app/simple-hack/issue/SIM-212) ("Grok bot: create the Railway account,
+publish the Simple Host template, and test one deploy") tracks publishing the template.
 
 ![Simple Host on Railway: your DNS points both names at the service, Railway's own edge ends HTTPS and forwards to one service running Caddy and the Simple Host server with a volume, Railway Postgres in the same project, your GitHub repository holds the Dockerfile the template builds from](https://simple-host.app/diagrams/railway.svg)
 
@@ -143,22 +144,21 @@ reference table; this is the walkthrough.
 ## Gotchas
 
 - **Check `DB_DSN`'s resolved value before deploying.** The Variables tab previews what
-  `${{Postgres.DATABASE_URL}}?sslmode=disable` resolves to. If Railway's `DATABASE_URL`
-  ever already carries its own query string, appending another `?` produces an invalid
-  DSN (the second `?` is just more of the first query string's value, so `sslmode` is
-  never actually set) rather than a silently insecure connection: lib/pq then falls back
-  to its own default (`require`), which fails outright against a Postgres with no TLS
-  configured, rather than connecting unencrypted. If the preview shows a `DATABASE_URL`
-  that already has a `?`, use `&sslmode=disable` instead.
-- **The visitor-IP trust reasoning is unverified against a live deploy.** The Caddyfile
-  trusts `X-Forwarded-For`'s first entry from Railway's private-range hop, on the
-  understanding (from Railway's own docs and community reports, not a tested guarantee)
-  that Railway's edge sets that header to the real client address rather than appending to
-  whatever a client sent. If Railway's edge instead appends to a client-supplied value the
-  way some other platforms do, a visitor could spoof the address `trusted_proxies_strict`
-  picks, affecting rate limits and analytics but not authentication or saved data. Confirm
-  this with a real request (`curl -H "X-Forwarded-For: 1.2.3.4" https://your-domain/...`
-  and check the access log) once a Railway deploy exists, before relying on it.
+  `${{Postgres.DATABASE_URL}}?sslmode=disable` resolves to. Confirmed on a live Railway
+  deploy 2026-11-06: `DATABASE_URL` carries no query string of its own, so the appended
+  `?sslmode=disable` is valid as written. If that ever changes, use `&sslmode=disable`
+  instead (appending a second `?` would otherwise produce an invalid DSN that lib/pq
+  rejects rather than a silently insecure connection).
+- **Railway's edge does not forward a client-supplied `X-Forwarded-For` or `X-Real-IP`
+  unchanged; it drops both and sets its own.** Confirmed on a live deploy 2026-11-06
+  (`curl -H "X-Forwarded-For: 1.2.3.4" ...` to a test site): the edge connects to the
+  container from `100.64.0.0/10` (CGNAT, not an RFC 1918 private range), and forwards
+  `X-Forwarded-For: <real client>, <Railway edge public IP>` and
+  `X-Real-IP: <real client>`, both already correct. The Caddyfile now trusts
+  `100.64.0.0/10` and reads `X-Real-IP` directly, so a visitor cannot spoof the address
+  used for rate limits and analytics. (Before this fix, `trusted_proxies` only listed
+  `private_ranges`, so Caddy trusted neither header at all and every visitor recorded as
+  the same address.)
 - **A card is required**, even for the trial credit.
 - **No committed template file.** Unlike `render.yaml` or Coolify's `compose.yaml`, nothing
   here is "pasted into" Railway. The dashboard project built from the steps above, once
@@ -210,7 +210,7 @@ reference table; this is the walkthrough.
 
 Built and run locally on 2026-10-27 with the exact `deploy/platforms/railway` Dockerfile,
 `PORT` set the way Railway injects it, and a volume at `/data`, against a local Postgres
-container (no Railway account was available to this agent): `start.sh release` (the
+container (no Railway account was available to this agent yet): `start.sh release` (the
 Pre-Deploy Command) loaded `schema.sql` into an empty database and applied all 61
 migrations cleanly; the admin key signed in at `/v1/me`; `POST /v1/admin/users` issued a
 participant account and key; that key published a site (`POST /v1/sites/{name}` with the
@@ -219,13 +219,28 @@ archive as the raw body, `Content-Type: application/zip`), which answered 200 on
 on `sites.*`, matching production); a KV resource and key written through
 `/v1/sites/{name}/storage/kv/...` read back correctly; and a container restart (`docker
 restart`) kept the site, the KV value and the admin account, with `/healthz` answering 200
-before and after. This exercises the same image, environment variables and volume layout
-Railway would run; it does not exercise Railway's own edge, domain verification, Pre-Deploy
-Command isolation, or billing. The Linear ticket above tracks the real deploy. One bug this
-test caught before it could ship: `start.sh` was first committed without its executable
-bit, which would have made the container fail to start entirely (`permission denied`) the
-moment it shipped on Railway's `CMD`-based image, exactly as it does locally without `chmod
-755`.
+before and after. One bug this test caught before it could ship: `start.sh` was first
+committed without its executable bit, which would have made the container fail to start
+entirely (`permission denied`) the moment it shipped on Railway's `CMD`-based image, exactly
+as it does locally without `chmod 755`.
+
+**Real Railway deploy, 2026-11-06 (SIM-212):** the project above was built for real on the
+existing Railway account (Hobby workspace, no new account or card), Root Directory
+`deploy/platforms/railway`, following the Commands steps exactly. Build and healthcheck
+passed; Pre-Deploy logged the same `schema.sql` load and 61 migrations, then the app started;
+the admin key signed in at `/v1/me`; `POST /v1/admin/users` issued a participant account; a
+test site published (`POST /v1/sites/{name}`, raw zip body) and answered 200 on the
+`sites.`-prefixed host; a KV resource (`PUT /v1/sites/{site}/storage/resources/{name}` with
+`{"kind":"kv",...}`) and key (`PUT /v1/sites/{site}/storage/kv/{name}/keys/{key}` with
+`{"value": <json>}`) wrote and read back correctly; a service restart kept the site, KV
+value and admin account, with `/healthz` 200 before and after. Custom DNS (step 7) was not
+tested, no spare domain was available. One limit found: a generated `*.up.railway.app`
+domain is a single label, so the `sites.`-prefixed host cannot be reached over the public
+internet on it; that needs a real custom domain (step 7) or testing over Railway's private
+network with the `sites.` Host header set by hand. **Generate Template from Project** and
+**Publish** are still not done: neither the Railway connector nor Railway's own agent can
+run them, and no CLI or dashboard session was signed in from this box. That is the one step
+left before the slug and "Deploy on Railway" button exist.
 
 Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
 manual order also work on small-box path installs. The public person page opens

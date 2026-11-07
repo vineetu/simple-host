@@ -8,15 +8,16 @@
 	admin off
 	auto_https off
 	servers {
-		# Railway's edge reaches the container directly over its private
-		# network (no separate CDN in front, unlike Render's Cloudflare) and
-		# sets X-Forwarded-For to the real visitor address itself: a client
-		# cannot override it. Trusting the private-range hop and reading the
-		# header's first entry gives the access log (visitor analytics) and
-		# the server's rate limits the visitor's real address.
-		trusted_proxies static private_ranges
+		# Railway's edge reaches the container over 100.64.0.0/10 (CGNAT), not
+		# an RFC 1918 private range, so private_ranges alone leaves that hop
+		# untrusted and Caddy ignores X-Forwarded-For entirely: every visitor
+		# then logs and rate-limits as the same address. Confirmed on a real
+		# Railway deploy 2026-11-06 (SIM-212): the edge also sets X-Real-IP to
+		# the real client address directly, which skips the need to trust and
+		# parse X-Forwarded-For at all.
+		trusted_proxies static 100.64.0.0/10 private_ranges
 		trusted_proxies_strict
-		client_ip_headers {$CLIENT_IP_HEADER:X-Forwarded-For}
+		client_ip_headers {$CLIENT_IP_HEADER:X-Real-IP}
 	}
 }
 
