@@ -5,6 +5,9 @@ description: "Judge entries in a Simple Hack event on simple-hack.app: join as j
 
 # Judge a hackathon
 
+Use `hack_get_checklist` with the event slug and `role: "judge"` for current guidance; follow `checklist.next` and confirm any change before writing.
+
+
 Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs in through its trusted browser window; if unavailable, ask them to connect or reconnect it in their app. Never request or process an emailed sign-in code, API key, password, passcode, or other credential in chat. Use returned event/team/criterion IDs and exact tool schemas. An organiser who judges keeps their organiser role and uses the same scoring rules.
 
 | Task | Connector tools |

@@ -90,7 +90,7 @@ func hackBaseEventTools() []Tool {
 			OutputSchema: schemas.event,
 			Name:         "hack_get_event",
 			Title:        "Get an event",
-			Description:  "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
+			Description:  "Read one event: its page, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
 			InputSchema:  object(map[string]any{"slug": str("The event name.")}, "slug"),
 			Annotations:  writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -308,7 +308,8 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 }
 
 type hackEventView struct {
-	Event struct {
+	Checklist any `json:"checklist"`
+	Event     struct {
 		Slug          string   `json:"slug"`
 		Title         string   `json:"title"`
 		Tagline       string   `json:"tagline"`
@@ -388,6 +389,9 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 		"starts_at":       nil,
 		"ends_at":         nil,
 		"judging_ends_at": nil,
+	}
+	if view.Checklist != nil {
+		out["checklist"] = view.Checklist
 	}
 	if view.Event.StartsAt != nil {
 		out["starts_at"] = *view.Event.StartsAt
@@ -654,6 +658,7 @@ func hackEventSchemas() hackEventSchemaSet {
 		"starts_at":       nullableString("Start time, or null when unset."),
 		"ends_at":         nullableString("End time, or null when unset."),
 		"judging_ends_at": nullableString("When judging closes, or null when unset. Judges with unscored teams are reminded before this time, once set."),
+		"checklist":       nullableObject(hackChecklistSchema(), "Role-specific checklist and guided next action."),
 		"next_step": withDescription(outObject(map[string]any{
 			"kind":            outString("stage, entry_rules, publish_results or none. entry_rules means a draft event whose organiser hasn't chosen entry rules yet: call hack_set_entry_rules with the organiser's choice of preset first (ask which: video_or_website or video_website_code), then this becomes stage/open (\"Open sign-up\")."),
 			"stage":           outString("The stage hack_set_event_stage would move to. Empty for entry_rules, publish_results or none."),

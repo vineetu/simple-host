@@ -1,6 +1,6 @@
 # Simple Hack navigation and checklists — SIM-388 / SIM-393
 
-Status: revised after gated review · 2026-11-07 · implementation in two slices; no implementation in this change.
+Status: 2026-11-07 · slice 2 server implemented in this worktree; navigation and checklist UI remain separate slices.
 
 ## Decisions after review (2026-11-07)
 

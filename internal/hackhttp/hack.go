@@ -468,6 +468,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	wrap := func(fn http.HandlerFunc) http.Handler {
 		return authMW(http.HandlerFunc(fn))
 	}
+	h.registerChecklists(mux, wrap)
 	mux.Handle("GET /v1/hack/directory", http.HandlerFunc(h.getDirectory))
 	mux.HandleFunc("GET /v1/hack/events/{slug}/public", h.PublicEventJSON)
 	mux.HandleFunc("OPTIONS /v1/hack/events/{slug}/public", h.PublicEventJSON)
@@ -1095,6 +1096,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member mode
 			}
 		}
 	}
+	body["checklist"] = h.checklistForView(ctx, ev, member)
 	return body
 }
 

@@ -8687,6 +8687,202 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/hack/events/{slug}/checklist:
+    get:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: getHackChecklist
+      summary: Read a role checklist and its next action
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: role
+        schema:
+          type: string
+          enum:
+          - organiser
+          - judge
+          - participant
+        description: Defaults to actual membership. Organisers may also request judge;
+          synthetic admin inspection is read-only organiser.
+      responses:
+        '200':
+          description: Fresh role checklist
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - checklist
+                properties:
+                  checklist:
+                    $ref: '#/components/schemas/HackChecklist'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: checklist_role_forbidden or event_taken_down
+        '404':
+          description: event_not_found
+        '409':
+          description: event_closed or stale_checklist_version; refetch after a stale
+            rubric version
+  /v1/hack/events/{slug}/checklist/not-needed/{item}:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: markHackChecklistNotNeeded
+      summary: Mark an optional organiser item not needed
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: item
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Fresh role checklist
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - checklist
+                properties:
+                  checklist:
+                    $ref: '#/components/schemas/HackChecklist'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: checklist_role_forbidden or event_taken_down
+        '404':
+          description: event_not_found
+        '409':
+          description: event_closed or stale_checklist_version; refetch after a stale
+            rubric version
+      description: Actual organiser only; optional organiser catalogue IDs only. Event-wide
+        and idempotent; factual completion wins over a mark. Ended events refuse writes.
+    delete:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: restoreHackChecklistItem
+      summary: Restore an optional organiser checklist item
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: item
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Fresh role checklist
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - checklist
+                properties:
+                  checklist:
+                    $ref: '#/components/schemas/HackChecklist'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: checklist_role_forbidden or event_taken_down
+        '404':
+          description: event_not_found
+        '409':
+          description: event_closed or stale_checklist_version; refetch after a stale
+            rubric version
+      description: Actual organiser only; optional organiser catalogue IDs only. Event-wide
+        and idempotent; factual completion wins over a mark. Ended events refuse writes.
+  /v1/hack/events/{slug}/checklist/acknowledgements/{item}:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: acknowledgeHackChecklistItem
+      summary: Explicitly acknowledge the current rubric or own conflict review
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: item
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Fresh role checklist
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - checklist
+                properties:
+                  checklist:
+                    $ref: '#/components/schemas/HackChecklist'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: checklist_role_forbidden or event_taken_down
+        '404':
+          description: event_not_found
+        '409':
+          description: event_closed or stale_checklist_version; refetch after a stale
+            rubric version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: string
+                  description: Current item version for o.rubric-ready or j.rubric.
+                    Omit for unversioned j.conflicts.
+
   /v1/hack/events/{slug}:
     get:
       x-audience: ["public-hack"]
@@ -15918,9 +16114,146 @@ components:
         max_minutes: { type: integer, description: "20160 (14 days)." }
         max_count: { type: integer, description: "5." }
         judging_ends_at: { type: string, format: date-time, nullable: true, description: "When judging closes, or null when judges get no reminder." }
+    HackChecklistLink:
+      type: object
+      nullable: true
+      required:
+      - screen
+      - section
+      - tab
+      - href
+      properties:
+        screen:
+          type: string
+        section:
+          type: string
+        tab:
+          type: string
+          nullable: true
+        href:
+          type: string
+    HackChecklistItem:
+      type: object
+      required:
+      - id
+      - label
+      - state
+      - optional
+      - can_dismiss
+      - origin_stage
+      - group
+      - actionable
+      - target_id
+      - link
+      - detail
+      - count
+      - total
+      - settled
+      - blocked_reason
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        origin_stage:
+          type: string
+        target_id:
+          type: string
+        detail:
+          type: string
+        version:
+          type: string
+        optional:
+          type: boolean
+        can_dismiss:
+          type: boolean
+        actionable:
+          type: boolean
+        settled:
+          type: boolean
+        count:
+          type: integer
+          nullable: true
+        total:
+          type: integer
+          nullable: true
+        state:
+          type: string
+          enum:
+          - done
+          - not_needed
+          - optional
+          - todo
+        group:
+          type: string
+          enum:
+          - current
+          - earlier_required
+          - earlier_optional
+          - history
+        link:
+          $ref: '#/components/schemas/HackChecklistLink'
+        blocked_reason:
+          type: string
+          nullable: true
+    HackChecklist:
+      type: object
+      required:
+      - role
+      - stage
+      - map_version
+      - items
+      - next
+      properties:
+        role:
+          type: string
+        stage:
+          type: string
+        map_version:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HackChecklistItem'
+        next:
+          type: object
+          nullable: true
+          properties:
+            kind:
+              type: string
+              enum:
+              - link
+              - stage
+              - lock_judging
+              - publish_results
+              - submit_entry
+              - end_event
+            item_id:
+              type: string
+            target_id:
+              type: string
+            label:
+              type: string
+            link:
+              $ref: '#/components/schemas/HackChecklistLink'
+            stage:
+              type: string
+            confirmation_required:
+              type: boolean
+            blocked_reason:
+              type: string
+              nullable: true
+            deadline_passed:
+              type: boolean
+            cue:
+              type: object
+              nullable: true
+              additionalProperties: true
+
     HackEventView:
       type: object
       properties:
+        checklist: { $ref: '#/components/schemas/HackChecklist' }
         event: { $ref: '#/components/schemas/HackEvent' }
         role: { type: string, enum: [organiser, participant, judge] }
         me: { $ref: '#/components/schemas/HackMe' }

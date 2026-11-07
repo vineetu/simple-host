@@ -471,3 +471,5 @@ GET /v1/hack/team-links/{code} is public and never joins. Lists never appear on 
 event page. A locked or full team refuses every way in.
 
 Site Sign in uses the account apex. Everyone taps Continue once per site, including named viewers; the choice is remembered. Sign out ends that browser's linked site sessions.
+
+Simple Hack checklist guidance: hack_get_checklist (slug, optional role) returns current items and checklist.next; hack_set_checklist_not_needed marks/restores optional organiser items; hack_acknowledge_checklist_item confirms the current rubric version or own unversioned conflict review. These replay GET/POST/DELETE /v1/hack/events/{slug}/checklist and its not-needed/{item} or acknowledgements/{item} routes. Ended events are read-only.

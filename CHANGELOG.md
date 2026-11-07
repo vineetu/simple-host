@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-07: Simple Hack checklist server (SIM-393) adds role and stage guidance, shared optional-item marks, and explicit rubric/conflict acknowledgements through REST and MCP; participant progress keeps its existing meaning.
+
 2026-11-07: Fixed the Railway deploy recipe's visitor-IP trust (SIM-212): Railway's edge reaches the container over 100.64.0.0/10 (CGNAT), which the Caddyfile's `trusted_proxies` did not list, so it trusted neither `X-Forwarded-For` nor `X-Real-IP` and every visitor's access log and rate limit collapsed onto one address. The recipe now trusts that range and reads the edge's own `X-Real-IP` directly, confirmed correct on a real Railway deploy. The docs' DB_DSN and visitor-IP gotchas, and "What was tested", now reflect that same live deploy instead of the earlier local-only test.
 
 2026-11-07: Product docs at /docs/ for Host and Hack (SIM-389): task guides built around the Features page, Webhooks, Limits and errors, search, the shared theme, and the API reference at /docs/api/. /docs.html redirects to /docs/, and old links land on the matching page.

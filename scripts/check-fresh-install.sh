@@ -113,6 +113,8 @@ run "Hack paper phases" "SELECT run_id,event_key,synthetic,stage,phase_slot,minu
 run "Paper provenance" "SELECT run_id,started_at,role,vcs_revision,vcs_modified,go_version,binary_sha256,config_hash,metric_def_version,bucket_scheme,gomaxprocs,num_cpu,cgroup_memory_max,cgroup_cpu_max FROM paper_run"
 run "Private Hack key lookup" "SELECT event_id,event_key,synthetic,run_id,first_open_at FROM paper_hack_key"
 run "Hack daily provenance" "SELECT run_id,day,metric,value FROM paper_hack_daily"
+run "Hack checklist dismissals" "SELECT event_id,item_id,marked_by,marked_at FROM event_checklist_dismissals"
+run "Hack checklist acknowledgements" "SELECT event_id,subject_id,item_id,version,acknowledged_by,acknowledged_at FROM event_checklist_acknowledgements"
 run "Hack wait notices" "SELECT n.id,n.kind,n.seen_at,n.email_state,COALESCE(p.email_updates,true) FROM event_notices n LEFT JOIN hack_account_preferences p ON p.user_id=n.user_id WHERE n.email_state='pending'"
 
 # An existing box upgrades by running `simple-host migrate`. Prove, on its own
