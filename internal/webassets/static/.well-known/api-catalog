@@ -28,7 +28,7 @@
           "title": "Simple Host — how to deploy (LLM quickstart)"
         },
         {
-          "href": "https://simple-host.app/docs.html",
+          "href": "https://simple-host.app/docs/",
           "type": "text/html",
           "title": "Simple Host API reference"
         }

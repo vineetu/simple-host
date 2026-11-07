@@ -40,7 +40,20 @@ jobs:
       # missing, so both are installed rather than left to the runner image.
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.23.4'
+
+      - name: Rebuild committed docs (Host and Hack)
+        run: |
+          bash scripts/build-docs-site.sh
+          # Also checks the freshly rebuilt Pagefind entry, counts, and references.
+          python3 scripts/docs-site.py check
+          # Native Pagefind output varies by CPU; all other assets remain byte-checked.
+          if [ -n "$(git status --porcelain -- internal/webassets/docs-site ':!internal/webassets/docs-site/*/pagefind/**')" ]; then
+            git status --porcelain -- internal/webassets/docs-site | head -40
+            git diff --stat -- internal/webassets/docs-site | tail -5
+            git diff -- internal/webassets/docs-site ':!*.pf_*' | head -80
+            exit 1
+          fi
 
       - run: pip install pyyaml
       - run: sudo apt-get update -qq && sudo apt-get install -y nginx-light

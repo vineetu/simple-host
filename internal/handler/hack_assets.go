@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -542,39 +543,12 @@ func hackOpenAPIDescription(path, method string) string {
 	return ""
 }
 
-func hackDocsHTML(body []byte) []byte {
-	body = bytes.Replace(body, []byte("<title>API Docs · Simple Host</title>"), []byte("<title>API Docs · Simple Hack</title>"), 1)
-	body = bytes.Replace(body, []byte("<h1>Simple Host REST API</h1>"), []byte("<h1>Simple Hack REST API</h1>"), 1)
-	body = bytes.Replace(body, []byte("Build in your own AI app or agent, then publish and manage sites through this API."), []byte("Run events, form teams, publish websites and judge entries through this API."), 1)
-	start := bytes.Index(body, []byte("<details class=\"install\" id=\"install-skills\">"))
-	if start < 0 {
-		return body
-	}
-	end := bytes.Index(body[start:], []byte("</details>"))
-	if end < 0 {
-		return body
-	}
-	end += start + len("</details>")
-	replacement := []byte(`<p><a href="/get-started">Add Simple Hack to your AI</a>, then ask to run, join or judge an event. Team and custom event websites use KV, SQLite and file resources.</p>`)
-	body = append(append([]byte(nil), body[:start]...), append(replacement, body[end:]...)...)
-	// The old install panel had a script to rewrite Host installer URLs.
-	// Remove it along with the panel on Simple Hack.
-	start = bytes.Index(body, []byte("    // docs.html is not host-rewritten"))
-	if start >= 0 {
-		end = bytes.Index(body[start:], []byte("    SwaggerUIBundle({"))
-		if end >= 0 {
-			end += start
-			body = append(append([]byte(nil), body[:start]...), body[end:]...)
-		}
-	}
-	return body
-}
-
 // hackPersonalPresentationHTML: shared help pages omit personal
 // presentation when served on Hack.
 func hackPersonalPresentationHTML(name string, body []byte) []byte {
 	switch name {
 	case "features.html":
+		body = regexp.MustCompile(`<a data-host-only [^>]*>[^<]*</a>`).ReplaceAll(body, nil)
 		// The page is generated from features.json; each feature is one <details>.
 		start := bytes.Index(body, []byte(`<details class="feat" id="your-home-page">`))
 		if start >= 0 {

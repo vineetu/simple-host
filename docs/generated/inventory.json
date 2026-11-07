@@ -484,7 +484,7 @@
       "method": "GET",
       "path": "/",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:260",
+      "source": "internal/handler/ui.go:264",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -508,7 +508,7 @@
       "method": "GET",
       "path": "/.well-known/api-catalog",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:148",
+      "source": "internal/handler/ui.go:152",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -516,7 +516,7 @@
       "method": "GET",
       "path": "/.well-known/ard.json",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:147",
+      "source": "internal/handler/ui.go:151",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -628,7 +628,7 @@
       "method": "GET",
       "path": "/admin",
       "feature_id": "admin",
-      "source": "internal/handler/ui.go:179",
+      "source": "internal/handler/ui.go:183",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -636,7 +636,7 @@
       "method": "GET",
       "path": "/analytics/{sitename}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:225",
+      "source": "internal/handler/ui.go:229",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -644,7 +644,7 @@
       "method": "GET",
       "path": "/apple-touch-icon.png",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:142",
+      "source": "internal/handler/ui.go:146",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -652,7 +652,7 @@
       "method": "GET",
       "path": "/auth.js",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/ui.go:127",
+      "source": "internal/handler/ui.go:132",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -684,7 +684,7 @@
       "method": "GET",
       "path": "/costs",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:211",
+      "source": "internal/handler/ui.go:215",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -692,7 +692,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:234",
+      "source": "internal/handler/ui.go:238",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -700,7 +700,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:239",
+      "source": "internal/handler/ui.go:243",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -730,9 +730,25 @@
     },
     {
       "method": "GET",
+      "path": "/docs",
+      "feature_id": "skills-and-plugin-distribution",
+      "source": "internal/handler/ui.go:95",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
       "path": "/docs.html",
-      "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:135",
+      "feature_id": "skills-and-plugin-distribution",
+      "source": "internal/handler/ui.go:96",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/docs/",
+      "feature_id": "skills-and-plugin-distribution",
+      "source": "internal/handler/ui.go:94",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -804,7 +820,7 @@
       "method": "GET",
       "path": "/enterprise",
       "feature_id": "hack-voting",
-      "source": "internal/handler/ui.go:189",
+      "source": "internal/handler/ui.go:193",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -812,7 +828,7 @@
       "method": "GET",
       "path": "/enterprise/architecture",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:191",
+      "source": "internal/handler/ui.go:195",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -820,7 +836,7 @@
       "method": "GET",
       "path": "/enterprise/brief",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:190",
+      "source": "internal/handler/ui.go:194",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -844,7 +860,7 @@
       "method": "GET",
       "path": "/favicon-32.png",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:142",
+      "source": "internal/handler/ui.go:146",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -852,7 +868,7 @@
       "method": "GET",
       "path": "/favicon.ico",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:142",
+      "source": "internal/handler/ui.go:146",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -860,7 +876,7 @@
       "method": "GET",
       "path": "/favicon.svg",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:142",
+      "source": "internal/handler/ui.go:146",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -868,7 +884,7 @@
       "method": "GET",
       "path": "/features",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:183",
+      "source": "internal/handler/ui.go:187",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -876,7 +892,7 @@
       "method": "GET",
       "path": "/features.json",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:127",
+      "source": "internal/handler/ui.go:132",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -884,7 +900,7 @@
       "method": "GET",
       "path": "/film/{file}",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:156",
+      "source": "internal/handler/ui.go:160",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -916,7 +932,7 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/ui.go:193",
+      "source": "internal/handler/ui.go:197",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -924,7 +940,7 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/ui.go:201",
+      "source": "internal/handler/ui.go:205",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -932,7 +948,7 @@
       "method": "GET",
       "path": "/hackathons.html",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/ui.go:202",
+      "source": "internal/handler/ui.go:206",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -972,7 +988,7 @@
       "method": "GET",
       "path": "/index.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:237",
+      "source": "internal/handler/ui.go:241",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -980,7 +996,7 @@
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:127",
+      "source": "internal/handler/ui.go:132",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -988,7 +1004,7 @@
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:134",
+      "source": "internal/handler/ui.go:139",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -996,7 +1012,7 @@
       "method": "GET",
       "path": "/install.ps1",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:174",
+      "source": "internal/handler/ui.go:178",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1004,7 +1020,7 @@
       "method": "GET",
       "path": "/install.sh",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:173",
+      "source": "internal/handler/ui.go:177",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1140,7 +1156,7 @@
       "method": "GET",
       "path": "/llms.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:238",
+      "source": "internal/handler/ui.go:242",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1148,7 +1164,7 @@
       "method": "GET",
       "path": "/llms.txt",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:127",
+      "source": "internal/handler/ui.go:132",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1179,16 +1195,16 @@
     {
       "method": "GET",
       "path": "/openapi.json",
-      "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:131",
+      "feature_id": "skills-and-plugin-distribution",
+      "source": "internal/handler/ui.go:136",
       "package": "internal/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/openapi.yaml",
-      "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:131",
+      "feature_id": "skills-and-plugin-distribution",
+      "source": "internal/handler/ui.go:136",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1220,7 +1236,7 @@
       "method": "GET",
       "path": "/plugin.zip",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:170",
+      "source": "internal/handler/ui.go:174",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1228,7 +1244,7 @@
       "method": "GET",
       "path": "/pricing",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:187",
+      "source": "internal/handler/ui.go:191",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1252,7 +1268,7 @@
       "method": "GET",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:217",
+      "source": "internal/handler/ui.go:221",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1260,7 +1276,7 @@
       "method": "GET",
       "path": "/robots.txt",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:145",
+      "source": "internal/handler/ui.go:149",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1268,7 +1284,7 @@
       "method": "GET",
       "path": "/setup",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:207",
+      "source": "internal/handler/ui.go:211",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1276,7 +1292,7 @@
       "method": "GET",
       "path": "/setup/{$}",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:208",
+      "source": "internal/handler/ui.go:212",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1292,7 +1308,7 @@
       "method": "GET",
       "path": "/signin.js",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/ui.go:127",
+      "source": "internal/handler/ui.go:132",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1412,7 +1428,7 @@
       "method": "GET",
       "path": "/sitemap.xml",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:146",
+      "source": "internal/handler/ui.go:150",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1428,7 +1444,7 @@
       "method": "GET",
       "path": "/skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:149",
+      "source": "internal/handler/ui.go:153",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1436,7 +1452,7 @@
       "method": "GET",
       "path": "/skills/connect-domain",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:164",
+      "source": "internal/handler/ui.go:168",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1444,7 +1460,7 @@
       "method": "GET",
       "path": "/skills/connect-domain.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:161",
+      "source": "internal/handler/ui.go:165",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1452,7 +1468,7 @@
       "method": "GET",
       "path": "/skills/connect-domain/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:162",
+      "source": "internal/handler/ui.go:166",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1460,7 +1476,7 @@
       "method": "GET",
       "path": "/skills/connect-domain/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:165",
+      "source": "internal/handler/ui.go:169",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1468,7 +1484,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:164",
+      "source": "internal/handler/ui.go:168",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1476,7 +1492,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:161",
+      "source": "internal/handler/ui.go:165",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1484,7 +1500,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:162",
+      "source": "internal/handler/ui.go:166",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1492,7 +1508,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:165",
+      "source": "internal/handler/ui.go:169",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1500,7 +1516,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:164",
+      "source": "internal/handler/ui.go:168",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1508,7 +1524,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:161",
+      "source": "internal/handler/ui.go:165",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1516,7 +1532,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:162",
+      "source": "internal/handler/ui.go:166",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1524,7 +1540,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:165",
+      "source": "internal/handler/ui.go:169",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1532,7 +1548,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:164",
+      "source": "internal/handler/ui.go:168",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1540,7 +1556,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:161",
+      "source": "internal/handler/ui.go:165",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1548,7 +1564,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:162",
+      "source": "internal/handler/ui.go:166",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1556,7 +1572,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:165",
+      "source": "internal/handler/ui.go:169",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1564,7 +1580,7 @@
       "method": "GET",
       "path": "/skills/version",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:152",
+      "source": "internal/handler/ui.go:156",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1572,7 +1588,7 @@
       "method": "GET",
       "path": "/skills/website-deploy",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:164",
+      "source": "internal/handler/ui.go:168",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1580,7 +1596,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:164",
+      "source": "internal/handler/ui.go:168",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1588,7 +1604,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:161",
+      "source": "internal/handler/ui.go:165",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1596,7 +1612,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:162",
+      "source": "internal/handler/ui.go:166",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1604,7 +1620,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:165",
+      "source": "internal/handler/ui.go:169",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1612,7 +1628,7 @@
       "method": "GET",
       "path": "/skills/website-deploy.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:161",
+      "source": "internal/handler/ui.go:165",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1620,7 +1636,7 @@
       "method": "GET",
       "path": "/skills/website-deploy/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:162",
+      "source": "internal/handler/ui.go:166",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1628,7 +1644,7 @@
       "method": "GET",
       "path": "/skills/website-deploy/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:165",
+      "source": "internal/handler/ui.go:169",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1636,7 +1652,7 @@
       "method": "GET",
       "path": "/support",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:215",
+      "source": "internal/handler/ui.go:219",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1652,7 +1668,7 @@
       "method": "GET",
       "path": "/terms",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:214",
+      "source": "internal/handler/ui.go:218",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3076,7 +3092,7 @@
       "method": "GET",
       "path": "/{$}",
       "feature_id": "owner-dashboard-and-owner-app",
-      "source": "internal/handler/ui.go:240",
+      "source": "internal/handler/ui.go:244",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3476,7 +3492,7 @@
       "method": "POST",
       "path": "/",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:259",
+      "source": "internal/handler/ui.go:263",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3540,7 +3556,7 @@
       "method": "POST",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:218",
+      "source": "internal/handler/ui.go:222",
       "package": "internal/handler",
       "dynamic": false
     },

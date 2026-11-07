@@ -132,7 +132,7 @@ While a site is at that fallback, its response carries address_state (GET /v1/me
 
 Pages call the API same-origin on their own address (/v1/sites/<site>/...; only that site answers there). Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only); storage writes follow each resource's policy.
 
-Agents save with the API key (or the connector) through the apex. Want a nicer address? Take a free <name>.simple-host.app or connect your own domain ([four-step domain guide](https://simple-host.app/docs.html#connect-a-domain); [connect-domain skill](https://simple-host.app/v1/skills/connect-domain)); the site moves there and its old address redirects.
+Agents save with the API key (or the connector) through the apex. Want a nicer address? Take a free <name>.simple-host.app or connect your own domain ([four-step domain guide](https://simple-host.app/docs/guides/addresses/#connect-your-own-domain); [connect-domain skill](https://simple-host.app/v1/skills/connect-domain)); the site moves there and its old address redirects.
 
 A custom domain needs two DNS records: the A/CNAME that points it here (dns) and a TXT ownership record _simple-host.<domain> holding the site's token (dns_txt; keep it in place, the domain is re-proved with it); the connect answer and GET /v1/sites/<site>/domain give both. Its certificate is issued automatically once both are seen (GET /v1/sites/<site>/domain shows certificate_status and last_error; each account gets at most 5 new domain certificates a day); until the new domain works, the site keeps its current address.
 
@@ -142,7 +142,7 @@ A site with a domain lives only on that domain: its <site>.<handle>.simple-host.
 
 ## ADDRESS FAMILIES
 
-Connect one wildcard domain for an account's sites with `connect_domain` or `POST /v1/me/address-families`; ask first because it affects all matching sites. Follow the [connect-domain skill](https://simple-host.app/v1/skills/connect-domain) and [address-family reference](https://simple-host.app/docs.html#address-families).
+Connect one wildcard domain for an account's sites with `connect_domain` or `POST /v1/me/address-families`; ask first because it affects all matching sites. Follow the [connect-domain skill](https://simple-host.app/v1/skills/connect-domain) and [address-family reference](https://simple-host.app/docs/guides/addresses/#put-every-site-under-one-domain).
 
 ## ANALYTICS
 
@@ -369,13 +369,13 @@ Keep zip files, installers and videos elsewhere and link to them. Remove files y
 
 ## STORAGE DETAILS
 
-Read [storage details](https://simple-host.app/docs.html#storage-details) for reference checks, legacy migration, rate limits, locking, quotas, and error codes. Use the table routes for visitor SQLite operations.
+Read [storage details](https://simple-host.app/docs/guides/storage/#write-to-storage-from-your-own-code) for reference checks, legacy migration, rate limits, locking, quotas, and error codes. Use the table routes for visitor SQLite operations.
 
 Connect your AI app or agent using the [setup instructions](https://simple-host.app/install.html).
 
 ## API REFERENCE
 
-[API docs](https://simple-host.app/docs.html), [OpenAPI JSON](https://simple-host.app/openapi.json), and [OpenAPI YAML](https://simple-host.app/openapi.yaml) list this server’s public API by Auth, Account, Sites, Deploy, Versions, Analytics, Custom domains, Address families, Storage resources, Visitor sign-in, Skills, Showcase, and Health.
+[API docs](https://simple-host.app/docs/api/), [OpenAPI JSON](https://simple-host.app/openapi.json), and [OpenAPI YAML](https://simple-host.app/openapi.yaml) list this server’s public API by Auth, Account, Sites, Deploy, Versions, Analytics, Custom domains, Address families, Storage resources, Visitor sign-in, Skills, Showcase, and Health.
 
 POST /v1/sites/<site>/photos: add 1 to 30 prepared WebP/JPEG photos under images/ in one normal version, keeping live files; X-API-Key (deploy keys are account-wide), usual deploy permissions and quotas. Header-only validation, not a full pixel decode. Both this route and POST /v1/photo-links return 429 with Retry-After when photo save capacity is full; retry after the delay. After an uncertain photo save, resend with X-Photo-Reconcile: 1 to confirm matching live bytes without writing; 409 means unconfirmed, not safe to repeat the upload. File/directory conflicts return 409; choose another name or rename the conflicting path. Simple Host only.
 
@@ -403,7 +403,7 @@ Coding agents with a shell: create_upload_link with archive: true returns a priv
 
 ## NOTIFICATIONS
 
-After building a form, offer entry notifications through MCP Events or a dashboard webhook. Read the [notification reference](https://simple-host.app/docs.html#notifications) for signatures, retries, and limits. Simple Hack uses personal team or organiser subscriptions. On Simple Host the same subscription also takes four site events, site.deployed, domain.status_changed, viewer.access_requested, and visitor.signed_up (visitor ID only, never an email, never the owner); Simple Hack and Enterprise keep the three record events, and Enterprise needs a separate port for the site events. On Simple Host, Web Push is a third notification kind on the same subscription (SIM-360, behind the account allowlist WEB_PUSH_ACCOUNTS, off until the owner enables it): the owner subscribes a browser device from the dashboard or `SH.push.subscribe()`, and a signed-in visitor may subscribe their own device too, site-wide or to one optional resource, to be told when the owner adds or edits their row. Not yet on Simple Hack or Enterprise.
+After building a form, offer entry notifications through MCP Events or a dashboard webhook. Read the [notification reference](https://simple-host.app/docs/webhooks/) for signatures, retries, and limits. Simple Hack uses personal team or organiser subscriptions. On Simple Host the same subscription also takes four site events, site.deployed, domain.status_changed, viewer.access_requested, and visitor.signed_up (visitor ID only, never an email, never the owner); Simple Hack and Enterprise keep the three record events, and Enterprise needs a separate port for the site events. On Simple Host, Web Push is a third notification kind on the same subscription (SIM-360, behind the account allowlist WEB_PUSH_ACCOUNTS, off until the owner enables it): the owner subscribes a browser device from the dashboard or `SH.push.subscribe()`, and a signed-in visitor may subscribe their own device too, site-wide or to one optional resource, to be told when the owner adds or edits their row. Not yet on Simple Hack or Enterprise.
 
 ## REQUEST RELIABILITY
 

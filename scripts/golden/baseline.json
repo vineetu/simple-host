@@ -57,7 +57,7 @@
       "content-type": "application/xml; charset=utf-8"
     },
     "body": {
-      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url><loc>https://golden-host.invalid/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/features</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/pricing</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/install.html</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/hackathons</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/enterprise</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/enterprise/brief</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/enterprise/architecture</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs.html</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/architecture.html</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/terms</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/support</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/privacy.html</loc><lastmod><ts></lastmod></url>\n</urlset>\n"
+      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url><loc>https://golden-host.invalid/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/features</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/pricing</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/install.html</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/hackathons</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/enterprise</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/enterprise/brief</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/enterprise/architecture</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/architecture.html</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/terms</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/support</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/privacy.html</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/api/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/access/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/addresses/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/agents/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/analytics/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/dashboard/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/notifications/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/publish/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/showcase/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/guides/storage/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/limits/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/mcp/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/self-hosting/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/self-hosting/operate/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/start/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/start/api/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/start/pages/</loc><lastmod><ts></lastmod></url>\n  <url><loc>https://golden-host.invalid/docs/webhooks/</loc><lastmod><ts></lastmod></url>\n</urlset>\n"
     }
   },
   {
@@ -242,7 +242,7 @@
         "header"
       ],
       "resource": "<base:1>",
-      "resource_documentation": "<base:1>/docs.html",
+      "resource_documentation": "<base:1>/docs/",
       "resource_name": "Simple Host",
       "scopes_supported": [
         "sites"
@@ -285,7 +285,7 @@
       "scopes_supported": [
         "sites"
       ],
-      "service_documentation": "<base:1>/docs.html",
+      "service_documentation": "<base:1>/docs/",
       "token_endpoint": "<base:1>/oauth/token",
       "token_endpoint_auth_methods_supported": [
         "none",

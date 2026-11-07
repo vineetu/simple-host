@@ -139,8 +139,8 @@ func TestHackRegisteredDocsReview(t *testing.T) {
 		}
 		return rec.Body.Bytes()
 	}
-	page := string(get("/docs.html"))
-	for _, text := range []string{"<title>API Docs · Simple Hack</title>", "<h1>Simple Hack REST API</h1>", `href="/get-started"`} {
+	page := string(get("/docs/"))
+	for _, text := range []string{"<title>Docs | Simple Hack</title>", "id=\"_top\"", `href="/get-started"`} {
 		if !strings.Contains(page, text) {
 			t.Errorf("Hack docs missing %q", text)
 		}

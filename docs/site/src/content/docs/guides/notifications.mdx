@@ -1,0 +1,95 @@
+---
+title: "Notifications"
+---
+
+import { Steps, Tabs, TabItem, LinkCard, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import What from '@docs/What.astro';
+import Instance from '@docs/Instance.astro';
+
+## Get a webhook when a visitor writes
+<What id="notify-webhook" />
+
+<Steps>
+
+1. Choose your site's events and a public HTTPS receiver.
+2. Create the subscription.
+
+   <Tabs syncKey="way">
+   <TabItem label="Dashboard">
+   {/* brand:host */}
+   On your sites page, open Settings, Notifications, then Add notification. Choose the site, events, optional storage resource, and receiver URL.
+   {/* /brand */}
+   {/* brand:hack */}
+   Open Notifications on your team's Website or the organiser's custom website screen. Choose the events, optional storage resource, and receiver URL.
+   {/* /brand */}
+   </TabItem>
+   <TabItem label="API">Send `POST /v1/sites/{sitename}/notifications` with `{"url":"https://receiver.example/hook","events":["record.added"]}`. {/* brand:hack */}For an organiser's website use `/v1/hack/events/{slug}/website/notifications`.{/* /brand */}</TabItem>
+   </Tabs>
+
+3. Save the signing secret shown once in your receiver configuration. [Verify each message](/docs/webhooks/#verify-before-processing).
+
+</Steps>
+
+## Subscribe with MCP Events
+<What id="notify-mcp-events" />
+
+<Steps>
+
+1. In an app that supports MCP Events, call `events/list` and select an event.
+2. Call `events/subscribe` with `name`, `arguments:{site,storage?}`, and `delivery:{mode:"webhook",url,secret}`. Supply the app's receiver and a `whsec_` secret, base64 of 24 to 64 bytes.
+3. Verify the signed challenge, then return 2xx JSON with the same `challenge` and no `type` field. Refresh before `refreshBefore`; retain the returned `cursor` for replay.
+
+</Steps>
+
+## Test, pause, rotate, and read deliveries
+<What id="notify-controls" />
+
+<Steps>
+
+1. Press **Send test**, or POST to the subscription's `/test` route.
+2. Read **Deliveries**, or GET `/v1/sites/{sitename}/notifications/{id}/deliveries`.
+3. Press **Pause** or **Resume**, or PATCH that subscription with `{"paused":true}` or `{"paused":false}`.
+4. Press **Rotate secret**, or POST to `/rotate-secret`. Update your receiver. For an MCP subscription, refresh through its app instead.
+
+</Steps>
+
+{/* brand:host */}
+## Switch off sign-in alerts, or get a Submissions digest
+{/* /brand */}
+{/* brand:hack */}
+## Switch off sign-in alerts
+{/* /brand */}
+<What id="notify-emails" />
+
+<Steps>
+
+1. {/* brand:host */}On your sites page, open Settings and switch off **Sign-in alerts**.{/* /brand */}{/* brand:hack */}Open Account, Preferences, and clear **Email me after each new sign-in or connected app**.{/* /brand */}
+{/* brand:host */}
+2. For an existing Submissions collection, open its settings and choose an email digest cadence.
+{/* /brand */}
+
+</Steps>
+
+<details>
+<summary>Set up Zapier, n8n, Hermes, or OpenClaw</summary>
+
+- Zapier: choose Webhooks by Zapier, Catch Hook, copy its URL, and Send test. Put a verifier before it for raw-byte signature checks.
+- n8n: add a POST Webhook node, enable Raw Body for verification, test, publish, and copy its Production URL.
+- Hermes: enable its webhook adapter and configure its route secret with the shown `whsec_` value; verify the `svix-*` aliases.
+- OpenClaw: enable hooks, set `Authorization: Bearer <hook token>` as the custom header, and use an adapter to verify and map the envelope to `/hooks/agent`'s `message` payload.
+
+</details>
+
+## Errors you may see
+
+| Code | Means | Do this |
+|---|---|---|
+| `invalid_url` (400) | Receiver refused | Use public HTTPS |
+| `invalid_events` (400) | Event list refused | Choose listed events |
+| `client_secret` (409) | MCP subscriber manages the secret | Refresh in the subscribing app |
+
+## Next
+<CardGrid>
+<LinkCard title="Storage and saved data" href="/docs/guides/storage/" />
+<LinkCard title="Agents and MCP" href="/docs/guides/agents/" />
+</CardGrid>

@@ -414,7 +414,17 @@
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>
               <!--sh:hosted--><p class="hint">Also reachable at https://mcp.simple-host.app/mcp.</p><!--/sh:hosted-->
-              <p class="hint">Your agent needs to support MCP sign-in (OAuth). <a href="/docs.html#install-skills">Other ways to install</a></p>
+              <p class="hint">Your agent needs to support MCP sign-in (OAuth). <a href="#manual-skills">Install skill folders manually</a></p>
+              <details id="manual-skills">
+                <summary>Install skill folders manually</summary>
+                <p>Download <a href="/skills.zip">skills.zip</a>. Put website-deploy, website-deploy-builder, and connect-domain directly in your agent's skills directory, then restart the agent.</p>
+                <ul>
+                  <li>Claude Code: <code>~/.claude/skills/</code></li>
+                  <li>Codex: <code>~/.agents/skills/</code>; Cursor: <code>~/.cursor/skills/</code></li>
+                  <li>opencode: <code>~/.config/opencode/skills/</code>; Hermes: <code>~/.hermes/skills/</code>; OpenClaw: <code>~/.openclaw/skills/</code></li>
+                </ul>
+                <p>On Windows, replace <code>~</code> with your user profile directory.</p>
+              </details>
             </div>
           </details>
         </div>

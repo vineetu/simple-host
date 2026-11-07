@@ -144,6 +144,9 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		// 2026-10-30: the footer gained a Cost and limits link next to Features
 		// (SIM-190), a plain nav addition, not a step toward the hack chrome.
 		if name == "footer.html" {
+			// SIM-389 moves the API footer entry to the product docs.
+			out = bytes.ReplaceAll(out, []byte("/docs.html"), []byte("/docs/"))
+			out = bytes.ReplaceAll(out, []byte(">API</a>"), []byte(">Docs</a>"))
 			before := `<a href="{{.Base}}/features"{{if eq .Current "features"}} aria-current="page"{{end}}>Features</a>` + "\n        "
 			after := before + `<a href="{{.Base}}/pricing"{{if eq .Current "pricing"}} aria-current="page"{{end}}>Cost and limits</a>` + "\n        "
 			out = bytes.Replace(out, []byte(before), []byte(after), 1)

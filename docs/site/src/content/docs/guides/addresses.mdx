@@ -1,0 +1,115 @@
+---
+title: "Domains and addresses"
+brands: [host]
+---
+
+import { Steps, Tabs, TabItem, LinkCard, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import What from '@docs/What.astro';
+import Instance from '@docs/Instance.astro';
+
+<Instance kind="hosted">
+
+## Take a free short name
+<What id="free-name" />
+<Steps>
+
+1. Pick a name: lower-case letters, numbers, and dashes.
+2. Connect it.
+   <Tabs syncKey="way">
+   <TabItem label="In chat">"Give my shop site the address brand-shop.simple-host.app."</TabItem>
+   <TabItem label="API">`POST /v1/sites/{site}/domain` with `{"domain":"brand-shop.simple-host.app"}`. The answer has `"status":"active"`.</TabItem>
+   <TabItem label="Dashboard">Your sites page, the site's Manage menu, Domain. Type the name and press Connect.</TabItem>
+   </Tabs>
+
+</Steps>
+
+</Instance>
+
+## Connect your own domain
+<What id="custom-domain-connect" />
+<Steps>
+
+1. Connect it.
+   <Tabs syncKey="way">
+   <TabItem label="In chat">"Connect shop.brand.com to my shop site."</TabItem>
+   <TabItem label="API">`POST /v1/sites/{site}/domain` with `{"domain":"shop.brand.com"}`.</TabItem>
+   <TabItem label="Dashboard">Manage, then Domain. Type the domain and press Connect.</TabItem>
+   </Tabs>
+2. Add these records at your registrar, copied exactly from the answer or the Domain panel:
+
+   | Type | Name | Value |
+   |---|---|---|
+   | CNAME (subdomain) or A (bare domain) | `shop` | `cname.simple-host.app`, or the IP shown |
+   | TXT | `_simple-host.shop` | `sh-...` (your site's token) |
+   | CNAME for www, or A for the bare domain | `www` or `@` | as shown, only if the answer lists it |
+
+   Leave every other record alone, MX included. Keep the TXT record in place.
+3. Wait for the check. Checks run about every two minutes.
+   <Tabs syncKey="way">
+   <TabItem label="In chat">"Is shop.brand.com live yet?"</TabItem>
+   <TabItem label="API">`GET /v1/sites/{site}/domain` until `status` is `active` and `certificate_status` is `live`. `POST .../domain/check` checks now; `last_error` says what is missing.</TabItem>
+   <TabItem label="Dashboard">The badge next to the site's name. Press Check again.</TabItem>
+   </Tabs>
+4. Open https://shop.brand.com/. A page means it is done.
+
+</Steps>
+
+Add the records the same day: an unproven connection expires after 24 hours.
+
+<details>
+<summary>http:// redirects but https:// fails</summary>
+
+If `certificate_status` is `failed`, remove any AAAA record pointing elsewhere and any CAA record that does not allow Let's Encrypt.
+
+</details>
+
+## Disconnect a domain
+<What id="custom-domain-disconnect" />
+<Steps>
+
+1. Disconnect it.
+   <Tabs syncKey="way">
+   <TabItem label="In chat">"Disconnect shop.brand.com."</TabItem>
+   <TabItem label="API">`DELETE /v1/sites/{site}/domain?domain=shop.brand.com`.</TabItem>
+   <TabItem label="Dashboard">Manage, then Domain, then Disconnect.</TabItem>
+   </Tabs>
+2. Remove the records at your registrar.
+
+</Steps>
+
+<Instance kind="hosted">
+
+## Put every site under one domain
+<What id="addresses-families" />
+<Steps>
+
+1. Connect it.
+   <Tabs syncKey="way">
+   <TabItem label="In chat">"Put all my sites under \*.clients.brand.com."</TabItem>
+   <TabItem label="API">`POST /v1/me/address-families` with `{"suffix":"*.clients.brand.com"}`. Add `"site_prefix":"client-"` to match only sites whose names start with it.</TabItem>
+   <TabItem label="Dashboard">Address families on your sites page, or Manage, Domain, All my sites (\*.name). Type the domain and press Connect.</TabItem>
+   </Tabs>
+2. Add a CNAME `*.clients` to `cname.simple-host.app`, and a TXT `_simple-host.clients` with the value shown. Keep the TXT record.
+3. Wait until the certificate status changes from `waiting_for_operator` to `live`. Still waiting after a day? Write to support@simple-host.app.
+4. Open `https://<site>.clients.brand.com/`. A page means it is done.
+
+</Steps>
+
+`"canonical": false` keeps each site's own address as the main one.
+
+</Instance>
+
+## Errors you may see
+| Code | Means | Do this |
+|---|---|---|
+| `domain_taken` (409) | Name belongs to another site or account | Pick another name |
+| `domain_releasing` (409) | Just disconnected | Try again in 10 minutes |
+| `invalid_domain` (400) | Not a valid domain | Check the spelling |
+| `name_reserved` (400) | Kept for the platform, like `www` or `admin` | Pick another name |
+| `use_address_family` (400) | A wildcard sent to a site's domain route | Use `/v1/me/address-families` |
+
+## Next
+<CardGrid>
+<LinkCard title="Sign-in and access" href="/docs/guides/access/" />
+<LinkCard title="API reference: Custom domains" href="/docs/api/#/Custom%20domains" />
+</CardGrid>

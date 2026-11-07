@@ -1,0 +1,81 @@
+---
+title: "Sign-in and access"
+---
+
+import { Steps, Tabs, TabItem, LinkCard, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import What from '@docs/What.astro';
+import Instance from '@docs/Instance.astro';
+
+## Sign in to your account
+<What id="signin-email-code" />
+
+<Steps>
+
+1. Open the @PRODUCT@ sign-in screen in your browser.
+2. Use a sign-in method offered on this screen: choose a provider, enter your email and its code, or fill in **Email or username** and **Password** when shown. Keep codes and passwords in the sign-in screen, outside chat.
+3. Check the signed-in account before changing a site's access.
+
+</Steps>
+
+## Create a key for a client
+<What id="api-key" />
+
+<Steps>
+
+1. Open the key controls.
+
+   <Tabs syncKey="way">
+   {/* brand:host */}
+   <TabItem label="Dashboard">On your sites page, open Settings, then Keys. Enter a name, select Deploy only for CI if appropriate, and press Create key.</TabItem>
+   {/* /brand */}
+   <TabItem label="API">With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. Use `GET /v1/me/keys` to list keys, and `DELETE /v1/me/keys/{id}` to revoke one.</TabItem>
+   </Tabs>
+
+   {/* brand:hack */}
+   For a team key, use Website, Advanced: command line and API key. For a replacement account key, use Account, Danger zone, New key; confirm the old key will stop working.
+   {/* /brand */}
+2. Copy the new key when shown and store it locally. Send it in `X-API-Key` from your trusted client, never in a hosted page.
+
+</Steps>
+
+## Sign visitors in on a page
+<What id="visitor-signin" />
+
+<Steps>
+
+1. Load `https://@DOMAIN@/auth.js` without `defer`. Add a `#sh-auth` element and call `SH.mount('#sh-auth')`.
+2. Call `await SH.requireSignIn()` when the visitor presses a button that needs sign-in.
+3. Read `await SH.me()` before showing account details. Call `SH.signOut()` for the sign-out action.
+4. On a custom domain, set `window.SH_CONFIG = {site:'your-site'}` before loading the script.
+
+</Steps>
+
+{/* brand:host */}
+
+## Choose who can open a site
+<What id="access-named-viewers" />
+
+<Steps>
+
+1. In the site's Manage menu, choose **Who can open**.
+2. For named people, add their exact email addresses. Through the API, use `POST /v1/sites/{sitename}/viewers` with `{"emails":["person@example.com"]}`.
+3. For a shared passcode, use the site's Passcode controls in the dashboard. Keep the passcode out of chat.
+4. Confirm before removing either restriction. Use named viewers or a passcode, not both; do not use Unlisted as an access lock.
+
+</Steps>
+{/* /brand */}
+
+## Errors you may see
+
+| Code | Means | Do this |
+|---|---|---|
+| `missing_api_key` (401) | Owner API key missing | Send `X-API-Key` |
+| `sign_in_required` (401) | Visitor session required | Sign in on the site |
+| `account_auth_unavailable` (403) | Account sign-in on a site address | Use the platform sign-in screen |
+| `use_custom_domain` (400) | Visitor sign-in needs its own origin | Open the site address |
+
+## Next
+<CardGrid>
+<LinkCard title="Storage and saved data" href="/docs/guides/storage/" />
+<LinkCard title="Agents and MCP" href="/docs/guides/agents/" />
+</CardGrid>

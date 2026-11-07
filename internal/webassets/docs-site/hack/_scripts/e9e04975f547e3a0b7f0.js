@@ -1,0 +1,1 @@
+document.addEventListener(`keydown`,e=>{let t=e.target;e.key!==`/`||t.closest(`input, textarea, [contenteditable]`)||(e.preventDefault(),document.querySelector(`site-search button[data-open-modal]`)?.click())});

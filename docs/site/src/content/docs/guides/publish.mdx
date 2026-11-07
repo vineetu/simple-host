@@ -1,0 +1,102 @@
+---
+title: "Sites and deploy"
+---
+
+import { Steps, Tabs, TabItem, LinkCard, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import What from '@docs/What.astro';
+import Instance from '@docs/Instance.astro';
+
+## Publish a site
+<What id="deploy-inline-files" />
+
+<Steps>
+
+1. Prepare `index.html` and use relative links for the other files. Keep servers and build tools out of the upload; upload their static output.
+2. Publish it.
+
+   <Tabs syncKey="way">
+   <TabItem label="In chat">“Publish these files as my bakery site.” Confirm the name and address before the first publish.</TabItem>
+   <TabItem label="API">Send `POST /v1/sites/{sitename}/files` with `{"files":{"index.html":"..."}}`, or send an archive to `POST /v1/sites/{sitename}` with `Content-Type: application/zip`. Send your key in `X-API-Key`.</TabItem>
+   </Tabs>
+
+   {/* brand:hack */}
+   Select the event and team first. Use your team key and its exact site name. Organisers send JSON files to `PUT /v1/hack/events/{slug}/website/files?create=1` with their account key.
+   {/* /brand */}
+3. Open the returned address and test the links and form saves.
+
+   {/* brand:hack */}
+   Publish before your team’s submission deadline. Read the event’s Website screen for the current deadline and the entry’s status. When returning from chat, check that the selected team is still yours before sending another update.
+   {/* /brand */}
+
+</Steps>
+
+## Update files
+<What id="deploy-update" />
+
+<Steps>
+
+1. Read the current file list before replacing files.
+2. Send the change.
+
+   <Tabs syncKey="way">
+   <TabItem label="In chat">“On my bakery site, change the opening time to 8 am. Keep the other pages.”</TabItem>
+   <TabItem label="API">Send `PUT /v1/sites/{sitename}/files?keep=1` with the changed `files`. To replace the whole file tree, omit `keep=1` and send every file.</TabItem>
+   </Tabs>
+
+3. Open the live address and check the changed page.
+
+</Steps>
+
+## Preview and publish a version
+<What id="site-preview" />
+
+<Steps>
+
+1. Save the update with `publish=false`. Read `GET /v1/sites/{sitename}/versions` and note its version number.
+2. Create a preview with `POST /v1/sites/{sitename}/versions/2/preview-link`. Open the returned link; it stops working after an hour.
+3. Publish it with `PUT /v1/sites/{sitename}/active-version` and `{"version_number":2}`. To roll back, read the version list and send the earlier number instead.
+
+</Steps>
+
+{/* brand:host */}
+## Rename or take a site offline
+<What id="site-rename" />
+
+<Steps>
+
+1. Choose the site and check its current name with `GET /v1/sites`.
+2. Send `PATCH /v1/sites/{sitename}` with `{"name":"new-name"}` to rename it, or `{"offline":true}` to take it offline.
+3. To reopen it, send `{"offline":false}` to the current name.
+
+</Steps>
+
+## Delete or restore a site
+<What id="site-delete" />
+
+<Steps>
+
+1. Download a copy with `GET /v1/sites/{sitename}/export.tar.gz` if you need it.
+2. Confirm the site name, then send `DELETE /v1/sites/{sitename}`.
+3. To undo, list `GET /v1/me/deleted-sites` and send `POST /v1/sites/{sitename}/restore` before the returned deadline. A deleted site is restorable for 7 days.
+
+</Steps>
+
+{/* /brand */}
+
+## Errors you may see
+
+| Code | Means | Do this |
+|---|---|---|
+| `site_exists` (409) | Name already used | Update that site or choose another name |
+| `not_found` (404) | Update files: no matching site | Read the site list |
+| `site_not_found` (404) | Rename or roll back: no matching site | Read the site list |
+{/* brand:host */}
+| HTTP 404 (no code) | Delete: no matching site | Read the site list |
+{/* /brand */}
+| `item_too_large` (413) | Upload exceeds a cap | Check Limits and errors |
+
+## Next
+<CardGrid>
+<LinkCard title="Storage and saved data" href="/docs/guides/storage/" />
+<LinkCard title="Sign-in and access" href="/docs/guides/access/" />
+</CardGrid>

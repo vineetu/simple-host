@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // One light/dark setting for the whole site (INTENT, 2026-09-28): every page
@@ -111,6 +112,9 @@ func TestNoPageDecidesItsOwnTheme(t *testing.T) {
 // (so the choice is applied before first paint), and every page with the
 // header has the one theme menu.
 func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
+	oldHosted := instanceIsHostedService
+	instanceIsHostedService = true
+	t.Cleanup(func() { instanceIsHostedService = oldHosted })
 	mux := chromeTestMux(t, edition.Host)
 	// Served pages under the apex CSP carry a nonce on <script>; compare the
 	// script's body.
@@ -138,7 +142,7 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		"/", "/dashboard", "/install.html", "/docs.html", "/architecture.html", "/privacy.html",
+		"/", "/dashboard", "/install.html", "/docs/", "/architecture.html", "/privacy.html",
 		"/features", "/enterprise", "/enterprise/brief", "/enterprise/architecture", "/hackathons",
 		"/setup", "/costs", "/terms", "/support", "/admin", "/analytics/my-site", "/connect.html",
 	} {
@@ -151,7 +155,11 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 			t.Errorf("%s: status %d", path, rec.Code)
 			continue
 		}
-		check(path, rec.Body.String(), true)
+		body := rec.Body.String()
+		if strings.HasPrefix(path, "/docs/") {
+			body = inlineDocsChromeForTest(t, mux, body)
+		}
+		check(path, body, true)
 	}
 	// Every page source with chrome is covered, including ones only a handler
 	// serves (connect.html, notfound.html, showcase.html).
@@ -205,5 +213,32 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		"service error":  serviceErrorPage,
 	} {
 		check(label, body, false)
+	}
+}
+
+// Starlight may query viewport size for its mobile sidebar, never the OS theme.
+func TestDocsUseSharedTheme(t *testing.T) {
+	for _, hack := range []bool{false, true} {
+		err := fs.WalkDir(webassets.DocsTree(hack), ".", func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			if ext := filepath.Ext(p); ext != ".html" && ext != ".js" && ext != ".css" {
+				return nil
+			}
+			body, _ := fs.ReadFile(webassets.DocsTree(hack), p)
+			for _, banned := range themeBanned {
+				if banned == "matchMedia" {
+					continue
+				} // Starlight's viewport and reduced-motion queries.
+				if bytes.Contains(body, []byte(banned)) {
+					t.Errorf("docs %s contains %s", p, banned)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }

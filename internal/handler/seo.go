@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // hostSitemapPaths and hackSitemapPaths are the platform's own public
@@ -18,7 +19,7 @@ var (
 	hostSitemapPaths = []string{
 		"/", "/features", "/pricing", "/install.html", "/hackathons",
 		"/enterprise", "/enterprise/brief", "/enterprise/architecture",
-		"/docs.html", "/architecture.html", "/terms", "/support", "/privacy.html",
+		"/architecture.html", "/terms", "/support", "/privacy.html",
 	}
 	hackSitemapPaths = []string{
 		"/", "/get-started", "/companies", "/directory", "/watch", "/terms", "/privacy.html",
@@ -66,6 +67,7 @@ func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool) 
 	if hack {
 		paths = hackSitemapPaths
 	}
+	paths = append(append([]string{}, paths...), webassets.DocsPaths(hack)...)
 	var b strings.Builder
 	// These are all compiled pages, not user sites. A release's build stamp
 	// dates every entry; source revision time is the plain-go-build fallback.

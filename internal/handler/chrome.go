@@ -171,7 +171,7 @@ var navKeys = map[string]string{
 	"/features.html":           "features",
 	"/pricing":                 "pricing",
 	"/pricing.html":            "pricing",
-	"/docs.html":               "docs",
+	"/docs/":                   "docs",
 	"/architecture.html":       "architecture",
 	"/privacy.html":            "privacy",
 	"/terms":                   "terms",
@@ -183,6 +183,9 @@ var navKeys = map[string]string{
 // the main origin.
 func (p *assetPipeline) chromeDataFor(r *http.Request, base string) ChromeData {
 	current := navKeys[r.URL.Path]
+	if strings.HasPrefix(r.URL.Path, "/docs/") {
+		current = "docs"
+	}
 	host := r.Host
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
@@ -479,7 +482,7 @@ func jsonStringBody(s string) string {
 // keeps working, now pointed at it (existing behaviour). Left unset,
 // SupportContact is just a phrase ("whoever runs this server") with no "@",
 // so there is no address to link to: the whole anchor is replaced with
-// plain text, and the plain-text mentions (features.html, docs.html) with
+// plain text, and the plain-text mentions (features.html, docs pages) with
 // the same phrase, so a self-hosted install never shows Vineet's inbox as if
 // it were its own.
 //

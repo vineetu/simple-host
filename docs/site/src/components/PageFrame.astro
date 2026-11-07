@@ -1,0 +1,10 @@
+---
+import Default from '@astrojs/starlight/components/PageFrame.astro';
+---
+<div class="docs-product-header"><Fragment set:html="<!--sh:header-->" /></div>
+<Default>
+  <slot name="header" slot="header" />
+  <slot name="sidebar" slot="sidebar" />
+  <slot />
+</Default>
+<Fragment set:html="<!--sh:footer-->" />

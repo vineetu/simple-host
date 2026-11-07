@@ -1,0 +1,63 @@
+---
+title: "Docs"
+tableOfContents: false
+---
+
+import { Steps, Tabs, TabItem, LinkCard, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import What from '@docs/What.astro';
+import Instance from '@docs/Instance.astro';
+
+Steps for each job, from your chat, the API, the dashboard, or your own pages.
+
+<div class="home-connect">
+<LinkButton href="@INSTALL@">Connect your AI app</LinkButton>
+<p>Ask for a site in your chat and open the address it returns.</p>
+</div>
+
+## Building it yourself
+<CardGrid>
+<LinkCard title="Use the REST API" description="One key in an X-API-Key header, then plain HTTPS calls." href="/docs/start/api/" />
+<LinkCard title="Code on your own pages" description="Load auth.js to sign visitors in and save what they send." href="/docs/start/pages/" />
+</CardGrid>
+
+## Guides
+<div class="guide-grid">
+<CardGrid>
+{/* brand:host */}
+<LinkCard title="Sites and deploy" description="Publish, update, preview, roll back, rename, and delete." href="/docs/guides/publish/" />
+{/* /brand */}
+{/* brand:hack */}
+<LinkCard title="Sites and deploy" description="Publish, update, preview, and roll back your team’s site." href="/docs/guides/publish/" />
+{/* /brand */}
+{/* brand:host */}
+<LinkCard title="Domains and addresses" description="Connect your own domain." href="/docs/guides/addresses/" />
+{/* /brand */}
+<LinkCard title="Storage and saved data" description="Set up KV, tables, and files, and who may write." href="/docs/guides/storage/" />
+{/* brand:host */}
+<LinkCard title="Sign-in and access" description="Agent keys, visitor sign-in, passcodes, and named viewers." href="/docs/guides/access/" />
+{/* /brand */}
+{/* brand:hack */}
+<LinkCard title="Sign-in and access" description="Agent keys and visitor sign-in." href="/docs/guides/access/" />
+{/* /brand */}
+<LinkCard title="Notifications" description="Set up a webhook or MCP Events, test it, and read deliveries." href="/docs/guides/notifications/" />
+<LinkCard title="Agents and MCP" description="Connect an app, install skills, and point agents at llms.txt." href="/docs/guides/agents/" />
+{/* brand:host */}
+<LinkCard title="Owner dashboard" description="Manage sites yourself and add photos from your phone." href="/docs/guides/dashboard/" />
+<LinkCard title="Showcase and home page" description="Pin, order, and caption sites, or choose a home page." href="/docs/guides/showcase/" />
+{/* /brand */}
+<LinkCard title="Traffic and analytics" description="Read visitor numbers for a site or a period." href="/docs/guides/analytics/" />
+</CardGrid>
+</div>
+
+## Reference
+<div class="reference-grid">
+<CardGrid>
+<LinkCard title="API reference" href="/docs/api/" />
+<LinkCard title="MCP tools" href="/docs/mcp/" />
+<LinkCard title="Webhooks" href="/docs/webhooks/" />
+<LinkCard title="Limits and errors" href="/docs/limits/" />
+</CardGrid>
+</div>
+
+<div class="home-footer">Agents: read <a href="@LLMS@">@LLMS@</a>. What each feature is: <a href="/features.html">Features</a>.</div>
+<script src="/docs/old-anchors.js"></script>

@@ -1,0 +1,36 @@
+{
+  "host": {
+    "install-skills": "/install.html",
+    "connect-a-domain": "/docs/guides/addresses/#connect-your-own-domain",
+    "address-families": "/docs/guides/addresses/",
+    "add-photos": "/docs/guides/dashboard/#add-photos",
+    "storage-details": "/docs/guides/storage/#write-to-storage-from-your-own-code",
+    "notifications": "/docs/guides/notifications/",
+    "swagger-ui": "/docs/api/",
+    "mcp-calls": "/docs/guides/notifications/#subscribe-with-mcp-events",
+    "headers-and-body": "/docs/webhooks/#headers-and-body",
+    "verify-before-processing": "/docs/webhooks/#verify-before-processing",
+    "node": "/docs/webhooks/#verify-before-processing",
+    "python": "/docs/webhooks/#verify-before-processing",
+    "go": "/docs/webhooks/#verify-before-processing",
+    "duplicates-retries-and-suspension": "/docs/webhooks/#retries-and-suspension",
+    "receiver-setup": "/docs/guides/notifications/#get-a-webhook-when-a-visitor-writes"
+  },
+  "hack": {
+    "install-skills": "/install.html",
+    "connect-a-domain": "/docs/",
+    "address-families": "/docs/",
+    "add-photos": "/docs/guides/publish/#update-files",
+    "storage-details": "/docs/guides/storage/#write-to-storage-from-your-own-code",
+    "notifications": "/docs/guides/notifications/",
+    "swagger-ui": "/docs/api/",
+    "mcp-calls": "/docs/guides/notifications/#subscribe-with-mcp-events",
+    "headers-and-body": "/docs/webhooks/#headers-and-body",
+    "verify-before-processing": "/docs/webhooks/#verify-before-processing",
+    "node": "/docs/webhooks/#verify-before-processing",
+    "python": "/docs/webhooks/#verify-before-processing",
+    "go": "/docs/webhooks/#verify-before-processing",
+    "duplicates-retries-and-suspension": "/docs/webhooks/#retries-and-suspension",
+    "receiver-setup": "/docs/guides/notifications/#get-a-webhook-when-a-visitor-writes"
+  }
+}

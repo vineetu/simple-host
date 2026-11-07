@@ -1,0 +1,12 @@
+---
+import Search from '@astrojs/starlight/components/Search.astro';
+---
+<div class="docs-bar"><span class="docs-label">Docs</span><Search /></div>
+<script>
+  document.addEventListener('keydown', (event) => {
+    const target = event.target as HTMLElement;
+    if (event.key !== '/' || target.closest('input, textarea, [contenteditable]')) return;
+    event.preventDefault();
+    document.querySelector<HTMLButtonElement>('site-search button[data-open-modal]')?.click();
+  });
+</script>

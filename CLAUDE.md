@@ -130,8 +130,9 @@ Never report branch work as fixed; only what a client can see is shipped.
 
 - The admin is a real `users` row, upserted at boot from `ADMIN_API_KEY` (no default in source).
   Do not reintroduce a synthetic admin id.
-- HTML, CSS and JS are hand-written and embedded; there is no frontend build. A page edit needs
-  a rebuild.
+- HTML, CSS and JS are hand-written and embedded. The one frontend-build exception is
+  docs/site (Astro/Starlight): Node at build time only, with output committed and embedded.
+  Every feature change updates its task page under docs/site. A page edit needs a rebuild.
 - **New pages use the shared theme.** The page carries the chrome markers (or `<!--sh:theme-->`
   alone when it has no header) and styles both themes from site.css tokens and
   `html[data-theme="dark"]`. It follows the visitor's system until they pick in the header's

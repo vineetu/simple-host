@@ -1,0 +1,99 @@
+/* Shared product tokens are injected before these styles by sh:head. */
+:root, html[data-theme="light"], html[data-theme="dark"] {
+  --sl-color-white: var(--text);
+  --sl-color-black: var(--bg);
+  --sl-color-gray-1: var(--text);
+  --sl-color-gray-2: var(--text-secondary);
+  --sl-color-gray-3: var(--text-secondary);
+  --sl-color-gray-4: var(--border);
+  --sl-color-gray-5: var(--border);
+  --sl-color-gray-6: var(--surface);
+  --sl-color-gray-7: var(--surface);
+  --sl-color-text: var(--text);
+  --sl-color-text-accent: var(--accent);
+  --sl-color-accent: var(--accent);
+  --sl-color-accent-low: var(--surface);
+  --sl-color-accent-high: var(--accent);
+  --sl-color-bg: var(--bg);
+  --sl-color-bg-nav: var(--bg);
+  --sl-color-bg-sidebar: var(--bg);
+  --sl-color-hairline: var(--border);
+  --sl-color-hairline-shade: var(--border);
+  --sl-font: var(--font);
+  --sl-font-mono: var(--mono);
+  --sl-nav-height: 108px;
+  --sl-sidebar-width: 260px;
+  --sl-content-width: 60rem;
+  --sl-text-h1: 2rem;
+  --sl-text-h2: 1.35rem;
+  --sl-text-h3: 1rem;
+}
+body { background: var(--bg); color: var(--text); font-family: var(--font); }
+.docs-product-header { position: fixed; top: 0; width: 100%; z-index: 60; }
+.docs-product-header .sh-header { position: static; height: 64px; }
+.docs-product-header .sh-bar { max-width: 1400px; }
+.page > .header { top: 64px; height: 44px; padding-block: 4px; }
+.docs-bar { display: flex; align-items: center; gap: 1rem; height: 100%; }
+.docs-label { font-size: .85rem; font-weight: 600; }
+.docs-bar site-search { width: min(100%, 320px); }
+.docs-bar button[data-open-modal] { height: 34px; min-height: 0; border-radius: 10px; }
+.sl-menu-button { top: 70px; border: 1px solid var(--border); background: var(--surface); color: var(--text); box-shadow: none; }
+.sidebar-pane { padding-top: .5rem; }
+.sidebar-content summary .large { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+.sidebar-content a { font-size: .9rem; border-radius: 6px; }
+.sidebar-content a[aria-current="page"] { background: var(--surface); color: var(--accent); font-weight: 600; }
+.main-pane .content-panel { border: 0; }
+.sl-markdown-content { line-height: 1.55; }
+.sl-markdown-content h2 { margin-top: 2.5rem; }
+.sl-markdown-content h2:first-child { margin-top: 0; }
+h1#_top { font-size: clamp(1.6rem, 3vw, 2rem); font-weight: 700; }
+.sl-markdown-content p, .sl-markdown-content li { overflow-wrap: anywhere; }
+.sl-markdown-content .what-link { display: inline-block; font-size: .78rem; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: .15rem .6rem; margin: .3rem 0 1rem; text-decoration: none; }
+.sl-markdown-content .what-link:hover { color: var(--accent); border-color: var(--accent); }
+.sl-markdown-content .sl-steps > li::before { background: var(--accent); color: var(--on-accent); border-color: var(--accent); box-shadow: none; }
+.sl-markdown-content .sl-steps > li { padding-bottom: 1.2rem; }
+starlight-tabs { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-block: .75rem; }
+starlight-tabs .tablist-wrapper { background: var(--surface); }
+starlight-tabs [role="tablist"] { border-bottom-width: 1px; }
+starlight-tabs .tab > [role="tab"] { padding: .55rem .9rem; font-size: .85rem; white-space: nowrap; }
+starlight-tabs > [role="tabpanel"] { padding: .9rem 1rem; margin-top: 0 !important; }
+.sl-markdown-content table { display: block; overflow-x: auto; width: 100%; font-size: .88rem; }
+.sl-markdown-content th, .sl-markdown-content td { min-width: 8rem; overflow-wrap: normal; border: 1px solid var(--border); padding: .5rem .7rem; }
+.sl-markdown-content th { background: var(--surface); }
+.sl-markdown-content pre { border: 1px solid var(--border); border-radius: 10px; padding: .9rem 1rem; background: var(--surface) !important; color: var(--text) !important; overflow: auto; }
+.sl-markdown-content pre span { color: var(--text) !important; }
+.sl-markdown-content code { font-family: var(--mono); }
+.sl-markdown-content details { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: .7rem 1rem; font-size: .9rem; }
+.sl-markdown-content summary { cursor: pointer; font-weight: 600; }
+.card-grid { gap: 1rem; }
+.sl-link-card { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 1rem 1.1rem; box-shadow: none; }
+.sl-link-card .title { font-size: 1rem; color: var(--text); }
+.sl-link-card .description { font-size: .9rem; color: var(--text-secondary); }
+.sl-link-card .icon { display: none; }
+.sl-link-card:hover { border-color: var(--accent); }
+.home-connect { margin: 1.5rem 0 2.25rem; text-align: center; }
+.home-connect .sl-link-button { display: flex; width: 100%; justify-content: center; padding: .9rem 1rem; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 1.05rem; }
+.home-connect p { margin-top: .6rem; color: var(--text-secondary); font-size: .88rem; }
+.home-footer { border-top: 1px solid var(--border); margin-top: 2rem; padding-top: 1.5rem; font-size: .88rem; color: var(--text-secondary); }
+[data-has-toc] .main-pane { min-width: 0; }
+.right-sidebar { font-size: .85rem; }
+.sh-footer { position: relative; z-index: 5; }
+@media (min-width: 72rem) {
+  .guide-grid .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .reference-grid .card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 49.99rem) {
+  .docs-bar { padding-right: 2rem; }
+  .docs-label { display: none; }
+  .docs-bar site-search { width: 100%; }
+  .card-grid { grid-template-columns: 1fr; }
+  .sl-markdown-content td code { white-space: nowrap; }
+  .sidebar-pane { max-width: 300px; }
+}
+
+/* Keep the docs typography plain while retaining the product chrome. */
+.main-pane h1, .sl-markdown-content h2, .sl-markdown-content h3, .sidebar-content summary, .docs-bar button, starlight-tabs [role="tab"] { font-family: var(--font) !important; }
+.sl-markdown-content h2 { font-size: var(--sl-text-h2) !important; }
+.sl-markdown-content h3 { font-size: var(--sl-text-h3) !important; }
+
+.main-pane > .content-panel:first-child { padding-bottom: 0; }

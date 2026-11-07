@@ -51,6 +51,8 @@ type assetPipeline struct {
 	// (baseTextFS.Open).
 	text sync.Map
 
+	docs docsCache
+
 	// skillsZip, pluginZip and hackSkillsZip are this instance's cached zip
 	// downloads (ui.go, hack_get_started.go), each built once.
 	skillsZip     cachedZip

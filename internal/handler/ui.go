@@ -89,6 +89,11 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		_, _ = w.Write(body)
 	})
 	assets := sh.pipeline()
+	// Product docs are separate from the static file tree.
+	assets.docs.baseURL = strings.TrimRight(publicBaseURL, "/")
+	mux.Handle("GET /docs/", assets.adminUICSP(http.HandlerFunc(assets.serveDocs)))
+	mux.Handle("GET /docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
+	mux.Handle("GET /docs.html", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
 	sub, _ := fs.Sub(assets.staticFS(), "static")
 	handlerOnly := handlerOnlyFS{sub, sh.ed.Presentation().HackAssets, assets.rewritten()}
 	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnly))
@@ -132,7 +137,6 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	}
 	if sh.ed.Routes().HostedEvents {
 		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
-		mux.Handle("GET /docs.html", assets.adminUICSP(assets.serveStaticPage("docs.html")))
 	}
 	// Each product's own icon (teal dot for Host, red dot for Hack), at the
 	// same four addresses. A day of caching plus the ?v= on every link
@@ -338,7 +342,7 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right,
 	// and the landing film's files are served by serveFilm (film.go).
-	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (f.hackAssets && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (f.rewritten && slices.Contains(rewrittenAssets, name)) {
+	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (f.hackAssets && (name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (f.rewritten && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
@@ -354,9 +358,6 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 		if err != nil {
 			http.NotFound(w, r)
 			return
-		}
-		if p.pres.HackAssets && name == "docs.html" {
-			body = p.HackInstanceText(hackDocsHTML(body))
 		}
 		if name == "pricing.html" {
 			body = applyPricingNumbers(body, p.hostedEvents, p.limits)
@@ -411,6 +412,10 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 		}
 		nonce := base64.StdEncoding.EncodeToString(b[:])
 		policy := policyFmt
+		if strings.HasPrefix(r.URL.Path, "/docs/") {
+			// Pagefind searches its local index with WebAssembly, not JavaScript eval.
+			policy = strings.Replace(policy, "script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'", 1)
+		}
 		if p.chromeHack {
 			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
 			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")

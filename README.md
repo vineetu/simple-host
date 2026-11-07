@@ -10,7 +10,7 @@ Ask your AI app for a website, and it goes live at its own address, `https://<si
 - **Run your own → https://simple-host.app/setup?product=small-box**
 - **Features:** https://simple-host.app/features
 - **Architecture:** https://simple-host.app/architecture.html
-- **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [API docs](https://simple-host.app/docs.html) · [Get started in your AI app](https://simple-host.app/install.html)
+- **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [API docs](https://simple-host.app/docs/) · [Get started in your AI app](https://simple-host.app/install.html)
 - **Enterprise edition:** https://simple-host.app/enterprise · [github.com/vineetu/simple-host-enterprise](https://github.com/vineetu/simple-host-enterprise)
 - **Enterprise on your Kubernetes cluster → https://simple-host.app/setup?product=enterprise** (Helm or Kubernetes YAML; existing or in-cluster Postgres)
 - **What Enterprise costs to run → https://simple-host.app/costs** (AWS, Azure and Google Cloud at list prices, for your number of people)
@@ -143,7 +143,7 @@ Start with the [configuration entry](docs/configuration.md).
 
 ## API
 
-Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contract is [`openapi.yaml`](https://simple-host.app/openapi.yaml); a readable version is [docs.html](https://simple-host.app/docs.html).
+Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contract is [`openapi.yaml`](https://simple-host.app/openapi.yaml); a readable version is [docs/](https://simple-host.app/docs/).
 
 | Endpoint | Method | Description |
 |---|---|---|

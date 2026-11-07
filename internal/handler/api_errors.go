@@ -38,7 +38,7 @@ func APIErrors(mux *http.ServeMux, next http.Handler, publicBaseURL string) http
 		}
 		writeJSON(w, status, errorResponse{
 			Error: message, Code: code,
-			Hint: "See " + strings.TrimRight(publicBaseURL, "/") + "/docs.html for supported routes and methods.",
+			Hint: "See " + strings.TrimRight(publicBaseURL, "/") + "/docs/ for supported routes and methods.",
 		})
 	})
 }

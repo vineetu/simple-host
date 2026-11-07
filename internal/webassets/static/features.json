@@ -803,7 +803,8 @@
      "docs": [
       {
        "label": "Skill: connect a domain",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       },
       {
        "label": "FEATURES.md: addresses",
@@ -916,12 +917,13 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#take-a-free-short-name"
       },
       {
        "label": "Skill: connect a domain",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       },
       {
        "label": "FEATURES.md: free names and domains",
@@ -951,12 +953,13 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#connect-your-own-domain"
       },
       {
        "label": "Skill: connect a domain",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       },
       {
        "label": "FEATURES.md: free names and domains",
@@ -986,12 +989,13 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#connect-your-own-domain"
       },
       {
        "label": "Skill: connect a domain",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       }
      ],
      "covers": [],
@@ -1017,8 +1021,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#connect-your-own-domain"
       },
       {
        "label": "FEATURES.md: free names and domains",
@@ -1048,12 +1052,13 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#connect-your-own-domain"
       },
       {
        "label": "Skill: connect a domain",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       }
      ],
      "covers": [],
@@ -1079,8 +1084,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#connect-your-own-domain"
       },
       {
        "label": "FEATURES.md: free names and domains",
@@ -1110,12 +1115,13 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#disconnect-a-domain"
       },
       {
        "label": "Skill: connect a domain",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       }
      ],
      "covers": [],
@@ -1141,8 +1147,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#connect-your-own-domain"
       },
       {
        "label": "FEATURES.md: free names and domains",
@@ -1174,12 +1180,13 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: address families",
-       "href": "/docs.html#address-families"
+       "label": "Domains and addresses guide",
+       "href": "/docs/guides/addresses/#put-every-site-under-one-domain"
       },
       {
        "label": "Skill: connect a domain",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       },
       {
        "label": "FEATURES.md: free names and domains",
@@ -1228,8 +1235,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       },
       {
        "label": "Plan a site's data",
@@ -1263,8 +1270,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#create-storage-and-choose-access"
       },
       {
        "label": "Recipe: inbox",
@@ -1300,8 +1307,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       },
       {
        "label": "Recipe: records",
@@ -1407,8 +1414,8 @@
        "href": "/recipes/booking"
       },
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       }
      ],
      "covers": [
@@ -1473,8 +1480,8 @@
        "href": "/recipes/records"
       },
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       }
      ],
      "covers": [
@@ -1506,8 +1513,8 @@
        "href": "/recipes/people"
       },
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       }
      ],
      "covers": [
@@ -1535,8 +1542,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       },
       {
        "label": "FEATURES.md: site storage",
@@ -1568,8 +1575,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       },
       {
        "label": "FEATURES.md: site storage",
@@ -1609,8 +1616,8 @@
        "href": "/photos"
       },
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       }
      ],
      "covers": [],
@@ -1640,8 +1647,8 @@
        "href": "/pricing"
       },
       {
-       "label": "API reference: storage",
-       "href": "/docs.html#storage-details"
+       "label": "Storage and saved data guide",
+       "href": "/docs/guides/storage/#write-to-storage-from-your-own-code"
       }
      ],
      "covers": [],
@@ -2048,7 +2055,7 @@
       },
       {
        "label": "Notifications",
-       "href": "/docs.html#notifications"
+       "href": "/docs/guides/notifications/"
       }
      ],
      "covers": [],
@@ -2791,7 +2798,7 @@
      "who": "Anyone who wants Zapier, n8n, Hermes, OpenClaw, or their own receiver to act on new entries or uploads instead of someone checking the page.",
      "how": "Under Notifications, add an HTTPS receiver address for one site, with an optional label, an optional filter to one storage resource, and an optional custom header for your receiver. Simple Host then POSTs a signed body when a visitor adds a record or KV key (record.added), edits or deletes one (record.changed), or uploads a file (file.uploaded). The body carries the event id, time, site, storage, kind, preset, and the visitor's id or null, plus the table and row or the KV key with its fields, or the file's path, size, and type; visitor-written fields are marked as untrusted. Signatures follow Standard Webhooks (HMAC-SHA256 over the body, timestamp, and id), with matching svix headers. The signing secret is shown once at creation.",
      "example": "A tutoring business points a webhook at n8n so each new booking row posts a message to their team chat with the lesson time.",
-     "where": "Settings, Notifications on your sites page, or on the team and organiser website screens in Simple Hack, and the REST routes documented at docs.html#notifications.",
+     "where": "Settings, Notifications on your sites page, or on the team and organiser website screens in Simple Hack, and the REST routes documented at /docs/guides/notifications/.",
      "limits": "Up to 10 subscriptions per site, about 60 events a minute and 5,000 a day per site, 7 days of delivery history. Five retries over about 10 minutes; sustained failure suspends delivery and emails you once. Public HTTPS addresses only, no redirects, a 5-second timeout. The visitor's email is never in the payload; strings over 2 KB are cut and bodies over 16 KB drop fields and say which. Owner writes never trigger one, and neither do writes to legacy saved data. Offline or taken-down sites skip deliveries.",
      "editions": {
       "host": "yes",
@@ -2804,8 +2811,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: notifications",
-       "href": "/docs.html#notifications"
+       "label": "Notifications guide",
+       "href": "/docs/guides/notifications/"
       },
       {
        "label": "Recipe: bookings",
@@ -2839,8 +2846,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: notifications",
-       "href": "/docs.html#notifications"
+       "label": "Notifications guide",
+       "href": "/docs/guides/notifications/"
       },
       {
        "label": "FEATURES.md §19 Signals and notifications",
@@ -2870,8 +2877,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: notifications",
-       "href": "/docs.html#notifications"
+       "label": "Notifications guide",
+       "href": "/docs/guides/notifications/"
       }
      ],
      "covers": [],
@@ -2897,8 +2904,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: notifications",
-       "href": "/docs.html#notifications"
+       "label": "Notifications guide",
+       "href": "/docs/guides/notifications/"
       },
       {
        "label": "FEATURES.md §19 Signals and notifications",
@@ -2995,7 +3002,7 @@
       },
       {
        "label": "Install the skills",
-       "href": "/docs.html#install-skills"
+       "href": "/install.html#manual-skills"
       }
      ],
      "covers": [],
@@ -3021,8 +3028,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference: notifications",
-       "href": "/docs.html#notifications"
+       "label": "Verify webhooks",
+       "href": "/docs/webhooks/#verify-before-processing"
       },
       {
        "label": "FEATURES.md §19 Signals and notifications",
@@ -3166,7 +3173,7 @@
       },
       {
        "label": "Install the skills",
-       "href": "/docs.html#install-skills"
+       "href": "/install.html#manual-skills"
       },
       {
        "label": "Get started",
@@ -3201,7 +3208,7 @@
       },
       {
        "label": "Install the skills",
-       "href": "/docs.html#install-skills"
+       "href": "/install.html#manual-skills"
       }
      ],
      "covers": [],
@@ -3218,25 +3225,26 @@
      "limits": "It confirms by opening your domain rather than waiting on the badge.",
      "editions": {
       "host": "yes",
-      "hack": "yes",
+      "hack": "no",
       "enterprise": "no",
       "smallbox": "yes"
      },
-     "editions_note": "Enterprise has no custom domains, so no domain skill.",
+     "editions_note": "Hack does not bundle the domain skill. Enterprise has no custom domains, so no domain skill.",
      "status": "live",
      "status_note": "",
      "docs": [
       {
        "label": "The skill text",
-       "href": "/skills/connect-domain/SKILL.md"
+       "href": "/skills/connect-domain/SKILL.md",
+       "host_only": true
       },
       {
-       "label": "Connect a domain",
-       "href": "/docs.html#connect-a-domain"
+       "label": "Install the skills",
+       "href": "/docs/guides/agents/#install-the-skills"
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-connect-domain; FEATURES.md §9 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (§21) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). Hack toolkit does not include connect-domain itself; marked yes because the Hack connector carries the domain tools."
+     "evidence": "features.html #skill-connect-domain; FEATURES.md §9 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (§21) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in internal/handler/hack_assets.go excludes connect-domain."
     },
     {
      "id": "skill-install-page",
@@ -3294,7 +3302,7 @@
       },
       {
        "label": "Install the skills",
-       "href": "/docs.html#install-skills"
+       "href": "/install.html#manual-skills"
       }
      ],
      "covers": [],
@@ -3321,7 +3329,7 @@
      "docs": [
       {
        "label": "Install the skills",
-       "href": "/docs.html#install-skills"
+       "href": "/install.html#manual-skills"
       }
      ],
      "covers": [],
@@ -3347,8 +3355,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference",
-       "href": "/docs.html"
+       "label": "Agents and MCP guide",
+       "href": "/docs/guides/agents/"
       },
       {
        "label": "FEATURES.md section 21",
@@ -3502,8 +3510,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference",
-       "href": "/docs.html"
+       "label": "Agents and MCP guide",
+       "href": "/docs/guides/agents/"
       },
       {
        "label": "FEATURES.md section 8",
@@ -3578,11 +3586,11 @@
     {
      "id": "api-reference",
      "name": "Full API reference",
-     "line": "Complete, browsable documentation of everything the service can do, for anyone integrating directly rather than through a skill.",
+     "line": "Read task guides, search the docs, and browse this server’s API at /docs/.",
      "who": "Developers, and agents that prefer a specification to prose.",
-     "how": "The API page is a browsable reference built from the OpenAPI files (`/openapi.json` and `/openapi.yaml`), which list this product's public operations only. `/llms.txt` follows the same reference as a short quickstart, and `/auth.md` explains the sign-in and API-key flows as configured on this server. Each product serves its own version: Simple Hack's lists the event operations, and another server rewrites the addresses to its own.",
+     "how": "Open Docs, choose a task guide, or search. Open API reference for the Swagger routes and schemas.",
      "example": "A startup wires its own build pipeline to publish a release notes site from CI using the reference and a deploy-only key.",
-     "where": "API in the top navigation.",
+     "where": "/docs/ on this install; /docs/api/ for the API reference.",
      "limits": "A few internal and download addresses are not listed there. Older saved-data endpoints that existing sites still use keep working but are no longer listed.",
      "editions": {
       "host": "yes",
@@ -3595,16 +3603,12 @@
      "status_note": "",
      "docs": [
       {
+       "label": "Documentation",
+       "href": "/docs/"
+      },
+      {
        "label": "API reference",
-       "href": "/docs.html"
-      },
-      {
-       "label": "llms.txt",
-       "href": "/llms.txt"
-      },
-      {
-       "label": "Sign-in reference",
-       "href": "/auth.md"
+       "href": "/docs/api/"
       }
      ],
      "covers": [],
@@ -3728,8 +3732,8 @@
        "href": "/photos"
       },
       {
-       "label": "Add photos in the API reference",
-       "href": "/docs.html#add-photos"
+       "label": "Owner dashboard guide",
+       "href": "/docs/guides/dashboard/#add-photos"
       }
      ],
      "covers": [
@@ -4464,8 +4468,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference",
-       "href": "/docs.html"
+       "label": "Traffic and analytics guide",
+       "href": "/docs/guides/analytics/"
       },
       {
        "label": "FEATURES.md: Analytics and geo",
@@ -4696,8 +4700,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference",
-       "href": "/docs.html"
+       "label": "Limits and errors",
+       "href": "/docs/limits/"
       },
       {
        "label": "FEATURES.md: Abuse limits and hardening",
@@ -4727,8 +4731,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference",
-       "href": "/docs.html"
+       "label": "Limits and errors",
+       "href": "/docs/limits/"
       },
       {
        "label": "Cost and limits",
@@ -4758,8 +4762,8 @@
      "status_note": "",
      "docs": [
       {
-       "label": "API reference",
-       "href": "/docs.html"
+       "label": "Limits and errors",
+       "href": "/docs/limits/"
       },
       {
        "label": "FEATURES.md: Abuse limits and hardening",

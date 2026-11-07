@@ -190,6 +190,7 @@ func servedTexts(t *testing.T) map[string]string {
 		}
 	}
 	add(staticFiles, "static", "")
+	add(webassets.Docs, "docs-site", "")
 	add(webassets.Host, "skills", "")
 	return out
 }

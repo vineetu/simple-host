@@ -29,7 +29,7 @@ os.chdir(ROOT)
 DATA = "internal/webassets/static/features.json"
 
 ALLOWED_PREFIXES = (
-    "/install.html", "/docs.html", "/pricing", "/photos", "/hackathons", "/enterprise",
+    "/install.html", "/docs/", "/pricing", "/photos", "/hackathons", "/enterprise",
     "/costs", "/setup", "/terms", "/privacy.html", "/support", "/report", "/recipes/",
     "/llms.txt", "/auth.md", "/architecture.html", "/skills/",
     "https://simple-hack.app/", "https://github.com/vineetu/simple-host/blob/main/FEATURES.md",

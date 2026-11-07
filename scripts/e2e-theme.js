@@ -11,7 +11,7 @@
 // /jane (a person page), /_404, /_offline and /_takendown.
 const { chromium } = require('playwright');
 const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCode = 1; } else console.log('ok: ' + m); };
-const PAGES = ['/', '/dashboard', '/install.html', '/docs.html', '/architecture.html', '/privacy.html', '/features',
+const PAGES = ['/', '/dashboard', '/install.html', '/docs/', '/docs/guides/storage/', '/docs/api/', '/architecture.html', '/privacy.html', '/features',
   '/enterprise', '/enterprise/brief', '/enterprise/architecture', '/hackathons', '/setup', '/costs', '/terms',
   '/support', '/admin', '/analytics/my-site', '/jane', '/_404'];
 const BARE = ['/_offline', '/_takendown', '/_wizard'];
@@ -80,7 +80,7 @@ const FIVE = ['/', '/features', '/enterprise/architecture', '/costs', '/setup'];
       assert(checked === (stored || 'system'), `${label}: ${path} menu shows ${stored || 'system'} (${checked})`);
     }
   };
-  await p.goto(base + '/docs.html', { waitUntil: 'load' });
+  await p.goto(base + '/docs/', { waitUntil: 'load' });
   assert((await state(p)).theme === 'dark', 'OS dark: docs starts dark');
   await pick('light');
   assert((await state(p)).theme === 'light', 'Light applies at once');

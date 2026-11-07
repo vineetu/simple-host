@@ -112,7 +112,7 @@ func TestDiscoveryDocuments(t *testing.T) {
 	for rel, links := range map[string]map[string]string{
 		"item":         {"openapi.json": "application/vnd.oai.openapi+json"},
 		"service-desc": {"openapi.json": "application/vnd.oai.openapi+json", "openapi.yaml": "application/yaml"},
-		"service-doc":  {"llms.txt": "text/plain", "docs.html": "text/html"},
+		"service-doc":  {"llms.txt": "text/plain", "docs/": "text/html"},
 	} {
 		var entries []struct{ Href, Type string }
 		if err := json.Unmarshal(catalog.Linkset[0][rel], &entries); err != nil {

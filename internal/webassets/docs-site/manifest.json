@@ -1,0 +1,13 @@
+{
+  "sources": "18d87751686f5bd58022e61da1a8d6cbc6c0d7ca0ae71d586277fb099f422301",
+  "brands": {
+    "host": {
+      "sha256": "b70cc180be51294f5bf41cd8239c68a404bb2bb8199f3c3a9547bfe215ea7879",
+      "bytes": 610744
+    },
+    "hack": {
+      "sha256": "e9c53c1547a87b14151c513aa05a5e56ac19f685ef92a027f5742760e6547479",
+      "bytes": 560708
+    }
+  }
+}

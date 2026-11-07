@@ -155,6 +155,8 @@ def render_feature(f):
             # drop just that link, not the whole feature, on a self-hosted
             # Host edition (is_hack_only already hides the whole block for
             # a feature that is Hack-only to begin with).
+            if d.get("host_only"):
+                a = a.replace('<a ', '<a data-host-only ', 1)
             if not hack_only and "simple-hack.app" in d["href"]:
                 a = "<!--sh:hashack-->" + a + "<!--/sh:hashack-->"
             doc_links.append(a)

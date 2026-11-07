@@ -1,0 +1,7 @@
+---
+const { kind } = Astro.props;
+if (kind !== 'hosted' && kind !== 'self') throw new Error('Unknown instance kind');
+---
+<Fragment set:html={`<!--sh:${kind}-->`} />
+<div data-pagefind-ignore><slot /></div>
+<Fragment set:html={`<!--/sh:${kind}-->`} />

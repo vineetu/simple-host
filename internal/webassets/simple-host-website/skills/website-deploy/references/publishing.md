@@ -108,13 +108,13 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.99`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.100`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
   directory yourself (`$HOME` on macOS/Linux, `$env:USERPROFILE` in PowerShell,
   `%USERPROFILE%` only in `cmd`). Some tool-call paths do not expand a literal `~`.
-- OpenAPI reference: `/docs.html`
+- OpenAPI reference: `/docs/api/`
 
 ## Where a site lives
 

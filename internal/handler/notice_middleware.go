@@ -191,5 +191,5 @@ func injectNotice(raw []byte, notice string) ([]byte, bool) {
 
 func noticeText(version, baseURL string) string {
 	return "Your website-deploy skill is out of date. Latest is " + version +
-		". Update: npx skills add vineetu/simple-host (other ways: " + baseURL + "/docs.html#install-skills). Then restart your agent (Claude Code) or re-invoke the skill (Codex CLI / Cursor)."
+		". Update: npx skills add vineetu/simple-host (other ways: " + baseURL + "/install.html). Then restart your agent (Claude Code) or re-invoke the skill (Codex CLI / Cursor)."
 }

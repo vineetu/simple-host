@@ -180,6 +180,17 @@ links, including later hash changes, and waits for a linked section to become vi
 before scrolling. Site-control query links take priority. Small boxes share this file;
 Simple Hack has no person pages.
 
+## Product documentation
+
+`docs/site` is the one exception to the handwritten frontend: Astro/Starlight builds
+Markdown twice, for Host and Hack. `scripts/build-docs-site.sh` uses Node 22 only at
+build time; committed output in `internal/webassets/docs-site/{host,hack}` has its own
+`all:` embed and is never reachable through the ordinary static server. `handler/docs.go`
+serves `/docs/` with shared chrome, theme, instance text, limits, and UI CSP. Assembled
+HTML and extracted shared chrome scripts are cached per asset pipeline. Pagefind search
+uses only that brand's compiled pages. The API reference remains Swagger at `/docs/api/`.
+CI rebuilds both brands; the offline docs check verifies source and output hashes.
+
 ## Where to read next
 
 | Need | Read |

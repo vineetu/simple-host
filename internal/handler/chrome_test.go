@@ -110,7 +110,7 @@ func TestChromeOnEveryMainOriginPage(t *testing.T) {
 		// the file server
 		{"/", "/"},
 		{"/install.html", "/install.html"},
-		{"/docs.html", "/docs.html"},
+		// Docs chrome is checked with its external scripts in TestDocsRoutes.
 		{"/architecture.html", "/architecture.html"},
 		{"/privacy.html", "/privacy.html"},
 		{"/features.html", "/features"},
@@ -432,7 +432,7 @@ func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
 		mux := chromeTestMux(t, edition.Host)
 		for _, p := range []string{
 			"/install.html", "/support", "/privacy.html", "/terms",
-			"/docs.html", "/features", "/pricing", "/report",
+			"/docs/", "/features", "/pricing", "/report",
 			"/architecture.html", "/hackathons", "/llms.txt",
 		} {
 			assertNoHostedDomain(t, p, get(t, mux, "host.example.test", p).Body.String())
@@ -479,7 +479,7 @@ func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
 		mux := http.NewServeMux()
 		RegisterUIRoutes(mux, "https://hack.example.test", sh)
 		for _, p := range []string{
-			"/support", "/privacy.html", "/terms", "/docs.html", "/features",
+			"/support", "/privacy.html", "/terms", "/docs/", "/features",
 			"/pricing", "/report", "/architecture.html", "/llms.txt",
 			// features.json and openapi.json used to be checked only with
 			// assertNoSupportOrOwnershipLeak (and openapi.json not at all):

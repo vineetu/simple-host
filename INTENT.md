@@ -129,6 +129,13 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-06 (owner, SIM-389). Documentation ships inside the product at /docs/.**
+  Starlight source is in docs/site; build Host and Hack separately, commit static output,
+  and embed it in the Go binary. Node is build-time only. Reuse the shared site chrome,
+  theme, and instance/limits wording. Features explains what; docs gives task steps with
+  links back to feature IDs. Keep Swagger at /docs/api/ until the reference follow-up.
+  No separate docs service, generated reference, or full self-hosting guide in this slice.
+
 - **2026-11-06 (owner). One name per person in Simple Hack.** Every event uses
   the account name (`users.display_name`), so an Account rename appears across
   events immediately. Joining asks for a name only when the account has none,

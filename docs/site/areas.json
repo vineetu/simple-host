@@ -1,0 +1,122 @@
+{
+  "publish": {
+    "title": "Sites and deploy",
+    "guide": true,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/guides/publish/"
+    ]
+  },
+  "addresses": {
+    "title": "Domains and addresses",
+    "guide": true,
+    "brands": [
+      "host"
+    ],
+    "pages": [
+      "/docs/guides/addresses/"
+    ]
+  },
+  "storage": {
+    "title": "Storage and saved data",
+    "guide": true,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/guides/storage/"
+    ]
+  },
+  "access": {
+    "title": "Sign-in and access",
+    "guide": true,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/guides/access/"
+    ]
+  },
+  "notifications": {
+    "title": "Notifications",
+    "guide": true,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/guides/notifications/"
+    ]
+  },
+  "agents": {
+    "title": "Agents and MCP",
+    "guide": true,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/guides/agents/"
+    ]
+  },
+  "dashboard": {
+    "title": "Owner dashboard",
+    "guide": true,
+    "brands": [
+      "host"
+    ],
+    "pages": [
+      "/docs/guides/dashboard/"
+    ]
+  },
+  "showcase": {
+    "title": "Showcase and home page",
+    "guide": true,
+    "brands": [
+      "host"
+    ],
+    "pages": [
+      "/docs/guides/showcase/"
+    ]
+  },
+  "analytics": {
+    "title": "Traffic and analytics",
+    "guide": true,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/guides/analytics/"
+    ]
+  },
+  "admin": {
+    "title": "Admin and operations",
+    "guide": false,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/limits/",
+      "/docs/self-hosting/operate/"
+    ]
+  },
+  "hack": {
+    "title": "Simple Hack",
+    "guide": false,
+    "brands": [
+      "hack"
+    ],
+    "pages": [
+      "/docs/start/",
+      "/docs/start/join/",
+      "/docs/start/judge/"
+    ]
+  }
+}

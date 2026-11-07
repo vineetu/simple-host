@@ -26,6 +26,31 @@ belongs to `internal/webassets`; presentation and instance rewriting remain in
 `handler`. Hack reads bundles through `webassets` and does not import `handler`
 to read assets.
 
+## Product docs build
+
+`docs/site/src/content/docs` holds task guides in MDX. This is the one Astro/Starlight
+exception to the handwritten frontend, with Node 22 used only to build. Run
+`bash scripts/build-docs-site.sh` and commit `internal/webassets/docs-site` with the
+source and package lock. Go builds and runtime need no Node. The README in docs/site
+specifies brand blocks, page budgets, feature links, and authoring conventions.
+
+The build selects Host or Hack before MDX parsing and Pagefind indexing. Component
+overrides emit the three shared chrome markers, replace Starlight's header with a
+docs search bar, and remove Starlight's theme provider/select. `docs.css` maps its
+colours to site.css tokens. Build scripts become external, content-addressed files.
+`handler/docs.go` assembles each page once with the same passes as chromePage and
+externalizes the shared chrome's scripts as well; HTML still passes through stampNonce
+under adminUICSP. Only `/docs/` adds `wasm-unsafe-eval`, required by Pagefind;
+JavaScript eval remains blocked. No docs page has inline scripts. Non-HTML assets
+are served as bytes.
+
+The dedicated `webassets.Docs` embed uses `all:` so `_astro` is included. `/docs/`
+selects the edition's tree; unknown files return 404. `/docs` redirects to `/docs/`.
+The old document route redirects permanently and the docs home's external anchor
+map forwards old fragments. Swagger and its theme CSS live at `/docs/api/`.
+The sitemap reads the embedded brand page list. CI runs npm ci and checks regenerated
+output; `scripts/docs-site.py check` checks hashes and guide feature IDs without Node.
+
 ## Browser route to screen map
 
 All source filenames in this table are relative to `internal/webassets/static/`.
@@ -227,7 +252,7 @@ selects the product's public operations and removes unused tags/components;
 internal and legacy operations remain in the source for coverage.
 `handler/instancehost.go:serveRewrittenAsset` applies this to both
 `/openapi.json` and `/openapi.yaml`: both serve filtered JSON (valid YAML 1.2).
-`static/docs.html` loads that filtered `/openapi.json` reference. Instance
+`/docs/api/` loads that filtered `/openapi.json` reference. Instance
 rewriting/filtering happens on served bytes, not by editing generated files
 per instance.
 

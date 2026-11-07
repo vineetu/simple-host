@@ -1,0 +1,24 @@
+---
+title: "Run an event"
+brands: [hack]
+slug: start
+---
+
+import { Steps, Tabs, TabItem, LinkCard, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import What from '@docs/What.astro';
+import Instance from '@docs/Instance.astro';
+
+<Steps>
+
+1. [Connect your AI app](/get-started), or sign in and press **Create event**.
+2. Ask: “Create a hackathon called Better Commutes.” Add the event dates, then open the event's **Overview**.
+3. In **Event page**, fill in the event details. In **Entries**, choose the entry rules. In **Judging**, set the rubric.
+4. Use **Overview** to open sign-up. Copy the **Join link** from **Overview** and send it to participants; copy the **Judge link** there for judges.
+5. Follow the next-step button on **Overview** to start building, close entries, start judging, and publish results. Confirm each stage change.
+
+</Steps>
+
+<CardGrid>
+<LinkCard title="Join an event" href="/docs/start/join/" />
+<LinkCard title="Judge" href="/docs/start/judge/" />
+</CardGrid>

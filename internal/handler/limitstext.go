@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +67,25 @@ func knob(env string) []string { return []string{env} }
 // Keep each phrase on one line of its file (a line break inside it would not
 // match the JSON copy of the spec) and long enough to be unambiguous.
 var limitPhrases = []limitPhrase{
+	// Documentation notification defaults, substituted for every install.
+	phrase("At most 10 subscriptions per site", knob("NOTIFY_MAX_PER_SITE"), func(l *edition.Limits) string {
+		return "At most " + limitNum(l.NotifyMaxPerSite) + " subscriptions per site"
+	}),
+	phrase("At most 60 events per minute and 5,000 per day per site", []string{"NOTIFY_PER_MINUTE", "NOTIFY_PER_DAY"}, func(l *edition.Limits) string {
+		return "At most " + limitCommas(l.NotifyPerMinute) + " events per minute and " + limitCommas(l.NotifyPerDay) + " per day per site"
+	}),
+	phrase("normally seven days", knob("NOTIFY_HISTORY_DAYS"), func(l *edition.Limits) string { return "normally " + limitDays(l.NotifyHistoryDays) }),
+	phrase("default five-second timeout", knob("NOTIFY_TIMEOUT_MS"), func(l *edition.Limits) string { return "configured " + limitSpanAdj(l.NotifyTimeout) + " timeout" }),
+	phrase("at least 100 attempts in an hour with more than 95% failures", []string{"NOTIFY_SUSPEND_ATTEMPTS", "NOTIFY_SUSPEND_WINDOW_HOURS", "NOTIFY_SUSPEND_FAILURE_PERCENT"}, func(l *edition.Limits) string {
+		return "at least " + limitNum(l.NotifySuspendAttempts) + " attempts in " + limitSpan(l.NotifySuspendWindow) + " with more than " + limitNum(l.NotifySuspendFailurePercent) + "% failures"
+	}),
+	phrase("all attempts failing for three days", knob("NOTIFY_SUSPEND_DAYS"), func(l *edition.Limits) string { return "all attempts failing for " + limitSpan(l.NotifySuspendAfter) }),
+	phrase("String fields over 2 KB", knob("NOTIFY_FIELD_MAX_BYTES"), func(l *edition.Limits) string {
+		return "String fields over " + limitCommas(l.NotifyFieldMaxBytes) + " bytes"
+	}),
+	phrase("bodies over 16 KB", knob("NOTIFY_BODY_MAX_BYTES"), func(l *edition.Limits) string { return "bodies over " + limitCommas(l.NotifyBodyMaxBytes) + " bytes" }),
+	phrase("up to five delivery attempts", knob("NOTIFY_ATTEMPTS"), func(l *edition.Limits) string { return "up to " + limitNum(l.NotifyAttempts) + " delivery attempts" }),
+
 	// SIGNIN_CODE_TTL_MINUTES. The dashboard sign-in card no longer states the
 	// code lifetime up front (2026-10-20); the sentences that still do are below.
 	phrase("expires in 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "expires in " + limitSpan(l.SigninCodeTTL) }),
@@ -436,4 +456,20 @@ func limitSpanUnit(d time.Duration) (int, string) {
 	default:
 		return int(d / time.Second), "second"
 	}
+}
+
+// Docs use the same storage byte allowances as pricing, whose settings live
+// outside edition.Limits. Keep readable defaults in the source search index.
+func (p *assetPipeline) docsStorageLimits(body []byte) []byte {
+	numbers := pricingNumbers(p.hostedEvents, p.limits)
+	for phrase, value := range map[string]string{
+		"Up to 10,000,000 bytes for KV and SQLite":              "Up to " + numbers["__STORAGE_DB_BYTES__"] + " bytes for KV and SQLite",
+		"Up to 1,000,000 bytes shared by KV, SQLite, and files": "Up to " + numbers["__STORAGE_DB_BYTES__"] + " bytes shared by KV, SQLite, and files",
+		"Up to 10,000,000 bytes for files":                      "Up to " + numbers["__STORAGE_FILES_BYTES__"] + " bytes for files",
+		"Up to 1,000,000 bytes per file":                        "Up to " + numbers["__STORAGE_FILE_BYTES__"] + " bytes per file",
+		"Up to 1,000,000 bytes per query result":                "Up to " + limitCommas(storageResultLimitBytes()) + " bytes per query result",
+	} {
+		body = bytes.ReplaceAll(body, []byte(phrase), []byte(value))
+	}
+	return body
 }
