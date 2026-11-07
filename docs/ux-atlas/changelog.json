@@ -1,5 +1,9 @@
 [
  {
+  "date": "2026-11-07",
+  "what": "SIM-388/SIM-393 gated review: persistent event pane and Home arrival; shared navigation.json generates role nav. Organiser Set up / Run / Wrap up; Event page keeps its tabs plus Tracks, Settings collects rules and administration, exports stay put. Stage checklists, optional Not needed, judge rubric/conflict acknowledgements, organiser judge-area state, current/past events and compatibility aliases. Atlas and design only; application work follows in two slices."
+ },
+ {
   "date": "2026-11-06",
   "what": "Owner: one name per person, not one per event. public-join, public-apply, public-judge and public-organiser-invite ask for a name only when the signed-in account has none yet; the server saves it as the account's display name (Account's existing field, not a new one). An account that already has a name sees a read-only 'You'll appear as <name>. Change it on Account.' line instead of an input, and the request never sends display_name. public-organiser-invite no longer invents a name from the email prefix or falls back to the literal 'Co-organiser'. Account's Name help text now says the name is shown in every event, and a rename there updates it everywhere (teams, organisers, judges, results) -- organiser-people's rows read from the same one name. Prototype: public-join, public-apply~form, public-judge, public-organiser-invite, account, plus new ~no-name states for public-join, public-apply, public-judge and public-organiser-invite showing the empty-account input."
  },

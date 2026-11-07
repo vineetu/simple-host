@@ -72,12 +72,32 @@ internal/webassets/static/hack/
 | `/join/{code}` | `public-join` |
 | `/judge/{code}` | `public-judge` |
 | `/organiser/{code}` | `public-organiser-invite` |
-| `/e/{slug}/manage` | organiser sections, chosen by `?s=` : overview (default), event-page (+`&tab=` basics (default), about, schedule, sponsors, faq, look, website), announcements, people, teams, team (+`&team=`), entries, entry (+`&team=`), judging, assignments, results, settings. `?s=event-page&tab=announcements` and `#announcements` redirect to `?s=announcements` |
+| `/e/{slug}/manage` | organiser sections, chosen by `?s=` : overview (default), event-page (+`&tab=` basics (default), about, schedule, tracks (new), sponsors, faq, look, website), announcements, people, teams, team (+`&team=`), entries, entry (+`&team=`), judging, assignments, results, settings (+`&tab=` signup (default), teams, entries, reminders, judging, results, details, organisers, links, notifications, danger). `?s=event-page&tab=announcements` and `#announcements` redirect to `?s=announcements` |
 | `/e/{slug}/team` | participant sections by `?s=` : home (default), schedule, announcements, team, entry, website, results |
 | `/e/{slug}/judge` | judge sections by `?s=` : home (default), queue, scoring (+`&team=`), rubric |
 
 Inside the app, navigation is `history.pushState` + re-render (no full reload); back/forward work.
-Old deep links keep working: unknown `?s=` values fall back to the section's home.
+Old deep links keep working: unknown `?s=` values fall back to the section's home. SIM-388/SIM-393 (2026-11-07) planned aliases below normalise with replaceState before mounting; preserve unrelated parameters. A recognised canonical tab wins over a legacy hash. Event page's existing tab URLs stay unchanged.
+
+| Legacy query / fragment | Destination |
+|---|---|
+| `s=teams&tab=tracks` | `s=event-page&tab=tracks` |
+| `s=teams&tab=settings` | `s=settings&tab=teams` |
+| `s=people&tab=signup` or `s=people#signup` | `s=settings&tab=signup` |
+| `s=people&tab=coorg/co-organisers/organisers` or `s=people#coorg` | `s=settings&tab=organisers` |
+| `s=entries#handin` or `#entry-rules` | `s=settings&tab=entries#entry-rules` (includes Overview/SIM-382 link) |
+| `s=entries#deadline` / `#reminders` | `s=settings&tab=entries#deadline` / `s=settings&tab=reminders` |
+| `s=judging#jg-rubric-card/#jg-mode-card/#jg-tie-card/#jg-closes-card` | `s=settings&tab=judging#rubric/#mode/#tie-break/#closes` respectively |
+| Results `#res-score-mode`, `#res-score-mode-save`, `#res-visibility`, `#res-public-scores`, `#res-public-ranks`, `#res-visibility-save`, `#res-visibility-hint` | `s=settings&tab=results#ranking` |
+| Results `#res-vote-status`, `#res-vote-enabled`, `#res-vote-opens`, `#res-vote-closes`, `#res-vote-window-save`, `#res-vote-eligibility`, `#res-vote-eligibility-save` | `s=settings&tab=results#voting` |
+| Results `#res-directory-listed/#res-directory-save` | `s=settings&tab=signup#directory` |
+| Settings `#applications` | `s=settings&tab=signup` |
+| Settings `#notify-list/#notify-form/#notify-advanced` | `s=settings&tab=notifications` |
+| Settings `#set-name/#set-org/#set-email/#set-purpose/#set-n` | `s=settings&tab=details` |
+| Settings `#leave-open/#delete-open` | `s=settings&tab=danger#leave/#delete` respectively |
+| Event page `#basics/#schedule/#sponsors/#faq/#appearance/#address` | Existing Basics/Schedule/Sponsors/FAQ/Look/Website tab; recognised explicit tab wins |
+
+Judge review target: `?s=queue&tab=conflicts#conflicts` selects the real candidate-team panel with **Know this team?** controls. The shared source for targets, role nav and aliases is `internal/rules/hackevents/navigation.json`; build.py uses its roles[].nav, falling back to spec.json only when the file is missing.
 
 ## One app (classic removed 2026-11-02)
 

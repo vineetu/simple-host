@@ -6,7 +6,7 @@
    event switcher, no role nav. Set data-top="home" on that body to mark Home current there.
    This script wraps it in the app: brand link, top nav, event switcher + role sidebar,
    status header, phone top bar and bottom tabs. The sidebar items come from nav.js
-   (window.PROTO), which is generated from spec.json, so the prototype and the spec never
+   (window.PROTO), which is generated from navigation.json, so the prototype and the spec never
    disagree. A <template id="status"> in the page replaces the default status header.
    Desktop sidebar collapse (atlas 2026-10-30): the panel button beside the brand (or the
    [ key outside a text field) folds the sidebar into a 56px icon rail; the choice is kept
@@ -58,7 +58,7 @@
   // 2026-10-30 -- replaces the switcher's old top-left spot; the switcher now heads
   // the event section below instead.
   function brand(){
-    return '<a class="brand" href="events.html" data-tip="Home · '+esc(PERSON)+'"><span class="mark"><span class="mark-full">simple<b>·</b>hack</span><span class="mark-short" aria-hidden="true">s<b>·</b>h</span><span class="sr-only mark-sr"> Home</span></span><span class="person">'+esc(PERSON)+'</span></a>';
+    return '<a class="brand" href="events.html" data-tip="Your events · '+esc(PERSON)+'"><span class="mark"><span class="mark-full">simple<b>·</b>hack</span><span class="mark-short" aria-hidden="true">s<b>·</b>h</span><span class="sr-only mark-sr"> Home</span></span><span class="person">'+esc(PERSON)+'</span></a>';
   }
   // Remembered per browser; a prototype state can force it with data-side="collapsed".
   var collapsed = b.dataset.side === 'collapsed';
@@ -66,7 +66,7 @@
   function toggleBtn(){
     return '<button class="side-toggle" type="button" data-side-toggle aria-controls="side" aria-expanded="'+(!collapsed)+'" aria-label="'+(collapsed?'Expand sidebar':'Collapse sidebar')+'" data-tip="'+(collapsed?'Expand sidebar  [':'Collapse sidebar  [')+'" title="'+(collapsed?'':'Collapse sidebar  [')+'">'+ico(collapsed?'expand':'collapse')+'</button>';
   }
-  var topNav = '<nav class="top-nav"><a href="events.html" data-tip="Home"'+(topCur==='home'?' aria-current="page"':'')+'>'+ico('home')+'<span>Home</span></a>'+
+  var topNav = '<nav class="top-nav"><a href="events.html" data-tip="Your events"'+(topCur==='home'?' aria-current="page"':'')+'>'+ico('home')+'<span>Your events</span></a>'+
     '<a href="https://simple-hack.app/directory" data-tip="Find a hackathon">'+ico('globe')+'<span>Find a hackathon</span></a></nav>';
 
   var eventSection = '', tabbar = '', phoneTop = brand();
@@ -77,9 +77,9 @@
     var home = P.events.filter(function(e){ return e.name === HOME_EV; })[0] || {name:HOME_EV, short:'GG', color:'#d15d48'};
     var STAGE = {'draft':'draft','not open yet':'draft','open':'open','sign-up open':'open','building':'building','entries closed':'closed','closed':'closed','judging':'judging','results':'results','ended':'ended'};
     var stageNow = STAGE[(b.dataset.stage||'').toLowerCase()] || '';
-    var ev = {name:home.name, short:home.short, color:home.color, role:role, stage:b.dataset.stage || home.stage};
+    var ev = {name:home.name, short:home.short, color:home.color, role:b.dataset.membershipRole || role, stage:b.dataset.stage || home.stage};
     P.events = [ev].concat(P.events.filter(function(e){ return e.name !== HOME_EV; }));
-    var roleLabel = {organiser:'Organiser', participant:'Participant', judge:'Judge'}[role] || role;
+    var roleLabel = {organiser:'Organiser', participant:'Participant', judge:'Judge'}[ev.role] || ev.role;
     var items = P.nav[role];
 
     var switcherHTML = function(id){
@@ -91,22 +91,22 @@
     // Owner decision 2026-10-30: the dropdown only lists events now -- Home and Find
     // a hackathon already live in the sidebar's always-shown top section, so the old
     // "More" block here just repeated them.
-    var pop = '<div class="menu-pop" id="evpop" role="menu"><div class="lbl">Your events</div>'+
-      P.events.map(function(e){
-        var r = {organiser:'Organiser', participant:'Participant', judge:'Judge'}[e.role];
-        return '<a href="'+esc(e.role)+'-home.html"><span class="ev-mark" style="--ev:'+esc(e.color)+'">'+esc(e.short)+'</span><span>'+esc(e.name)+'<small>'+esc(r)+' · '+esc(e.stage)+'</small></span></a>';
-      }).join('')+'</div>';
+    var pop = '<div class="menu-pop" id="evpop" role="menu">'+eventList(false)+'</div>';
+
 
     items = items.map(function(it){
       if (it.stages && stageNow && it.stages.indexOf(stageNow) < 0) return Object.assign({}, it, {later:true, badge:null});
       return it;
     });
+    var lastGroup = null;
     var nav = items.map(function(it){
       if (it.sep) return '<div class="sep"></div>';
       var cur = it.id === here ? ' aria-current="page"' : '';
       var cnt = it.badge ? '<span class="count'+(it.badge_quiet?' quiet':'')+'">'+esc(it.badge)+'</span>' : '';
       var tip = it.label + (it.badge ? ' · ' + it.badge : '');
-      return '<a href="'+esc(href(it))+'"'+cur+(it.later?' class="later"':'')+' data-tip="'+esc(tip)+'"'+(it.hint?' title="'+esc(it.hint)+'"':'')+'>'+ico(it.icon)+'<span>'+esc(it.label)+'</span>'+cnt+'</a>';
+      var heading = it.group && it.group !== lastGroup ? '<p class="small muted" data-nav-group>'+esc(it.group)+'</p>' : '';
+      lastGroup = it.group;
+      return heading + '<a href="'+esc(href(it))+'"'+cur+(it.later?' class="later"':'')+' data-tip="'+esc(tip)+'"'+(it.hint?' title="'+esc(it.hint)+'"':'')+'>'+ico(it.icon)+'<span>'+esc(it.label)+'</span>'+cnt+'</a>';
     }).join('');
 
     var tabs = items.filter(function(it){ return it.phone_tab; });
@@ -117,10 +117,29 @@
         return '<a href="'+esc(href(it))+'"'+cur+'>'+ico(it.icon)+'<span>'+esc(it.short||it.label)+'</span>'+(it.badge&&!it.badge_quiet?'<span class="count">'+esc(it.badge)+'</span>':'')+'</a>';
       }).join('')+(hasMore?'<a href="#" data-more>'+ico('more')+'<span>More</span></a>':'')+'</nav>';
 
-    eventSection = '<div class="event-nav">'+switcherHTML('sw1')+pop+'<nav class="nav">'+nav+'</nav></div>';
+    eventSection = '<div class="event-nav">'+switcherHTML('sw1')+pop+'<nav class="nav" aria-label="Your events">'+eventList(true,nav)+'</nav></div>';
     // On phone, inside an event the top bar shows the switcher (context + quick
     // jump) instead of the brand -- the brand is still one tap away via Menu.
     phoneTop = switcherHTML('sw2');
+  }
+
+  // SIM-388/SIM-393, 2026-11-07: the same membership list remains visible outside events.
+  if (!hasEvent) eventSection = '<div class="event-nav"><nav class="nav" aria-label="Your events">'+eventList(true)+'</nav></div>';
+  function eventHome(e){ return e.role === 'organiser' ? 'organiser-overview'+(isPast(e)?'~ended':'')+'.html' : e.role+'-home.html'; }
+  function isPast(e){ return /^(archived|ended)$/i.test(e.stage || ''); }
+  function eventRow(e){
+    var label = {organiser:'Organiser',participant:'Participant',judge:'Judge'}[e.role] || '';
+    var name = e.name+' · '+label;
+    return '<a class="switcher" href="'+eventHome(e)+'" aria-label="'+esc(name)+'" data-tip="'+esc(name)+'"><b class="ev-mark">'+esc(e.short)+'</b><span><span class="ev-name">'+esc(e.name)+'</span><span class="ev-role">'+esc(label)+' · '+esc(e.stage)+'</span></span></a>';
+  }
+  function eventList(expand,nav){
+    var current = hasEvent ? P.events[0] : null;
+    var others = P.events.filter(function(e){return e !== current && !isPast(e);}).sort(function(a,b){return a.name.toLowerCase().localeCompare(b.name.toLowerCase());});
+    var rows = current ? [current].concat(others).slice(0,5) : others.slice(0,5);
+    var out = rows.map(function(e){return eventRow(e)+(expand && e===current ? nav || '' : '');}).join('');
+    var past = P.events.filter(function(e){return isPast(e) && e!==current;});
+    if(past.length) out += '<details><summary class="small muted" data-nav-group>Past events ('+past.length+')</summary>'+past.slice(0,5).map(eventRow).join('')+'<a href="landing-your-events~past.html">'+ico('events')+'<span>All past events</span></a></details>';
+    return out+'<a href="landing-your-events.html" data-tip="All events">'+ico('events')+'<span>All events ('+P.events.length+')</span></a>';
   }
 
   // Owner decision 2026-10-31: every role sees the event's stage in the same words, and
@@ -165,6 +184,7 @@
     collapsed = c; app.classList.toggle('side-collapsed', c);
     var t = app.querySelector('[data-side-toggle]'); t.outerHTML = toggleBtn();
     try { localStorage.setItem('sh_side', c ? 'collapsed' : 'expanded'); } catch (e) {}
+    updateResponsive();
     var n = app.querySelector('[data-side-toggle]'); if (n) n.focus();
   }
   app.addEventListener('click', function(e){ if (e.target.closest('[data-side-toggle]')) { e.preventDefault(); setSide(!collapsed); } });
@@ -175,11 +195,25 @@
     setSide(!collapsed);
   });
   ['sw1','sw2'].forEach(function(id){ var s = document.getElementById(id); if (s) s.onclick = function(e){ e.stopPropagation(); toggle(s); }; });
+  var menuOpener = null;
   document.addEventListener('click', function(e){
     var p = document.getElementById('evpop'); if (p && !p.contains(e.target)) p.classList.remove('open');
     var m = e.target.closest('[data-menu],[data-more]');
-    if (m){ e.preventDefault(); app.classList.toggle('menu-open'); return; }
+    if (m){ e.preventDefault(); menuOpener=m; app.classList.toggle('menu-open'); if(app.classList.contains('menu-open')) app.querySelector('.side a').focus(); else m.focus(); updateResponsive(); return; }
+    if (app.classList.contains('menu-open') && e.target.closest('.side a')) { app.classList.remove('menu-open'); if(menuOpener) menuOpener.focus(); }
     if (app.classList.contains('menu-open') && !e.target.closest('.side')) app.classList.remove('menu-open');
   });
+  function updateResponsive(){
+    var phone = window.matchMedia('(max-width:760px)').matches;
+    app.querySelectorAll('[data-nav-group]').forEach(function(el){el.hidden = !phone && collapsed;});
+    document.querySelectorAll('[data-settings-nav]').forEach(function(el){el.hidden=phone;});
+    document.querySelectorAll('[data-settings-select]').forEach(function(el){el.hidden=!phone;});
+  }
+  updateResponsive(); window.addEventListener('resize',updateResponsive);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape' && app.classList.contains('menu-open')){app.classList.remove('menu-open');if(menuOpener)menuOpener.focus();}});
+  document.querySelectorAll('[data-section-select]').forEach(function(el){el.onchange=function(){location.href=el.value;};});
+  // Prototype actions demonstrate saved states without adding application endpoints.
+  document.querySelectorAll('[data-dismiss]').forEach(function(btn){btn.onclick=function(){var row=btn.closest('li'),sub=row.querySelector('.sub');var restore=btn.textContent==='Use this item';btn.textContent=restore?'Not needed':'Use this item';sub.textContent=restore?'Optional':'Not needed';};});
+  document.querySelectorAll('[data-read-rubric],[data-no-known-teams],[data-final],[data-save]').forEach(function(btn){btn.onclick=function(){btn.disabled=true;var saved=btn.nextElementSibling;if(saved)saved.hidden=false;};});
   b.classList.remove('booting');
 })();

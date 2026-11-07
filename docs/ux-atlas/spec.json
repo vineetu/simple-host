@@ -1,11 +1,11 @@
 {
- "version": 1,
- "updated": "2026-11-06",
+ "version": 2,
+ "updated": "2026-11-07",
  "summary": [
-  "Home (top left: the Simple Hack wordmark and your name) is always one click away. The event switcher sits one level below it -- it lists all your events with your role in each, and the sidebar below it changes with that role.",
-  "Home itself is a full page: your events grouped by what needs you first, each with its role, stage and a plain next action, plus Find a hackathon, Create event and Account.",
-  "Every role also has its own in-event home screen that says what to do now: one next step and the next deadline -- organisers call theirs Overview, and participants and judges now call theirs Overview too, so \"Home\" means one thing: the person's own home above all their events.",
-  "Organisers get nine focused sections: Overview, Event page, Announcements, People, Teams, Entries, Judging, Results, Settings. Event page opens one piece at a time (Basics, About, Schedule, Sponsors, FAQ, Look, Website), each with its own address. Judging (setting up and running it) and Results (publishing) are now separate, so Publish never sits above an unfinished rubric.",
+  "Your events stays visible in the signed-in pane; the current event expands with its role sections. Five current rows, a Past events toggle and All events keep the list short.",
+  "Sign-in without an explicit safe return opens the sole non-archived, non-taken-down membership Home; otherwise Your events. Current and Past list grouping uses archive state only.",
+  "Organiser Home guides each stage with a server checklist; participant Overview keeps its current look and behaviour, rendered by the shared component. Judge Overview adds rubric/conflict guidance and scoring progress.",
+  "Organiser pane: Home; Set up — Event page, Settings; Run — People, Teams, Entries, Announcements, Judging; Wrap up — Results. Event page keeps seven editors plus Tracks; Settings owns rules and administration.",
   "Participants get Overview, Schedule, Announcements, Team, Entry, Website and Results. The entry form is no longer buried under team management, and sections that are not open yet say when they open.",
   "Judges get Overview, Queue and Rubric & brief, and score in a full-focus view: the entry and its website on the left, the rubric on the right, every tap saved.",
   "On a phone, participants and judges use a bottom tab bar; organisers get a menu.",
@@ -46,9 +46,9 @@
   }
  ],
  "shell": {
-  "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side has two levels under one always-present top-left brand. Top-left is the .brand link -- the simple·hack wordmark plus the signed-in person's name -- and it goes to Home (/events) from any screen. Below it, a .top-nav (Home, Find a hackathon) is always shown. Below that, only while an event is open, a second section: the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage -- the same dropdown as before, just moved down a level) followed by the .nav list for the current role (icon + label, .count badge at the right). On Home itself there is no event, so that second section is simply absent -- only the top nav shows. A .side-foot (Account, Sign out, a persistent Help link that replays the role's walkthrough) sits under both; Sign out lives here, one tap from any screen, not on the Account page (ux-arbiter 2026-10-30). The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- it now also appears, small, in the signed-in shell's own top-left brand (owner decision 2026-10-30: the wordmark belongs there too, not only on the public pages) -- every heading and label stays the system stack. On desktop the sidebar can fold into a 56px icon rail and back (see collapsible_sidebar). On desktop the sidebar can fold into a 56px icon rail and back (see collapsible_sidebar).",
-  "phone": "shell.js renders .phone-top and, for participant and judge, a fixed .tabbar built from each role's phone_tab items (icon + short label + .count badge); organisers get no tabbar, only the Menu button. Inside an event, .phone-top shows the same event .switcher as desktop (quick context + jump to another event) plus Menu; outside an event (Home, Account, Create event) it shows the .brand link instead, since there is no event to switch between. Menu always opens the same two-level sheet as the desktop sidebar -- .side itself, as a full-screen overlay (app.menu-open): brand, the top nav (Home, Find a hackathon), the current event's switcher and role nav when there is one, then Account/Help. A role's items not marked phone_tab live behind the tabbar's trailing More button as that same sheet. The .status bar collapses to one line under the phone top bar. Forms and lists go full width, single column; any screen with a bottom primary action (judge-scoring's Save & next, participant-entry's Save) pins it with .sticky-foot so it never scrolls out of reach.",
-  "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role · Stage' (e.g. 'Judge · Judging'). Rows needing attention sort first. Owner decision 2026-10-30: the switcher no longer doubles as the only way home -- it now heads the sidebar's second section (the current event) and only appears while an event is open; the top-left .brand link is the one thing that always leads home, and the full-page version of this same list, Home, is a level above the switcher, not the same screen as it. The dropdown itself now only lists events (it no longer repeats Home or Find a hackathon underneath, since both already sit in the sidebar's always-shown top section).",
+  "desktop": "Persistent Your events list on every signed-in screen, including Account/Create event. Current event first and expanded with role sections; other events collapsed. Five current rows maximum, All events (N) always shown. Group headings are small non-link labels: Set up / Run / Wrap up. Pane middle scrolls; Account/Sign out/Help remain reachable. Current groups include non-archived taken-down events; disable non-organiser taken-down rows. Past means archived, independent of automatic arrival eligibility.",
+  "phone": "390px: organiser Menu; participant Overview/Team/Entry/Website/More and judge Overview/My teams/Rubric/More unchanged. Menu/More opens full-screen pane with persistent events. Header switcher remains. Scroll lists, close on link, restore opener focus. Settings uses labelled native Settings section select, never a horizontal strip.",
+  "switcher": "Same event ordering, five-row cap, Past events native toggle (five most recently ended, then All past events) and All events link as pane; current archived event stays expanded above toggle. Current event first, others title/slug; past ended_at descending (events.closed_at projection), missing dates last then title/slug. Membership labels Organiser / Participant / Judge. Event clicks open membership Home. Refetch after membership/stage changes and on focus.",
   "status_header": "Every role sees the same stage, in the same words (owner decision 2026-10-31): a .pill.stage with the event's stage -- Not open yet, Sign-up open, Building, Entries closed, Judging, Results, Ended -- plus the next deadline as muted text. On each role's home screen (organiser Overview, participant Overview, judge Home) the full .stages track sits on the right of the bar, done/now/upcoming, read-only for participants and judges (plain spans, nothing to click). Judges also get a second pill for scoring right after the stage pill: 'Scoring open' (.pill.ok), 'Scoring locked' (.pill.warn) or 'Scoring not open' (.pill), none once the event has ended. Organisers keep the join/judge Copy buttons on screens other than Overview. Phone: the track is hidden (as today), the pill or pills and the deadline stay on one line.",
   "fixes": [
    "Retest (Grok SIM-346, round 3): a judge on an event that ended without ever being locked (archived, judging_locked_at never set) saw the status pill read 'Scoring not open', as if scoring had simply never started -- it now reads 'Event ended' first, checked before the locked/open/not-open wording.",
@@ -56,7 +56,7 @@
    "Retest (round 6, Confusing #1): resolveRoute's role (nav.js), derived only from the URL's own /manage|/team|/judge segment, was never checked against the signed-in person's real event.role -- an organiser opening a participant's /team link (a shared link, a stale bookmark, Back) rendered that participant's screen instead of bouncing to their own area. app.js's route() now compares the two and redirects (go(href(real_role, slug))) on a mismatch.",
    "Retest (round 5, Cosmetic 2): the 404 above looks identical whether the event is truly gone or this signed-in person simply isn't (or isn't any more) a member of it -- a participant who left and later opened an old /e/<slug>/team link saw 'Event not found' about an event that still exists. route() now falls back to the credential-less public feed (GET .../public, no membership needed) on that 404: found there, it shows \"You're not in <event>\" with Home and Find a hackathon instead of the generic not-found card."
   ],
-  "collapsible_sidebar": "Desktop only (761px and up); phone is unchanged. A panel button sits at the right end of the brand row ('Collapse sidebar', shortcut [ outside a text field). Collapsed, the 248px sidebar becomes a 56px icon rail: the brand shows the short mark s·h (still a link Home), the toggle sits under it ('Expand sidebar'), then the top nav icons (Home, Find a hackathon), the divider, the event switcher as just its colour mark, the role's nav icons, and the foot icons (Account, Sign out, Help). Both sidebar levels keep their order and the divider between them, so the two-level structure reads the same folded. Count badges become small red bubbles on the icon's corner. Every item shows its label in a tooltip on hover and on keyboard focus (data-tip, drawn by CSS with empty alt text so the name is not read twice); the label itself stays in the DOM, visually hidden, so links keep their accessible names. The switcher opens the same event list beside the rail, aligned to it. Help opens its submenu beside the rail the same way. The toggle is a real button with aria-expanded and aria-controls=\"side\"; focus stays on it after toggling. The choice is remembered per browser in localStorage 'sh_side' ('collapsed' | 'expanded', every read and write in try/catch, default expanded) and applied before the shell first paints, so there is no flash. Rail rule: no two sidebar icons may look alike, so Overview uses a dashboard glyph (Home keeps the house), Teams three heads (People two), Account a person in a circle. The app's shell.js needs the same icon set (prototype/shell.js has the paths).",
+  "collapsible_sidebar": "56px rail: event marks retain full title and membership-role accessible names/tooltips; expanding restores names and group labels.",
   "layout_rules": {
    "rhythm": "One 4px scale. Page header to first block 20px. Block to block 16px. Card padding 16px 18px. Sub-page heading to its card 16px. Field to field 16px. Label to control 6px. Control to help or error 6px. Section label 24px above, 8px below. Buttons in a group 8px apart. List rows at least 52px (56px with a thumbnail). kit.css .field now uses these values (was 14/4/4).",
    "buttons": "Exactly one primary (red) button per sub-page or dialog. A form's Save is bottom-right in .card-foot, Discard (quiet) to its left, status text far left; long forms make the foot sticky (pinned on a phone). A list's Add is top-right beside the heading (.sp-head), so it never moves as the list grows; an empty list shows its Add once, inside the empty state. Row actions sit at the row's right: quiet Edit, then the … menu, with any destructive item last and red, separated by a rule. Dialog actions bottom-right: Cancel (quiet) then the primary; full width on a phone. Destructive actions never sit next to a primary.",
@@ -73,6 +73,12 @@
     "q": "What does each sidebar badge count, now that notifications exist (2026-11-02)?",
     "decision": "Participant Team: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to. Participant Overview: unseen news (dismissable items not yet dismissed). Participant Announcements: announcements posted since this browser last opened that screen, counted client-side and kept in this browser's own storage, cleared the moment the screen opens. Organiser People: applications waiting for a decision, the same count as the Overview Needs you line.",
     "why": "Notify people when something waits on them (2026-11-02 design): live todo counts (requests, invites, applications) come straight from the server's needs_you list, but the Announcements badge has no server-side seen state yet, so it stays a per-browser count like today's rather than inventing a new synced field."
+   },
+   {
+    "date": "2026-11-07",
+    "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+    "decision": "Persistent events and role labels on every signed-in pane; Home per membership, five-row cap, Past toggle, All events, rail and 390px behaviour as above.",
+    "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
    }
   ]
  },
@@ -306,11 +312,14 @@
    "nav": [
     {
      "id": "overview",
-     "label": "Overview",
+     "label": "Home",
      "icon": "overview",
      "phone_tab": false,
      "badge": null,
-     "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended."
+     "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended.",
+     "order": 10,
+     "group": null,
+     "target_id": "o.home"
     },
     {
      "id": "event-page",
@@ -318,55 +327,10 @@
      "icon": "page",
      "phone_tab": false,
      "badge": null,
-     "stage_rule": "Always editable, even after the event ends (the public page stays up as a record)."
-    },
-    {
-     "id": "announcements",
-     "label": "Announcements",
-     "icon": "megaphone",
-     "phone_tab": false,
-     "badge": null,
-     "stage_rule": "Always shown. Post, edit and delete from Draft until the event ends; after End the list stays readable but nothing can be posted or changed."
-    },
-    {
-     "id": "people",
-     "label": "People",
-     "icon": "users",
-     "phone_tab": false,
-     "badge": "4",
-     "stage_rule": "Always shown. Badge: applications waiting for a decision, the same count as Overview's Needs you line; reads 'Sign-up isn't open yet' before Open."
-    },
-    {
-     "id": "teams",
-     "label": "Teams",
-     "icon": "team",
-     "phone_tab": false,
-     "badge": null,
-     "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why. Badge: people not on a team, from Open through Building."
-    },
-    {
-     "id": "entries",
-     "label": "Entries",
-     "icon": "entries",
-     "phone_tab": false,
-     "badge": null,
-     "stage_rule": "Always shown. The list is empty until teams start saving entries."
-    },
-    {
-     "id": "judging",
-     "label": "Judging",
-     "icon": "rubric",
-     "phone_tab": false,
-     "badge": null,
-     "stage_rule": "Always shown so the rubric can be written weeks ahead. Assignment and lock controls make sense once Closed; before that a hint explains they'll matter once entries close."
-    },
-    {
-     "id": "results",
-     "label": "Results",
-     "icon": "chart",
-     "phone_tab": false,
-     "badge": null,
-     "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked."
+     "stage_rule": "Always editable, even after the event ends (the public page stays up as a record).",
+     "order": 20,
+     "group": "Set up",
+     "target_id": "o.event-page"
     },
     {
      "id": "settings",
@@ -374,7 +338,76 @@
      "icon": "settings",
      "phone_tab": false,
      "badge": null,
-     "stage_rule": "Always shown, including Delete this event, at every stage."
+     "stage_rule": "Always shown, including Delete this event, at every stage.",
+     "order": 30,
+     "group": "Set up",
+     "target_id": "o.settings"
+    },
+    {
+     "id": "people",
+     "label": "People",
+     "icon": "users",
+     "phone_tab": false,
+     "badge": "4",
+     "stage_rule": "Always shown. Badge: applications waiting for a decision, the same count as Overview's Needs you line; reads 'Sign-up isn't open yet' before Open.",
+     "order": 40,
+     "group": "Run",
+     "target_id": "o.people"
+    },
+    {
+     "id": "teams",
+     "label": "Teams",
+     "icon": "team",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why. Badge: people not on a team, from Open through Building.",
+     "order": 50,
+     "group": "Run",
+     "target_id": "o.teams"
+    },
+    {
+     "id": "entries",
+     "label": "Entries",
+     "icon": "entries",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. The list is empty until teams start saving entries.",
+     "order": 60,
+     "group": "Run",
+     "target_id": "o.entries"
+    },
+    {
+     "id": "announcements",
+     "label": "Announcements",
+     "icon": "megaphone",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. Post, edit and delete from Draft until the event ends; after End the list stays readable but nothing can be posted or changed.",
+     "order": 70,
+     "group": "Run",
+     "target_id": "o.announcements"
+    },
+    {
+     "id": "judging",
+     "label": "Judging",
+     "icon": "rubric",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. Progress, assignments, conflicts and lock; configuration links to Settings → Judging.",
+     "order": 80,
+     "group": "Run",
+     "target_id": "o.judging"
+    },
+    {
+     "id": "results",
+     "label": "Results",
+     "icon": "chart",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked.",
+     "order": 90,
+     "group": "Wrap up",
+     "target_id": "o.results"
     }
    ]
   },
@@ -389,7 +422,10 @@
      "short": "Overview",
      "phone_tab": true,
      "badge": "1",
-     "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet. Badge: unseen news (the Needs you card's dismissable rows not yet dismissed)."
+     "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet. Badge: unseen news (the Needs you card's dismissable rows not yet dismissed).",
+     "order": 10,
+     "group": null,
+     "target_id": "p.home"
     },
     {
      "id": "schedule",
@@ -397,7 +433,10 @@
      "icon": "calendar",
      "phone_tab": false,
      "badge": null,
-     "stage_rule": "Always reachable once approved; shows 'Nothing scheduled yet' until the organiser adds times."
+     "stage_rule": "Always reachable once approved; shows 'Nothing scheduled yet' until the organiser adds times.",
+     "order": 20,
+     "group": null,
+     "target_id": "p.schedule"
     },
     {
      "id": "announcements",
@@ -405,7 +444,10 @@
      "icon": "megaphone",
      "phone_tab": false,
      "badge": "2",
-     "stage_rule": "Always reachable once approved; empty state until the organiser posts one. Badge: announcements posted since this browser last opened this screen, counted client-side and cleared the moment it opens."
+     "stage_rule": "Always reachable once approved; empty state until the organiser posts one. Badge: announcements posted since this browser last opened this screen, counted client-side and cleared the moment it opens.",
+     "order": 30,
+     "group": null,
+     "target_id": "p.announcements"
     },
     {
      "id": "team",
@@ -414,7 +456,10 @@
      "short": "Team",
      "phone_tab": true,
      "badge": "1",
-     "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to."
+     "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to.",
+     "order": 40,
+     "group": null,
+     "target_id": "p.team"
     },
     {
      "id": "entry",
@@ -423,7 +468,10 @@
      "short": "Entry",
      "phone_tab": true,
      "badge": null,
-     "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on."
+     "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on.",
+     "order": 50,
+     "group": null,
+     "target_id": "p.entry"
     },
     {
      "id": "website",
@@ -432,7 +480,10 @@
      "short": "Website",
      "phone_tab": true,
      "badge": null,
-     "stage_rule": "Same gating as Entry: needs a team, editable until the deadline, read-only (view-only link) after."
+     "stage_rule": "Same gating as Entry: needs a team, editable until the deadline, read-only (view-only link) after.",
+     "order": 60,
+     "group": null,
+     "target_id": "p.website"
     },
     {
      "id": "results",
@@ -444,7 +495,10 @@
      "stages": [
       "results",
       "ended"
-     ]
+     ],
+     "order": 70,
+     "group": null,
+     "target_id": "p.results"
     }
    ]
   },
@@ -459,7 +513,10 @@
      "short": "Overview",
      "phone_tab": true,
      "badge": null,
-     "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens."
+     "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens.",
+     "order": 10,
+     "group": null,
+     "target_id": "j.home"
     },
     {
      "id": "queue",
@@ -468,7 +525,10 @@
      "short": "My teams",
      "phone_tab": true,
      "badge": "3",
-     "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish."
+     "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+     "order": 20,
+     "group": null,
+     "target_id": "j.queue"
     },
     {
      "id": "rubric",
@@ -477,7 +537,10 @@
      "short": "Rubric",
      "phone_tab": true,
      "badge": null,
-     "stage_rule": "Available as soon as the organiser saves a rubric, even before judging opens, so a judge can read it ahead of time."
+     "stage_rule": "Available as soon as the organiser saves a rubric, even before judging opens, so a judge can read it ahead of time.",
+     "order": 30,
+     "group": null,
+     "target_id": "j.rubric"
     }
    ]
   },
@@ -492,7 +555,9 @@
      "short": "Home",
      "phone_tab": true,
      "badge": null,
-     "stage_rule": "Always shown; the marketing landing."
+     "stage_rule": "Always shown; the marketing landing.",
+     "order": 10,
+     "group": null
     },
     {
      "id": "directory",
@@ -501,7 +566,9 @@
      "short": "Explore",
      "phone_tab": true,
      "badge": null,
-     "stage_rule": "Always shown."
+     "stage_rule": "Always shown.",
+     "order": 20,
+     "group": null
     },
     {
      "id": "sign-in",
@@ -510,7 +577,9 @@
      "short": "Sign in",
      "phone_tab": true,
      "badge": null,
-     "stage_rule": "Always shown."
+     "stage_rule": "Always shown.",
+     "order": 30,
+     "group": null
     }
    ]
   }
@@ -520,12 +589,18 @@
    "id": "organiser-overview",
    "role": "organiser",
    "nav_id": "overview",
-   "title": "Overview",
+   "title": "Home",
    "user_moment": "Amara opens the event Monday morning to see what needs her before the weekend.",
    "purpose": "Answer 'what do I do now' for the whole event with ONE button that performs the next forward move, hold the links organisers hand out, and show the stage track.",
-   "primary_action": "The 'Your next step' button: the next forward move, in plain words (Open sign-up, Start building, Close entries, Start judging, Finish judging, Publish results, End event). Change stage in the header stays for any other move, backward included.",
-   "layout": "status bar with the .stages track, then the page header (h1 Overview, the public address as a link, Change stage as a plain .btn on the right), then ONE .next card: kicker 'Your next step', an h2 saying the move in plain words, one sentence saying exactly what the button does, and one .btn.primary on the right -- nothing else in the card, no secondary buttons, no links. The card turns amber (.next.warn, border-left warn) only when the entry deadline has passed while still Building. A Needs you .note appears under the next-step card only while applications are waiting, one line with a Review applications link to People (2026-11-02). Then the Snapshot .grid4 (Participants, Teams, Judges, Not on a team), the Share cards (join link, judge link, each Copy + New link), and the danger zone End the event (hidden once the next-step button itself is End event, and once ended). Platform-admin view: the card's button is disabled with the rest.",
+   "primary_action": "First actionable required checklist todo, otherwise existing forward move and confirmation.",
+   "layout": "Home: stage track, Needs you, one checklist-led next action, current-stage checklist, existing snapshot and share links.",
    "sections": [
+    {
+     "name": "Stage checklist",
+     "contents": [
+      "Shared participant .steps markup; done/todo/optional/not_needed. Not needed / Use this item only for optional organiser rows. Earlier unfinished required items lead; Earlier optional items collapsed. No new stage gate."
+     ]
+    },
     {
      "name": "Your next step",
      "contents": [
@@ -720,8 +795,7 @@
    ],
    "fixes": [
     "'New link sits directly beside Copy ... no confirmation step' -- New link now opens a confirm dialog naming the effect.",
-    "Generic, non-stage-aware walkthrough replaced by the always-current next-action card; Help in the sidebar foot still replays the full walkthrough on request (features: replay-organiser-walkthrough).",
-    "Owner, 2026-10-31: 'No checklist. The only main button should be a proper way to move right now.' The next-step card lost its link-buttons (Set up event page, Sign-up questions, Review applications, See entries, See judging progress, Open public page) and now carries exactly one button, the forward move itself."
+    "Generic, non-stage-aware walkthrough replaced by the always-current next-action card; Help in the sidebar foot still replays the full walkthrough on request (features: replay-organiser-walkthrough)."
    ],
    "phone": "Stage track hidden, the pill and deadline stay. Change stage stays a compact button beside the h1 (never a full-width bar above the next step). The next-step card stacks: sentence, then its one button. Stat tiles 2x2, link cards full width.",
    "decisions": [
@@ -789,13 +863,17 @@
      "q": "Should every stage change offer to tell participants? (owner, SIM-341, 2026-11-05)",
      "decision": "Yes, after the move itself succeeds, not before: a dialog with an editable Title/Body prefilled from a per-move suggestion, the Announcements screen's own email checkbox and wording, and 'Don't send' / 'Send' (Escape and the scrim both mean Don't send). For End event specifically, the announcement (when Send is chosen) posts before the archive call, since the server refuses one on an already-ended event; every other move posts after. organiser-results's own Publish results (and Publish again, on a republish) offers the same dialog before its own refresh, through the same shared helper, not a second copy. A backward move to Judging must not promise scoring reopens when judging stays locked (moving back from Results): that suggestion reads 'Results are on hold' instead of 'Judging has reopened'.",
      "why": "Owner: 'Every stage change should offer to send an announcement, with the option not to send, or to edit what is sent.' Reusing Announcements' own endpoint, checkbox and live-region wording keeps the two screens from ever describing the same result differently, and extracting the dialog itself into _stage-announce-dialog.js keeps organiser-results's offer from drifting out of step with organiser-overview's."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Home with stage checklist and optional Not needed, checklist-led next action then existing forward confirmation; Rubric final / Mark as final in Settings → Judging.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
     "change-event-stage",
     "archive-event",
-    "regenerate-join-link",
-    "regenerate-judge-link",
     "copy-join-or-judge-link",
     "view-event-stats",
     "replay-organiser-walkthrough",
@@ -804,7 +882,9 @@
     "move-event-forward",
     "warn-teams-without-track",
     "schedule-row-prompt",
-    "organiser-needs-you"
+    "organiser-needs-you",
+    "organiser-stage-checklist",
+    "dismiss-optional-checklist-item"
    ],
    "prototype_states": [
     {
@@ -890,94 +970,76 @@
      "name": "Kickoff is now. Open sign-up?",
      "stage": "draft",
      "next": "Not open yet"
+    },
+    {
+     "slug": "announce",
+     "name": "Announce"
+    },
+    {
+     "slug": "open",
+     "name": "Open"
     }
    ],
    "next_step_map": [
     {
-     "when": "Choose what teams hand in (draft, entry rules not yet chosen -- SIM-382)",
-     "h2": "Choose what teams hand in",
-     "sentence": "Video or website is already selected on Entries. Change it there if you'd rather require a code link too.",
-     "button": "Choose what teams hand in",
-     "does": "navigates to Entries' handin card (?s=entries#handin); no API call, no confirm"
+     "when": "Required actionable todo",
+     "does": "Open resolved checklist target; no stage mutation on navigation"
     },
     {
-     "when": "Not open yet (draft, entry rules chosen)",
-     "h2": "Open sign-up when your page is ready",
-     "sentence": "People can join with your link and apply, and judges can use their invite link.",
-     "button": "Open sign-up",
-     "does": "POST /stage {stage: open}"
+     "when": "Required work done",
+     "does": "Existing next_step action and confirmation; optional items never lead"
     },
     {
-     "when": "Sign-up open (open)",
-     "h2": "Start building when people are in",
-     "sentence": "Entries open. Teams can edit their entry and website until you close entries.",
-     "button": "Start building",
-     "does": "POST /stage {stage: building}"
-    },
-    {
-     "when": "Building, before the deadline",
-     "h2": "Close entries when building time is over",
-     "sentence": "Entries close for every team now, except teams with their own extension. Judges can start scoring.",
-     "button": "Close entries",
-     "does": "POST /stage {stage: closed}"
-    },
-    {
-     "when": "Building, deadline passed (amber)",
-     "h2": "The entry deadline has passed",
-     "sentence": "Close entries so judges can start scoring. Teams with their own extension keep it.",
-     "button": "Close entries",
-     "does": "POST /stage {stage: closed}"
-    },
-    {
-     "when": "Entries closed (closed)",
-     "h2": "Start judging when every entry is in",
-     "sentence": "Teams can no longer edit their entry, team or website. Judges keep scoring.",
-     "button": "Start judging",
-     "does": "POST /stage {stage: judging}"
-    },
-    {
-     "when": "Judging, locked or not",
-     "h2": "Finish judging when every judge is done",
-     "sentence": "Scoring stops and judging locks. Next you publish results.",
-     "button": "Finish judging",
-     "does": "POST /stage {stage: results} -- the server locks judging in the same transaction when it is not locked yet"
-    },
-    {
-     "when": "Results, not published",
-     "h2": "Publish results",
-     "sentence": "Teams see their results straight away. Your event page shows them the way you set on Results.",
-     "button": "Publish results",
-     "does": "POST /results/publish {} (computed ranks, ties stay tied)"
-    },
-    {
-     "when": "Results, published",
-     "h2": "End the event when you're done",
-     "sentence": "Scoring and sign-up lock for good. Team sites are removed after 30 days.",
-     "button": "End event",
-     "does": "POST /stage {stage: archived}"
-    },
-    {
-     "when": "Results published, nobody in the event",
-     "h2": "End the event when you're done",
-     "sentence": "Nobody is in this event, so it can't be ended. Delete it in Settings instead.",
-     "button": "End event (disabled)",
-     "does": "nothing -- the server answers 409 archive_needs_participants, so the button never offers it"
-    },
-    {
-     "when": "Ended (archived)",
-     "h2": "This event has ended",
-     "sentence": "The public page stays up as a record.",
-     "button": "none",
-     "does": "nothing"
-    },
-    {
-     "when": "Any forward move, once a schedule row lining up with it has come (next_step.cue)",
-     "h2": "The cue replaces the heading: 'Kickoff is now. Open sign-up?', 'Entries are due now. Close entries?'. After the row's window (or 15 minutes after a deadline): 'Kickoff was at 9:00 am. Open sign-up?', 'Entries were due at 6:00 pm. Close entries?'",
-     "sentence": "The move's own sentence stays, then a small line: 'From your schedule. Nothing changes until you press Open sign-up.'",
-     "button": "unchanged",
-     "does": "nothing new: the same confirm and the same POST. The cue only words the card"
+     "when": "Ended",
+     "does": "History only, no next action"
     }
-   ]
+   ],
+   "checklist_stages": {
+    "draft": [
+     "entry-rules",
+     "basics",
+     "times",
+     "about",
+     "schedule",
+     "faq",
+     "sponsors",
+     "tracks",
+     "rubric",
+     "mode",
+     "tie-break",
+     "judging-closes",
+     "reminders"
+    ],
+    "open": [
+     "announcement",
+     "deadline"
+    ],
+    "building": [
+     "announcement",
+     "deadline"
+    ],
+    "closed": [
+     "judges",
+     "rubric-ready",
+     "assignments (non-open)"
+    ],
+    "judging": [
+     "scores",
+     "lock"
+    ],
+    "results": [
+     "scores",
+     "lock",
+     "ties",
+     "publish",
+     "end"
+    ],
+    "archived": [
+     "publish (if published)",
+     "end",
+     "history"
+    ]
+   }
   },
   {
    "id": "organiser-event-page",
@@ -987,7 +1049,7 @@
    "user_moment": "Weeks before the event Amara sets up the public page one piece at a time: the name and dates one evening, the About text the next, sponsors when a partner confirms, the FAQ as questions come in. She wants to open exactly the piece she is working on, not scroll past everything else.",
    "purpose": "Edit everything that makes up the public event page, one piece per sub-page.",
    "primary_action": "One per sub-page: Save on Basics and About (bottom-right of the card), Add on Schedule, Sponsors and FAQ (top-right, beside the heading), Choose zip on Website. Look has no button, each control saves on change.",
-   "layout": "Page header (h1 'Event page', the address as a link, 'View public page' button on desktop). Below it a two-column split: a compact sub-page list on the left (176px: Basics, About, Schedule 5, Sponsors 3, FAQ 4, Look, Website -- counts are the number of items, hidden at 0) and ONE sub-page on the right. Only the chosen sub-page is in the DOM. Each sub-page starts with .sp-head (h2, one-line description, its Add button top-right when it is a list), then a single .card (form) or a .list.editable (rows). Kit parts: .subnav-split, .subnav, .sp-head, .card-foot, .field-row, .list.editable with .grip / .thumb / .row-acts / .row-menu, .dialog.form inside .scrim.sheet, .file-pick, .swatches, .choices, .drop, .empty-state, .saved.",
+   "layout": "Existing one-at-a-time content tabs: Basics, About, Schedule, Tracks, Sponsors, FAQ, Look, Website.",
    "sub_pages": [
     {
      "tab": "basics",
@@ -1022,6 +1084,16 @@
      ],
      "save": "list: each dialog Save, and each Remove, writes straight away",
      "empty": "empty-state card: 'Nothing scheduled yet' + Add time, only when there are no typed rows and no fixed rows either (no dates, deadline or voting yet). The card says the dates and entry deadline show here on their own once set."
+    },
+    {
+     "tab": "tracks",
+     "label": "Tracks",
+     "url": "?s=event-page&tab=tracks",
+     "holds": [
+      "add-tracks-and-challenges",
+      "remove-track"
+     ],
+     "save": "Existing Add/Edit/Remove; name required, challenge and prize optional"
     },
     {
      "tab": "sponsors",
@@ -1142,6 +1214,12 @@
        "kind": "danger",
        "confirm": "No confirm. A toast says 'Removed “Closing”' with Undo for 10 seconds."
       }
+     ]
+    },
+    {
+     "name": "Tracks",
+     "contents": [
+      "Name, optional challenge and prize; Add/Edit/Remove with existing validation and confirmations."
      ]
     },
     {
@@ -1458,6 +1536,12 @@
      "q": "Do the event's dates prompt anything?",
      "decision": "A start or end with a time of day does (start asks to Start building, end asks to Close entries when there is no entry deadline). A date with no time shows as 'All day' and prompts nothing.",
      "why": "Basics accepts dates and times. An empty time still means local midnight, for both Starts and Ends; that default displays as a date only."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Event page stays working tabs; add Tracks, aliased from Teams. No migration of seven content editors into Settings.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
@@ -1476,7 +1560,9 @@
     "add-schedule-item",
     "toggle-gallery-open",
     "schedule-fixed-rows",
-    "schedule-row-prompt"
+    "schedule-row-prompt",
+    "add-tracks-and-challenges",
+    "remove-track"
    ],
    "prototype_states": [
     {
@@ -1556,6 +1642,10 @@
      "name": "Sidebar collapsed (desktop)",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "tracks",
+     "name": "Tracks"
     }
    ]
   },
@@ -1695,9 +1785,9 @@
    "nav_id": "people",
    "title": "People",
    "user_moment": "Amara has 4 new applications to approve before the weekend starts, plus wants to add a co-organiser.",
-   "purpose": "Decide who's in -- people who applied from Find a hackathon or the event page, and join-link sign-ups that need approval -- see everyone who is, and manage sign-up rules and co-organisers. Applications first.",
+   "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "primary_action": "Approve or reject each pending application.",
-   "layout": "Applications first and largest: a filter row (From, Age range, Country, Sort) once anything is waiting, then one card per waiting person with their details and answers. Then the role-filtered Everyone list with a per-row menu, then two smaller cards: Co-organisers and Sign-up.",
+   "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "sections": [
     {
      "name": "Applications",
@@ -1753,52 +1843,9 @@
      ]
     },
     {
-     "name": "Co-organisers",
+     "name": "Settings link",
      "contents": [
-      "Current: Amara (you, creator), Dewi",
-      "A co-organiser can do everything you can on this event, including Delete this event. Only the creator can't be removed."
-     ],
-     "actions": [
-      {
-       "label": "Create invitation",
-       "kind": "secondary",
-       "confirm": "This link grants full control of this event, including deleting it. Create it?"
-      },
-      {
-       "label": "Copy invitation",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Revoke invitation",
-       "kind": "danger",
-       "confirm": "This invitation stops working. Revoke it?"
-      }
-     ]
-    },
-    {
-     "name": "Sign-up",
-     "contents": [
-      "Approve people who join with your link before they can join a team or publish (toggle)",
-      "Line under it: 'Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are on -- change in Settings.' (Settings links to organiser-settings#applications; reads 'off' when off)",
-      "Questions: 'Why do you want to join?' (required), 'What's your experience level?' (optional). Note: 'Applicants also get three optional fields of ours: where they're based, age range and gender.'"
-     ],
-     "actions": [
-      {
-       "label": "Add question",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Save questions",
-       "kind": "primary",
-       "confirm": null
-      },
-      {
-       "label": "Turn approval off",
-       "kind": "secondary",
-       "confirm": "4 people who joined with your link are still waiting. Approve all of them now, or leave them pending -- you can still approve or reject each one later from this list. Applications aren't affected: they always wait for your decision."
-      }
+      "Short link to Settings → Sign-up / Organisers. Configuration appears only there; exports remain here."
      ]
     }
    ],
@@ -1869,18 +1916,18 @@
      "q": "Whose name shows on an applicant's or member's row?",
      "decision": "Their account name -- the one name a person has everywhere on Simple Hack, not a name they typed just for this event. Applying, joining, judging and accepting a co-organiser invite ask for a name only when the account has none yet; the account name they already have is shown and used instead.",
      "why": "Owner, 2026-11-06: one name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite all ask for a name only when the account has none yet; the server saves it as the account's display name. When the account already has one, the screen shows it read-only with a link to Account and never asks again -- a rename on Account then shows everywhere the person appears (teams, organisers, judges, results)."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
-    "set-signup-questions",
-    "toggle-approval-required",
-    "admit-pending-on-approval-off",
     "review-application",
     "approve-application",
     "reject-application",
-    "create-co-organiser-invite",
-    "revoke-co-organiser-invite",
-    "remove-organiser",
     "list-people",
     "remove-person",
     "turn-off-persons-key",
@@ -1909,9 +1956,9 @@
    "nav_id": "teams",
    "title": "Teams",
    "user_moment": "Amara checks who's still without a team the night before the deadline, places them with Fill teams, and checks each team has an admin and room.",
-   "purpose": "See every team, place people who aren't on one, set up tracks, and choose how teams form, one sub-page each.",
+   "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "primary_action": "One per sub-page: open a team (Teams), Fill teams (Not on a team), Add track (Tracks), Save (Settings, team size).",
-   "layout": "Page header (h1 Teams, '6 teams · 3 people not on a team'). Then .subnav-split like the Event page: Teams 6, Not on a team 3, Tracks 2, Settings. Teams: .list of links to Team detail (name, 'Good Health · Admins: Siti, Rina', meta '3 of 20' plus a Locked or Full pill). Not on a team: sp-head with Fill teams (primary) top-right, then the people .list.editable (name, 'Looking for a team · intro' or 'Not looking', row menu: Put on a team...). Tracks: sp-head with Add track, .list.editable rows (name, challenge, prize, 'N teams'), Edit/Remove through the row menu and a dialog. Settings: a flat card with the Team finding toggle (saves on change) and a Team size form card (Most people per team, one Save).",
+   "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "sections": [
     {
      "name": "Teams",
@@ -1958,35 +2005,9 @@
      ]
     },
     {
-     "name": "Tracks",
+     "name": "Settings link",
      "contents": [
-      "Good Health · Build something that helps people stay well. · Prize: Wellness kit · 3 teams"
-     ],
-     "actions": [
-      {
-       "label": "Add track",
-       "kind": "primary",
-       "confirm": null
-      },
-      {
-       "label": "Remove",
-       "kind": "danger",
-       "confirm": "2 teams chose Good Health. They'll have no track. Remove it?"
-      }
-     ]
-    },
-    {
-     "name": "Settings",
-     "contents": [
-      "Team finding: Participants can browse teams, ask to join and invite people looking for a team. Team links and codes work either way.",
-      "Most people per team: 20 (1 to 50)"
-     ],
-     "actions": [
-      {
-       "label": "Save",
-       "kind": "primary",
-       "confirm": null
-      }
+      "Short link to Settings → Teams (Tracks on Event page). Configuration appears only there; exports remain here."
      ]
     }
    ],
@@ -2025,14 +2046,10 @@
    ],
    "features": [
     "list-teams",
-    "set-team-size-max",
     "download-teams-csv",
-    "toggle-team-finding",
     "fill-teams-preview",
     "fill-teams-apply",
     "view-team-finding-board-organiser",
-    "add-tracks-and-challenges",
-    "remove-track",
     "move-member-to-team",
     "message-team"
    ],
@@ -2104,6 +2121,12 @@
      "q": "How does Message selected fit the Teams list? (notices contract, 2026-11-05)",
      "decision": "A plain checkbox in front of each row's own link (the row stops being a bare `<a>`, since a checkbox can't live inside one), and a Message selected button in the sub-page head, enabled only with 1 to 25 checked. Left off entirely once the event is archived.",
      "why": "The row already had to stop being a single link the moment it needed a second interactive control; everywhere else in this app that happens (member rows, solo rows) the row becomes a div with its own .main link, so this follows the same shape rather than inventing a new one."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "phone": "Sub-page tabs scroll sideways, with a soft edge fade hinting there is more to scroll to (shared .subnav fix, prod full test 2026-11-02). Rows wrap, Fill teams sits in the sub-page head, the Fill teams dialog rises as a sheet.",
@@ -2131,29 +2154,6 @@
      ],
      "save": "Fill teams previews in a dialog and applies on confirm. Put on a team writes straight away.",
      "empty": "empty-state 'Everyone is on a team' and Fill teams disabled"
-    },
-    {
-     "tab": "tracks",
-     "label": "Tracks",
-     "url": "?s=teams&tab=tracks",
-     "holds": [
-      "add-tracks-and-challenges",
-      "remove-track"
-     ],
-     "save": "list: each dialog Save and each Remove writes straight away (the same PUT as today, with the whole list)",
-     "empty": "empty-state 'No tracks yet' / 'Add tracks if teams should pick a challenge. Without tracks, everyone competes together.' + Add track"
-    },
-    {
-     "tab": "settings",
-     "label": "Settings",
-     "url": "?s=teams&tab=settings",
-     "holds": [
-      "toggle-team-finding",
-      "set-team-size-max",
-      "download-teams-csv"
-     ],
-     "save": "Team finding saves on change. Team size: one Save.",
-     "empty": "never empty"
     }
    ]
   },
@@ -2358,9 +2358,9 @@
    "nav_id": "entries",
    "title": "Entries",
    "user_moment": "Amara checks which teams haven't finished their entry with two hours left before the deadline.",
-   "purpose": "See who's ready at a glance, set the deadline, say what teams hand in, give extensions, and open any entry.",
+   "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "primary_action": "Set the deadline and what teams hand in.",
-   "layout": "Four .stat tiles (submitted, drafts, not started, sites live). Deadline card. What teams hand in (SIM-382): two preset choice cards (Video or website, Video, website and code link), then rows per line with a Required / Optional / Off segmented control (the show-your-work lines also have One of), a help line explaining One of, Judges see after the card: Video | Website, Save. An event already on a retired preset (AI build, Coding, Ideas and design, Custom) shows its own lines with neither card selected. Extensions. Entries list with a status pill per team (Submitted, Draft, Not started, Not submitted) and what's missing. Export.",
+   "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "sections": [
     {
      "name": "Counts",
@@ -2368,42 +2368,6 @@
       "18 submitted · 7 drafts · 6 not started · 21 sites live"
      ],
      "actions": []
-    },
-    {
-     "name": "Deadline",
-     "contents": [
-      "Entries close 28 October 2026, 18:17 (UTC)",
-      "To reopen, move the event back to Building on Overview."
-     ],
-     "actions": [
-      {
-       "label": "Save deadline",
-       "kind": "primary",
-       "confirm": null
-      },
-      {
-       "label": "Clear deadline",
-       "kind": "danger",
-       "confirm": "Teams can keep changing sites and entries with no deadline until you set a new one. Clear it?"
-      }
-     ]
-    },
-    {
-     "name": "What teams hand in",
-     "contents": [
-      "Presets (SIM-382): Video or website (the default) -- at least one of a demo video or a website. / Video, website and code link -- all three required, judges open the website first.",
-      "Summary card: Project name (always Required) · Problem · Solution · Who it's for · Track (when the event has tracks) · Tools and AI · What works today -- each Required / Optional / Off",
-      "Show your work: Video link · Website · Code link · Screenshot -- each Required / One of / Optional / Off",
-      "One of: teams need at least one of the lines marked One of. Here: a video or a website.",
-      "Judges see, after the card, first: Video | Website"
-     ],
-     "actions": [
-      {
-       "label": "Save",
-       "kind": "primary",
-       "confirm": "Only when the change makes something newly Required and submitted entries lack it: 'Make Code link required? 4 submitted entries have no code link. They stay submitted, and their teams see that you now ask for one. 7 drafts will need a code link before they can submit.' [Cancel] [Make it required]"
-      }
-     ]
     },
     {
      "name": "Extensions",
@@ -2455,6 +2419,12 @@
        "kind": "secondary",
        "confirm": null
       }
+     ]
+    },
+    {
+     "name": "Settings link",
+     "contents": [
+      "Short link to Settings → Entries / Reminders. Configuration appears only there; exports remain here."
      ]
     }
    ],
@@ -2531,20 +2501,20 @@
      "q": "Where does Reminder times live? (notices contract, 2026-11-05)",
      "decision": "On Entries, right under the Deadline card, not on Settings. The note under it reads \"Teams without a submitted entry are emailed this long before their deadline. Judges with teams left to score are reminded this long before judging closes.\" and names a link to Judging when judging_ends_at isn't set yet.",
      "why": "One offsets list drives both the entry-deadline reminder and the judging-closes reminder, but Entries is already 'where organisers set deadlines' -- the screen's own h1 subtitle. Settings holds organiser identity, applications and webhook notifications, none of it deadline-shaped; putting a deadline control there would be the odd one out, not this one."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
-    "set-submission-deadline",
-    "clear-submission-deadline",
-    "choose-entry-preset",
-    "set-entry-required-fields",
-    "set-judge-media-order",
     "set-team-deadline-override",
     "clear-team-deadline-override",
     "view-entries-progress",
     "download-entries-csv",
-    "view-storage-usage",
-    "set-reminder-times"
+    "view-storage-usage"
    ],
    "prototype_states": [
     {
@@ -2670,76 +2640,10 @@
    "nav_id": "judging",
    "title": "Judging",
    "user_moment": "Amara writes the rubric weeks ahead, picks the tie-break rule before judging starts, then once entries close decides how judges get matched and watches progress.",
-   "purpose": "Set up and run judging: rubric, tie-break, assignment mode, conflicts, and live progress. Publishing lives on Results.",
+   "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "primary_action": "Generate judge assignments, once entries are closed.",
-   "layout": "Rubric first (.crit rows with a .scale, Add/Reorder/Save, the score-deletion confirm when it applies), then a Results rules card for the tie-break criterion with a visible 'locks once judging begins' warning, then 'How judges are assigned' (four modes compared, judges-per-team, Save, Generate, and a link into the full assignment grid), then Conflicts, then Progress, then Lock/Unlock.",
+   "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "sections": [
-    {
-     "name": "Rubric",
-     "contents": [
-      "Idea & impact -- 10 points",
-      "Technical execution -- 10 points",
-      "Design & polish -- 10 points"
-     ],
-     "actions": [
-      {
-       "label": "Add a criterion",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Move up / down",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Save rubric",
-       "kind": "primary",
-       "confirm": null
-      }
-     ]
-    },
-    {
-     "name": "Results rules: tie-break",
-     "contents": [
-      "First tie criterion: Idea & impact",
-      "Locks once judging begins -- you can still change it any time before then, including while entries are closed."
-     ],
-     "actions": [
-      {
-       "label": "Save",
-       "kind": "primary",
-       "confirm": null
-      }
-     ]
-    },
-    {
-     "name": "How judges are assigned",
-     "contents": [
-      "Open: judges pick any entry from the full list",
-      "Automatic: Simple Hack assigns judges to teams evenly, only teams that will be judged (an entry not excluded, or a live team site); a team with no entry gets no judge (full-test fix 2026-11-02)",
-      "Manual: you assign each judge to specific teams",
-      "Panel: judges are grouped by track, one panel per track",
-      "Judges per team: 2"
-     ],
-     "actions": [
-      {
-       "label": "Save",
-       "kind": "primary",
-       "confirm": null
-      },
-      {
-       "label": "Generate assignments",
-       "kind": "primary",
-       "confirm": "This replaces any assignments already generated. Continue?"
-      },
-      {
-       "label": "Open the assignment grid",
-       "kind": "secondary",
-       "confirm": null
-      }
-     ]
-    },
     {
      "name": "Conflicts of interest",
      "contents": [
@@ -2784,6 +2688,18 @@
        "kind": "danger",
        "confirm": "No judge can change a score, and you can't change the rubric or assignments, until you unlock. Lock judging now?"
       }
+     ]
+    },
+    {
+     "name": "Settings link",
+     "contents": [
+      "Short link to Settings → Judging. Configuration appears only there; exports remain here."
+     ]
+    },
+    {
+     "name": "Assignments",
+     "contents": [
+      "Generate with include-organisers input; manual/panel grid. Configuration is on Settings → Judging; permission to judge is separate from assignment inclusion."
      ]
     }
    ],
@@ -2861,15 +2777,15 @@
      "q": "Where is judging_ends_at set? (notices contract, CHANGE 2026-11-05)",
      "decision": "Its own card here, between Tie-break and How judges are assigned: a plain date-time field in the event's own zone, Save and Clear, read-only text once archived. It drives the judging-closes reminder (Reminder times, on Entries) and shows as a fixed, read-only 'Judging closes' row on the Event page's Schedule.",
      "why": "The CHANGE note dropped the original plan to infer it from a schedule row ('Finish judging') -- it is now a plain organiser-set field, like submission_deadline, so it needs a plain field, and this is the screen where the rest of judging gets set up before entries even close."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
-    "define-rubric",
-    "confirm-score-deletion-on-rubric-change",
-    "reorder-rubric-criteria",
-    "choose-tie-criterion",
-    "choose-judge-assignment-mode",
-    "set-judges-per-team",
     "generate-automatic-assignments",
     "declare-conflict-organiser",
     "remove-conflict-organiser",
@@ -2878,7 +2794,7 @@
     "view-judging-dashboard",
     "delete-former-judge-scores",
     "warn-teams-without-track",
-    "set-judging-closes"
+    "organiser-judge-access"
    ],
    "prototype_states": [
     {
@@ -2999,9 +2915,9 @@
    "nav_id": "results",
    "title": "Results",
    "user_moment": "Judging is locked. Amara previews the standings, decides visibility, and publishes.",
-   "purpose": "Preview, publish, manage visibility, run audience voting, and export -- separated from Judging so the one irreversible action here isn't buried under setup.",
+   "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "primary_action": "Publish results, once judging is locked.",
-   "layout": "A status .note at the top (live or not yet), score mode, Preview + Publish, a visibility card with three independent toggles, a Voting & directory card, then Export.",
+   "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "sections": [
     {
      "name": "Status",
@@ -3009,19 +2925,6 @@
       "Results are live -- published 29 Oct 2026, 09:40. Publish again any time scores change -- it's a snapshot, not a live feed."
      ],
      "actions": []
-    },
-    {
-     "name": "Scoring rules",
-     "contents": [
-      "Score used for ranking: Normalised mean"
-     ],
-     "actions": [
-      {
-       "label": "Save",
-       "kind": "primary",
-       "confirm": null
-      }
-     ]
     },
     {
      "name": "Publish",
@@ -3048,48 +2951,6 @@
      ]
     },
     {
-     "name": "Show on the public page",
-     "contents": [
-      "Winners only, or full ranking",
-      "Show numeric scores publicly (toggle, off)",
-      "Show ranks publicly (toggle, on)",
-      "'Full ranking with scores off' is a real combination -- show everyone took part, without a public scoreboard."
-     ],
-     "actions": [
-      {
-       "label": "Save",
-       "kind": "primary",
-       "confirm": null
-      }
-     ]
-    },
-    {
-     "name": "Voting & directory",
-     "contents": [
-      "Audience voting: open",
-      "28 Oct 09:00 -- 29 Oct 09:00",
-      "Who can vote: anyone signed in",
-      "List this event in the simple-hack.app directory (independent of voting): on"
-     ],
-     "actions": [
-      {
-       "label": "Save voting window",
-       "kind": "primary",
-       "confirm": null
-      },
-      {
-       "label": "Change who can vote",
-       "kind": "primary",
-       "confirm": "Narrowing this removes 6 votes that no longer qualify. This can't be undone. Continue?"
-      },
-      {
-       "label": "Save directory listing",
-       "kind": "primary",
-       "confirm": null
-      }
-     ]
-    },
-    {
      "name": "Export",
      "contents": [
       "Download results (CSV)",
@@ -3100,6 +2961,12 @@
       "Download all team sites"
      ],
      "actions": []
+    },
+    {
+     "name": "Settings link",
+     "contents": [
+      "Short link to Settings → Results / Sign-up (directory). Configuration appears only there; exports remain here."
+     ]
     }
    ],
    "states": [
@@ -3164,26 +3031,24 @@
      "q": "Do the applicant fields reach the CSV?",
      "decision": "Yes: participants CSV gains city, country, age_range, gender and joined_via as its last five columns. Existing columns keep their positions so anyone's spreadsheet formulas keep working.",
      "why": "Owner, 2026-10-31: the CSV export includes them. Appending keeps old imports working."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
-    "choose-score-mode",
-    "toggle-public-scores",
-    "toggle-public-ranks",
     "preview-standings",
     "publish-results",
     "override-rank-on-publish",
-    "choose-results-visibility-mode",
     "download-scores-csv",
     "download-results-csv",
     "download-entries-csv",
     "download-all-team-sites-archive",
     "download-participants-csv",
     "download-teams-csv",
-    "enable-peoples-choice-voting",
-    "set-voting-window",
-    "set-voting-eligibility",
-    "list-event-in-directory",
     "export-applicant-fields"
    ],
    "prototype_states": [
@@ -3208,79 +3073,74 @@
    "nav_id": "settings",
    "title": "Settings",
    "user_moment": "Amara updates the organisation name, wires up a notification for her custom event website, and -- much later -- deletes a test event.",
-   "purpose": "Event identity, who can ask to join, integrations, and the one place irreversible event-level actions live: leaving the event and deleting it.",
+   "purpose": "Event rules and administration, one selected section; public content stays on Event page.",
    "primary_action": "Save organiser identity details.",
    "layout": "Organiser identity card, Applications card (one switch), Notifications card, a red-bordered .danger-zone last.",
    "sections": [
     {
-     "name": "Organiser",
+     "name": "Sign-up",
      "contents": [
-      "Your name (shown on the event page): Amara Wijaya",
-      "Organisation or community: Generation Girl",
-      "Contact email: team@generationgirl.org",
-      "Purpose: a short paragraph on why this event exists",
-      "Expected participants: 60"
-     ],
-     "actions": [
-      {
-       "label": "Save",
-       "kind": "primary",
-       "confirm": null
-      }
+      "Applications, approval, questions, directory listing"
      ]
     },
     {
-     "name": "Applications",
+     "name": "Teams",
      "contents": [
-      "Switch, on: 'Let people apply without your join link'",
-      "Help: 'An Apply button shows on your event page, and on Find a hackathon when your event is listed there, while sign-up is open and during Building. Every application waits for you in People -> Applications.'",
-      "Under it: 'Your join link keeps working either way and stays private. Turning this off stops new applications; ones already waiting stay in People.'",
-      "Status line: 'Listed in Find a hackathon: yes -- change in Results.' (or 'not listed -- people can apply from your event page only')",
-      "Saved note beside the switch after each change"
-     ],
-     "actions": [
-      {
-       "label": "Let people apply without your join link (switch)",
-       "kind": "toggle",
-       "confirm": null
-      }
+      "Maximum size, team finding"
+     ]
+    },
+    {
+     "name": "Entries",
+     "contents": [
+      "Deadline (#deadline), presets, required fields, one-of and judge-first (#entry-rules)"
+     ]
+    },
+    {
+     "name": "Reminders",
+     "contents": [
+      "Participant and judge reminder offsets; empty list stays explicit"
+     ]
+    },
+    {
+     "name": "Judging",
+     "contents": [
+      "Rubric (#rubric), Rubric final / Mark as final (#rubric-final), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)"
+     ]
+    },
+    {
+     "name": "Results",
+     "contents": [
+      "Ranking/visibility (#ranking), voting/window/eligibility (#voting)"
+     ]
+    },
+    {
+     "name": "Organiser details",
+     "contents": [
+      "Public organiser name, organisation, contact, private purpose, expected participants"
+     ]
+    },
+    {
+     "name": "Organisers",
+     "contents": [
+      "Invitations, current organisers, remove"
+     ]
+    },
+    {
+     "name": "Links",
+     "contents": [
+      "Copy/regenerate join and judge links"
      ]
     },
     {
      "name": "Notifications",
      "contents": [
-      "https://hooks.slack.com/services/... -- fires when a visitor saves something or uploads a file on your custom event website"
-     ],
-     "actions": [
-      {
-       "label": "Add notification",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Turn off",
-       "kind": "danger",
-       "confirm": null
-      }
+      "Receiver, secret, pause/resume/test/delete, deliveries"
      ]
     },
     {
-     "name": "Danger zone",
+     "name": "Leave or delete",
      "contents": [
-      "Leave this event (first): creator 'You created this event, so you'll hand it to another organiser before you leave.' / co-organiser 'You'll lose access to managing this event. The other organisers keep running it.' / only organiser 'You're the only organiser, so leaving closes the event. You'll choose to end it or delete it.'",
-      "Delete this event (last): removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo."
-     ],
-     "actions": [
-      {
-       "label": "Leave event",
-       "kind": "danger",
-       "confirm": "Co-organiser: 'Leave Generation Girl Online Hack 2026? You'll stop being an organiser and lose access to everything here. Amara Wijaya and Dimas Pratama keep running it.' [Cancel] [Leave event]. Creator: handover dialog. Only organiser: close dialog (see states)."
-      },
-      {
-       "label": "Delete this event",
-       "kind": "danger",
-       "confirm": "Type generationgirl2026 to confirm. This cannot be undone."
-      }
+      "Shared leave/handover/only-organiser close and Delete confirmations"
      ]
     }
    ],
@@ -3324,6 +3184,11 @@
      "name": "after leaving",
      "when": "the leave succeeded",
      "shows": "Home with one toast: 'You left Generation Girl Online Hack 2026.', 'You handed Generation Girl Online Hack 2026 to Rina Hartono and left it.', 'You ended Generation Girl Online Hack 2026 and left it.' or 'Generation Girl Online Hack 2026 was deleted.'"
+    },
+    {
+     "name": "Rubric final",
+     "when": "Current rubric fingerprint acknowledged by organiser",
+     "shows": "Rubric final done; Mark as final beside Save rubric. Editing criteria invalidates it."
     }
    ],
    "replaces": [
@@ -3375,6 +3240,12 @@
      "q": "Where does Leave sit, and what about an ended event?",
      "decision": "In the Danger zone above Delete this event (the most destructive item goes last). On an ended event it stays visible, disabled, with the reason.",
      "why": "SIM-340: danger-zone section, and 'say why instead of hiding the button'. The layout rule puts the most destructive item last."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
@@ -3384,7 +3255,40 @@
     "toggle-applications",
     "leave-event",
     "hand-over-event",
-    "close-event-on-leave"
+    "close-event-on-leave",
+    "set-signup-questions",
+    "toggle-approval-required",
+    "admit-pending-on-approval-off",
+    "create-co-organiser-invite",
+    "revoke-co-organiser-invite",
+    "remove-organiser",
+    "set-team-size-max",
+    "toggle-team-finding",
+    "set-submission-deadline",
+    "clear-submission-deadline",
+    "choose-entry-preset",
+    "set-entry-required-fields",
+    "set-judge-media-order",
+    "set-reminder-times",
+    "define-rubric",
+    "confirm-score-deletion-on-rubric-change",
+    "reorder-rubric-criteria",
+    "choose-tie-criterion",
+    "choose-judge-assignment-mode",
+    "set-judges-per-team",
+    "set-judging-closes",
+    "choose-score-mode",
+    "toggle-public-scores",
+    "toggle-public-ranks",
+    "choose-results-visibility-mode",
+    "enable-peoples-choice-voting",
+    "set-voting-window",
+    "set-voting-eligibility",
+    "list-event-in-directory",
+    "regenerate-join-link",
+    "regenerate-judge-link",
+    "shared-hack-navigation-map",
+    "acknowledge-checklist-item"
    ],
    "prototype_states": [
     {
@@ -3422,9 +3326,150 @@
      "name": "Ended: leave disabled",
      "stage": "ended",
      "next": "This event has ended"
+    },
+    {
+     "slug": "judging",
+     "name": "Judging"
+    },
+    {
+     "slug": "entries",
+     "name": "Entries"
+    },
+    {
+     "slug": "danger",
+     "name": "Danger"
+    },
+    {
+     "slug": "details",
+     "name": "Details"
+    },
+    {
+     "slug": "links",
+     "name": "Links"
+    },
+    {
+     "slug": "notifications",
+     "name": "Notifications"
+    },
+    {
+     "slug": "organisers",
+     "name": "Organisers"
+    },
+    {
+     "slug": "reminders",
+     "name": "Reminders"
+    },
+    {
+     "slug": "results",
+     "name": "Results"
+    },
+    {
+     "slug": "teams",
+     "name": "Teams"
     }
    ],
-   "phone": "Single column, same content, full width."
+   "phone": "Labelled native Settings section select, one section at a time.",
+   "sub_pages": [
+    {
+     "tab": "signup",
+     "label": "Sign-up",
+     "url": "?s=settings&tab=signup",
+     "holds": [
+      "Applications, approval, questions, directory listing"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "teams",
+     "label": "Teams",
+     "url": "?s=settings&tab=teams",
+     "holds": [
+      "Maximum size, team finding"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "entries",
+     "label": "Entries",
+     "url": "?s=settings&tab=entries",
+     "holds": [
+      "Deadline (#deadline), presets, required fields, one-of and judge-first (#entry-rules)"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "reminders",
+     "label": "Reminders",
+     "url": "?s=settings&tab=reminders",
+     "holds": [
+      "Participant and judge reminder offsets; empty list stays explicit"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "judging",
+     "label": "Judging",
+     "url": "?s=settings&tab=judging",
+     "holds": [
+      "Rubric (#rubric), Rubric final / Mark as final (#rubric-final), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "results",
+     "label": "Results",
+     "url": "?s=settings&tab=results",
+     "holds": [
+      "Ranking/visibility (#ranking), voting/window/eligibility (#voting)"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "details",
+     "label": "Organiser details",
+     "url": "?s=settings&tab=details",
+     "holds": [
+      "Public organiser name, organisation, contact, private purpose, expected participants"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "organisers",
+     "label": "Organisers",
+     "url": "?s=settings&tab=organisers",
+     "holds": [
+      "Invitations, current organisers, remove"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "links",
+     "label": "Links",
+     "url": "?s=settings&tab=links",
+     "holds": [
+      "Copy/regenerate join and judge links"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "notifications",
+     "label": "Notifications",
+     "url": "?s=settings&tab=notifications",
+     "holds": [
+      "Receiver, secret, pause/resume/test/delete, deliveries"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    },
+    {
+     "tab": "danger",
+     "label": "Leave or delete",
+     "url": "?s=settings&tab=danger",
+     "holds": [
+      "Shared leave/handover/only-organiser close and Delete confirmations"
+     ],
+     "save": "Existing individual save conventions and stage locks"
+    }
+   ]
   },
   {
    "id": "organiser-create-event",
@@ -3941,8 +3986,15 @@
      "q": "Can a participant submit from Home?",
      "decision": "Yes, when the draft is complete: Submit entry on the next card, with a one-line confirm. Otherwise the step's button goes to the screen that fixes the missing part.",
      "why": "The common last-hour case is 'everything is there, nobody pressed the button'. One tap from Home closes it."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Keep current look, heroes, fallbacks, tours and exact showEntryCard predicate; shared renderer only. Judging/results/archived or published results hide entry card, including backwards-stage combinations; Draft follows existing predicate.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
-   ]
+   ],
+   "shared_component": "Shared checklist renderer receives existing progress, labels, submit callback and exact showEntryCard visibility; no visual change."
   },
   {
    "id": "participant-schedule",
@@ -5155,9 +5207,15 @@
    "title": "Home",
    "user_moment": "Pak Budi sits down for an hour and wants to know: is scoring open, and what's left.",
    "purpose": "Say, in one word, whether scoring is open or locked, and offer the single next action.",
-   "primary_action": "Score next.",
+   "primary_action": "First actionable required checklist item; otherwise existing Score next / Review my scores.",
    "layout": "A large .pill.stage status line (Open/Locked) at the top, a progress .bar, Score next as the one big button, a link to Rubric & brief.",
    "sections": [
+    {
+     "name": "Checklist",
+     "contents": [
+      "Invite and coc_accepted_at (omit both for organiser), versioned rubric read, declared conflict OR unversioned no-known-teams acknowledgement, own JudgeDoneForTeam counts, closes informational. No Not needed. Actor-scoped conflicts only. Time passing alone does not stop scoring."
+     ]
+    },
     {
      "name": "Status",
      "contents": [
@@ -5311,6 +5369,12 @@
      "q": "Does Home get a Needs you card too? (notices contract, 2026-11-05)",
      "decision": "Yes, the same needsCard/bindDismiss pair as participant Home, placed above the status line: judging opening and a reminder before judging closes while teams are still unscored, each dismissable and linking to My teams (section queue).",
      "why": "The server's needs_you already covers every role; judges were the one role whose Home never read it. Reusing the exact same card/dismiss code keeps the three roles' Needs you behaving identically rather than growing a judge-only variant."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Shared checklist; organiser judge area omits invite and CoC, retains Organiser membership label and Manage event link; actor-scoped conflict reads.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
@@ -5318,7 +5382,8 @@
     "leave-event",
     "see-event-stage",
     "judge-needs-you",
-    "judging-reminder-email"
+    "judging-reminder-email",
+    "judge-stage-checklist"
    ],
    "prototype_states": [
     {
@@ -5356,6 +5421,10 @@
      "name": "Leave, scores kept",
      "stage": "judging",
      "next": "Scoring is open · 4 of 6 done"
+    },
+    {
+     "slug": "organiser",
+     "name": "Organiser in judge area"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -5407,16 +5476,9 @@
      ]
     },
     {
-     "name": "Conflicts",
+     "name": "Check who you know",
      "contents": [
-      "CodeBloom -- you declared a conflict"
-     ],
-     "actions": [
-      {
-       "label": "Remove conflict",
-       "kind": "secondary",
-       "confirm": "You'll be able to score CodeBloom again. Remove the conflict?"
-      }
+      "?s=queue&tab=conflicts#conflicts selects a real visible panel. List every pre-conflict candidate team using existing assignment/judgeability rules, each with Know this team?; show own declared conflicts and existing removal action. I don't know any of these teams records one unversioned personal acknowledgement. Organisers see only their own conflicts. All-conflicted requires nonempty candidates and no eligible teams."
      ]
     }
    ],
@@ -5461,7 +5523,8 @@
    "features": [
     "view-judging-queue",
     "remove-own-conflict",
-    "view-own-conflicts"
+    "view-own-conflicts",
+    "acknowledge-checklist-item"
    ],
    "prototype_states": [
     {
@@ -5499,6 +5562,12 @@
      "q": "Which entries reach the queue, and what does a row show?",
      "decision": "Only submitted entries. Each row adds the track and the works-today pill beside the team name, and the solution line as the excerpt.",
      "why": "Judging an entry that failed the event's own rules makes Required meaningless; the extra pills let a judge pace an evening (concepts are quicker than demos)."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Real conflicts review panel lists pre-conflict candidates, honours tab/hash; own conflicts only, plus unversioned no-known-teams action.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ]
   },
@@ -5787,6 +5856,12 @@
       "Prizes text"
      ],
      "actions": []
+    },
+    {
+     "name": "Read acknowledgement",
+     "contents": [
+      "I've read it — explicit acknowledgement of current rubric fingerprint; edits invalidate it."
+     ]
     }
    ],
    "states": [
@@ -5807,10 +5882,17 @@
      "q": "Does the rubric need its own permanent page?",
      "decision": "Yes, reachable before judging opens.",
      "why": "The brief's draft nav names it directly; today it only surfaces transiently in a tour dialog."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "I've read it acknowledges current rubric version.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "features": [
-    "define-rubric"
+    "define-rubric",
+    "acknowledge-checklist-item"
    ],
    "prototype_states": [
     {
@@ -6015,7 +6097,7 @@
    "nav_id": null,
    "title": "Home",
    "user_moment": "The top-left brand link, clicked from any screen -- a brand-new account with nothing yet, or a returning person with several events across roles deciding what to do next.",
-   "purpose": "The person's home, one level above any event: what needs them first across every event they belong to, plus the three other starting points (find a hackathon, create one, their account).",
+   "purpose": "Your events; no implicit redirect when visiting /events. Absent-return sign-in alone uses one eligible membership → Home; zero/multiple → /events. Preserve explicit return provenance through every authentication method.",
    "primary_action": "Open an event -- or Create event, Find a hackathon, Account.",
    "layout": "A Needs you card sits above Your events, one row per thing waiting on this person across every event, each row named for its event and linking into it (2026-11-02). Then same grouping as the switcher -- needs-attention first, then the rest -- each row (an editable list row: the name links to the event, a … menu sits at the right): colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Closed/Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a row under the lists -- Find a hackathon as a normal button, Account as a quiet one -- since both are always one click away in the sidebar's top section too.",
    "sections": [
@@ -6056,6 +6138,12 @@
        "kind": "danger",
        "confirm": "Opens the same leave dialog as inside the event, for that event and role. Pending rows say 'Withdraw application…'. Ended rows show 'Can't leave, the event has ended' disabled. Rejected rows get the plain 'Leave this event…' like any other participant (owner decision 2026-10-31)."
       }
+     ]
+    },
+    {
+     "name": "Current and past",
+     "contents": [
+      "Non-archived memberships (including taken-down) under Current; archived under closed Past events, ?past=1 opens it. All rows on this page, no cap. Labels Organiser / Participant / Judge; taken-down non-organiser rows disabled. Needs you and row menus preserved."
      ]
     }
    ],
@@ -6103,7 +6191,9 @@
    "features": [
     "leave-event",
     "withdraw-application",
-    "my-todos-across-events"
+    "my-todos-across-events",
+    "persistent-event-navigation",
+    "role-aware-signin-landing"
    ],
    "prototype_states": [
     {
@@ -6135,6 +6225,10 @@
      "name": "After leaving an event",
      "stage": null,
      "next": null
+    },
+    {
+     "slug": "past",
+     "name": "Past events open"
     }
    ],
    "decisions": [
@@ -6152,6 +6246,12 @@
      "q": "Why do Home rows stop being one big link?",
      "decision": "Each row becomes an editable list row: the name area is the link and the … menu sits at the right, as on Announcements.",
      "why": "A menu button cannot sit inside a link, and the kit already has this row pattern, so nothing new is invented."
+    },
+    {
+     "date": "2026-11-07",
+     "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
+     "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions.",
+     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
     }
    ],
    "phone": "Single column, same content, full width."
