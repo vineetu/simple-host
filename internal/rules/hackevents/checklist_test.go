@@ -77,6 +77,14 @@ func TestChecklistCarryPriorityAndHistory(t *testing.T) {
 	if out.Next.ItemID != "o.deadline" {
 		t.Fatal(out.Next)
 	}
+	for _, it := range out.Items {
+		if it.ID == "o.entry-rules" && it.Group != "earlier_optional" {
+			t.Fatal("blocked earlier required row must be folded", it)
+		}
+		if it.Group == "earlier_required" && (!it.Actionable || it.State == "done") {
+			t.Fatal("only actionable unfinished rows belong above current", it)
+		}
+	}
 	in.Stage = "archived"
 	out = BuildChecklist(in, time.Time{})
 	if out.Next != nil {

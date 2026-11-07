@@ -1283,9 +1283,9 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
  .organiser-home-head{flex-direction:row;flex-wrap:wrap;gap:8px}
  .organiser-home-head .t{flex-basis:100%}
  .organiser-home-head .btn{width:auto}
- .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]){display:grid;grid-template-columns:20px minmax(0,1fr);gap:4px 11px}
- .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .tick{grid-column:1;grid-row:1 / 3}
- .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .what{grid-column:2;min-width:0}
- .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .act{grid-column:2;margin:0;justify-self:start;min-height:28px;padding:0;width:auto}
+ .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]){display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:4px 11px}
+ .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .tick{grid-column:1;grid-row:1}
+ .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .what{grid-column:2;grid-row:1;min-width:0}
+ .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .act{grid-column:3;grid-row:1;margin:0;justify-self:end;align-self:start;min-height:28px;padding:0;width:auto}
  .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .act.btn{padding:4px 8px}
 }

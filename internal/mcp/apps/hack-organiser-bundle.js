@@ -3122,6 +3122,8 @@
 
   // internal/handler/static/hack/checklist.js
   function checklistActionLabel(item) {
+    const verb = { "j.rubric": "Read", "j.conflicts": "Check", "j.scores": "Score" }[item.id];
+    if (verb) return verb;
     return navigation.targets.find((t) => t.id === item.target_id)?.action_label || "Open";
   }
   var blockedText = {
@@ -3140,15 +3142,17 @@
   function renderChecklist({ ui, checklist, title: title4 = "Checklist", renderAction, before = "", listStyle = "" }) {
     const card = ui.el("section", { class: "card" });
     card.innerHTML = `<h2>${ui.esc(title4)}</h2>${before}`;
+    let number = 0;
     function list(items2) {
       const ul = ui.el("ul", { class: "steps" });
       if (listStyle) ul.setAttribute("style", listStyle);
-      items2.forEach((item, index) => {
+      items2.forEach((item) => {
+        number++;
         const done = item.state === "done";
         const opted = item.state === "not_needed";
         const cls = [done ? "done" : "", item.optional || item.settled ? "opt" : "", !done && checklist.next?.item_id === item.id ? "now" : ""].filter(Boolean).join(" ");
         const li = ui.el("li", { class: cls, "data-checklist-id": item.id, ...item.id === "j.invite" ? { id: "invite" } : item.id === "j.coc" ? { id: "conduct" } : item.id === "j.closes" ? { id: "closes" } : {}, tabindex: "-1" });
-        const tick = done ? '<span class="tick">\u2713</span>' : `<span class="tick"><span class="num">${index + 1}</span></span>`;
+        const tick = done ? '<span class="tick">\u2713</span>' : `<span class="tick"><span class="num">${number}</span></span>`;
         const detail = [item.optional && !done && !opted && item.id !== "j.closes" ? "Optional" : "", opted ? "Not needed" : item.detail || !done && blockedText[item.blocked_reason] || ""].filter(Boolean).join(" \xB7 ");
         li.innerHTML = tick + `<span class="what"><b>${ui.esc(item.label)}</b><span class="sub">${ui.esc(detail)}</span></span>`;
         const actions = item.can_dismiss && !done ? ui.el("span", { class: "step-actions act" }) : li;
@@ -3167,7 +3171,7 @@
       return ul;
     }
     const items = checklist.items || [];
-    for (const [group, label] of [["earlier_required", "Earlier required"], ["current", ""], ["earlier_optional", "Earlier optional"], ["history", "History"]]) {
+    for (const [group, label] of [["earlier_required", "Earlier required"], ["current", ""], ["earlier_optional", "Earlier items"], ["history", "History"]]) {
       const rows = items.filter((i) => (i.group || "current") === group);
       if (!rows.length) continue;
       if (!label) card.append(list(rows));

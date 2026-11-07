@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-07",
+    "what": "SIM-393 presentation: checklist numbering continues across groups; blocked earlier required rows fold into Earlier items. Empty judge progress says No scores yet. Judge rows use Read, Check and Score; phone row actions align right beside labels, while the next-step button keeps its size."
+  },
+  {
+    "date": "2026-11-07",
     "what": "SIM-388/SIM-393 review: collapsed event marks switch events; synthetic inspection has read-only navigation. Completed checklist rows have no optional controls; compact phone actions sit below labels, and Home header actions have their own row. Walkthrough copy follows checklist actions and the current Settings destinations."
   },
   {

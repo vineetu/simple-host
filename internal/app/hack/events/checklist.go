@@ -275,6 +275,11 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: judgeReadyDetail(j.Judges, j.Organisers)}
 	f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail}
 	f["o.scores"] = rules.ChecklistFact{Done: j.Judgeable > 0 && j.JudgesRequired > 0 && j.JudgesDone == j.JudgesRequired, Detail: fmt.Sprintf("%d of %d %s done", j.JudgesDone, j.JudgesRequired, checklistPlural(j.JudgesRequired, "judge")), Count: intPointer(j.JudgesDone), Total: intPointer(j.JudgesRequired)}
+	if j.JudgesRequired == 0 {
+		v := f["o.scores"]
+		v.Detail = "No scores yet"
+		f["o.scores"] = v
+	}
 	set("o.lock", ev.JudgingLockedAt.Valid)
 	set("o.ties", j.TiesDone)
 	if !j.HasStandings {

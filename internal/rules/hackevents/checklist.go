@@ -187,7 +187,7 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		} else if isCurrent {
 			current = append(current, item)
 		} else if stageIndex(d.Stage) < stageIndex(in.Stage) {
-			if d.Optional {
+			if d.Optional || !f.Done && !item.Actionable {
 				item.Group = "earlier_optional"
 				optional = append(optional, item)
 			} else if !f.Done {

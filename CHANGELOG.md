@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-07: Simple Hack checklists number rows across groups, fold blocked earlier work, show No scores yet for empty judge progress, and use compact actions beside phone labels with Read, Check and Score for judges.
+
 2026-11-07: Simple Hack navigation and checklists: keep declared conflicts removable, refresh Your events, support collapsed switching and read-only admin inspection, correct checklist guidance and destinations, and batch score completion reads.
 
 2026-11-07: Simple Hack Home now shows the server checklist for each role and stage, with optional-item dismiss/restore and explicit rubric and conflict acknowledgements. Participant entry rows keep their existing appearance and actions (SIM-393, slice 2 UI).

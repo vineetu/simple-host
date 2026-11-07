@@ -622,7 +622,7 @@ func TestChecklistRemovedJudgesExcludedEntriesAndScores(t *testing.T) {
 	if r.status != 200 {
 		t.Fatalf("leave %d %s", r.status, r.body)
 	}
-	if row := read(); row["state"] != "todo" || row["total"] != float64(0) {
+	if row := read(); row["state"] != "todo" || row["total"] != float64(0) || row["detail"] != "No scores yet" {
 		t.Fatal("former judge still required", row)
 	}
 }
