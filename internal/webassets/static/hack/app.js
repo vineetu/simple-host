@@ -546,6 +546,7 @@ async function refreshEventList() {
     initialData = Promise.resolve(data)
     ctx.events = data.events
     ctx.updateEvents?.(data.events)
+    ctx.updateEventScreen?.()
   } catch (_) {}
 }
 window.addEventListener('focus', () => {

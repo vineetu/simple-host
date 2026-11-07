@@ -86,7 +86,7 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			return Checklist{}, err
 		}
 		version := rules.RubricFingerprint(rubric)
-		judging, err := s.entries.ChecklistJudging(ctx, ev, subject)
+		judging, err := s.entries.ChecklistJudging(ctx, ev, subject, role == "organiser")
 		if err != nil {
 			return Checklist{}, err
 		}
@@ -114,7 +114,7 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 				f.BlockedReason = "judging_not_open"
 				facts["j.conflicts"] = f
 			}
-			score := rules.ChecklistFact{Done: judging.OwnTotal > 0 && judging.OwnDone == judging.OwnTotal, Detail: fmt.Sprintf("%d of %d teams scored", judging.OwnDone, judging.OwnTotal), Count: intPointer(judging.OwnDone), Total: intPointer(judging.OwnTotal)}
+			score := rules.ChecklistFact{Done: judging.OwnTotal > 0 && judging.OwnDone == judging.OwnTotal, Detail: fmt.Sprintf("%d of %d %s scored", judging.OwnDone, judging.OwnTotal, checklistPlural(judging.OwnTotal, "team")), Count: intPointer(judging.OwnDone), Total: intPointer(judging.OwnTotal)}
 			if judging.FirstUnfinished == "" {
 				score.TargetID = "j.queue"
 			}
@@ -135,11 +135,19 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			}
 			facts["j.scores"] = score
 			params["team"] = judging.FirstUnfinished
-			detail := "No time set; the organiser closes judging"
+			detail := "No time set"
 			if ev.JudgingEndsAt.Valid {
-				detail = ev.JudgingEndsAt.Time.In(eventLocation(ev)).Format(time.RFC3339)
+				detail = ev.JudgingEndsAt.Time.In(eventLocation(ev)).Format("Mon 2 Jan, 15:04")
 			}
-			facts["j.closes"] = rules.ChecklistFact{Done: closed, Detail: detail, BlockedReason: "informational"}
+			facts["j.closes"] = rules.ChecklistFact{Done: ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "archived", Detail: detail, BlockedReason: "informational"}
+		}
+	}
+	if ev.TakenDown() {
+		readOnly = true
+		for _, d := range rules.ChecklistCatalogue() {
+			f := facts[d.ID]
+			f.BlockedReason = "event_taken_down"
+			facts[d.ID] = f
 		}
 	}
 	out := rules.BuildChecklist(rules.ChecklistInput{Role: role, Stage: ev.Stage, MembershipRole: member.Role, AssignmentMode: ev.JudgeAssignmentMode, ReadOnly: readOnly, Facts: facts, Marks: marks, Forward: forward, ParticipantNext: participantNext}, now)
@@ -264,9 +272,9 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	}
 	f["o.announcement"] = rules.ChecklistFact{Done: len(announcements) > 0, Detail: fmt.Sprintf("%d posted", len(announcements)), Count: intPointer(len(announcements))}
 	set("o.deadline", ev.SubmissionDeadline.Valid)
-	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: fmt.Sprintf("%d invited judges joined; %d organisers able to judge", j.Judges, j.Organisers)}
+	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: judgeReadyDetail(j.Judges, j.Organisers)}
 	f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail}
-	f["o.scores"] = rules.ChecklistFact{Done: j.Judgeable > 0 && j.JudgesRequired > 0 && j.JudgesDone == j.JudgesRequired, Detail: fmt.Sprintf("%d of %d judges done", j.JudgesDone, j.JudgesRequired), Count: intPointer(j.JudgesDone), Total: intPointer(j.JudgesRequired)}
+	f["o.scores"] = rules.ChecklistFact{Done: j.Judgeable > 0 && j.JudgesRequired > 0 && j.JudgesDone == j.JudgesRequired, Detail: fmt.Sprintf("%d of %d %s done", j.JudgesDone, j.JudgesRequired, checklistPlural(j.JudgesRequired, "judge")), Count: intPointer(j.JudgesDone), Total: intPointer(j.JudgesRequired)}
 	set("o.lock", ev.JudgingLockedAt.Valid)
 	set("o.ties", j.TiesDone)
 	if !j.HasStandings {
@@ -409,4 +417,19 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 		return err
 	}
 	return tx.Commit()
+}
+
+func judgeReadyDetail(judges, organisers int) string {
+	detail := fmt.Sprintf("%d %s joined", judges, checklistPlural(judges, "judge"))
+	if judges == 0 && organisers > 0 {
+		verb := "can judge"
+		detail += fmt.Sprintf(" · %d %s %s", organisers, checklistPlural(organisers, "organiser"), verb)
+	}
+	return detail
+}
+func checklistPlural(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+	return word + "s"
 }

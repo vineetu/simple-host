@@ -20,3 +20,26 @@ func JudgeDoneForTeam(ctx context.Context, q sqlkit.Querier, eventID, judgeID, t
 	}
 	return n >= criteriaCount, nil
 }
+
+// JudgeCompletionCounts batches the exact DISTINCT-criterion predicate used by
+// JudgeDoneForTeam. An empty judgeID returns all judges for organiser guidance.
+func JudgeCompletionCounts(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (map[string]map[string]int, error) {
+	rows, err := queryContext(ctx, q, `SELECT judge_id, team_id, COUNT(DISTINCT criterion_id) FROM event_scores WHERE event_id=$1 AND ($2='' OR judge_id::text=$2) GROUP BY judge_id, team_id`, eventID, judgeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]map[string]int{}
+	for rows.Next() {
+		var judge, team string
+		var n int
+		if err := rows.Scan(&judge, &team, &n); err != nil {
+			return nil, err
+		}
+		if out[judge] == nil {
+			out[judge] = map[string]int{}
+		}
+		out[judge][team] = n
+	}
+	return out, rows.Err()
+}

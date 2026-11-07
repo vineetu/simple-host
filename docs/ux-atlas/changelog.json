@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-07",
+    "what": "SIM-388/SIM-393 review: collapsed event marks switch events; synthetic inspection has read-only navigation. Completed checklist rows have no optional controls; compact phone actions sit below labels, and Home header actions have their own row. Walkthrough copy follows checklist actions and the current Settings destinations."
+  },
+  {
+    "date": "2026-11-07",
     "what": "SIM-393 slice 2: shared server checklist on organiser and judge Home; optional item restore, rubric final/read and conflict acknowledgements; participant entry rows retain their exact appearance. Prototypes use the built checklist markup and earlier-work groups."
   },
   {

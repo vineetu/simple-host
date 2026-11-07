@@ -16,7 +16,7 @@ func hackChecklistTools() []Tool {
 	}
 	for i := range tools {
 		name := tools[i].Name
-		tools[i].OutputSchema = outObject(map[string]any{"can": hackAbilitiesSchema(), "checklist": hackChecklistSchema()}, "checklist")
+		tools[i].OutputSchema = outObject(map[string]any{"can": hackAbilitiesSchema(), "checklist": hackChecklistSchema()}, "can", "checklist")
 		tools[i].policy = toolPolicy{recordsPins: true}
 		tools[i].run = func(c *call, args map[string]any) (output, error) {
 			slug, err := eventSlug(args)

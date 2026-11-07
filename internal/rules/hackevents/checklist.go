@@ -80,7 +80,7 @@ func ChecklistCatalogue() []ChecklistDefinition {
 		{"o.reminders", "Set reminder times", "o.reminders", "draft", true},
 		{"o.announcement", "Send an announcement", "o.announcements", "open", true},
 		{"o.deadline", "Set the entry deadline", "o.deadline", "open", false},
-		{"o.judges", "Have judges ready", "o.people", "closed", false},
+		{"o.judges", "Have judges ready", "o.judges", "closed", false},
 		{"o.rubric-ready", "Rubric final", "o.rubric", "closed", false},
 		{"o.assignments", "Assign judges", "o.assignments", "closed", false},
 		{"o.scores", "Every judge done", "o.judging", "judging", false},
@@ -165,7 +165,7 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		if f.TargetID != "" {
 			target = f.TargetID
 		}
-		item := ChecklistItem{ID: d.ID, Label: d.Label, State: ChecklistState(f.Done, in.Marks[d.ID] && d.Optional && in.Role == "organiser", d.Optional), Optional: d.Optional, CanDismiss: d.Optional && in.Role == "organiser" && !in.ReadOnly && in.Stage != "archived", OriginStage: d.Stage, Group: "current", Actionable: !in.ReadOnly && in.Stage != "archived" && f.BlockedReason == "", TargetID: target, Detail: f.Detail, Count: f.Count, Total: f.Total, Settled: f.Settled, Version: f.Version}
+		item := ChecklistItem{ID: d.ID, Label: d.Label, State: ChecklistState(f.Done, in.Marks[d.ID] && d.Optional && in.Role == "organiser", d.Optional), Optional: d.Optional, CanDismiss: !f.Done && d.Optional && in.Role == "organiser" && !in.ReadOnly && in.Stage != "archived", OriginStage: d.Stage, Group: "current", Actionable: !in.ReadOnly && in.Stage != "archived" && f.BlockedReason == "", TargetID: target, Detail: f.Detail, Count: f.Count, Total: f.Total, Settled: f.Settled, Version: f.Version}
 		if f.BlockedReason != "" {
 			reason := f.BlockedReason
 			item.BlockedReason = &reason

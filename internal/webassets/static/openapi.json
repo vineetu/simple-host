@@ -22129,6 +22129,7 @@
                 "schema": {
                   "type": "object",
                   "required": [
+                    "can",
                     "checklist"
                   ],
                   "properties": {
@@ -22202,6 +22203,7 @@
                 "schema": {
                   "type": "object",
                   "required": [
+                    "can",
                     "checklist"
                   ],
                   "properties": {
@@ -22274,6 +22276,7 @@
                 "schema": {
                   "type": "object",
                   "required": [
+                    "can",
                     "checklist"
                   ],
                   "properties": {
@@ -22348,6 +22351,7 @@
                 "schema": {
                   "type": "object",
                   "required": [
+                    "can",
                     "checklist"
                   ],
                   "properties": {

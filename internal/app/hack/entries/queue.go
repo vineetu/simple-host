@@ -87,16 +87,17 @@ func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string
 	for _, e := range stored {
 		byTeam[e.TeamID] = e
 	}
+	completions, err := entryrepo.JudgeCompletionCounts(ctx, s.db, ev.ID, judgeID)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]QueueRow, 0, len(teams))
 	for _, team := range teams {
 		entry := byTeam[team.ID]
 		if !hackentries.Judgeable(entry) || (!candidates && conflicted[team.ID]) {
 			continue
 		}
-		done, err := entryrepo.JudgeDoneForTeam(ctx, s.db, ev.ID, judgeID, team.ID, len(rubric))
-		if err != nil {
-			return nil, &QueueTeamError{TeamID: team.ID, Err: err}
-		}
+		done := len(rubric) > 0 && completions[judgeID][team.ID] >= len(rubric)
 		out = append(out, QueueRow{Team: team, Entry: entry, Done: done, ScoresCount: coverage[team.ID], Conflicted: conflicted[team.ID]})
 	}
 	sort.Slice(out, func(i, j int) bool {

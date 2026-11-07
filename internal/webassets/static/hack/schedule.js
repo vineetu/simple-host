@@ -7,7 +7,7 @@
 // merges the two, labels Now and Next, works out the Home nudge ("Demos starts
 // in 12 minutes", "Build time is on now") and words the organiser's next-step
 // cue. Nothing here ever moves a stage: the schedule only prompts.
-import { href } from './nav.js'
+import { href, resolve } from './nav.js'
 import { nextLocalMidnight } from './ui.js'
 
 // The forward moves a row may prompt, with the next-step button's own words
@@ -22,7 +22,8 @@ export const MOVES = {
 }
 
 // Where the organiser changes a fixed row.
-export function setInLink(setIn, slug) {
+export function setInLink(setIn, slug, key) {
+  if (key === 'voting') return { label: 'Settings → Results', href: resolve('o.voting', slug).href }
   if (setIn === 'basics') return { label: 'Basics', href: href('organiser', slug, 'event-page') + '&tab=basics' }
   if (setIn === 'entries') return { label: 'Settings → Entries', href: href('organiser', slug, 'settings') + '&tab=entries#deadline' }
   if (setIn === 'results') return { label: 'Results', href: href('organiser', slug, 'results') }

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-07: Simple Hack navigation and checklists: keep declared conflicts removable, refresh Your events, support collapsed switching and read-only admin inspection, correct checklist guidance and destinations, and batch score completion reads.
+
 2026-11-07: Simple Hack Home now shows the server checklist for each role and stage, with optional-item dismiss/restore and explicit rubric and conflict acknowledgements. Participant entry rows keep their existing appearance and actions (SIM-393, slice 2 UI).
 
 2026-11-07: Simple Hack keeps Your events in the pane, opens your only current event after bare sign-in, groups organiser activities, and puts event rules in Settings and Tracks on Event page. Organisers can enter their own judge area. Existing setting links keep working; REST and MCP share a navigation map and membership abilities (SIM-388/SIM-393, navigation slice only).

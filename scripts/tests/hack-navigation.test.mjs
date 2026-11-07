@@ -54,3 +54,14 @@ test('sign-in storage distinguishes an absent return from explicit global return
   auth.location.search = '?next=' + encodeURIComponent('https://elsewhere.test/')
   assert.equal(auth.consume(), '')
 })
+
+
+test('fixed schedule rows distinguish voting settings from results publication', () => {
+ const source = fs.readFileSync('internal/webassets/static/hack/schedule.js', 'utf8').replace(/^import .*\n/gm, '').replaceAll('export ', '')
+ const scope = vm.createContext({ navigation, encodeURIComponent, href: (role, slug, section) => `/e/${slug}/manage?s=${section}` })
+ const resolver = fs.readFileSync('internal/webassets/static/hack/navigation.js', 'utf8').replace(/^import .*\n/gm, '').replaceAll('export ', '')
+ vm.runInContext(resolver, scope)
+ vm.runInContext(source + ';globalThis.link = setInLink', scope)
+ assert.equal(scope.link('results','demo','voting').href, '/e/demo/manage?s=settings&tab=results#voting')
+ assert.equal(scope.link('results','demo','results_published').href, '/e/demo/manage?s=results')
+})

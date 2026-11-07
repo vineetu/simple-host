@@ -215,7 +215,7 @@ export async function render(ctx) {
   // point, same word either side.
   const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, '')).split('.').join('.<wbr>')
   main.innerHTML = `
-<div class="ph keep-row"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href('judge', ev.slug, 'home'))}">Score as a judge</a>` : ''}</div>
+<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href('judge', ev.slug, 'home'))}">Score as a judge</a>` : ''}</div>
 <p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
 ${content.button
     ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div>${content.navHref

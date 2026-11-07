@@ -72,7 +72,7 @@ export async function render(ctx) {
 <p class="small muted" id="res-republish-note" hidden></p>
 </section>
 <details class="card" id="res-preview"><summary>Preview current standings</summary><p class="muted small">Override a tied rank by hand if one remains after the tie-break.</p><div id="res-preview-body"></div></details>
-<section class="card"><h2>Downloads</h2><div class="row-flex">
+<section class="card" id="res-downloads"><h2>Downloads</h2><div class="row-flex">
 <button class="btn" type="button" id="res-dl-results">Results (CSV)</button>
 <button class="btn" type="button" id="res-dl-scores">Scores (CSV)</button>
 <button class="btn" type="button" id="res-dl-entries">Entries (CSV)</button>

@@ -15,7 +15,7 @@ import (
 )
 
 func TestChecklistMCPReplayAndSchemas(t *testing.T) {
-	data := []byte(`{"checklist":{"role":"organiser","stage":"draft","map_version":1,"items":[{"id":"o.entry-rules","label":"Choose what teams hand in","state":"todo","optional":false,"can_dismiss":false,"origin_stage":"draft","group":"current","actionable":true,"target_id":"o.entry-rules","link":{"screen":"organiser-settings","section":"settings","tab":"entries","href":"/e/spring/manage?s=settings&tab=entries#entry-rules"},"detail":"","count":null,"total":null,"settled":false,"blocked_reason":null}],"next":{"kind":"link","item_id":"o.entry-rules","target_id":"o.entry-rules","label":"Choose what teams hand in","link":{"screen":"organiser-settings","section":"settings","tab":"entries","href":"/e/spring/manage?s=settings&tab=entries#entry-rules"},"confirmation_required":false,"blocked_reason":null}}}`)
+	data := []byte(`{"can":{"manage":true,"judge":true,"take_part":false},"checklist":{"role":"organiser","stage":"draft","map_version":1,"items":[{"id":"o.entry-rules","label":"Choose what teams hand in","state":"todo","optional":false,"can_dismiss":false,"origin_stage":"draft","group":"current","actionable":true,"target_id":"o.entry-rules","link":{"screen":"organiser-settings","section":"settings","tab":"entries","href":"/e/spring/manage?s=settings&tab=entries#entry-rules"},"detail":"","count":null,"total":null,"settled":false,"blocked_reason":null}],"next":{"kind":"link","item_id":"o.entry-rules","target_id":"o.entry-rules","label":"Choose what teams hand in","link":{"screen":"organiser-settings","section":"settings","tab":"entries","href":"/e/spring/manage?s=settings&tab=entries#entry-rules"},"confirmation_required":false,"blocked_reason":null}}}`)
 	var expected map[string]any
 	_ = json.Unmarshal(data, &expected)
 	for _, tc := range []struct {
@@ -115,7 +115,7 @@ func TestChecklistDatabaseReplayParity(t *testing.T) {
 			http.Error(w, "read", 500)
 			return
 		}
-		raw, _ := json.Marshal(map[string]any{"checklist": list})
+		raw, _ := json.Marshal(map[string]any{"can": events.AbilitiesForRole("organiser"), "checklist": list})
 		_ = json.Unmarshal(raw, &rest)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(raw)

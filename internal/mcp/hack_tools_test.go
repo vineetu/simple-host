@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -259,7 +260,7 @@ func TestHackToolDispatch(t *testing.T) {
 		return structured
 	}
 
-	up.ans["GET /v1/hack/navigation"] = jsonReply(200, `{"version":1,"screens":[],"targets":[],"aliases":[]}`)
+	up.ans["GET /v1/hack/navigation"] = jsonReply(200, string(events.Navigation()))
 	check("hack_get_navigation", map[string]any{})
 	up.ans["GET /v1/hack/events"] = jsonReply(200, `[]`)
 	text, structured, isErr, _ := call("hack_list_events", map[string]any{})

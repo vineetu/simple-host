@@ -52,7 +52,7 @@ export async function render(ctx, section) {
   }
 
  if (!ctx.alive()) return
- main.innerHTML = section === 'directory' ? `<section class="card"><h2>Directory</h2>
+ main.innerHTML = section === 'directory' ? `<section class="card" id="directory"><h2>Directory</h2>
 <label class="check"><input type="checkbox" id="res-directory-listed"><span>List this event on Find a hackathon</span></label>
 <div class="form-actions"><button class="btn" type="button" id="res-directory-save">Save</button></div>
 </section>

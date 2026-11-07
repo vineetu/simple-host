@@ -103,7 +103,7 @@ func TestServeHackNavigationBrowser(t *testing.T) {
 			close(stop)
 		}
 	})
-	info := map[string]any{"url": a.srv.URL, "slug": w.slug, "multi_slug": extra[0], "past_slug": extra[2], "keys": map[string]string{"organiser": w.org.key, "multi": multi.key, "judge": w.judge.key, "participant": w.teams[0].person.key, "new": fresh.key}}
+	info := map[string]any{"url": a.srv.URL, "slug": w.slug, "multi_slug": extra[0], "past_slug": extra[2], "keys": map[string]string{"admin": a.admin, "organiser": w.org.key, "multi": multi.key, "judge": w.judge.key, "participant": w.teams[0].person.key, "new": fresh.key}}
 	raw, _ := json.Marshal(info)
 	if err := os.WriteFile(file, raw, 0600); err != nil {
 		t.Fatal(err)

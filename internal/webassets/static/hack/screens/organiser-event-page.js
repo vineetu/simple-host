@@ -376,11 +376,11 @@ ${customSiteNote(false)}
 ${ended ? '<div class="note">This event has ended. You can still fix the page text and colour.</div>' : ''}
 <form class="card" aria-labelledby="sp-h">
 <div class="field"><div class="lab-row"><label for="f-about">About</label><span class="counter" id="f-about-ct">${snapshot.about.length} / 10000</span></div><textarea class="input" id="f-about" rows="7" maxlength="10000">${ui.esc(snapshot.about)}</textarea></div>
-<div class="field"><div class="lab-row"><label for="f-prizes">Prizes</label><span class="opt">Optional</span></div><textarea class="input" id="f-prizes" rows="3" maxlength="5000">${ui.esc(snapshot.prizes)}</textarea></div>
-<div class="field"><div class="lab-row"><label for="f-rules">Rules</label><span class="opt">Optional</span></div><textarea class="input" id="f-rules" rows="3" maxlength="10000">${ui.esc(snapshot.rules)}</textarea></div>
+<div class="field" id="prizes"><div class="lab-row"><label for="f-prizes">Prizes</label><span class="opt">Optional</span></div><textarea class="input" id="f-prizes" rows="3" maxlength="5000">${ui.esc(snapshot.prizes)}</textarea></div>
+<div class="field" id="rules"><div class="lab-row"><label for="f-rules">Rules</label><span class="opt">Optional</span></div><textarea class="input" id="f-rules" rows="3" maxlength="10000">${ui.esc(snapshot.rules)}</textarea></div>
 <div class="field-group"><h3>Code of conduct</h3>
 <details><summary class="small muted">Read the standard code, which every event shows first</summary><p class="help">${ui.esc(ev.coc_default || '')}</p></details>
-<div class="field"><div class="lab-row"><label for="f-coc">Your additions</label><span class="opt">Optional</span></div><textarea class="input" id="f-coc" rows="3" maxlength="10000">${ui.esc(snapshot.coc)}</textarea><p class="help">Shown after the standard code on the join page.</p></div>
+<div class="field" id="conduct"><div class="lab-row"><label for="f-coc">Your additions</label><span class="opt">Optional</span></div><textarea class="input" id="f-coc" rows="3" maxlength="10000">${ui.esc(snapshot.coc)}</textarea><p class="help">Shown after the standard code on the join page.</p></div>
 </div>
 <div class="card-foot sticky"><span class="hint" id="f-hint">No unsaved changes</span><button class="btn quiet" type="button" id="f-discard" hidden>Discard</button><button class="btn primary" type="button" id="f-save" disabled>Save</button></div>
 </form>`
@@ -447,7 +447,7 @@ function renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setL
   function pillHTML(item) { return item.now ? '<span class="pill stage">Now</span>' : item.next ? '<span class="pill">Next</span>' : '' }
   function promptLine(item) { return item.prompt && MOVES[item.prompt] ? `<span class="faint">Then asks: ${ui.esc(MOVES[item.prompt])}?</span>` : '' }
   function fixedRowHTML(item) {
-    const where = setInLink(item.set_in, ev.slug)
+    const where = setInLink(item.set_in, ev.slug, item.key)
     const setIn = where ? `<span>Set in <a href="${ui.esc(where.href)}">${ui.esc(where.label)}</a></span>` : ''
     return `<div class="r sched-row fixed"><span class="r-when">${whenHTML(item)}</span><span class="main"><b>${ui.esc(item.title)}</b>${item.description ? `<span>${ui.esc(item.description)}</span>` : ''}${setIn}${promptLine(item)}</span>${pillHTML(item)}<span class="pill" title="Comes from the event's settings">${LOCK_ICON}Fixed</span></div>`
   }
@@ -918,7 +918,7 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
     const ink = ui.markInk(hex)
     return `<label class="swatch${v ? '' : ' auto'}"><input type="radio" name="colour" value="${v}" data-c="${hex}"${(ev.accent_color || '') === v ? ' checked' : ''}><i style="--sw:${hex};--sw-ink:${ink}"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>${ui.esc(l)}</span></label>`
   }).join('')}</fieldset></div>
-<div class="setting"><div class="t"><div class="t-row"><b>Show entries on the event page</b><span class="saved" id="gallery-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>Lists every team whose website is live. People's choice voting needs this on.</span></div><div class="ctl"><button class="toggle${ev.gallery_open ? ' on' : ''}" type="button" role="switch" aria-checked="${!!ev.gallery_open}" id="gallery-toggle" aria-label="Show entries on the event page"></button></div></div>
+<div class="setting" id="gallery"><div class="t"><div class="t-row"><b>Show entries on the event page</b><span class="saved" id="gallery-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>Lists every team whose website is live. People's choice voting needs this on.</span></div><div class="ctl"><button class="toggle${ev.gallery_open ? ' on' : ''}" type="button" role="switch" aria-checked="${!!ev.gallery_open}" id="gallery-toggle" aria-label="Show entries on the event page"></button></div></div>
 </div>`
 
   function flashSaved(id) {

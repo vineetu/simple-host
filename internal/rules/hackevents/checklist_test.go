@@ -33,7 +33,7 @@ func TestChecklistCatalogueStates(t *testing.T) {
 						if it.State != want {
 							t.Fatalf("done=%v mark=%v: %s want %s", done, mark, it.State, want)
 						}
-						if it.CanDismiss != (role == "organiser" && d.Optional) {
+						if it.CanDismiss != (!done && role == "organiser" && d.Optional) {
 							t.Fatal("dismiss authority")
 						}
 					}

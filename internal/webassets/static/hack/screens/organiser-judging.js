@@ -348,6 +348,7 @@ ${restBlock}
     // "Left the event" rows: their own scores stay counted (server-frozen),
     // Delete scores is the only control, disabled while locked (or by the
     // same admin/ended lock reason as everything else here).
+    if (formerJudges.length) jlist.appendChild(ui.el('h3', { id: 'jg-former', text: 'Former judges' }))
     formerJudges.forEach(f => {
       const row = ui.el('div', { class: 'r' })
       const mainEl = ui.el('div', { class: 'main' })

@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
+	"github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"strings"
 	"testing"
 )
@@ -14,6 +17,10 @@ func checklistItems(t *testing.T, r resp) (map[string]map[string]any, map[string
 	t.Helper()
 	if r.status != 200 {
 		t.Fatalf("checklist: %d %s", r.status, r.body)
+	}
+	can, ok := r.json(t)["can"].(map[string]any)
+	if !ok || len(can) != 3 {
+		t.Fatalf("missing abilities: %s", r.body)
 	}
 	c, ok := r.json(t)["checklist"].(map[string]any)
 	if !ok {
@@ -44,6 +51,15 @@ func TestChecklistMarksAuthorityAndFacts(t *testing.T) {
 	}
 	mark := func(method, item string, p person) resp {
 		return w.call(t, method, "/checklist/not-needed/"+item, nil, p)
+	}
+	for _, tc := range []struct {
+		p                       person
+		manage, judge, takePart bool
+	}{{w.org, true, true, false}, {w.judges[0].person, false, true, false}, {w.part.person, false, false, true}} {
+		can := w.call(t, "GET", "/checklist", nil, tc.p).json(t)["can"].(map[string]any)
+		if can["manage"] != tc.manage || can["judge"] != tc.judge || can["take_part"] != tc.takePart {
+			t.Fatalf("membership abilities: %v", can)
+		}
 	}
 	if get(w.org)["o.faq"]["state"] != "optional" {
 		t.Fatal("initial FAQ")
@@ -84,6 +100,9 @@ func TestChecklistMarksAuthorityAndFacts(t *testing.T) {
 	items, c := checklistItems(t, r)
 	if c["next"] != nil || items["o.faq"]["can_dismiss"] != false {
 		t.Fatal("admin read only")
+	}
+	if can := r.json(t)["can"].(map[string]any); can["manage"] != false || can["judge"] != false || can["take_part"] != false {
+		t.Fatalf("inspection abilities: %v", can)
 	}
 	// Actual organiser membership wins over the platform-admin status.
 	sql(`INSERT INTO event_members(event_id,user_id,role) SELECT e.id,u.id,'organiser' FROM events e CROSS JOIN users u WHERE e.slug=$1 AND u.is_admin ON CONFLICT DO NOTHING`, w.slug)
@@ -189,16 +208,57 @@ func TestChecklistJudgingCompletionAndTies(t *testing.T) {
 			}
 		}
 	}
+	score(w.teams[1].id, true)
 	score(w.teams[0].id, false)
+	var eventID string
+	if err := w.a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, w.slug).Scan(&eventID); err != nil {
+		t.Fatal(err)
+	}
+	ownFacts, err := entryapp.New(w.a.database, nil).ChecklistJudging(context.Background(), model.Event{ID: eventID, Stage: "judging", JudgeAssignmentMode: "open"}, w.judges[0].id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ownFacts.Judges != 0 || ownFacts.Organisers != 0 || ownFacts.JudgesRequired != 0 || ownFacts.HasStandings || ownFacts.OwnDone != 1 || ownFacts.OwnTotal != 2 {
+		t.Fatalf("judge-only gathered organiser facts or changed personal counts: %+v", ownFacts)
+	}
+	for _, judgeID := range []string{"", w.judges[0].id} {
+		counts, err := entryrepo.JudgeCompletionCounts(context.Background(), w.a.database, eventID, judgeID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, team := range w.teams {
+			for _, criteriaCount := range []int{0, 1, 2, 3} {
+				done, err := entryrepo.JudgeDoneForTeam(context.Background(), w.a.database, eventID, w.judges[0].id, team.id, criteriaCount)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := criteriaCount > 0 && counts[w.judges[0].id][team.id] >= criteriaCount; got != done {
+					t.Fatalf("batch completion differs: team %s criteria %d", team.id, criteriaCount)
+				}
+			}
+		}
+	}
+
 	if items()["o.scores"]["state"] != "todo" {
 		t.Fatal("partial criterion completed judge")
 	}
+	personal, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.judges[0].person))
+	if got := personal["j.scores"]; got["count"] != float64(1) || got["total"] != float64(2) || got["state"] != "todo" {
+		t.Fatalf("partial personal: %v", got)
+	}
 	score(w.teams[0].id, true)
-	score(w.teams[1].id, true)
+	personal, _ = checklistItems(t, w.call(t, "GET", "/checklist", nil, w.judges[0].person))
+	if got := personal["j.scores"]; got["count"] != float64(2) || got["state"] != "done" {
+		t.Fatalf("complete personal: %v", got)
+	}
 	if got := items()["o.scores"]; got["state"] != "done" || got["total"] != float64(1) {
 		t.Fatalf("unscored open organiser counted: %v", got)
 	}
 	w.setStage(t, "results")
+	personal, _ = checklistItems(t, w.call(t, "GET", "/checklist", nil, w.judges[0].person))
+	if personal["j.closes"]["state"] == "done" {
+		t.Fatal("unlocked results completed judging closes")
+	}
 	if items()["o.ties"]["state"] != "todo" {
 		t.Fatal("unresolved ties done")
 	}
@@ -209,6 +269,10 @@ func TestChecklistJudgingCompletionAndTies(t *testing.T) {
 	r := w.call(t, "POST", "/results/publish", map[string]any{"rank_overrides": overrides}, w.org)
 	if r.status != 200 {
 		t.Fatalf("publish %d %s", r.status, r.body)
+	}
+	personal, _ = checklistItems(t, w.call(t, "GET", "/checklist", nil, w.judges[0].person))
+	if personal["j.closes"]["state"] != "done" {
+		t.Fatal("published locked results did not complete closes")
 	}
 	if items()["o.ties"]["state"] != "done" {
 		t.Fatal("published tie unresolved")
@@ -637,5 +701,25 @@ func TestChecklistRubricFinalBeforeClosed(t *testing.T) {
 	rows, _ = checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
 	if rows["o.rubric-ready"]["state"] != "done" {
 		t.Fatal("final rubric did not carry to Closed")
+	}
+}
+
+func TestChecklistTakenDownGuidance(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	w.setStage(t, "closed")
+	if _, err := w.a.database.Exec(`UPDATE events SET taken_down_at=now(),taken_down_reason='test' WHERE slug=$1`, w.slug); err != nil {
+		t.Fatal(err)
+	}
+	rows, c := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
+	if c["next"] != nil {
+		t.Fatal("taken-down next action", c["next"])
+	}
+	for id, row := range rows {
+		if row["actionable"] != false || row["can_dismiss"] != false || row["blocked_reason"] != "event_taken_down" {
+			t.Fatalf("%s: %v", id, row)
+		}
+	}
+	if r := w.call(t, "POST", "/checklist/not-needed/o.faq", nil, w.org); r.status != 403 {
+		t.Fatalf("takedown write: %d", r.status)
 	}
 }

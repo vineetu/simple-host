@@ -13,6 +13,7 @@ export function title() { return 'Your events' }
 // (Find a hackathon, Create event, Account) alongside the list.
 export async function render(ctx) {
   const { main, events, ui, api, go } = ctx
+  ctx.updateEventScreen = () => render(ctx)
   // SIM-340: the "..." row menu now carries Open event plus Leave this
   // event.../Withdraw application.../a disabled reason -- openLeave (the
   // same flow participant-home/judge-home/organiser-settings use) re-fetches

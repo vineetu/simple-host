@@ -71,7 +71,9 @@ try {
  await judge.page.locator('[data-remove-conflict]').first().waitFor()
  await judge.context.close()
  for (const width of [1280,390]) {
-  const j = await person('judge',width); await home(j.page,'judge'); fs.writeFileSync(`${shots}/judge-home-main.html`, await j.page.locator('main').innerHTML()); await j.page.screenshot({path:`${shots}/judge-home-${width}.png`}); await j.context.close()
+  const j = await person('judge',width); await home(j.page,'judge');
+  assert.ok(!(await j.page.locator('[data-checklist-id="j.closes"]').innerText()).includes('Optional'))
+  fs.writeFileSync(`${shots}/judge-home-main.html`, await j.page.locator('main').innerHTML()); await j.page.screenshot({path:`${shots}/judge-home-${width}.png`}); await j.context.close()
   const o = await person('organiser',width)
   await o.page.goto(info.url+`/e/${info.slug}/judge?s=home`); await o.page.locator('[data-checklist-id="j.rubric"]').waitFor()
   assert.equal(await o.page.locator('[data-checklist-id="j.invite"], [data-checklist-id="j.coc"]').count(),0)
@@ -82,7 +84,7 @@ try {
  await home(org.page,'organiser'); await state(org.page,'o.about',false)
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=event-page&tab=about`)
  const about = org.page.locator('textarea').first(); await about.fill('Build something useful.')
- await org.page.getByRole('button',{name:'Save',exact:true}).first().click()
+ await Promise.all([org.page.waitForResponse(r => r.request().method() === 'PATCH' && new URL(r.url()).pathname === base), org.page.getByRole('button',{name:'Save',exact:true}).first().click()])
  await home(org.page,'organiser'); await state(org.page,'o.about',true)
  // Dismiss and restore the same row; focus survives its changed control.
  const faq = org.page.locator('[data-checklist-id="o.faq"]')
@@ -97,14 +99,16 @@ try {
  await org.page.getByRole('dialog').getByRole('button',{name:'Add question',exact:true}).click()
  await org.page.getByRole('dialog').waitFor({state:'hidden'})
  await home(org.page,'organiser'); await state(org.page,'o.faq',true)
+ assert.equal(await org.page.locator('[data-checklist-id="o.faq"] button').count(),0)
+ assert.ok(!(await org.page.locator('[data-checklist-id="o.faq"]').innerText()).includes('Optional'))
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=settings&tab=judging`)
- await org.page.getByRole('button',{name:'Mark as final',exact:true}).click()
+ await Promise.all([org.page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes('/acknowledgements/o.rubric-ready')), org.page.getByRole('button',{name:'Mark as final',exact:true}).click()])
  await api('organiser','POST',base+'/stage',{stage:'closed'})
  await home(org.page,'organiser'); await state(org.page,'o.rubric-ready',true)
  await api('organiser','POST',base+'/stage',{stage:'open'})
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=settings&tab=entries#deadline`)
  await org.page.locator('#deadline-input').fill('2026-12-01T18:00')
- await org.page.locator('#deadline-save').click()
+ await Promise.all([org.page.waitForResponse(r => r.request().method() === 'PATCH' && new URL(r.url()).pathname === base), org.page.locator('#deadline-save').click()])
  await home(org.page,'organiser'); await state(org.page,'o.deadline',true)
  // Participant visual proof uses the identical API facts for both renderers.
  await api('organiser','POST',base+'/stage',{stage:'building'})
@@ -154,6 +158,16 @@ try {
   assert.deepEqual(ids.slice().sort(),checklist.items.map(i=>i.id).sort(),stage)
   if (['draft','closed','results'].includes(stage)) for (const width of [1280,390]) {
    await org.page.setViewportSize({width,height:width===390?844:800}); await home(org.page,'organiser')
+   if (width === 390) {
+    const title = await org.page.locator('main h1').boundingBox()
+    for (const control of ['#ov-change-stage', 'main .ph a']) {
+     const box = await org.page.locator(control).first().boundingBox()
+     assert.ok(box.y >= title.y + title.height, 'Home actions must follow title')
+    }
+    for (const button of await org.page.locator('[data-checklist-id] .act.btn').all()) {
+     if (await button.isVisible()) assert.ok((await button.boundingBox()).height <= 36, 'checklist row action too tall')
+    }
+   }
    await org.page.screenshot({path:`${shots}/organiser-home-${stage}-${width}.png`})
   }
   console.log('ok organiser stage',stage)

@@ -25,7 +25,7 @@ func (h *HackHandler) checklistService() *events.ChecklistService {
 
 func (h *HackHandler) readChecklist(ctx context.Context, ev model.Event, m model.EventMember, role string) (events.Checklist, error) {
 	var forward *events.ChecklistNext
-	if m.Role == "organiser" {
+	if m.Role == "organiser" && role != "judge" {
 		result, err := h.entries.EventResults(ctx, ev.ID)
 		if err != nil {
 			return events.Checklist{}, err

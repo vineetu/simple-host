@@ -242,7 +242,7 @@ try {
   await page.goto(hostURL+'/?host=Claude&theme=light&view=people');
   const frame=page.frameLocator('iframe');
   await frame.locator('[data-app-approve]').first().click();
-  await page.waitForTimeout(300); // the POST decision this triggers is in flight; let it settle
+  await frame.locator('[data-app-approve]').waitFor({state:'hidden'});
   const afterApprove = await frame.locator('main').textContent();
   assert.ok(!afterApprove.includes('<script>bad()</script> Applicant') || !(await frame.locator('[data-app-approve]').count()), 'applicant still shows as pending after Approve');
   assert.deepEqual(errors, []);

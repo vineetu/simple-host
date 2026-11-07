@@ -135,7 +135,7 @@ export async function render(ctx) {
   const scoredPanel = scored.length
     ? '<div class="list">' + scored.map(r => rowFor(r, mode === 'readonly' ? 'readonly' : 'scored')).join('') + '</div>'
     : `<div class="note">No teams scored yet.</div>`
-  const candidates = queueRes.data.candidates || queue.map(r => ({ team_id: r.team_id, team_name: r.team.name }))
+  const candidates = [...new Map([...(queueRes.data.candidates || queue.map(r => ({ team_id: r.team_id, team_name: r.team.name }))), ...conflicts].map(c => [c.team_id, c])).values()]
   const conflictsPanel = '<div class="list" id="conflicts">' + candidates.map(c => {
     const own = conflicts.find(x => x.team_id === c.team_id)
     return `<div class="r"><span class="main"><b>${ui.esc(c.team_name)}</b>${own ? '<span>You know someone on this team</span>' : ''}</span>${locked || resultsOut ? '' : own ? `<button type="button" class="btn sm" data-remove-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">I don’t know this team after all</button>` : `<button type="button" class="btn quiet sm" data-declare-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">Know this team?</button>`}</div>`

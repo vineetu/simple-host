@@ -1033,8 +1033,8 @@
         "screen": "organiser-settings",
         "section": "settings",
         "tab": "judging",
-        "anchor": "rubric-final",
-        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#rubric-final",
+        "anchor": "rubric",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#rubric",
         "nav": false,
         "order": 440,
         "group": "Set up",
@@ -1225,8 +1225,8 @@
         "screen": "organiser-settings",
         "section": "settings",
         "tab": "danger",
-        "anchor": "handover",
-        "href_pattern": "/e/{slug}/manage?s=settings&tab=danger#handover",
+        "anchor": "leave",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=danger#leave",
         "nav": false,
         "order": 560,
         "group": "Set up",
@@ -3125,6 +3125,7 @@
     return navigation.targets.find((t) => t.id === item.target_id)?.action_label || "Open";
   }
   var blockedText = {
+    event_taken_down: "This event has been taken down.",
     entry_rules_closed: "Entry rules are closed.",
     tie_rule_closed: "Tie-break is closed.",
     scores_locked: "Scoring is locked.",
@@ -3146,18 +3147,18 @@
         const done = item.state === "done";
         const opted = item.state === "not_needed";
         const cls = [done ? "done" : "", item.optional || item.settled ? "opt" : "", !done && checklist.next?.item_id === item.id ? "now" : ""].filter(Boolean).join(" ");
-        const li = ui.el("li", { class: cls, "data-checklist-id": item.id, tabindex: "-1" });
+        const li = ui.el("li", { class: cls, "data-checklist-id": item.id, ...item.id === "j.invite" ? { id: "invite" } : item.id === "j.coc" ? { id: "conduct" } : item.id === "j.closes" ? { id: "closes" } : {}, tabindex: "-1" });
         const tick = done ? '<span class="tick">\u2713</span>' : `<span class="tick"><span class="num">${index + 1}</span></span>`;
-        const detail = [item.optional && !opted ? "Optional" : "", opted ? "Not needed" : item.detail || !done && blockedText[item.blocked_reason] || ""].filter(Boolean).join(" \xB7 ");
+        const detail = [item.optional && !done && !opted && item.id !== "j.closes" ? "Optional" : "", opted ? "Not needed" : item.detail || !done && blockedText[item.blocked_reason] || ""].filter(Boolean).join(" \xB7 ");
         li.innerHTML = tick + `<span class="what"><b>${ui.esc(item.label)}</b><span class="sub">${ui.esc(detail)}</span></span>`;
-        const actions = item.can_dismiss ? ui.el("span", { class: "step-actions act" }) : li;
+        const actions = item.can_dismiss && !done ? ui.el("span", { class: "step-actions act" }) : li;
         if (!done && !opted) {
           const custom = renderAction?.(item);
           if (typeof custom === "string") li.insertAdjacentHTML("beforeend", custom);
           else if (custom) li.append(custom);
           else if (!renderAction && item.actionable && item.link?.href) actions.append(ui.el("a", { class: `btn${checklist.next?.item_id === item.id ? " primary" : " quiet"} sm${item.can_dismiss ? "" : " act"}`, href: item.link.href, text: checklistActionLabel(item) }));
         }
-        if (item.can_dismiss) {
+        if (item.can_dismiss && !done) {
           actions.append(ui.el("button", { class: "btn quiet sm", type: "button", "data-checklist-mark": item.id, "data-restore": String(opted), "data-dismiss": "", text: opted ? "Use this item" : "Not needed" }));
           li.append(actions);
         }
@@ -3577,7 +3578,7 @@
     const needsLines = (data.needs_you || []).map((n) => `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href("organiser", ev.slug, n.section === "home" ? void 0 : n.section))}">${n.kind === "application_new" ? "Review applications" : "Open"}</a></div>`).join("");
     const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, "")).split(".").join(".<wbr>");
     main.innerHTML = `
-<div class="ph keep-row"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>
+<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>
 <p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
 ${content.button ? `<section class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
@@ -4271,6 +4272,7 @@ ${restBlock}
         row.appendChild(ui.el("span", { class: "meta", text: j.done_count + " of " + j.assigned_count + " done" }));
         jlist.appendChild(row);
       });
+      if (formerJudges.length) jlist.appendChild(ui.el("h3", { id: "jg-former", text: "Former judges" }));
       formerJudges.forEach((f) => {
         const row = ui.el("div", { class: "r" });
         const mainEl = ui.el("div", { class: "main" });

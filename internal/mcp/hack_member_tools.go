@@ -82,7 +82,7 @@ func memberTool(name, title, description, method, path string, input map[string]
 		schema["properties"] = map[string]any{"can": hackAbilitiesSchema(), "checklist": checklistNullableObject(hackChecklistSchema())}
 	}
 	if name == "hack_get_navigation" {
-		schema = outObject(map[string]any{"version": outInteger("Map version."), "screens": outArray("Screens.", map[string]any{"type": "object", "additionalProperties": true}), "targets": outArray("Destinations.", map[string]any{"type": "object", "additionalProperties": true}), "aliases": outArray("Old destinations.", map[string]any{"type": "object", "additionalProperties": true})}, "version", "screens", "targets", "aliases")
+		schema = outObject(map[string]any{"roles": outArray("Roles.", map[string]any{"type": "object", "additionalProperties": true}), "resolution": map[string]any{"type": "object", "additionalProperties": true}, "version": outInteger("Map version."), "screens": outArray("Screens.", map[string]any{"type": "object", "additionalProperties": true}), "targets": outArray("Destinations.", map[string]any{"type": "object", "additionalProperties": true}), "aliases": outArray("Old destinations.", map[string]any{"type": "object", "additionalProperties": true})}, "version", "screens", "targets", "aliases", "roles", "resolution")
 	}
 	return Tool{Name: name, Title: title, Description: description, InputSchema: input, OutputSchema: schema, Annotations: annotations, run: func(c *call, args map[string]any) (output, error) {
 		p := path

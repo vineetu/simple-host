@@ -5,7 +5,7 @@ export function checklistActionLabel(item) {
 }
 
 const blockedText = {
-  entry_rules_closed: 'Entry rules are closed.', tie_rule_closed: 'Tie-break is closed.',
+  event_taken_down: 'This event has been taken down.', entry_rules_closed: 'Entry rules are closed.', tie_rule_closed: 'Tie-break is closed.',
   scores_locked: 'Scoring is locked.', judging_closed: 'Scoring is closed.',
   judging_not_open: 'Judging is not open yet.', nothing_assigned: 'No teams assigned yet.',
   join_team_first: 'Join a team first.', teams_locked: 'Teams are closed.',
@@ -23,18 +23,18 @@ export function renderChecklist({ ui, checklist, title = 'Checklist', renderActi
       const done = item.state === 'done'
       const opted = item.state === 'not_needed'
       const cls = [done ? 'done' : '', item.optional || item.settled ? 'opt' : '', !done && checklist.next?.item_id === item.id ? 'now' : ''].filter(Boolean).join(' ')
-      const li = ui.el('li', { class: cls, 'data-checklist-id': item.id, tabindex: '-1' })
+      const li = ui.el('li', { class: cls, 'data-checklist-id': item.id, ...(item.id === 'j.invite' ? { id: 'invite' } : item.id === 'j.coc' ? { id: 'conduct' } : item.id === 'j.closes' ? { id: 'closes' } : {}), tabindex: '-1' })
       const tick = done ? '<span class="tick">✓</span>' : `<span class="tick"><span class="num">${index + 1}</span></span>`
-      const detail = [item.optional && !opted ? 'Optional' : '', opted ? 'Not needed' : (item.detail || (!done && blockedText[item.blocked_reason]) || '')].filter(Boolean).join(' · ')
+      const detail = [item.optional && !done && !opted && item.id !== 'j.closes' ? 'Optional' : '', opted ? 'Not needed' : (item.detail || (!done && blockedText[item.blocked_reason]) || '')].filter(Boolean).join(' · ')
       li.innerHTML = tick + `<span class="what"><b>${ui.esc(item.label)}</b><span class="sub">${ui.esc(detail)}</span></span>`
-      const actions = item.can_dismiss ? ui.el('span', { class: 'step-actions act' }) : li
+      const actions = item.can_dismiss && !done ? ui.el('span', { class: 'step-actions act' }) : li
       if (!done && !opted) {
         const custom = renderAction?.(item)
         if (typeof custom === 'string') li.insertAdjacentHTML('beforeend', custom)
         else if (custom) li.append(custom)
         else if (!renderAction && item.actionable && item.link?.href) actions.append(ui.el('a', { class: `btn${checklist.next?.item_id === item.id ? ' primary' : ' quiet'} sm${item.can_dismiss ? '' : ' act'}`, href: item.link.href, text: checklistActionLabel(item) }))
       }
-      if (item.can_dismiss) { actions.append(ui.el('button', { class: 'btn quiet sm', type: 'button', 'data-checklist-mark': item.id, 'data-restore': String(opted), 'data-dismiss': '', text: opted ? 'Use this item' : 'Not needed' })); li.append(actions) }
+      if (item.can_dismiss && !done) { actions.append(ui.el('button', { class: 'btn quiet sm', type: 'button', 'data-checklist-mark': item.id, 'data-restore': String(opted), 'data-dismiss': '', text: opted ? 'Use this item' : 'Not needed' })); li.append(actions) }
       ul.append(li)
     })
     return ul

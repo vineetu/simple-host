@@ -23,8 +23,15 @@ type ChecklistJudgingFacts struct {
 	HasStandings                                              bool
 }
 
-func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID string) (ChecklistJudgingFacts, error) {
+func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID string, organiser bool) (ChecklistJudgingFacts, error) {
 	var f ChecklistJudgingFacts
+	if !organiser {
+		return s.checklistOwnJudging(ctx, ev, actorID)
+	}
+	completions, err := entryrepo.JudgeCompletionCounts(ctx, s.db, ev.ID, "")
+	if err != nil {
+		return f, err
+	}
 	judges, err := entryrepo.ListEventJudges(ctx, s.db, ev.ID)
 	if err != nil {
 		return f, err
@@ -96,10 +103,7 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 		done := true
 		for id := range eligible {
 			coverage[id]++
-			ok, err := entryrepo.JudgeDoneForTeam(ctx, s.db, ev.ID, j.ID, id, len(rubric))
-			if err != nil {
-				return f, err
-			}
+			ok := len(rubric) > 0 && completions[j.ID][id] >= len(rubric)
 			if !ok {
 				done = false
 			}
@@ -127,36 +131,8 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 			under++
 		}
 	}
-	f.AssignmentDetail = fmt.Sprintf("%d judgeable teams; %d need more eligible judges after conflicts", f.Judgeable, under)
+	f.AssignmentDetail = fmt.Sprintf("%d judgeable %s; %d needing more eligible judges after conflicts", f.Judgeable, checklistNoun(f.Judgeable, "team"), under)
 
-	if actorID != "" {
-		queue, err := s.JudgeQueue(ctx, ev, actorID, func() error { return nil })
-		if err != nil {
-			return f, err
-		}
-		f.OwnTotal = len(queue)
-		for _, q := range queue {
-			if q.Done {
-				f.OwnDone++
-			} else if f.FirstUnfinished == "" {
-				f.FirstUnfinished = q.Team.ID
-			}
-		}
-		candidates, err := entryrepo.EligibleJudgeTeamsIgnoringConflicts(ctx, s.db, ev.ID, actorID)
-		if err != nil {
-			return f, err
-		}
-		for id := range candidates {
-			if present[id] {
-				f.OwnCandidates++
-			}
-		}
-		conflicts, err := entryrepo.ListEventConflicts(ctx, s.db, ev.ID, actorID)
-		if err != nil {
-			return f, err
-		}
-		f.OwnConflicts = len(conflicts)
-	}
 	results, err := s.ComputeResults(ctx, s.db, ev)
 	if err != nil {
 		return f, err
@@ -173,7 +149,7 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 			}
 		}
 		if missingTracks > 0 {
-			f.AssignmentDetail += fmt.Sprintf("; %d teams need a track", missingTracks)
+			f.AssignmentDetail += fmt.Sprintf("; %d %s without a track", missingTracks, checklistNoun(missingTracks, "team"))
 		}
 	}
 	f.Published = snapshot.Published
@@ -287,4 +263,42 @@ func (s *Service) ChecklistParticipant(ctx context.Context, ev model.Event, memb
 func (s *Service) ChecklistParticipantApproved(ctx context.Context, ev model.Event, userID string) (bool, error) {
 	m, err := eventrepo.MemberApprovalStatus(ctx, s.db, ev.ID, userID)
 	return m == "approved", err
+}
+
+func (s *Service) checklistOwnJudging(ctx context.Context, ev model.Event, actorID string) (ChecklistJudgingFacts, error) {
+	var f ChecklistJudgingFacts
+	queue, err := s.JudgeCandidates(ctx, ev, actorID, func() error { return nil })
+	if err != nil {
+		return f, err
+	}
+	f.OwnCandidates = len(queue)
+	for _, row := range queue {
+		if row.Conflicted {
+			continue
+		}
+		f.OwnTotal++
+		if row.Done {
+			f.OwnDone++
+		} else if f.FirstUnfinished == "" {
+			f.FirstUnfinished = row.Team.ID
+		}
+	}
+	conflicts, err := entryrepo.ListEventConflicts(ctx, s.db, ev.ID, actorID)
+	if err != nil {
+		return f, err
+	}
+	f.OwnConflicts = len(conflicts)
+	snapshot, err := entryrepo.GetEventResults(ctx, s.db, ev.ID)
+	if err != nil {
+		return f, err
+	}
+	f.Published = snapshot.Published
+	return f, nil
+}
+
+func checklistNoun(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+	return word + "s"
 }

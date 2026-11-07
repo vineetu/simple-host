@@ -38,8 +38,7 @@ import { needCount, newsCount, unreadAnnouncements } from './needs.js'
   };
   export function ico(n,cls){ return '<svg class="'+(cls||'ico')+'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(I[n]||I.file)+'"/></svg>'; }
 
-// The event dropdown is positioned for the layout it was opened in, so a
-// resize (desktop <-> phone) closes it rather than leaving it misplaced.
+// Close the phone event dropdown when the viewport changes.
 let resizeBound = false
 function bindResizeClose() {
   if (resizeBound) return
@@ -48,7 +47,6 @@ function bindResizeClose() {
     const pop = document.getElementById('evpop')
     if (!pop || !pop.classList.contains('open')) return
     pop.classList.remove('open')
-    pop.style.top = ''
     document.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded', 'false'))
   })
 }
@@ -155,7 +153,7 @@ export function mount(ctx, section, screenId) {
   }
   const topNav = `<nav class="top-nav" aria-label="Home"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''} data-tip="Your events">${ico('home')}<span>Your events</span></a><a href="/directory" data-tip="Find a hackathon">${ico('globe')}<span>Find a hackathon</span></a></nav>`
   function switcher(id) {
-    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop" data-tip="${esc(tip(event?.title || 'Simple Hack', roleLabel(detail?.role || role)))}"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(detail?.role || role))}</span></span>${ico('chev','chev')}</button>`
+    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop" data-tip="${esc(tip(event?.title || 'Simple Hack', roleLabel(detail?.role || role)))}"><span class="ev-mark" data-event-slug="${esc(event?.slug || '')}">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(detail?.role || role))}</span></span>${ico('chev','chev')}</button>`
   }
   // Owner decision 2026-10-30: the dropdown only lists events now -- Home and
   // Find a hackathon already live in the sidebar's always-shown top section,
@@ -171,13 +169,14 @@ export function mount(ctx, section, screenId) {
   function eventRow(e, expanded) {
     const label = roleLabel(e.role) + ' · ' + (e.taken_down ? 'Taken down' : e.approval_status === 'pending' ? 'Waiting for approval' : e.approval_status === 'rejected' ? 'Not accepted' : stageLabel(e.stage))
     const attrs = `class="pane-event" data-tip="${esc(e.title + ' · ' + label)}" aria-label="${esc(e.title + ' · ' + label)}" title="${esc(e.title + ' · ' + label)}"`
-    const content = `<span class="ev-mark">${esc(initials(e.title))}</span><span class="event-label"><b>${esc(e.title)}</b><small>${esc(label)}</small></span>`
+    const content = `<span class="ev-mark" data-event-slug="${esc(e.slug)}">${esc(initials(e.title))}</span><span class="event-label"><b>${esc(e.title)}</b><small>${esc(label)}</small></span>`
     const row = e.taken_down && e.role !== 'organiser' ? `<div ${attrs}>${content}</div>` : `<a ${attrs} href="${esc(href(e.role, e.slug, e.role === 'organiser' ? 'overview' : 'home'))}">${content}</a>`
     return row + (expanded && e.slug === event?.slug ? `<div class="event-sections">${sections()}</div>` : '')
   }
   function eventList(expanded) {
     const { current, past, pastCount } = eventGroups(events, event?.slug)
-    return current.slice(0, 5).map(e => eventRow(e, expanded)).join('')
+    const inspection = expanded && detail?.admin_view ? `<div class="inspection-context" aria-label="Current event inspection">${eventRow({ ...event, role: 'organiser' }, false)}<small>Read-only inspection</small><div class="event-sections">${sections()}</div></div>` : ''
+    return inspection + current.slice(0, 5).map(e => eventRow(e, expanded)).join('')
       + `<a href="/events" data-tip="All events (${events.length})">${ico('events')}<span>All events (${events.length})</span></a>`
       + (pastCount ? `<details class="past-events"><summary>Past events (${pastCount})</summary>${past.slice(0, 5).map(e => eventRow(e, false)).join('')}<a href="/events?past=1">All past events</a></details>` : '')
   }
@@ -262,7 +261,7 @@ export function mount(ctx, section, screenId) {
     writeSideCollapsed(c)
     const fresh = app.querySelector('[data-side-toggle]')
     if (fresh) fresh.focus()
-    if (pop) { pop.classList.remove('open'); pop.style.top = ''; root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded', 'false')) }
+    if (pop) { pop.classList.remove('open'); root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded', 'false')) }
   }
   let menuOpener = null
   app.addEventListener('click', e => {
@@ -272,19 +271,6 @@ export function mount(ctx, section, screenId) {
       const open = !pop.classList.contains('open')
       pop.classList.toggle('open',open)
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded',String(open)))
-      // Review #1: kit.css's own top:120px is only a closed-state fallback --
-      // it covered the switcher that opened it, since the popup never knew
-      // which one that was. On desktop, anchor it under the actual button
-      // just clicked -- under it when expanded, level with it (beside the
-      // rail) when collapsed, same as sw1; sw2 on the phone top bar never
-      // hits this branch's layout, since kit.css repositions .menu-pop for
-      // phone.
-      if (open && window.innerWidth > 760) {
-        const r = sw.getBoundingClientRect()
-        pop.style.top = (app.classList.contains('side-collapsed') && sw.id === 'sw1' ? r.top : r.bottom + 4) + 'px'
-      } else if (!open) {
-        pop.style.top = ''
-      }
     } else if (pop && !e.target.closest('#evpop')) {
       pop.classList.remove('open')
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded','false'))
@@ -299,7 +285,7 @@ export function mount(ctx, section, screenId) {
   // unreadable -- ui.markInk picks white or the kit's own dark ink by the
   // mark's luminance instead of always white.
   root.querySelectorAll('.ev-mark').forEach(mark => {
-    const entry = events.find(e => initials(e.title) === mark.textContent)
+    const entry = events.find(e => e.slug === mark.dataset.eventSlug)
     const color = entry?.color || event?.color
     if (/^#[0-9a-f]{6}$/i.test(color || '')) {
       mark.style.setProperty('--ev',color)
@@ -320,7 +306,7 @@ export function mount(ctx, section, screenId) {
     if (pane) pane.innerHTML = eventList(true)
     if (pop) pop.innerHTML = eventList(false)
     root.querySelectorAll('.pane-event .ev-mark').forEach(mark => {
-      const entry = events.find(e => initials(e.title) === mark.textContent)
+      const entry = events.find(e => e.slug === mark.dataset.eventSlug)
       if (/^#[0-9a-f]{6}$/i.test(entry?.color || '')) { mark.style.setProperty('--ev', entry.color); mark.style.color = markInk(entry.color) }
     })
   }
