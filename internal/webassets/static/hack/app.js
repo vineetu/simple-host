@@ -1,7 +1,7 @@
 import * as api from './api.js'
 import * as ui from './ui.js'
 import { mount } from './shell.js'
-import { resolveRoute, isAppRoute, href } from './nav.js'
+import { resolveRoute, isAppRoute, href, normalizeURL } from './nav.js'
 import { endTour } from './tour.js'
 import { openLeave } from './leave.js'
 // Attribution carry-over (arrival.js) is only present on chromed pages.
@@ -52,8 +52,7 @@ const setLive = msg => ui.toast(msg)
     var params = new URLSearchParams(location.search);
     var n = safeNext(params.get('next') || '');
     if (!n) n = storedNext();
-    if (!n) n = '/events';
-    saveNext(n);
+    if (n) saveNext(n);
     return n;
   }
   function consumeNext() {
@@ -273,6 +272,12 @@ const setLive = msg => ui.toast(msg)
       return completeSignIn(r.data);
     });
   }
+  async function defaultLanding() {
+    const r = await api.listEvents()
+    if (!r.ok) return '/events'
+    const current = (Array.isArray(r.data) ? r.data : r.data.events || []).filter(e => e.stage !== 'archived' && !e.taken_down)
+    return current.length === 1 ? href(current[0].role, current[0].slug, current[0].role === 'organiser' ? 'overview' : 'home') : '/events'
+  }
   async function completeSignIn(data) {
     await startSSO(data.api_key);
     try { localStorage.setItem('apiKey', data.api_key); } catch (e) {}
@@ -280,7 +285,7 @@ const setLive = msg => ui.toast(msg)
     var next = consumeNext();
     var path = location.pathname.replace(/\/+$/, '') || '/';
     if (joinPathKind(path)) return route();
-    location.replace(next || '/events');
+    location.replace(next || await defaultLanding());
   }
   async function verifyBody(body) {
     var res = await fetch(arrival('/v1/auth/verify'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -339,7 +344,7 @@ const setLive = msg => ui.toast(msg)
         if (meRes.status === 401) {
           try { localStorage.removeItem('apiKey'); } catch (e) {}
           if (window.shAuthRender) window.shAuthRender();
-        } else if (meRes.ok) { location.replace(consumeNext()); return; }
+        } else if (meRes.ok) { location.replace(consumeNext() || await defaultLanding()); return; }
       } catch (e) {}
     }
   }
@@ -363,7 +368,7 @@ const setLive = msg => ui.toast(msg)
   }
 
 
-let initialData, generation = 0
+let initialData, activeContext, generation = 0
 // Only the judge route is served with the CSP that may frame a team's site
 // and the four video players (hackAppCSP, hack_ui.go). A page first loaded
 // on any other route keeps the narrower one for its whole life, so arriving
@@ -413,6 +418,8 @@ async function route() {
       return { me: m.data, events: Array.isArray(e.data) ? e.data : e.data.events || [] }
     }).catch(e => { initialData = null; throw e })
     const data = initialData ? await initialData : { me: {}, events: [] }
+    const normalized = normalizeURL(location)
+    if (normalized.href !== location.href) { history.replaceState(history.state, '', normalized); ui.notePath(normalized.pathname + normalized.search + normalized.hash) }
     const match = resolveRoute(location)
     let event = null, role = null
     if (match.slug) {
@@ -454,12 +461,18 @@ async function route() {
       event = r.data
       role = event.role
       if (!['organiser', 'participant', 'judge'].includes(role)) throw new Error('You do not have access to this event')
-      // Round-6 Confusing #1: match.role is only what the URL segment
-      // (manage/team/judge) implies, which can be stale -- an organiser
-      // (or judge) who opens a participant's /team link, from a shared
-      // link, a stale bookmark or Back, lands on their own area instead of
-      // a screen built for someone else's role.
-      if (match.role && match.role !== role) { go(href(role, match.slug)); return }
+      const required = { organiser: 'manage', judge: 'judge', participant: 'take_part' }[match.role]
+      if (event.admin_view && match.role !== 'organiser') {
+        history.replaceState(history.state, '', href('organiser', match.slug, 'overview'))
+        return route()
+      }
+      if (!event.admin_view && !event.can?.[required]) {
+        const home = href(role, match.slug, role === 'organiser' ? 'overview' : 'home')
+        history.replaceState(history.state, '', home)
+        return route()
+      }
+      role = match.role
+
     }
     if (turn !== generation) return
     const ctx = { ...data, api, ui, event, role, params: new URLSearchParams(location.search), go,
@@ -470,6 +483,7 @@ async function route() {
       document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><a class="wordmark" href="/">simple<b>·</b>hack</a><span class="grow"></span>${apiKey() ? '<a href="/events">Home</a>' : ''}</div><main></main></div>`
       ctx.main = document.querySelector('#app main')
     } else ctx.main = mount(ctx, match.section, match.id)
+    activeContext = ctx
     document.body.classList.remove('booting')
     if (event?.me?.approval_status && event.me.approval_status !== 'approved' && role === 'participant') {
       // A20: a pending/rejected participant otherwise still sees the full
@@ -520,8 +534,22 @@ async function route() {
 }
 api.onSignedOut(signedOut)
 if (apiKey()) api.api('POST', '/v1/sso/session').catch(() => {})
-window.addEventListener('focus', () => { if (apiKey()) api.me().catch(() => {}) })
-api.onEventsChanged(() => { initialData = null })
+// Refresh membership chrome without replacing a form the person is editing.
+async function refreshEventList() {
+  if (!apiKey()) return
+  const ctx = activeContext
+  initialData = null
+  try {
+    const [m, e] = await Promise.all([api.me(), api.listEvents()])
+    if (!m.ok || !e.ok || !ctx?.alive()) return
+    const data = { me: m.data, events: Array.isArray(e.data) ? e.data : e.data.events || [] }
+    initialData = Promise.resolve(data)
+    ctx.events = data.events
+    ctx.updateEvents?.(data.events)
+  } catch (_) {}
+}
+window.addEventListener('focus', refreshEventList)
+api.onEventsChanged(() => { initialData = null; refreshEventList() })
 document.getElementById('app').addEventListener('click', e => {
   const a = e.target.closest('a[href]')
   if (a?.matches('[data-menu],[aria-disabled="true"]')) { e.preventDefault(); return }

@@ -1,10 +1,10 @@
 import { href } from '../nav.js'
-import { eventOrder } from '../shell.js'
+import { eventGroups } from '../event-list.js'
 import { rowMenuHTML, wireRowMenus } from './_orgA-util.js'
 import { openLeave, takeFlash } from '../leave.js'
 import { needHref } from '../needs.js'
 
-export function title() { return 'Home' }
+export function title() { return 'Your events' }
 
 // Home (owner decision 2026-10-30): the person's own home, one level above
 // any event -- the top-left brand link always leads here. Was the full-page
@@ -77,7 +77,7 @@ export async function render(ctx) {
     return [{ label: 'Open event', act: 'open' }, { label: 'Leave this event…', act: 'leave', danger: true }]
   }
   const row = e => {
-    const section = e.role === 'judge' && ['closed','judging'].includes(e.stage) ? 'queue' : e.role === 'participant' && e.stage === 'results' ? 'results' : undefined
+    const section = e.role === 'organiser' ? 'overview' : 'home'
     const blocked = e.taken_down && e.role !== 'organiser'
     const mark = `<span class="ev-mark">${ui.esc(ui.initials(e.title))}</span>`
     const label = `<b>${ui.esc(e.title)}</b><span>${ui.esc(ui.roleLabel(e.role))} · ${ui.esc(e.taken_down ? 'Taken down' : ui.stageLabel(e.stage))}</span>`
@@ -97,8 +97,8 @@ export async function render(ctx) {
   // close -- count here now; a judge still sees it once there is scoring to
   // do. Everything else (including "results", where the organiser's own
   // next move is just to open the event) is ordinary, in-progress work.
-  const attention = e => !e.taken_down && ((e.role === 'organiser' && ['draft','closed'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
-  const list = eventOrder(events)
+  const { current, past } = eventGroups(events)
+  const list = current.concat(past)
   // Needs you (atlas 2026-11-02): what waits on the person in every event,
   // from GET /v1/hack/todos (the same list hack_get_my_todos reads). One
   // row per item, the event's name on top, linking into that event. Left
@@ -121,14 +121,7 @@ export async function render(ctx) {
   }
   const quickLinks = `<div class="row-flex"><a class="btn" href="/directory">Find a hackathon</a><a class="btn quiet" href="/account">Account</a></div>`
   const flashText = takeFlash()
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1></div>${list.length ? `<a class="btn primary" href="/events/new">Create event</a>` : ''}</div>` + needs + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div><div class="row-flex"><a class="btn quiet" href="/account">Account</a></div>` : [true,false].map(needed => {
-    const group = list.filter(e => attention(e) === needed)
-    // Neutral heading for ordinary events (finding #4): covers both events
-    // still running and ones already archived/ended, so "Running now"
-    // would be wrong for the latter -- "Your events" reads fine for either.
-    const label = needed ? 'Needs attention' : 'Your events'
-    return group.length ? `<p class="section-title">${label}</p><div class="list editable" aria-label="${label}">${group.map(row).join('')}</div>` : ''
-  }).join('') + quickLinks)
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Your events</h1></div>${list.length ? `<a class="btn primary" href="/events/new">Create event</a>` : ''}</div>` + needs + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div><div class="row-flex"><a class="btn quiet" href="/account">Account</a></div>` : `<div class="list editable" aria-label="Current events">${current.map(row).join('')}</div>${past.length ? `<details${ctx.params.get('past') === '1' ? ' open' : ''}><summary>Past events (${past.length})</summary><div class="list editable" aria-label="Past events">${past.map(row).join('')}</div></details>` : ''}` + quickLinks)
   main.querySelectorAll('.ev-mark').forEach((mark,i) => {
     const color = list[i].color
     if (/^#[0-9a-f]{6}$/i.test(color || '')) { mark.style.setProperty('--ev',color); mark.style.color = ui.markInk(color) }
@@ -143,7 +136,7 @@ export async function render(ctx) {
   main.querySelectorAll('[data-act="open"]').forEach(btn => btn.addEventListener('click', () => {
     const e = rowFor(btn)
     if (!e) return
-    const section = e.role === 'judge' && ['closed','judging'].includes(e.stage) ? 'queue' : e.role === 'participant' && e.stage === 'results' ? 'results' : undefined
+    const section = e.role === 'organiser' ? 'overview' : 'home'
     go(href(e.role, e.slug, section))
   }))
   main.querySelectorAll('[data-act="leave"]:not([disabled])').forEach(btn => btn.addEventListener('click', () => {

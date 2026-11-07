@@ -303,7 +303,8 @@
       "badge": null,
       "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended.",
       "order": 10,
-      "group": null
+      "group": null,
+      "action_label": "Edit"
     },
     {
       "id": "o.event-page",
@@ -321,7 +322,8 @@
       "badge": null,
       "stage_rule": "Always editable, even after the event ends (the public page stays up as a record).",
       "order": 20,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Edit"
     },
     {
       "id": "o.settings",
@@ -340,7 +342,8 @@
       "stage_rule": "Always shown, including Delete this event, at every stage.",
       "order": 30,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.people",
@@ -358,7 +361,8 @@
       "badge": "4",
       "stage_rule": "Always shown. Badge: applications waiting for a decision, the same count as Overview's Needs you line; reads 'Sign-up isn't open yet' before Open.",
       "order": 40,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.teams",
@@ -376,7 +380,8 @@
       "badge": null,
       "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why. Badge: people not on a team, from Open through Building.",
       "order": 50,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.entries",
@@ -394,7 +399,8 @@
       "badge": null,
       "stage_rule": "Always shown. The list is empty until teams start saving entries.",
       "order": 60,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.announcements",
@@ -412,7 +418,8 @@
       "badge": null,
       "stage_rule": "Always shown. Post, edit and delete from Draft until the event ends; after End the list stays readable but nothing can be posted or changed.",
       "order": 70,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Send"
     },
     {
       "id": "o.judging",
@@ -430,7 +437,8 @@
       "badge": null,
       "stage_rule": "Always shown. Progress, assignments, conflicts and lock; configuration links to Settings → Judging.",
       "order": 80,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.results",
@@ -448,7 +456,8 @@
       "badge": null,
       "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked.",
       "order": 90,
-      "group": "Wrap up"
+      "group": "Wrap up",
+      "action_label": "Edit"
     },
     {
       "id": "p.home",
@@ -695,7 +704,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=basics",
       "nav": false,
       "order": 230,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Add"
     },
     {
       "id": "o.times",
@@ -709,7 +719,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=basics",
       "nav": false,
       "order": 240,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Set"
     },
     {
       "id": "o.about",
@@ -723,7 +734,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=about",
       "nav": false,
       "order": 250,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Add"
     },
     {
       "id": "o.prizes",
@@ -737,7 +749,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=about#prizes",
       "nav": false,
       "order": 260,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Edit"
     },
     {
       "id": "o.rules",
@@ -751,7 +764,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=about#rules",
       "nav": false,
       "order": 270,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Edit"
     },
     {
       "id": "o.coc",
@@ -765,7 +779,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=about#conduct",
       "nav": false,
       "order": 280,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Edit"
     },
     {
       "id": "o.schedule",
@@ -779,7 +794,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=schedule",
       "nav": false,
       "order": 290,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Add"
     },
     {
       "id": "o.tracks",
@@ -793,7 +809,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=tracks",
       "nav": false,
       "order": 300,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Add"
     },
     {
       "id": "o.sponsors",
@@ -807,7 +824,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=sponsors",
       "nav": false,
       "order": 310,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Add"
     },
     {
       "id": "o.faq",
@@ -821,7 +839,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=faq",
       "nav": false,
       "order": 320,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Add"
     },
     {
       "id": "o.look",
@@ -835,7 +854,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=look",
       "nav": false,
       "order": 330,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Edit"
     },
     {
       "id": "o.gallery",
@@ -849,7 +869,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=look#gallery",
       "nav": false,
       "order": 340,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Edit"
     },
     {
       "id": "o.website",
@@ -863,7 +884,8 @@
       "href_pattern": "/e/{slug}/manage?s=event-page&tab=website",
       "nav": false,
       "order": 350,
-      "group": "Set up"
+      "group": "Set up",
+      "action_label": "Edit"
     },
     {
       "id": "o.signup",
@@ -878,7 +900,8 @@
       "nav": false,
       "order": 360,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Edit"
     },
     {
       "id": "o.applications-setting",
@@ -893,7 +916,8 @@
       "nav": false,
       "order": 370,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Edit"
     },
     {
       "id": "o.directory",
@@ -908,7 +932,8 @@
       "nav": false,
       "order": 380,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Edit"
     },
     {
       "id": "o.team-rules",
@@ -923,7 +948,8 @@
       "nav": false,
       "order": 390,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Edit"
     },
     {
       "id": "o.deadline",
@@ -938,7 +964,8 @@
       "nav": false,
       "order": 400,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Set"
     },
     {
       "id": "o.entry-rules",
@@ -953,7 +980,8 @@
       "nav": false,
       "order": 410,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Choose"
     },
     {
       "id": "o.reminders",
@@ -968,7 +996,8 @@
       "nav": false,
       "order": 420,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Set"
     },
     {
       "id": "o.rubric",
@@ -983,7 +1012,8 @@
       "nav": false,
       "order": 430,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Set"
     },
     {
       "id": "o.rubric-ready",
@@ -998,7 +1028,8 @@
       "nav": false,
       "order": 440,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Review"
     },
     {
       "id": "o.judging-mode",
@@ -1013,7 +1044,8 @@
       "nav": false,
       "order": 450,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Choose"
     },
     {
       "id": "o.mode",
@@ -1028,7 +1060,8 @@
       "nav": false,
       "order": 460,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Choose"
     },
     {
       "id": "o.tie-break",
@@ -1043,7 +1076,8 @@
       "nav": false,
       "order": 470,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Choose"
     },
     {
       "id": "o.judging-closes",
@@ -1058,7 +1092,8 @@
       "nav": false,
       "order": 480,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Set"
     },
     {
       "id": "o.result-rules",
@@ -1073,7 +1108,8 @@
       "nav": false,
       "order": 490,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Edit"
     },
     {
       "id": "o.voting",
@@ -1088,7 +1124,8 @@
       "nav": false,
       "order": 500,
       "group": "Set up",
-      "settings_group": "rules"
+      "settings_group": "rules",
+      "action_label": "Edit"
     },
     {
       "id": "o.details",
@@ -1103,7 +1140,8 @@
       "nav": false,
       "order": 510,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.organisers",
@@ -1118,7 +1156,8 @@
       "nav": false,
       "order": 520,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.links",
@@ -1133,7 +1172,8 @@
       "nav": false,
       "order": 530,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.notifications",
@@ -1148,7 +1188,8 @@
       "nav": false,
       "order": 540,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.leave",
@@ -1163,7 +1204,8 @@
       "nav": false,
       "order": 550,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.handover",
@@ -1178,7 +1220,8 @@
       "nav": false,
       "order": 560,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.delete",
@@ -1193,7 +1236,8 @@
       "nav": false,
       "order": 570,
       "group": "Set up",
-      "settings_group": "event"
+      "settings_group": "event",
+      "action_label": "Edit"
     },
     {
       "id": "o.stage",
@@ -1207,7 +1251,8 @@
       "href_pattern": "/e/{slug}/manage?s=overview#ov-change-stage",
       "nav": false,
       "order": 580,
-      "group": null
+      "group": null,
+      "action_label": "Review"
     },
     {
       "id": "o.end",
@@ -1221,7 +1266,8 @@
       "href_pattern": "/e/{slug}/manage?s=overview#ov-end",
       "nav": false,
       "order": 590,
-      "group": null
+      "group": null,
+      "action_label": "End"
     },
     {
       "id": "o.announcement",
@@ -1235,7 +1281,8 @@
       "href_pattern": "/e/{slug}/manage?s=announcements",
       "nav": false,
       "order": 600,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Send"
     },
     {
       "id": "o.applications",
@@ -1249,7 +1296,8 @@
       "href_pattern": "/e/{slug}/manage?s=people&tab=applications",
       "nav": false,
       "order": 610,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.judges",
@@ -1263,7 +1311,8 @@
       "href_pattern": "/e/{slug}/manage?s=people&tab=people#judges",
       "nav": false,
       "order": 620,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Review"
     },
     {
       "id": "o.solo",
@@ -1277,7 +1326,8 @@
       "href_pattern": "/e/{slug}/manage?s=teams&tab=solo",
       "nav": false,
       "order": 630,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.team-detail",
@@ -1291,7 +1341,8 @@
       "href_pattern": "/e/{slug}/manage?s=team&team={team}",
       "nav": false,
       "order": 640,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.entry-detail",
@@ -1305,7 +1356,8 @@
       "href_pattern": "/e/{slug}/manage?s=entry&team={team}",
       "nav": false,
       "order": 650,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.conflicts",
@@ -1319,7 +1371,8 @@
       "href_pattern": "/e/{slug}/manage?s=judging#jg-conflicts-card",
       "nav": false,
       "order": 660,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.former-judges",
@@ -1333,7 +1386,8 @@
       "href_pattern": "/e/{slug}/manage?s=judging#jg-former",
       "nav": false,
       "order": 670,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Edit"
     },
     {
       "id": "o.lock",
@@ -1347,7 +1401,8 @@
       "href_pattern": "/e/{slug}/manage?s=judging#jg-lockzone",
       "nav": false,
       "order": 680,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Review"
     },
     {
       "id": "o.scores",
@@ -1361,7 +1416,8 @@
       "href_pattern": "/e/{slug}/manage?s=judging#jg-progress-card",
       "nav": false,
       "order": 690,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Review"
     },
     {
       "id": "o.ties",
@@ -1375,7 +1431,8 @@
       "href_pattern": "/e/{slug}/manage?s=results#res-override",
       "nav": false,
       "order": 700,
-      "group": "Wrap up"
+      "group": "Wrap up",
+      "action_label": "Review"
     },
     {
       "id": "o.publish",
@@ -1389,7 +1446,8 @@
       "href_pattern": "/e/{slug}/manage?s=results#res-publish-section",
       "nav": false,
       "order": 710,
-      "group": "Wrap up"
+      "group": "Wrap up",
+      "action_label": "Review"
     },
     {
       "id": "o.downloads",
@@ -1403,7 +1461,8 @@
       "href_pattern": "/e/{slug}/manage?s=results#res-downloads",
       "nav": false,
       "order": 720,
-      "group": "Wrap up"
+      "group": "Wrap up",
+      "action_label": "Edit"
     },
     {
       "id": "o.assignments",
@@ -1417,7 +1476,8 @@
       "href_pattern": "/e/{slug}/manage?s=assignments",
       "nav": false,
       "order": 730,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Assign"
     },
     {
       "id": "o.public-page",
@@ -1431,7 +1491,8 @@
       "href_pattern": "https://{slug}.simple-hack.app",
       "nav": false,
       "order": 740,
-      "group": "Run"
+      "group": "Run",
+      "action_label": "Review"
     },
     {
       "id": "j.invite",
@@ -2141,6 +2202,52 @@
     },
     "preserve_other_parameters": true,
     "replace_history": true,
-    "precedence": "Recognised canonical tab before legacy hash; exact tab aliases before fragment aliases; unknown or malformed values use screen default."
+    "precedence": "Recognised canonical tab before legacy hash; exact tab aliases before fragment aliases; unknown or malformed values use screen default.",
+    "settings_tabs": [
+      {
+        "id": "signup",
+        "label": "Sign-up"
+      },
+      {
+        "id": "teams",
+        "label": "Teams"
+      },
+      {
+        "id": "entries",
+        "label": "Entries"
+      },
+      {
+        "id": "reminders",
+        "label": "Reminders"
+      },
+      {
+        "id": "judging",
+        "label": "Judging"
+      },
+      {
+        "id": "results",
+        "label": "Results"
+      },
+      {
+        "id": "details",
+        "label": "Organiser details"
+      },
+      {
+        "id": "organisers",
+        "label": "Organisers"
+      },
+      {
+        "id": "links",
+        "label": "Links"
+      },
+      {
+        "id": "notifications",
+        "label": "Notifications"
+      },
+      {
+        "id": "danger",
+        "label": "Leave or delete"
+      }
+    ]
   }
 }

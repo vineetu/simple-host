@@ -1,4 +1,4 @@
-import { href } from '../nav.js'
+import { href, resolve } from '../nav.js'
 import { adminLock, stagePicker } from './_orgA-util.js'
 import { startTour } from '../tour.js'
 import { cueHeading } from '../schedule.js'
@@ -12,7 +12,7 @@ const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results'
 // stage) doesn't keep popping it back open within one page load.
 let autoTourTried = false
 
-export function title(ctx) { return 'Overview' }
+export function title(ctx) { return 'Home' }
 
 // Teams redesign (owner, 2026-10-31): the next-step card now holds exactly
 // one button that performs the next forward move itself, after one
@@ -106,7 +106,7 @@ export async function render(ctx) {
   const archived = ev.stage === 'archived'
   const resultsHref = href('organiser', ev.slug, 'results')
   const settingsHref = href('organiser', ev.slug, 'settings')
-  const entriesHandInHref = href('organiser', ev.slug, 'entries') + '#handin'
+  const entriesHandInHref = resolve('o.entry-rules', ev.slug).href
 
   const step = data.next_step || { kind: 'none' }
   const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref)
@@ -210,7 +210,8 @@ export async function render(ctx) {
   // point, same word either side.
   const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, '')).split('.').join('.<wbr>')
   main.innerHTML = `
-<div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
+<div class="ph keep-row"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href('judge', ev.slug, 'home'))}">Score as a judge</a>` : ''}</div>
+<p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
 ${content.button
     ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div>${content.navHref
       ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>`
@@ -228,8 +229,8 @@ ${needsLines}
 ${archived ? '' : `
 <h2 class="section-title">Share your event</h2>
 <div data-tour="share">
-<section class="card"><h2>Join link</h2><div class="copy"><input class="input mono" id="ov-join-url" aria-label="Join link" value="${ui.esc(org.join_url || '')}" readonly><button class="btn" type="button" id="ov-join-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-join-new">New link</button></div></section>
-<section class="card"><h2>Judge link</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Judge link" value="${ui.esc(org.judge_url || '')}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-judge-new">New link</button></div></section>
+<section class="card"><h2>Join link</h2><div class="copy"><input class="input mono" id="ov-join-url" aria-label="Join link" value="${ui.esc(org.join_url || '')}" readonly><button class="btn" type="button" id="ov-join-copy" data-admin-live>Copy</button></div></section>
+<section class="card"><h2>Judge link</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Judge link" value="${ui.esc(org.judge_url || '')}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button></div></section>
 </div>`}
 ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div>${(counts.participants ?? 0) > 0
     ? `<button class="btn danger" type="button" id="ov-end">End event</button>`
@@ -274,24 +275,6 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
     }
     $('ov-join-copy').addEventListener('click', () => copyInput($('ov-join-url'), $('ov-join-copy')))
     $('ov-judge-copy').addEventListener('click', () => copyInput($('ov-judge-url'), $('ov-judge-copy')))
-
-    // B4: the shell's own top-bar "Copy join/judge link" buttons are built
-    // once, at mount time, from the url the shell was given -- they do not
-    // listen for a change here. ctx.refresh() re-fetches the event and
-    // re-mounts the shell (app.js route()), which is the only way today to
-    // get the shell's copy buttons onto the new link.
-    async function regen(kind, btn) {
-      const ok = await ui.confirm({ title: 'Make a new link?', body: kind === 'join' ? 'The old link stops working, even for people who have not used it yet. People already in the event stay.' : 'The old judge link stops working. Judges already in stay.', confirmLabel: 'New link', danger: true })
-      if (!ok) return
-      btn.disabled = true
-      try {
-        const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/codes/' + kind)
-        if (!r.ok) { setLive(ui.errText(r), 'err'); btn.disabled = false; return }
-        await ctx.refresh()
-      } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
-    }
-    $('ov-join-new').addEventListener('click', () => regen('join', $('ov-join-new')))
-    $('ov-judge-new').addEventListener('click', () => regen('judge', $('ov-judge-new')))
 
     async function runEnd(btn) {
       const ok = await ui.confirm(END_CONFIRM)

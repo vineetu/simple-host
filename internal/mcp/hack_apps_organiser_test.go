@@ -20,7 +20,7 @@ import (
 func organiserUpstream() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/hack/events/mockjam", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"open","scoring_open":false,"judging_locked_at":null,"results_published":false,"submission_deadline":null,"time_zone":"UTC"},"organiser":{"join_url":"https://simple-hack.app/join/ORGANISER-SECRET-JOIN","judge_url":"https://simple-hack.app/judge/ORGANISER-SECRET-JUDGE","counts":{"participants":3,"teams":1,"judges":1,"on_no_team":0}},"role":"organiser","admin_view":false,"me":{"display_name":"ORGANISER-OWN-NAME"}}`))
+		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"open","scoring_open":false,"judging_locked_at":null,"results_published":false,"submission_deadline":null,"time_zone":"UTC"},"organiser":{"join_url":"https://simple-hack.app/join/ORGANISER-SECRET-JOIN","judge_url":"https://simple-hack.app/judge/ORGANISER-SECRET-JUDGE","counts":{"participants":3,"teams":1,"judges":1,"on_no_team":0}},"can":{"manage":true,"judge":true,"take_part":false},"role":"organiser","admin_view":false,"me":{"display_name":"ORGANISER-OWN-NAME"}}`))
 	})
 	return mux
 }

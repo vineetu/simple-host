@@ -7,6 +7,2288 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
+  // internal/handler/static/hack/navigation-data.js
+  var navigation = {
+    "version": 1,
+    "screens": [
+      {
+        "id": "organiser-overview",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "overview",
+        "module": "organiser-overview"
+      },
+      {
+        "id": "organiser-event-page",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "event-page",
+        "module": "organiser-event-page"
+      },
+      {
+        "id": "organiser-announcements",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "announcements",
+        "module": "organiser-announcements"
+      },
+      {
+        "id": "organiser-people",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "people",
+        "module": "organiser-people"
+      },
+      {
+        "id": "organiser-teams",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "teams",
+        "module": "organiser-teams"
+      },
+      {
+        "id": "organiser-team-detail",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "team",
+        "module": "organiser-team-detail"
+      },
+      {
+        "id": "organiser-entries",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "entries",
+        "module": "organiser-entries"
+      },
+      {
+        "id": "organiser-entry-detail",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "entry",
+        "module": "organiser-entry-detail"
+      },
+      {
+        "id": "organiser-judging",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "judging",
+        "module": "organiser-judging"
+      },
+      {
+        "id": "organiser-judging-assignments",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "assignments",
+        "module": "organiser-judging-assignments"
+      },
+      {
+        "id": "organiser-results",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "results",
+        "module": "organiser-results"
+      },
+      {
+        "id": "organiser-settings",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/e/{slug}/manage",
+        "section": "settings",
+        "module": "organiser-settings"
+      },
+      {
+        "id": "organiser-create-event",
+        "role": "organiser",
+        "ability": "manage",
+        "path": "/events/new",
+        "section": null,
+        "module": "organiser-create-event"
+      },
+      {
+        "id": "participant-home",
+        "role": "participant",
+        "ability": "take_part",
+        "path": "/e/{slug}/team",
+        "section": "home",
+        "module": "participant-home"
+      },
+      {
+        "id": "participant-schedule",
+        "role": "participant",
+        "ability": "take_part",
+        "path": "/e/{slug}/team",
+        "section": "schedule",
+        "module": "participant-schedule"
+      },
+      {
+        "id": "participant-announcements",
+        "role": "participant",
+        "ability": "take_part",
+        "path": "/e/{slug}/team",
+        "section": "announcements",
+        "module": "participant-announcements"
+      },
+      {
+        "id": "participant-team",
+        "role": "participant",
+        "ability": "take_part",
+        "path": "/e/{slug}/team",
+        "section": "team",
+        "module": "participant-team"
+      },
+      {
+        "id": "participant-entry",
+        "role": "participant",
+        "ability": "take_part",
+        "path": "/e/{slug}/team",
+        "section": "entry",
+        "module": "participant-entry"
+      },
+      {
+        "id": "participant-website",
+        "role": "participant",
+        "ability": "take_part",
+        "path": "/e/{slug}/team",
+        "section": "website",
+        "module": "participant-website"
+      },
+      {
+        "id": "participant-results",
+        "role": "participant",
+        "ability": "take_part",
+        "path": "/e/{slug}/team",
+        "section": "results",
+        "module": "participant-results"
+      },
+      {
+        "id": "judge-home",
+        "role": "judge",
+        "ability": "judge",
+        "path": "/e/{slug}/judge",
+        "section": "home",
+        "module": "judge-home"
+      },
+      {
+        "id": "judge-queue",
+        "role": "judge",
+        "ability": "judge",
+        "path": "/e/{slug}/judge",
+        "section": "queue",
+        "module": "judge-queue"
+      },
+      {
+        "id": "judge-scoring",
+        "role": "judge",
+        "ability": "judge",
+        "path": "/e/{slug}/judge",
+        "section": null,
+        "module": "judge-scoring"
+      },
+      {
+        "id": "judge-rubric",
+        "role": "judge",
+        "ability": "judge",
+        "path": "/e/{slug}/judge",
+        "section": "rubric",
+        "module": "judge-rubric"
+      },
+      {
+        "id": "landing-your-events",
+        "role": "global",
+        "ability": null,
+        "path": "/events",
+        "section": null,
+        "module": "landing-your-events"
+      },
+      {
+        "id": "account",
+        "role": "global",
+        "ability": null,
+        "path": "/account",
+        "section": null,
+        "module": "account"
+      },
+      {
+        "id": "public-event-page",
+        "role": "visitor",
+        "ability": null,
+        "path": "https://{slug}.simple-hack.app",
+        "section": null,
+        "module": null,
+        "renderer": "server"
+      },
+      {
+        "id": "public-join",
+        "role": "visitor",
+        "ability": null,
+        "path": "/join/{code}",
+        "section": null,
+        "module": "public-join"
+      },
+      {
+        "id": "public-apply",
+        "role": "visitor",
+        "ability": null,
+        "path": "/e/{slug}/apply",
+        "section": null,
+        "module": "public-apply"
+      },
+      {
+        "id": "public-judge",
+        "role": "visitor",
+        "ability": null,
+        "path": "/judge/{code}",
+        "section": null,
+        "module": "public-judge"
+      },
+      {
+        "id": "public-organiser-invite",
+        "role": "visitor",
+        "ability": null,
+        "path": "/organiser/{code}",
+        "section": null,
+        "module": "public-organiser-invite"
+      },
+      {
+        "id": "public-vote",
+        "role": "visitor",
+        "ability": null,
+        "path": "/e/{slug}/vote",
+        "section": null,
+        "module": null,
+        "renderer": "server"
+      },
+      {
+        "id": "public-directory",
+        "role": "visitor",
+        "ability": null,
+        "path": "/directory",
+        "section": null,
+        "module": null,
+        "renderer": "server"
+      },
+      {
+        "id": "public-home",
+        "role": "visitor",
+        "ability": null,
+        "path": "/",
+        "section": null,
+        "module": null,
+        "renderer": "server"
+      },
+      {
+        "id": "public-team-link",
+        "role": "visitor",
+        "ability": null,
+        "path": "/team/{code}",
+        "section": null,
+        "module": "public-team-link"
+      }
+    ],
+    "targets": [
+      {
+        "id": "o.home",
+        "kind": "screen",
+        "label": "Home",
+        "role": "organiser",
+        "screen": "organiser-overview",
+        "section": "overview",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=overview",
+        "nav": true,
+        "icon": "overview",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended.",
+        "order": 10,
+        "group": null,
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.event-page",
+        "kind": "screen",
+        "label": "Event page",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page",
+        "nav": true,
+        "icon": "page",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always editable, even after the event ends (the public page stays up as a record).",
+        "order": 20,
+        "group": "Set up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.settings",
+        "kind": "screen",
+        "label": "Settings",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings",
+        "nav": true,
+        "icon": "settings",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always shown, including Delete this event, at every stage.",
+        "order": 30,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.people",
+        "kind": "screen",
+        "label": "People",
+        "role": "organiser",
+        "screen": "organiser-people",
+        "section": "people",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=people",
+        "nav": true,
+        "icon": "users",
+        "phone_tab": false,
+        "badge": "4",
+        "stage_rule": "Always shown. Badge: applications waiting for a decision, the same count as Overview's Needs you line; reads 'Sign-up isn't open yet' before Open.",
+        "order": 40,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.teams",
+        "kind": "screen",
+        "label": "Teams",
+        "role": "organiser",
+        "screen": "organiser-teams",
+        "section": "teams",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=teams",
+        "nav": true,
+        "icon": "team",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why. Badge: people not on a team, from Open through Building.",
+        "order": 50,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.entries",
+        "kind": "screen",
+        "label": "Entries",
+        "role": "organiser",
+        "screen": "organiser-entries",
+        "section": "entries",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=entries",
+        "nav": true,
+        "icon": "entries",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always shown. The list is empty until teams start saving entries.",
+        "order": 60,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.announcements",
+        "kind": "screen",
+        "label": "Announcements",
+        "role": "organiser",
+        "screen": "organiser-announcements",
+        "section": "announcements",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=announcements",
+        "nav": true,
+        "icon": "megaphone",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always shown. Post, edit and delete from Draft until the event ends; after End the list stays readable but nothing can be posted or changed.",
+        "order": 70,
+        "group": "Run",
+        "action_label": "Send"
+      },
+      {
+        "id": "o.judging",
+        "kind": "screen",
+        "label": "Judging",
+        "role": "organiser",
+        "screen": "organiser-judging",
+        "section": "judging",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=judging",
+        "nav": true,
+        "icon": "rubric",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always shown. Progress, assignments, conflicts and lock; configuration links to Settings \u2192 Judging.",
+        "order": 80,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.results",
+        "kind": "screen",
+        "label": "Results",
+        "role": "organiser",
+        "screen": "organiser-results",
+        "section": "results",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=results",
+        "nav": true,
+        "icon": "chart",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked.",
+        "order": 90,
+        "group": "Wrap up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "p.home",
+        "kind": "screen",
+        "label": "Overview",
+        "role": "participant",
+        "screen": "participant-home",
+        "section": "home",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=home",
+        "nav": true,
+        "icon": "overview",
+        "short": "Overview",
+        "phone_tab": true,
+        "badge": "1",
+        "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet. Badge: unseen news (the Needs you card's dismissable rows not yet dismissed).",
+        "order": 10,
+        "group": null
+      },
+      {
+        "id": "p.schedule",
+        "kind": "screen",
+        "label": "Schedule",
+        "role": "participant",
+        "screen": "participant-schedule",
+        "section": "schedule",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=schedule",
+        "nav": true,
+        "icon": "calendar",
+        "phone_tab": false,
+        "badge": null,
+        "stage_rule": "Always reachable once approved; shows 'Nothing scheduled yet' until the organiser adds times.",
+        "order": 20,
+        "group": null
+      },
+      {
+        "id": "p.announcements",
+        "kind": "screen",
+        "label": "Announcements",
+        "role": "participant",
+        "screen": "participant-announcements",
+        "section": "announcements",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=announcements",
+        "nav": true,
+        "icon": "megaphone",
+        "phone_tab": false,
+        "badge": "2",
+        "stage_rule": "Always reachable once approved; empty state until the organiser posts one. Badge: announcements posted since this browser last opened this screen, counted client-side and cleared the moment it opens.",
+        "order": 30,
+        "group": null
+      },
+      {
+        "id": "p.team",
+        "kind": "screen",
+        "label": "Team",
+        "role": "participant",
+        "screen": "participant-team",
+        "section": "team",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=team",
+        "nav": true,
+        "icon": "team",
+        "short": "Team",
+        "phone_tab": true,
+        "badge": "1",
+        "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to.",
+        "order": 40,
+        "group": null
+      },
+      {
+        "id": "p.entry",
+        "kind": "screen",
+        "label": "Entry",
+        "role": "participant",
+        "screen": "participant-entry",
+        "section": "entry",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=entry",
+        "nav": true,
+        "icon": "file",
+        "short": "Entry",
+        "phone_tab": true,
+        "badge": null,
+        "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on.",
+        "order": 50,
+        "group": null
+      },
+      {
+        "id": "p.website",
+        "kind": "screen",
+        "label": "Website",
+        "role": "participant",
+        "screen": "participant-website",
+        "section": "website",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=website",
+        "nav": true,
+        "icon": "globe",
+        "short": "Website",
+        "phone_tab": true,
+        "badge": null,
+        "stage_rule": "Same gating as Entry: needs a team, editable until the deadline, read-only (view-only link) after.",
+        "order": 60,
+        "group": null
+      },
+      {
+        "id": "p.results",
+        "kind": "screen",
+        "label": "Results",
+        "role": "participant",
+        "screen": "participant-results",
+        "section": "results",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=results",
+        "nav": true,
+        "icon": "trophy",
+        "phone_tab": false,
+        "badge": "New",
+        "stage_rule": "Hidden entirely until the organiser publishes results; appears the moment they do.",
+        "stages": [
+          "results",
+          "ended"
+        ],
+        "order": 70,
+        "group": null
+      },
+      {
+        "id": "j.home",
+        "kind": "screen",
+        "label": "Overview",
+        "role": "judge",
+        "screen": "judge-home",
+        "section": "home",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/judge?s=home",
+        "nav": true,
+        "icon": "overview",
+        "short": "Overview",
+        "phone_tab": true,
+        "badge": null,
+        "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens.",
+        "order": 10,
+        "group": null
+      },
+      {
+        "id": "j.queue",
+        "kind": "screen",
+        "label": "My teams",
+        "role": "judge",
+        "screen": "judge-queue",
+        "section": "queue",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/judge?s=queue",
+        "nav": true,
+        "icon": "queue",
+        "short": "My teams",
+        "phone_tab": true,
+        "badge": "3",
+        "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+        "order": 20,
+        "group": null
+      },
+      {
+        "id": "j.rubric",
+        "kind": "screen",
+        "label": "Rubric & brief",
+        "role": "judge",
+        "screen": "judge-rubric",
+        "section": "rubric",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/judge?s=rubric",
+        "nav": true,
+        "icon": "rubric",
+        "short": "Rubric",
+        "phone_tab": true,
+        "badge": null,
+        "stage_rule": "Available as soon as the organiser saves a rubric, even before judging opens, so a judge can read it ahead of time.",
+        "order": 30,
+        "group": null
+      },
+      {
+        "id": "events",
+        "kind": "screen",
+        "label": "Your events",
+        "role": "global",
+        "screen": "landing-your-events",
+        "section": null,
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/events",
+        "nav": false,
+        "order": 200,
+        "group": null
+      },
+      {
+        "id": "account",
+        "kind": "screen",
+        "label": "Account",
+        "role": "global",
+        "screen": "account",
+        "section": null,
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/account",
+        "nav": false,
+        "order": 210,
+        "group": null
+      },
+      {
+        "id": "directory",
+        "kind": "screen",
+        "label": "Find a hackathon",
+        "role": "global",
+        "screen": "public-directory",
+        "section": null,
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/directory",
+        "nav": false,
+        "order": 220,
+        "group": null
+      },
+      {
+        "id": "o.basics",
+        "kind": "setting",
+        "label": "Add event basics",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "basics",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=basics",
+        "nav": false,
+        "order": 230,
+        "group": "Set up",
+        "action_label": "Add"
+      },
+      {
+        "id": "o.times",
+        "kind": "setting",
+        "label": "Add start and end times",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "basics",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=basics",
+        "nav": false,
+        "order": 240,
+        "group": "Set up",
+        "action_label": "Set"
+      },
+      {
+        "id": "o.about",
+        "kind": "setting",
+        "label": "Describe the event",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "about",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=about",
+        "nav": false,
+        "order": 250,
+        "group": "Set up",
+        "action_label": "Add"
+      },
+      {
+        "id": "o.prizes",
+        "kind": "setting",
+        "label": "Prizes",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "about",
+        "anchor": "prizes",
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=about#prizes",
+        "nav": false,
+        "order": 260,
+        "group": "Set up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.rules",
+        "kind": "setting",
+        "label": "Rules",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "about",
+        "anchor": "rules",
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=about#rules",
+        "nav": false,
+        "order": 270,
+        "group": "Set up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.coc",
+        "kind": "setting",
+        "label": "Code of conduct",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "about",
+        "anchor": "conduct",
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=about#conduct",
+        "nav": false,
+        "order": 280,
+        "group": "Set up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.schedule",
+        "kind": "setting",
+        "label": "Add a schedule",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "schedule",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=schedule",
+        "nav": false,
+        "order": 290,
+        "group": "Set up",
+        "action_label": "Add"
+      },
+      {
+        "id": "o.tracks",
+        "kind": "setting",
+        "label": "Add tracks",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "tracks",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=tracks",
+        "nav": false,
+        "order": 300,
+        "group": "Set up",
+        "action_label": "Add"
+      },
+      {
+        "id": "o.sponsors",
+        "kind": "setting",
+        "label": "Add sponsors",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "sponsors",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=sponsors",
+        "nav": false,
+        "order": 310,
+        "group": "Set up",
+        "action_label": "Add"
+      },
+      {
+        "id": "o.faq",
+        "kind": "setting",
+        "label": "Add common questions",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "faq",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=faq",
+        "nav": false,
+        "order": 320,
+        "group": "Set up",
+        "action_label": "Add"
+      },
+      {
+        "id": "o.look",
+        "kind": "setting",
+        "label": "Look",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "look",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=look",
+        "nav": false,
+        "order": 330,
+        "group": "Set up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.gallery",
+        "kind": "setting",
+        "label": "Gallery",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "look",
+        "anchor": "gallery",
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=look#gallery",
+        "nav": false,
+        "order": 340,
+        "group": "Set up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.website",
+        "kind": "setting",
+        "label": "Website",
+        "role": "organiser",
+        "screen": "organiser-event-page",
+        "section": "event-page",
+        "tab": "website",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=website",
+        "nav": false,
+        "order": 350,
+        "group": "Set up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.signup",
+        "kind": "setting",
+        "label": "Sign-up",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "signup",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=signup",
+        "nav": false,
+        "order": 360,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.applications-setting",
+        "kind": "setting",
+        "label": "Applications",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "signup",
+        "anchor": "applications",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=signup#applications",
+        "nav": false,
+        "order": 370,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.directory",
+        "kind": "setting",
+        "label": "Directory listing",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "signup",
+        "anchor": "directory",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=signup#directory",
+        "nav": false,
+        "order": 380,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.team-rules",
+        "kind": "setting",
+        "label": "Team rules",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "teams",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=teams",
+        "nav": false,
+        "order": 390,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.deadline",
+        "kind": "setting",
+        "label": "Set the entry deadline",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "entries",
+        "anchor": "deadline",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=entries#deadline",
+        "nav": false,
+        "order": 400,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Set"
+      },
+      {
+        "id": "o.entry-rules",
+        "kind": "setting",
+        "label": "Choose what teams hand in",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "entries",
+        "anchor": "entry-rules",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=entries#entry-rules",
+        "nav": false,
+        "order": 410,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Choose"
+      },
+      {
+        "id": "o.reminders",
+        "kind": "setting",
+        "label": "Set reminder times",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "reminders",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=reminders",
+        "nav": false,
+        "order": 420,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Set"
+      },
+      {
+        "id": "o.rubric",
+        "kind": "setting",
+        "label": "Set the rubric",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "rubric",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#rubric",
+        "nav": false,
+        "order": 430,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Set"
+      },
+      {
+        "id": "o.rubric-ready",
+        "kind": "setting",
+        "label": "Rubric final",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "rubric-final",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#rubric-final",
+        "nav": false,
+        "order": 440,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Review"
+      },
+      {
+        "id": "o.judging-mode",
+        "kind": "setting",
+        "label": "Choose how judges score",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "mode",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#mode",
+        "nav": false,
+        "order": 450,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Choose"
+      },
+      {
+        "id": "o.mode",
+        "kind": "setting",
+        "label": "Choose how judges score",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "mode",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#mode",
+        "nav": false,
+        "order": 460,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Choose"
+      },
+      {
+        "id": "o.tie-break",
+        "kind": "setting",
+        "label": "Choose a tie-break",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "tie-break",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#tie-break",
+        "nav": false,
+        "order": 470,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Choose"
+      },
+      {
+        "id": "o.judging-closes",
+        "kind": "setting",
+        "label": "Set when judging closes",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "closes",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#closes",
+        "nav": false,
+        "order": 480,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Set"
+      },
+      {
+        "id": "o.result-rules",
+        "kind": "setting",
+        "label": "Results rules",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "results",
+        "anchor": "ranking",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=results#ranking",
+        "nav": false,
+        "order": 490,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.voting",
+        "kind": "setting",
+        "label": "People\u2019s choice",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "results",
+        "anchor": "voting",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=results#voting",
+        "nav": false,
+        "order": 500,
+        "group": "Set up",
+        "settings_group": "rules",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.details",
+        "kind": "setting",
+        "label": "Organiser details",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "details",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=details",
+        "nav": false,
+        "order": 510,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.organisers",
+        "kind": "setting",
+        "label": "Organisers",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "organisers",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=organisers",
+        "nav": false,
+        "order": 520,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.links",
+        "kind": "setting",
+        "label": "Links",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "links",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=links",
+        "nav": false,
+        "order": 530,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.notifications",
+        "kind": "setting",
+        "label": "Notifications",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "notifications",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=notifications",
+        "nav": false,
+        "order": 540,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.leave",
+        "kind": "setting",
+        "label": "Leave event",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "danger",
+        "anchor": "leave",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=danger#leave",
+        "nav": false,
+        "order": 550,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.handover",
+        "kind": "setting",
+        "label": "Hand over event",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "danger",
+        "anchor": "handover",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=danger#handover",
+        "nav": false,
+        "order": 560,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.delete",
+        "kind": "setting",
+        "label": "Delete event",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "danger",
+        "anchor": "delete",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=danger#delete",
+        "nav": false,
+        "order": 570,
+        "group": "Set up",
+        "settings_group": "event",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.stage",
+        "kind": "action",
+        "label": "Change stage",
+        "role": "organiser",
+        "screen": "organiser-overview",
+        "section": "overview",
+        "tab": null,
+        "anchor": "ov-change-stage",
+        "href_pattern": "/e/{slug}/manage?s=overview#ov-change-stage",
+        "nav": false,
+        "order": 580,
+        "group": null,
+        "action_label": "Review"
+      },
+      {
+        "id": "o.end",
+        "kind": "action",
+        "label": "End the event",
+        "role": "organiser",
+        "screen": "organiser-overview",
+        "section": "overview",
+        "tab": null,
+        "anchor": "ov-end",
+        "href_pattern": "/e/{slug}/manage?s=overview#ov-end",
+        "nav": false,
+        "order": 590,
+        "group": null,
+        "action_label": "End"
+      },
+      {
+        "id": "o.announcement",
+        "kind": "section",
+        "label": "Send an announcement",
+        "role": "organiser",
+        "screen": "organiser-announcements",
+        "section": "announcements",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=announcements",
+        "nav": false,
+        "order": 600,
+        "group": "Run",
+        "action_label": "Send"
+      },
+      {
+        "id": "o.applications",
+        "kind": "section",
+        "label": "Applications",
+        "role": "organiser",
+        "screen": "organiser-people",
+        "section": "people",
+        "tab": "applications",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=people&tab=applications",
+        "nav": false,
+        "order": 610,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.judges",
+        "kind": "section",
+        "label": "Have judges ready",
+        "role": "organiser",
+        "screen": "organiser-people",
+        "section": "people",
+        "tab": "people",
+        "anchor": "judges",
+        "href_pattern": "/e/{slug}/manage?s=people&tab=people#judges",
+        "nav": false,
+        "order": 620,
+        "group": "Run",
+        "action_label": "Review"
+      },
+      {
+        "id": "o.solo",
+        "kind": "section",
+        "label": "Not on a team",
+        "role": "organiser",
+        "screen": "organiser-teams",
+        "section": "teams",
+        "tab": "solo",
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=teams&tab=solo",
+        "nav": false,
+        "order": 630,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.team-detail",
+        "kind": "section",
+        "label": "Team",
+        "role": "organiser",
+        "screen": "organiser-team-detail",
+        "section": "team",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=team&team={team}",
+        "nav": false,
+        "order": 640,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.entry-detail",
+        "kind": "section",
+        "label": "Entry",
+        "role": "organiser",
+        "screen": "organiser-entry-detail",
+        "section": "entry",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=entry&team={team}",
+        "nav": false,
+        "order": 650,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.conflicts",
+        "kind": "section",
+        "label": "Conflicts",
+        "role": "organiser",
+        "screen": "organiser-judging",
+        "section": "judging",
+        "tab": null,
+        "anchor": "jg-conflicts-card",
+        "href_pattern": "/e/{slug}/manage?s=judging#jg-conflicts-card",
+        "nav": false,
+        "order": 660,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.former-judges",
+        "kind": "section",
+        "label": "Former judges",
+        "role": "organiser",
+        "screen": "organiser-judging",
+        "section": "judging",
+        "tab": null,
+        "anchor": "jg-former",
+        "href_pattern": "/e/{slug}/manage?s=judging#jg-former",
+        "nav": false,
+        "order": 670,
+        "group": "Run",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.lock",
+        "kind": "action",
+        "label": "Finish judging",
+        "role": "organiser",
+        "screen": "organiser-judging",
+        "section": "judging",
+        "tab": null,
+        "anchor": "jg-lockzone",
+        "href_pattern": "/e/{slug}/manage?s=judging#jg-lockzone",
+        "nav": false,
+        "order": 680,
+        "group": "Run",
+        "action_label": "Review"
+      },
+      {
+        "id": "o.scores",
+        "kind": "section",
+        "label": "Every judge done",
+        "role": "organiser",
+        "screen": "organiser-judging",
+        "section": "judging",
+        "tab": null,
+        "anchor": "jg-progress-card",
+        "href_pattern": "/e/{slug}/manage?s=judging#jg-progress-card",
+        "nav": false,
+        "order": 690,
+        "group": "Run",
+        "action_label": "Review"
+      },
+      {
+        "id": "o.ties",
+        "kind": "action",
+        "label": "Resolve tied places",
+        "role": "organiser",
+        "screen": "organiser-results",
+        "section": "results",
+        "tab": null,
+        "anchor": "res-override",
+        "href_pattern": "/e/{slug}/manage?s=results#res-override",
+        "nav": false,
+        "order": 700,
+        "group": "Wrap up",
+        "action_label": "Review"
+      },
+      {
+        "id": "o.publish",
+        "kind": "action",
+        "label": "Publish results",
+        "role": "organiser",
+        "screen": "organiser-results",
+        "section": "results",
+        "tab": null,
+        "anchor": "res-publish-section",
+        "href_pattern": "/e/{slug}/manage?s=results#res-publish-section",
+        "nav": false,
+        "order": 710,
+        "group": "Wrap up",
+        "action_label": "Review"
+      },
+      {
+        "id": "o.downloads",
+        "kind": "section",
+        "label": "Downloads",
+        "role": "organiser",
+        "screen": "organiser-results",
+        "section": "results",
+        "tab": null,
+        "anchor": "res-downloads",
+        "href_pattern": "/e/{slug}/manage?s=results#res-downloads",
+        "nav": false,
+        "order": 720,
+        "group": "Wrap up",
+        "action_label": "Edit"
+      },
+      {
+        "id": "o.assignments",
+        "kind": "section",
+        "label": "Assign judges",
+        "role": "organiser",
+        "screen": "organiser-judging-assignments",
+        "section": "assignments",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/manage?s=assignments",
+        "nav": false,
+        "order": 730,
+        "group": "Run",
+        "action_label": "Assign"
+      },
+      {
+        "id": "o.public-page",
+        "kind": "action",
+        "label": "Open event page",
+        "role": "organiser",
+        "screen": "public-event-page",
+        "section": null,
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "https://{slug}.simple-hack.app",
+        "nav": false,
+        "order": 740,
+        "group": "Run",
+        "action_label": "Review"
+      },
+      {
+        "id": "j.invite",
+        "kind": "section",
+        "label": "Accept the judge invite",
+        "role": "judge",
+        "screen": "judge-home",
+        "section": "home",
+        "tab": null,
+        "anchor": "invite",
+        "href_pattern": "/e/{slug}/judge?s=home#invite",
+        "nav": false,
+        "order": 750,
+        "group": null
+      },
+      {
+        "id": "j.conduct",
+        "kind": "section",
+        "label": "Code of conduct",
+        "role": "judge",
+        "screen": "judge-home",
+        "section": "home",
+        "tab": null,
+        "anchor": "conduct",
+        "href_pattern": "/e/{slug}/judge?s=home#conduct",
+        "nav": false,
+        "order": 760,
+        "group": null
+      },
+      {
+        "id": "j.coc",
+        "kind": "section",
+        "label": "Accept the code of conduct",
+        "role": "judge",
+        "screen": "judge-home",
+        "section": "home",
+        "tab": null,
+        "anchor": "conduct",
+        "href_pattern": "/e/{slug}/judge?s=home#conduct",
+        "nav": false,
+        "order": 770,
+        "group": null
+      },
+      {
+        "id": "j.conflicts",
+        "kind": "section",
+        "label": "Check who you know",
+        "role": "judge",
+        "screen": "judge-queue",
+        "section": "queue",
+        "tab": "conflicts",
+        "anchor": "conflicts",
+        "href_pattern": "/e/{slug}/judge?s=queue&tab=conflicts#conflicts",
+        "nav": false,
+        "order": 780,
+        "group": null
+      },
+      {
+        "id": "j.scoring",
+        "kind": "section",
+        "label": "Score next",
+        "role": "judge",
+        "screen": "judge-scoring",
+        "section": "scoring",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/judge?s=scoring&team={team}",
+        "nav": false,
+        "order": 790,
+        "group": null
+      },
+      {
+        "id": "j.scores",
+        "kind": "section",
+        "label": "Score each team",
+        "role": "judge",
+        "screen": "judge-queue",
+        "section": "queue",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/judge?s=queue",
+        "nav": false,
+        "order": 800,
+        "group": null
+      },
+      {
+        "id": "j.closes",
+        "kind": "section",
+        "label": "Judging closes",
+        "role": "judge",
+        "screen": "judge-home",
+        "section": "home",
+        "tab": null,
+        "anchor": "closes",
+        "href_pattern": "/e/{slug}/judge?s=home#closes",
+        "nav": false,
+        "order": 810,
+        "group": null
+      },
+      {
+        "id": "p.summary",
+        "kind": "section",
+        "label": "Fill in the summary card",
+        "role": "participant",
+        "screen": "participant-entry",
+        "section": "entry",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=entry",
+        "nav": false,
+        "order": 820,
+        "group": null
+      },
+      {
+        "id": "p.evidence",
+        "kind": "section",
+        "label": "Add evidence",
+        "role": "participant",
+        "screen": "participant-entry",
+        "section": "entry",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=entry",
+        "nav": false,
+        "order": 830,
+        "group": null
+      },
+      {
+        "id": "p.submit",
+        "kind": "section",
+        "label": "Submit before the deadline",
+        "role": "participant",
+        "screen": "participant-entry",
+        "section": "entry",
+        "tab": null,
+        "anchor": null,
+        "href_pattern": "/e/{slug}/team?s=entry",
+        "nav": false,
+        "order": 840,
+        "group": null
+      }
+    ],
+    "roles": [
+      {
+        "id": "organiser",
+        "who": "Runs the event: Amara, COO at Generation Girl, setting up over weeks then running a live weekend -- approving people, watching teams form, posting updates, judging, publishing results.",
+        "nav": [
+          {
+            "id": "overview",
+            "label": "Home",
+            "icon": "overview",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended.",
+            "order": 10,
+            "group": null,
+            "target_id": "o.home"
+          },
+          {
+            "id": "event-page",
+            "label": "Event page",
+            "icon": "page",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always editable, even after the event ends (the public page stays up as a record).",
+            "order": 20,
+            "group": "Set up",
+            "target_id": "o.event-page"
+          },
+          {
+            "id": "settings",
+            "label": "Settings",
+            "icon": "settings",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always shown, including Delete this event, at every stage.",
+            "order": 30,
+            "group": "Set up",
+            "target_id": "o.settings"
+          },
+          {
+            "id": "people",
+            "label": "People",
+            "icon": "users",
+            "phone_tab": false,
+            "badge": "4",
+            "stage_rule": "Always shown. Badge: applications waiting for a decision, the same count as Overview's Needs you line; reads 'Sign-up isn't open yet' before Open.",
+            "order": 40,
+            "group": "Run",
+            "target_id": "o.people"
+          },
+          {
+            "id": "teams",
+            "label": "Teams",
+            "icon": "team",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why. Badge: people not on a team, from Open through Building.",
+            "order": 50,
+            "group": "Run",
+            "target_id": "o.teams"
+          },
+          {
+            "id": "entries",
+            "label": "Entries",
+            "icon": "entries",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always shown. The list is empty until teams start saving entries.",
+            "order": 60,
+            "group": "Run",
+            "target_id": "o.entries"
+          },
+          {
+            "id": "announcements",
+            "label": "Announcements",
+            "icon": "megaphone",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always shown. Post, edit and delete from Draft until the event ends; after End the list stays readable but nothing can be posted or changed.",
+            "order": 70,
+            "group": "Run",
+            "target_id": "o.announcements"
+          },
+          {
+            "id": "judging",
+            "label": "Judging",
+            "icon": "rubric",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always shown. Progress, assignments, conflicts and lock; configuration links to Settings \u2192 Judging.",
+            "order": 80,
+            "group": "Run",
+            "target_id": "o.judging"
+          },
+          {
+            "id": "results",
+            "label": "Results",
+            "icon": "chart",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked.",
+            "order": 90,
+            "group": "Wrap up",
+            "target_id": "o.results"
+          }
+        ]
+      },
+      {
+        "id": "participant",
+        "who": "Siti, a university student on her first hackathon, mostly on her phone: joins, finds a team, describes her idea, lets her AI publish the site, checks results.",
+        "nav": [
+          {
+            "id": "home",
+            "label": "Overview",
+            "icon": "overview",
+            "short": "Overview",
+            "phone_tab": true,
+            "badge": "1",
+            "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet. Badge: unseen news (the Needs you card's dismissable rows not yet dismissed).",
+            "order": 10,
+            "group": null,
+            "target_id": "p.home"
+          },
+          {
+            "id": "schedule",
+            "label": "Schedule",
+            "icon": "calendar",
+            "phone_tab": false,
+            "badge": null,
+            "stage_rule": "Always reachable once approved; shows 'Nothing scheduled yet' until the organiser adds times.",
+            "order": 20,
+            "group": null,
+            "target_id": "p.schedule"
+          },
+          {
+            "id": "announcements",
+            "label": "Announcements",
+            "icon": "megaphone",
+            "phone_tab": false,
+            "badge": "2",
+            "stage_rule": "Always reachable once approved; empty state until the organiser posts one. Badge: announcements posted since this browser last opened this screen, counted client-side and cleared the moment it opens.",
+            "order": 30,
+            "group": null,
+            "target_id": "p.announcements"
+          },
+          {
+            "id": "team",
+            "label": "Team",
+            "icon": "team",
+            "short": "Team",
+            "phone_tab": true,
+            "badge": "1",
+            "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to.",
+            "order": 40,
+            "group": null,
+            "target_id": "p.team"
+          },
+          {
+            "id": "entry",
+            "label": "Entry",
+            "icon": "file",
+            "short": "Entry",
+            "phone_tab": true,
+            "badge": null,
+            "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on.",
+            "order": 50,
+            "group": null,
+            "target_id": "p.entry"
+          },
+          {
+            "id": "website",
+            "label": "Website",
+            "icon": "globe",
+            "short": "Website",
+            "phone_tab": true,
+            "badge": null,
+            "stage_rule": "Same gating as Entry: needs a team, editable until the deadline, read-only (view-only link) after.",
+            "order": 60,
+            "group": null,
+            "target_id": "p.website"
+          },
+          {
+            "id": "results",
+            "label": "Results",
+            "icon": "trophy",
+            "phone_tab": false,
+            "badge": "New",
+            "stage_rule": "Hidden entirely until the organiser publishes results; appears the moment they do.",
+            "stages": [
+              "results",
+              "ended"
+            ],
+            "order": 70,
+            "group": null,
+            "target_id": "p.results"
+          }
+        ]
+      },
+      {
+        "id": "judge",
+        "who": "Pak Budi, a volunteer product lead judging his third Simple Hack event: accepts the invite, reads the rubric once, scores entries one by one over an evening, declares a conflict on one team he knows personally.",
+        "nav": [
+          {
+            "id": "home",
+            "label": "Overview",
+            "icon": "overview",
+            "short": "Overview",
+            "phone_tab": true,
+            "badge": null,
+            "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens.",
+            "order": 10,
+            "group": null,
+            "target_id": "j.home"
+          },
+          {
+            "id": "queue",
+            "label": "My teams",
+            "icon": "queue",
+            "short": "My teams",
+            "phone_tab": true,
+            "badge": "3",
+            "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+            "order": 20,
+            "group": null,
+            "target_id": "j.queue"
+          },
+          {
+            "id": "rubric",
+            "label": "Rubric & brief",
+            "icon": "rubric",
+            "short": "Rubric",
+            "phone_tab": true,
+            "badge": null,
+            "stage_rule": "Available as soon as the organiser saves a rubric, even before judging opens, so a judge can read it ahead of time.",
+            "order": 30,
+            "group": null,
+            "target_id": "j.rubric"
+          }
+        ]
+      },
+      {
+        "id": "visitor",
+        "who": "Someone with a shared link or a search hit, deciding whether to sign in: a prospective participant, a parent checking the event is legitimate, or someone browsing finished projects.",
+        "nav": [
+          {
+            "id": "home",
+            "label": "Simple Hack",
+            "icon": "home",
+            "short": "Home",
+            "phone_tab": true,
+            "badge": null,
+            "stage_rule": "Always shown; the marketing landing.",
+            "order": 10,
+            "group": null
+          },
+          {
+            "id": "directory",
+            "label": "Find a hackathon",
+            "icon": "globe",
+            "short": "Explore",
+            "phone_tab": true,
+            "badge": null,
+            "stage_rule": "Always shown.",
+            "order": 20,
+            "group": null
+          },
+          {
+            "id": "sign-in",
+            "label": "Sign in",
+            "icon": "people",
+            "short": "Sign in",
+            "phone_tab": true,
+            "badge": null,
+            "stage_rule": "Always shown.",
+            "order": 30,
+            "group": null
+          }
+        ]
+      }
+    ],
+    "aliases": [
+      {
+        "section": "teams",
+        "target": "o.tracks",
+        "tab": "tracks"
+      },
+      {
+        "section": "teams",
+        "target": "o.team-rules",
+        "tab": "settings"
+      },
+      {
+        "section": "people",
+        "target": "o.signup",
+        "tab": "signup"
+      },
+      {
+        "section": "people",
+        "target": "o.organisers",
+        "tab": "coorg"
+      },
+      {
+        "section": "people",
+        "target": "o.organisers",
+        "tab": "co-organisers"
+      },
+      {
+        "section": "people",
+        "target": "o.organisers",
+        "tab": "organisers"
+      },
+      {
+        "section": "people",
+        "target": "o.signup",
+        "anchor": "signup"
+      },
+      {
+        "section": "people",
+        "target": "o.organisers",
+        "anchor": "coorg"
+      },
+      {
+        "section": "entries",
+        "target": "o.deadline",
+        "anchor": "deadline"
+      },
+      {
+        "section": "entries",
+        "target": "o.entry-rules",
+        "anchor": "entry-rules"
+      },
+      {
+        "section": "entries",
+        "target": "o.entry-rules",
+        "anchor": "handin"
+      },
+      {
+        "section": "entries",
+        "target": "o.reminders",
+        "anchor": "reminders"
+      },
+      {
+        "section": "judging",
+        "target": "o.rubric",
+        "anchor": "jg-rubric-card"
+      },
+      {
+        "section": "judging",
+        "target": "o.tie-break",
+        "anchor": "jg-tie-card"
+      },
+      {
+        "section": "judging",
+        "target": "o.judging-mode",
+        "anchor": "jg-mode-card"
+      },
+      {
+        "section": "judging",
+        "target": "o.judging-closes",
+        "anchor": "jg-closes-card"
+      },
+      {
+        "section": "results",
+        "target": "o.result-rules",
+        "anchor": "res-score-mode"
+      },
+      {
+        "section": "results",
+        "target": "o.result-rules",
+        "anchor": "res-score-mode-save"
+      },
+      {
+        "section": "results",
+        "target": "o.result-rules",
+        "anchor": "res-visibility"
+      },
+      {
+        "section": "results",
+        "target": "o.result-rules",
+        "anchor": "res-public-scores"
+      },
+      {
+        "section": "results",
+        "target": "o.result-rules",
+        "anchor": "res-public-ranks"
+      },
+      {
+        "section": "results",
+        "target": "o.result-rules",
+        "anchor": "res-visibility-save"
+      },
+      {
+        "section": "results",
+        "target": "o.result-rules",
+        "anchor": "res-visibility-hint"
+      },
+      {
+        "section": "results",
+        "target": "o.voting",
+        "anchor": "res-vote-status"
+      },
+      {
+        "section": "results",
+        "target": "o.voting",
+        "anchor": "res-vote-enabled"
+      },
+      {
+        "section": "results",
+        "target": "o.voting",
+        "anchor": "res-vote-opens"
+      },
+      {
+        "section": "results",
+        "target": "o.voting",
+        "anchor": "res-vote-closes"
+      },
+      {
+        "section": "results",
+        "target": "o.voting",
+        "anchor": "res-vote-window-save"
+      },
+      {
+        "section": "results",
+        "target": "o.voting",
+        "anchor": "res-vote-eligibility"
+      },
+      {
+        "section": "results",
+        "target": "o.voting",
+        "anchor": "res-vote-eligibility-save"
+      },
+      {
+        "section": "results",
+        "target": "o.directory",
+        "anchor": "res-directory-listed"
+      },
+      {
+        "section": "results",
+        "target": "o.directory",
+        "anchor": "res-directory-save"
+      },
+      {
+        "section": "settings",
+        "target": "o.signup",
+        "anchor": "applications",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.notifications",
+        "anchor": "notify-list",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.notifications",
+        "anchor": "notify-form",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.notifications",
+        "anchor": "notify-advanced",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.details",
+        "anchor": "set-name",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.details",
+        "anchor": "set-org",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.details",
+        "anchor": "set-email",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.details",
+        "anchor": "set-purpose",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.details",
+        "anchor": "set-n",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.leave",
+        "anchor": "leave-open",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "settings",
+        "target": "o.delete",
+        "anchor": "delete-open",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.basics",
+        "anchor": "basics",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.schedule",
+        "anchor": "schedule",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.sponsors",
+        "anchor": "sponsors",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.faq",
+        "anchor": "faq",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.look",
+        "anchor": "appearance",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.website",
+        "anchor": "address",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.announcements",
+        "anchor": "announcements",
+        "unless_valid_tab": true
+      },
+      {
+        "section": "event-page",
+        "target": "o.announcements",
+        "tab": "announcements"
+      }
+    ],
+    "resolution": {
+      "default_sections": {
+        "organiser": "overview",
+        "participant": "home",
+        "judge": "home"
+      },
+      "default_tabs": {
+        "event-page": "basics",
+        "settings": "signup",
+        "teams": "teams"
+      },
+      "preserve_other_parameters": true,
+      "replace_history": true,
+      "precedence": "Recognised canonical tab before legacy hash; exact tab aliases before fragment aliases; unknown or malformed values use screen default.",
+      "settings_tabs": [
+        {
+          "id": "signup",
+          "label": "Sign-up"
+        },
+        {
+          "id": "teams",
+          "label": "Teams"
+        },
+        {
+          "id": "entries",
+          "label": "Entries"
+        },
+        {
+          "id": "reminders",
+          "label": "Reminders"
+        },
+        {
+          "id": "judging",
+          "label": "Judging"
+        },
+        {
+          "id": "results",
+          "label": "Results"
+        },
+        {
+          "id": "details",
+          "label": "Organiser details"
+        },
+        {
+          "id": "organisers",
+          "label": "Organisers"
+        },
+        {
+          "id": "links",
+          "label": "Links"
+        },
+        {
+          "id": "notifications",
+          "label": "Notifications"
+        },
+        {
+          "id": "danger",
+          "label": "Leave or delete"
+        }
+      ]
+    }
+  };
+
+  // internal/handler/static/hack/navigation.js
+  function resolve(targetID, slug, params = {}) {
+    const t = navigation.targets.find((t2) => t2.id === targetID);
+    if (!t) throw new Error("Unknown navigation target: " + targetID);
+    const href2 = t.href_pattern.replace(/\{([^}]+)\}/g, (_, key) => {
+      const value = key === "slug" ? slug : params[key];
+      if (value == null) throw new Error("Missing navigation parameter: " + key);
+      return encodeURIComponent(value);
+    });
+    return { screen: t.screen, section: t.section, tab: t.tab, anchor: t.anchor, href: href2 };
+  }
+
+  // internal/mcp/apps/frame/organiser-nav.js
+  window.__hackOrgOrigin = "__ORIGIN__";
+  var IN_FRAME = { overview: 1, people: 1, judging: 1 };
+  function href(role, slug, section) {
+    if (role === "organiser" && IN_FRAME[section || "overview"]) return "#v=" + (section || "overview");
+    return window.__hackOrgOrigin + "/e/" + encodeURIComponent(slug) + "/" + { organiser: "manage", judge: "judge", participant: "team" }[role] + (section ? "?s=" + encodeURIComponent(section) : "");
+  }
+  function isAppRoute(path) {
+    return false;
+  }
+  function resolve2(id, slug, params) {
+    const target = resolve(id, slug, params);
+    return { ...target, href: target.href.startsWith("/") ? window.__hackOrgOrigin + target.href : target.href };
+  }
+
   // internal/handler/static/hack/ui.js
   var ui_exports = {};
   __export(ui_exports, {
@@ -55,19 +2337,6 @@
     writeLockReason: () => writeLockReason,
     zoneAbbr: () => zoneAbbr
   });
-
-  // internal/mcp/apps/frame/organiser-nav.js
-  window.__hackOrgOrigin = "__ORIGIN__";
-  var IN_FRAME = { overview: 1, people: 1, judging: 1 };
-  function href(role, slug, section) {
-    if (role === "organiser" && IN_FRAME[section || "overview"]) return "#v=" + (section || "overview");
-    return window.__hackOrgOrigin + "/e/" + encodeURIComponent(slug) + "/manage" + (section ? "?s=" + encodeURIComponent(section) : "");
-  }
-  function isAppRoute(path) {
-    return false;
-  }
-
-  // internal/handler/static/hack/ui.js
   var esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var stages = { draft: "Not open yet", open: "Sign-up open", building: "Building", closed: "Entries closed", judging: "Judging", results: "Results", archived: "Ended", ended: "Ended" };
   var stageLabel = (stage) => stages[stage] || stage || "";
@@ -424,10 +2693,10 @@
       return { ok: false, status: res.status, data };
     }
     const blob = await res.blob();
-    const dataURL = await new Promise((resolve) => {
+    const dataURL = await new Promise((resolve3) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-      reader.onerror = () => resolve("");
+      reader.onload = () => resolve3(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => resolve3("");
       reader.readAsDataURL(blob);
     });
     return { ok: true, status: res.status, blob, dataURL };
@@ -484,7 +2753,7 @@
     return Array.from(box.querySelectorAll(FOCUSABLE_SEL)).filter((el2) => !el2.disabled && el2.tabIndex !== -1 && !el2.hidden);
   }
   function dialog({ title: title4, body, buttons, escapeValue = false, focus = 0 }) {
-    return new Promise((resolve) => {
+    return new Promise((resolve3) => {
       const previous = document.activeElement;
       const scrim = document.createElement("div");
       scrim.className = "scrim";
@@ -518,7 +2787,7 @@
         document.removeEventListener("keydown", keydown, true);
         scrim.remove();
         previous?.focus();
-        resolve(value);
+        resolve3(value);
       }
       function primaryButton() {
         return els.find((b) => b.classList.contains("primary")) || els[els.length - 1];
@@ -573,7 +2842,7 @@
     });
   }
   function confirmTyped({ title: title4, body, matchText, confirmLabel = "Confirm", cancelLabel = "Cancel", fieldLabel, danger = true }) {
-    return new Promise((resolve) => {
+    return new Promise((resolve3) => {
       const previous = document.activeElement;
       const scrim = document.createElement("div");
       scrim.className = "scrim";
@@ -618,7 +2887,7 @@
         document.removeEventListener("keydown", keydown, true);
         scrim.remove();
         previous?.focus();
-        resolve(value);
+        resolve3(value);
       }
       function sync() {
         okBtn.disabled = input.value.trim() !== matchText;
@@ -881,12 +3150,12 @@
     results: "Scoring and sign-up stop. Publish results when you are ready."
   };
   function stagePicker(current, offered, opts = {}) {
-    return new Promise((resolve) => {
+    return new Promise((resolve3) => {
       const order = STAGE_ORDER.filter((s) => offered.includes(s) && s !== "archived");
       const curIdx = order.indexOf(current);
       const choices = order.filter((s) => s !== current);
       if (!choices.length) {
-        resolve("");
+        resolve3("");
         return;
       }
       const nextIdx = curIdx >= 0 && curIdx < order.length - 1 ? curIdx + 1 : choices.length - 1;
@@ -908,7 +3177,7 @@
         document.removeEventListener("keydown", keydown, true);
         scrim.remove();
         if (previous && previous.focus) previous.focus();
-        resolve(value);
+        resolve3(value);
       }
       function keydown(e) {
         if (e.key === "Escape") {
@@ -1091,7 +3360,7 @@
   var STAGE_ORDER2 = ["draft", "open", "building", "closed", "judging", "results", "archived"];
   var autoTourTried = false;
   function title(ctx) {
-    return "Overview";
+    return "Home";
   }
   function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
     if (!step || step.kind === "none") {
@@ -1157,7 +3426,7 @@
     const archived = ev.stage === "archived";
     const resultsHref = href("organiser", ev.slug, "results");
     const settingsHref = href("organiser", ev.slug, "settings");
-    const entriesHandInHref = href("organiser", ev.slug, "entries") + "#handin";
+    const entriesHandInHref = resolve2("o.entry-rules", ev.slug).href;
     const step = data.next_step || { kind: "none" };
     const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref);
     const cue = content.button && !content.blocked ? cueHeading(ui, ev, step) : "";
@@ -1212,7 +3481,8 @@
     const needsLines = (data.needs_you || []).map((n) => `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href("organiser", ev.slug, n.section === "home" ? void 0 : n.section))}">${n.kind === "application_new" ? "Review applications" : "Open"}</a></div>`).join("");
     const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, "")).split(".").join(".<wbr>");
     main.innerHTML = `
-<div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button></div>
+<div class="ph keep-row"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>
+<p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
 ${content.button ? `<section class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
 ${needsLines}
@@ -1226,8 +3496,8 @@ ${needsLines}
 ${archived ? "" : `
 <h2 class="section-title">Share your event</h2>
 <div data-tour="share">
-<section class="card"><h2>Join link</h2><div class="copy"><input class="input mono" id="ov-join-url" aria-label="Join link" value="${ui.esc(org.join_url || "")}" readonly><button class="btn" type="button" id="ov-join-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-join-new">New link</button></div></section>
-<section class="card"><h2>Judge link</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Judge link" value="${ui.esc(org.judge_url || "")}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-judge-new">New link</button></div></section>
+<section class="card"><h2>Join link</h2><div class="copy"><input class="input mono" id="ov-join-url" aria-label="Join link" value="${ui.esc(org.join_url || "")}" readonly><button class="btn" type="button" id="ov-join-copy" data-admin-live>Copy</button></div></section>
+<section class="card"><h2>Judge link</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Judge link" value="${ui.esc(org.judge_url || "")}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button></div></section>
 </div>`}
 ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div>${(counts.participants ?? 0) > 0 ? `<button class="btn danger" type="button" id="ov-end">End event</button>` : `<div class="note">Nobody joined, so there is nothing to end. You can delete the event in <a href="${ui.esc(settingsHref)}">Settings</a>.</div>`}</div></section>`}`;
     adminLock(main, admin);
@@ -1261,25 +3531,6 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
       }
       $("ov-join-copy").addEventListener("click", () => copyInput($("ov-join-url"), $("ov-join-copy")));
       $("ov-judge-copy").addEventListener("click", () => copyInput($("ov-judge-url"), $("ov-judge-copy")));
-      async function regen(kind, btn) {
-        const ok = await ui.confirm({ title: "Make a new link?", body: kind === "join" ? "The old link stops working, even for people who have not used it yet. People already in the event stay." : "The old judge link stops working. Judges already in stay.", confirmLabel: "New link", danger: true });
-        if (!ok) return;
-        btn.disabled = true;
-        try {
-          const r = await api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/codes/" + kind);
-          if (!r.ok) {
-            setLive(ui.errText(r), "err");
-            btn.disabled = false;
-            return;
-          }
-          await ctx.refresh();
-        } catch (e) {
-          setLive("Cannot reach the server.", "err");
-          btn.disabled = false;
-        }
-      }
-      $("ov-join-new").addEventListener("click", () => regen("join", $("ov-join-new")));
-      $("ov-judge-new").addEventListener("click", () => regen("judge", $("ov-judge-new")));
       async function runEnd(btn) {
         const ok = await ui.confirm(END_CONFIRM);
         if (!ok) return;
@@ -1379,16 +3630,6 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
     render: () => render2,
     title: () => title2
   });
-
-  // internal/mcp/apps/frame/platform.js
-  function onSubmit(form, button, handler) {
-    button.addEventListener("click", handler);
-  }
-  function wantsSection(name) {
-    return name === "signup" && !!window.__hackOrgSignupOpen;
-  }
-
-  // internal/handler/static/hack/screens/organiser-people.js
   function title2(ctx) {
     return "People";
   }
@@ -1414,33 +3655,16 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
     const admin = !!data.admin_view;
     const path = "/v1/hack/events/" + encodeURIComponent(ev.slug);
     const setLive = ui.live(main);
-    let applications = [], people = [], questions = [], approvalRequired = true;
-    let applicationsOpen = true;
-    let savedQuestions = [];
-    let registrationError = false;
+    let applications = [], people = [];
     try {
-      const [a, p, r] = await Promise.all([api("GET", path + "/applications"), api("GET", path + "/people"), api("GET", path + "/registration")]);
+      const [a, p] = await Promise.all([api("GET", path + "/applications"), api("GET", path + "/people")]);
       if (a.ok) applications = a.data || [];
       if (p.ok) people = p.data || [];
-      if (r.ok) {
-        questions = r.data.questions || [];
-        approvalRequired = !!r.data.approval_required;
-        applicationsOpen = r.data.applications_open !== false;
-        savedQuestions = questions.map((q) => ({ ...q }));
-      } else registrationError = true;
     } catch (e) {
-      registrationError = true;
+      if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err");
     }
     if (!ctx.alive()) return;
-    function guardRegistration(btn) {
-      if (!registrationError) return false;
-      setLive("Could not load sign-up questions earlier. Reload the page before saving here.", "err", btn);
-      return true;
-    }
-    let roleFilter = "Everyone";
-    let invite = null;
-    let coorgOpen = false;
-    let signupOpen = wantsSection("signup");
+    let roleFilter = ctx.params.get("role") === "judge" || location.hash === "#judges" ? "Judges" : "Everyone";
     let appFrom = "all", appAge = "", appCountry = "", appSort = "oldest";
     function applicationCard(a) {
       const esc2 = ui.esc;
@@ -1462,20 +3686,12 @@ ${(a.answers || []).map((q) => `<p><b>${esc2(q.prompt)}</b><br>${q.answer ? esc2
       if (when) bits.push((notApproved ? "Applied " : "Joined ") + when);
       let actions = "";
       if (p.primary_organiser) actions = '<span class="meta">Event creator</span>';
-      else if (p.role === "organiser") actions = `<details><summary class="small muted">Actions</summary><button class="btn danger sm" type="button" data-remove-organiser="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" title="They lose manage access to this event right away. (The event's original creator can't be removed.)">Remove co-organiser</button></details>`;
+      else if (p.role === "organiser") actions = `<a href="${ui.esc(resolve2("o.organisers", ev.slug).href)}">Organisers</a>`;
       else {
         const keyBtn = p.has_key ? `<button class="btn danger sm" type="button" data-turn-off-key="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" title="Their key stops working at once. They'd need to create a new one themselves.">Turn off publishing key</button>` : "";
         actions = `<details><summary class="small muted">Actions</summary><button class="btn danger sm" type="button" data-remove-person="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" data-role="${ui.esc(p.role)}">Remove from event</button>${keyBtn}</details>`;
       }
       return `<div class="r"><div class="main"><b>${ui.esc(p.display_name || "Someone")}</b><span>${ui.esc(bits.filter(Boolean).join(" \xB7 "))}</span></div>${actions}</div>`;
-    }
-    function organiserLabel(p) {
-      const you = !!(ctx.me && p.user_id && ctx.me.id === p.user_id);
-      if (p.primary_organiser) return p.display_name + (you ? " (you, creator)" : " (creator)");
-      return p.display_name + (you ? " (you)" : "");
-    }
-    function questionRow(q, i) {
-      return `<div class="control-row" data-q-row="${i}"><input class="input" data-q-prompt="${i}" type="text" maxlength="160" value="${ui.esc(q.prompt || "")}" placeholder="Question" aria-label="Question ${i + 1}"><label class="check"><input type="checkbox" data-q-required="${i}"${q.required ? " checked" : ""}><span>Required</span></label><button class="btn danger sm" type="button" data-q-rm="${i}">Remove</button></div>`;
     }
     function paint() {
       const $ = (id) => main.querySelector("#" + id);
@@ -1504,31 +3720,12 @@ ${(a.answers || []).map((q) => `<p><b>${esc2(q.prompt)}</b><br>${q.answer ? esc2
 ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.length ? `${filterRow}${visiblePending.length ? `<div id="app-list">${visiblePending.map(applicationCard).join("")}</div>` : `<div class="note">Nobody waiting matches these filters.${filtersActive ? ' <button class="btn sm" type="button" id="app-filter-clear">Clear filters</button>' : ""}</div>`}` : `<div class="note">Sign-up isn't open yet. Move the event to ${ui.esc(ui.stageLabel("open"))} to start taking applications.</div>`}` : ""}
 
 <section class="card"><h2>Everyone</h2>
-<div class="field inline"><label for="role-filter">Show</label><select class="select" id="role-filter" data-admin-live><option${roleFilter === "Everyone" ? " selected" : ""}>Everyone</option><option${roleFilter === "Organisers" ? " selected" : ""}>Organisers</option><option${roleFilter === "Participants" ? " selected" : ""}>Participants</option><option${roleFilter === "Judges" ? " selected" : ""}>Judges</option><option${roleFilter === "Co-organisers" ? " selected" : ""}>Co-organisers</option></select></div>
+<div class="field inline" id="judges"><label for="role-filter">Show</label><select class="select" id="role-filter" data-admin-live><option${roleFilter === "Everyone" ? " selected" : ""}>Everyone</option><option${roleFilter === "Organisers" ? " selected" : ""}>Organisers</option><option${roleFilter === "Participants" ? " selected" : ""}>Participants</option><option${roleFilter === "Judges" ? " selected" : ""}>Judges</option><option${roleFilter === "Co-organisers" ? " selected" : ""}>Co-organisers</option></select></div>
 <div class="list" id="people-list">${visiblePeople.length ? visiblePeople.map(personRow).join("") : '<div class="empty">Nobody matches that filter.</div>'}</div>
 </section>
 
-<details class="card" id="coorg"${coorgOpen ? " open" : ""}><summary>Co-organisers</summary>
-<p>Current: ${ui.esc(people.filter((p) => p.role === "organiser").map(organiserLabel).join(", "))}</p>
-<p>A co-organiser can do everything you can on this event, including Delete this event. Only the creator can\u2019t be removed.</p>
-<div class="form-actions"><button class="btn" type="button" id="coorg-create">Create invitation</button></div>
-${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div class="control-row"><input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly><button class="btn" type="button" id="coorg-copy">Copy invitation</button></div></div><div class="form-actions"><button class="btn danger" type="button" id="coorg-revoke">Revoke invitation</button></div>` : ""}
-</details>
-
-<details class="card" id="signup"${signupOpen ? " open" : ""}><summary>Sign-up</summary>
-${registrationError ? '<div class="note bad">Sign-up questions could not be loaded. Saving here is turned off until you reload the page.</div>' : ""}
-<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? " checked" : ""}${registrationError ? " disabled" : ""}><span><b>Approve people who join with your link before they can join a team or publish</b><span>Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are ${applicationsOpen ? "on" : "off"} \u2014 <a href="${esc2(href("organiser", ev.slug, "settings"))}#applications">change in Settings</a>.</span></span></label>
-<p class="help">Applicants also get three optional fields of ours: where they're based, age range and gender.</p>
-<div id="q-rows">${questions.map(questionRow).join("")}</div>
-<div class="form-actions"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? " disabled" : ""}>Add question</button><button class="btn" type="button" id="q-save"${registrationError ? " disabled" : ""}>Save questions</button></div>
-</details>`;
+<p><a href="${ui.esc(resolve2("o.signup", ev.slug).href)}">Sign-up settings</a> \xB7 <a href="${ui.esc(resolve2("o.organisers", ev.slug).href)}">Organisers</a></p>`;
       adminLock(main, admin, ev);
-      $("coorg").addEventListener("toggle", () => {
-        coorgOpen = $("coorg").open;
-      });
-      $("signup").addEventListener("toggle", () => {
-        signupOpen = $("signup").open;
-      });
       $("role-filter").addEventListener("change", () => {
         roleFilter = $("role-filter").value;
         paint();
@@ -1634,186 +3831,8 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
           btn.disabled = false;
         }
       }));
-      main.querySelectorAll("[data-remove-organiser]").forEach((btn) => btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-remove-organiser");
-        const name = btn.getAttribute("data-name") || "this co-organiser";
-        const ok = await ui.confirm({ title: "Remove " + name + " as co-organiser?", body: "They lose manage access to this event right away. (The event's original creator can't be removed.)", confirmLabel: "Remove co-organiser", danger: true });
-        if (!ok) return;
-        btn.disabled = true;
-        try {
-          const r = await api("DELETE", path + "/organisers/" + encodeURIComponent(id));
-          if (!r.ok) {
-            setLive(ui.errText(r), "err", btn);
-            btn.disabled = false;
-            return;
-          }
-          const p2 = await api("GET", path + "/people");
-          if (p2.ok) people = p2.data || [];
-          setLive("Removed", "ok");
-          paint();
-        } catch (e) {
-          setLive("Cannot reach the server.", "err", btn);
-          btn.disabled = false;
-        }
-      }));
-      $("coorg-create").addEventListener("click", async () => {
-        const ok = await ui.confirm({ title: "Create co-organiser invitation?", body: "This link grants full control of this event, including deleting it. Create it?", confirmLabel: "Create invitation" });
-        if (!ok) return;
-        const btn = $("coorg-create");
-        btn.disabled = true;
-        try {
-          const r = await api("POST", path + "/organiser-invite");
-          if (!r.ok) {
-            setLive(ui.errText(r), "err", btn);
-            btn.disabled = false;
-            return;
-          }
-          invite = { url: r.data.url, expires_at: r.data.expires_at };
-          setLive("Invitation created. Share it with one co-organiser.", "ok");
-          paint();
-        } catch (e) {
-          setLive("Cannot reach the server.", "err", btn);
-          btn.disabled = false;
-        }
-      });
-      const copyBtn = $("coorg-copy");
-      if (copyBtn) copyBtn.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText($("coorg-url").value);
-          copyBtn.textContent = "Copied";
-          setTimeout(() => copyBtn.textContent = "Copy invitation", 2e3);
-        } catch (e) {
-          setLive("Could not copy. Select the text and copy it.", "err");
-        }
-      });
-      const revokeBtn = $("coorg-revoke");
-      if (revokeBtn) revokeBtn.addEventListener("click", async () => {
-        const ok = await ui.confirm({ title: "Revoke this invitation?", body: "This invitation stops working. Revoke it?", confirmLabel: "Revoke", danger: true });
-        if (!ok) return;
-        revokeBtn.disabled = true;
-        try {
-          const r = await api("DELETE", path + "/organiser-invite");
-          if (!r.ok) {
-            setLive(ui.errText(r), "err", revokeBtn);
-            revokeBtn.disabled = false;
-            return;
-          }
-          invite = null;
-          setLive("Invitation revoked.", "ok");
-          paint();
-        } catch (e) {
-          setLive("Cannot reach the server.", "err", revokeBtn);
-          revokeBtn.disabled = false;
-        }
-      });
-      function collectQuestions() {
-        questions.forEach((q, i) => {
-          const el2 = main.querySelector(`[data-q-prompt="${i}"]`);
-          if (!el2) return;
-          q.prompt = el2.value;
-          q.required = main.querySelector(`[data-q-required="${i}"]`).checked;
-        });
-      }
-      function assignQuestionIds() {
-        const used = new Set(questions.map((q) => q.id).filter(Boolean));
-        let n = 1;
-        questions.forEach((q) => {
-          if (q.id) return;
-          while (used.has("q" + n)) n++;
-          q.id = "q" + n;
-          used.add(q.id);
-        });
-      }
-      $("q-add").addEventListener("click", () => {
-        if (questions.length < 8) {
-          collectQuestions();
-          questions.push({ id: "", prompt: "", required: false });
-          paint();
-        }
-      });
-      main.querySelectorAll("[data-q-rm]").forEach((btn) => btn.addEventListener("click", () => {
-        collectQuestions();
-        questions.splice(Number(btn.dataset.qRm), 1);
-        paint();
-      }));
-      $("q-save").addEventListener("click", async () => {
-        if (guardRegistration($("q-save"))) return;
-        const btn = $("q-save");
-        btn.disabled = true;
-        collectQuestions();
-        assignQuestionIds();
-        try {
-          const r = await api("PUT", path + "/registration", { questions, approval_required: $("signup-approval").checked });
-          if (!r.ok) {
-            setLive(ui.errText(r), "err", btn);
-            btn.disabled = false;
-            return;
-          }
-          questions = r.data.questions || questions;
-          savedQuestions = questions.map((q) => ({ ...q }));
-          approvalRequired = !!r.data.approval_required;
-          setLive("Questions saved.", "ok", btn);
-          paint();
-        } catch (e) {
-          setLive("Cannot reach the server.", "err", btn);
-          btn.disabled = false;
-        }
-      });
-      $("signup-approval").addEventListener("change", async () => {
-        if (guardRegistration($("signup-approval"))) {
-          $("signup-approval").checked = approvalRequired;
-          return;
-        }
-        const box = $("signup-approval");
-        const prev = !box.checked;
-        box.disabled = true;
-        let admitPending = false;
-        const pendingNow = applications.filter((a) => a.status === "pending" && a.joined_via !== "application");
-        if (!box.checked && pendingNow.length) {
-          const choice = await ui.dialog({
-            title: "Waiting applications",
-            body: (pendingNow.length === 1 ? "1 person who joined with your link is still waiting. Approve them now, or leave them pending. You can still approve or reject them later from this list." : pendingNow.length + " people who joined with your link are still waiting. Approve all of them now, or leave them pending. You can still approve or reject each one later from this list.") + " Applications always wait for your decision.",
-            buttons: [
-              { label: "Cancel", value: "cancel", attrs: { "data-cancel": "" } },
-              { label: "Leave them pending", value: "leave" },
-              { label: "Approve all now", value: "approve", className: "btn primary" }
-            ],
-            escapeValue: "cancel",
-            focus: 0
-          });
-          if (choice === "cancel") {
-            box.checked = prev;
-            box.disabled = false;
-            return;
-          }
-          admitPending = choice === "approve";
-        }
-        try {
-          const r = await api("PUT", path + "/registration", { questions: savedQuestions, approval_required: box.checked, admit_pending: admitPending });
-          if (!r.ok) {
-            box.checked = prev;
-            setLive(ui.errText(r), "err", box);
-            box.disabled = false;
-            return;
-          }
-          approvalRequired = box.checked;
-          box.disabled = false;
-          if (admitPending) {
-            const [a2, p2] = await Promise.all([api("GET", path + "/applications"), api("GET", path + "/people")]);
-            if (a2.ok) applications = a2.data || [];
-            if (p2.ok) people = p2.data || [];
-          }
-          setLive("Saved", "ok", box.closest("label"));
-          paint();
-        } catch (e) {
-          box.checked = prev;
-          setLive("Cannot reach the server.", "err", box);
-          box.disabled = false;
-        }
-      });
     }
     paint();
-    if (wantsSection("signup")) main.querySelector("#signup")?.scrollIntoView();
   }
 
   // internal/handler/static/hack/screens/organiser-judging.js
@@ -1822,6 +3841,13 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
     render: () => render3,
     title: () => title3
   });
+
+  // internal/mcp/apps/frame/platform.js
+  function onSubmit(form, button, handler) {
+    button.addEventListener("click", handler);
+  }
+
+  // internal/handler/static/hack/screens/organiser-judging.js
   function title3() {
     return "Judging";
   }
@@ -1849,38 +3875,18 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
     let formerJudges = [];
     let draftMode = settings.assignment_mode;
     let draftPerTeam = settings.judges_per_team;
-    function closesHTML() {
-      if (archived) {
-        return `<section class="card" id="jg-closes-card"><h2>Judging closes</h2><p>${ev.judging_ends_at ? "Judging closed " + ui.esc(ui.dateTime(ev.judging_ends_at, ev)) : "No time was set."}</p></section>`;
-      }
-      return `<section class="card" id="jg-closes-card"><h2>Judging closes</h2><div class="field"><label>Judging closes \xB7 ${ui.esc(ev.time_zone || "UTC")}<input class="input" id="jg-closes-input" type="datetime-local" value="${ui.esc(ui.localInputValue(ev.judging_ends_at, ev))}"${adminLockReason ? " disabled" : ""}></label><p class="help">Judges with teams left to score are reminded this long before this time (set on Entries' Reminder times). Leave it empty for no judge reminder.</p></div><div class="form-actions"><button class="btn primary" type="button" id="jg-closes-save"${adminLockReason ? " disabled" : ""}>Save</button><button class="btn quiet" type="button" id="jg-closes-clear"${adminLockReason || !ev.judging_ends_at ? " disabled" : ""}>Clear</button></div></section>`;
-    }
-    const setupInner = `
-<section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><div class="form-actions"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="hint" id="jg-weight"></span><button class="btn" type="button" id="jg-rubric-save">Save rubric</button></div></section>
-<section class="card" id="jg-tie-card"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label><p class="help">You can change this until judging starts.</p></div><div class="form-actions"><button class="btn" type="button" id="jg-tie-save">Save</button></div></section>
-${closesHTML()}
-<section class="card" id="jg-mode-card"><h2>How judges are assigned</h2>
-<label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><span><b>Open</b><span>Judges pick any team from the full list.</span></span></label>
-<label class="check"><input type="radio" name="jg-mode" value="automatic" id="jg-mode-automatic"><span><b>Automatic</b><span>Simple Hack assigns judges to teams evenly.</span></span></label>
-<label class="check"><input type="radio" name="jg-mode" value="manual" id="jg-mode-manual"><span><b>Manual</b><span>You assign each judge to specific teams.</span></span></label>
-<label class="check"><input type="radio" name="jg-mode" value="panel" id="jg-mode-panel"><span><b>Panel</b><span>Judges are grouped by track, one panel per track.</span></span></label>
-<div class="field" id="jg-per-wrap"><label>Judges per team<input class="input" type="number" min="1" max="20" id="jg-per"></label></div>
-<div class="note info" id="jg-before-closed-note" hidden>You can set this before entries close, but teams may still be forming.</div>
-<p class="note" id="jg-assign-note" hidden></p>
-<label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label>
-<div class="form-actions"><button class="btn" type="button" id="jg-mode-save">Save</button><button class="btn" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href("organiser", slug, "assignments"))}">Open the assignment grid</a><span class="hint" id="jg-generate-hint" hidden>Save the mode first.</span></div>
-</section>`;
-    const setupBlock = setupFirst ? setupInner : `<details class="card" id="jg-setup"><summary>Rubric &amp; setup</summary>${setupInner}</details>`;
     const restBlock = `
 <section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading\u2026</p></section>
 <section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading\u2026</p></section>
 ${archived ? "" : '<section class="card" id="jg-lockzone"></section>'}`;
-    const canJudge = !ctx.event.admin_view;
+    const canJudge = !!ctx.event.can?.judge;
     main.innerHTML = `
 <div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
-<span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc("/e/" + encodeURIComponent(slug) + "/judge")}">Score as a judge</a>` : ""}</div>
+<span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc("/e/" + encodeURIComponent(slug) + "/judge?s=home")}">Score as a judge</a>` : ""}</div>
 ${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : ""}
-${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
+<p><a href="${ui.esc(href("organiser", slug, "settings") + "&tab=judging")}">Judging settings</a></p>
+<section class="card"><h2>Assignments</h2><label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label><p class="note" id="jg-assign-note" hidden></p><div class="form-actions"><button class="btn" type="button" id="jg-generate">Generate assignments</button><a class="btn" href="${ui.esc(href("organiser", slug, "assignments"))}">Open the assignment grid</a></div></section>
+${restBlock}
 <p id="jg-results-link" hidden><a href="${ui.esc(href("organiser", slug, "results"))}">Review and publish on Results</a></p>`;
     function paintTopAction() {
       const slot = $("jg-top-action");
@@ -1945,8 +3951,6 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       ev.judging_locked_at = r.data && r.data.locked_at || (/* @__PURE__ */ new Date()).toISOString();
       paintTopAction();
       paintLockZone();
-      paintRubric();
-      paintTie();
       paintMode();
       paintConflicts();
       await reloadDashboard();
@@ -1976,199 +3980,17 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       ev.judging_locked_at = null;
       paintTopAction();
       paintLockZone();
-      paintRubric();
-      paintTie();
       paintMode();
       paintConflicts();
       await reloadDashboard();
       setLive("Judging unlocked", "ok");
     }
-    function weightTotal() {
-      return rubric.reduce((sum, c) => sum + (Number(c.weight) || 0), 0);
-    }
-    function paintRubric() {
-      const box = $("jg-rubric");
-      box.textContent = "";
-      rubric.forEach((c, i) => {
-        const row = ui.el("div", { class: "crit crit-row" });
-        const nameField = ui.el("div", { class: "field" });
-        const nameLabel = ui.el("label", { text: "Name" });
-        const nameIn = ui.el("input", { class: "input", value: c.name || "" });
-        if (locked || adminLockReason) nameIn.disabled = true;
-        nameIn.addEventListener("input", () => {
-          c.name = nameIn.value;
-        });
-        nameLabel.appendChild(nameIn);
-        nameField.appendChild(nameLabel);
-        const descField = ui.el("div", { class: "field" });
-        const descLabel = ui.el("label", { text: "Description (optional)" });
-        const descIn = ui.el("input", { class: "input", value: c.description || "" });
-        if (locked || adminLockReason) descIn.disabled = true;
-        descIn.addEventListener("input", () => {
-          c.description = descIn.value;
-        });
-        descLabel.appendChild(descIn);
-        descField.appendChild(descLabel);
-        const weightField = ui.el("div", { class: "field" });
-        const weightLabel = ui.el("label", { text: "Weight %" });
-        const weightIn = ui.el("input", { class: "input", type: "number", min: "0", max: "100", value: String(c.weight == null ? 0 : c.weight) });
-        if (locked || adminLockReason) weightIn.disabled = true;
-        weightIn.addEventListener("input", () => {
-          c.weight = Number(weightIn.value) || 0;
-          paintWeight();
-        });
-        weightLabel.appendChild(weightIn);
-        weightField.appendChild(weightLabel);
-        const ptsField = ui.el("div", { class: "field" });
-        const ptsLabel = ui.el("label", { text: "Max points" });
-        const ptsIn = ui.el("input", { class: "input", type: "number", min: "1", max: "10", value: String(c.max_points == null ? 5 : c.max_points) });
-        if (locked || adminLockReason) ptsIn.disabled = true;
-        ptsIn.addEventListener("input", () => {
-          c.max_points = Number(ptsIn.value) || 1;
-        });
-        ptsLabel.appendChild(ptsIn);
-        ptsField.appendChild(ptsLabel);
-        row.append(nameField, weightField, ptsField, descField);
-        const actions = ui.el("div", { class: "row-flex" });
-        const up = ui.el("button", { class: "btn sm", type: "button", text: "Up", "aria-label": "Move " + (c.name || "this criterion") + " up" });
-        up.disabled = locked || !!adminLockReason || i === 0;
-        up.addEventListener("click", () => {
-          rubric.splice(i - 1, 0, rubric.splice(i, 1)[0]);
-          paintRubric();
-        });
-        const down = ui.el("button", { class: "btn sm", type: "button", text: "Down", "aria-label": "Move " + (c.name || "this criterion") + " down" });
-        down.disabled = locked || !!adminLockReason || i === rubric.length - 1;
-        down.addEventListener("click", () => {
-          rubric.splice(i + 1, 0, rubric.splice(i, 1)[0]);
-          paintRubric();
-        });
-        const rm = ui.el("button", { class: "btn danger sm", type: "button", text: "Remove" });
-        rm.disabled = locked || !!adminLockReason || rubric.length <= 1;
-        rm.addEventListener("click", () => {
-          rubric.splice(i, 1);
-          paintRubric();
-        });
-        actions.append(up, down, rm);
-        row.appendChild(actions);
-        box.appendChild(row);
-      });
-      if (!rubric.length) box.appendChild(ui.el("p", { class: "muted", text: "No criteria yet. Add one to start." }));
-      paintWeight();
-      $("jg-add").disabled = locked || !!adminLockReason || rubric.length >= 10;
-      $("jg-rubric-save").disabled = locked || !!adminLockReason;
-    }
-    function paintWeight() {
-      const p = $("jg-weight");
-      if (!rubric.length) {
-        p.textContent = "";
-        return;
-      }
-      const total = weightTotal();
-      p.textContent = "Total weight: " + total + "%" + (total === 100 ? "" : " (must add up to 100%)");
-    }
-    function paintTie() {
-      const select = $("jg-tie");
-      select.textContent = "";
-      select.appendChild(ui.el("option", { value: "", text: "Pick a criterion" }));
-      rubric.forEach((c) => select.appendChild(ui.el("option", { value: c.id || "", text: c.name || "" })));
-      select.value = settings.tie_criterion_id || "";
-      select.disabled = tieClosed();
-      $("jg-tie-save").disabled = tieClosed();
-    }
-    async function saveTie() {
-      const value = $("jg-tie").value;
-      const btn = $("jg-tie-save");
-      btn.disabled = true;
-      let r;
-      try {
-        r = await api("PATCH", base + "/judging/settings", { tie_criterion_id: value });
-      } catch (e) {
-        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err", btn);
-        btn.disabled = false;
-        return;
-      }
-      btn.disabled = tieClosed();
-      if (!r.ok) {
-        setLive(ui.errText(r), "err", btn);
-        return;
-      }
-      settings.tie_criterion_id = r.data && r.data.tie_criterion_id || "";
-      setLive("Saved", "ok", btn);
-    }
-    async function onSaveCloses() {
-      const input = $("jg-closes-input");
-      const btn = $("jg-closes-save");
-      const value = input.value;
-      btn.disabled = true;
-      let r;
-      try {
-        r = await api("PATCH", base, { judging_ends_at: value });
-      } catch (e) {
-        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err", btn);
-        btn.disabled = !!adminLockReason;
-        return;
-      }
-      if (!r.ok) {
-        setLive(ui.errText(r), "err", btn);
-        btn.disabled = !!adminLockReason;
-        return;
-      }
-      ev.judging_ends_at = r.data && r.data.event && r.data.event.judging_ends_at || null;
-      btn.disabled = !!adminLockReason;
-      const clearBtn = $("jg-closes-clear");
-      if (clearBtn) clearBtn.disabled = !!adminLockReason || !ev.judging_ends_at;
-      setLive("Saved", "ok", btn);
-    }
-    async function onClearCloses() {
-      const ok = await ui.confirm({ title: "Clear judging closes?", body: "Judges stop getting a reminder before judging closes. Clear it?", confirmLabel: "Clear", danger: true });
-      if (!ok) return;
-      $("jg-closes-input").value = "";
-      await onSaveCloses();
-    }
     function paintMode() {
-      $("jg-mode-open").checked = draftMode === "open";
-      $("jg-mode-automatic").checked = draftMode === "automatic";
-      $("jg-mode-manual").checked = draftMode === "manual";
-      $("jg-mode-panel").checked = draftMode === "panel";
-      $("jg-per").value = draftPerTeam || 2;
-      const disable = locked || !!adminLockReason;
-      ["jg-mode-open", "jg-mode-automatic", "jg-mode-manual", "jg-mode-panel", "jg-per", "jg-mode-save", "jg-include-organisers"].forEach((id) => {
-        $(id).disabled = disable;
-      });
-      $("jg-before-closed-note").hidden = !beforeClosed();
-      const automatic = draftMode === "automatic";
-      $("jg-per-wrap").hidden = !automatic;
+      const automatic = settings.assignment_mode === "automatic";
       $("jg-generate").hidden = !automatic;
+      $("jg-generate").disabled = locked || !!adminLockReason;
       $("jg-include-organisers-wrap").hidden = !automatic;
-      const modeDirty = draftMode !== settings.assignment_mode || Number(draftPerTeam || 2) !== Number(settings.judges_per_team || 2);
-      $("jg-generate").disabled = disable || modeDirty;
-      $("jg-generate-hint").hidden = !(automatic && modeDirty);
-    }
-    async function saveMode() {
-      const mode = draftMode;
-      const perTeam = draftPerTeam || 2;
-      const btn = $("jg-mode-save");
-      btn.disabled = true;
-      let r;
-      try {
-        r = await api("PATCH", base + "/judging/settings", { assignment_mode: mode, judges_per_team: perTeam });
-      } catch (e) {
-        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err", btn);
-        paintMode();
-        return;
-      }
-      if (!r.ok) {
-        paintMode();
-        setLive(ui.errText(r), "err", btn);
-        return;
-      }
-      settings.assignment_mode = r.data && r.data.assignment_mode || mode;
-      settings.judges_per_team = r.data && r.data.judges_per_team || perTeam;
-      draftMode = settings.assignment_mode;
-      draftPerTeam = settings.judges_per_team;
-      paintMode();
-      setLive("Saved", "ok", btn);
-      await reloadDashboard();
+      $("jg-include-organisers").disabled = locked || !!adminLockReason;
     }
     async function generate() {
       const ok = await ui.confirm({ title: "Generate assignments?", body: "This replaces any assignments already generated. Continue?", confirmLabel: "Generate assignments", danger: true });
@@ -2413,58 +4235,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       setLive("Scores deleted", "ok");
       await reloadDashboard();
     }
-    $("jg-add").addEventListener("click", () => {
-      rubric.push({ id: "", name: "", description: "", weight: 0, max_points: 5 });
-      paintRubric();
-    });
-    $("jg-rubric-save").addEventListener("click", saveRubric);
-    $("jg-tie-save").addEventListener("click", saveTie);
-    const closesSave = $("jg-closes-save");
-    if (closesSave) closesSave.addEventListener("click", onSaveCloses);
-    const closesClear = $("jg-closes-clear");
-    if (closesClear) closesClear.addEventListener("click", onClearCloses);
-    $("jg-mode-save").addEventListener("click", saveMode);
     $("jg-generate").addEventListener("click", generate);
-    main.querySelectorAll('input[name="jg-mode"]').forEach((r) => r.addEventListener("change", () => {
-      draftMode = main.querySelector('input[name="jg-mode"]:checked').value;
-      paintMode();
-    }));
-    $("jg-per").addEventListener("input", () => {
-      draftPerTeam = Number($("jg-per").value) || 2;
-      paintMode();
-    });
-    async function saveRubric() {
-      if (weightTotal() !== 100) {
-        setLive("Weights must add up to 100%.", "err", $("jg-weight"));
-        return;
-      }
-      const body = { criteria: rubric.map((c) => ({ id: c.id || "", name: c.name || "", description: c.description || "", weight: Number(c.weight) || 0, max_points: Number(c.max_points) || 1 })) };
-      const btn = $("jg-rubric-save");
-      btn.disabled = true;
-      let r;
-      try {
-        r = await api("PUT", base + "/rubric", body);
-        if (!r.ok && r.data && r.data.code === "score_deletion_confirmation") {
-          if (await ui.confirm({ title: "Delete scores?", body: r.data.error, confirmLabel: "Save rubric", danger: true })) {
-            body.confirm_score_deletion = true;
-            r = await api("PUT", base + "/rubric", body);
-          }
-        }
-      } catch (e) {
-        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err", btn);
-        btn.disabled = false;
-        return;
-      }
-      btn.disabled = locked || !!adminLockReason;
-      if (!r.ok) {
-        setLive(ui.errText(r), "err", btn);
-        return;
-      }
-      rubric = r.data && r.data.criteria || [];
-      paintRubric();
-      paintTie();
-      setLive("Rubric saved", "ok", btn);
-    }
     paintTopAction();
     paintLockZone();
     let rubricR, settingsR, conflictsR, peopleR, teamsR, assignR;
@@ -2491,13 +4262,11 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (assignR.ok) assignmentsCount = (assignR.data && assignR.data.assignments || []).length;
     draftMode = settings.assignment_mode;
     draftPerTeam = settings.judges_per_team;
-    paintRubric();
-    paintTie();
     paintMode();
     paintConflicts();
     await reloadDashboard();
   }
 
   // internal/mcp/apps/entry/organiser.js
-  window.__HACKO = { ui: ui_exports, screens: { overview: organiser_overview_exports, people: organiser_people_exports, judging: organiser_judging_exports } };
+  window.__HACKO = { ui: ui_exports, resolve: resolve2, screens: { overview: organiser_overview_exports, people: organiser_people_exports, judging: organiser_judging_exports } };
 })();

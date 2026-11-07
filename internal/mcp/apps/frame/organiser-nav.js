@@ -1,3 +1,4 @@
+import { resolve as resolveTarget } from '../../../webassets/static/hack/navigation.js'
 // Frame stand-in for internal/handler/static/hack/nav.js, swapped in by
 // the esbuild OnResolve plugin in internal/mcp/apps/bundlegen for the
 // organiser app only: this frame renders three sections in-frame
@@ -27,7 +28,7 @@ const IN_FRAME = { overview: 1, people: 1, judging: 1 }
 // this frame.
 export function href(role, slug, section) {
   if (role === 'organiser' && IN_FRAME[section || 'overview']) return '#v=' + (section || 'overview')
-  return window.__hackOrgOrigin + '/e/' + encodeURIComponent(slug) + '/manage' + (section ? '?s=' + encodeURIComponent(section) : '')
+  return window.__hackOrgOrigin + '/e/' + encodeURIComponent(slug) + '/' + ({ organiser: 'manage', judge: 'judge', participant: 'team' }[role]) + (section ? '?s=' + encodeURIComponent(section) : '')
 }
 
 // isAppRoute only gates ui.js's full-page dirty-navigation guard
@@ -35,4 +36,9 @@ export function href(role, slug, section) {
 // has neither, so it is always false, same as the judge frame.
 export function isAppRoute(path) {
   return false
+}
+
+export function resolve(id, slug, params) {
+ const target = resolveTarget(id, slug, params)
+ return { ...target, href: target.href.startsWith('/') ? window.__hackOrgOrigin + target.href : target.href }
 }

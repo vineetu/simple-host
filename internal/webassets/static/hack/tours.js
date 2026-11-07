@@ -43,7 +43,7 @@ export const tours = {
       // claiming to be the only way to move the event on.
       { target: '[data-tour="next-move"]', title: 'Your next step', body: 'This button moves the event on to its next stage, after you confirm. The sentence above it says what changes.' },
       { target: '[data-tour="change-stage"]', title: 'Move the event on', body: 'To move to any other stage, or back, use Change stage. Each change says what will happen before you confirm.' },
-      { target: '[data-tour="share"]', title: 'Invite people', body: 'Send the join link to participants and the judge link to judges. Use New link only if a link leaked, because it stops the old one.' },
+      { target: '[data-tour="share"]', title: 'Invite people', body: 'Send the join link to participants and the judge link to judges. Make a new link in Settings → Links if a link leaked.' },
       // Atlas 2026-10-30: Event page is now sub-pages (Basics, About,
       // Schedule, Sponsors, FAQ, Look, Website), and Announcements moved to
       // its own sidebar item right under it -- both steps still point at
@@ -52,10 +52,11 @@ export const tours = {
       // actually is.
       { target: '.nav a[href*="s=event-page"]', phone: '[data-menu]', title: 'Event page', body: 'What visitors see before they sign up, one piece at a time: basics, about, schedule, sponsors, FAQ, look, and your own website if you have one.' },
       { target: '.nav a[href*="s=announcements"]', phone: '[data-menu]', title: 'Announcements', body: 'Post updates for everyone in the event. Tick the box to email every participant too.' },
-      { target: '.nav a[href*="s=people"]', phone: '[data-menu]', title: 'People', body: 'Everyone who signed up. Add sign-up questions, approve applications if you want to check people first, and invite co-organisers.' },
-      { target: '.nav a[href*="s=teams"]', phone: '[data-menu]', title: 'Teams', body: 'Teams as they form. Set the team size, turn team finding on or off, and place people who are not on a team yet.' },
-      { target: '.nav a[href*="s=entries"]', phone: '[data-menu]', title: 'Entries', body: 'What each team submitted. Set the deadline, choose which fields are required, and give one team more time.' },
-      { target: '.nav a[href*="s=judging"]', phone: '[data-menu]', title: 'Judging', body: 'Write the scoring rubric, choose how judges get their teams, watch progress, and lock judging when every score is in.' },
+      { target: '.nav a[href*="s=settings"]', phone: '[data-menu]', title: 'Settings', body: 'Set sign-up, team and entry rules, judging and results here.' },
+      { target: '.nav a[href*="s=people"]', phone: '[data-menu]', title: 'People', body: 'Review applications and manage the people who signed up.' },
+      { target: '.nav a[href*="s=teams"]', phone: '[data-menu]', title: 'Teams', body: 'Watch teams form and place people who are not on a team yet.' },
+      { target: '.nav a[href*="s=entries"]', phone: '[data-menu]', title: 'Entries', body: 'Review entries and give one team more time.' },
+      { target: '.nav a[href*="s=judging"]', phone: '[data-menu]', title: 'Judging', body: 'Assign judges, watch progress, and lock judging when every score is in.' },
       { target: '.nav a[href*="s=results"]', phone: '[data-menu]', title: 'Results', body: 'Preview the standings, publish them, and choose what the public sees. People’s choice voting and the directory listing are here too.' },
       { target: '.nav a[href*="s=settings"]', phone: '[data-menu]', title: 'Settings', body: 'Your organiser details, website notifications, and deleting the event.' },
       { target: '[data-tour="help"]', phone: '[data-menu]', title: 'Any time', body: 'Open this walkthrough again from Help.' }

@@ -1983,6 +1983,9 @@ Sites are built only in people’s own AI apps and agents (2026-10-09). The owne
 
 ## 15. Hackathon / event instances (simple-hack.app) <a id="hackathon-event-instances"></a>
 
+2026-11-07 (SIM-388/SIM-393, navigation slice): Your events stays in the pane on signed-in screens, with the current event expanded and archived memberships under Past events. Bare sign-in opens the sole current, accessible membership Home; explicit returns and invites retain their destination. Organiser Home, grouped activities, Event page → Tracks, and Settings sections reuse the existing editors and save confirmations. Old setting links normalise to their new sections. Actual membership supplies additive `can: {manage, judge, take_part}` on event views and event-list rows; organisers can open their own judge Home and scores. Judge areas request `conflicts?mine=1`; the management dashboard keeps all conflicts. Event rows add `ended_at` from the archive timestamp. `GET /v1/hack/navigation` and `hack_get_navigation` expose the shared destination map, embedded from `internal/rules/hackevents/navigation.json`; its generated browser projection is checked offline. No checklist storage or checklist endpoints in this slice.
+
+
 Skill routes: `/skills/run-hackathon`, `/skills/run-hackathon.zip`, `/skills/run-hackathon/SKILL.md`, `/skills/run-hackathon/references/{file}`.
 Skill routes: `/skills/join-hackathon`, `/skills/join-hackathon.zip`, `/skills/join-hackathon/SKILL.md`, `/skills/join-hackathon/references/{file}`.
 Skill routes: `/skills/judge-hackathon`, `/skills/judge-hackathon.zip`, `/skills/judge-hackathon/SKILL.md`, `/skills/judge-hackathon/references/{file}`.

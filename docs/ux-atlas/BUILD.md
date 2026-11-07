@@ -77,7 +77,7 @@ internal/webassets/static/hack/
 | `/e/{slug}/judge` | judge sections by `?s=` : home (default), queue, scoring (+`&team=`), rubric |
 
 Inside the app, navigation is `history.pushState` + re-render (no full reload); back/forward work.
-Old deep links keep working: unknown `?s=` values fall back to the section's home. SIM-388/SIM-393 (2026-11-07) planned aliases below normalise with replaceState before mounting; preserve unrelated parameters. A recognised canonical tab wins over a legacy hash. Event page's existing tab URLs stay unchanged.
+Old deep links keep working: unknown `?s=` values fall back to the section's home. SIM-388/SIM-393 (2026-11-07) aliases below normalise with replaceState before mounting; preserve unrelated parameters. A recognised canonical tab wins over a legacy hash. Event page's existing tab URLs stay unchanged.
 
 | Legacy query / fragment | Destination |
 |---|---|
@@ -125,7 +125,7 @@ or log the key.
   endpoint for each capability). Where a screen shows a confirm or computes a count before a
   destructive call (score deletion, vote removal, approval-off, regenerate link), it does so
   with the copy from `spec.json`.
-- One screen's data loads in that screen's module. The shell gets `me` and the event list once.
+- One screen's data loads in that screen's module. The shell loads `me` and memberships initially, then refetches memberships after membership/stage changes and on focus without replacing unsaved forms.
 - Saving follows the spec: one Save per section for forms, instant save for toggles, ticks and
   judge scores (with a visible "Saved" note).
 

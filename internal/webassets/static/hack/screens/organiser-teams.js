@@ -1,12 +1,11 @@
 import { href } from '../nav.js'
-import { slugify } from './_orgB-util.js'
-import { rowMenuHTML, wireRowMenus, formDialog, undoToast, adminLock } from './_orgA-util.js'
+import { rowMenuHTML, wireRowMenus, formDialog, adminLock } from './_orgA-util.js'
 import { openTeamMessageDialog } from './_team-message-dialog.js'
 
 // Teams redesign (owner, 2026-10-31): Teams gets its own full design, like
 // the Event page -- four sub-pages instead of one long page with two
 // collapsed <details> cards. spec.json organiser-teams.sub_pages.
-const TABS = ['teams', 'solo', 'tracks', 'settings']
+const TABS = ['teams', 'solo']
 const TAB_LABEL = { teams: 'Teams', solo: 'Not on a team', tracks: 'Tracks', settings: 'Settings' }
 
 function resolveTab(ctx) {
@@ -38,7 +37,8 @@ export async function render(ctx) {
   let tab = ctx.params.get('tab') || ''
   tab = resolveTab(ctx)
   if (ctx.params.get('tab') !== tab) {
-    const fixed = `${location.pathname}?s=teams&tab=${tab}`
+    const next = new URL(location.href); next.searchParams.set('tab', tab)
+    const fixed = next.pathname + next.search + next.hash
     history.replaceState(history.state, '', fixed)
     ui.notePath(fixed)
   }
@@ -52,7 +52,7 @@ export async function render(ctx) {
   // field on on_no_team -- the "Looking for a team · <intro>" / "Not
   // looking" line the atlas puts on every Solo row.
   let lookingByUser = {}
-  let tracks = (ev.tracks || []).map(t => ({ ...t }))
+
   // Message selected (notices contract 2026-11-05): ids kept across
   // repaints of the Teams sub-page, cleared after a successful Send or when
   // the whole screen reloads -- row checkboxes read their checked state
@@ -101,19 +101,11 @@ export async function render(ctx) {
     return `<div class="r" data-user="${esc(p.user_id)}" data-name="${esc(p.display_name || p.email || 'Someone')}" data-teams="${esc(JSON.stringify(others.map(t => ({ slug: t.slug, name: t.name }))))}"><div class="main"><b>${esc(p.display_name || p.email || 'Someone')}</b><span>${esc(sub)}</span></div><div class="row-acts">${menu}</div></div>`
   }
 
-  function trackRow(t, i) {
-    const n = teams.filter(team => team.track && team.track.slug === t.slug).length
-    const menu = rowMenuHTML(t.name || 'this track', [{ label: 'Edit', act: 'edit' }, { label: 'Remove', act: 'remove', danger: true }])
-    return `<div class="r" data-track="${i}"><div class="main"><b>${esc(t.name)}</b><span>${esc(t.challenge || '')}${t.prize ? ' · Prize: ' + esc(t.prize) : ''}</span></div><span class="meta">${n} team${n === 1 ? '' : 's'}</span><div class="row-acts"><button class="btn quiet sm" type="button" data-edit-track="${i}">Edit</button>${menu}</div></div>`
-  }
-
   function subnavHTML() {
     function badge(n) { return n ? `<span class="n">${n}</span>` : '' }
     return `<nav class="subnav" aria-label="Teams sections">
 <a href="?s=teams&tab=teams"${tab === 'teams' ? ' aria-current="page"' : ''}>Teams${badge(teams.length)}</a>
 <a href="?s=teams&tab=solo"${tab === 'solo' ? ' aria-current="page"' : ''}>Not on a team${badge(onNoTeam.length)}</a>
-<a href="?s=teams&tab=tracks"${tab === 'tracks' ? ' aria-current="page"' : ''}>Tracks${badge(tracks.length)}</a>
-<a href="?s=teams&tab=settings"${tab === 'settings' ? ' aria-current="page"' : ''}>Settings</a>
 </nav>`
   }
 
@@ -126,7 +118,7 @@ export async function render(ctx) {
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h" tabindex="-1">Teams</h2><p>Open a team to rename it, place people, choose its admins or lock it.</p>${canMessage ? `<button class="btn" type="button" id="msg-selected" disabled>Message selected</button>` : ''}</div>
 ${ev.team_finding ? '' : `<div class="note">Team finding is off. People join teams with a link or code.</div>`}
 ${ev.stage === 'archived' ? `<div class="note warn">This event has ended. Teams can’t change any more.</div>` : ''}
-${teams.length ? `<div class="list">${teams.map(teamRow).join('')}</div><p class="list-foot"><span>Teams hold up to ${teamSizeMax} people. Change that in <a href="?s=teams&tab=settings">Settings</a>. Select teams to message them.</span></p>` : `<div class="empty-state"><h3>No teams yet</h3><p>Teams show here once participants start them, or when Fill teams places people.</p></div>`}`
+${teams.length ? `<div class="list">${teams.map(teamRow).join('')}</div><p class="list-foot"><span>Teams hold up to ${teamSizeMax} people. Change that in <a href="?s=settings&tab=teams">Settings</a>. Select teams to message them.</span></p>` : `<div class="empty-state"><h3>No teams yet</h3><p>Teams show here once participants start them, or when Fill teams places people.</p></div>`}`
     wireTeamMessaging(sp)
   }
 
@@ -179,56 +171,15 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
     })
   }
 
-  function paintTracks(sp) {
-    sp.innerHTML = `<div class="sp-head"><h2 id="sp-h" tabindex="-1">Tracks</h2><p>Challenges teams can enter. Each team picks its own on its Team page.</p><button class="btn primary" type="button" id="track-add"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add track</button></div>
-${ev.stage === 'archived' ? `<div class="note warn">This event has ended. Tracks can’t change any more.</div>` : ''}
-${tracks.length ? `<div class="list editable">${tracks.map(trackRow).join('')}</div>` : `<div class="empty-state"><h3>No tracks yet</h3><p>Add tracks if teams should pick a challenge. Without tracks, everyone competes together.</p></div>`}`
-    sp.querySelector('#track-add').addEventListener('click', () => onEditTrack(null))
-    sp.querySelectorAll('[data-edit-track]').forEach(btn => btn.addEventListener('click', () => onEditTrack(Number(btn.getAttribute('data-edit-track')))))
-    sp.querySelectorAll('[data-track]').forEach(row => {
-      const i = Number(row.getAttribute('data-track'))
-      row.querySelectorAll('.row-menu button').forEach(item => {
-        item.addEventListener('click', () => {
-          const act = item.getAttribute('data-act')
-          if (act === 'edit') onEditTrack(i)
-          else if (act === 'remove') onRemoveTrack(i)
-        })
-      })
-    })
-  }
-
-  function paintSettings(sp) {
-    const locked = ev.stage === 'archived'
-    sp.innerHTML = `<div class="sp-head"><h2 id="sp-h" tabindex="-1">Settings</h2><p>How teams form in this event.</p></div>
-<section class="card flat"><div class="setting"><div class="t"><b>Team finding</b><span>Participants can browse teams, ask to join and invite people looking for a team. Team links and codes work either way.</span></div><div class="ctl"><span class="saved" id="tf-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10l4 4 8-8"/></svg>Saved</span><button class="toggle${ev.team_finding ? ' on' : ''}" type="button" role="switch" aria-checked="${ev.team_finding ? 'true' : 'false'}" aria-label="Team finding" id="tf-on"${locked ? ' disabled' : ''}></button></div></div></section>
-<section class="card"><h2>Team size</h2><div class="field"><label for="ts-size">Most people per team</label><input class="input" id="ts-size" type="number" min="1" max="50" value="${teamSizeMax}"${locked ? ' disabled' : ''}></div><div class="card-foot"><span class="hint" id="ts-hint">No changes</span><button class="btn quiet" type="button" id="ts-discard" disabled>Discard</button><button class="btn primary" type="button" id="ts-save" disabled>Save</button></div></section>
-<p class="list-foot">Team and participant lists download as CSV from <a href="${esc(href(role, slug, 'results'))}">Results</a>.</p>`
-    const tfOn = sp.querySelector('#tf-on')
-    if (tfOn) tfOn.addEventListener('click', onToggleTeamFinding)
-    const sizeInput = sp.querySelector('#ts-size')
-    const discard = sp.querySelector('#ts-discard')
-    const save = sp.querySelector('#ts-save')
-    const hint = sp.querySelector('#ts-hint')
-    sizeInput.addEventListener('input', () => {
-      const dirty = Number(sizeInput.value) !== teamSizeMax
-      discard.disabled = !dirty
-      save.disabled = !dirty
-      hint.textContent = dirty ? '' : 'No changes'
-    })
-    discard.addEventListener('click', () => { sizeInput.value = teamSizeMax; discard.disabled = true; save.disabled = true; hint.textContent = 'No changes' })
-    save.addEventListener('click', () => onSaveTeamSize(sizeInput, save))
-  }
-
   async function paint() {
     const onNoTeamCount = onNoTeam.length
     const subtitle = teams.length + ' team' + (teams.length === 1 ? '' : 's') + ' · ' + (onNoTeamCount ? onNoTeamCount + (onNoTeamCount === 1 ? ' person' : ' people') + ' not on a team' : 'Everyone is on a team')
     main.innerHTML = `<div class="ph"><div class="t"><h1>Teams</h1><p>${esc(subtitle)}</p></div></div>
-<div class="subnav-split">${subnavHTML()}<section class="sp" aria-labelledby="sp-h"></section></div>`
+<div class="subnav-split">${subnavHTML()}<section class="sp" aria-labelledby="sp-h"></section></div>
+<p class="list-foot">Team and participant lists download as CSV from <a href="${esc(href(role, slug, 'results'))}">Results</a>.</p>`
     const sp = main.querySelector('.sp')
     if (tab === 'teams') paintTeams(sp)
     else if (tab === 'solo') paintSolo(sp)
-    else if (tab === 'tracks') paintTracks(sp)
-    else paintSettings(sp)
     focusHeading(main)
     // Platform-admin inspection or an archived event: every write control
     // on whichever sub-page is showing (Fill teams, the solo row menus,
@@ -375,81 +326,6 @@ ${tracks.length ? `<div class="list editable">${tracks.map(trackRow).join('')}</
     await load()
     await paint()
     ui.saved(main)
-  }
-
-  async function onToggleTeamFinding() {
-    const on = !ev.team_finding
-    setLive('')
-    let r
-    try { r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(slug), { team_finding: on }) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
-    if (!r.ok) { setLive(ui.errText(r, { fallback: 'Could not save' }), true); return }
-    ev = r.data.event
-    await load()
-    await paint()
-    const tick = $('tf-saved')
-    if (tick) { tick.hidden = false; setTimeout(() => { tick.hidden = true }, 2000) }
-  }
-
-  async function onSaveTeamSize(input, btn) {
-    const size = Number(input.value)
-    if (!size || size < 1 || size > 50) { setLive('Most people per team must be between 1 and 50.', true); return }
-    btn.disabled = true
-    let r
-    try { r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(slug), { team_size_max: size }) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); btn.disabled = false; return }
-    if (!r.ok) { setLive(ui.errText(r, { fallback: 'Could not save' }), true); btn.disabled = false; return }
-    ev = r.data.event
-    await load()
-    await paint()
-    ui.saved(main)
-  }
-
-  async function onEditTrack(i) {
-    const existing = i == null ? null : tracks[i]
-    const body = document.createElement('div')
-    body.innerHTML = `<div class="field"><label for="trk-name">Track name</label><input class="input" id="trk-name" maxlength="80" value="${esc(existing ? existing.name : '')}"></div>
-<div class="field"><label for="trk-challenge">Challenge</label><textarea class="input" id="trk-challenge">${esc(existing ? existing.challenge : '')}</textarea></div>
-<div class="field"><label for="trk-prize">Prize</label><input class="input" id="trk-prize" maxlength="80" value="${esc(existing ? existing.prize : '')}"></div>`
-    const saved = await formDialog(ui, { title: existing ? 'Edit track' : 'Add track', body, saveLabel: existing ? 'Save track' : 'Add track' }, async () => {
-      const name = body.querySelector('#trk-name').value.trim()
-      if (!name) { setLive('Enter a track name.', true, body); return false }
-      const next = { slug: existing ? existing.slug : slugify(name), name, challenge: body.querySelector('#trk-challenge').value.trim(), prize: body.querySelector('#trk-prize').value.trim() }
-      const list = tracks.slice()
-      if (existing) list[i] = next
-      else list.push(next)
-      return saveTracks(list)
-    })
-    if (saved) { await load(); await paint() }
-  }
-
-  async function onRemoveTrack(i) {
-    const t = tracks[i]
-    const n = teams.filter(team => team.track && t.slug && team.track.slug === t.slug).length
-    const body = n
-      ? `${n} team${n === 1 ? '' : 's'} chose ${t.name || 'this track'}. They’ll have no track. Remove it?`
-      : `Remove ${t.name || 'this track'}?`
-    const ok = await ui.confirm({ title: 'Remove track?', body, confirmLabel: 'Remove', danger: true })
-    if (!ok) return
-    const next = tracks.slice(0, i).concat(tracks.slice(i + 1))
-    const name = t.name || 'Track'
-    const before = tracks.slice()
-    if (await saveTracks(next)) {
-      await load()
-      await paint()
-      const sp = main.querySelector('.sp')
-      undoToast(sp, 'Removed ' + name, async () => { if (await saveTracks(before)) { await load(); await paint() } })
-    }
-  }
-
-  async function saveTracks(list) {
-    const payload = list.map(t => ({ slug: t.slug || slugify(t.name), name: t.name, challenge: t.challenge, prize: t.prize }))
-    let r
-    try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/tracks', { tracks: payload }) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return false }
-    if (!r.ok) { setLive(ui.errText(r, { fallback: 'Could not save tracks' }), true); return false }
-    tracks = (r.data || []).map(t => ({ ...t }))
-    return true
   }
 
   await load()

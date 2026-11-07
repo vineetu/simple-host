@@ -338,7 +338,7 @@
   // chrome, not part of any reused screen, so it survives regardless of
   // what a given screen's own render() does with `main`.
   var VIEW_ORDER = ['overview', 'people', 'judging'];
-  var VIEW_LABELS = { overview: 'Overview', people: 'People', judging: 'Judging' };
+  var VIEW_LABELS = { overview: 'Home', people: 'People', judging: 'Judging' };
   var main = document.getElementById('app');
   // history is a tiny back-stack of {view, params}, pushed on every normal
   // navigation and popped by goBack() -- same purpose as the judge app's:
@@ -410,7 +410,7 @@
       if (meta.display_name) me.display_name = meta.display_name;
       if (meta.me_id) me.id = meta.me_id;
     }
-    return { event: data.event || {}, organiser: organiser, admin_view: !!data.admin_view, me: me };
+    return { event: data.event || {}, role: 'organiser', can: data.can || {}, organiser: organiser, admin_view: !!data.admin_view, me: me };
   }
   // Re-reads the event through hack_show_organiser itself, the same
   // pattern (and the same reason) as the judge app's refreshEvent: called
@@ -538,18 +538,9 @@
     });
     main.insertBefore(nav, main.firstChild);
   }
-  // Brackets exactly the one render() call triggered by Overview's
-  // "Sign-up questions" link (organiser-overview.js builds that href as
-  // `href('organiser', slug, 'people') + '#signup'`, so the frame sees
-  // '#v=people#signup'): set before navigating, read once by organiser-
-  // people.js's own render() (through the platform adapter's
-  // wantsSection, which this frame answers by reading this flag instead
-  // of location.hash), cleared once that render() finishes so a later,
-  // ordinary navigation to People does not re-open Sign-up or re-scroll.
+  // A legacy in-frame Sign-up link now opens its canonical Settings section.
   function openPeopleSignup() {
-    window.__hackOrgSignupOpen = true;
-    var done = function () { window.__hackOrgSignupOpen = false; };
-    renderView('people', {}).then(done, done);
+    app.openLink(window.__HACKO.resolve('o.signup', state.slug).href).catch(function () {});
   }
   // Same-role in-frame links, generalised past the judge app's narrower
   // version: an organiser-only hostless URL our own frame/organiser-nav.js

@@ -7,7 +7,7 @@ import { needsCard, bindDismiss } from '../needs.js'
 // Leave this event: danger zone last on the page, text from the preview
 // (copy-deck.md, judge section). Returns '' if the preview couldn't be
 // loaded -- never show a Leave button whose state we can't vouch for.
-function judgeDangerZone(ui, preview, ev) {
+function judgeDangerZone(ui, preview, ev, organiser = false) {
   if (!preview) return ''
   const b = 'Leave ' + ev.title
   let span, disabled = false
@@ -16,6 +16,8 @@ function judgeDangerZone(ui, preview, ev) {
     span = preview.blocked.code === 'event_closed' ? 'This event has ended, so nobody can leave it. It stays on your Home as a record.'
       : preview.blocked.code === 'event_taken_down' ? 'This event has been taken down.'
       : (preview.blocked.message || "You can't leave this event right now.")
+  } else if (organiser) {
+    span = "You'll leave as an organiser. Review what happens before leaving."
   } else {
     const n = preview.scored_teams || 0
     span = n > 0
@@ -57,7 +59,7 @@ export async function render(ctx) {
   try {
     ;[queueRes, confRes, preview] = await Promise.all([
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/queue`),
-      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`),
+      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts?mine=1`),
       previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null)
     ])
   } catch (e) {
@@ -98,9 +100,9 @@ export async function render(ctx) {
   } else if (!ev.scoring_open && !locked) {
     const when = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
     top = `<section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ', ' + ui.esc(when) : ''}.</p><p class="muted">Scoring will be available here when judging opens.</p></section>`
-  } else if (total === 0 && conflicts.length === 0) {
+  } else if (total === 0 && !(queueRes.data.candidates?.length > 0)) {
     top = `<div class="note"><p>Nothing assigned to you yet. Check back once the organiser assigns judges.</p></div>`
-  } else if (total === 0 && conflicts.length > 0) {
+  } else if (total === 0 && queueRes.data.candidates?.length > 0) {
     top = `<div class="note"><p>You’ve declared a conflict with everyone assigned to you. There’s nothing left for you to score, by design.</p></div>`
   } else if (locked) {
     if (scored >= total) {
@@ -123,7 +125,7 @@ export async function render(ctx) {
   const openWalk = ctx.params.get('walkthrough') === '1'
   body.innerHTML = top +
     `<h2 class="section-title">Read first</h2><div class="list"><a class="r" href="${ui.esc(href('judge', slug, 'rubric'))}"><span class="main"><b>Rubric &amp; brief</b><span>Read it once before you start</span></span><span class="meta">Open</span></a></div>`
-    + judgeDangerZone(ui, preview, ev)
+    + judgeDangerZone(ui, preview, ev, detail.role === 'organiser')
 
   const leaveBtn = body.querySelector('#leave-btn')
   if (leaveBtn && !leaveBtn.disabled) leaveBtn.addEventListener('click', () => openLeave({ api: client, ui, slug, title: ev.title, from: 'judge-home' }))

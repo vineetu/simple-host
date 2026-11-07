@@ -342,7 +342,7 @@ func (h *HackHandler) listConflicts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	judgeID := ""
-	if a.member.Role == "judge" {
+	if a.member.Role == "judge" || r.URL.Query().Get("mine") == "1" {
 		judgeID = a.user.ID
 	}
 	rows, err := h.entries.Conflicts(r.Context(), a.event.ID, judgeID)
@@ -673,7 +673,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var tl teamList
-	queue, err := h.entries.JudgeQueue(ctx, a.event, a.user.ID, func() error {
+	queue, err := h.entries.JudgeCandidates(ctx, a.event, a.user.ID, func() error {
 		var err error
 		tl, err = h.loadTeamList(ctx, a.event)
 		return err
@@ -702,8 +702,13 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]map[string]any, 0, len(queue))
+	candidates := make([]map[string]any, 0, len(queue))
 	for _, row := range queue {
 		team := row.Team
+		candidates = append(candidates, map[string]any{"team_id": team.ID, "team_name": team.Name, "conflicted": row.Conflicted})
+		if row.Conflicted {
+			continue
+		}
 		item, ierr := h.entryListItem(ctx, a.event, model.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, row.Entry, fields, hasTracks, tl)
 		if ierr != nil {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, ierr)
@@ -718,7 +723,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		item["scores_count"] = row.ScoresCount
 		out = append(out, item)
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"queue": out, "judge_first": a.event.JudgeFirst, "assignment_mode": a.event.JudgeAssignmentMode})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"queue": out, "candidates": candidates, "judge_first": a.event.JudgeFirst, "assignment_mode": a.event.JudgeAssignmentMode})
 }
 
 func scoresJSON(scores []entryapp.JudgeScore, comment string, complete *bool) map[string]any {

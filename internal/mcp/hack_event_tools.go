@@ -14,6 +14,7 @@ import (
 func hackBaseEventTools() []Tool {
 	schemas := hackEventSchemas()
 	tools := []Tool{
+		memberTool("hack_get_navigation", "Read navigation", "Read the shared Hack screens and destination map.", http.MethodGet, "/v1/hack/navigation", noArgs(), nil, readOnly()),
 		{
 			OutputSchema: schemas.list,
 			Name:         "hack_list_events",
@@ -327,7 +328,8 @@ type hackEventView struct {
 		TakenDown     bool     `json:"taken_down"`
 		StagesOffered []string `json:"stages_offered"`
 	} `json:"event"`
-	Role     string `json:"role"`
+	Role     string          `json:"role"`
+	Can      map[string]bool `json:"can"`
 	NextStep *struct {
 		Kind           string  `json:"kind"`
 		Stage          string  `json:"stage"`
@@ -388,6 +390,9 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 		"starts_at":       nil,
 		"ends_at":         nil,
 		"judging_ends_at": nil,
+	}
+	if view.Can != nil {
+		out["can"] = view.Can
 	}
 	if view.Event.StartsAt != nil {
 		out["starts_at"] = *view.Event.StartsAt
@@ -452,16 +457,18 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 }
 
 type hackListItem struct {
-	Slug      string  `json:"slug"`
-	Title     string  `json:"title"`
-	Stage     string  `json:"stage"`
-	Role      string  `json:"role"`
-	URL       string  `json:"url"`
-	ManageURL string  `json:"manage_url"`
-	StartsAt  *string `json:"starts_at"`
-	EndsAt    *string `json:"ends_at"`
-	TakenDown bool    `json:"taken_down"`
-	TimeZone  string  `json:"time_zone"`
+	Slug      string          `json:"slug"`
+	Title     string          `json:"title"`
+	Stage     string          `json:"stage"`
+	Role      string          `json:"role"`
+	Can       map[string]bool `json:"can"`
+	EndedAt   *string         `json:"ended_at"`
+	URL       string          `json:"url"`
+	ManageURL string          `json:"manage_url"`
+	StartsAt  *string         `json:"starts_at"`
+	EndsAt    *string         `json:"ends_at"`
+	TakenDown bool            `json:"taken_down"`
+	TimeZone  string          `json:"time_zone"`
 }
 
 func hackListOutput(body []byte) (output, error) {
@@ -473,8 +480,12 @@ func hackListOutput(body []byte) (output, error) {
 	for _, row := range rows {
 		item := map[string]any{
 			"slug": row.Slug, "title": row.Title, "stage": row.Stage, "role": row.Role,
-			"url": row.URL, "manage_url": row.ManageURL, "time_zone": row.TimeZone,
+			"ended_at": row.EndedAt,
+			"url":      row.URL, "manage_url": row.ManageURL, "time_zone": row.TimeZone,
 			"taken_down": row.TakenDown, "starts_at": nil, "ends_at": nil,
+		}
+		if row.Can != nil {
+			item["can"] = row.Can
 		}
 		if row.StartsAt != nil {
 			item["starts_at"] = *row.StartsAt
@@ -644,6 +655,7 @@ func hackEventSchemas() hackEventSchemaSet {
 		"prizes":          outString("Prizes text. Empty when unset."),
 		"coc_text":        outString("The organiser's own code of conduct. Empty when unset."),
 		"stage":           outString("draft, open, building, closed, judging, results or archived."),
+		"can":             hackAbilitiesSchema(),
 		"role":            outString("This person's role: organiser, participant or judge."),
 		"url":             outString("The event's public address."),
 		"time_zone":       outString("IANA time zone."),
@@ -692,6 +704,8 @@ func hackEventSchemas() hackEventSchemaSet {
 		"slug":       outString("The event name."),
 		"title":      outString("The event title."),
 		"stage":      outString("The event stage."),
+		"can":        hackAbilitiesSchema(),
+		"ended_at":   nullableString("When the event was ended."),
 		"role":       outString("This person's role on the event."),
 		"url":        outString("The event's public address."),
 		"manage_url": outString("The organiser's page for the event."),
@@ -711,3 +725,7 @@ func hackEventSchemas() hackEventSchemaSet {
 }
 
 type hackEventSchemaSet struct{ list, name, event map[string]any }
+
+func hackAbilitiesSchema() map[string]any {
+	return outObject(map[string]any{"manage": outBool("May manage the event."), "judge": outBool("May enter judging."), "take_part": outBool("May enter the participant area.")}, "manage", "judge", "take_part")
+}

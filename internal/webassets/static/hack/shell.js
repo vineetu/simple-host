@@ -1,3 +1,5 @@
+import { eventOrder, eventGroups } from './event-list.js'
+export { eventOrder } from './event-list.js'
 import { nav, href } from './nav.js'
 import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, copyButton, markInk } from './ui.js'
 import { needCount, newsCount, unreadAnnouncements } from './needs.js'
@@ -36,18 +38,6 @@ import { needCount, newsCount, unreadAnnouncements } from './needs.js'
   };
   export function ico(n,cls){ return '<svg class="'+(cls||'ico')+'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(I[n]||I.file)+'"/></svg>'; }
 
-export function eventOrder(events) {
-  // The list endpoint has role and stage, but no pending-work counts.
-  // Finding #4 (prod full test, round 7): this used to treat every
-  // non-archived organiser event as needing attention, sorting an event
-  // that just says "Sign-up is open" above one with a real pending action
-  // -- the same bug landing-your-events.js had for its "Needs attention"
-  // heading, fixed there the same way, so the switcher dropdown and the
-  // Home page agree on what counts (atlas: landing-your-events "same
-  // grouping as the switcher").
-  const attention = e => !e.taken_down && ((e.role === 'organiser' && ['draft','closed'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
-  return [...events].sort((a,b) => Number(attention(b)) - Number(attention(a)))
-}
 // The event dropdown is positioned for the layout it was opened in, so a
 // resize (desktop <-> phone) closes it rather than leaving it misplaced.
 let resizeBound = false
@@ -113,7 +103,8 @@ function supportLink() {
 export function mount(ctx, section, screenId) {
   bindResizeClose()
   bindSideKeyOnce()
-  const { event: detail, role, events, me } = ctx
+  const { event: detail, role, me } = ctx
+  let events = ctx.events
   const event = detail?.event
   const items = (nav[role] || []).filter(it => !it.stages || (event?.results_published && it.stages.includes(event.stage === 'archived' ? 'ended' : event?.stage)))
   // Teams redesign (2026-10-31): nav.js's own item objects carry no live
@@ -162,14 +153,36 @@ export function mount(ctx, section, screenId) {
     const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar'
     return `<button class="side-toggle" type="button" data-side-toggle aria-controls="side" aria-expanded="${!collapsed}" aria-label="${label}" data-tip="${label}  [">${ico(collapsed ? 'expand' : 'collapse')}</button>`
   }
-  const topNav = `<nav class="top-nav" aria-label="Home"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''} data-tip="Home">${ico('home')}<span>Home</span></a><a href="/directory" data-tip="Find a hackathon">${ico('globe')}<span>Find a hackathon</span></a></nav>`
+  const topNav = `<nav class="top-nav" aria-label="Home"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''} data-tip="Your events">${ico('home')}<span>Your events</span></a><a href="/directory" data-tip="Find a hackathon">${ico('globe')}<span>Find a hackathon</span></a></nav>`
   function switcher(id) {
-    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop" data-tip="${esc(tip(event?.title || 'Simple Hack', roleLabel(role)))}"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role))}</span></span>${ico('chev','chev')}</button>`
+    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop" data-tip="${esc(tip(event?.title || 'Simple Hack', roleLabel(detail?.role || role)))}"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(detail?.role || role))}</span></span>${ico('chev','chev')}</button>`
   }
   // Owner decision 2026-10-30: the dropdown only lists events now -- Home and
   // Find a hackathon already live in the sidebar's always-shown top section,
   // so the old "More" block here just repeated them.
-  const popup = `<div class="menu-pop" id="evpop"><div class="lbl">Your events</div>${eventOrder(events).map(e => `<a href="${esc(href(e.role,e.slug))}"><span class="ev-mark">${esc(initials(e.title))}</span><span>${esc(e.title)}<small>${esc(roleLabel(e.role))} · ${esc(e.taken_down ? 'Taken down' : stageLabel(e.stage))}</small></span></a>`).join('')}</div>`
+  function sections() {
+    let group = null
+    return items.map(it => {
+      const label = it.group && it.group !== group ? `<p class="nav-group" data-nav-group>${esc(it.group)}</p>` : ''
+      group = it.group
+      return label + link(it)
+    }).join('') + (role === 'judge' && detail?.can?.manage ? `<a href="${esc(href('organiser', event.slug, 'overview'))}" data-tip="Manage event">${ico('settings')}<span>Manage event</span></a>` : '')
+  }
+  function eventRow(e, expanded) {
+    const label = roleLabel(e.role) + ' · ' + (e.taken_down ? 'Taken down' : e.approval_status === 'pending' ? 'Waiting for approval' : e.approval_status === 'rejected' ? 'Not accepted' : stageLabel(e.stage))
+    const attrs = `class="pane-event" data-tip="${esc(e.title + ' · ' + label)}" aria-label="${esc(e.title + ' · ' + label)}" title="${esc(e.title + ' · ' + label)}"`
+    const content = `<span class="ev-mark">${esc(initials(e.title))}</span><span class="event-label"><b>${esc(e.title)}</b><small>${esc(label)}</small></span>`
+    const row = e.taken_down && e.role !== 'organiser' ? `<div ${attrs}>${content}</div>` : `<a ${attrs} href="${esc(href(e.role, e.slug, e.role === 'organiser' ? 'overview' : 'home'))}">${content}</a>`
+    return row + (expanded && e.slug === event?.slug ? `<div class="event-sections">${sections()}</div>` : '')
+  }
+  function eventList(expanded) {
+    const { current, past, pastCount } = eventGroups(events, event?.slug)
+    return current.slice(0, 5).map(e => eventRow(e, expanded)).join('')
+      + `<a href="/events" data-tip="All events (${events.length})">${ico('events')}<span>All events (${events.length})</span></a>`
+      + (pastCount ? `<details class="past-events"><summary>Past events (${pastCount})</summary>${past.slice(0, 5).map(e => eventRow(e, false)).join('')}<a href="/events?past=1">All past events</a></details>` : '')
+  }
+  const popup = `<div class="menu-pop" id="evpop">${eventList(false)}</div>`
+
   const tabs = items.filter(it => it.phone_tab)
   // A18: the tab bar's own More link and the top "Menu" button both opened
   // the same sheet. Keep one control: More always sits in the tab bar
@@ -234,7 +247,7 @@ export function mount(ctx, section, screenId) {
   // hackathon) is always shown; the event section (switcher + role nav) only
   // exists while an event is open -- on Home itself (no event) only the top
   // section shows.
-  const eventNav = event ? `<div class="event-nav">${switcher('sw1')}<nav class="nav" aria-label="Event">${items.map(link).join('')}</nav></div>` : ''
+  const eventNav = signedIn ? `<div class="event-nav"><nav class="nav" aria-label="Your events">${eventList(true)}</nav></div>` : ''
   let collapsed = readSideCollapsed()
   root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}${collapsed ? ' side-collapsed' : ''}"><aside class="side" id="side" aria-label="Navigation"><div class="side-top">${brand()}${toggleBtn(collapsed)}</div>${topNav}${eventNav}<div class="side-foot"><a href="/account" data-tip="Account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout data-tip="Sign out">${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help" data-tip="Help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}${supportLink()}</details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
@@ -251,6 +264,7 @@ export function mount(ctx, section, screenId) {
     if (fresh) fresh.focus()
     if (pop) { pop.classList.remove('open'); pop.style.top = ''; root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded', 'false')) }
   }
+  let menuOpener = null
   app.addEventListener('click', e => {
     if (e.target.closest('[data-side-toggle]')) { e.preventDefault(); setSide(!collapsed); return }
     const sw = e.target.closest('.switcher')
@@ -276,7 +290,8 @@ export function mount(ctx, section, screenId) {
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded','false'))
     }
     if (e.target.closest('[data-signout]')) { e.preventDefault(); ctx.api.signOut(ctx.ui.confirm); return }
-    if (e.target.closest('[data-menu]')) { e.preventDefault(); app.classList.toggle('menu-open') }
+    if (e.target.closest('[data-menu]')) { e.preventDefault(); menuOpener = e.target.closest('[data-menu]'); app.classList.toggle('menu-open'); if (app.classList.contains('menu-open')) app.querySelector('.side a')?.focus(); else menuOpener.focus() }
+    else if (e.target.closest('.side a')) { app.classList.remove('menu-open'); menuOpener?.focus() }
     else if (!e.target.closest('.side')) app.classList.remove('menu-open')
     if (e.target.closest('[aria-disabled="true"]')) { e.preventDefault(); e.stopPropagation() }
   })
@@ -298,6 +313,16 @@ export function mount(ctx, section, screenId) {
     for (const [key,label] of [['join_url','Copy join link'],['judge_url','Copy judge link']]) {
       if (detail.organiser?.[key]) root.querySelector('.status').append(copyButton(detail.organiser[key],label))
     }
+  }
+  ctx.updateEvents = fresh => {
+    events = fresh
+    const pane = root.querySelector('.event-nav > .nav')
+    if (pane) pane.innerHTML = eventList(true)
+    if (pop) pop.innerHTML = eventList(false)
+    root.querySelectorAll('.pane-event .ev-mark').forEach(mark => {
+      const entry = events.find(e => initials(e.title) === mark.textContent)
+      if (/^#[0-9a-f]{6}$/i.test(entry?.color || '')) { mark.style.setProperty('--ev', entry.color); mark.style.color = markInk(entry.color) }
+    })
   }
   return root.querySelector('main')
 }

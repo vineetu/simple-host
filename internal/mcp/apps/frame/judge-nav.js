@@ -1,3 +1,4 @@
+export { resolve } from '../../../webassets/static/hack/navigation.js'
 // Frame stand-in for internal/handler/static/hack/nav.js, swapped in by
 // the esbuild OnResolve plugin in internal/mcp/apps/bundlegen for the
 // judge app only: there is no sidebar or browser address bar here, just

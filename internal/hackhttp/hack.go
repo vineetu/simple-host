@@ -478,6 +478,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("GET /v1/hack/events/{slug}/vote", http.HandlerFunc(h.getVote))
 	mux.Handle("GET /v1/hack/events/{slug}/my-vote", wrap(h.getMyVote))
 	mux.Handle("PUT /v1/hack/events/{slug}/vote", wrap(h.putVote))
+	mux.Handle("GET /v1/hack/navigation", wrap(func(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, http.StatusOK, events.Navigation()) }))
 	mux.Handle("GET /v1/hack/events", wrap(h.listEvents))
 	mux.Handle("POST /v1/hack/events", wrap(h.createEvent))
 	mux.Handle("GET /v1/hack/names/{slug}", wrap(h.checkName))
@@ -947,18 +948,20 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	events, roles, err := h.eventsSvc().EventsForUser(r.Context(), user.ID)
+	eventList, roles, err := h.eventsSvc().EventsForUser(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	out := make([]map[string]any, 0, len(events))
-	for i, ev := range events {
+	out := make([]map[string]any, 0, len(eventList))
+	for i, ev := range eventList {
 		item := map[string]any{
 			"slug":         ev.Slug,
 			"title":        ev.Title,
 			"stage":        ev.Stage,
 			"role":         roles[i],
+			"can":          events.AbilitiesForRole(roles[i]),
+			"ended_at":     rfc3339UTC(ev.ClosedAt),
 			"url":          h.EventURL(ev.Slug),
 			"icon_url":     h.iconURL(ev),
 			"accent_color": ev.AccentColor, "color": hackEventAccent(ev),
@@ -1037,6 +1040,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member mode
 			"tracks":               tracks,
 		},
 		"role": member.Role,
+		"can":  events.MembershipAbilities(member),
 		"me":   h.meView(ctx, ev, member),
 		// What waits on this person here (hack_notices.go): the sidebar
 		// badges, Overview's Needs you card and hack_get_team_status.

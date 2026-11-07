@@ -1,6 +1,6 @@
 # Simple Hack navigation and checklists — SIM-388 / SIM-393
 
-Status: revised after gated review · 2026-11-07 · implementation in two slices; no implementation in this change.
+Status: navigation slice 1 implemented locally · 2026-11-07 · checklist slice 2 remains planned.
 
 ## Decisions after review (2026-11-07)
 

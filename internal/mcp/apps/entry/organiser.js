@@ -13,9 +13,10 @@
 //
 // Phase 2 only: overview, people, judging -- teams, entries, results and
 // the event page are later phases (see GenerateOrganiserJS).
+import { resolve } from '../frame/organiser-nav.js'
 import * as ui from '../../../webassets/static/hack/ui.js'
 import * as overview from '../../../webassets/static/hack/screens/organiser-overview.js'
 import * as people from '../../../webassets/static/hack/screens/organiser-people.js'
 import * as judging from '../../../webassets/static/hack/screens/organiser-judging.js'
 
-window.__HACKO = { ui, screens: { overview, people, judging } }
+window.__HACKO = { ui, resolve, screens: { overview, people, judging } }

@@ -27,10 +27,20 @@ type QueueRow struct {
 	Entry       model.EventEntry
 	Done        bool
 	ScoresCount int
+	Conflicted  bool
 }
 
 // JudgeQueue gathers and orders the entries visible to a judge.
 func (s *Service) JudgeQueue(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error) ([]QueueRow, error) {
+	return s.judgeQueue(ctx, ev, judgeID, loadTeams, false)
+}
+
+// JudgeCandidates includes mode-eligible, judgeable teams before own conflicts are subtracted.
+func (s *Service) JudgeCandidates(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error) ([]QueueRow, error) {
+	return s.judgeQueue(ctx, ev, judgeID, loadTeams, true)
+}
+
+func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error, candidates bool) ([]QueueRow, error) {
 	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
@@ -50,7 +60,7 @@ func (s *Service) JudgeQueue(ctx context.Context, ev model.Event, judgeID string
 		return nil, err
 	}
 	if ev.JudgeAssignmentMode != "open" {
-		assigned, err := entryrepo.EligibleJudgeTeams(ctx, s.db, ev.ID, judgeID)
+		assigned, err := entryrepo.EligibleJudgeTeamsIgnoringConflicts(ctx, s.db, ev.ID, judgeID)
 		if err != nil {
 			return nil, err
 		}
@@ -80,14 +90,14 @@ func (s *Service) JudgeQueue(ctx context.Context, ev model.Event, judgeID string
 	out := make([]QueueRow, 0, len(teams))
 	for _, team := range teams {
 		entry := byTeam[team.ID]
-		if !hackentries.Judgeable(entry) || conflicted[team.ID] {
+		if !hackentries.Judgeable(entry) || (!candidates && conflicted[team.ID]) {
 			continue
 		}
 		done, err := entryrepo.JudgeDoneForTeam(ctx, s.db, ev.ID, judgeID, team.ID, len(rubric))
 		if err != nil {
 			return nil, &QueueTeamError{TeamID: team.ID, Err: err}
 		}
-		out = append(out, QueueRow{Team: team, Entry: entry, Done: done, ScoresCount: coverage[team.ID]})
+		out = append(out, QueueRow{Team: team, Entry: entry, Done: done, ScoresCount: coverage[team.ID], Conflicted: conflicted[team.ID]})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].ScoresCount != out[j].ScoresCount {

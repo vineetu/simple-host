@@ -421,10 +421,10 @@
       return { ok: false, status: res.status, data };
     }
     const blob = await res.blob();
-    const dataURL = await new Promise((resolve) => {
+    const dataURL = await new Promise((resolve2) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-      reader.onerror = () => resolve("");
+      reader.onload = () => resolve2(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => resolve2("");
       reader.readAsDataURL(blob);
     });
     return { ok: true, status: res.status, blob, dataURL };
@@ -481,7 +481,7 @@
     return Array.from(box.querySelectorAll(FOCUSABLE_SEL)).filter((el2) => !el2.disabled && el2.tabIndex !== -1 && !el2.hidden);
   }
   function dialog({ title: title5, body, buttons, escapeValue = false, focus = 0 }) {
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       const previous = document.activeElement;
       const scrim = document.createElement("div");
       scrim.className = "scrim";
@@ -515,7 +515,7 @@
         document.removeEventListener("keydown", keydown, true);
         scrim.remove();
         previous?.focus();
-        resolve(value);
+        resolve2(value);
       }
       function primaryButton() {
         return els.find((b) => b.classList.contains("primary")) || els[els.length - 1];
@@ -570,7 +570,7 @@
     });
   }
   function confirmTyped({ title: title5, body, matchText, confirmLabel = "Confirm", cancelLabel = "Cancel", fieldLabel, danger = true }) {
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       const previous = document.activeElement;
       const scrim = document.createElement("div");
       scrim.className = "scrim";
@@ -615,7 +615,7 @@
         document.removeEventListener("keydown", keydown, true);
         scrim.remove();
         previous?.focus();
-        resolve(value);
+        resolve2(value);
       }
       function sync() {
         okBtn.disabled = input.value.trim() !== matchText;
@@ -1018,7 +1018,7 @@
       ;
       [queueRes, confRes, rubricRes] = await Promise.all([
         api("GET", `/v1/hack/events/${encodeURIComponent(slug)}/judge/queue`),
-        api("GET", `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`),
+        api("GET", `/v1/hack/events/${encodeURIComponent(slug)}/conflicts?mine=1`),
         api("GET", `/v1/hack/events/${encodeURIComponent(slug)}/rubric`)
       ]);
     } catch (e) {
@@ -1086,20 +1086,24 @@
     }
     function emptyToScore() {
       if (scored.length) return "Nothing left \u2014 you\u2019ve scored everyone assigned to you.";
-      if (conflicts.length) return "Nothing to score \u2014 you know someone on every team on your list.";
+      if (queueRes.data.candidates?.length > 0 && !queue.length) return "Nothing to score \u2014 you know someone on every team on your list.";
       if (queueRes.data.assignment_mode && queueRes.data.assignment_mode !== "open") return "Nothing to score yet. No team with an entry is on your list.";
       return "Nothing to score yet. No team has an entry to judge.";
     }
     const mode = resultsOut || locked ? "readonly" : "open";
     const toScorePanel = toScore.length ? '<div class="list">' + toScore.map((r, i) => rowFor(r, mode === "readonly" ? "readonly" : "to-score", i === 0)).join("") + "</div>" : `<div class="note">${ui.esc(emptyToScore())}</div>`;
     const scoredPanel = scored.length ? '<div class="list">' + scored.map((r) => rowFor(r, mode === "readonly" ? "readonly" : "scored")).join("") + "</div>" : `<div class="note">No teams scored yet.</div>`;
-    const conflictsPanel = conflicts.length ? '<div class="list">' + conflicts.map((c) => `<div class="r" data-conflict="${ui.esc(c.team_id)}"><span class="main"><b>${ui.esc(c.team_name)}</b><span>You know someone on this team</span></span>${locked ? "" : `<button type="button" class="btn sm" data-remove-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">I don\u2019t know this team after all</button>`}</div>`).join("") + "</div>" : `<div class="note">You haven\u2019t said you know anyone on a team.</div>`;
+    const candidates = queueRes.data.candidates || queue.map((r) => ({ team_id: r.team_id, team_name: r.team.name }));
+    const conflictsPanel = '<div class="list" id="conflicts">' + candidates.map((c) => {
+      const own = conflicts.find((x) => x.team_id === c.team_id);
+      return `<div class="r"><span class="main"><b>${ui.esc(c.team_name)}</b>${own ? "<span>You know someone on this team</span>" : ""}</span>${locked || resultsOut ? "" : own ? `<button type="button" class="btn sm" data-remove-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">I don\u2019t know this team after all</button>` : `<button type="button" class="btn quiet sm" data-declare-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">Know this team?</button>`}</div>`;
+    }).join("") + (candidates.length ? "" : '<p class="muted">No teams to review yet.</p>') + "</div>";
     const tabs = [
       { id: "to-score", label: "To score", count: toScore.length, panel: toScorePanel },
       { id: "scored", label: "Scored", count: scored.length, panel: scoredPanel },
       { id: "conflicts", label: "Teams I know", count: conflicts.length, panel: conflictsPanel }
     ];
-    const active = tabs.find((t) => t.count > 0) || tabs[0];
+    const active = tabs.find((t) => t.id === ctx.params.get("tab")) || tabs.find((t) => t.count > 0) || tabs[0];
     main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>Teams you are scoring.</p></div></div>` + banner + `<nav class="subtabs" aria-label="My teams filters">${tabs.map((t) => `<a href="#" data-tab="${t.id}"${t.id === active.id ? ' aria-current="page"' : ""}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join("")}</nav>` + tabs.map((t) => `<section data-panel="${t.id}"${t.id === active.id ? "" : " hidden"}>${t.panel}</section>`).join("");
     main.querySelectorAll("[data-tab]").forEach((a) => a.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1124,6 +1128,19 @@
       if (!img.getAttribute("data-blob")) {
         await ui.showImage(ctx, img, `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(btn.getAttribute("data-slug"))}/screenshot`);
       }
+    }));
+    main.querySelectorAll("[data-declare-conflict]").forEach((btn) => btn.addEventListener("click", async () => {
+      const ok = await ui.confirm({ title: "Know someone on " + btn.dataset.name + "?", body: "You won't score this team. Any scores you gave it won't count while the conflict is declared.", confirmLabel: "Declare conflict" });
+      if (!ok || !ctx.alive()) return;
+      btn.disabled = true;
+      const r = await api("POST", `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`, { team_id: btn.dataset.declareConflict });
+      if (!ctx.alive()) return;
+      if (!r.ok) {
+        ui.toast(errText2(r), btn, true);
+        btn.disabled = false;
+        return;
+      }
+      return render2(ctx);
     }));
     main.querySelectorAll("[data-remove-conflict]").forEach((btn) => btn.addEventListener("click", async () => {
       const teamId = btn.getAttribute("data-remove-conflict");

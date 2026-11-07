@@ -47,13 +47,14 @@ func hackShowOrganiserTool() Tool {
 		policy: toolPolicy{screen: "hack-organiser", showAllowed: hackAppOnlyOrganiserAllowed},
 		Name:   "hack_show_organiser",
 		Title:  "Show the organiser view",
-		Description: "Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (rubric, assignments, progress and former judges). " +
+		Description: "Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (assignments, progress and former judges; rubric in website Settings). " +
 			"Only offered to a connection whose app can render it; every organiser action also has a plain tool (hack_get_event, hack_set_event_stage, hack_get_applications, hack_decide_application, hack_get_judging_dashboard, hack_lock_judging, ...) that works the same everywhere.",
 		InputSchema: object(map[string]any{
 			"slug": str("Event name."),
 			"view": map[string]any{"type": "string", "enum": []string{"overview", "people", "judging"}, "description": "Which organiser view to open."},
 		}, "slug", "view"),
 		OutputSchema: outObject(map[string]any{
+			"can":        hackAbilitiesSchema(),
 			"view":       outString("The view that was opened."),
 			"slug":       outString("Event name."),
 			"admin_view": map[string]any{"type": "boolean", "description": "True when a platform admin is inspecting without real membership; every write is refused."},
@@ -85,11 +86,12 @@ func runHackShowOrganiser(c *call, args map[string]any) (output, error) {
 		return output{}, hackRestError("hack_show_organiser", res)
 	}
 	var body struct {
-		Event     map[string]any `json:"event"`
-		Organiser map[string]any `json:"organiser"`
-		Role      string         `json:"role"`
-		AdminView bool           `json:"admin_view"`
-		Me        map[string]any `json:"me"`
+		Event     map[string]any  `json:"event"`
+		Organiser map[string]any  `json:"organiser"`
+		Role      string          `json:"role"`
+		Can       map[string]bool `json:"can"`
+		AdminView bool            `json:"admin_view"`
+		Me        map[string]any  `json:"me"`
 	}
 	if err := json.Unmarshal(res.body, &body); err != nil {
 		return output{}, errors.New("hack_show_organiser: server returned invalid JSON")
@@ -111,6 +113,9 @@ func runHackShowOrganiser(c *call, args map[string]any) (output, error) {
 		"view": view, "slug": slug, "admin_view": body.AdminView,
 		"event":     hackShowOrganiserEventFields(body.Event),
 		"organiser": hackShowOrganiserCounts(body.Organiser),
+	}
+	if body.Can != nil {
+		structured["can"] = body.Can
 	}
 	verb := map[string]string{"overview": "the organiser overview", "people": "the applications and people list", "judging": "the judging dashboard"}[view]
 	out := output{Text: "Opened " + verb + " for " + slug + ".", Structured: structured}

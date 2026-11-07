@@ -24,11 +24,11 @@ export const MOVES = {
 // Where the organiser changes a fixed row.
 export function setInLink(setIn, slug) {
   if (setIn === 'basics') return { label: 'Basics', href: href('organiser', slug, 'event-page') + '&tab=basics' }
-  if (setIn === 'entries') return { label: 'Entries', href: href('organiser', slug, 'entries') }
+  if (setIn === 'entries') return { label: 'Settings → Entries', href: href('organiser', slug, 'settings') + '&tab=entries#deadline' }
   if (setIn === 'results') return { label: 'Results', href: href('organiser', slug, 'results') }
   // judging_ends_at (notices contract, CHANGE 2026-11-05): set on
   // organiser-judging.js, next to the rubric and tie-break.
-  if (setIn === 'judging') return { label: 'Judging', href: href('organiser', slug, 'judging') }
+  if (setIn === 'judging') return { label: 'Settings → Judging', href: href('organiser', slug, 'settings') + '&tab=judging#closes' }
   return null
 }
 

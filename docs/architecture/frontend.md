@@ -131,8 +131,8 @@ selects a screen ID, role, event slug and section. The app dynamically imports
 | `/e/{slug}/judge?s=home\|queue\|rubric\|scoring` | Matching `judge-*.js` |
 | Invite/application links | `public-join.js`, `public-judge.js`, `public-organiser-invite.js`, `public-team-link.js`, `public-apply.js` |
 
-The actual event role returned by the server overrides a stale role in the
-URL. Unknown sections fall back to the role's first section. Keep these
+The area in the URL selects the navigation role when the membership has its required
+`can` ability. An organiser can also enter the judge area; event.role stays the membership role. Unknown sections fall back to the role's first section. Keep these
 rules in `nav.js:resolveRoute` and `app.js:route`, not in copied screen routers.
 
 A browser `ctx` contains `main`, `api`, `ui`, `me`, `events`, `event`, `role`,
@@ -144,7 +144,7 @@ This suppresses stale results; it does not cancel the underlying fetch.
 
 The initial `/v1/me` and `/v1/hack/events` promise is cached for the browser
 session. `ctx.refresh()` clears it and routes again; `api.js:onEventsChanged`
-also invalidates it after the listed membership-changing operations.
+also invalidates it after membership and stage changes. Window focus refreshes the list and screen.
 The event itself is fetched again on event-backed navigation
 (`app.js:route`, `api.js:MEMBERSHIP_MUTATIONS`).
 
@@ -278,3 +278,5 @@ The reviewed Hack skill source is `internal/webassets/hack-toolkit/skills`.
 `scripts/sync-claude-plugin.sh` also copies it to `hack-toolkit/skills` to keep
 the published GitHub install address working; `check-claude-plugin.sh` checks
 that compatibility copy. Embedded and downloaded bytes retain their existing paths.
+
+The shared destination map lives in `internal/rules/hackevents/navigation.json`. Run `python3 scripts/build-hack-navigation.py` for `hack/navigation-data.js`; docs-sync checks it. Atlas build.py projects the same role navigation. Settings editors live in focused `_settings-*` modules, Tracks in `_event-tracks.js`; activity screens retain operations and exports.

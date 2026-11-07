@@ -1,3 +1,4 @@
+import { render as renderTracks } from './_event-tracks.js'
 // Atlas 2026-10-30: Event page is now seven sub-pages (?s=event-page&tab=…),
 // one shown at a time, each with its own Save/Add rule -- see
 // docs/ux-atlas/spec.json "organiser-event-page" (sub_pages, editing_rules,
@@ -23,8 +24,8 @@ export function title(ctx) {
   return TAB_LABEL[tab] + ' · Event page' + (name ? ' · ' + name : '')
 }
 
-const TABS = ['basics', 'about', 'schedule', 'sponsors', 'faq', 'look', 'website']
-const TAB_LABEL = { basics: 'Basics', about: 'About', schedule: 'Schedule', sponsors: 'Sponsors', faq: 'FAQ', look: 'Look', website: 'Website' }
+const TABS = ['basics', 'about', 'schedule', 'tracks', 'sponsors', 'faq', 'look', 'website']
+const TAB_LABEL = { basics: 'Basics', about: 'About', schedule: 'Schedule', tracks: 'Tracks', sponsors: 'Sponsors', faq: 'FAQ', look: 'Look', website: 'Website' }
 // Old deep links (BUILD.md): #basics/#schedule/#sponsors/#faq -> that tab,
 // #appearance -> look, #address -> website; #announcements, or tab=
 // announcements, redirects away to ?s=announcements entirely (handled in
@@ -168,7 +169,7 @@ export async function render(ctx) {
   let tab = ctx.params.get('tab') || ''
   let h = ''
   if (location.hash) { try { h = decodeURIComponent(location.hash.slice(1)) } catch { h = '' } }
-  if (tab === 'announcements' || h === 'announcements') {
+  if (tab === 'announcements' || (!TABS.includes(tab) && h === 'announcements')) {
     const to = `/e/${encodeURIComponent(ev.slug)}/manage?s=announcements`
     history.replaceState(history.state, '', to)
     ui.notePath(to)
@@ -176,7 +177,8 @@ export async function render(ctx) {
   }
   tab = resolveTab(ctx)
   if (ctx.params.get('tab') !== tab) {
-    const fixed = `${location.pathname}?s=event-page&tab=${tab}`
+    const next = new URL(location.href); next.searchParams.set('tab', tab)
+    const fixed = next.pathname + next.search + next.hash
     history.replaceState(history.state, '', fixed)
     ui.notePath(fixed)
   }
@@ -227,7 +229,9 @@ export async function render(ctx) {
   // page header. paintTab is also what a subnav click now calls directly
   // (below), instead of a full app.js route() (which used to re-fetch
   // getEvent and remount the whole shell sidebar on every tab click).
+  let tabGeneration = 0
   function paintTab(t) {
+    const turn = ++tabGeneration
     if (t !== 'basics' && t !== 'about') ui.clearDirtyGuard()
     split.innerHTML = `${subnavHTML(t, ev)}<section class="sp" aria-labelledby="sp-h" id="sp"></section>`
     const sp = split.querySelector('#sp')
@@ -235,6 +239,7 @@ export async function render(ctx) {
     if (t === 'basics') renderBasics(helpers)
     else if (t === 'about') renderAbout(helpers)
     else if (t === 'schedule') renderSchedule(helpers)
+    else if (t === 'tracks') renderTracks({ ...ctx, main: sp, alive: () => ctx.alive() && turn === tabGeneration })
     else if (t === 'sponsors') renderSponsors(helpers)
     else if (t === 'faq') renderFaq(helpers)
     else if (t === 'look') renderLook(helpers)

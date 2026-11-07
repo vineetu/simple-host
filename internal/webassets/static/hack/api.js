@@ -17,7 +17,9 @@ const MEMBERSHIP_MUTATIONS = [
   { method: 'POST', re: /^\/v1\/hack\/organiser\/[^/]+$/ },
   { method: 'POST', re: /^\/v1\/hack\/join\/[^/]+$/ },
   { method: 'POST', re: /^\/v1\/hack\/judge\/[^/]+$/ },
-  { method: 'DELETE', re: /^\/v1\/hack\/events\/[^/]+$/ }
+  { method: 'DELETE', re: /^\/v1\/hack\/events\/[^/]+$/ },
+  { method: 'POST', re: /^\/v1\/hack\/events\/[^/]+\/(?:stage|leave)$/ },
+  { method: 'DELETE', re: /^\/v1\/hack\/events\/[^/]+\/(?:people|organisers)\/[^/]+$/ }
 ];
 function isMembershipMutation(method, path) {
   return MEMBERSHIP_MUTATIONS.some(m => m.method === method && m.re.test(path));

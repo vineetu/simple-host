@@ -8598,13 +8598,37 @@ paths:
       responses:
         '200': {description: "{team, eligible}: team slug or empty string when no vote.", content: {application/json: {schema: {type: object}}}}
         '404': {description: event_not_found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/hack/navigation:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getHackNavigation
+      summary: Read Hack navigation destinations
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: Shared navigation map without event or private values
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version, screens, targets, aliases]
+                properties:
+                  version: { type: integer }
+                  screens: { type: array, items: { type: object, additionalProperties: true } }
+                  targets: { type: array, items: { type: object, additionalProperties: true } }
+                  aliases: { type: array, items: { type: object, additionalProperties: true } }
+                  roles: { type: array, items: { type: object, additionalProperties: true } }
+                  resolution: { type: object, additionalProperties: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /v1/hack/events:
     get:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: listHackEvents
       summary: Events I am in (EVENTS=hosted only)
-      description: "Items: slug, title, stage, role, url, manage_url, starts_at, ends_at, time_zone, taken_down."
+      description: "Items: slug, title, stage, role, can, url, manage_url, starts_at, ends_at, ended_at, time_zone, taken_down."
       security: [{ apiKey: [] }]
       responses:
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -8620,6 +8644,8 @@ paths:
                     slug: { type: string }
                     title: { type: string }
                     stage: { type: string }
+                    can: { $ref: '#/components/schemas/HackAbilities' }
+                    ended_at: { type: string, format: date-time, nullable: true, description: 'Archive timestamp; null for legacy events without one.' }
                     role: { type: string, enum: [organiser, participant, judge] }
                     url: { type: string }
                     manage_url: { type: string }
@@ -10417,10 +10443,11 @@ paths:
       operationId: listHackConflicts
       summary: Declared conflicts of interest (organiser, judge) (EVENTS=hosted only)
       description: >-
-        The organiser sees every declared conflict; a judge sees only their own.
+        The organiser sees every declared conflict by default. With mine=1, organisers and judges see only their own. Judges always see only their own.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: query, name: mine, schema: { type: integer, enum: [1] }, description: 'Restrict to the caller, including an organiser in the judge area.' }
       responses:
         '200':
           description: Declared conflicts
@@ -10684,7 +10711,8 @@ paths:
         access does not grant judging access. A judge (not an organiser) gets
         each team's site preview_url and pinned_url only once entries are
         closed; before that they are null. assignment_mode is the event's
-        judge assignment mode.
+        judge assignment mode. candidates lists mode-eligible, judgeable teams before
+        subtracting this caller's own conflicts, for the conflict review panel.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -10696,6 +10724,14 @@ paths:
               schema:
                 type: object
                 properties:
+                  candidates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        team_id: { type: string }
+                        team_name: { type: string }
+                        conflicted: { type: boolean }
                   queue:
                     type: array
                     items:
@@ -15918,10 +15954,19 @@ components:
         max_minutes: { type: integer, description: "20160 (14 days)." }
         max_count: { type: integer, description: "5." }
         judging_ends_at: { type: string, format: date-time, nullable: true, description: "When judging closes, or null when judges get no reminder." }
+    HackAbilities:
+      type: object
+      required: [manage, judge, take_part]
+      description: Actual membership abilities; synthetic admin inspection grants none.
+      properties:
+        manage: { type: boolean }
+        judge: { type: boolean }
+        take_part: { type: boolean }
     HackEventView:
       type: object
       properties:
         event: { $ref: '#/components/schemas/HackEvent' }
+        can: { $ref: '#/components/schemas/HackAbilities' }
         role: { type: string, enum: [organiser, participant, judge] }
         me: { $ref: '#/components/schemas/HackMe' }
         organiser:

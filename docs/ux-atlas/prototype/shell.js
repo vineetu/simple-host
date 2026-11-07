@@ -117,7 +117,7 @@
         return '<a href="'+esc(href(it))+'"'+cur+'>'+ico(it.icon)+'<span>'+esc(it.short||it.label)+'</span>'+(it.badge&&!it.badge_quiet?'<span class="count">'+esc(it.badge)+'</span>':'')+'</a>';
       }).join('')+(hasMore?'<a href="#" data-more>'+ico('more')+'<span>More</span></a>':'')+'</nav>';
 
-    eventSection = '<div class="event-nav">'+switcherHTML('sw1')+pop+'<nav class="nav" aria-label="Your events">'+eventList(true,nav)+'</nav></div>';
+    eventSection = '<div class="event-nav">'+pop+'<nav class="nav" aria-label="Your events">'+eventList(true,nav)+'</nav></div>';
     // On phone, inside an event the top bar shows the switcher (context + quick
     // jump) instead of the brand -- the brand is still one tap away via Menu.
     phoneTop = switcherHTML('sw2');
@@ -137,9 +137,10 @@
     var others = P.events.filter(function(e){return e !== current && !isPast(e);}).sort(function(a,b){return a.name.toLowerCase().localeCompare(b.name.toLowerCase());});
     var rows = current ? [current].concat(others).slice(0,5) : others.slice(0,5);
     var out = rows.map(function(e){return eventRow(e)+(expand && e===current ? nav || '' : '');}).join('');
+    out += '<a href="landing-your-events.html" data-tip="All events">'+ico('events')+'<span>All events ('+P.events.length+')</span></a>';
     var past = P.events.filter(function(e){return isPast(e) && e!==current;});
-    if(past.length) out += '<details><summary class="small muted" data-nav-group>Past events ('+past.length+')</summary>'+past.slice(0,5).map(eventRow).join('')+'<a href="landing-your-events~past.html">'+ico('events')+'<span>All past events</span></a></details>';
-    return out+'<a href="landing-your-events.html" data-tip="All events">'+ico('events')+'<span>All events ('+P.events.length+')</span></a>';
+    if(past.length) out += '<details class="past-events"><summary class="small muted">Past events ('+past.length+')</summary>'+past.slice(0,5).map(eventRow).join('')+'<a href="landing-your-events~past.html">'+ico('events')+'<span>All past events</span></a></details>';
+    return out;
   }
 
   // Owner decision 2026-10-31: every role sees the event's stage in the same words, and

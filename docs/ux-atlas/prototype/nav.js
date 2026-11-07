@@ -292,5 +292,51 @@ window.PROTO = {
     "group": null
    }
   ]
- }
+ },
+ "settings": [
+  {
+   "id": "signup",
+   "label": "Sign-up"
+  },
+  {
+   "id": "teams",
+   "label": "Teams"
+  },
+  {
+   "id": "entries",
+   "label": "Entries"
+  },
+  {
+   "id": "reminders",
+   "label": "Reminders"
+  },
+  {
+   "id": "judging",
+   "label": "Judging"
+  },
+  {
+   "id": "results",
+   "label": "Results"
+  },
+  {
+   "id": "details",
+   "label": "Organiser details"
+  },
+  {
+   "id": "organisers",
+   "label": "Organisers"
+  },
+  {
+   "id": "links",
+   "label": "Links"
+  },
+  {
+   "id": "notifications",
+   "label": "Notifications"
+  },
+  {
+   "id": "danger",
+   "label": "Leave or delete"
+  }
+ ]
 };

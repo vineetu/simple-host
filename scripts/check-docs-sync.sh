@@ -17,6 +17,7 @@ SKILL_DEPLOY=internal/webassets/simple-host-website/skills/website-deploy/SKILL.
 SKILL_BUILD=internal/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md
 
 fail=0
+python3 scripts/build-hack-navigation.py --check || fail=1
 python3 scripts/tests/docs-site.test.py || fail=1
 python3 scripts/docs-site.py check || fail=1
 
