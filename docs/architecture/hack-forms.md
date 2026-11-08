@@ -13,10 +13,18 @@ use their existing field, code, or missing list to mark a control when possible.
 A registration expires when its ctx dies or its root is detached. A keyed registration
 replaces its previous render. Save/Discard handles dialogs first and rechecks current
 registrations after each save or repaint. Local repaints use `preserve` to retain other forms' drafts.
-Changes made during an awaited save remain dirty until a later save. Screen navigation
+Same-key re-registration finishes the save on the current handle, using normalized
+values. API requests capture the initiating handle before awaiting their response;
+field and status lookups resolve exact control ownership first. A failed save returns false.
+Snapshots only read state; structural edits collect DOM values before changing rows.
+Changes made during an awaited save remain dirty until a later save. Refresh keeps the
+visible context alive until replacement and calls `forms.checkpoint` immediately before
+mounting, so `preserve` captures the latest values and carries result messages.
+Restoring a draft does not advance its user-edit revision. Screen navigation
 uses `app.js:go`; Back/Forward restores the history cursor while the guard asks.
-Sign-out uses the same guard before ending the session. `beforeunload` uses the browser's
-own warning because browsers do not permit a custom Save/Discard/Stay dialog there.
+Organiser and judge MCP App frame routers set the form context and use the same leave
+check and refresh preservation. Sign-out uses the same guard before ending the session.
+`beforeunload` uses the browser's own warning because browsers do not permit a custom Save/Discard/Stay dialog there.
 
 Form dialogs use `ui.dialog` and `forms.dialogForm`, including the few sheets with a
 dynamic footer. Cancel, Escape, and a scrim click share the guard. A dialog with a save

@@ -29,7 +29,8 @@ export function state() {
 }
 const drafts = new WeakMap()
 let handles = new Set(), saving = new Set(), bound = false, leaving = null
-let currentContext = null
+let currentContext = null, initiating = null
+export const requestOwner = () => initiating
 export function context(ctx) { currentContext = ctx; active() }
 function active() {
   for (const h of handles) if (!h.alive()) { h.expire(); h.destroy(); handles.delete(h) }
@@ -37,11 +38,14 @@ function active() {
 }
 export function forElement(node) {
   const list = active()
-  const running = [...saving].find(h => !node || h.ctx?.main === node || h.root.contains(node) || node.contains?.(h.root))
-  if (running) return running
-  return list.find(h => h.owns(node))
-    || list.filter(h => node && h.root.contains(node)).sort((a, b) => a.root.contains(b.root) ? 1 : -1)[0]
-    || (node && list.find(h => h.owns(document.activeElement) && node.contains(h.root)))
+  const exact = list.find(h => h.owns(node))
+  if (exact) return exact
+  const contained = list.filter(h => node && h.root.contains(node)).sort((a, b) => a.root.contains(b.root) ? 1 : -1)
+  if (contained.length && (contained.length === 1 || contained[0].root !== contained[1].root)) return contained[0]
+  if (initiating && (!node || node.contains?.(initiating.root))) return initiating
+  const running = [...saving].filter(h => !node || h.ctx?.main === node || h.root.contains(node) || node.contains?.(h.root))
+  if (running.length === 1) return running[0]
+  return (node && list.find(h => h.owns(document.activeElement) && node.contains(h.root)))
     || (list.length === 1 && node?.contains?.(list[0].root) ? list[0] : null)
 }
 export function message(text, near, bad = false) {
@@ -52,10 +56,9 @@ export function message(text, near, bad = false) {
   return true
 }
 // API responses identify fields by code/field/missing when the server supplies them.
-export function response(result) {
-  if (result.ok || saving.size !== 1) return
-  const h = [...saving][0]
-  h.serverError(result)
+export function response(result, owner) {
+  if (result.ok || !owner) return
+  owner.serverError(result)
 }
 export function register(ctx, options) {
   const { root, save, discard, label = root.querySelector('h2, legend')?.textContent || 'this form', saveButton, discardButton, hint, dirty = true } = options
@@ -65,7 +68,7 @@ export function register(ctx, options) {
   const read = () => options.snapshot ? options.snapshot() : values(getFields())
   let store = ctx && drafts.get(ctx)
   if (ctx && !store) { store = new Map(); drafts.set(ctx, store) }
-  const key = options.key || saveButton?.id || root.id
+  const key = options.key || saveButton?.id || root.id || root.querySelector('[id]')?.id || (saveButton && 'action:' + saveButton.textContent.trim())
   const record = key && store?.get(key) || { baseline: snapshot(read()) }
   if (key) {
     store?.set(key, record)
@@ -90,6 +93,7 @@ export function register(ctx, options) {
   }
   function resolve(field) {
     if (typeof field !== 'string') return field
+    field = options.aliases?.[field] || field
     const fields = getFields()
     const exact = fields.find(n => n.dataset.formField === field || n.name === field || n.id === field || n.id.endsWith('-' + field) || n.dataset.field === field)
       || root.querySelector(`[data-form-field="${CSS.escape(field)}"]`)
@@ -112,6 +116,7 @@ export function register(ctx, options) {
   }
   const h = {
     root, label, model, ctx, key,
+    replacement: null,
     expire: () => options.onExpire?.(),
     owns: node => !!node && (saveButton?.contains(node) || getFields().includes(node)),
     capture: () => ({ value: JSON.parse(snapshot(read())), values: values(getFields()), files: getFields().map(n => Array.from(n.files || [])), baseline: saving.has(h) && revision !== sentRevision ? sentSnapshot : record.baseline }),
@@ -178,8 +183,15 @@ export function register(ctx, options) {
       getFields().forEach(n => n.removeAttribute('aria-invalid'))
       paint()
     },
-    edited(field) { revision++; if (field) { const n = resolve(field); for (const marked of [...marks.keys()]) if (marked === n || (n?.name && marked.name === n.name)) { clearMark(marked); model.edit(marked) }; n?.removeAttribute('aria-invalid'); model.edit(n) } else model.message(''); root.querySelectorAll('[data-form-banner]').forEach(n => { if (n.update) n.update(); else n.remove() }); paint() },
-    saved(text = 'Saved', savedSnapshot) { h.clearErrors(); record.baseline = savedSnapshot ?? snapshot(read()); initialFields = getFields(); initialValues = values(initialFields); model.saved(text); paint(); if (!handles.has(h) && key) active().find(other => other !== h && other.ctx === ctx && other.key === key)?.saved(text, savedSnapshot); options.onSaved?.(text) },
+    edited(field) { if (!restoring) revision++; if (field) { const n = resolve(field); for (const marked of [...marks.keys()]) if (marked === n || (n?.name && marked.name === n.name)) { clearMark(marked); model.edit(marked) }; n?.removeAttribute('aria-invalid'); model.edit(n) } else model.message(''); root.querySelectorAll('[data-form-banner]').forEach(n => { if (n.update) n.update(); else n.remove() }); paint() },
+    saved(text = 'Saved', savedSnapshot) {
+      // A callback can replace its own form before it returns. Finish on the
+      // current registration, whose values include server normalization.
+      const current = h.replacement || record.current
+      if (current && current !== h) { current.saved(text, savedSnapshot); options.onSaved?.(text); return }
+      h.clearErrors(); record.baseline = savedSnapshot ?? snapshot(read())
+      initialFields = getFields(); initialValues = values(initialFields); model.saved(text); paint(); options.onSaved?.(text)
+    },
     async discard() {
       if (discard) await discard(JSON.parse(record.baseline))
       else if (options.restore) options.restore(JSON.parse(record.baseline))
@@ -196,8 +208,11 @@ export function register(ctx, options) {
       saving.add(h)
       busy = (async () => {
         try {
-          const pending = action(event || { preventDefault() {}, target: root, currentTarget: root })
-          sentRevision = revision; sentSnapshot = snapshot(read())
+          let pending
+          const previous = initiating
+          initiating = h
+          try { pending = action(event || { preventDefault() {}, target: root, currentTarget: root }) }
+          finally { initiating = previous }
           const result = await pending
           adoptErrors()
           if (result === false || result?.ok === false || (result !== true && model.bad)) { if (!model.bad) h.status('Not saved', true); const first = model.errors.keys().next().value; if (first) h.focus(first); return false }
@@ -235,6 +250,7 @@ export function register(ctx, options) {
   function invalid(e) { e.preventDefault(); const first = model.errors.size === 0; h.fieldError(e.target, e.target.validationMessage); if (first) h.focus(e.target) }
   root.addEventListener('input', edit, true); root.addEventListener('change', edit, true); root.addEventListener('invalid', invalid, true)
   discardButton?.addEventListener('click', () => h.discard())
+  record.current = h
   handles.add(h); paint(); bindOnce()
   observer = new MutationObserver(adoptErrors)
   observer.observe(root, { childList: true, characterData: true, subtree: true })
@@ -271,19 +287,34 @@ export function dialogForm({ ctx = currentContext, root, label, save, saveButton
   } }
 }
 let restoring = false
-// Local updates (polling, adding/removing rows, instant saves) keep other forms' drafts.
+const preservations = new Set()
+// Routers call this immediately before replacing the visible form, after reads.
+export function checkpoint(ctx) {
+  for (const job of preservations) if (job.ctx === ctx) job.capture()
+}
+// Local updates and refreshes carry drafts and the latest result to new handles.
 export async function preserve(ctx, work) {
   if (restoring) return work()
-  const pending = active().filter(h => (h.ctx === ctx || h.ctx?.alive === ctx?.alive) && (!saving.has(h) || h.editedWhileSaving()) && h.dirty()).map(h => [h.key, { ...h.capture(), handle: h }])
-  const result = await work()
-  restoring = true
+  const job = { ctx, pending: [], capture() {
+    this.pending = active().filter(h => h.ctx === ctx || h.ctx?.alive === ctx?.alive).map(h =>
+      [h.key, { ...h.capture(), dirty: h.dirty() && (!saving.has(h) || h.editedWhileSaving()), handle: h }])
+  } }
+  job.capture(); preservations.add(job)
   try {
-    for (const [key, draft] of pending) {
-      const h = active().find(h => h.key === key)
-      if (h && h !== draft.handle) h.restoreDraft(draft)
-    }
-  } finally { restoring = false }
-  return result
+    const result = await work()
+    restoring = true
+    try {
+      for (const [key, draft] of job.pending) {
+        const h = active().find(h => h.key === key)
+        if (h && h !== draft.handle) {
+          draft.handle.replacement = h
+          if (draft.dirty) h.restoreDraft(draft)
+          if (draft.handle.model.status) h.status(draft.handle.model.status, draft.handle.model.bad)
+        }
+      }
+    } finally { restoring = false }
+    return result
+  } finally { preservations.delete(job) }
 }
 export async function cancel(root, close) {
   const h = forElement(root)

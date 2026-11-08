@@ -69,6 +69,8 @@ async function rowPresentation(page, width) {
 }
 const org = await person('organiser', 1280)
 try {
+ // Navigation exercises publication; reset its snapshot before judging checks.
+ assert.equal((await fetch(info.url+'/_fixture/clear-results',{method:'POST'})).status,204)
  // Both judges and organiser see the judge projection, never mixed organiser rows.
  await api('organiser', 'POST', base + '/stage', {stage:'closed'})
  const rubric = (await api('judge', 'GET', base + '/rubric')).criteria

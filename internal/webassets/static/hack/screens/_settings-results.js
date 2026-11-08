@@ -213,7 +213,7 @@ export async function render(ctx, section) {
       closes_at: $('res-vote-closes').value,
       eligibility: voting.eligibility,
     }, btn)
-    if (!r) return
+    if (!r) return false
     applyVotingSave(r.data)
     paintVoting('window')
     setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)
@@ -228,7 +228,7 @@ export async function render(ctx, section) {
       closes_at: voting.closes_at,
       eligibility: newEligibility,
     }, btn)
-    if (!r) return
+    if (!r) return false
     applyVotingSave(r.data)
     paintVoting('eligibility')
     setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)

@@ -30,13 +30,14 @@ export async function api(method, path, body) {
     if (k) headers['X-API-Key'] = k;
     var opts = { method: method, headers: headers };
     if (body !== undefined) opts.body = JSON.stringify(body);
+    const owner = forms.requestOwner();
     var res = await fetch(path, opts);
     var data = {};
     try { data = await res.json(); } catch (e) {}
     if (res.status === 401) { signedOut(); throw new Error('signed out'); }
     if (res.ok && isMembershipMutation(method, path)) eventsChanged();
     const result = { ok: res.ok, status: res.status, data: data };
-    if (method !== 'GET') forms.response(result);
+    if (method !== 'GET') forms.response(result, owner);
     return result;
   }
   // Screenshot bytes are not JSON. The key still goes out the same way as api().
@@ -60,12 +61,13 @@ export async function apiBytes(method, path, body, contentType) {
     var k = apiKey();
     if (k) headers['X-API-Key'] = k;
     if (contentType) headers['Content-Type'] = contentType;
+    const owner = forms.requestOwner();
     var res = await fetch(path, { method: method, headers: headers, body: body });
     var data = {};
     try { data = await res.json(); } catch (e) {}
     if (res.status === 401) { signedOut(); throw new Error('signed out'); }
     const result = { ok: res.ok, status: res.status, data: data };
-    if (method !== 'GET') forms.response(result);
+    if (method !== 'GET') forms.response(result, owner);
     return result;
   }
 

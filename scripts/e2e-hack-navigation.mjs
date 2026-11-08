@@ -157,7 +157,7 @@ try {
  await open(editor.page, settings + 'entries', '#rules-save')
  await editor.page.locator('input[name="org-preset"][value="video_website_code"]').check()
  await editor.page.locator('#rules-save').click()
- await editor.page.waitForFunction(() => document.querySelector('.live')?.textContent?.includes('Saved') || document.querySelector('[role="status"]')?.textContent?.includes('Saved'))
+ await editor.page.waitForFunction(() => [...document.querySelectorAll('[data-form-status]')].some(n => n.textContent.includes('Saved')))
  await open(editor.page, settings + 'judging', '#jg-rubric-save')
  const rubricSave = editor.page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith('/rubric'))
  await editor.page.locator('#jg-rubric-save').click()

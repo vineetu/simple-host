@@ -154,10 +154,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class
 
     function flashSaved(id) {
       const el = $(id)
-      ui.forms.forElement(el)?.clearErrors()
-      el.hidden = false
-      clearTimeout(el._t)
-      el._t = setTimeout(() => { el.hidden = true }, 3000)
+      ui.forms.message('Saved', el)
     }
 
     const appsToggle = $('apps-toggle')

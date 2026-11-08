@@ -12,14 +12,14 @@ export function title(ctx) {
 // with the one choice to make, built on the shared formDialog primitive so
 // it gets the same focus-trap/Escape/Tab behaviour as every other dialog.
 // Returns the chosen team's slug, or '' on cancel / nothing to choose.
-async function pickMoveTarget(ui, esc, name, otherTeams) {
+async function pickMoveTarget(ui, esc, name, otherTeams, save) {
   if (!otherTeams.length) {
     await ui.dialog({ title: 'Move ' + name, body: 'No other team has room.', buttons: [{ label: 'Close', value: true, className: 'btn primary' }] })
     return ''
   }
   const body = document.createElement('div')
   body.innerHTML = `<div class="field"><label for="move-target">Team</label><select class="select" id="move-target">${otherTeams.map(t => `<option value="${esc(t.slug)}">${esc(t.name)}</option>`).join('')}</select></div>`
-  const ok = await formDialog(ui, { title: 'Move ' + name + ' to another team', body, saveLabel: 'Move' }, async () => true)
+  const ok = await formDialog(ui, { title: 'Move ' + name + ' to another team', body, saveLabel: 'Move' }, () => save(body.querySelector('#move-target').value, body))
   return ok ? body.querySelector('#move-target').value : ''
 }
 
@@ -158,14 +158,16 @@ ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
     if (!onNoTeam.length) { setLive('Everyone is on a team.', true); return }
     const body = document.createElement('div')
     body.innerHTML = `<div class="field"><label for="add-pick">Solo participant</label><select class="select" id="add-pick">${onNoTeam.map(p => `<option value="${esc(p.user_id)}">${esc(p.display_name || p.email || 'Someone')}</option>`).join('')}</select></div>`
-    const ok = await formDialog(ui, { title: 'Add someone to ' + team.name, body, saveLabel: 'Add' }, async () => true)
+    const ok = await formDialog(ui, { title: 'Add someone to ' + team.name, body, saveLabel: 'Add' }, async () => {
+      const userID = body.querySelector('#add-pick').value
+      if (!userID) return false
+      try {
+        const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members', { user_id: userID })
+        if (!r.ok) { ui.toast(ui.errText(r, { fallback: 'Could not move them.' }), body, true); return false }
+        return true
+      } catch (err) { if (!client.isSignedOut(err)) ui.toast('Cannot reach the server.', body, true); return false }
+    })
     if (!ok) return
-    const userID = body.querySelector('#add-pick').value
-    if (!userID) return
-    let r
-    try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members', { user_id: userID }) }
-    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
-    if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true); return }
     await load()
     paint()
     ui.saved(main)
@@ -178,12 +180,14 @@ ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
     let otherTeams = []
     try { otherTeams = JSON.parse(row.getAttribute('data-other-teams') || '[]') } catch (e) {}
     if (act === 'move') {
-      const target = await pickMoveTarget(ui, esc, name, otherTeams)
+      const target = await pickMoveTarget(ui, esc, name, otherTeams, async (target, body) => {
+        try {
+          const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID })
+          if (!r.ok) { ui.toast(ui.errText(r, { fallback: 'Could not move them.' }), body, true); return false }
+          return true
+        } catch (err) { if (!client.isSignedOut(err)) ui.toast('Cannot reach the server.', body, true); return false }
+      })
       if (!target) return
-      let r
-      try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID }) }
-      catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
-      if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true); return }
       await load(); paint(); ui.saved(main)
       return
     }

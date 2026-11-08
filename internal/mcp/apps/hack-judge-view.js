@@ -289,10 +289,12 @@
   function paramsObj(map) {
     return { get: function (key) { return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : ''; } };
   }
+  var activeFormContext = null;
   function ctxFor(view, params) {
-    return {
+    var ctx = {
       main: main,
-      refresh: function () { return renderView(view, params); },
+      alive: function () { return activeFormContext === ctx; },
+      refresh: function () { return ui.forms.preserve(ctx, function () { return renderView(view, params, { replace: true, refresh: true }); }); },
       api: { api: api, isSignedOut: isSignedOut, getEvent: getEvent },
       ui: uiShim,
       event: { event: state.event },
@@ -310,9 +312,10 @@
           var kv = pair.split('=');
           parts[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
         });
-        renderView(normalizeView(parts.s || view), parts);
+        return renderView(normalizeView(parts.s || view), parts);
       }
     };
+    return ctx;
   }
   function showError(message) {
     main.innerHTML = '';
@@ -370,6 +373,7 @@
   async function renderView(view, params, opts) {
     view = normalizeView(view);
     opts = opts || {};
+    if (!opts.refresh && !await ui.forms.confirmLeave()) return false;
     if (!opts.replace && state.view && state.view !== view) {
       state.history.push({ view: state.view, params: state.params });
     }
@@ -383,14 +387,18 @@
     var screen = screens[view];
     if (!screen) { showError('That view is not available.'); return; }
     try {
-      await screen.render(ctxFor(view, state.params));
+      ui.forms.checkpoint(activeFormContext);
+      activeFormContext = ctxFor(view, state.params);
+      ui.forms.context(activeFormContext);
+      await screen.render(activeFormContext);
     } catch (e) {
       showError('Something went wrong showing this view. Try again.');
       return;
     }
     if (view === 'rubric') addBackControl();
   }
-  function goBack() {
+  async function goBack() {
+    if (!await ui.forms.confirmLeave()) return;
     var prev = state.history.pop();
     if (!prev) { renderView('queue', {}, { replace: true }); return; }
     renderView(prev.view, prev.params, { replace: true });

@@ -171,7 +171,7 @@ ${restBlock}
   }
   async function generate() {
     const ok = await ui.confirm({ title: 'Generate assignments?', body: 'This replaces any assignments already generated. Continue?', confirmLabel: 'Generate assignments', danger: true })
-    if (!ok) return
+    if (!ok) return false
     const btn = $('jg-generate')
     btn.disabled = true
     let r

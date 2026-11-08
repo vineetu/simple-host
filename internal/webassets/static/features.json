@@ -4951,7 +4951,7 @@
      "name": "Keep form edits",
      "line": "Save, discard, or keep editing before leaving a changed form.",
      "who": "Participants, organisers, and judges editing forms.",
-     "how": "Unsaved changes show beside Save. Leaving offers Save, Discard, or Stay. Errors mark the field, clear when it changes, and disappear after a successful save. Missing-item links focus the field.",
+     "how": "Unsaved changes show beside Save. Leaving offers Save, Discard, or Stay. Errors mark the field, clear when it changes, and disappear after a successful save. Missing-item links focus the field. Refresh keeps your latest edits and save confirmation. A failed dialog save keeps the dialog open.",
      "example": "Fill in your Entry, open Publish your website, and choose Save to keep your entry before going.",
      "where": "Simple Hack forms and form dialogs.",
      "editions": {

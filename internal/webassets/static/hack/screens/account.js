@@ -208,7 +208,7 @@ export async function render(ctx) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-name-save'));
     } finally { $('acct-name-save').disabled = false; }
   });
-  $('acct-email-open').addEventListener('click', function () { setLive(''); showEmailChange('email'); });
+  $('acct-email-open').addEventListener('click', function () { setLive(''); showEmailChange('email'); ui.forms.forElement($('acct-email-input')).saved(''); });
   $('acct-email-cancel').addEventListener('click', async function () { const h = ui.forms.forElement(this.closest('form')); if (h && !await ui.forms.confirmLeave([h])) return; setLive(''); showEmailChange('row'); });
   $('acct-code-cancel').addEventListener('click', async function () { const h = ui.forms.forElement(this.closest('form')); if (h && !await ui.forms.confirmLeave([h])) return; setLive(''); showEmailChange('row'); });
   ui.forms.bind(ctx, $('acct-email-form'), async function (e) {
@@ -387,11 +387,7 @@ export async function render(ctx) {
       var r = await api('PATCH', '/v1/hack/preferences', { email_updates: want });
       if (!r.ok) { setLive(accountErr(r, 'Could not save'), 'err', t); t.disabled = false; return; }
       paintWait(r.data);
-      ui.forms.forElement(t)?.clearErrors();
-      var saved = $('acct-wait-saved');
-      saved.hidden = false;
-      clearTimeout(saved._t);
-      saved._t = setTimeout(function () { saved.hidden = true; }, 3000);
+      ui.forms.message('Saved', t);
     } catch (err) {
       t.disabled = false;
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', t);

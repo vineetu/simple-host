@@ -112,19 +112,18 @@ ${closesHTML()}
       const actions = ui.el('div', { class: 'row-flex' })
       const up = ui.el('button', { class: 'btn sm', type: 'button', text: 'Up', 'aria-label': 'Move ' + (c.name || 'this criterion') + ' up' })
       up.disabled = locked || !!adminLockReason || i === 0
-      up.addEventListener('click', () => { rubric.splice(i - 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
+      up.addEventListener('click', () => { rubric.splice(i - 1, 0, rubric.splice(i, 1)[0]); paintRubric(); rubricForm?.edited() })
       const down = ui.el('button', { class: 'btn sm', type: 'button', text: 'Down', 'aria-label': 'Move ' + (c.name || 'this criterion') + ' down' })
       down.disabled = locked || !!adminLockReason || i === rubric.length - 1
-      down.addEventListener('click', () => { rubric.splice(i + 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
+      down.addEventListener('click', () => { rubric.splice(i + 1, 0, rubric.splice(i, 1)[0]); paintRubric(); rubricForm?.edited() })
       const rm = ui.el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
       rm.disabled = locked || !!adminLockReason || rubric.length <= 1
-      rm.addEventListener('click', () => { rubric.splice(i, 1); paintRubric() })
+      rm.addEventListener('click', () => { rubric.splice(i, 1); paintRubric(); rubricForm?.edited() })
       actions.append(up, down, rm)
       row.appendChild(actions)
       box.appendChild(row)
     })
     if (!rubric.length) box.appendChild(ui.el('p', { class: 'muted', text: 'No criteria yet. Add one to start.' }))
-    rubricForm?.edited()
     paintWeight()
     $('jg-add').disabled = locked || !!adminLockReason || rubric.length >= 10
     $('jg-rubric-save').disabled = locked || !!adminLockReason
@@ -137,12 +136,13 @@ ${closesHTML()}
     p.textContent = 'Total weight: ' + total + '%' + (total === 100 ? '' : ' (must add up to 100%)')
   }
 
-  function paintTie() {
+  function paintTie(preserve = false) {
+    const draft = preserve ? $('jg-tie').value : settings.tie_criterion_id
     const select = $('jg-tie')
     select.textContent = ''
     select.appendChild(ui.el('option', { value: '', text: 'Pick a criterion' }))
     rubric.forEach(c => select.appendChild(ui.el('option', { value: c.id || '', text: c.name || '' })))
-    select.value = settings.tie_criterion_id || ''
+    select.value = draft || ''
     select.disabled = tieClosed()
     $('jg-tie-save').disabled = tieClosed()
   }
@@ -178,9 +178,9 @@ ${closesHTML()}
 
   async function onClearCloses() {
     const ok = await ui.confirm({ title: 'Clear judging closes?', body: 'Judges stop getting a reminder before judging closes. Clear it?', confirmLabel: 'Clear', danger: true })
-    if (!ok) return
+    if (!ok) return false
     $('jg-closes-input').value = ''
-    await onSaveCloses()
+    await closesForm.save()
   }
 
   // Paints from the DRAFT, never from `settings` -- see the draftMode
@@ -223,7 +223,7 @@ ${closesHTML()}
     setLive('Saved', 'ok', btn)
   }
 
-  $('jg-add').addEventListener('click', () => { rubric.push({ id: '', name: '', description: '', weight: 0, max_points: 5 }); paintRubric() })
+  $('jg-add').addEventListener('click', () => { rubric.push({ id: '', name: '', description: '', weight: 0, max_points: 5 }); paintRubric(); rubricForm?.edited() })
   main.querySelectorAll('input[name="jg-mode"]').forEach(r => r.addEventListener('change', () => {
     draftMode = main.querySelector('input[name="jg-mode"]:checked').value
     paintMode()
@@ -253,12 +253,16 @@ ${closesHTML()}
     rubric = (r.data && r.data.criteria) || []
     rubricVersion = r.data.version
     paintRubric()
-    paintTie()
+    paintTie(true)
     setLive('Rubric saved', 'ok', btn)
     await finalButton()
   }
 
 
+  const closesForm = $('jg-closes-save') && ui.forms.bind(ctx, $('jg-closes-save'), onSaveCloses)
+  // The remaining setup controls have no baseline until their reads finish.
+  const loadingControls = [...main.querySelectorAll('#rubric input, #rubric button, #tie-break select, #tie-break button, #mode input, #mode button')]
+  loadingControls.forEach(n => { n.disabled = true })
   const [rubricR, settingsR] = await Promise.all([api('GET', base + '/rubric'), api('GET', base + '/judging/settings')])
   if (!ctx.alive()) return
   if (rubricR.ok) { rubric = rubricR.data.criteria || []; rubricVersion = rubricR.data.version }
@@ -266,10 +270,8 @@ ${closesHTML()}
   draftMode = settings.assignment_mode
   draftPerTeam = settings.judges_per_team
   paintRubric(); paintTie(); paintMode()
-  rubricForm = ui.forms.bind(ctx, $('jg-rubric-save'), saveRubric, { key: 'rubric', snapshot: () => rubric, restore: value => { rubric = value; paintRubric() } })
+  rubricForm = ui.forms.bind(ctx, $('jg-rubric-save'), saveRubric, { key: 'rubric', snapshot: () => rubric.map(({ id, name, description, weight, max_points }) => ({ id: id || '', name: name || '', description: description || '', weight: Number(weight) || 0, max_points: Number(max_points) || 1 })), restore: value => { rubric = value; paintRubric() } })
   ui.forms.bind(ctx, $('jg-tie-save'), saveTie)
-  const closesSave = $('jg-closes-save')
-  if (closesSave) ui.forms.bind(ctx, closesSave, onSaveCloses)
   const closesClear = $('jg-closes-clear')
   if (closesClear) closesClear.addEventListener('click', onClearCloses)
   ui.forms.bind(ctx, $('jg-mode-save'), saveMode)

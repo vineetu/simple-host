@@ -530,11 +530,11 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
     const r = await doSave(saveBtn)
     if (r.ok) { await ui.forms.preserve(ctx, () => paint(ctx, ev, r.data)) }
     return r
-  }, { root: main, label: 'Entry', snapshot: () => [ui.forms.values(main.querySelectorAll(ui.forms.controls)), tools], restoreFields: true, restore: value => { tools = value[1]; renderTags(); updatePreview() } })
+  }, { root: main, label: 'Entry', aliases: { one_of: $('en-video_url') ? 'one_of' : 'site' }, snapshot: () => [ui.forms.values(main.querySelectorAll(ui.forms.controls)), tools], restoreFields: true, restore: value => { tools = value[1]; renderTags(); updatePreview() } })
   main.__enForm = form
   ;['track', 'tools', 'maturity', 'screenshot', 'one_of', 'site'].forEach(f => {
-    const n = f === 'tools' ? toolsInput : f === 'maturity' ? main.querySelector('[name="en-mat"]') : f === 'screenshot' ? $('en-shot') : f === 'one_of' || f === 'site' ? $('en-video_url') || main.querySelector('a[href*="s=website"]') : $('en-' + f)
-    if (n) n.dataset.formField = f === 'site' ? 'one_of' : f
+    const n = f === 'tools' ? toolsInput : f === 'maturity' ? main.querySelector('[name="en-mat"]') : f === 'screenshot' ? $('en-shot') : f === 'site' ? main.querySelector('a[href*="s=website"]') : f === 'one_of' ? $('en-video_url') || main.querySelector('a[href*="s=website"]') : $('en-' + f)
+    if (n) n.dataset.formField = f
   })
   const submitFoot = $('en-submit-foot')
   if (submitFoot) submitFoot.addEventListener('click', () => doSubmit(ctx, ev, data))

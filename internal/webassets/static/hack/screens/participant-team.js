@@ -184,7 +184,7 @@ export async function render(ctx) {
   }
 
   function wireNoTeam() {
-    main.querySelectorAll('input[name="way"]').forEach(r => r.addEventListener('change', () => { way = r.value; paint() }))
+    main.querySelectorAll('input[name="way"]').forEach(r => r.addEventListener('change', async () => { const next = r.value; if (!await ui.forms.confirmLeave()) { main.querySelectorAll('input[name=way]').forEach(n => { n.checked = n.value === way }); return }; way = next; paint() }))
     main.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/' + encodeURIComponent(b.getAttribute('data-ask')) + '/requests'))))
     main.querySelectorAll('[data-withdraw]').forEach(b => b.addEventListener('click', () => act(b, () => api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-withdraw'))))))
     main.querySelectorAll('[data-accept]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-accept')) + '/accept'))))

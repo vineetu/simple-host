@@ -38,7 +38,7 @@ internal/webassets/static/hack/
                     display (errText's server-message-first text always loses to a generic "Something
                     went wrong. Try again." on a 5xx, since the server's own 5xx body is just
                     jargon).
-  forms.js          shared form registration, edit guard, status, field errors and focus links
+  forms.js          shared form registration, edit guard, status, field errors, and focus links
   nav.js            sidebar items per role (from spec.json roles[].nav; stage rules)
   screens/<atlas-screen-id>.js   one module per atlas screen, e.g. screens/judge-scoring.js
 ```

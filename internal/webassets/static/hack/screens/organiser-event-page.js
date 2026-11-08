@@ -872,10 +872,7 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
 
   function flashSaved(id) {
     const el = $(id)
-    ui.forms.forElement(el)?.clearErrors()
-    el.hidden = false
-    clearTimeout(el._t)
-    el._t = setTimeout(() => { el.hidden = true }, 3000)
+    ui.forms.message('Saved', el)
   }
   if (!iconLocked) {
     $('icon-file').addEventListener('change', async () => {
@@ -1053,7 +1050,7 @@ ${readOnly ? '' : '<div class="drop" id="drop-zone"><svg class="ico" viewBox="0 
       if (!r.ok) { setLive(ui.errText(r), 'err'); renderWebsite({ ctx, sp, ui, api, apiBytes, ev, admin, locked, ended, path, setLive }); return }
       cache.website = r.data
       renderWebsite({ ctx, sp, ui, api, apiBytes, ev, admin, locked, ended, path, setLive })
-      const tick = sp.querySelector('#mode-saved'); if (tick) { tick.hidden = false; setTimeout(() => { tick.hidden = true }, 3000) }
+      ui.forms.message('Saved', sp.querySelector('#mode-saved'))
     } catch (e) { if (cacheStale(ctx, ev)) return; setLive('Cannot reach the server.', 'err'); renderWebsite({ ctx, sp, ui, api, apiBytes, ev, admin, locked, ended, path, setLive }) }
   }))
 }

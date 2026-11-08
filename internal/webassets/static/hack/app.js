@@ -381,6 +381,7 @@ history.replaceState({ ...history.state, hackIndex: historyIndex }, '', location
 export async function go(path, { render, saved } = {}) {
   const from = activeContext
   const url = new URL(path, location.href)
+  if (url.href === location.href) return true
   if (!await ui.forms.confirmLeave(undefined, saved)) return false
   if (url.origin !== location.origin || url.pathname === '/signin' || !isAppRoute(url.pathname)) { location.assign(url); return true }
   history.pushState({ hackIndex: ++historyIndex }, '', url)
@@ -490,8 +491,9 @@ async function route() {
 
     }
     if (turn !== generation) return
+    ui.forms.checkpoint(activeContext)
     const ctx = { ...data, api, ui, event, role, params: new URLSearchParams(location.search), go,
-      alive: () => turn === generation,
+      alive: () => turn === generation || activeContext === ctx,
       refresh: async () => { if (turn !== generation) return; initialData = null; return ui.forms.preserve(activeContext, () => route()) } }
     if (match.id.startsWith('public-')) {
       // Invite links stand alone: no sidebar or event switcher until the person has joined.

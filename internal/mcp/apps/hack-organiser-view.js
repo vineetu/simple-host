@@ -363,8 +363,9 @@
   function paramsObj(map) {
     return { get: function (key) { return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : ''; } };
   }
+  var activeFormContext = null;
   function ctxFor(view, params, generation) {
-    return {
+    var ctx = {
       main: main,
       api: { api: api, isSignedOut: isSignedOut },
       ui: ui,
@@ -378,11 +379,11 @@
       // keyed by the row's own user_id, unaffected either way.
       me: { username: 'me', id: (state.orgData && state.orgData.me && state.orgData.me.id) || '', display_name: (state.orgData && state.orgData.me && state.orgData.me.display_name) || '' },
       params: paramsObj(params || {}),
-      alive: function () { return generation === renderGeneration; },
+      alive: function () { return generation === renderGeneration || activeFormContext === ctx; },
       // SIM-341: no announcements route here, so organiser-overview.js skips
       // its "Tell participants?" dialog; the AI app offers it instead.
       noAnnounce: true,
-      refresh: function () { return renderView(state.view, state.params, { replace: true }); },
+      refresh: function () { return ui.forms.preserve(ctx, function () { return renderView(state.view, state.params, { replace: true, refresh: true }); }); },
       go: function (path) {
         var q = (path.split('?')[1] || '');
         var parts = {};
@@ -391,9 +392,10 @@
           var kv = pair.split('=');
           parts[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
         });
-        renderView(parts.s || view, parts);
+        return renderView(parts.s || view, parts);
       }
     };
+    return ctx;
   }
   function showError(message) {
     main.innerHTML = '';
@@ -468,6 +470,7 @@
   async function renderView(view, params, opts) {
     opts = opts || {};
     if (!IN_FRAME_VIEWS[view]) view = 'overview';
+    if (!opts.refresh && !await ui.forms.confirmLeave()) return false;
     var generation = ++renderGeneration;
     if (!opts.replace && state.view && state.view !== view) {
       state.history.push({ view: state.view, params: state.params });
@@ -491,7 +494,10 @@
     var screen = screens[view];
     if (!screen) { showError('That view is not available.'); return; }
     try {
-      await screen.render(ctxFor(view, state.params, generation));
+      ui.forms.checkpoint(activeFormContext);
+      activeFormContext = ctxFor(view, state.params, generation);
+      ui.forms.context(activeFormContext);
+      await screen.render(activeFormContext);
     } catch (e) {
       // A superseded render must never stomp whatever newer screen
       // already owns `main` with an error note of its own (Codex review
@@ -507,7 +513,8 @@
     if (state.history.length) addBackControl();
     addViewSwitcher();
   }
-  function goBack() {
+  async function goBack() {
+    if (!await ui.forms.confirmLeave()) return;
     var prev = state.history.pop();
     if (!prev) { renderView('overview', {}, { replace: true }); return; }
     renderView(prev.view, prev.params, { replace: true });

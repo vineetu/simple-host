@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-08",
+    "what": "Form review fixes: refresh keeps the latest draft and save result, concurrent saves keep separate errors, failed dialog saves stay open, and MCP App frame navigation uses the same guard. The Overview now shows the universal rule about unsaved edits."
+  },
+  {
+    "date": "2026-11-08",
     "what": "Shared forms: unsaved edits beside Save, Save/Discard/Stay before leaving, and field errors that clear on edit or save. Submit focuses the first missing field; missing-item links focus their fields."
   },
   {

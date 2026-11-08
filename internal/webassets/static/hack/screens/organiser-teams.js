@@ -202,11 +202,7 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
     const ok = await fillTeamsDialog(r.data)
     btn.disabled = false
     if (!ok) return
-    const size = ok.size
-    let ar
-    try { ar = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/fill', { apply: true, size }) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
-    if (!ar.ok) { setLive(ui.errText(ar, { fallback: 'Could not fill teams' }), true); return }
+    const ar = ok.result
     const shifted = planSignature(ok.plan) !== planSignature(ar.data.plan || [])
     await load()
     await paint()
@@ -297,8 +293,12 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
       renderPlan()
       formDialog(ui, { title: 'Fill teams?', body, saveLabel: saveLabel(), focus: 0 }, async () => {
         if (!plan.length) return false
-        resolve({ plan, size })
-        return true
+        try {
+          const result = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/fill', { apply: true, size })
+          if (!result.ok) { ui.toast(ui.errText(result, { fallback: 'Could not fill teams' }), body, true); return false }
+          resolve({ plan, size, result })
+          return true
+        } catch (e) { if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', body, true); return false }
       }).then(saved => { if (!saved) resolve(false) })
     })
   }
@@ -315,13 +315,15 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
     if (!choices.length) { setLive('No team has room right now.', true); return }
     const body = document.createElement('div')
     body.innerHTML = `<div class="field"><label for="place-pick">Team</label><select class="select" id="place-pick">${choices.map(t => `<option value="${esc(t.slug)}">${esc(t.name)}</option>`).join('')}</select></div>`
-    const ok = await formDialog(ui, { title: 'Put ' + name + ' on a team', body, saveLabel: 'Put on team' }, async () => true)
+    const ok = await formDialog(ui, { title: 'Put ' + name + ' on a team', body, saveLabel: 'Put on team' }, async () => {
+      const target = body.querySelector('#place-pick').value
+      try {
+        const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID })
+        if (!r.ok) { ui.toast(ui.errText(r, { fallback: 'Could not move them.' }), body, true); return false }
+        return true
+      } catch (e) { if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', body, true); return false }
+    })
     if (!ok) return
-    const target = body.querySelector('#place-pick').value
-    let r
-    try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID }) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
-    if (!r.ok) { setLive(ui.errText(r, { fallback: 'Could not move them.' }), true); return }
     await load()
     await paint()
     ui.saved(main)

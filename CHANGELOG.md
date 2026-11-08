@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-08: Simple Hack keeps drafts through refreshes and form repaints, separates concurrent save results, and keeps failed dialog saves open. Team size, registration questions, judging settings, email changes, and MCP App frame navigation use the corrected form lifecycle.
+
 2026-11-08: Simple Hack forms warn before losing edits, offer Save, Discard, or Stay, clear earlier errors after edits and saves, and focus missing fields on Entry submission.
 
 2026-11-07: Simple Hack checklist reads batch judging facts by stage, unresolved published ties stay actionable, and rubric acknowledgements use the version displayed. Results edits follow current ties; action links and read-only Home guidance use the event's actual state and address.

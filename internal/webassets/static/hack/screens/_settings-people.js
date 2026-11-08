@@ -162,6 +162,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
         used.add(q.id)
       })
     }
+    main.querySelectorAll('[data-q-prompt], [data-q-required]').forEach(n => n.addEventListener('input', collectQuestions))
     $('q-add').addEventListener('click', () => { if (questions.length < 8) { collectQuestions(); questions.push({ id: '', prompt: '', required: false }); paint() } })
     main.querySelectorAll('[data-q-rm]').forEach(btn => btn.addEventListener('click', () => { collectQuestions(); questions.splice(Number(btn.dataset.qRm), 1); paint() }))
     ui.forms.bind(ctx, $('q-save'), async () => {
@@ -181,7 +182,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
         setLive('Questions saved.', 'ok', btn)
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
-    }, { key: 'questions', fields: () => [...main.querySelectorAll('[data-q-prompt], [data-q-required]')], snapshot: () => { collectQuestions(); return questions }, restore: value => { questions = value; paint() } })
+    }, { key: 'questions', fields: () => [...main.querySelectorAll('[data-q-prompt], [data-q-required]')], snapshot: () => questions, restore: value => { questions = value; paint() } })
     ui.forms.instant(ctx, $('signup-approval').closest('label'), { fields: () => [$('signup-approval')] })
     $('signup-approval').addEventListener('change', async () => {
       if (guardRegistration($('signup-approval'))) { $('signup-approval').checked = approvalRequired; return }

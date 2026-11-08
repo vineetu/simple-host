@@ -40,8 +40,7 @@ export async function render(ctx) {
     ev = r.data.event
     await load()
     await paint()
-    const tick = $('tf-saved')
-    if (tick) { tick.hidden = false; setTimeout(() => { tick.hidden = true }, 2000) }
+    ui.forms.message('Saved', $('tf-on'))
   }
 
   async function onSaveTeamSize(input, btn) {

@@ -333,6 +333,219 @@ try {
   await p.locator('#f-about').waitFor()
   console.log('ok edits typed during a save remain visible and dirty')
 
+  // A: re-registering a key inside save must paint its successful baseline.
+  await open(p, manage + '?s=settings&tab=teams', '#ts-size')
+  await p.locator('#ts-size').fill((await p.locator('#ts-size').inputValue()) === '7' ? '8' : '7'); await p.locator('#ts-save').click()
+  await p.locator('[data-form-status]').filter({ hasText: 'Saved' }).waitFor()
+  await p.waitForFunction(() => document.querySelector('#ts-save')?.disabled)
+  assert.equal(await p.locator('.hint.dirty').count(), 0)
+  console.log('ok A same-key save repaint disables Save and becomes clean')
+
+  // P1.1: overlap two saves sharing one root; only eligibility fails.
+  await open(p, manage + '?s=settings&tab=results', '#res-vote-eligibility')
+  let releaseWindow, windowStarted
+  const windowHeld = new Promise(r => { releaseWindow = r })
+  const windowRequest = new Promise(r => { windowStarted = r })
+  await p.route('**' + base + '/voting', async route => {
+    if (route.request().method() !== 'PUT') return route.continue()
+    if (route.request().postDataJSON().eligibility === 'participants') {
+      return route.fulfill({ status: 422, json: { code: 'invalid_eligibility', error: 'Eligibility was rejected.' } })
+    }
+    const response = await route.fetch(); windowStarted(); await windowHeld; await route.fulfill({ response })
+  })
+  await p.locator('#res-vote-opens').fill('2030-01-01T10:00')
+  await p.locator('#res-vote-window-save').click(); await windowRequest
+  await p.locator('#res-vote-eligibility').selectOption('participants')
+  await p.locator('#res-vote-eligibility-save').click()
+  await p.locator('#res-vote-eligibility-save').locator('..').locator('[data-form-status]').filter({ hasText: 'Eligibility was rejected.' }).waitFor()
+  releaseWindow()
+  await p.locator('#res-vote-window-save').locator('..').locator('[data-form-status]').filter({ hasText: 'Saved' }).waitFor()
+  assert.equal(await p.locator('#res-vote-eligibility').inputValue(), 'participants')
+  assert.equal(await p.locator('#res-vote-eligibility').getAttribute('aria-invalid'), 'true')
+  assert.match(await p.locator('#res-vote-eligibility-save').locator('..').innerText(), /Eligibility was rejected/)
+  assert.equal(await p.evaluate(async () => (await import('/hack/forms.js')).forElement(document.querySelector('#res-vote-eligibility')).dirty()), true)
+  await p.unroute('**' + base + '/voting')
+  console.log('ok P1.1 concurrent save success cannot clear another form failure')
+
+  // P1.2: collecting a snapshot cannot write old rows into a shortened array.
+  const reg = await fetch(info.url + base + '/registration', { method: 'PUT', headers: { 'X-API-Key': info.keys.organiser, 'Content-Type': 'application/json' }, body: JSON.stringify({ questions: [{ id: 'q1', prompt: 'First', required: false }, { id: 'q2', prompt: 'Second', required: false }], approval_required: false }) })
+  assert.ok(reg.ok)
+  await open(p, manage + '?s=settings&tab=signup', '[data-q-rm]')
+  await p.locator('[data-q-rm]').first().click()
+  assert.equal(await p.locator('[data-q-prompt]').inputValue(), 'Second')
+  await p.locator('#q-save').click()
+  await p.locator('[data-form-status]').filter({ hasText: 'Questions saved' }).waitFor()
+  const questions = await fetch(info.url + base + '/registration', { headers: { 'X-API-Key': info.keys.organiser } }).then(r => r.json())
+  assert.deepEqual(questions.questions.map(q => [q.id, q.prompt]), [['q2', 'Second']])
+  console.log('ok P1.2 removing First preserves Second and its identity on the server')
+
+  // P1.3: capture the latest visible draft when refresh replaces the DOM.
+  await open(p, manage + '?s=event-page&tab=basics', '#f-title')
+  await p.locator('#f-title').fill('Refresh A')
+  let releaseRefresh, refreshStarted
+  const refreshHeld = new Promise(r => { releaseRefresh = r })
+  const refreshRequest = new Promise(r => { refreshStarted = r })
+  await p.route('**/v1/me', async route => { const response = await route.fetch(); refreshStarted(); await refreshHeld; await route.fulfill({ response }) })
+  await p.evaluate(() => { import('/hack/forms.js').then(forms => { window.formRefresh = forms.forElement(document.querySelector('#f-title')).ctx.refresh() }) })
+  await refreshRequest
+  await p.locator('#f-title').fill('Refresh B')
+  assert.equal(await p.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented }), true)
+  releaseRefresh(); await p.evaluate(() => window.formRefresh)
+  assert.equal(await p.locator('#f-title').inputValue(), 'Refresh B')
+  await p.locator('.hint.dirty').waitFor()
+  await p.unroute('**/v1/me')
+  console.log('ok P1.3 refresh retains edits typed during reads and keeps unload guarded')
+
+  // 12: identical destinations never ask or add a history entry.
+  assert.equal(await p.evaluate(async () => { const before = history.length; const result = await (await import('/hack/app.js')).go(location.pathname + location.search); return result && before === history.length }), true)
+  assert.equal(await p.getByRole('dialog').count(), 0)
+  assert.equal(await p.locator('#f-title').inputValue(), 'Refresh B')
+  console.log('ok 12 self-navigation keeps the form and history without prompting')
+
+  // 5 and 6: server IDs do not count as edits; a tie draft survives option rebuilds.
+  await open(p, manage + '?s=settings&tab=judging', '#jg-rubric-save')
+  await p.locator('#jg-rubric input').first().waitFor()
+  await p.locator('#jg-tie').selectOption({ index: 1 })
+  const tieDraft = await p.locator('#jg-tie').inputValue()
+  await p.locator('#jg-add').click()
+  await p.locator('#jg-rubric .crit').last().locator('input').first().fill('Zero weight criterion')
+  await p.locator('#jg-rubric-save').click()
+  await p.locator('#rubric [data-form-status]').filter({ hasText: 'Rubric saved' }).waitFor()
+  await p.waitForFunction(() => !document.querySelector('#rubric .hint.dirty'))
+  assert.equal(await p.locator('#rubric .hint.dirty').count(), 0)
+  assert.equal(await p.locator('#jg-tie').inputValue(), tieDraft)
+  assert.equal(await p.evaluate(async () => (await import('/hack/forms.js')).forElement(document.querySelector('#jg-tie')).dirty()), true)
+  console.log('ok 5 and 6 rubric server normalization is clean and tie draft survives')
+
+  // 10: Clear is a save, including its baseline.
+  await p.locator('#jg-closes-input').fill('2030-02-01T10:00')
+  await p.locator('#jg-closes-save').click()
+  await p.locator('#closes [data-form-status]').filter({ hasText: 'Saved' }).waitFor()
+  await p.locator('#jg-closes-clear').click()
+  await p.getByRole('dialog', { name: 'Clear judging closes?', exact: true }).getByRole('button', { name: 'Clear', exact: true }).click()
+  await p.waitForFunction(() => document.querySelector('#jg-closes-clear').disabled)
+  assert.equal(await p.locator('#closes .hint.dirty').count(), 0)
+  console.log('ok 10 clearing judging close time completes its save lifecycle')
+
+  // 8: canceling a confirmation during guarded Save must stay.
+  await p.locator('#jg-mode-automatic').check(); await p.locator('#jg-mode-save').click()
+  await p.locator('#mode [data-form-status]').filter({ hasText: 'Saved' }).waitFor()
+  await open(p, manage + '?s=judging', '#jg-include-organisers')
+  await p.locator('#jg-include-organisers').check()
+  await p.locator('.side a[data-tip=Account]').click(); await choice(p, 'Save')
+  await p.getByRole('dialog', { name: 'Generate assignments?', exact: true }).getByRole('button', { name: 'Cancel', exact: true }).click()
+  await p.locator('#jg-include-organisers:checked').waitFor()
+  assert.equal(new URL(p.url()).searchParams.get('s'), 'judging')
+  await p.locator('.hint.dirty').waitFor()
+  console.log('ok 8 canceled assignment generation blocks guarded navigation')
+
+  // 16: failed membership write stays inside the dialog with its selection.
+  await p.route('**' + base + '/teams', async route => {
+    const response = await route.fetch(), data = await response.json()
+    data.on_no_team = [{ user_id: 'solo-first', display_name: 'First solo' }, { user_id: 'solo-second', display_name: 'Second solo' }]
+    await route.fulfill({ response, json: data })
+  })
+  await open(p, manage + '?s=team&team=' + info.team, '#add-someone')
+  await p.locator('#add-someone').click(); await p.locator('#add-pick').selectOption('solo-second')
+  await p.route('**/teams/*/members', route => route.fulfill({ status: 422, json: { error: 'Membership was rejected.' } }))
+  await p.keyboard.press('Escape'); await choice(p, 'Save')
+  await p.getByRole('dialog').locator('[data-form-status]').filter({ hasText: 'Membership was rejected.' }).waitFor()
+  assert.equal(await p.locator('#add-pick').inputValue(), 'solo-second')
+  await p.keyboard.press('Escape'); await choice(p, 'Discard')
+  await p.unroute('**/teams/*/members'); await p.unroute('**' + base + '/teams')
+  console.log('ok 16 failed dialog Save retains its choice and displays the write error inside')
+
+  // 7: the close-time form is guarded while the unrelated rubric read waits.
+  let releaseRubric, rubricStarted
+  const rubricHeld = new Promise(r => { releaseRubric = r })
+  const rubricRequest = new Promise(r => { rubricStarted = r })
+  await p.route('**' + base + '/rubric', async route => { const response = await route.fetch(); rubricStarted(); await rubricHeld; await route.fulfill({ response }) })
+  await open(p, manage + '?s=settings&tab=judging', '#jg-closes-input')
+  await rubricRequest
+  await p.locator('#jg-closes-input').fill('2033-01-01T10:00')
+  releaseRubric(); await p.locator('#jg-rubric input').first().waitFor()
+  await p.locator('.side a[data-tip=Account]').click(); await choice(p, 'Stay')
+  await p.unroute('**' + base + '/rubric')
+  console.log('ok 7 close-time edits during initial rubric loading stay guarded')
+
+  // 14: a later instant-save error replaces the successful result.
+  await open(p, manage + '?s=settings&tab=teams', '#tf-on')
+  await p.locator('#tf-on').click()
+  await p.locator('[data-form-status]').filter({ hasText: 'Saved' }).waitFor()
+  await p.route('**' + base, route => route.request().method() === 'PATCH'
+    ? route.fulfill({ status: 422, json: { error: 'Team finding was rejected.' } }) : route.continue())
+  await p.locator('#tf-on').click()
+  await p.locator('[data-form-status]').filter({ hasText: 'Team finding was rejected.' }).waitFor()
+  assert.equal(await p.locator('[data-form-status]').filter({ hasText: /^Saved$/ }).count(), 0)
+  assert.equal(await p.locator('#tf-saved').isVisible(), false)
+  await p.unroute('**' + base)
+  console.log('ok 14 instant-save error replaces its earlier Saved message')
+
+  // 15: the save result belongs to the replacement form after refresh.
+  await open(p, manage + '?s=settings&tab=details', '#set-name')
+  const oldDetails = await p.locator('#set-name').elementHandle()
+  await p.locator('#set-name').fill('Saved organiser ' + Date.now())
+  await p.locator('#set-save').click()
+  await p.waitForFunction(n => !n.isConnected, oldDetails)
+  await p.locator('[data-form-status]').filter({ hasText: 'Saved' }).waitFor()
+  await p.waitForFunction(() => !document.querySelector('.hint.dirty'))
+  await open(p, manage + '?s=announcements', '#ann-title')
+  const oldAnnouncement = await p.locator('#ann-title').elementHandle()
+  await p.locator('#ann-title').fill('Lifecycle announcement')
+  await p.locator('#ann-body').fill('A saved message.')
+  await p.locator('#ann-post').click()
+  await p.waitForFunction(n => !n.isConnected, oldAnnouncement)
+  await p.locator('[data-form-status]').filter({ hasText: 'Posted' }).waitFor()
+  assert.equal(await p.locator('.hint.dirty').count(), 0)
+  console.log('ok 15 organiser details and Posted confirmations survive refresh')
+
+  // 13: Website links use the publish control, including the Missing link.
+  await open(e, team + '?s=entry', '#en-title')
+  await e.evaluate(async () => {
+    const h = (await import('/hack/forms.js')).forElement(document.querySelector('#en-title'))
+    h.fieldError('site', 'Publish your website')
+    h.summary([{ field: 'site', label: 'a published website' }])
+    const missing = document.createElement('button'); missing.dataset.fieldFocus = 'site'; missing.id = 'test-missing-site'; missing.textContent = 'Missing: Website'; h.root.append(missing)
+  })
+  await e.locator('#test-missing-site').click()
+  assert.equal(await e.locator('main a[href*="s=website"]').first().evaluate(n => n === document.activeElement), true)
+  await e.locator('[data-form-banner]').getByRole('button', { name: 'a published website', exact: true }).click()
+  assert.equal(await e.locator('main a[href*="s=website"]').first().evaluate(n => n === document.activeElement), true)
+  console.log('ok 13 Website field marks, Missing links, and banner links focus Publish')
+
+  // 17: exercise the generated organiser bundle and its real frame router.
+  const frame = await browser.newPage()
+  frame.on('pageerror', err => errors.push(err.message))
+  await frame.setContent('<main id="app"></main>')
+  await frame.addStyleTag({ content: fs.readFileSync('internal/mcp/apps/hack-organiser-kit.css', 'utf8') })
+  await frame.evaluate(() => {
+    const listeners = {}, data = { slug: 'frame-event', view: 'judging', event: { slug: 'frame-event', title: 'Frame event', stage: 'judging', judging_locked_at: '2030-01-01T00:00:00Z' } }
+    const toolData = name => name === 'hack_get_checklist' ? { checklist: { items: [], next: null } }
+      : name === 'hack_app_get_people' || name === 'hack_app_get_applications' ? [] : {}
+    window.SHApp = {
+      on: (name, callback) => { listeners[name] = callback },
+      callTool: async name => toolData(name),
+      callToolResult: async name => name === 'hack_show_organiser' ? { structuredContent: data }
+        : { _meta: { 'simple-hack/app-only': toolData(name) } },
+      openLink: async () => {}, updateModelContext: async () => {},
+      start: async () => { listeners['tool-result']({ structuredContent: data }) }
+    }
+  })
+  await frame.addScriptTag({ content: fs.readFileSync('internal/mcp/apps/hack-organiser-bundle.js', 'utf8') })
+  await frame.addScriptTag({ content: fs.readFileSync('internal/mcp/apps/hack-organiser-view.js', 'utf8') })
+  await frame.locator('#jg-lockzone textarea').fill('Keep this unlock reason')
+  await frame.locator('[data-app-view=people]').click(); await choice(frame, 'Stay')
+  assert.equal(await frame.locator('#jg-lockzone textarea').inputValue(), 'Keep this unlock reason')
+  await frame.evaluate(async () => {
+    const h = window.__HACKO.ui.forms.forElement(document.querySelector('#jg-lockzone textarea'))
+    await h.ctx.refresh()
+  })
+  assert.equal(await frame.locator('#jg-lockzone textarea').inputValue(), 'Keep this unlock reason')
+  await frame.locator('[data-app-view=people]').click(); await choice(frame, 'Discard')
+  await frame.locator('#role-filter').waitFor()
+  await frame.close()
+  console.log('ok 17 generated MCP organiser frame guards navigation and preserves refresh drafts')
+
   assert.deepEqual(errors, [])
   console.log('ok browser errors:', errors.length)
   await org.context.close(); await participant.context.close()

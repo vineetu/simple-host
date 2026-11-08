@@ -91,7 +91,7 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
       } else {
         const queued = r.data.emails_queued || 0
         if (queued === 0) {
-          setLive('Posted. Nobody had an email address on file, so no email was sent.', 'err')
+          setLive('Posted. Nobody had an email address on file, so no email was sent.', 'ok')
         } else {
           const copy = r.data.organiser_copied ? ' (including a copy to you)' : ''
           setLive(`Posted and emailed to ${queued} ${queued === 1 ? 'person' : 'people'}${copy}.`, 'ok')

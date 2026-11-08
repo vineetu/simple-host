@@ -13,7 +13,10 @@
   "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser.",
   "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser.",
   "People without a join link can apply to an event from Find a hackathon or the event's page (on by default, organiser switch in Settings). Every application waits in People -> Applications with optional location, age range and gender; join links are unchanged and stay private.",
-  "Teams have admins: whoever starts a team runs it, can make others admin, says yes or no to join requests, and can lock the team. Every team has one link that joins in one tap."
+  "Teams have admins: whoever starts a team runs it, can make others admin, says yes or no to join requests, and can lock the team. Every team has one link that joins in one tap.",
+  "Unsaved edits are never lost silently.",
+  "Save, Discard, or Stay. Stay is the default.",
+  "Mark the field and link to it. Clear on edit or successful save."
  ],
  "sample_events": [
   {

@@ -125,6 +125,7 @@ export async function render(ctx) {
     if (!jr.ok) { errBox.textContent = errText(jr); submit.disabled = false; return }
     if (!hasName && me) me.display_name = name
     const slug = (jr.data && (jr.data.slug || (jr.data.event && jr.data.event.slug))) || info.slug
-    judgeJoined(slug, path => ctx.go(path, { saved: ui.forms.forElement(form) }))
+    ui.forms.forElement(form).saved('')
+    return judgeJoined(slug, path => ctx.go(path, { saved: ui.forms.forElement(form) }))
   })
 }
