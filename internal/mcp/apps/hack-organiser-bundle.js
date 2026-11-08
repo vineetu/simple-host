@@ -2281,9 +2281,6 @@
     if (role === "organiser" && IN_FRAME[section || "overview"]) return "#v=" + (section || "overview");
     return window.__hackOrgOrigin + "/e/" + encodeURIComponent(slug) + "/" + { organiser: "manage", judge: "judge", participant: "team" }[role] + (section ? "?s=" + encodeURIComponent(section) : "");
   }
-  function isAppRoute(path) {
-    return false;
-  }
   function resolve2(id, slug, params) {
     const target = resolve(id, slug, params);
     return { ...target, href: target.href.startsWith("/") ? window.__hackOrgOrigin + target.href : target.href };
@@ -2298,9 +2295,10 @@
     GENDER_LABELS: () => GENDER_LABELS,
     MATURITY: () => MATURITY,
     TOOL_SUGGESTIONS: () => TOOL_SUGGESTIONS,
-    clearDirtyGuard: () => clearDirtyGuard,
+    clearFormRegistrations: () => clearFormRegistrations,
     confirm: () => askConfirm,
     confirmDiscardForLeave: () => confirmDiscardForLeave,
+    confirmFormLeave: () => confirmFormLeave,
     confirmTyped: () => confirmTyped,
     copyButton: () => copyButton,
     countdown: () => countdown,
@@ -2329,11 +2327,11 @@
     roleLabel: () => roleLabel,
     safeHref: () => safeHref,
     saved: () => saved,
-    setDirtyGuard: () => setDirtyGuard,
     showImage: () => showImage,
     stageLabel: () => stageLabel,
     stages: () => stages,
     toast: () => toast,
+    trackForm: () => trackForm,
     writeLockReason: () => writeLockReason,
     zoneAbbr: () => zoneAbbr
   });
@@ -2919,28 +2917,55 @@
       input.focus();
     });
   }
-  var guardCtx = null;
-  var guardGetDirty = null;
+  var forms = /* @__PURE__ */ new Set();
   var guardBound = false;
+  var leavePending = null;
+  var replayingLink = false;
   var lastPath = typeof location !== "undefined" ? location.pathname + location.search + location.hash : "";
   function notePath(path) {
     lastPath = path ?? location.pathname + location.search + location.hash;
   }
-  function setDirtyGuard(ctx, getDirty) {
-    guardCtx = ctx;
-    guardGetDirty = getDirty;
-    bindGuardOnce();
+  function serializeForm(root) {
+    return JSON.stringify(Array.from(root.querySelectorAll('input, textarea, select, [role="radio"], [data-dirty-value]')).filter((n) => !n.closest("[data-no-dirty]") && !["button", "submit", "reset", "image"].includes(n.type)).map((n) => [
+      n.tagName,
+      n.id,
+      n.name,
+      n.type,
+      n.matches("[data-dirty-value]") ? n.dataset.dirtyValue : n.matches('[role="radio"]') ? n.getAttribute("aria-checked") : n.type === "file" ? Array.from(n.files || [], (f) => f.name) : n.type === "checkbox" || n.type === "radio" ? [n.value, n.checked] : n.tagName === "SELECT" ? Array.from(n.selectedOptions, (o) => o.value) : n.value
+    ]));
   }
-  function clearDirtyGuard() {
-    guardGetDirty = null;
+  function trackForm(ctx, root) {
+    const registration = { ctx, root, baseline: serializeForm(root) };
+    forms.add(registration);
+    bindGuardOnce();
+    return { snapshot() {
+      return serializeForm(root);
+    }, reset(snap) {
+      registration.baseline = snap ?? serializeForm(root);
+    } };
   }
   function currentDirty() {
-    if (!guardGetDirty) return null;
-    if (guardCtx && guardCtx.alive && !guardCtx.alive()) {
-      guardGetDirty = null;
-      return null;
-    }
-    return guardGetDirty();
+    for (const f of forms) if (!f.root.isConnected || f.ctx?.alive && !f.ctx.alive()) forms.delete(f);
+    return Array.from(forms).some((f) => serializeForm(f.root) !== f.baseline);
+  }
+  function clearFormRegistrations() {
+    forms.clear();
+  }
+  async function confirmFormLeave() {
+    if (replayingLink) return true;
+    if (!currentDirty()) return true;
+    if (!leavePending) leavePending = dialog({
+      title: "Leave without saving?",
+      buttons: [
+        { label: "Stay", value: false },
+        { label: "Leave", value: true, className: "btn danger primary" }
+      ],
+      escapeValue: false,
+      focus: 0
+    }).finally(() => {
+      leavePending = null;
+    });
+    return leavePending;
   }
   function bindGuardOnce() {
     if (guardBound) return;
@@ -2954,31 +2979,24 @@
     });
   }
   async function onGuardClick(e) {
-    const info = currentDirty();
-    if (!info) return;
+    if (replayingLink || !currentDirty()) return;
     const a = e.target.closest("a[href]");
-    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute("download")) return;
-    let url;
-    try {
-      url = new URL(a.href);
-    } catch {
-      return;
-    }
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute("download") || a.closest('[aria-disabled="true"], [data-menu], [disabled]')) return;
+    const url = new URL(a.href, location.href);
+    if (!["http:", "https:"].includes(url.protocol)) return;
     if (url.origin !== location.origin) return;
-    if (url.pathname === location.pathname && url.search === location.search) return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash && !a.hasAttribute("data-signout")) return;
     e.preventDefault();
     e.stopPropagation();
-    const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: "Your changes will be lost.", confirmLabel: "Discard", cancelLabel: "Keep editing", danger: true });
-    if (!ok) return;
-    guardGetDirty = null;
-    if (a.hasAttribute("data-signout")) {
-      a.click();
-      return;
+    if (await confirmFormLeave()) {
+      if (a.hasAttribute("data-signout")) clearFormRegistrations();
+      replayingLink = true;
+      try {
+        if (a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }))) clearFormRegistrations();
+      } finally {
+        replayingLink = false;
+      }
     }
-    if (isAppRoute(url.pathname)) {
-      lastPath = url.pathname + url.search + url.hash;
-      guardCtx.go(url.pathname + url.search + url.hash);
-    } else location.assign(url);
   }
   var AI_SUGGESTIONS = ["Claude", "ChatGPT", "Gemini", "Lovable", "Copilot", "Cursor"];
   var TOOL_SUGGESTIONS = ["Canva", "Google Sheets", "Figma", "Supabase", "Python", "Airtable"];
@@ -3096,19 +3114,13 @@
     tick();
   }
   async function confirmDiscardForLeave() {
-    const info = currentDirty();
     const target = location.pathname + location.search + location.hash;
-    if (!info) {
-      lastPath = target;
-      return true;
-    }
     const from = lastPath;
-    const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: "Your changes will be lost.", confirmLabel: "Discard", cancelLabel: "Keep editing", danger: true });
-    if (!ok) {
+    if (!await confirmFormLeave()) {
       history.pushState({}, "", from);
       return false;
     }
-    guardGetDirty = null;
+    clearFormRegistrations();
     lastPath = target;
     return true;
   }
@@ -4037,6 +4049,7 @@ ${restBlock}
           doUnlock(textarea.value, go);
         });
         zone.appendChild(form);
+        ui.trackForm(ctx, form);
       }
     }
     async function doLock() {
@@ -4098,12 +4111,14 @@ ${restBlock}
       $("jg-include-organisers-wrap").hidden = !automatic;
       $("jg-include-organisers").disabled = locked || !!adminLockReason;
     }
+    const assignmentForm = ui.trackForm(ctx, $("jg-include-organisers").closest("section"));
     async function generate() {
       const ok = await ui.confirm({ title: "Generate assignments?", body: "This replaces any assignments already generated. Continue?", confirmLabel: "Generate assignments", danger: true });
       if (!ok) return;
       const btn = $("jg-generate");
       btn.disabled = true;
       let r;
+      const sent = assignmentForm.snapshot();
       try {
         r = await api("POST", base + "/assignments/generate", { include_organisers: $("jg-include-organisers").checked });
       } catch (e) {
@@ -4111,11 +4126,13 @@ ${restBlock}
         paintMode();
         return;
       }
+      const editedDuring = r.ok && assignmentForm.snapshot() !== sent;
       paintMode();
       if (!r.ok) {
         setLive(ui.errText(r), "err", btn);
         return;
       }
+      editedDuring ? assignmentForm.reset(sent) : assignmentForm.reset();
       const data = r.data || {};
       assignmentsCount = (data.assignments || []).length;
       const under = data.teams_under_target || [];
@@ -4163,6 +4180,7 @@ ${restBlock}
           addConflict(judgeSelect.value, teamSelect.value, add);
         });
         card.appendChild(form);
+        ui.trackForm(ctx, form);
       } else {
         card.appendChild(ui.el("button", { class: "btn", type: "button", text: "Add", disabled: "" }));
       }

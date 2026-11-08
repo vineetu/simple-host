@@ -72,6 +72,7 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
   const titleInput = main.querySelector('#ann-title')
   const titleCt = main.querySelector('#ann-title-ct')
   const emailBox = main.querySelector('#ann-email')
+  if (main.querySelector('#ann-form')) ui.trackForm(ctx, main.querySelector('#ann-form'))
   const postBtn = main.querySelector('#ann-post')
   titleInput.addEventListener('input', () => { titleCt.textContent = titleInput.value.length + ' / 120' })
   emailBox.addEventListener('change', () => { postBtn.textContent = emailBox.checked ? `Post and email ${emailableCount} participants` : 'Post' })

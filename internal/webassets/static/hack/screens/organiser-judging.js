@@ -128,6 +128,7 @@ ${restBlock}
       form.appendChild(actions)
       onSubmit(form, go, e => { e.preventDefault(); doUnlock(textarea.value, go) })
       zone.appendChild(form)
+      ui.trackForm(ctx, form)
     }
   }
 
@@ -170,16 +171,20 @@ ${restBlock}
     $('jg-include-organisers-wrap').hidden = !automatic
     $('jg-include-organisers').disabled = locked || !!adminLockReason
   }
+  const assignmentForm = ui.trackForm(ctx, $('jg-include-organisers').closest('section'))
   async function generate() {
     const ok = await ui.confirm({ title: 'Generate assignments?', body: 'This replaces any assignments already generated. Continue?', confirmLabel: 'Generate assignments', danger: true })
     if (!ok) return
     const btn = $('jg-generate')
     btn.disabled = true
     let r
+    const sent = assignmentForm.snapshot()
     try { r = await api('POST', base + '/assignments/generate', { include_organisers: $('jg-include-organisers').checked }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
+    const editedDuring = r.ok && assignmentForm.snapshot() !== sent
     paintMode()
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
+    editedDuring ? assignmentForm.reset(sent) : assignmentForm.reset()
     const data = r.data || {}
     assignmentsCount = (data.assignments || []).length
     const under = data.teams_under_target || []
@@ -226,6 +231,7 @@ ${restBlock}
       form.appendChild(row)
       onSubmit(form, add, e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })
       card.appendChild(form)
+      ui.trackForm(ctx, form)
     } else {
       card.appendChild(ui.el('button', { class: 'btn', type: 'button', text: 'Add', disabled: '' }))
     }

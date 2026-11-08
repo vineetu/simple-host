@@ -49,6 +49,7 @@ ${signedIn
   })
 
   const form = main.querySelector('#accept-form')
+  const trackedForm = form ? ui.trackForm(ctx, form) : null
   if (form) form.addEventListener('submit', async e => {
     e.preventDefault()
     if (!main.querySelector('#accept-coc').checked) { setLive('You must accept the code of conduct.', 'err'); return }
@@ -67,6 +68,7 @@ ${signedIn
         }
         setLive(ui.errText(r), 'err', btn); btn.disabled = false; return
       }
+      trackedForm.reset()
       if (!hasName && me) me.display_name = nm
       const slug = r.data && r.data.event && r.data.event.slug
       if (slug) ctx.go(href('organiser', slug))

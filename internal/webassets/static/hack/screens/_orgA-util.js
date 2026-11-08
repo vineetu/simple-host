@@ -4,7 +4,7 @@
 // (The Basics/About unsaved-changes guard used to live here too, but
 // app.js's popstate handler needs to call into it -- see R8/R9 -- and
 // app.js only ever imports the shared ui.js, never a screen-only util, so
-// setDirtyGuard/clearDirtyGuard/confirmDiscardForLeave moved there.)
+// trackForm/confirmDiscardForLeave moved there.)
 import { esc, stageLabel } from '../ui.js'
 
 // fileAsDataURL reads a File into a data: URL (sponsor/FAQ logos travel as
@@ -286,6 +286,6 @@ export function undoToast(section, text, undo, ms = 10000) {
   else section.insertBefore(note, section.firstChild)
 }
 
-// The Basics/About unsaved-changes guard (setDirtyGuard/clearDirtyGuard/
+// The form navigation guard (trackForm/
 // confirmDiscardForLeave) moved to ui.js -- see the note at the top of this
 // file.

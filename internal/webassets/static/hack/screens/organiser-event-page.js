@@ -232,7 +232,6 @@ export async function render(ctx) {
   let tabGeneration = 0
   function paintTab(t) {
     const turn = ++tabGeneration
-    if (t !== 'basics' && t !== 'about') ui.clearDirtyGuard()
     split.innerHTML = `${subnavHTML(t, ev)}<section class="sp" aria-labelledby="sp-h" id="sp"></section>`
     const sp = split.querySelector('#sp')
     const helpers = { ctx, main, sp, ui, api, apiBytes, ev, admin, locked, ended, path, setLive }
@@ -355,7 +354,7 @@ ${dateTimeField(ui, 'f-end', 'Ends', snapshot.ends, snapshot.endTime, { dateID: 
       ui.toast('Saved', null)
     } catch (e) { setLive('Cannot reach the server.', 'err', btn); paintDirty() }
   })
-  ui.setDirtyGuard(ctx, () => (isDirty() ? { label: 'Basics' } : null))
+  ui.trackForm(ctx, sp.querySelector('form'))
 }
 
 // ------------------------------------------------------------------ About
@@ -411,7 +410,7 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
       ui.toast('Saved', null)
     } catch (e) { setLive('Cannot reach the server.', 'err', btn); paintDirty() }
   })
-  ui.setDirtyGuard(ctx, () => (isDirty() ? { label: 'About' } : null))
+  ui.trackForm(ctx, sp.querySelector('form'))
 }
 
 // --------------------------------------------------------------- Schedule

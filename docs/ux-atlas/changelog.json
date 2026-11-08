@@ -1,5 +1,9 @@
 [
   {
+    "date": "2026-11-08",
+    "what": "SIM-397: one universal rule protects unsaved page forms before leaving, Back, reload or closing the tab; clean and just-saved forms never ask."
+  },
+  {
     "date": "2026-11-07",
     "what": "SIM-393 presentation: checklist numbering continues across groups; blocked earlier required rows fold into Earlier items. Empty judge progress says No scores yet. Judge rows use Read, Check and Score; phone row actions align right beside labels, while the next-step button keeps its size."
   },

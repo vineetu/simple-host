@@ -60,12 +60,13 @@ export async function render(ctx, section) {
 <section class="card"><h2>Show on the public page</h2><p class="sub">Tip: Full ranking with scores off lists every team without a scoreboard.</p><div class="field"><label>Visibility<select class="select" id="res-visibility"${archived ? ' disabled' : ''}><option value="true">Full ranking</option><option value="false">Winners only</option></select></label></div><label class="check"><input type="checkbox" id="res-public-scores"${archived ? ' disabled' : ''}><span><b>Show scores</b><span>Teams always see their own score.</span></span></label><label class="check"><input type="checkbox" id="res-public-ranks"${archived ? ' disabled' : ''}><span>Show ranks</span></label><div class="form-actions"><button class="btn" type="button" id="res-visibility-save"${archived ? ' disabled' : ''}>Save</button><span class="hint" id="res-visibility-hint" hidden>Publish results first to control what the public page shows.</span></div></section>
 <section class="card" id="voting"><h2>People’s choice</h2>
 <p><span class="pill" id="res-vote-status"></span></p>
-<label class="check"><input type="checkbox" id="res-vote-enabled"${archived ? ' disabled' : ''}><span>Let visitors vote</span></label>
+<div id="voting-window"><label class="check"><input type="checkbox" id="res-vote-enabled"${archived ? ' disabled' : ''}><span>Let visitors vote</span></label>
 <div class="field-row"><div class="field"><label>Starts · <span id="res-tz-1"></span><input class="input" type="datetime-local" id="res-vote-opens"${archived ? ' disabled' : ''}></label></div><div class="field"><label>Ends · <span id="res-tz-2"></span><input class="input" type="datetime-local" id="res-vote-closes"${archived ? ' disabled' : ''}></label></div></div>
 <div class="form-actions"><button class="btn" type="button" id="res-vote-window-save"${archived ? ' disabled' : ''}>Save voting window</button></div>
-<hr class="rule">
+</div><hr class="rule">
+<div id="voting-eligibility">
 <div class="field"><label>Who can vote<select class="select" id="res-vote-eligibility"${archived ? ' disabled' : ''}><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants only</option></select></label></div>
-<div class="form-actions"><button class="btn" type="button" id="res-vote-eligibility-save"${archived ? ' disabled' : ''}>Save</button></div>
+<div class="form-actions"><button class="btn" type="button" id="res-vote-eligibility-save"${archived ? ' disabled' : ''}>Save</button></div></div>
 </section>`
  if (section !== 'directory') {
   // --- scoring rules ------------------------------------------------------
@@ -74,11 +75,14 @@ export async function render(ctx, section) {
     const btn = $('res-score-mode-save')
     btn.disabled = true
     let r
+    const sent = rankingForm.snapshot()
     try { r = await api('PATCH', base + '/judging/settings', { score_mode: $('res-score-mode').value }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = false
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
+    const editedDuring = rankingForm.snapshot() !== sent
     settings.score_mode = (r.data && r.data.score_mode) || $('res-score-mode').value
+    editedDuring ? rankingForm.reset(sent) : rankingForm.reset()
     setLive('Saved', 'ok', btn)
   })
 
@@ -99,6 +103,7 @@ export async function render(ctx, section) {
     btn.disabled = true
     let ok = true
     let r1
+    const sent = visibilityForm.snapshot()
     try { r1 = await api('PATCH', base + '/judging/settings', { public_scores: $('res-public-scores').checked, public_ranks: $('res-public-ranks').checked }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     if (!r1.ok) { setLive(ui.errText(r1), 'err', btn); btn.disabled = false; return }
@@ -112,6 +117,8 @@ export async function render(ctx, section) {
       else fullRanking = !!(r2.data && r2.data.full_ranking)
     }
     btn.disabled = false
+    const editedDuring = visibilityForm.snapshot() !== sent
+    if (ok) editedDuring ? visibilityForm.reset(sent) : visibilityForm.reset()
     if (ok) setLive('Saved', 'ok', btn)
   })
 
@@ -121,16 +128,18 @@ export async function render(ctx, section) {
   // checkbox has its own save button and its own paint (paintDirectory), so
   // an unrelated voting save never overwrites a directory choice still
   // sitting unsaved in the checkbox.
-  function paintVoting() {
+  function paintVoting(part) {
     if (!$('res-vote-status')) return
     const labels = { open: 'Voting open', upcoming: 'Voting upcoming', closed: 'Voting closed', disabled: 'Voting off' }
     const pill = $('res-vote-status')
     pill.textContent = labels[voting.status] || labels.disabled
     pill.className = 'pill' + (voting.status === 'open' ? ' ok' : voting.status === 'disabled' ? '' : ' warn')
-    $('res-vote-enabled').checked = !!voting.enabled
-    $('res-vote-opens').value = ui.localInputValue(voting.opens_at, ev.time_zone)
-    $('res-vote-closes').value = ui.localInputValue(voting.closes_at, ev.time_zone)
-    $('res-vote-eligibility').value = voting.eligibility || 'all_signed_in'
+    if (!part || part === 'window') {
+      $('res-vote-enabled').checked = !!voting.enabled
+      $('res-vote-opens').value = ui.localInputValue(voting.opens_at, ev.time_zone)
+      $('res-vote-closes').value = ui.localInputValue(voting.closes_at, ev.time_zone)
+    }
+    if (!part || part === 'eligibility') $('res-vote-eligibility').value = voting.eligibility || 'all_signed_in'
   }
   function paintDirectory() {
     if (!$('res-directory-listed')) return
@@ -203,6 +212,7 @@ export async function render(ctx, section) {
 
   $('res-vote-window-save')?.addEventListener('click', async () => {
     const btn = $('res-vote-window-save')
+    const sent = votingWindowForm.snapshot()
     const r = await putVoting({
       enabled: $('res-vote-enabled').checked,
       opens_at: $('res-vote-opens').value,
@@ -210,14 +220,17 @@ export async function render(ctx, section) {
       eligibility: voting.eligibility,
     }, btn)
     if (!r) return
+    const editedDuring = votingWindowForm.snapshot() !== sent
     applyVotingSave(r.data)
-    paintVoting()
+    paintVoting('window')
+    editedDuring ? votingWindowForm.reset(sent) : votingWindowForm.reset()
     setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)
   })
 
   $('res-vote-eligibility-save')?.addEventListener('click', async () => {
     const btn = $('res-vote-eligibility-save')
     const newEligibility = $('res-vote-eligibility').value
+    const sent = votingEligibilityForm.snapshot()
     const r = await putVoting({
       enabled: voting.enabled,
       opens_at: voting.opens_at,
@@ -225,8 +238,10 @@ export async function render(ctx, section) {
       eligibility: newEligibility,
     }, btn)
     if (!r) return
+    const editedDuring = votingEligibilityForm.snapshot() !== sent
     applyVotingSave(r.data)
-    paintVoting()
+    paintVoting('eligibility')
+    editedDuring ? votingEligibilityForm.reset(sent) : votingEligibilityForm.reset()
     setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)
   })
 
@@ -234,13 +249,22 @@ export async function render(ctx, section) {
     const btn = $('res-directory-save')
     btn.disabled = true
     let r
+    const sent = directoryForm.snapshot()
     try { r = await api('PATCH', base + '/directory', { listed: $('res-directory-listed').checked }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = false
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
+    const editedDuring = directoryForm.snapshot() !== sent
     voting.directory_listed = !!(r.data && r.data.listed)
+    editedDuring ? directoryForm.reset(sent) : directoryForm.reset()
     setLive('Saved', 'ok', btn)
   })
+
+  const rankingForm = $('ranking') ? ui.trackForm(ctx, $('ranking')) : null
+  const visibilityForm = $('res-visibility') ? ui.trackForm(ctx, $('res-visibility').closest('section')) : null
+  const votingWindowForm = $('voting-window') ? ui.trackForm(ctx, $('voting-window')) : null
+  const votingEligibilityForm = $('voting-eligibility') ? ui.trackForm(ctx, $('voting-eligibility')) : null
+  const directoryForm = $('directory') ? ui.trackForm(ctx, $('directory')) : null
 
 
 }

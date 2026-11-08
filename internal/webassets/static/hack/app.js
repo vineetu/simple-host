@@ -375,8 +375,10 @@ let initialData, activeContext, generation = 0
 // at the judge route from there loads the page afresh (route() below).
 const FRAMES_PATH = /^\/e\/[^/]+\/judge\/?$/
 const framesAllowed = FRAMES_PATH.test(location.pathname)
-export function go(path) {
+export async function go(path) {
   const url = new URL(path, location.href)
+  if (!await ui.confirmFormLeave()) return
+  ui.clearFormRegistrations()
   if (url.pathname === '/signin') { location.assign(url); return }
   history.pushState({}, '', url)
   ui.notePath(url.pathname + url.search + url.hash)

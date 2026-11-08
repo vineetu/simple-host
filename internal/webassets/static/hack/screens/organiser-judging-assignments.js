@@ -99,6 +99,7 @@ export async function render(ctx) {
     rowsBox.appendChild(card)
   })
 
+  const gridForm = ui.trackForm(ctx, rowsBox)
   async function save() {
     const checked = Array.from(rowsBox.querySelectorAll('input[type=checkbox]:checked:not([data-conflict])'))
     const rows = checked.map(input => grid === 'manual'
@@ -109,12 +110,15 @@ export async function render(ctx) {
     const top = $('jg-grid-save')
     top.disabled = true
     let r
+    const sent = gridForm.snapshot()
     try { r = await api('PUT', base + path, payload) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', top); top.disabled = false; return }
     top.disabled = false
     if (!r.ok) { setLive(ui.errText(r), 'err', top); return }
+    const editedDuring = gridForm.snapshot() !== sent
     if (grid === 'manual') assignments = (r.data && r.data.assignments) || []
     else panels = (r.data && r.data.panels) || []
+    editedDuring ? gridForm.reset(sent) : gridForm.reset()
     setLive('Judging access saved', 'ok', top)
   }
 

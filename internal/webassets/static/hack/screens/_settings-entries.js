@@ -74,17 +74,18 @@ export async function render(ctx, section) {
   if (rr.ok) { rules = rr.data; lastPresetChosen = rules.preset !== 'custom' ? rules.preset : lastPresetChosen }
   if (remr.ok) { reminders = remr.data; if (!reminderDraftWasDirty) reminderDraft = (reminders.offsets_minutes || []).slice() }
  }
- function paint() {
+ function paint(part) {
   if (!ctx.alive()) return
   const deadlineInput = ui.localInputValue(ev.submission_deadline, ev)
   const closedStages = ['closed', 'judging', 'results']
   const lockReason = ui.writeLockReason(ev, event.admin_view), archived = ev.stage === 'archived'
   const rulesLockReason = lockReason || (rules.editable === false ? "Entries are closed, so these can't change. To reopen, move the event back to Building on Home." : '')
   if (section === 'reminders') {
-   main.innerHTML = remindersHTML(lockReason)
+   if (!$('reminders')) main.innerHTML = remindersHTML(lockReason)
+   else $('reminders').innerHTML = sectionContent(remindersHTML(lockReason))
    wireReminders(lockReason)
   } else {
-   main.innerHTML = `<section class="card" id="deadline"><h2>Deadline</h2>
+   const html = `<section class="card" id="deadline"><h2>Deadline</h2>
 ${archived
     ? `<p>${ev.submission_deadline ? 'Entries closed ' + esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline was set.'}</p>`
     : `<div class="field"><label>Entries close · ${esc(ev.time_zone || 'UTC')}<input class="input" id="deadline-input" type="datetime-local" value="${esc(deadlineInput)}"${lockReason ? ' disabled' : ''}></label><p class="help">${ev.submission_deadline ? 'Entries close ' + esc(ui.dateTime(ev.submission_deadline, ev)) + '.' : 'No deadline yet.'} At the deadline, drafts with nothing missing are submitted for their teams. Drafts still missing something are judged too, marked Incomplete. You can exclude one below.</p></div>
@@ -92,11 +93,25 @@ ${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Buildi
 <div class="form-actions"><button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button><button class="btn quiet" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div>`}
 </section>
 <div id="entry-rules">${handInHTML(rulesLockReason)}</div>`
-   $('deadline-save')?.addEventListener('click', onSaveDeadline)
-   $('deadline-clear')?.addEventListener('click', onClearDeadline)
-   if (!rulesLockReason) wireHandIn()
+   if (!$('deadline')) main.innerHTML = html
+   else {
+    const template = document.createElement('template')
+    template.innerHTML = html
+    if (!part || part === 'deadline') $('deadline').innerHTML = template.content.querySelector('#deadline').innerHTML
+    if (!part || part === 'rules') $('entry-rules').innerHTML = template.content.querySelector('#entry-rules').innerHTML
+   }
+   if (!part || part === 'deadline') {
+    $('deadline-save')?.addEventListener('click', onSaveDeadline)
+    $('deadline-clear')?.addEventListener('click', onClearDeadline)
+   }
+   if ((!part || part === 'rules') && !rulesLockReason) wireHandIn()
   }
  }
+  function sectionContent(html) {
+    const template = document.createElement('template')
+    template.innerHTML = html
+    return template.content.firstElementChild.innerHTML
+  }
   function currentPresetLabel () {
     if (rules.preset !== 'custom') return (PRESETS[rules.preset] || {}).label || rules.preset
     const base = lastPresetChosen && PRESETS[lastPresetChosen]
@@ -140,7 +155,7 @@ ${showRows}
   // --- Reminder times -----------------------------------------------------
 
   function remindersHTML (lockReason) {
-    const chips = reminderDraft.map(m => `<span class="tag" data-off="${m}">${esc(offsetLabel(m))} before<button type="button" aria-label="Remove the ${esc(offsetLabel(m))} reminder" data-rem-off="${m}"${lockReason ? ' disabled' : ''}>×</button></span>`).join('')
+    const chips = reminderDraft.map(m => `<span class="tag" data-off="${m}" data-dirty-value="${m}">${esc(offsetLabel(m))} before<button type="button" aria-label="Remove the ${esc(offsetLabel(m))} reminder" data-rem-off="${m}"${lockReason ? ' disabled' : ''}>×</button></span>`).join('')
     const judgingLine = reminders.judging_ends_at
       ? 'Judging closes ' + esc(ui.dateTime(reminders.judging_ends_at, ev)) + '.'
       : `Set when judging closes on <a href="${esc(resolve('o.judging-closes', slug).href)}">Settings → Judging</a> to remind judges.`
@@ -168,7 +183,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     const card = $('reminders')
     if (!card) { paint(); return }
     const lockReason = ui.writeLockReason(ev, event.admin_view)
-    card.outerHTML = remindersHTML(lockReason)
+    card.innerHTML = sectionContent(remindersHTML(lockReason))
     wireReminders(lockReason)
   }
 
@@ -214,12 +229,15 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     const btn = $('rem-save')
     btn.disabled = true
     let r
+    const sent = remindersForm.snapshot()
     try { r = await api('PUT', remindersPath, { offsets_minutes: reminderDraft }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); btn.disabled = false; return }
     if (!r.ok) { setLive(ui.errText(r, { fallback: 'Could not save reminder times.' }), true); btn.disabled = false; return }
+    const editedDuring = remindersForm.snapshot() !== sent
     reminders = r.data
     reminderDraft = (reminders.offsets_minutes || []).slice()
     paintReminders()
+    editedDuring ? remindersForm.reset(sent) : remindersForm.reset()
     ui.saved(main)
   }
 
@@ -307,6 +325,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     // would be refused by -- exactly what the real save sends.
     const base = { fields: rules.fields, judge_first: rules.judge_first }
     if (Object.prototype.hasOwnProperty.call(PRESETS, rules.preset)) base.preset = rules.preset
+    const sent = rulesForm.snapshot()
     let dr
     try { dr = await api('PUT', rulesPath, { ...base, dry_run: true }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); if (saveBtn) saveBtn.disabled = false; return }
@@ -325,9 +344,11 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     try { r = await api('PUT', rulesPath, base) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); if (saveBtn) saveBtn.disabled = false; return }
     if (!r.ok) { setLive(r.data.error || 'Could not save', true); if (saveBtn) saveBtn.disabled = false; return }
+    const editedDuring = rulesForm.snapshot() !== sent
     rules = r.data || rules
     await load()
-    paint()
+    paint('rules')
+    editedDuring ? rulesForm.reset(sent) : rulesForm.reset()
     ui.saved(main)
   }
 
@@ -343,26 +364,35 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     setLive('')
     const value = $('deadline-input').value
     if (!value) { setLive('Choose a date and time.', true); return }
+    const sent = deadlineForm.snapshot()
     const data = await patchEv({ submission_deadline: value })
     if (!data) return
+    const editedDuring = deadlineForm.snapshot() !== sent
     ev = data.event
     await load()
-    paint()
+    paint('deadline')
+    editedDuring ? deadlineForm.reset(sent) : deadlineForm.reset()
     ui.saved(main)
   }
 
   async function onClearDeadline () {
     const ok = await ui.confirm({ title: 'Clear deadline?', body: 'Teams can keep changing sites and entries with no deadline until you set a new one. Clear it?', confirmLabel: 'Clear deadline', danger: true })
     if (!ok) return
+    const sent = deadlineForm.snapshot()
     const data = await patchEv({ submission_deadline: '' })
     if (!data) return
+    const editedDuring = deadlineForm.snapshot() !== sent
     ev = data.event
     await load()
-    paint()
+    paint('deadline')
+    editedDuring ? deadlineForm.reset(sent) : deadlineForm.reset()
     ui.saved(main)
   }
 
 
  await load()
  paint()
+ const remindersForm = $('reminders') ? ui.trackForm(ctx, $('reminders')) : null
+ const rulesForm = $('entry-rules') ? ui.trackForm(ctx, $('entry-rules')) : null
+ const deadlineForm = $('deadline') ? ui.trackForm(ctx, $('deadline')) : null
 }

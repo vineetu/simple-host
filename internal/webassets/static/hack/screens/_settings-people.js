@@ -130,7 +130,7 @@ ${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div cla
     } else {
       main.innerHTML = `<section class="card" id="signup"><h2>Sign-up</h2>
 ${registrationError ? '<div class="note bad">Sign-up questions could not be loaded. Saving here is turned off until you reload the page.</div>' : ''}
-<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><span><b>Approve people who join with your link before they can join a team or publish</b><span>Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are ${applicationsOpen ? 'on' : 'off'} — <a href="${esc(href('organiser', ev.slug, 'settings'))}#applications">change in Settings</a>.</span></span></label>
+<label class="check"><input type="checkbox" id="signup-approval" data-no-dirty${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><span><b>Approve people who join with your link before they can join a team or publish</b><span>Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are ${applicationsOpen ? 'on' : 'off'} — <a href="${esc(href('organiser', ev.slug, 'settings'))}#applications">change in Settings</a>.</span></span></label>
 <p class="help">Applicants also get three optional fields of ours: where they're based, age range and gender.</p>
 <div id="q-rows">${questions.map(questionRow).join('')}</div>
 <div class="form-actions"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
@@ -168,9 +168,11 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       const btn = $('q-save'); btn.disabled = true
       collectQuestions()
       assignQuestionIds()
+      const sent = form.snapshot()
       try {
         const r = await api('PUT', path + '/registration', { questions, approval_required: $('signup-approval').checked })
         if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
+        const editedDuring = form.snapshot() !== sent
         questions = r.data.questions || questions
         // savedQuestions is cloned here, not aliased to `questions` -- the
         // draft array is about to keep being mutated by Add/Remove, and the
@@ -179,6 +181,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
         approvalRequired = !!r.data.approval_required
         setLive('Questions saved.', 'ok', btn)
         paint()
+        editedDuring ? form.reset(sent) : form.reset()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
     $('signup-approval').addEventListener('change', async () => {
@@ -225,4 +228,5 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
     adminLock(main, admin, ev)
   }
   paint()
+  const form = section === 'signup' ? ui.trackForm(ctx, main) : null
 }

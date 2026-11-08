@@ -108,6 +108,7 @@ export async function render (ctx) {
 
   // --- Paint --------------------------------------------------------------
 
+  let extensionForm
   function paint () {
     const closedStages = ['closed', 'judging', 'results']
     const lockReason = ui.writeLockReason(ev, event.admin_view)
@@ -134,6 +135,7 @@ ${archived ? '' : (ev.submission_deadline
 ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` : '<div class="list"><div class="empty">No entries yet. They show up here once teams start filling theirs in.</div></div>'}
 <section class="card"><h2>Export</h2><div class="form-actions"><button class="btn" type="button" id="export-entries">Download entries (CSV)</button></div><p class="help">This event’s team sites use ${usage ? esc(fmtBytes((usage.saved_data_bytes || 0) + (usage.history_bytes || 0) + (usage.screenshot_bytes || 0) + (usage.file_bytes || 0))) : '…'}</p></section>`
     wire()
+    extensionForm = ui.trackForm(ctx, $('ext'))
   }
 
   function wire () {
@@ -211,7 +213,10 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
   const wantTeam = ctx.params.get('team')
   if (wantTeam) {
     const extTeam = $('ext-team')
-    if (extTeam && teams.some(t => t.slug === wantTeam)) extTeam.value = wantTeam
+    if (extTeam && teams.some(t => t.slug === wantTeam)) {
+      extTeam.value = wantTeam
+      extensionForm.reset()
+    }
     const extSection = $('ext')
     if (extSection) extSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }

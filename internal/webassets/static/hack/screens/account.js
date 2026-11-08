@@ -87,6 +87,8 @@ export async function render(ctx) {
       $('acct-current-code').value = '';
       $('acct-code').focus();
     }
+    emailForm.reset();
+    codeForm.reset();
   }
   function showDeleteAccount(open) {
     $('acct-delete').hidden = !open;
@@ -197,11 +199,14 @@ export async function render(ctx) {
     $('acct-name-err').textContent = '';
     var name = $('acct-name').value.trim();
     $('acct-name-save').disabled = true;
+    const sent = nameForm.snapshot()
     try {
       var r = await api('PATCH', '/v1/me', { display_name: name });
       if (!r.ok) { $('acct-name-err').textContent = accountErr(r, 'Could not save'); return; }
+      const editedDuring = nameForm.snapshot() !== sent
       me.display_name = name;
       $('acct-name').value = (r.data && typeof r.data.display_name === 'string') ? r.data.display_name : name;
+      editedDuring ? nameForm.reset(sent) : nameForm.reset()
       setLive('Saved', 'ok', $('acct-name-save'));
     } catch (err) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-name-save'));
@@ -222,6 +227,7 @@ export async function render(ctx) {
       $('acct-code-to').textContent = (r.data && r.data.email) || email;
       $('acct-current-to').textContent = (r.data && r.data.current_email) || accountEmail;
       showEmailChange('code');
+      emailForm.reset()
     } catch (err) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-email-send'));
     } finally { $('acct-email-send').disabled = false; }
@@ -245,6 +251,7 @@ export async function render(ctx) {
         $('acct-delete-word').textContent = next;
       }
       showEmailChange('row');
+      codeForm.reset()
       setLive('Your sign-in email is now ' + (next || 'the new address') + '. Your other keys were signed out.', 'ok', $('acct-email-row'));
       await loadIdentities();
     } catch (err) {
@@ -267,6 +274,7 @@ export async function render(ctx) {
       $('acct-password-current').value = '';
       $('acct-password-new').value = '';
       $('acct-password-confirm').value = '';
+      passwordForm.reset()
       setLive('Password changed', 'ok', $('acct-password-save'));
     } catch (err) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-password-save'));
@@ -435,6 +443,12 @@ export async function render(ctx) {
     } catch (e) { if (!client.isSignedOut(e)) statusEl.textContent = '' }
   }
 
+  const nameForm = ui.trackForm(ctx, $('acct-name-form'))
+  const emailForm = ui.trackForm(ctx, $('acct-email-form'))
+  const codeForm = ui.trackForm(ctx, $('acct-code-form'))
+  const passwordForm = ui.trackForm(ctx, $('acct-password-form'))
   paintAccount(me)
+  nameForm.reset()
+  passwordForm.reset()
   await Promise.all([loadGoogleProvider(), loadIdentities(), loadWait(), loadConnectCard()])
 }

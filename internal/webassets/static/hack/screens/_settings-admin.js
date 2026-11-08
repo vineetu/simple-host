@@ -149,6 +149,8 @@ ${leaveRowHTML()}
 ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class="field"><label for="delete-confirm">Type <b>${ui.esc(ev.slug)}</b> to confirm. This cannot be undone.</label><input class="input mono" id="delete-confirm" type="text"></div>` : '<p>This cannot be undone.</p>'}<div class="form-actions"><button class="btn danger" type="button" id="delete-go"${requireTyped ? ' disabled' : ''}>Delete event</button><button class="btn" type="button" id="delete-cancel">Cancel</button></div></div></div>` : ''}
 </section>` })[section] || ''
 
+    main.querySelectorAll('form').forEach(root => ui.trackForm(ctx, root))
+    if (section === 'details') ui.trackForm(ctx, main.firstElementChild)
     adminLock(main, admin)
 
     function flashSaved(id) {

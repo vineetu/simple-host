@@ -214,6 +214,8 @@ export async function render(ctx) {
     box.appendChild(actions)
   }
   paintOverride()
+  const tieOrderForm = ui.trackForm(ctx, $('res-override'))
+  const publishForm = ui.trackForm(ctx, $('res-publish-target'))
   syncPublishSection()
 
   // --- publish ----------------------------------------------------------
@@ -227,6 +229,8 @@ export async function render(ctx) {
     const body = {}
     if (overrides && overrides.length) body.rank_overrides = overrides
     let r
+    const form = overrides ? tieOrderForm : publishForm
+    const sent = form.snapshot()
     try { r = await api('POST', base + '/results/publish', body) }
     catch (e) {
       if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', near)
@@ -237,13 +241,15 @@ export async function render(ctx) {
     top.disabled = false
     if (btn && btn !== top) btn.disabled = false
     if (!r.ok) { setLive(ui.errText(r), 'err', near); return }
+    const editedDuring = form.snapshot() !== sent
     results = (r.data && r.data.results) || []
     fullRanking = !!(r.data && r.data.full_ranking)
     ev.results_published = true
     ev.results_published_at = new Date().toISOString()
     published = !!(results && results.length)
     paintStatus()
-    paintOverride()
+    if (overrides) paintOverride()
+    editedDuring ? form.reset(sent) : form.reset()
     previewLoaded = false
     $('res-publish-top').textContent = 'Publish again'
     // A publish just took a fresh snapshot of the live standings, so it can

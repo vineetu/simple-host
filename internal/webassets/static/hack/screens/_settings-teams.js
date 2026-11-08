@@ -21,6 +21,7 @@ export async function render(ctx) {
 `
     const tfOn = sp.querySelector('#tf-on')
     if (tfOn) tfOn.addEventListener('click', onToggleTeamFinding)
+    ui.trackForm(ctx, sp.querySelector('#ts-size').closest('section'))
     const sizeInput = sp.querySelector('#ts-size')
     const discard = sp.querySelector('#ts-discard')
     const save = sp.querySelector('#ts-save')

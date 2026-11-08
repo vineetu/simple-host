@@ -16,9 +16,10 @@
     GENDER_LABELS: () => GENDER_LABELS,
     MATURITY: () => MATURITY,
     TOOL_SUGGESTIONS: () => TOOL_SUGGESTIONS,
-    clearDirtyGuard: () => clearDirtyGuard,
+    clearFormRegistrations: () => clearFormRegistrations,
     confirm: () => askConfirm,
     confirmDiscardForLeave: () => confirmDiscardForLeave,
+    confirmFormLeave: () => confirmFormLeave,
     confirmTyped: () => confirmTyped,
     copyButton: () => copyButton,
     countdown: () => countdown,
@@ -47,24 +48,14 @@
     roleLabel: () => roleLabel,
     safeHref: () => safeHref,
     saved: () => saved,
-    setDirtyGuard: () => setDirtyGuard,
     showImage: () => showImage,
     stageLabel: () => stageLabel,
     stages: () => stages,
     toast: () => toast,
+    trackForm: () => trackForm,
     writeLockReason: () => writeLockReason,
     zoneAbbr: () => zoneAbbr
   });
-
-  // internal/mcp/apps/frame/judge-nav.js
-  function href(role, slug, section) {
-    return "#v=" + section;
-  }
-  function isAppRoute(path) {
-    return false;
-  }
-
-  // internal/handler/static/hack/ui.js
   var esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var stages = { draft: "Not open yet", open: "Sign-up open", building: "Building", closed: "Entries closed", judging: "Judging", results: "Results", archived: "Ended", ended: "Ended" };
   var stageLabel = (stage) => stages[stage] || stage || "";
@@ -647,28 +638,55 @@
       input.focus();
     });
   }
-  var guardCtx = null;
-  var guardGetDirty = null;
+  var forms = /* @__PURE__ */ new Set();
   var guardBound = false;
+  var leavePending = null;
+  var replayingLink = false;
   var lastPath = typeof location !== "undefined" ? location.pathname + location.search + location.hash : "";
   function notePath(path) {
     lastPath = path ?? location.pathname + location.search + location.hash;
   }
-  function setDirtyGuard(ctx, getDirty) {
-    guardCtx = ctx;
-    guardGetDirty = getDirty;
-    bindGuardOnce();
+  function serializeForm(root) {
+    return JSON.stringify(Array.from(root.querySelectorAll('input, textarea, select, [role="radio"], [data-dirty-value]')).filter((n) => !n.closest("[data-no-dirty]") && !["button", "submit", "reset", "image"].includes(n.type)).map((n) => [
+      n.tagName,
+      n.id,
+      n.name,
+      n.type,
+      n.matches("[data-dirty-value]") ? n.dataset.dirtyValue : n.matches('[role="radio"]') ? n.getAttribute("aria-checked") : n.type === "file" ? Array.from(n.files || [], (f) => f.name) : n.type === "checkbox" || n.type === "radio" ? [n.value, n.checked] : n.tagName === "SELECT" ? Array.from(n.selectedOptions, (o) => o.value) : n.value
+    ]));
   }
-  function clearDirtyGuard() {
-    guardGetDirty = null;
+  function trackForm(ctx, root) {
+    const registration = { ctx, root, baseline: serializeForm(root) };
+    forms.add(registration);
+    bindGuardOnce();
+    return { snapshot() {
+      return serializeForm(root);
+    }, reset(snap) {
+      registration.baseline = snap ?? serializeForm(root);
+    } };
   }
   function currentDirty() {
-    if (!guardGetDirty) return null;
-    if (guardCtx && guardCtx.alive && !guardCtx.alive()) {
-      guardGetDirty = null;
-      return null;
-    }
-    return guardGetDirty();
+    for (const f of forms) if (!f.root.isConnected || f.ctx?.alive && !f.ctx.alive()) forms.delete(f);
+    return Array.from(forms).some((f) => serializeForm(f.root) !== f.baseline);
+  }
+  function clearFormRegistrations() {
+    forms.clear();
+  }
+  async function confirmFormLeave() {
+    if (replayingLink) return true;
+    if (!currentDirty()) return true;
+    if (!leavePending) leavePending = dialog({
+      title: "Leave without saving?",
+      buttons: [
+        { label: "Stay", value: false },
+        { label: "Leave", value: true, className: "btn danger primary" }
+      ],
+      escapeValue: false,
+      focus: 0
+    }).finally(() => {
+      leavePending = null;
+    });
+    return leavePending;
   }
   function bindGuardOnce() {
     if (guardBound) return;
@@ -682,31 +700,24 @@
     });
   }
   async function onGuardClick(e) {
-    const info = currentDirty();
-    if (!info) return;
+    if (replayingLink || !currentDirty()) return;
     const a = e.target.closest("a[href]");
-    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute("download")) return;
-    let url;
-    try {
-      url = new URL(a.href);
-    } catch {
-      return;
-    }
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute("download") || a.closest('[aria-disabled="true"], [data-menu], [disabled]')) return;
+    const url = new URL(a.href, location.href);
+    if (!["http:", "https:"].includes(url.protocol)) return;
     if (url.origin !== location.origin) return;
-    if (url.pathname === location.pathname && url.search === location.search) return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash && !a.hasAttribute("data-signout")) return;
     e.preventDefault();
     e.stopPropagation();
-    const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: "Your changes will be lost.", confirmLabel: "Discard", cancelLabel: "Keep editing", danger: true });
-    if (!ok) return;
-    guardGetDirty = null;
-    if (a.hasAttribute("data-signout")) {
-      a.click();
-      return;
+    if (await confirmFormLeave()) {
+      if (a.hasAttribute("data-signout")) clearFormRegistrations();
+      replayingLink = true;
+      try {
+        if (a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }))) clearFormRegistrations();
+      } finally {
+        replayingLink = false;
+      }
     }
-    if (isAppRoute(url.pathname)) {
-      lastPath = url.pathname + url.search + url.hash;
-      guardCtx.go(url.pathname + url.search + url.hash);
-    } else location.assign(url);
   }
   var AI_SUGGESTIONS = ["Claude", "ChatGPT", "Gemini", "Lovable", "Copilot", "Cursor"];
   var TOOL_SUGGESTIONS = ["Canva", "Google Sheets", "Figma", "Supabase", "Python", "Airtable"];
@@ -824,19 +835,13 @@
     tick();
   }
   async function confirmDiscardForLeave() {
-    const info = currentDirty();
     const target = location.pathname + location.search + location.hash;
-    if (!info) {
-      lastPath = target;
-      return true;
-    }
     const from = lastPath;
-    const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: "Your changes will be lost.", confirmLabel: "Discard", cancelLabel: "Keep editing", danger: true });
-    if (!ok) {
+    if (!await confirmFormLeave()) {
       history.pushState({}, "", from);
       return false;
     }
-    guardGetDirty = null;
+    clearFormRegistrations();
     lastPath = target;
     return true;
   }
@@ -956,6 +961,7 @@
     main.innerHTML = `<div class="pub"><section class="hero"><h1>You\u2019re invited to judge</h1><p>${ui.esc(info.title || "")}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ""}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ""}<p><a href="${eventHref}">See the event page</a></p></section><section class="card"><h2>Code of conduct</h2><p>${ui.esc(info.coc_default || "")}</p>${extraCoc ? `<p>${ui.esc(extraCoc)}</p>` : ""}</section>` + (signedIn ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form">${nameHTML}<label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><div class="form-actions"><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></div></form></section>` : `<div class="card"><p>Read the invitation, then sign in to accept.</p><div class="form-actions"><a class="btn primary lg" href="${ui.esc("/signin?next=" + encodeURIComponent(location.pathname))}">Sign in</a></div></div>`) + `</div>`;
     const form = main.querySelector("#pj-form");
     if (!form) return;
+    const trackedForm = ui.trackForm(ctx, form);
     onSubmit(form, main.querySelector("#pj-submit"), async (e) => {
       e.preventDefault();
       const errBox = main.querySelector("#pj-err");
@@ -992,6 +998,7 @@
         submit.disabled = false;
         return;
       }
+      trackedForm.reset();
       if (!hasName && me) me.display_name = name;
       const slug = jr.data && (jr.data.slug || jr.data.event && jr.data.event.slug) || info.slug;
       judgeJoined(slug);
@@ -1041,6 +1048,11 @@
         ui.live(node)("Cannot reach the server.", "err", button);
       }
     });
+  }
+
+  // internal/mcp/apps/frame/judge-nav.js
+  function href(role, slug, section) {
+    return "#v=" + section;
   }
 
   // internal/handler/static/hack/screens/judge-queue.js

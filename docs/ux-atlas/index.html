@@ -133,6 +133,7 @@ td a{cursor:pointer}
     var sp=S.spec, all=screens(), mapped=S.features.filter(function(f){return screenOfFeature(f.id).length}).length;
     var h='<h1>Simple Hack UX atlas</h1><p class="lead">The living map of every screen in Simple Hack: how each one is designed, who it is for, what it holds, and how it looks today. When a feature is added or a screen changes, this atlas changes first. Updated '+esc(S.spec.updated||'')+'.</p>'+
       '<div class="stats"><div><b>'+all.length+'</b>screens</div><div><b>'+S.files.length+'</b>prototype views</div><div><b>'+mapped+' / '+S.features.length+'</b>features placed</div><div><b>'+S.today.length+'</b>screens captured today</div></div>';
+    if(sp.universal_properties) h+='<div class="panel"><h3>Universal properties</h3><ul>'+sp.universal_properties.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul></div>';
     if(sp.summary) h+='<div class="panel"><h3>What changes</h3>'+(Array.isArray(sp.summary)?'<ul>'+sp.summary.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul>':'<p>'+esc(sp.summary)+'</p>')+'</div>';
     h+='<h2>Start with a role</h2><div class="cards">';
     (sp.roles||[]).forEach(function(r){

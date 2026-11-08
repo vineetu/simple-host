@@ -72,6 +72,7 @@ ${closesHTML()}
 
 
  main.innerHTML = setupInner
+  const closesForm = ui.trackForm(ctx, $('closes'))
   function weightTotal() { return rubric.reduce((sum, c) => sum + (Number(c.weight) || 0), 0) }
 
   function paintRubric() {
@@ -135,6 +136,7 @@ ${closesHTML()}
     p.textContent = 'Total weight: ' + total + '%' + (total === 100 ? '' : ' (must add up to 100%)')
   }
 
+  let tieForm
   function paintTie() {
     const select = $('jg-tie')
     select.textContent = ''
@@ -143,6 +145,7 @@ ${closesHTML()}
     select.value = settings.tie_criterion_id || ''
     select.disabled = tieClosed()
     $('jg-tie-save').disabled = tieClosed()
+    tieForm?.reset()
   }
 
   async function saveTie() {
@@ -150,11 +153,14 @@ ${closesHTML()}
     const btn = $('jg-tie-save')
     btn.disabled = true
     let r
+    const sent = tieForm.snapshot()
     try { r = await api('PATCH', base + '/judging/settings', { tie_criterion_id: value }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = tieClosed()
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
+    const editedDuring = tieForm.snapshot() !== sent
     settings.tie_criterion_id = (r.data && r.data.tie_criterion_id) || ''
+    editedDuring ? tieForm.reset(sent) : tieForm.reset()
     setLive('Saved', 'ok', btn)
   }
 
@@ -164,13 +170,16 @@ ${closesHTML()}
     const value = input.value
     btn.disabled = true
     let r
+    const sent = closesForm.snapshot()
     try { r = await api('PATCH', base, { judging_ends_at: value }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = !!adminLockReason; return }
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = !!adminLockReason; return }
+    const editedDuring = closesForm.snapshot() !== sent
     ev.judging_ends_at = (r.data && r.data.event && r.data.event.judging_ends_at) || null
     btn.disabled = !!adminLockReason
     const clearBtn = $('jg-closes-clear')
     if (clearBtn) clearBtn.disabled = !!adminLockReason || !ev.judging_ends_at
+    editedDuring ? closesForm.reset(sent) : closesForm.reset()
     setLive('Saved', 'ok', btn)
   }
 
@@ -210,14 +219,17 @@ ${closesHTML()}
     const btn = $('jg-mode-save')
     btn.disabled = true
     let r
+    const sent = modeForm.snapshot()
     try { r = await api('PATCH', base + '/judging/settings', { assignment_mode: mode, judges_per_team: perTeam }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
     if (!r.ok) { paintMode(); setLive(ui.errText(r), 'err', btn); return }
+    const editedDuring = modeForm.snapshot() !== sent
     settings.assignment_mode = (r.data && r.data.assignment_mode) || mode
     settings.judges_per_team = (r.data && r.data.judges_per_team) || perTeam
     draftMode = settings.assignment_mode
     draftPerTeam = settings.judges_per_team
     paintMode()
+    editedDuring ? modeForm.reset(sent) : modeForm.reset()
     setLive('Saved', 'ok', btn)
   }
 
@@ -244,6 +256,7 @@ ${closesHTML()}
     const btn = $('jg-rubric-save')
     btn.disabled = true
     let r
+    const sent = rubricForm.snapshot()
     try {
       r = await api('PUT', base + '/rubric', body)
       if (!r.ok && r.data && r.data.code === 'score_deletion_confirmation') {
@@ -255,10 +268,12 @@ ${closesHTML()}
     } catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = locked || !!adminLockReason
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
+    const editedDuring = rubricForm.snapshot() !== sent
     rubric = (r.data && r.data.criteria) || []
     rubricVersion = r.data.version
     paintRubric()
     paintTie()
+    editedDuring ? rubricForm.reset(sent) : rubricForm.reset()
     setLive('Rubric saved', 'ok', btn)
     await finalButton()
   }
@@ -271,6 +286,9 @@ ${closesHTML()}
   draftMode = settings.assignment_mode
   draftPerTeam = settings.judges_per_team
   paintRubric(); paintTie(); paintMode()
+  const rubricForm = ui.trackForm(ctx, $('rubric'))
+  tieForm = ui.trackForm(ctx, $('tie-break'))
+  const modeForm = ui.trackForm(ctx, $('mode'))
   await finalButton()
   async function finalButton() {
     const actions = $('jg-rubric-save').parentElement

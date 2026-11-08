@@ -22,7 +22,11 @@ export async function render(ctx) {
 <div class="field settings-select"><label for="settings-section">Settings section</label><select class="select" id="settings-section">${Object.entries(sections).map(([id, label]) => `<option value="${id}"${id === section ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
 <div class="subnav-split settings-layout"><nav class="subnav" aria-label="Settings sections">${Object.entries(sections).map(([id, label]) => `<a href="${ui.esc(urlFor(id))}"${id === section ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav><section class="sp" id="settings-content"></section></div>`
   const select = main.querySelector('#settings-section')
-  select.addEventListener('change', () => { ctx.go(urlFor(select.value)) })
+  select.addEventListener('change', async () => {
+    const target = urlFor(select.value)
+    select.value = section
+    await ctx.go(target)
+  })
   const content = main.querySelector('#settings-content')
   const subctx = { ...ctx, main: content }
   if (section === 'teams') await renderTeams(subctx)

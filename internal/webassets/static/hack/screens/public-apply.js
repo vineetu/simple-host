@@ -269,7 +269,7 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
     ' for you.'
   )
 
-  $('ap-signout').addEventListener('click', () => { client.signOut(ui.confirm) })
+  $('ap-signout').addEventListener('click', async () => { if (await ui.confirmFormLeave()) { ui.clearFormRegistrations(); client.signOut(ui.confirm) } })
 
   main.querySelectorAll('#ap-age input').forEach(radio => {
     radio.addEventListener('change', () => {
@@ -290,6 +290,7 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
     }
   }
 
+  const form = ui.trackForm(ctx, $('ap-form'))
   $('ap-form').addEventListener('submit', async e => {
     e.preventDefault()
     const btn = $('ap-submit')
@@ -322,6 +323,7 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
       btn.disabled = false
       return
     }
+    form.reset()
     if (!hasName && ctx.me) ctx.me.display_name = nm
     // A real navigation, not an SPA one: the server now holds this
     // membership (pending, or already decided for an idempotent re-apply),

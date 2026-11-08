@@ -184,7 +184,13 @@ export async function render(ctx) {
   }
 
   function wireNoTeam() {
-    main.querySelectorAll('input[name="way"]').forEach(r => r.addEventListener('change', () => { way = r.value; paint() }))
+    main.querySelectorAll('input[name="way"]').forEach(r => r.addEventListener('change', async () => {
+      const next = r.value
+      main.querySelectorAll('input[name="way"]').forEach(input => { input.checked = input.value === way })
+      if (!await ui.confirmFormLeave()) return
+      way = next
+      paint()
+    }))
     main.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/' + encodeURIComponent(b.getAttribute('data-ask')) + '/requests'))))
     main.querySelectorAll('[data-withdraw]').forEach(b => b.addEventListener('click', () => act(b, () => api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-withdraw'))))))
     main.querySelectorAll('[data-accept]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-accept')) + '/accept'))))
@@ -311,7 +317,7 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     }
     if ((ev.tracks || []).length) {
       const current = (team.track && team.track.slug) || ''
-      parts.push(`<section class="card"><h2>Track</h2><p class="sub">Which challenge ${esc(team.name)} is entering. Anyone on the team can change it.</p><div class="t-row"><select class="select" id="track-select" aria-label="Track"${canAct ? '' : ' disabled'}><option value="">No track</option>${ev.tracks.map(t => `<option value="${esc(t.slug)}"${t.slug === current ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div></section>`)
+      parts.push(`<section class="card"><h2>Track</h2><p class="sub">Which challenge ${esc(team.name)} is entering. Anyone on the team can change it.</p><div class="t-row"><select class="select" id="track-select" data-no-dirty aria-label="Track"${canAct ? '' : ' disabled'}><option value="">No track</option>${ev.tracks.map(t => `<option value="${esc(t.slug)}"${t.slug === current ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div></section>`)
     }
     if (!frozen) {
       const members = team.members || []
@@ -438,6 +444,7 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
       body = noTeamHTML()
       main.innerHTML = `<div class="ph"><div class="t"><h1>Team</h1><p>You’re not on a team yet.</p></div></div>` + removalNote + body
       wireNoTeam()
+      main.querySelectorAll('.card').forEach(root => { if (root.querySelector('input:not([name="way"])')) ui.trackForm(ctx, root) })
       return
     }
     const tab = resolveTab()
@@ -453,6 +460,9 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     const h = main.querySelector('#sp-h')
     if (h) { h.setAttribute('tabindex', '-1'); h.focus() }
     wireOnTeam(tab)
+    if (tab === 'settings') main.querySelectorAll('.sp .card').forEach(root => {
+      if (root.querySelector('input:not([readonly]), textarea')) ui.trackForm(ctx, root)
+    })
   }
 
   // No team, and nothing to do about it at all (ended, or every way is

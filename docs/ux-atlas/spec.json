@@ -1,6 +1,9 @@
 {
  "version": 2,
- "updated": "2026-11-07",
+ "updated": "2026-11-08",
+ "universal_properties": [
+  "A form with unsaved edits asks Leave without saving? (Stay / Leave) before navigation or Back, and uses the browser prompt when closing or reloading the tab; a clean or just-saved form never asks."
+ ],
  "summary": [
   "Your events stays visible in the signed-in pane; the current event expands with its role sections. Five current rows, a Past events toggle and All events keep the list short.",
   "Sign-in without an explicit safe return opens the sole non-archived, non-taken-down membership Home; otherwise Your events. Current and Past list grouping uses archive state only.",

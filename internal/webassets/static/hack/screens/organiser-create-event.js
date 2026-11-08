@@ -32,6 +32,7 @@ export async function render(ctx) {
 <div class="form-actions"><button class="btn" type="submit">Create event</button></div>
 </section></form>`
 
+  const form = ui.trackForm(ctx, $('new-form'))
   function checkSlugNow() {
     const slug = $('new-slug').value.trim().toLowerCase()
     const help = $('new-slug-help')
@@ -89,6 +90,7 @@ export async function render(ctx) {
         return
       }
       const slug = (r.data && r.data.event && r.data.event.slug) || body.slug
+      form.reset()
       ctx.go('/e/' + encodeURIComponent(slug) + '/manage')
     } catch (err) { setLive('Could not connect. Check your connection and try again.', 'err'); submitBtns.forEach(b => b.disabled = false) }
   })

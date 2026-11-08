@@ -1,4 +1,3 @@
-import { isAppRoute } from './nav.js'
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 export const stages = { draft: 'Not open yet', open: 'Sign-up open', building: 'Building', closed: 'Entries closed', judging: 'Judging', results: 'Results', archived: 'Ended', ended: 'Ended' }
 export const stageLabel = stage => stages[stage] || stage || ''
@@ -754,47 +753,43 @@ export function confirmTyped({ title, body, matchText, confirmLabel = 'Confirm',
   })
 }
 
-// Unsaved-changes guard for the one-Save forms (Basics, About): "another
-// tab, the sidebar, Back" asks before leaving, closing the browser tab uses
-// beforeunload. Bound once (module-level); `setDirtyGuard` is called on
-// every render of a form sub-page with a fresh `getDirty` closure over
-// that render's own fields, `clearDirtyGuard` by every other sub-page (and
-// effectively superseded the moment a new Basics/About render calls
-// setDirtyGuard again).
-// R8 (self-expiry): `getDirty` is only ever trusted while the ctx that
-// installed it is still alive (ctx.alive(), the same generation check
-// every screen already uses) -- a route change (another tab, Back/Forward,
-// a ctx.refresh()) leaves the old render's ctx dead, so `currentDirty()`
-// drops the guard instead of asking about a form nobody is looking at any
-// more.
-// R9: Sign out (`[data-signout]`) is left to its own click handler
-// (shell.js) rather than intercepted here as if it were an ordinary
-// same-origin app link -- it has to actually run the sign-out flow, not a
-// `ctx.go()` SPA navigation to '/'. A link to a page this app doesn't
-// render as a screen (isAppRoute false, e.g. /directory, /get-started) gets
-// a real navigation (location.assign) after confirming, instead of
-// `ctx.go()`, which would otherwise mount the Home screen at the wrong URL.
-// R8 (Back/Forward): app.js's popstate handler calls confirmDiscardForLeave
-// before accepting the browser's Back/Forward -- see app.js's own note.
-// Lives here, not in a screen util, because app.js (never a screen) needs
-// to call confirmDiscardForLeave/clearDirtyGuard too, and app.js only ever
-// imports this shared module.
-// `lastPath` is the URL last known to be safely showing (no unconfirmed
-// dirty form) -- tracked here, not in app.js or organiser-event-page.js,
-// so every caller that changes the URL (app.js's go(), and organiser-
-// event-page.js's own light-column subnav navigation, R19) can call
-// notePath() right after and confirmDiscardForLeave's own "push the old
-// URL back" always has an accurate path to restore, regardless of which
-// module did the pushState.
-let guardCtx = null, guardGetDirty = null, guardBound = false
+// Registrations belong to the rendered DOM and context, including disabled fields.
+const forms = new Set()
+let guardBound = false, leavePending = null, replayingLink = false
 let lastPath = typeof location !== 'undefined' ? location.pathname + location.search + location.hash : ''
 export function notePath(path) { lastPath = path ?? (location.pathname + location.search + location.hash) }
-export function setDirtyGuard(ctx, getDirty) { guardCtx = ctx; guardGetDirty = getDirty; bindGuardOnce() }
-export function clearDirtyGuard() { guardGetDirty = null }
+function serializeForm(root) {
+  return JSON.stringify(Array.from(root.querySelectorAll('input, textarea, select, [role="radio"], [data-dirty-value]'))
+    .filter(n => !n.closest('[data-no-dirty]') && !['button', 'submit', 'reset', 'image'].includes(n.type))
+    .map(n => [n.tagName, n.id, n.name, n.type,
+      n.matches('[data-dirty-value]') ? n.dataset.dirtyValue : n.matches('[role="radio"]') ? n.getAttribute('aria-checked') :
+      n.type === 'file' ? Array.from(n.files || [], f => f.name) :
+      n.type === 'checkbox' || n.type === 'radio' ? [n.value, n.checked] :
+      n.tagName === 'SELECT' ? Array.from(n.selectedOptions, o => o.value) : n.value]))
+}
+export function trackForm(ctx, root) {
+  const registration = { ctx, root, baseline: serializeForm(root) }
+  forms.add(registration)
+  bindGuardOnce()
+  return { snapshot() { return serializeForm(root) }, reset(snap) { registration.baseline = snap ?? serializeForm(root) } }
+}
 function currentDirty() {
-  if (!guardGetDirty) return null
-  if (guardCtx && guardCtx.alive && !guardCtx.alive()) { guardGetDirty = null; return null }
-  return guardGetDirty()
+  for (const f of forms) if (!f.root.isConnected || (f.ctx?.alive && !f.ctx.alive())) forms.delete(f)
+  return Array.from(forms).some(f => serializeForm(f.root) !== f.baseline)
+}
+// Also called before programmatic navigation, before it changes the URL.
+export function clearFormRegistrations() { forms.clear() }
+export async function confirmFormLeave() {
+  if (replayingLink) return true
+  if (!currentDirty()) return true
+  if (!leavePending) leavePending = dialog({
+    title: 'Leave without saving?',
+    buttons: [
+      { label: 'Stay', value: false },
+      { label: 'Leave', value: true, className: 'btn danger primary' }
+    ], escapeValue: false, focus: 0
+  }).finally(() => { leavePending = null })
+  return leavePending
 }
 function bindGuardOnce() {
   if (guardBound) return
@@ -805,34 +800,22 @@ function bindGuardOnce() {
   })
 }
 async function onGuardClick(e) {
-  const info = currentDirty()
-  if (!info) return
+  if (replayingLink || !currentDirty()) return
   const a = e.target.closest('a[href]')
-  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
-  let url
-  try { url = new URL(a.href) } catch { return }
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download') || a.closest('[aria-disabled="true"], [data-menu], [disabled]')) return
+  const url = new URL(a.href, location.href)
+  if (!['http:', 'https:'].includes(url.protocol)) return
   if (url.origin !== location.origin) return
-  // A same-document jump (an in-page #id link) and a link back to exactly
-  // where we already are both need no guard.
-  if (url.pathname === location.pathname && url.search === location.search) return
+  if (url.pathname === location.pathname && url.search === location.search && url.hash && !a.hasAttribute('data-signout')) return
   e.preventDefault()
   e.stopPropagation()
-  const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
-  if (!ok) return
-  guardGetDirty = null
-  // R9: Sign out (`[data-signout]`) needs its own handler (shell.js) to
-  // actually run -- re-dispatching the same click, now that the guard is
-  // cleared, lets it go through for real on the second pass (this
-  // listener itself sees it again first, via the capture phase, and no-ops
-  // immediately since currentDirty() is now null), instead of treating it
-  // as an ordinary same-origin app link and doing an SPA ctx.go('/'),
-  // which used to land on the Home screen while still signed in. A link to
-  // a page this SPA doesn't render as a screen at all (isAppRoute false,
-  // e.g. /directory, /get-started) gets a real navigation instead of
-  // ctx.go(), which would otherwise mount the wrong screen at that URL.
-  if (a.hasAttribute('data-signout')) { a.click(); return }
-  if (isAppRoute(url.pathname)) { lastPath = url.pathname + url.search + url.hash; guardCtx.go(url.pathname + url.search + url.hash) }
-  else location.assign(url) // not a screen this SPA renders -- a real navigation, not ctx.go()
+  if (await confirmFormLeave()) {
+    if (a.hasAttribute('data-signout')) clearFormRegistrations()
+    replayingLink = true
+    try {
+      if (a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))) clearFormRegistrations()
+    } finally { replayingLink = false }
+  }
 }
 // --- Entries (atlas 2026-11-02, slice 1) --------------------------------
 
@@ -977,20 +960,12 @@ export function countdown (el, deadline, serverNow, opts = {}) {
   tick()
 }
 
-// Exported for app.js's popstate handler: resolves true if it is fine to
-// proceed with a Back/Forward navigation that already changed `location`
-// (no dirty form, or the person confirmed discarding it) -- in both cases
-// `lastPath` is brought up to date. Resolves false if the person chose to
-// keep editing, having already pushed the previous URL back onto
-// `location` itself, so app.js only needs to skip calling route().
+// Back/Forward has already changed location; Stay restores the previous URL.
 export async function confirmDiscardForLeave() {
-  const info = currentDirty()
   const target = location.pathname + location.search + location.hash
-  if (!info) { lastPath = target; return true }
   const from = lastPath
-  const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
-  if (!ok) { history.pushState({}, '', from); return false }
-  guardGetDirty = null
+  if (!await confirmFormLeave()) { history.pushState({}, '', from); return false }
+  clearFormRegistrations()
   lastPath = target
   return true
 }

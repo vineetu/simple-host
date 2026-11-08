@@ -149,6 +149,7 @@ function paint (ctx, ev, data) {
   if (unsubmitBtn) unsubmitBtn.addEventListener('click', () => doUnsubmit(ctx, ev, data))
 
   wireForm(ctx, ev, data, rules, hasTracks)
+  ui.trackForm(ctx, main.querySelector('.split > div'))
 }
 
 // --- Status block (Draft / Submitted / Incomplete) ------------------------
@@ -280,7 +281,7 @@ function formHTML (ctx, ev, data, rules, hasTracks, missing, status) {
     const suffix = m('screenshot') === 'optional' ? '<span class="opt">(optional)</span>' : ''
     return '<div class="field"><div class="lab-row"><label for="en-shot">' + esc(LABEL.screenshot) + '</label>' + suffix + '</div>' +
       '<div class="site-frame" id="en-shot-frame"' + (entry.has_screenshot ? '' : ' hidden') + '><img id="en-shot-img" alt="Screenshot" hidden></div>' +
-      '<input class="input" type="file" id="en-shot" accept="image/png,image/jpeg,image/webp">' +
+      '<input class="input" type="file" id="en-shot" data-no-dirty accept="image/png,image/jpeg,image/webp">' +
       '<div class="form-actions"><button type="button" class="btn sm" id="en-shot-remove"' + (entry.has_screenshot ? '' : ' hidden') + '>Remove screenshot</button><span class="hint">Screenshot changes save straight away.</span></div>' +
       '<p class="err" id="en-screenshot-err"></p></div>'
   }
@@ -386,6 +387,7 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
       const span = document.createElement('span')
       span.className = 'tag' + (ui.AI_SUGGESTIONS.some(a => a.toLowerCase() === t.toLowerCase()) ? ' ai' : '')
       span.textContent = t
+      span.dataset.dirtyValue = t
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.setAttribute('aria-label', 'Remove ' + t)

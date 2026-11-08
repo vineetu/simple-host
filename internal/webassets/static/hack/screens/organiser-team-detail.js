@@ -130,6 +130,7 @@ ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
   function wire() {
     const addBtn = $('add-someone')
     if (addBtn) addBtn.addEventListener('click', onAddSomeone)
+    ui.trackForm(ctx, $('rename-form'))
     $('rename-form').addEventListener('submit', onRename)
     const msgBtn = $('msg-team-btn')
     if (msgBtn) msgBtn.addEventListener('click', onMessageTeam)

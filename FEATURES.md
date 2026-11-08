@@ -3160,6 +3160,8 @@ can compete with ideas. Since 2026-10-09 the film is an 8-scene pitch: teams bui
 step 4 and judges score in step 5; Free lives in the opening and closing captions. Join, participant event
 and built-in public pages carry no-coding guidance; Get started has a team-build prompt.
 
+Simple Hack page forms ask ‘Leave without saving?’ (Stay / Leave) before navigating away or Back, and use the browser prompt for reload or closing; clean and just-saved forms never ask.
+
 Simple Hack consistency (2026-10-04): hosted and full self-hosted instances
 share the landing film, header/footer, ink theme and event colours. Sign-in
 email/Google returns at the home URL open the existing sign-in shell. Each

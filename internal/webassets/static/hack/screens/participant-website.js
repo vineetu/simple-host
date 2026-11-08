@@ -265,7 +265,7 @@ function publishCardHTML (ui, esc, doc, state, conn, email, promptText, publishe
   }
 }
 
-async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, load) {
+async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, load, preservedUpload = null) {
   const { main, api: client, ui } = ctx
   const api = client.api
   const esc = ui.esc
@@ -347,20 +347,28 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
   main.innerHTML = head + strip + siteCard + closedNoteHTML + publishHTML + notifyHTML + downloadHTML
 
   const $ = id => main.querySelector('#' + id)
+  if (preservedUpload && $('web-zip')) $('web-zip').closest('section').replaceWith(preservedUpload.root)
+  const uploadForm = preservedUpload?.form || ($('web-zip') ? ui.trackForm(ctx, $('web-zip').closest('section')) : null)
+  const uploadBaseline = preservedUpload?.baseline ?? uploadForm?.snapshot()
+  state.uploadTracking = uploadForm ? { root: $('web-zip').closest('section'), form: uploadForm, baseline: uploadBaseline } : null
+  if ($('notif-url')) ui.trackForm(ctx, $('notif-url').closest('details.card'))
   if (state.revealedKey && $('web-curl')) {
     $('web-curl').textContent = 'curl -X PUT "' + ((keyData.api_base || location.origin) + '/v1/hack/events/' + ev.slug + '/site?create=1') + '" -H "X-API-Key: ' + state.revealedKey + '" -H "Content-Type: application/zip" --data-binary @site.zip'
   }
 
-  async function reload (next) {
+  async function reload (next, poll = false) {
     Object.assign(state, next)
     const got = await load()
     if (!got) return
-    await paint(ctx, ev, team, got.keyData, got.siteData, entry, steps, state, load)
+    const tracked = state.uploadTracking
+    const preserved = poll && tracked && tracked.form.snapshot() !== tracked.baseline ? tracked : null
+    await paint(ctx, ev, team, got.keyData, got.siteData, entry, steps, state, load, preserved)
   }
 
   // ---- app tabs ----
-  main.querySelectorAll('[data-app-tab]').forEach(a => a.addEventListener('click', e => {
+  main.querySelectorAll('[data-app-tab]').forEach(a => a.addEventListener('click', async e => {
     e.preventDefault()
+    if (!await ui.confirmFormLeave()) return
     reload({ tab: a.getAttribute('data-app-tab') })
   }))
 
@@ -389,7 +397,7 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
 
   // ---- zip upload ----
   const zipGo = $('web-zip-go')
-  if (zipGo) zipGo.addEventListener('click', async () => {
+  if (zipGo && !preservedUpload) zipGo.addEventListener('click', async () => {
     const input = $('web-zip')
     const file = input.files && input.files[0]
     const status = $('web-zip-status')
@@ -464,11 +472,11 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
       }
       if (Date.now() - state.pollStartedAt > POLL_LIMIT_MS) {
         clearInterval(state.pollTimer); state.pollTimer = 0; state.pollExpired = true
-        reload({})
+        reload({}, true)
         return
       }
       if (document.visibilityState !== 'visible') return
-      reload({})
+      reload({}, true)
     }, POLL_MS)
   }
   if (shouldPoll && state.pollExpired) {
@@ -476,7 +484,7 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
     checkAgain.type = 'button'
     checkAgain.className = 'btn sm'
     checkAgain.textContent = 'Check again'
-    checkAgain.addEventListener('click', () => { state.pollExpired = false; reload({}) })
+    checkAgain.addEventListener('click', () => { state.pollExpired = false; reload({}, true) })
     const target = main.querySelector('.conn > div:last-child')
     if (target) target.append(document.createElement('br'), checkAgain)
   }

@@ -153,6 +153,7 @@ ${e.description ? `<details class="card"><summary>More detail from the team</sum
   }
 
   function wire (lockReason) {
+    if ($('takedown-reason')) ui.trackForm(ctx, $('takedown-reason').closest('section'))
     const takeDown = $('take-down')
     if (takeDown) takeDown.addEventListener('click', onTakeDown)
     const putBack = $('put-back')

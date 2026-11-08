@@ -99,6 +99,7 @@ export async function render(ctx) {
 
   const form = main.querySelector('#pj-form')
   if (!form) return
+  const trackedForm = ui.trackForm(ctx, form)
   onSubmit(form, main.querySelector('#pj-submit'), async e => {
     e.preventDefault()
     const errBox = main.querySelector('#pj-err')
@@ -123,6 +124,7 @@ export async function render(ctx) {
       return
     }
     if (!jr.ok) { errBox.textContent = errText(jr); submit.disabled = false; return }
+    trackedForm.reset()
     if (!hasName && me) me.display_name = name
     const slug = (jr.data && (jr.data.slug || (jr.data.event && jr.data.event.slug))) || info.slug
     judgeJoined(slug)
