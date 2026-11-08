@@ -172,7 +172,6 @@ export async function render(ctx) {
   if (tab === 'announcements' || (!TABS.includes(tab) && h === 'announcements')) {
     const to = `/e/${encodeURIComponent(ev.slug)}/manage?s=announcements`
     history.replaceState(history.state, '', to)
-    ui.notePath(to)
     return ctx.refresh()
   }
   tab = resolveTab(ctx)
@@ -180,7 +179,6 @@ export async function render(ctx) {
     const next = new URL(location.href); next.searchParams.set('tab', tab)
     const fixed = next.pathname + next.search + next.hash
     history.replaceState(history.state, '', fixed)
-    ui.notePath(fixed)
   }
 
   // R6: this module-scope cache is kept warm only across a *tab switch*
@@ -232,7 +230,6 @@ export async function render(ctx) {
   let tabGeneration = 0
   function paintTab(t) {
     const turn = ++tabGeneration
-    if (t !== 'basics' && t !== 'about') ui.clearDirtyGuard()
     split.innerHTML = `${subnavHTML(t, ev)}<section class="sp" aria-labelledby="sp-h" id="sp"></section>`
     const sp = split.querySelector('#sp')
     const helpers = { ctx, main, sp, ui, api, apiBytes, ev, admin, locked, ended, path, setLive }
@@ -251,30 +248,18 @@ export async function render(ctx) {
   }
   paintTab(tab)
 
-  // R19: intercept a subnav link click here instead of letting it fall
-  // through to app.js's global handler (which would do a full route()).
-  // The dirty-guard's own capture-phase listener (ui.js) still runs first
-  // and wins when Basics/About is dirty -- it calls preventDefault +
-  // stopPropagation before this bubble-phase listener ever sees the click.
+  // Keep the shell and heading while changing tabs, after app.js checks all forms.
   split.addEventListener('click', e => {
     const a = e.target.closest('.subnav a[href]')
     if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target) return
-    let url
-    try { url = new URL(a.href) } catch { return }
+    const url = new URL(a.href)
     if (url.origin !== location.origin) return
     e.preventDefault()
-    if (url.search === location.search) return // already on this tab
-    // editing_rules.urls: "a tab click is history.pushState + re-render of
-    // the right column only" -- pushState (not replace) so Back/Forward
-    // step through tabs one at a time. ctx.params is a snapshot taken when
-    // app.js last called route(); it won't reflect this pushState, so the
-    // target tab is read straight from the clicked link's own URL instead
-    // of through resolveTab(ctx).
-    const t = new URLSearchParams(url.search).get('tab')
-    history.pushState({}, '', url.pathname + url.search)
-    ui.notePath(url.pathname + url.search)
-    paintTab(TABS.includes(t) ? t : 'basics')
+    if (url.search === location.search) return
+    const tab = url.searchParams.get('tab')
+    ctx.go(url.pathname + url.search + url.hash, { render: () => paintTab(TABS.includes(tab) ? tab : 'basics') })
   })
+
 }
 
 function dateTimeField(ui, prefix, label, date, time, { dateID = prefix + '-date', fieldID = '' } = {}) {
@@ -287,7 +272,7 @@ function renderBasics({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   const $ = id => sp.querySelector('#' + id)
   const start = ui.eventBoundaryInput(ev.starts_at, ev)
   const end = ui.eventBoundaryInput(ev.ends_at, ev)
-  const snapshot = { title: ev.title, tagline: ev.tagline || '', starts: start.date, startTime: start.time, ends: end.date, endTime: end.time, tz: ev.time_zone }
+  const original = { title: ev.title, tagline: ev.tagline || '', starts: start.date, startTime: start.time, ends: end.date, endTime: end.time, tz: ev.time_zone }
 
   // R4/decision 2026-10-31: Basics stays editable after End (the server's
   // PATCH only ever blocks submission_deadline once archived -- title,
@@ -308,60 +293,41 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 <div class="field"><label for="f-title">Title</label><input class="input" id="f-title" maxlength="120" value="${ui.esc(ev.title)}"></div>
 <div class="field"><div class="lab-row"><label for="f-tag">Tagline</label><span class="opt">Optional</span><span class="counter" id="f-tag-ct">${(ev.tagline || '').length} / 160</span></div><input class="input" id="f-tag" maxlength="160" value="${ui.esc(ev.tagline || '')}"><p class="help">One line under the title. Link previews in WhatsApp show it too.</p></div>
 <div class="field-row">
-${dateTimeField(ui, 'f-start', 'Starts', snapshot.starts, snapshot.startTime, { dateID: 'f-start' })}
-${dateTimeField(ui, 'f-end', 'Ends', snapshot.ends, snapshot.endTime, { dateID: 'f-end' })}
+${dateTimeField(ui, 'f-start', 'Starts', original.starts, original.startTime, { dateID: 'f-start' })}
+${dateTimeField(ui, 'f-end', 'Ends', original.ends, original.endTime, { dateID: 'f-end' })}
 <div class="field grow"><label for="f-tz">Time zone</label><select class="select" id="f-tz">${zoneOptions(ui, ev.time_zone).map(z => `<option value="${ui.esc(z.zone)}"${z.zone === ev.time_zone ? ' selected' : ''}>${ui.esc(z.label)}</option>`).join('')}</select><p class="help">Every deadline and schedule time shows in this zone.</p></div>
 </div>
 <div class="card-foot"><span class="hint" id="f-hint">No unsaved changes</span><button class="btn quiet" type="button" id="f-discard" hidden>Discard</button><button class="btn primary" type="button" id="f-save" disabled>Save</button></div>
 </form>`
 
-  function isDirty() {
-    return $('f-title').value !== snapshot.title || $('f-tag').value !== snapshot.tagline ||
-      $('f-start').value !== snapshot.starts || $('f-end').value !== snapshot.ends || $('f-tz').value !== snapshot.tz || $('f-start-time').value !== snapshot.startTime || $('f-end-time').value !== snapshot.endTime
-  }
-  function paintDirty() {
-    const dirty = isDirty()
-    $('f-hint').textContent = dirty ? 'Unsaved changes' : 'No unsaved changes'
-    $('f-hint').classList.toggle('dirty', dirty)
-    $('f-discard').hidden = !dirty
-    $('f-save').disabled = !dirty
-  }
-  ;['f-title', 'f-tag', 'f-start', 'f-end', 'f-tz', 'f-start-time', 'f-end-time'].forEach(id => $(id).addEventListener('input', paintDirty))
   $('f-tag').addEventListener('input', () => { $('f-tag-ct').textContent = $('f-tag').value.length + ' / 160' })
-  $('f-discard').addEventListener('click', () => {
-    $('f-title').value = snapshot.title; $('f-tag').value = snapshot.tagline; $('f-start').value = snapshot.starts; $('f-end').value = snapshot.ends; $('f-tz').value = snapshot.tz
-    $('f-start-time').value = snapshot.startTime; $('f-end-time').value = snapshot.endTime
-    $('f-tag-ct').textContent = snapshot.tagline.length + ' / 160'
-    paintDirty()
-  })
-  $('f-save').addEventListener('click', async () => {
+  ui.forms.bind(ctx, $('f-save'), async () => {
     const btn = $('f-save'); btn.disabled = true
     try {
       const body = { title: $('f-title').value, tagline: $('f-tag').value, time_zone: $('f-tz').value }
       // Omitted boundaries retain the server's time-zone-only reanchoring.
-      if ($('f-start').value !== snapshot.starts || $('f-start-time').value !== snapshot.startTime) {
+      if ($('f-start').value !== original.starts || $('f-start-time').value !== original.startTime) {
         body.starts_at = ui.eventBoundaryValue($('f-start').value, $('f-start-time').value)
       }
-      if ($('f-end').value !== snapshot.ends || $('f-end-time').value !== snapshot.endTime) {
+      if ($('f-end').value !== original.ends || $('f-end-time').value !== original.endTime) {
         body.ends_at = ui.eventBoundaryValue($('f-end').value, $('f-end-time').value)
       }
       const r = await api('PATCH', path, body)
-      if (!r.ok) { setLive(ui.errText(r), 'err', btn); paintDirty(); return }
+      if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
       // #10 (kept from the old file): a changed title or time zone reaches
       // the switcher/sidebar/status bar/document.title too, which only a
       // full ctx.refresh() rebuilds; the toast survives that (ui.js's own
       // "keep" timers).
       await ctx.refresh()
       ui.toast('Saved', null)
-    } catch (e) { setLive('Cannot reach the server.', 'err', btn); paintDirty() }
-  })
-  ui.setDirtyGuard(ctx, () => (isDirty() ? { label: 'Basics' } : null))
+    } catch (e) { setLive('Cannot reach the server.', 'err', btn) }
+  }, { key: 'event-basics', root: sp.querySelector('form'), hint: $('f-hint'), discardButton: $('f-discard'), disableClean: true })
 }
 
 // ------------------------------------------------------------------ About
 function renderAbout({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   const $ = id => sp.querySelector('#' + id)
-  const snapshot = { about: ev.about || '', prizes: ev.prizes || '', rules: ev.rules || '', coc: ev.coc_text || '' }
+  const original = { about: ev.about || '', prizes: ev.prizes || '', rules: ev.rules || '', coc: ev.coc_text || '' }
 
   // R4/decision 2026-10-31: About stays editable after End, same as Basics.
   if (locked) {
@@ -375,43 +341,26 @@ ${customSiteNote(true)}
 ${customSiteNote(false)}
 ${ended ? '<div class="note">This event has ended. You can still fix the page text and colour.</div>' : ''}
 <form class="card" aria-labelledby="sp-h">
-<div class="field"><div class="lab-row"><label for="f-about">About</label><span class="counter" id="f-about-ct">${snapshot.about.length} / 10000</span></div><textarea class="input" id="f-about" rows="7" maxlength="10000">${ui.esc(snapshot.about)}</textarea></div>
-<div class="field" id="prizes"><div class="lab-row"><label for="f-prizes">Prizes</label><span class="opt">Optional</span></div><textarea class="input" id="f-prizes" rows="3" maxlength="5000">${ui.esc(snapshot.prizes)}</textarea></div>
-<div class="field" id="rules"><div class="lab-row"><label for="f-rules">Rules</label><span class="opt">Optional</span></div><textarea class="input" id="f-rules" rows="3" maxlength="10000">${ui.esc(snapshot.rules)}</textarea></div>
+<div class="field"><div class="lab-row"><label for="f-about">About</label><span class="counter" id="f-about-ct">${original.about.length} / 10000</span></div><textarea class="input" id="f-about" rows="7" maxlength="10000">${ui.esc(original.about)}</textarea></div>
+<div class="field" id="prizes"><div class="lab-row"><label for="f-prizes">Prizes</label><span class="opt">Optional</span></div><textarea class="input" id="f-prizes" rows="3" maxlength="5000">${ui.esc(original.prizes)}</textarea></div>
+<div class="field" id="rules"><div class="lab-row"><label for="f-rules">Rules</label><span class="opt">Optional</span></div><textarea class="input" id="f-rules" rows="3" maxlength="10000">${ui.esc(original.rules)}</textarea></div>
 <div class="field-group"><h3>Code of conduct</h3>
 <details><summary class="small muted">Read the standard code, which every event shows first</summary><p class="help">${ui.esc(ev.coc_default || '')}</p></details>
-<div class="field" id="conduct"><div class="lab-row"><label for="f-coc">Your additions</label><span class="opt">Optional</span></div><textarea class="input" id="f-coc" rows="3" maxlength="10000">${ui.esc(snapshot.coc)}</textarea><p class="help">Shown after the standard code on the join page.</p></div>
+<div class="field" id="conduct"><div class="lab-row"><label for="f-coc">Your additions</label><span class="opt">Optional</span></div><textarea class="input" id="f-coc" rows="3" maxlength="10000">${ui.esc(original.coc)}</textarea><p class="help">Shown after the standard code on the join page.</p></div>
 </div>
 <div class="card-foot sticky"><span class="hint" id="f-hint">No unsaved changes</span><button class="btn quiet" type="button" id="f-discard" hidden>Discard</button><button class="btn primary" type="button" id="f-save" disabled>Save</button></div>
 </form>`
 
-  function isDirty() {
-    return $('f-about').value !== snapshot.about || $('f-prizes').value !== snapshot.prizes || $('f-rules').value !== snapshot.rules || $('f-coc').value !== snapshot.coc
-  }
-  function paintDirty() {
-    const dirty = isDirty()
-    $('f-hint').textContent = dirty ? 'Unsaved changes' : 'No unsaved changes'
-    $('f-hint').classList.toggle('dirty', dirty)
-    $('f-discard').hidden = !dirty
-    $('f-save').disabled = !dirty
-  }
-  ;['f-about', 'f-prizes', 'f-rules', 'f-coc'].forEach(id => $(id).addEventListener('input', paintDirty))
   $('f-about').addEventListener('input', () => { $('f-about-ct').textContent = $('f-about').value.length + ' / 10000' })
-  $('f-discard').addEventListener('click', () => {
-    $('f-about').value = snapshot.about; $('f-prizes').value = snapshot.prizes; $('f-rules').value = snapshot.rules; $('f-coc').value = snapshot.coc
-    $('f-about-ct').textContent = snapshot.about.length + ' / 10000'
-    paintDirty()
-  })
-  $('f-save').addEventListener('click', async () => {
+  ui.forms.bind(ctx, $('f-save'), async () => {
     const btn = $('f-save'); btn.disabled = true
     try {
       const r = await api('PATCH', path, { about: $('f-about').value, prizes: $('f-prizes').value, rules: $('f-rules').value, coc_text: $('f-coc').value })
-      if (!r.ok) { setLive(ui.errText(r), 'err', btn); paintDirty(); return }
+      if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
       await ctx.refresh()
       ui.toast('Saved', null)
-    } catch (e) { setLive('Cannot reach the server.', 'err', btn); paintDirty() }
-  })
-  ui.setDirtyGuard(ctx, () => (isDirty() ? { label: 'About' } : null))
+    } catch (e) { setLive('Cannot reach the server.', 'err', btn) }
+  }, { key: 'event-about', root: sp.querySelector('form'), hint: $('f-hint'), discardButton: $('f-discard'), disableClean: true })
 }
 
 // --------------------------------------------------------------- Schedule
@@ -686,8 +635,8 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
       q('d-logo-name').textContent = file.name + ' · not saved yet'
       q('d-logo-rm').disabled = false
     })
-    q('d-logo-rm').addEventListener('click', () => { logo = ''; q('d-logo-pv').innerHTML = pv(); q('d-logo-name').textContent = 'No logo'; q('d-logo-rm').disabled = true })
-    const saved = await formDialog(ui, { title: existing ? 'Edit sponsor' : 'Add sponsor', body, saveLabel: existing ? 'Save sponsor' : 'Add sponsor' }, async () => {
+    q('d-logo-rm').addEventListener('click', () => { logo = ''; q('d-logo-pv').innerHTML = pv(); q('d-logo-name').textContent = 'No logo'; q('d-logo-rm').disabled = true; ui.forms.forElement(body)?.edited() })
+    const saved = await formDialog(ui, { title: existing ? 'Edit sponsor' : 'Add sponsor', body, snapshot: () => [ui.forms.values(body.querySelectorAll(ui.forms.controls)), logo], saveLabel: existing ? 'Save sponsor' : 'Add sponsor' }, async () => {
       body.querySelectorAll('.err').forEach(n => n.remove())
       q('d-link-field').classList.remove('has-error')
       const name = q('d-name').value.trim()
@@ -923,6 +872,7 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
 
   function flashSaved(id) {
     const el = $(id)
+    ui.forms.forElement(el)?.clearErrors()
     el.hidden = false
     clearTimeout(el._t)
     el._t = setTimeout(() => { el.hidden = true }, 3000)
@@ -961,6 +911,7 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
   // pick up the new colour, and a failed change reverts the live preview
   // --ev (it used to only revert which radio was checked).
   let colourChain = Promise.resolve()
+  ui.forms.instant(ctx, sp)
   sp.querySelectorAll('input[name=colour]').forEach(radio => radio.addEventListener('change', () => {
     const chosen = radio.value
     $('look-preview').style.setProperty('--ev', radio.dataset.c)
@@ -1037,6 +988,7 @@ ${readOnly ? '' : '<div class="drop" id="drop-zone"><svg class="ico" viewBox="0 
 <p class="help">An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).</p>
 </div>`
 
+  ui.forms.instant(ctx, sp)
   sp.querySelector('#addr-copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(ev.url); setLive('Copied', 'ok') } catch (e) { setLive('Could not copy. Select the text and copy it.', 'err') }
   })

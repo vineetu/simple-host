@@ -205,13 +205,14 @@ export async function render(ctx) {
       box.appendChild(group)
     })
     const go = ui.el('button', { class: 'btn', type: 'button', text: 'Save order and publish' })
-    go.addEventListener('click', () => {
+    const saveOrder = () => {
       const overrides = inputs.map(x => ({ team_id: x.team_id, rank: Number(x.input.value) }))
-      publish(overrides, go)
-    })
+      return publish(overrides, go)
+    }
     const actions = ui.el('div', { class: 'form-actions' })
     actions.appendChild(go)
     box.appendChild(actions)
+    ui.forms.bind(ctx, go, saveOrder, { root: box })
   }
   paintOverride()
   syncPublishSection()
@@ -219,7 +220,7 @@ export async function render(ctx) {
   // --- publish ----------------------------------------------------------
   async function publish(overrides, btn) {
     const ok = await ui.confirm({ title: 'Publish results?', body: 'This replaces the public snapshot with the standings right now. Continue?', confirmLabel: published ? 'Publish again' : 'Publish results' })
-    if (!ok) return
+    if (!ok) return false
     const top = $('res-publish-top')
     const near = btn || top
     top.disabled = true

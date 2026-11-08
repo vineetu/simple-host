@@ -1,11 +1,7 @@
 // Shared helpers for the organiser Overview / Event page / Announcements /
 // People / Settings / Create event screens and the public co-organiser
 // invite (batch orgA). Not a shell module -- only these screens import it.
-// (The Basics/About unsaved-changes guard used to live here too, but
-// app.js's popstate handler needs to call into it -- see R8/R9 -- and
-// app.js only ever imports the shared ui.js, never a screen-only util, so
-// setDirtyGuard/clearDirtyGuard/confirmDiscardForLeave moved there.)
-import { esc, stageLabel } from '../ui.js'
+import { esc, stageLabel, forms } from '../ui.js'
 
 // fileAsDataURL reads a File into a data: URL (sponsor/FAQ logos travel as
 // JSON, unlike the icon and website zip which go through apiBytes).
@@ -119,8 +115,11 @@ export function stagePicker(current, offered, opts = {}) {
     sel.addEventListener('change', paint)
     paint()
     const previous = document.activeElement
-    function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); if (previous && previous.focus) previous.focus(); resolve(value) }
+    let lifecycle
+    function finish(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); if (previous && previous.focus) previous.focus(); resolve(value) }
+    function done(value) { return lifecycle ? lifecycle.done(value) : finish(value) }
     function keydown(e) {
+      if ([...document.querySelectorAll('.scrim .dialog')].at(-1) !== scrim.querySelector('.dialog')) return
       if (e.key === 'Escape') { e.preventDefault(); done(''); return }
       if (e.key === 'Tab') {
         // Keep focus inside the dialog, like every other dialog in the app.
@@ -135,6 +134,7 @@ export function stagePicker(current, offered, opts = {}) {
     scrim.addEventListener('click', e => { if (e.target === scrim) done('') })
     document.addEventListener('keydown', keydown, true)
     document.body.append(scrim)
+    lifecycle = forms.dialogForm({ root: scrim.querySelector('.dialog'), label: 'Change stage', cancelValue: '', close: finish })
     sel.focus()
   })
 }
@@ -146,28 +146,15 @@ export function stagePicker(current, offered, opts = {}) {
 // rather than beside them -- see each helper's own note.
 // ---------------------------------------------------------------------
 
-// formDialog drives an Add/Edit dialog built on ui.dialog (the shared
-// scrim/focus-trap/Escape primitive -- never reimplemented here). `body` is
-// a Node built once by the caller and reused across retries, so a rejected
-// Save (onSave returns false after writing its own inline error into body)
-// keeps what was typed and shows the error; ui.dialog itself always closes
-// on any button click, so a retry re-opens it with the same body node.
-// Resolves true if onSave eventually returned true, false if the person
-// cancelled or pressed Escape.
-export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLabel = 'Cancel', focus = 'first-field' }, onSave) {
-  for (;;) {
-    const action = await ui.dialog({
-      title, body,
-      buttons: [
-        { label: cancelLabel, value: 'cancel', attrs: { 'data-cancel': '' } },
-        { label: saveLabel, value: 'save', className: 'btn primary' }
-      ],
-      escapeValue: 'cancel',
-      focus
-    })
-    if (action !== 'save') return false
-    if (await onSave()) return true
-  }
+// Form dialogs keep their body open after a failed save and use the shared
+// form lifecycle for status, field errors, and cancellation.
+export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLabel = 'Cancel', focus = 'first-field', snapshot }, onSave) {
+  const action = await ui.dialog({ title, body, form: { save: onSave, snapshot, saveOnLeave: saveLabel !== 'Send' },
+    buttons: [
+      { label: cancelLabel, value: 'cancel', attrs: { 'data-cancel': '' } },
+      { label: saveLabel, value: 'save', className: 'btn primary' }
+    ], escapeValue: 'cancel', focus })
+  return action === 'save'
 }
 
 // rowMenuHTML: the icon-btn (...) plus its dropdown, same markup/behaviour as
@@ -285,7 +272,3 @@ export function undoToast(section, text, undo, ms = 10000) {
   if (head) head.insertAdjacentElement('afterend', note)
   else section.insertBefore(note, section.firstChild)
 }
-
-// The Basics/About unsaved-changes guard (setDirtyGuard/clearDirtyGuard/
-// confirmDiscardForLeave) moved to ui.js -- see the note at the top of this
-// file.

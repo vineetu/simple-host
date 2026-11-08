@@ -2391,6 +2391,8 @@ removed: a later visit without carried values counts as Website. No consent bann
 Routes: `/v1/hack/events/{slug}/voting`.
 MCP: `hack_get_directory`, `hack_get_my_vote`, `hack_get_voting`, `hack_get_voting_settings`, `hack_set_directory_listing`, `hack_set_voting_settings`, `hack_vote`.
 
+**Unsaved edits and field errors.** Every Simple Hack form shares one editing guard. Unsaved changes show beside Save. Leaving offers Save, Discard, or Stay; closing or reloading the tab uses the browser warning. Save runs the form's own action and stays if it fails. Errors mark the field and clear when it changes; a successful save clears earlier errors and replaces the status. Entry's missing-item links focus their fields, and Submit focuses the first missing field. Form dialogs use the same guard. Controls that save on change keep their existing behavior. <a id="hack-unsaved-edits"></a>
+
 ## 16. Enterprise and marketing pages <a id="enterprise-and-marketing-pages"></a>
 
 **Agent discovery (2026-10-23).** Implemented in `h/discovery.go`, `h/seo.go`, <a id="agents-discovery"></a>

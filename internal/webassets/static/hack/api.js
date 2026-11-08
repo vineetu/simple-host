@@ -1,4 +1,4 @@
-import { toast } from './ui.js'
+import { toast, forms } from './ui.js'
 export function apiKey() { try { return localStorage.getItem('apiKey') || '' } catch { return '' } }
 let signedOut = () => {}
 export function onSignedOut(fn) { signedOut = fn }
@@ -35,13 +35,16 @@ export async function api(method, path, body) {
     try { data = await res.json(); } catch (e) {}
     if (res.status === 401) { signedOut(); throw new Error('signed out'); }
     if (res.ok && isMembershipMutation(method, path)) eventsChanged();
-    return { ok: res.ok, status: res.status, data: data };
+    const result = { ok: res.ok, status: res.status, data: data };
+    if (method !== 'GET') forms.response(result);
+    return result;
   }
   // Screenshot bytes are not JSON. The key still goes out the same way as api().
 // Sign out of this browser: ends its key on the server, clears what it keeps
 // locally and leaves for the landing. Shared by the sidebar's Sign out and the
 // account screen (deleted=true skips the server call, the key is already gone).
 export async function signOut(ask, deleted = false) {
+  if (!deleted && !await forms.confirmLeave()) return
   let warn = false
   if (!deleted) {
     try { const r = await api('POST', '/v1/me/sign-out'); warn = !(r.ok || r.status === 400) }
@@ -61,7 +64,9 @@ export async function apiBytes(method, path, body, contentType) {
     var data = {};
     try { data = await res.json(); } catch (e) {}
     if (res.status === 401) { signedOut(); throw new Error('signed out'); }
-    return { ok: res.ok, status: res.status, data: data };
+    const result = { ok: res.ok, status: res.status, data: data };
+    if (method !== 'GET') forms.response(result);
+    return result;
   }
 
 export const listEvents = () => api('GET', '/v1/hack/events')

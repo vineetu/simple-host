@@ -323,7 +323,7 @@ const setLive = msg => ui.toast(msg)
       params.delete('token');
       params.delete('cn');
       var q = params.toString();
-      history.replaceState({}, '', location.pathname + (q ? '?' + q : ''));
+      history.replaceState(history.state, '', location.pathname + (q ? '?' + q : ''));
     }
     $('link-elsewhere').hidden = true;
     if (token) {
@@ -375,26 +375,41 @@ let initialData, activeContext, generation = 0
 // at the judge route from there loads the page afresh (route() below).
 const FRAMES_PATH = /^\/e\/[^/]+\/judge\/?$/
 const framesAllowed = FRAMES_PATH.test(location.pathname)
-export function go(path) {
+const here = () => location.pathname + location.search + location.hash
+let shownPath = here(), historyIndex = history.state?.hackIndex || 0
+history.replaceState({ ...history.state, hackIndex: historyIndex }, '', location.href)
+export async function go(path, { render, saved } = {}) {
+  const from = activeContext
   const url = new URL(path, location.href)
-  if (url.pathname === '/signin') { location.assign(url); return }
-  history.pushState({}, '', url)
-  ui.notePath(url.pathname + url.search + url.hash)
-  route()
+  if (!await ui.forms.confirmLeave(undefined, saved)) return false
+  if (url.origin !== location.origin || url.pathname === '/signin' || !isAppRoute(url.pathname)) { location.assign(url); return true }
+  history.pushState({ hackIndex: ++historyIndex }, '', url)
+  shownPath = here()
+  if (render && from?.alive()) await render()
+  else await route()
+  return true
 }
-// R8: a real browser Back/Forward bypasses go() (and therefore the dirty-
-// guard's own click interception) entirely -- the browser has already
-// changed `location` and popped the history entry by the time this fires.
-// ui.confirmDiscardForLeave() asks the same "discard your changes?"
-// question the guard asks for a link click; if the person keeps editing it
-// has already pushed the previous URL back onto `location` itself (we
-// never re-rendered, so what's on screen is still correct and matches), so
-// route() only runs once the navigation is actually accepted.
-let popBusy = false
-async function onPopState() {
-  if (popBusy) return
+let popBusy = false, resumePop = null
+async function onPopState(e) {
+  if (resumePop) { const resume = resumePop; resumePop = null; resume(); return }
+  if (popBusy || here() === shownPath) return
   popBusy = true
-  try { if (await ui.confirmDiscardForLeave()) await route() } finally { popBusy = false }
+  const target = here()
+  let targetIndex = e.state?.hackIndex
+  // A native fragment jump creates an entry carrying the previous state. Give it its own cursor.
+  if (targetIndex === historyIndex) { targetIndex++; history.replaceState({ ...history.state, hackIndex: targetIndex }, '', location.href) }
+  const delta = typeof targetIndex === 'number' ? targetIndex - historyIndex : 0
+  // Restore the history cursor while asking. Stay preserves both Back and Forward.
+  try {
+    if (delta) await new Promise(resolve => { resumePop = resolve; history.go(-delta) })
+    else history.replaceState(history.state, '', shownPath)
+    if (!await ui.forms.confirmLeave()) return
+    if (delta) await new Promise(resolve => { resumePop = resolve; history.go(delta) })
+    else history.replaceState(history.state, '', target)
+    historyIndex = targetIndex ?? historyIndex
+    shownPath = here()
+    await route()
+  } finally { popBusy = false }
 }
 async function route() {
   // Review #2: a button that navigates (ctx.go(), not just an <a> click)
@@ -419,7 +434,7 @@ async function route() {
     }).catch(e => { initialData = null; throw e })
     const data = initialData ? await initialData : { me: {}, events: [] }
     const normalized = normalizeURL(location)
-    if (normalized.href !== location.href) { history.replaceState(history.state, '', normalized); ui.notePath(normalized.pathname + normalized.search + normalized.hash) }
+    if (normalized.href !== location.href) { history.replaceState(history.state, '', normalized); shownPath = here() }
     const match = resolveRoute(location)
     let event = null, role = null
     if (match.slug) {
@@ -444,7 +459,7 @@ async function route() {
           if (turn !== generation) return
           const notFoundCtx = { ...data, api, ui, event: null, role: null, params: new URLSearchParams(location.search), go,
             alive: () => turn === generation,
-            refresh: async () => { initialData = null; return route() } }
+            refresh: async () => { if (turn !== generation) return; initialData = null; return ui.forms.preserve(activeContext, () => route()) } }
           const notFoundMain = mount(notFoundCtx, null, 'event-not-found')
           if (pub) {
             notFoundMain.innerHTML = `<section class="locked"><h2>You're not in ${ui.esc(pub.title)}</h2><p>You're signed in, but not a member of this event -- you may have left it, or never joined.</p><p><a class="btn primary" href="/events">Home</a> <a class="btn" href="/directory">Find a hackathon</a></p></section>`
@@ -477,13 +492,14 @@ async function route() {
     if (turn !== generation) return
     const ctx = { ...data, api, ui, event, role, params: new URLSearchParams(location.search), go,
       alive: () => turn === generation,
-      refresh: async () => { initialData = null; return route() } }
+      refresh: async () => { if (turn !== generation) return; initialData = null; return ui.forms.preserve(activeContext, () => route()) } }
     if (match.id.startsWith('public-')) {
       // Invite links stand alone: no sidebar or event switcher until the person has joined.
       document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><a class="wordmark" href="/">simple<b>·</b>hack</a><span class="grow"></span>${apiKey() ? '<a href="/events">Home</a>' : ''}</div><main></main></div>`
       ctx.main = document.querySelector('#app main')
     } else ctx.main = mount(ctx, match.section, match.id)
     activeContext = ctx
+    ui.forms.context(ctx)
     document.body.classList.remove('booting')
     if (event?.me?.approval_status && event.me.approval_status !== 'approved' && role === 'participant') {
       // A20: a pending/rejected participant otherwise still sees the full
@@ -526,6 +542,7 @@ async function route() {
     if (turn !== generation) return
     document.title = (screen.title ? screen.title(ctx) : match.id === 'account' ? 'Account' : 'Home') + ' · Simple Hack'
     await screen.render(ctx)
+    if (ctx.alive()) shownPath = here()
   } catch (e) {
     if (api.isSignedOut(e) || turn !== generation) return
     document.body.classList.remove('booting')
@@ -552,7 +569,7 @@ async function refreshEventList() {
 window.addEventListener('focus', () => {
   refreshEventList()
   const match = resolveRoute(new URL(location.href))
-  if (['organiser-overview', 'judge-home', 'participant-home'].includes(match?.id)) activeContext?.refresh()
+  if (['organiser-overview', 'judge-home', 'participant-home'].includes(match?.id) && !document.querySelector('.scrim') && !ui.forms.dirty()) activeContext?.refresh()
 })
 api.onEventsChanged(() => { initialData = null; refreshEventList() })
 document.getElementById('app').addEventListener('click', e => {
@@ -560,7 +577,7 @@ document.getElementById('app').addEventListener('click', e => {
   if (a?.matches('[data-menu],[aria-disabled="true"]')) { e.preventDefault(); return }
   if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
   const u = new URL(a.href)
-  if (u.origin !== location.origin || u.searchParams.has('ui') || !isAppRoute(u.pathname)) return
+  if (u.origin !== location.origin) return
   // A same-document "jump to section" link (e.g. #schedule on the page
   // you're already on): ordinary browser anchor navigation, so it scrolls
   // without remounting the screen and losing unsaved edits.
@@ -569,5 +586,6 @@ document.getElementById('app').addEventListener('click', e => {
   go(u.pathname + u.search + u.hash)
 })
 window.addEventListener('popstate', onPopState)
+window.addEventListener('hashchange', () => { if (!popBusy) onPopState({ state: history.state }) })
 route()
 export { saveNext, startGoogle }

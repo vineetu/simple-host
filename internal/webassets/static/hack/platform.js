@@ -14,7 +14,7 @@
 // judge-scoring.js: when a reload or Back should land on the same team, a
 // ?team= query param goes on the real page's own URL.
 export function replaceUrl(url) {
-  history.replaceState({}, '', url)
+  history.replaceState(history.state, '', url)
 }
 
 // public-judge.js: the real page is served AT /judge/<code>, so the code
@@ -26,7 +26,8 @@ export function judgeCode() {
 
 // public-judge.js: after accepting the invite, take the judge to the real
 // page for this event's queue.
-export function judgeJoined(slug) {
+export function judgeJoined(slug, go) {
+  if (go) return go('/e/' + encodeURIComponent(slug) + '/judge')
   location.assign('/e/' + encodeURIComponent(slug) + '/judge')
 }
 

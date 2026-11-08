@@ -1,5 +1,5 @@
 import { errText, dateRange } from './_judge-util.js'
-import { judgeCode, judgeJoined, onSubmit } from '../platform.js'
+import { judgeCode, judgeJoined } from '../platform.js'
 
 // A generic fallback; render() below sets the exact "Judge <event>" title
 // once the invite has loaded.
@@ -99,7 +99,7 @@ export async function render(ctx) {
 
   const form = main.querySelector('#pj-form')
   if (!form) return
-  onSubmit(form, main.querySelector('#pj-submit'), async e => {
+  ui.forms.bind(ctx, form, async e => {
     e.preventDefault()
     const errBox = main.querySelector('#pj-err')
     errBox.textContent = ''
@@ -125,6 +125,6 @@ export async function render(ctx) {
     if (!jr.ok) { errBox.textContent = errText(jr); submit.disabled = false; return }
     if (!hasName && me) me.display_name = name
     const slug = (jr.data && (jr.data.slug || (jr.data.event && jr.data.event.slug))) || info.slug
-    judgeJoined(slug)
+    judgeJoined(slug, path => ctx.go(path, { saved: ui.forms.forElement(form) }))
   })
 }

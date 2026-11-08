@@ -89,7 +89,8 @@ export async function render(ctx) {
     return team.site.taken_down ? { cls: 'warn', text: 'Taken down' } : { cls: 'ok', text: 'Live' }
   }
 
-  function paint() {
+  function paint() { return ui.forms.preserve(ctx, () => paintContent()) }
+  function paintContent() {
     const trackName = team.track ? team.track.name : 'No track'
     const lockReason = ui.writeLockReason(ev, event.admin_view)
     const full = team.members.length >= ev.team_size_max
@@ -130,7 +131,7 @@ ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
   function wire() {
     const addBtn = $('add-someone')
     if (addBtn) addBtn.addEventListener('click', onAddSomeone)
-    $('rename-form').addEventListener('submit', onRename)
+    ui.forms.bind(ctx, $('rename-form'), onRename)
     const msgBtn = $('msg-team-btn')
     if (msgBtn) msgBtn.addEventListener('click', onMessageTeam)
     const lockToggle = $('team-lock-toggle')

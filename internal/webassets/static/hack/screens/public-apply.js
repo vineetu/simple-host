@@ -290,7 +290,7 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
     }
   }
 
-  $('ap-form').addEventListener('submit', async e => {
+  ui.forms.bind(ctx, $('ap-form'), async e => {
     e.preventDefault()
     const btn = $('ap-submit')
     if (!$('ap-coc').checked) { ui.toast(CODES.coc_required, $('ap-coc').closest('.check'), true); return }
@@ -323,10 +323,6 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
       return
     }
     if (!hasName && ctx.me) ctx.me.display_name = nm
-    // A real navigation, not an SPA one: the server now holds this
-    // membership (pending, or already decided for an idempotent re-apply),
-    // and only a fresh load renders that state from it -- same reasoning as
-    // public-join.js's own post-join navigation.
-    location.assign(location.pathname)
+    await ctx.refresh()
   })
 }

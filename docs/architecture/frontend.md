@@ -148,7 +148,7 @@ also invalidates it after membership and stage changes. Window focus refreshes t
 The event itself is fetched again on event-backed navigation
 (`app.js:route`, `api.js:MEMBERSHIP_MUTATIONS`).
 
-Screens can own narrower caches. Event page tabs preserve drafts locally,
+Screens can own narrower caches. Event page tabs repaint their right column after the app navigation guard,
 but a fresh entry to the screen reloads content and website data. Its
 `cacheStale(ctx, ev)` checks both generation and slug before writing a cache
 following an await (`screens/organiser-event-page.js:cacheStale`). Do not
@@ -164,7 +164,11 @@ Shared helpers are ordinary source modules:
 - `hack/api.js`: JSON/byte requests, sign-out, membership invalidation and
   authenticated downloads. A 401 calls the shared signed-out handler.
 - `hack/ui.js`: escaping, link validation, date/stage formatting, errors,
-  dialogs, toasts and the unsaved-edit guard.
+  dialogs and toasts.
+- `hack/forms.js`: form snapshots, Save/Discard/Stay, one status slot, field errors,
+  error focus links, and draft preservation during local repaints. Screen saves register here;
+  app navigation and sign-out call the same guard. Registrations expire with their ctx/root.
+  See the [form inventory and workflow](hack-forms.md).
 - `hack/schedule.js`, `needs.js`, `leave.js`: shared schedule, next-action
   and leave flows; `_orgA-util.js`, `_orgB-util.js`, `_judge-util.js` and
   other screen utilities hold role-specific helpers.
@@ -172,7 +176,7 @@ Shared helpers are ordinary source modules:
   listener, aborting the previous binding and checking its root is connected.
   That controller is not a global screen/fetch lifecycle manager.
 
-`ui.js:confirmDiscardForLeave` is also called on browser Back/Forward;
+`forms.js:confirmLeave` is also called on browser Back/Forward;
 `app.js:route` ends any tour before mounting a new screen. Preserve these
 behaviours when introducing another navigation path.
 

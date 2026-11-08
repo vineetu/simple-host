@@ -40,7 +40,6 @@ export async function render(ctx) {
     const next = new URL(location.href); next.searchParams.set('tab', tab)
     const fixed = next.pathname + next.search + next.hash
     history.replaceState(history.state, '', fixed)
-    ui.notePath(fixed)
   }
 
   const admin = !!event.admin_view

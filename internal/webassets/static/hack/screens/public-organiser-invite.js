@@ -49,7 +49,7 @@ ${signedIn
   })
 
   const form = main.querySelector('#accept-form')
-  if (form) form.addEventListener('submit', async e => {
+  if (form) ui.forms.bind(ctx, form, async e => {
     e.preventDefault()
     if (!main.querySelector('#accept-coc').checked) { setLive('You must accept the code of conduct.', 'err'); return }
     const nameInput = main.querySelector('#accept-name')
@@ -69,8 +69,8 @@ ${signedIn
       }
       if (!hasName && me) me.display_name = nm
       const slug = r.data && r.data.event && r.data.event.slug
-      if (slug) ctx.go(href('organiser', slug))
-      else ctx.go('/events')
+      if (slug) ctx.go(href('organiser', slug), { saved: ui.forms.forElement(form) })
+      else ctx.go('/events', { saved: ui.forms.forElement(form) })
     } catch (err) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
   })
 }

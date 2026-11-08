@@ -1,6 +1,6 @@
 {
  "version": 2,
- "updated": "2026-11-07",
+ "updated": "2026-11-08",
  "summary": [
   "Your events stays visible in the signed-in pane; the current event expands with its role sections. Five current rows, a Past events toggle and All events keep the list short.",
   "Sign-in without an explicit safe return opens the sole non-archived, non-taken-down membership Home; otherwise Your events. Current and Past list grouping uses archive state only.",
@@ -1571,7 +1571,8 @@
     "schedule-fixed-rows",
     "schedule-row-prompt",
     "add-tracks-and-challenges",
-    "remove-track"
+    "remove-track",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -1765,7 +1766,8 @@
     "post-announcement",
     "edit-announcement",
     "delete-announcement",
-    "email-participants-toggle"
+    "email-participants-toggle",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -2326,7 +2328,8 @@
     "set-team-admin",
     "new-team-link",
     "message-team",
-    "view-team-messages"
+    "view-team-messages",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -2523,7 +2526,8 @@
     "clear-team-deadline-override",
     "view-entries-progress",
     "download-entries-csv",
-    "view-storage-usage"
+    "view-storage-usage",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -2619,7 +2623,8 @@
     "get-own-entry",
     "take-team-site-down",
     "restore-team-site",
-    "view-entries-progress"
+    "view-entries-progress",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -2803,7 +2808,8 @@
     "view-judging-dashboard",
     "delete-former-judge-scores",
     "warn-teams-without-track",
-    "organiser-judge-access"
+    "organiser-judge-access",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -2901,7 +2907,8 @@
    ],
    "features": [
     "manual-assignment-grid",
-    "panel-assignment-grid"
+    "panel-assignment-grid",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -3058,7 +3065,8 @@
     "download-all-team-sites-archive",
     "download-participants-csv",
     "download-teams-csv",
-    "export-applicant-fields"
+    "export-applicant-fields",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -3297,7 +3305,8 @@
     "regenerate-join-link",
     "regenerate-judge-link",
     "shared-hack-navigation-map",
-    "acknowledge-checklist-item"
+    "acknowledge-checklist-item",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -3528,7 +3537,8 @@
    "phone": "Same single-column form, full width.",
    "features": [
     "create-event",
-    "check-event-address"
+    "check-event-address",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -4533,7 +4543,8 @@
     "copy-team-code",
     "replay-participant-walkthrough",
     "team-removal-notice",
-    "view-messages-from-organisers"
+    "view-messages-from-organisers",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -4852,7 +4863,8 @@
     "upload-entry-screenshot",
     "remove-entry-screenshot",
     "view-entry-read-only",
-    "view-rubric-participant"
+    "view-rubric-participant",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -5130,7 +5142,8 @@
     "upload-team-site-zip",
     "view-team-site-status",
     "team-site-notifications",
-    "download-own-team-archive"
+    "download-own-team-archive",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -5791,7 +5804,8 @@
     "save-and-next",
     "guard-unscored-on-next",
     "declare-own-conflict",
-    "replay-scoring-walkthrough"
+    "replay-scoring-walkthrough",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -6088,7 +6102,8 @@
     "sign-out-everywhere",
     "delete-own-account",
     "email-when-waiting",
-    "connect-ai-app-account"
+    "connect-ai-app-account",
+    "guard-form-edits"
    ],
    "prototype_states": [
     {
@@ -8111,5 +8126,10 @@
   "Apply: should the applicant get an email when an organiser decides? None exists today, so the copy says 'you'll see their answer here and on your Home'. Recommended: one email on approval only.",
   "Apply: the join-link form keeps not asking location, age range and gender (join links unchanged), so CSV demographics cover applicants only. Ask them there too?",
   "Entries: at the deadline an incomplete draft is still judged, flagged Incomplete, and organisers can exclude it by hand (coordinator decision 2026-11-02, built in slice 1). Keep, or go back to not judging incomplete drafts?"
- ]
+ ],
+ "universal_properties": {
+  "unsaved_edits": "Unsaved edits are never lost silently.",
+  "leaving": "Save, Discard, or Stay. Stay is the default.",
+  "errors": "Mark the field and link to it. Clear on edit or successful save."
+ }
 }

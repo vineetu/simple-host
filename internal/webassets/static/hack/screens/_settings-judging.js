@@ -74,6 +74,7 @@ ${closesHTML()}
  main.innerHTML = setupInner
   function weightTotal() { return rubric.reduce((sum, c) => sum + (Number(c.weight) || 0), 0) }
 
+  let rubricForm
   function paintRubric() {
     const box = $('jg-rubric')
     box.textContent = ''
@@ -123,6 +124,7 @@ ${closesHTML()}
       box.appendChild(row)
     })
     if (!rubric.length) box.appendChild(ui.el('p', { class: 'muted', text: 'No criteria yet. Add one to start.' }))
+    rubricForm?.edited()
     paintWeight()
     $('jg-add').disabled = locked || !!adminLockReason || rubric.length >= 10
     $('jg-rubric-save').disabled = locked || !!adminLockReason
@@ -222,13 +224,6 @@ ${closesHTML()}
   }
 
   $('jg-add').addEventListener('click', () => { rubric.push({ id: '', name: '', description: '', weight: 0, max_points: 5 }); paintRubric() })
-  $('jg-rubric-save').addEventListener('click', saveRubric)
-  $('jg-tie-save').addEventListener('click', saveTie)
-  const closesSave = $('jg-closes-save')
-  if (closesSave) closesSave.addEventListener('click', onSaveCloses)
-  const closesClear = $('jg-closes-clear')
-  if (closesClear) closesClear.addEventListener('click', onClearCloses)
-  $('jg-mode-save').addEventListener('click', saveMode)
   main.querySelectorAll('input[name="jg-mode"]').forEach(r => r.addEventListener('change', () => {
     draftMode = main.querySelector('input[name="jg-mode"]:checked').value
     paintMode()
@@ -271,6 +266,14 @@ ${closesHTML()}
   draftMode = settings.assignment_mode
   draftPerTeam = settings.judges_per_team
   paintRubric(); paintTie(); paintMode()
+  rubricForm = ui.forms.bind(ctx, $('jg-rubric-save'), saveRubric, { key: 'rubric', snapshot: () => rubric, restore: value => { rubric = value; paintRubric() } })
+  ui.forms.bind(ctx, $('jg-tie-save'), saveTie)
+  const closesSave = $('jg-closes-save')
+  if (closesSave) ui.forms.bind(ctx, closesSave, onSaveCloses)
+  const closesClear = $('jg-closes-clear')
+  if (closesClear) closesClear.addEventListener('click', onClearCloses)
+  ui.forms.bind(ctx, $('jg-mode-save'), saveMode)
+
   await finalButton()
   async function finalButton() {
     const actions = $('jg-rubric-save').parentElement

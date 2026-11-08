@@ -1288,3 +1288,11 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
  .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .act{grid-column:3;grid-row:1;margin:0;justify-self:end;align-self:start;min-height:28px;padding:0;width:auto}
  .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .act.btn{padding:4px 8px}
 }
+
+/* Shared form lifecycle: use the kit's existing status and error tokens. */
+.hint.dirty{color:var(--warn);font-weight:550}
+.form-status:empty{display:none}
+.form-status.err{color:var(--danger)}
+[aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+.field-link{font:inherit;color:inherit;text-decoration:underline;background:none;border:0;padding:0;cursor:pointer}
+.field-link:focus-visible{outline:2px solid var(--danger);outline-offset:3px}

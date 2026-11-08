@@ -76,7 +76,7 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
   titleInput.addEventListener('input', () => { titleCt.textContent = titleInput.value.length + ' / 120' })
   emailBox.addEventListener('change', () => { postBtn.textContent = emailBox.checked ? `Post and email ${emailableCount} participants` : 'Post' })
 
-  main.querySelector('#ann-form').addEventListener('submit', async e => {
+  ui.forms.bind(ctx, main.querySelector('#ann-form'), async e => {
     e.preventDefault()
     postBtn.disabled = true
     try {

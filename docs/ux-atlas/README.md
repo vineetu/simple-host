@@ -35,3 +35,17 @@ no prototype file, or a feature whose `feature` field does not name an anchor in
 (see `docs/feature-ids.txt`). Keep these at zero. `--check` also fails if committed
 `prototype/nav.js` or `prototype/files.json` is stale. It writes nothing and never reads
 screenshots or publishing credentials. Normal builds regenerate those files and copy the kit.
+
+## Universal properties
+
+Unsaved edits are never lost silently.
+Leaving an edited form offers Save, Discard, or Stay. Closing the tab uses the browser warning.
+Field errors clear when the field changes; a successful save clears earlier errors.
+Missing-field links focus the marked field, and Submit focuses the first error.
+
+## New screen checklist
+
+- Register each form with `hack/forms.js`, including form dialogs. Show the shared hint beside Save.
+- Route navigation through the shared guard. Check Stay, Discard, Save, Back, and reload.
+- Use shared field errors and one status slot. Check error, edit, save, and no stale error.
+- Controls that save on change use shared errors and status without a dirty hint.

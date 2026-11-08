@@ -351,7 +351,8 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
     $('web-curl').textContent = 'curl -X PUT "' + ((keyData.api_base || location.origin) + '/v1/hack/events/' + ev.slug + '/site?create=1') + '" -H "X-API-Key: ' + state.revealedKey + '" -H "Content-Type: application/zip" --data-binary @site.zip'
   }
 
-  async function reload (next) {
+  async function reload (next) { return ui.forms.preserve(ctx, () => repaint(next)) }
+  async function repaint (next) {
     Object.assign(state, next)
     const got = await load()
     if (!got) return
@@ -389,21 +390,21 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
 
   // ---- zip upload ----
   const zipGo = $('web-zip-go')
-  if (zipGo) zipGo.addEventListener('click', async () => {
+  if (zipGo) ui.forms.bind(ctx, zipGo, async () => {
     const input = $('web-zip')
     const file = input.files && input.files[0]
     const status = $('web-zip-status')
     status.hidden = false
-    if (!file) { status.textContent = 'Choose a zip first.'; return }
+    if (!file) { ui.forms.forElement(input).fieldError(input, 'Choose a zip first.'); return false }
     zipGo.disabled = true
     status.textContent = 'Uploading and publishing…'
     try {
       const resp = await client.apiBytes('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/site?create=1', file, 'application/zip')
-      if (!resp.ok) { status.textContent = archiveErrorText(resp, 'Could not publish your site.'); zipGo.disabled = false; return }
+      if (!resp.ok) { ui.forms.forElement(input).fieldError(input, archiveErrorText(resp, 'Could not publish your site.')); zipGo.disabled = false; return }
       status.textContent = 'Published version ' + (resp.data && resp.data.active_version) + '.'
       await reload({})
     } catch (e) {
-      if (!client.isSignedOut(e)) { status.textContent = 'Could not confirm the upload. Check your site before trying again.'; zipGo.disabled = false }
+      if (!client.isSignedOut(e)) { ui.forms.forElement(input).error('Could not confirm the upload. Check your site before trying again.', input); zipGo.disabled = false }
     }
   })
 
@@ -675,7 +676,7 @@ function wireNotifications (ctx, main, ev, team, reload) {
   }))
 
   const add = $('notif-add')
-  if (add) add.addEventListener('click', async () => {
+  if (add) ui.forms.bind(ctx, add, async () => {
     const urlInput = $('notif-url')
     const url = urlInput.value.trim()
     if (!/^https:\/\//i.test(url)) { ui.toast('Use an https URL.', urlInput, true); return }
@@ -689,5 +690,5 @@ function wireNotifications (ctx, main, ev, team, reload) {
       if (!r.ok) { ui.toast(errText(r), add, true); add.disabled = false; return }
       await reload({ notifySecret: r.data.secret || '', notifySecretAction: 'added', notifySecretPrevious: '' })
     } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', add, true); add.disabled = false } }
-  })
+  }, { fields: () => [...main.querySelectorAll('[id^=notif-]')].filter(n => n.matches(ui.forms.controls)) })
 }

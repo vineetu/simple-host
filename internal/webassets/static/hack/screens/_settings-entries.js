@@ -63,18 +63,19 @@ export async function render(ctx, section) {
  const api = client.api, slug = event.event.slug, esc = ui.esc
  const $ = id => main.querySelector('#' + id), setLive = ui.live(main)
  let ev = event.event
- let rules = { fields: {}, editable: false }, lastPresetChosen = null, dirty = false
+ let rules = { fields: {}, editable: false }, lastPresetChosen = null, rulesForm = null
  let reminders = { offsets_minutes: [] }, reminderDraft = []
  const rulesPath = '/v1/hack/events/' + encodeURIComponent(slug) + '/entry-rules'
  const remindersPath = '/v1/hack/events/' + encodeURIComponent(slug) + '/reminders'
  async function load() {
-  const reminderDraftWasDirty = JSON.stringify(reminderDraft) !== JSON.stringify(reminders.offsets_minutes || [])
+  const reminderDraftWasDirty = ui.forms.dirty(ctx)
   const [rr, remr] = await Promise.all([api('GET', rulesPath), api('GET', remindersPath)])
   if (!ctx.alive()) return
-  if (rr.ok) { rules = rr.data; lastPresetChosen = rules.preset !== 'custom' ? rules.preset : lastPresetChosen }
+  if (rr.ok && !rulesForm?.dirty()) { rules = rr.data; lastPresetChosen = rules.preset !== 'custom' ? rules.preset : lastPresetChosen }
   if (remr.ok) { reminders = remr.data; if (!reminderDraftWasDirty) reminderDraft = (reminders.offsets_minutes || []).slice() }
  }
- function paint() {
+ function paint() { return ui.forms.preserve(ctx, () => paintContent()) }
+ function paintContent() {
   if (!ctx.alive()) return
   const deadlineInput = ui.localInputValue(ev.submission_deadline, ev)
   const closedStages = ['closed', 'judging', 'results']
@@ -92,7 +93,7 @@ ${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Buildi
 <div class="form-actions"><button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button><button class="btn quiet" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div>`}
 </section>
 <div id="entry-rules">${handInHTML(rulesLockReason)}</div>`
-   $('deadline-save')?.addEventListener('click', onSaveDeadline)
+   ui.forms.bind(ctx, $('deadline-save'), onSaveDeadline)
    $('deadline-clear')?.addEventListener('click', onClearDeadline)
    if (!rulesLockReason) wireHandIn()
   }
@@ -174,15 +175,6 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
 
   function wireReminders (lockReason) {
     if (lockReason) return
-    const err = $('rem-err')
-    function sortedCopy (arr) { return arr.slice().sort((a, b) => b - a) }
-    function syncDirty () {
-      const dirty2 = JSON.stringify(sortedCopy(reminderDraft)) !== JSON.stringify(sortedCopy(reminders.offsets_minutes || []))
-      $('rem-hint').textContent = dirty2 ? 'Unsaved changes' : 'No unsaved changes'
-      $('rem-hint').classList.toggle('dirty', dirty2)
-      $('rem-discard').disabled = !dirty2
-      $('rem-save').disabled = !dirty2
-    }
     main.querySelectorAll('[data-rem-off]').forEach(btn => btn.addEventListener('click', () => {
       const m = Number(btn.getAttribute('data-rem-off'))
       reminderDraft = reminderDraft.filter(x => x !== m)
@@ -190,27 +182,29 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     }))
     const addBtn = $('rem-add-btn')
     if (addBtn) addBtn.addEventListener('click', () => {
-      err.textContent = ''
+      ui.forms.forElement($('rem-n')).clearErrors()
       const nRaw = $('rem-n').value.trim()
       const unit = $('rem-unit').value
       const n = Number(nRaw)
-      if (!nRaw || !Number.isInteger(n) || n <= 0) { err.textContent = 'Enter a whole number.'; return }
+      if (!nRaw || !Number.isInteger(n) || n <= 0) { ui.forms.forElement($('rem-n')).fieldError('rem-n', 'Enter a whole number.'); return }
       const mult = unit === 'days' ? 1440 : unit === 'hours' ? 60 : 1
       const minutes = n * mult
-      if (minutes < reminders.min_minutes || minutes > reminders.max_minutes) { err.textContent = 'Each reminder must be between ' + reminders.min_minutes + ' minutes and 14 days before the deadline.'; return }
-      if (reminderDraft.includes(minutes)) { err.textContent = 'Already have a reminder at that time.'; return }
-      if (reminderDraft.length >= reminders.max_count) { err.textContent = 'Up to ' + reminders.max_count + ' reminders.'; return }
+      if (minutes < reminders.min_minutes || minutes > reminders.max_minutes) { ui.forms.forElement($('rem-n')).fieldError('rem-n', 'Each reminder must be between ' + reminders.min_minutes + ' minutes and 14 days before the deadline.'); return }
+      if (reminderDraft.includes(minutes)) { ui.forms.forElement($('rem-n')).fieldError('rem-n', 'Already have a reminder at that time.'); return }
+      if (reminderDraft.length >= reminders.max_count) { ui.forms.forElement($('rem-n')).fieldError('rem-n', 'Up to ' + reminders.max_count + ' reminders.'); return }
       reminderDraft = reminderDraft.concat(minutes).sort((a, b) => b - a)
       paintReminders()
     })
     const discardBtn = $('rem-discard')
-    if (discardBtn) discardBtn.addEventListener('click', () => { reminderDraft = (reminders.offsets_minutes || []).slice(); paintReminders() })
     const saveBtn = $('rem-save')
-    if (saveBtn) saveBtn.addEventListener('click', onSaveReminders)
-    syncDirty()
+    if (saveBtn) ui.forms.bind(ctx, saveBtn, onSaveReminders, { key: 'reminders', hint: $('rem-hint'), discardButton: discardBtn, snapshot: () => [reminderDraft, $('rem-n').value, $('rem-unit').value], restore: value => { reminderDraft = value[0]; paintReminders(); $('rem-n').value = value[1]; $('rem-unit').value = value[2] } })
   }
 
   async function onSaveReminders () {
+    if ($('rem-n').value.trim()) {
+      $('rem-add-btn').click()
+      if (ui.forms.forElement($('rem-n')).model.bad) return false
+    }
     const btn = $('rem-save')
     btn.disabled = true
     let r
@@ -224,7 +218,6 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
   }
 
   function wireHandIn () {
-    dirty = false
     const handin = $('handin')
     if (!handin) return
 
@@ -234,7 +227,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     handin.querySelectorAll('input[name="org-preset"]').forEach(radio => {
       radio.addEventListener('change', async () => {
         if (!radio.checked) return
-        if (dirty) {
+        if (rulesForm?.dirty()) {
           const ok = await ui.confirm({ title: 'Reset every line to ' + PRESETS[radio.value].label + '?', body: 'Your unsaved changes to this card are replaced.', confirmLabel: 'Reset' })
           if (!ok) { paint(); return }
         }
@@ -263,7 +256,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
         if (!r) return
         rules = { ...rules, fields: { ...rules.fields, [field]: r.getAttribute('data-val') }, preset: fieldsEqual({ ...rules.fields, [field]: r.getAttribute('data-val') }, (PRESETS[rules.preset] || {}).fields || {}) ? rules.preset : 'custom' }
         selectRadio(seg, r.getAttribute('data-val'))
-        dirty = true
+        rulesForm.edited()
         const hint = $('rules-hint')
         if (hint) hint.textContent = rules.preset === 'custom' ? currentPresetLabel() : ''
       })
@@ -285,11 +278,11 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
       if (!r) return
       rules = { ...rules, judge_first: r.getAttribute('data-val') }
       selectRadio(jf, r.getAttribute('data-val'))
-      dirty = true
+      rulesForm.edited()
     })
 
     const saveBtn = $('rules-save')
-    if (saveBtn) saveBtn.addEventListener('click', onSaveRules)
+    if (saveBtn) rulesForm = ui.forms.bind(ctx, saveBtn, onSaveRules, { key: 'rules', root: handin, snapshot: () => rules, restore: value => { rules = value; paint() } })
   }
 
   async function onSaveRules () {
@@ -319,7 +312,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
       const body = document.createElement('div')
       lines.forEach((t, i) => body.append(Object.assign(document.createElement('p'), { className: i === lines.length - 1 ? 'small muted' : '', textContent: t })))
       const ok = await ui.confirm({ title: 'Save these changes to what teams hand in?', body, confirmLabel: 'Save' })
-      if (!ok) { if (saveBtn) saveBtn.disabled = false; return }
+      if (!ok) { if (saveBtn) saveBtn.disabled = false; return false }
     }
     let r
     try { r = await api('PUT', rulesPath, base) }
@@ -342,7 +335,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
   async function onSaveDeadline () {
     setLive('')
     const value = $('deadline-input').value
-    if (!value) { setLive('Choose a date and time.', true); return }
+    if (!value) { ui.forms.forElement($('deadline-input')).fieldError('deadline-input', 'Choose a date and time.'); return false }
     const data = await patchEv({ submission_deadline: value })
     if (!data) return
     ev = data.event

@@ -59,7 +59,7 @@ export async function render(ctx) {
     clearTimeout(slugTimer); slugTimer = setTimeout(checkSlugNow, 400)
   })
 
-  $('new-form').addEventListener('submit', async e => {
+  ui.forms.bind(ctx, $('new-form'), async e => {
     e.preventDefault()
     const nRaw = $('new-n').value.trim()
     if (!/^[1-9]\d*$/.test(nRaw) || Number(nRaw) > 100000) { setLive('Expected participants must be between 1 and 100000.', 'err'); return }
@@ -89,7 +89,7 @@ export async function render(ctx) {
         return
       }
       const slug = (r.data && r.data.event && r.data.event.slug) || body.slug
-      ctx.go('/e/' + encodeURIComponent(slug) + '/manage')
+      ctx.go('/e/' + encodeURIComponent(slug) + '/manage', { saved: ui.forms.forElement($('new-form')) })
     } catch (err) { setLive('Could not connect. Check your connection and try again.', 'err'); submitBtns.forEach(b => b.disabled = false) }
   })
 }

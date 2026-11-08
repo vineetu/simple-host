@@ -97,7 +97,7 @@ export async function render(ctx) {
   const applyHeading = info.approval_required ? 'Apply' : 'Your details'
   const joinLabel = info.approval_required ? 'Send application' : 'Join event'
   main.innerHTML = header + `<form class="card" id="join-form"><h2>${esc(applyHeading)}</h2>${nameHTML}${questionsHTML}${cocHTML}<label class="check"><input type="checkbox" id="join-coc" required><span>I agree to the code of conduct</span></label><div class="form-actions"><button class="btn primary" type="submit" id="join-btn">${esc(joinLabel)}</button></div></form>`
-  main.querySelector('#join-form').addEventListener('submit', async e => {
+  ui.forms.bind(ctx, main.querySelector('#join-form'), async e => {
     e.preventDefault()
     const btn = main.querySelector('#join-btn')
     if (!main.querySelector('#join-coc').checked) { ui.toast(CODES.coc_required, main, true); return }
@@ -123,9 +123,6 @@ export async function render(ctx) {
     if (!res.ok) { ui.toast(ui.errText(res, { codes: CODES }), main, true); btn.disabled = false; return }
     if (!hasName && ctx.me) ctx.me.display_name = nm
     const joinedSlug = (res.data && res.data.event && res.data.event.slug) || slug
-    // A real navigation, not an SPA one: the cached event list from this
-    // load does not include the just-created membership yet, and the shell
-    // reads that list for the sidebar. A full reload picks up the fresh list.
-    location.assign('/e/' + encodeURIComponent(joinedSlug) + '/team')
+    await ctx.go('/e/' + encodeURIComponent(joinedSlug) + '/team', { saved: ui.forms.forElement(main.querySelector('#join-form')) })
   })
 }

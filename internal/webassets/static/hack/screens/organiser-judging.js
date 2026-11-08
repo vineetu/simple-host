@@ -1,5 +1,4 @@
 import { href } from '../nav.js'
-import { onSubmit } from '../platform.js'
 
 export function title() { return 'Judging' }
 
@@ -126,7 +125,7 @@ ${restBlock}
       const actions = ui.el('div', { class: 'form-actions' })
       actions.appendChild(go)
       form.appendChild(actions)
-      onSubmit(form, go, e => { e.preventDefault(); doUnlock(textarea.value, go) })
+      ui.forms.bind(ctx, form, () => doUnlock(textarea.value, go))
       zone.appendChild(form)
     }
   }
@@ -224,7 +223,7 @@ ${restBlock}
       judgeSelect.disabled = teamSelect.disabled = add.disabled = locked || !!adminLockReason
       row.append(judgeSelect, teamSelect, add)
       form.appendChild(row)
-      onSubmit(form, add, e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })
+      ui.forms.bind(ctx, form, () => addConflict(judgeSelect.value, teamSelect.value, add))
       card.appendChild(form)
     } else {
       card.appendChild(ui.el('button', { class: 'btn', type: 'button', text: 'Add', disabled: '' }))
@@ -418,7 +417,7 @@ ${restBlock}
     await reloadDashboard()
   }
 
-  $('jg-generate').addEventListener('click', generate)
+  ui.forms.bind(ctx, $('jg-generate'), generate)
 
   // --- initial load ---------------------------------------------------
   paintTopAction()

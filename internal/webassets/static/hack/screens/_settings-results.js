@@ -70,7 +70,7 @@ export async function render(ctx, section) {
  if (section !== 'directory') {
   // --- scoring rules ------------------------------------------------------
   $('res-score-mode').value = settings.score_mode || 'raw'
-  $('res-score-mode-save').addEventListener('click', async () => {
+  ui.forms.bind(ctx, $('res-score-mode-save'), async () => {
     const btn = $('res-score-mode-save')
     btn.disabled = true
     let r
@@ -94,7 +94,7 @@ export async function render(ctx, section) {
     $('res-visibility-hint').hidden = !!results || archived
   }
   paintVisibility()
-  $('res-visibility-save')?.addEventListener('click', async () => {
+  ui.forms.bind(ctx, $('res-visibility-save'), async () => {
     const btn = $('res-visibility-save')
     btn.disabled = true
     let ok = true
@@ -121,16 +121,18 @@ export async function render(ctx, section) {
   // checkbox has its own save button and its own paint (paintDirectory), so
   // an unrelated voting save never overwrites a directory choice still
   // sitting unsaved in the checkbox.
-  function paintVoting() {
+  function paintVoting(part = 'all') {
     if (!$('res-vote-status')) return
     const labels = { open: 'Voting open', upcoming: 'Voting upcoming', closed: 'Voting closed', disabled: 'Voting off' }
     const pill = $('res-vote-status')
     pill.textContent = labels[voting.status] || labels.disabled
     pill.className = 'pill' + (voting.status === 'open' ? ' ok' : voting.status === 'disabled' ? '' : ' warn')
+    if (part !== 'eligibility') {
     $('res-vote-enabled').checked = !!voting.enabled
     $('res-vote-opens').value = ui.localInputValue(voting.opens_at, ev.time_zone)
     $('res-vote-closes').value = ui.localInputValue(voting.closes_at, ev.time_zone)
-    $('res-vote-eligibility').value = voting.eligibility || 'all_signed_in'
+    }
+    if (part !== 'window') $('res-vote-eligibility').value = voting.eligibility || 'all_signed_in'
   }
   function paintDirectory() {
     if (!$('res-directory-listed')) return
@@ -151,6 +153,8 @@ export async function render(ctx, section) {
   function showGalleryNote(btn) {
     clearGalleryNote()
     const p = document.createElement('p')
+    ui.forms.forElement(btn)?.status('', true)
+    p.dataset.formBanner = ''
     p.id = 'res-vote-gallery-note'
     p.className = 'note bad'
     p.setAttribute('role', 'alert')
@@ -201,7 +205,7 @@ export async function render(ctx, section) {
     voting = { ...voting, ...rest }
   }
 
-  $('res-vote-window-save')?.addEventListener('click', async () => {
+  ui.forms.bind(ctx, $('res-vote-window-save'), async () => {
     const btn = $('res-vote-window-save')
     const r = await putVoting({
       enabled: $('res-vote-enabled').checked,
@@ -211,11 +215,11 @@ export async function render(ctx, section) {
     }, btn)
     if (!r) return
     applyVotingSave(r.data)
-    paintVoting()
+    paintVoting('window')
     setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)
-  })
+  }, { fields: () => [$('res-vote-enabled'), $('res-vote-opens'), $('res-vote-closes')] })
 
-  $('res-vote-eligibility-save')?.addEventListener('click', async () => {
+  ui.forms.bind(ctx, $('res-vote-eligibility-save'), async () => {
     const btn = $('res-vote-eligibility-save')
     const newEligibility = $('res-vote-eligibility').value
     const r = await putVoting({
@@ -226,11 +230,11 @@ export async function render(ctx, section) {
     }, btn)
     if (!r) return
     applyVotingSave(r.data)
-    paintVoting()
+    paintVoting('eligibility')
     setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)
-  })
+  }, { fields: () => [$('res-vote-eligibility')] })
 
-  $('res-directory-save')?.addEventListener('click', async () => {
+  ui.forms.bind(ctx, $('res-directory-save'), async () => {
     const btn = $('res-directory-save')
     btn.disabled = true
     let r

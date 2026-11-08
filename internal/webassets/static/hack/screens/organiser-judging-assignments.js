@@ -121,6 +121,6 @@ export async function render(ctx) {
   if (locked || saveBlocked) {
     $('jg-grid-save').disabled = true
   } else {
-    $('jg-grid-save').addEventListener('click', save)
+    ui.forms.bind(ctx, $('jg-grid-save'), save, { root: main })
   }
 }

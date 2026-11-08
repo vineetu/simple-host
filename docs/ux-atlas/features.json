@@ -3232,5 +3232,19 @@
     "frequency": "ongoing",
     "risk": "reversible",
     "feature": "hosted-events-simple-hack-app"
+  },
+  {
+    "id": "guard-form-edits",
+    "role": "all",
+    "area": "forms",
+    "name": "Keep form edits",
+    "what": "Unsaved edits beside Save. Leaving offers Save, Discard, or Stay. Field errors clear on edit or successful save; missing-item links focus fields.",
+    "stages": "all",
+    "today_location": "Every form screen and form dialog",
+    "api": "Existing form save routes",
+    "mcp": "Not applicable: browser editing state",
+    "frequency": "ongoing",
+    "risk": "reversible",
+    "feature": "hack-unsaved-edits"
   }
 ]

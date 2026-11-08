@@ -1,3 +1,4 @@
+import { forms } from './ui.js'
 // Leave this event (SIM-340): one flow, every entry point. Used by
 // screens/participant-home.js, screens/judge-home.js, the pending-applicant
 // locked view in app.js, screens/organiser-settings.js and
@@ -197,8 +198,11 @@ function openSheet(labelledBy, build) {
     box.setAttribute('aria-modal', 'true')
     box.setAttribute('aria-labelledby', labelledBy)
     scrim.append(box)
-    function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); if (previous && previous.focus) previous.focus(); resolve(value) }
+    let lifecycle
+    function finish(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); if (previous && previous.focus) previous.focus(); resolve(value) }
+    function done(value) { return lifecycle ? lifecycle.done(value) : finish(value) }
     function keydown(e) {
+      if ([...document.querySelectorAll('.scrim .dialog')].at(-1) !== box) return
       if (e.key === 'Escape') { e.preventDefault(); done(null); return }
       if (e.key === 'Tab') {
         const items = focusablesIn(box)
@@ -212,6 +216,7 @@ function openSheet(labelledBy, build) {
     document.addEventListener('keydown', keydown, true)
     build(box, done)
     document.body.append(scrim)
+    lifecycle = forms.dialogForm({ root: box, label: 'Leave event', close: finish })
     const first = focusablesIn(box)[0]
     if (first) first.focus()
   })
@@ -401,5 +406,6 @@ async function attempt(api, ui, slug, title, warn) {
 // a short label for where this was opened from (not currently branched on,
 // kept for future diagnostics/analytics).
 export async function openLeave({ api, ui, slug, title, from }) {
+  if (!await forms.confirmLeave()) return
   return attempt(api, ui, slug, title, null)
 }

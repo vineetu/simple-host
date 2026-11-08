@@ -326,6 +326,7 @@ export async function render(ctx) {
     ctx.go(`/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(id)}`)
   }
 
+  let commentForm
   async function flushComment() {
     clearTimeout(commentTimer)
     if (commentSave) await commentSave
@@ -340,6 +341,7 @@ export async function render(ctx) {
       if (!r.ok) { ui.toast(errText(r), box, true); return false }
       comment = val
       savedComment = val
+      if (box.value === val) commentForm?.saved()
       return true
     })()
     commentSave = pending
@@ -371,6 +373,8 @@ export async function render(ctx) {
 
   if (!locked) {
     const commentBox = main.querySelector('#jsc-comment')
+    ui.forms.instant(ctx, main.querySelector('#jsc-criteria'))
+    commentForm = ui.forms.register(ctx, { root: commentBox.closest('.field'), label: 'Comment', save: flushComment, fields: [commentBox] })
     commentBox.addEventListener('input', () => {
       clearTimeout(commentTimer)
       if (Object.keys(scores).length) commentTimer = setTimeout(flushComment, 900)
@@ -436,7 +440,8 @@ export async function render(ctx) {
         main.querySelector('#jsc-comment-help').textContent = 'Optional. Not shown with your name. Saves automatically.'
       }
       const saved = main.querySelector('#jsc-saved')
-      if (saved) saved.textContent = 'Score saved'
+      if (saved) saved.textContent = ''
+      ui.toast('Score saved', main.querySelector('#jsc-criteria'))
       if (box.value !== savedComment) flushComment()
     }
 

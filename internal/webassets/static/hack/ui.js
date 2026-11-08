@@ -1,4 +1,5 @@
-import { isAppRoute } from './nav.js'
+import * as forms from './forms.js'
+export { forms }
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 export const stages = { draft: 'Not open yet', open: 'Sign-up open', building: 'Building', closed: 'Entries closed', judging: 'Judging', results: 'Results', archived: 'Ended', ended: 'Ended' }
 export const stageLabel = stage => stages[stage] || stage || ''
@@ -169,6 +170,7 @@ function placeToast(note, near) {
   note.scrollIntoView({ block: 'nearest' })
 }
 export function toast(text, near, bad = false) {
+  if (forms.message(text, near || document.querySelector('main'), bad)) return
   if (!text) return
   const note = document.createElement('p')
   note.className = 'note toast ' + (bad ? 'bad' : 'ok')
@@ -203,7 +205,7 @@ export const saved = near => toast('Saved', near)
 // both mean "bad" -- plus an optional element to show the note near instead
 // of `main`.
 export function live(main) {
-  return (msg, kind, near) => { if (msg) toast(msg, near || main, kind === 'err' || kind === true) }
+  return (msg, kind, near) => toast(msg, near || main, kind === 'err' || kind === true)
 }
 // Error codes shared by every screen that passes `codes` to errText(), merged
 // from the judge, participant (_partB-util) and public-join screens' own
@@ -590,7 +592,8 @@ const FOCUSABLE_SEL = 'a[href],button,input,select,textarea,[tabindex]'
 function focusablesIn(box) {
   return Array.from(box.querySelectorAll(FOCUSABLE_SEL)).filter(el => !el.disabled && el.tabIndex !== -1 && !el.hidden)
 }
-export function dialog({ title, body, buttons, escapeValue = false, focus = 0 }) {
+let dialogID = 0
+export function dialog({ title, body, buttons, escapeValue = false, focus = 0, form, guard = true }) {
   return new Promise(resolve => {
     const previous = document.activeElement
     const scrim = document.createElement('div')
@@ -600,15 +603,16 @@ export function dialog({ title, body, buttons, escapeValue = false, focus = 0 })
     box.setAttribute('role', 'dialog')
     box.setAttribute('aria-modal', 'true')
     const h2 = document.createElement('h2')
-    h2.id = 'dialog-title'
+    const id = 'dialog-' + (++dialogID)
+    h2.id = id + '-title'
     h2.textContent = title
-    box.setAttribute('aria-labelledby', 'dialog-title')
+    box.setAttribute('aria-labelledby', h2.id)
     box.append(h2)
     const nodes = body == null ? []
       : Array.isArray(body) ? body
       : body instanceof Node ? [body]
-      : [Object.assign(document.createElement('p'), { id: 'dialog-body', textContent: body })]
-    if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute('aria-describedby', 'dialog-body')
+      : [Object.assign(document.createElement('p'), { id: id + '-body', textContent: body })]
+    if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute('aria-describedby', id + '-body')
     box.append(...nodes)
     const acts = document.createElement('div')
     acts.className = 'acts'
@@ -624,9 +628,12 @@ export function dialog({ title, body, buttons, escapeValue = false, focus = 0 })
     acts.append(...els)
     box.append(acts)
     scrim.append(box)
-    function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); previous?.focus(); resolve(value) }
+    let formLifecycle = null, finished = false
+    function finish(value) { if (finished) return; finished = true; document.removeEventListener('keydown', keydown, true); scrim.remove(); previous?.focus(); resolve(value) }
+    function done(value) { return formLifecycle ? formLifecycle.done(value) : finish(value) }
     function primaryButton() { return els.find(b => b.classList.contains('primary')) || els[els.length - 1] }
     function keydown(e) {
+      if ([...document.querySelectorAll('.scrim .dialog')].at(-1) !== box) return
       if (e.key === 'Escape') { e.preventDefault(); done(escapeValue); return }
       if (e.key === 'Tab') {
         const list = focusablesIn(box)
@@ -651,6 +658,7 @@ export function dialog({ title, body, buttons, escapeValue = false, focus = 0 })
     scrim.addEventListener('click', e => { if (e.target === scrim) done(escapeValue) })
     document.addEventListener('keydown', keydown, true)
     document.body.append(scrim)
+    if (guard && box.querySelector(forms.controls)) formLifecycle = forms.dialogForm({ root: box, label: title, save: form?.save, snapshot: form?.snapshot, saveOnLeave: form?.saveOnLeave, saveButton: primaryButton(), cancelValue: escapeValue, saveValue: buttons[els.indexOf(primaryButton())].value, close: finish })
     if (focus === 'first-field') {
       const list = focusablesIn(box)
       const field = list.find(el => !acts.contains(el))
@@ -732,12 +740,15 @@ export function confirmTyped({ title, body, matchText, confirmLabel = 'Confirm',
     acts.append(cancelBtn, okBtn)
     box.append(acts)
     scrim.append(box)
-    function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); previous?.focus(); resolve(value) }
+    let lifecycle
+    function finish(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); previous?.focus(); resolve(value) }
+    function done(value) { return lifecycle ? lifecycle.done(value) : finish(value) }
     function sync() { okBtn.disabled = input.value.trim() !== matchText }
     input.addEventListener('input', sync)
     cancelBtn.addEventListener('click', () => done(false))
     okBtn.addEventListener('click', () => { if (!okBtn.disabled) done(true) })
     function keydown(e) {
+      if ([...document.querySelectorAll('.scrim .dialog')].at(-1) !== box) return
       if (e.key === 'Escape') { e.preventDefault(); done(false); return }
       if (e.key === 'Tab') {
         const list = focusablesIn(box)
@@ -750,90 +761,11 @@ export function confirmTyped({ title, body, matchText, confirmLabel = 'Confirm',
     scrim.addEventListener('click', e => { if (e.target === scrim) done(false) })
     document.addEventListener('keydown', keydown, true)
     document.body.append(scrim)
+    lifecycle = forms.dialogForm({ root: box, label: title, cancelValue: false, close: finish })
     input.focus()
   })
 }
 
-// Unsaved-changes guard for the one-Save forms (Basics, About): "another
-// tab, the sidebar, Back" asks before leaving, closing the browser tab uses
-// beforeunload. Bound once (module-level); `setDirtyGuard` is called on
-// every render of a form sub-page with a fresh `getDirty` closure over
-// that render's own fields, `clearDirtyGuard` by every other sub-page (and
-// effectively superseded the moment a new Basics/About render calls
-// setDirtyGuard again).
-// R8 (self-expiry): `getDirty` is only ever trusted while the ctx that
-// installed it is still alive (ctx.alive(), the same generation check
-// every screen already uses) -- a route change (another tab, Back/Forward,
-// a ctx.refresh()) leaves the old render's ctx dead, so `currentDirty()`
-// drops the guard instead of asking about a form nobody is looking at any
-// more.
-// R9: Sign out (`[data-signout]`) is left to its own click handler
-// (shell.js) rather than intercepted here as if it were an ordinary
-// same-origin app link -- it has to actually run the sign-out flow, not a
-// `ctx.go()` SPA navigation to '/'. A link to a page this app doesn't
-// render as a screen (isAppRoute false, e.g. /directory, /get-started) gets
-// a real navigation (location.assign) after confirming, instead of
-// `ctx.go()`, which would otherwise mount the Home screen at the wrong URL.
-// R8 (Back/Forward): app.js's popstate handler calls confirmDiscardForLeave
-// before accepting the browser's Back/Forward -- see app.js's own note.
-// Lives here, not in a screen util, because app.js (never a screen) needs
-// to call confirmDiscardForLeave/clearDirtyGuard too, and app.js only ever
-// imports this shared module.
-// `lastPath` is the URL last known to be safely showing (no unconfirmed
-// dirty form) -- tracked here, not in app.js or organiser-event-page.js,
-// so every caller that changes the URL (app.js's go(), and organiser-
-// event-page.js's own light-column subnav navigation, R19) can call
-// notePath() right after and confirmDiscardForLeave's own "push the old
-// URL back" always has an accurate path to restore, regardless of which
-// module did the pushState.
-let guardCtx = null, guardGetDirty = null, guardBound = false
-let lastPath = typeof location !== 'undefined' ? location.pathname + location.search + location.hash : ''
-export function notePath(path) { lastPath = path ?? (location.pathname + location.search + location.hash) }
-export function setDirtyGuard(ctx, getDirty) { guardCtx = ctx; guardGetDirty = getDirty; bindGuardOnce() }
-export function clearDirtyGuard() { guardGetDirty = null }
-function currentDirty() {
-  if (!guardGetDirty) return null
-  if (guardCtx && guardCtx.alive && !guardCtx.alive()) { guardGetDirty = null; return null }
-  return guardGetDirty()
-}
-function bindGuardOnce() {
-  if (guardBound) return
-  guardBound = true
-  document.addEventListener('click', onGuardClick, true)
-  window.addEventListener('beforeunload', e => {
-    if (currentDirty()) { e.preventDefault(); e.returnValue = '' }
-  })
-}
-async function onGuardClick(e) {
-  const info = currentDirty()
-  if (!info) return
-  const a = e.target.closest('a[href]')
-  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
-  let url
-  try { url = new URL(a.href) } catch { return }
-  if (url.origin !== location.origin) return
-  // A same-document jump (an in-page #id link) and a link back to exactly
-  // where we already are both need no guard.
-  if (url.pathname === location.pathname && url.search === location.search) return
-  e.preventDefault()
-  e.stopPropagation()
-  const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
-  if (!ok) return
-  guardGetDirty = null
-  // R9: Sign out (`[data-signout]`) needs its own handler (shell.js) to
-  // actually run -- re-dispatching the same click, now that the guard is
-  // cleared, lets it go through for real on the second pass (this
-  // listener itself sees it again first, via the capture phase, and no-ops
-  // immediately since currentDirty() is now null), instead of treating it
-  // as an ordinary same-origin app link and doing an SPA ctx.go('/'),
-  // which used to land on the Home screen while still signed in. A link to
-  // a page this SPA doesn't render as a screen at all (isAppRoute false,
-  // e.g. /directory, /get-started) gets a real navigation instead of
-  // ctx.go(), which would otherwise mount the wrong screen at that URL.
-  if (a.hasAttribute('data-signout')) { a.click(); return }
-  if (isAppRoute(url.pathname)) { lastPath = url.pathname + url.search + url.hash; guardCtx.go(url.pathname + url.search + url.hash) }
-  else location.assign(url) // not a screen this SPA renders -- a real navigation, not ctx.go()
-}
 // --- Entries (atlas 2026-11-02, slice 1) --------------------------------
 
 // Fixed tag suggestions for "Tools and AI you used" (owner decision,
@@ -975,22 +907,4 @@ export function countdown (el, deadline, serverNow, opts = {}) {
     timer = setTimeout(tick, ms <= HOUR ? 1000 : 60000)
   }
   tick()
-}
-
-// Exported for app.js's popstate handler: resolves true if it is fine to
-// proceed with a Back/Forward navigation that already changed `location`
-// (no dirty form, or the person confirmed discarding it) -- in both cases
-// `lastPath` is brought up to date. Resolves false if the person chose to
-// keep editing, having already pushed the previous URL back onto
-// `location` itself, so app.js only needs to skip calling route().
-export async function confirmDiscardForLeave() {
-  const info = currentDirty()
-  const target = location.pathname + location.search + location.hash
-  if (!info) { lastPath = target; return true }
-  const from = lastPath
-  const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
-  if (!ok) { history.pushState({}, '', from); return false }
-  guardGetDirty = null
-  lastPath = target
-  return true
 }

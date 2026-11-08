@@ -16,9 +16,7 @@
     GENDER_LABELS: () => GENDER_LABELS,
     MATURITY: () => MATURITY,
     TOOL_SUGGESTIONS: () => TOOL_SUGGESTIONS,
-    clearDirtyGuard: () => clearDirtyGuard,
     confirm: () => askConfirm,
-    confirmDiscardForLeave: () => confirmDiscardForLeave,
     confirmTyped: () => confirmTyped,
     copyButton: () => copyButton,
     countdown: () => countdown,
@@ -34,6 +32,7 @@
     eventBoundaryInput: () => eventBoundaryInput,
     eventBoundaryValue: () => eventBoundaryValue,
     fetchBinary: () => fetchBinary,
+    forms: () => forms_exports,
     hostLabel: () => hostLabel,
     initials: () => initials,
     isLocalMidnight: () => isLocalMidnight,
@@ -42,12 +41,10 @@
     markInk: () => markInk,
     nextDeadline: () => nextDeadline,
     nextLocalMidnight: () => nextLocalMidnight,
-    notePath: () => notePath,
     possessive: () => possessive,
     roleLabel: () => roleLabel,
     safeHref: () => safeHref,
     saved: () => saved,
-    setDirtyGuard: () => setDirtyGuard,
     showImage: () => showImage,
     stageLabel: () => stageLabel,
     stages: () => stages,
@@ -56,12 +53,576 @@
     zoneAbbr: () => zoneAbbr
   });
 
-  // internal/mcp/apps/frame/judge-nav.js
-  function href(role, slug, section) {
-    return "#v=" + section;
+  // internal/handler/static/hack/forms.js
+  var forms_exports = {};
+  __export(forms_exports, {
+    bind: () => bind,
+    cancel: () => cancel,
+    changed: () => changed,
+    confirmLeave: () => confirmLeave,
+    context: () => context,
+    controls: () => controls,
+    dialogContext: () => dialogContext,
+    dialogForm: () => dialogForm,
+    dirty: () => dirty,
+    errorField: () => errorField,
+    forElement: () => forElement,
+    instant: () => instant,
+    message: () => message,
+    preserve: () => preserve,
+    register: () => register,
+    response: () => response,
+    snapshot: () => snapshot,
+    state: () => state,
+    values: () => values
+  });
+
+  // internal/mcp/apps/frame/platform.js
+  function replaceUrl(url) {
+    try {
+      history.replaceState({}, "", url);
+    } catch (e) {
+    }
   }
-  function isAppRoute(path) {
-    return false;
+  function judgeCode() {
+    return window.__hackJudgeCode || "";
+  }
+  function judgeJoined(slug) {
+    window.__hackJudgeJoined(slug);
+  }
+  function onSubmit(form, button, handler) {
+    button.addEventListener("click", handler);
+  }
+
+  // internal/handler/static/hack/forms.js
+  var controls = "input:not([type=button]):not([type=submit]):not([type=reset]):not([readonly]), textarea:not([readonly]), select, [contenteditable=true]";
+  function values(fields) {
+    return Array.from(fields, (field) => field.type === "checkbox" || field.type === "radio" ? field.checked : field.type === "file" ? Array.from(field.files || [], (f) => [f.name, f.size, f.lastModified]) : field.isContentEditable ? field.textContent : field.value);
+  }
+  var snapshot = (value) => JSON.stringify(value);
+  var changed = (before, value) => before !== snapshot(value);
+  function errorField(code = "") {
+    if (["invalid_name", "name_taken", "name_reserved"].includes(code)) return "slug";
+    return code.replace(/^(invalid_|missing_)/, "").replace(/_(taken|reserved|required|mismatch|too_long)$/, "");
+  }
+  function state() {
+    let status = "", bad = false;
+    const errors = /* @__PURE__ */ new Map();
+    return {
+      get status() {
+        return status;
+      },
+      get bad() {
+        return bad;
+      },
+      errors,
+      message(text, error = false) {
+        status = text || "";
+        bad = error;
+      },
+      error(field, text) {
+        errors.set(field, text);
+        status = "";
+        bad = true;
+      },
+      edit(field) {
+        errors.delete(field);
+        status = "";
+        bad = errors.size > 0;
+      },
+      clear() {
+        errors.clear();
+        status = "";
+        bad = false;
+      },
+      saved(text = "Saved") {
+        errors.clear();
+        status = text;
+        bad = false;
+      }
+    };
+  }
+  var drafts = /* @__PURE__ */ new WeakMap();
+  var handles = /* @__PURE__ */ new Set();
+  var saving = /* @__PURE__ */ new Set();
+  var bound = false;
+  var leaving = null;
+  var currentContext = null;
+  function context(ctx) {
+    currentContext = ctx;
+    active();
+  }
+  function active() {
+    for (const h of handles) if (!h.alive()) {
+      h.expire();
+      h.destroy();
+      handles.delete(h);
+    }
+    return [...handles];
+  }
+  function forElement(node) {
+    const list = active();
+    const running = [...saving].find((h) => !node || h.ctx?.main === node || h.root.contains(node) || node.contains?.(h.root));
+    if (running) return running;
+    return list.find((h) => h.owns(node)) || list.filter((h) => node && h.root.contains(node)).sort((a, b) => a.root.contains(b.root) ? 1 : -1)[0] || node && list.find((h) => h.owns(document.activeElement) && node.contains(h.root)) || (list.length === 1 && node?.contains?.(list[0].root) ? list[0] : null);
+  }
+  function message(text, near, bad = false) {
+    const h = forElement(near);
+    if (!h) return false;
+    if (bad) h.error(text, near?.matches?.(controls) ? near : null);
+    else {
+      h.clearErrors();
+      h.status(text);
+    }
+    return true;
+  }
+  function response(result) {
+    if (result.ok || saving.size !== 1) return;
+    const h = [...saving][0];
+    h.serverError(result);
+  }
+  function register(ctx, options) {
+    const { root, save, discard, label = root.querySelector("h2, legend")?.textContent || "this form", saveButton, discardButton, hint, dirty: dirty2 = true } = options;
+    active();
+    const getFields = () => typeof options.fields === "function" ? options.fields() : options.fields ? Array.from(options.fields) : [...root.querySelectorAll(controls)];
+    const read = () => options.snapshot ? options.snapshot() : values(getFields());
+    let store = ctx && drafts.get(ctx);
+    if (ctx && !store) {
+      store = /* @__PURE__ */ new Map();
+      drafts.set(ctx, store);
+    }
+    const key = options.key || saveButton?.id || root.id;
+    const record = key && store?.get(key) || { baseline: snapshot(read()) };
+    if (key) {
+      store?.set(key, record);
+      for (const old of handles) if (old.ctx === ctx && old.key === key) old.destroy();
+    }
+    let revision = 0, sentRevision = 0, sentSnapshot = null;
+    let initialFields = getFields(), initialValues = values(initialFields), busy = null;
+    const model = state(), marks = /* @__PURE__ */ new Map();
+    const statusSlot = document.createElement("span");
+    statusSlot.className = "hint form-status";
+    statusSlot.setAttribute("aria-live", "polite");
+    statusSlot.dataset.formStatus = "";
+    let dirtySlot = hint;
+    if (dirty2 && !dirtySlot) {
+      dirtySlot = document.createElement("span");
+      dirtySlot.className = "hint";
+      dirtySlot.dataset.formDirty = "";
+    }
+    const actions = saveButton?.closest(".card-foot, .form-actions, .sticky-foot, .acts, .control-row") || saveButton?.parentElement || root;
+    if (dirtySlot && !dirtySlot.isConnected) actions.append(dirtySlot);
+    actions.append(statusSlot);
+    function paint() {
+      const isDirty = h.dirty();
+      if (dirtySlot) {
+        dirtySlot.textContent = isDirty ? "Unsaved changes" : "No unsaved changes";
+        dirtySlot.classList.toggle("dirty", isDirty);
+      }
+      if (discardButton) {
+        discardButton.disabled = !isDirty;
+        discardButton.hidden = !isDirty;
+      }
+      if (saveButton && options.disableClean) saveButton.disabled = !!busy || !isDirty;
+      statusSlot.textContent = model.status;
+      statusSlot.classList.toggle("err", model.bad);
+    }
+    function resolve2(field) {
+      if (typeof field !== "string") return field;
+      const fields = getFields();
+      const exact = fields.find((n) => n.dataset.formField === field || n.name === field || n.id === field || n.id.endsWith("-" + field) || n.dataset.field === field) || root.querySelector(`[data-form-field="${CSS.escape(field)}"]`);
+      if (exact) return exact;
+      const words = field.toLowerCase().split("_");
+      const candidates = fields.map((n) => {
+        const tokens = (n.id + " " + n.name + " " + (n.labels?.[0]?.textContent || "") + " " + (n.getAttribute("aria-label") || "")).toLowerCase().split(/[^a-z0-9]+/);
+        return [n, words.filter((word) => tokens.includes(word)).length];
+      }).filter(([, score]) => score > 0).sort((a, b) => b[1] - a[1]);
+      return candidates[0]?.[1] > (candidates[1]?.[1] || 0) ? candidates[0][0] : void 0;
+    }
+    function clearMark(field) {
+      const mark = marks.get(field);
+      if (!mark) return;
+      const { line, holder, described } = mark;
+      field.removeAttribute("aria-invalid");
+      if (described) field.setAttribute("aria-describedby", described);
+      else field.removeAttribute("aria-describedby");
+      line.remove();
+      holder?.classList.remove("has-error");
+      marks.delete(field);
+    }
+    const h = {
+      root,
+      label,
+      model,
+      ctx,
+      key,
+      expire: () => options.onExpire?.(),
+      owns: (node) => !!node && (saveButton?.contains(node) || getFields().includes(node)),
+      capture: () => ({ value: JSON.parse(snapshot(read())), values: values(getFields()), files: getFields().map((n) => Array.from(n.files || [])), baseline: saving.has(h) && revision !== sentRevision ? sentSnapshot : record.baseline }),
+      editedWhileSaving: () => saving.has(h) && revision !== sentRevision,
+      restoreDraft(draft) {
+        record.baseline = draft.baseline;
+        if (options.restore) options.restore(draft.value);
+        if (!options.restore || options.restoreFields) getFields().forEach((n, i) => {
+          if (n.type === "file") {
+            const transfer = new DataTransfer();
+            (draft.files[i] || []).forEach((f) => transfer.items.add(f));
+            n.files = transfer.files;
+            return;
+          }
+          ;
+          if (n.type === "radio" || n.type === "checkbox") n.checked = draft.values[i];
+          else if (n.isContentEditable) n.textContent = draft.values[i];
+          else n.value = draft.values[i];
+          n.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        paint();
+      },
+      initial: () => JSON.parse(record.baseline),
+      alive: () => (!ctx?.alive || ctx.alive()) && root.isConnected,
+      dirty: () => dirty2 && changed(record.baseline, read()),
+      status(text, bad = false) {
+        model.message(text, bad);
+        paint();
+      },
+      field: resolve2,
+      summary(items, prefix = "Check: ") {
+        root.querySelectorAll("[data-form-banner]").forEach((n) => n.remove());
+        const banner = document.createElement("p");
+        banner.className = "note bad";
+        banner.dataset.formBanner = "";
+        banner.setAttribute("role", "alert");
+        function render5() {
+          const remaining = items.filter((item) => model.errors.has(resolve2(item.field)));
+          banner.replaceChildren(document.createTextNode(prefix));
+          remaining.forEach((item, i) => {
+            if (i) banner.append(", ");
+            banner.append(h.link(item.field, item.label));
+          });
+          if (!remaining.length) banner.remove();
+        }
+        banner.update = render5;
+        const head = root.querySelector(".ph");
+        if (head) head.insertAdjacentElement("afterend", banner);
+        else root.prepend(banner);
+        render5();
+      },
+      focus(field) {
+        const n = resolve2(field);
+        if (!n) return;
+        n.scrollIntoView({ block: "center" });
+        n.focus({ preventScroll: true });
+      },
+      link(field, text) {
+        const a = document.createElement("button");
+        a.type = "button";
+        a.className = "field-link";
+        a.textContent = text;
+        a.addEventListener("click", () => h.focus(field));
+        return a;
+      },
+      fieldError(field, text) {
+        const n = resolve2(field);
+        if (!n) {
+          h.status(text, true);
+          return;
+        }
+        clearMark(n);
+        const holder = n.closest(".field, fieldset") || n.parentElement;
+        const line = document.createElement("span");
+        line.className = "err";
+        line.dataset.formError = "";
+        line.id = "form-error-" + ++errorID;
+        line.textContent = text;
+        const described = n.getAttribute("aria-describedby") || "";
+        n.setAttribute("aria-invalid", "true");
+        n.setAttribute("aria-describedby", (described + " " + line.id).trim());
+        holder.classList.add("has-error");
+        if (holder.matches(".check")) holder.after(line);
+        else holder.append(line);
+        marks.set(n, { line, holder, described });
+        model.error(n, text);
+        paint();
+      },
+      error(text, field) {
+        const n = resolve2(field) || getFields().find((n2) => {
+          const name = n2.labels?.[0]?.textContent?.trim() || n2.getAttribute("aria-label") || n2.name || n2.id;
+          return name && name.length > 2 && text.toLowerCase().includes(name.toLowerCase());
+        });
+        if (n) h.fieldError(n, text);
+        h.status(text, true);
+      },
+      serverError(response2, text) {
+        const data = response2.data || {}, code = data.code || "";
+        const field = data.field || errorField(code);
+        h.error(text || data.error || "Not saved", field);
+        if (Array.isArray(data.missing)) data.missing.forEach((f) => h.fieldError(f, "Add " + f.replaceAll("_", " ") + "."));
+      },
+      clearErrors() {
+        marks.forEach((_, n) => clearMark(n));
+        model.clear();
+        root.querySelectorAll('.err:not([data-form-status]):not([data-form-error]), [id$="-err"], [data-form-banner]').forEach((n) => {
+          const field = n.closest(".field")?.querySelector(controls);
+          if (n.hasAttribute("data-form-banner")) n.remove();
+          else if (!field || getFields().includes(field)) n.textContent = "";
+        });
+        getFields().forEach((n) => n.removeAttribute("aria-invalid"));
+        paint();
+      },
+      edited(field) {
+        revision++;
+        if (field) {
+          const n = resolve2(field);
+          for (const marked of [...marks.keys()]) if (marked === n || n?.name && marked.name === n.name) {
+            clearMark(marked);
+            model.edit(marked);
+          }
+          ;
+          n?.removeAttribute("aria-invalid");
+          model.edit(n);
+        } else model.message("");
+        root.querySelectorAll("[data-form-banner]").forEach((n) => {
+          if (n.update) n.update();
+          else n.remove();
+        });
+        paint();
+      },
+      saved(text = "Saved", savedSnapshot) {
+        h.clearErrors();
+        record.baseline = savedSnapshot ?? snapshot(read());
+        initialFields = getFields();
+        initialValues = values(initialFields);
+        model.saved(text);
+        paint();
+        if (!handles.has(h) && key) active().find((other) => other !== h && other.ctx === ctx && other.key === key)?.saved(text, savedSnapshot);
+        options.onSaved?.(text);
+      },
+      async discard() {
+        if (discard) await discard(JSON.parse(record.baseline));
+        else if (options.restore) options.restore(JSON.parse(record.baseline));
+        else initialFields.forEach((n, i) => {
+          if (n.type === "checkbox" || n.type === "radio") n.checked = initialValues[i];
+          else if (n.type === "file") n.value = "";
+          else if (n.isContentEditable) n.textContent = initialValues[i];
+          else n.value = initialValues[i];
+          n.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        h.saved("");
+      },
+      save(event, action = save) {
+        if (busy) return busy;
+        if (!action) return Promise.resolve(false);
+        h.clearErrors();
+        const invalid2 = getFields().filter((n) => n.willValidate && !n.validity.valid);
+        if (invalid2.length) {
+          invalid2.forEach((n) => h.fieldError(n, n.validationMessage));
+          h.focus(invalid2[0]);
+          return Promise.resolve(false);
+        }
+        sentRevision = revision;
+        sentSnapshot = snapshot(read());
+        saving.add(h);
+        busy = (async () => {
+          try {
+            const pending = action(event || { preventDefault() {
+            }, target: root, currentTarget: root });
+            sentRevision = revision;
+            sentSnapshot = snapshot(read());
+            const result = await pending;
+            adoptErrors();
+            if (result === false || result?.ok === false || result !== true && model.bad) {
+              if (!model.bad) h.status("Not saved", true);
+              const first = model.errors.keys().next().value;
+              if (first) h.focus(first);
+              return false;
+            }
+            h.saved(model.status && !model.bad ? model.status : "Saved", revision !== sentRevision ? sentSnapshot : void 0);
+            return true;
+          } catch (e) {
+            h.status(e.message === "signed out" ? "Not saved" : "Cannot reach the server.", true);
+            return false;
+          } finally {
+            saving.delete(h);
+            busy = null;
+            paint();
+          }
+        })();
+        return busy;
+      },
+      canSave: !!save && options.saveOnLeave !== false,
+      destroy() {
+        observer?.disconnect();
+        root.removeEventListener("click", focusLink);
+        root.removeEventListener("input", edit, true);
+        root.removeEventListener("change", edit, true);
+        root.removeEventListener("invalid", invalid, true);
+        handles.delete(h);
+      }
+    };
+    let observer;
+    function adoptErrors() {
+      root.querySelectorAll('.err:not([data-form-error]):not([data-form-status]), [id$="-err"]').forEach((n) => {
+        const text = n.textContent.trim();
+        if (!text) return;
+        const field = n.closest(".field")?.querySelector(controls);
+        if (field && !getFields().includes(field)) return;
+        if (!field && forElement(n) !== h) return;
+        n.textContent = "";
+        h.error(text, field);
+      });
+    }
+    function edit(e) {
+      if (!getFields().includes(e.target)) return;
+      e.target.closest(".field")?.querySelectorAll('.err:not([data-form-status]), [id$="-err"]').forEach((n) => {
+        if (!n.hasAttribute("data-form-error")) n.textContent = "";
+      });
+      h.edited(e.target);
+      queueMicrotask(() => {
+        if (h.alive()) paint();
+      });
+    }
+    function focusLink(e) {
+      const link = e.target.closest("[data-field-focus]");
+      if (link) {
+        e.preventDefault();
+        h.focus(link.dataset.fieldFocus);
+      }
+    }
+    root.addEventListener("click", focusLink);
+    function invalid(e) {
+      e.preventDefault();
+      const first = model.errors.size === 0;
+      h.fieldError(e.target, e.target.validationMessage);
+      if (first) h.focus(e.target);
+    }
+    root.addEventListener("input", edit, true);
+    root.addEventListener("change", edit, true);
+    root.addEventListener("invalid", invalid, true);
+    discardButton?.addEventListener("click", () => h.discard());
+    handles.add(h);
+    paint();
+    bindOnce();
+    observer = new MutationObserver(adoptErrors);
+    observer.observe(root, { childList: true, characterData: true, subtree: true });
+    return h;
+  }
+  var errorID = 0;
+  function bind(ctx, target, save, options = {}) {
+    if (!target) return null;
+    const form = target.matches("form") ? target : null;
+    if (form) form.noValidate = true;
+    const button = form ? form.querySelector("button:not([type=button]), [type=submit]") : target;
+    const root = options.root || form || target.closest(".card, .setting, .sp, main");
+    const h = register(ctx, { root, save, saveButton: button, ...options });
+    const submit = (e) => {
+      e.preventDefault();
+      h.save(e);
+    };
+    if (form) onSubmit(form, button, submit);
+    else target.addEventListener("click", submit);
+    return h;
+  }
+  function dialogForm({ ctx = currentContext, root, label, save, saveButton, snapshot: readSnapshot, saveOnLeave = true, cancelValue = null, saveValue = true, close }) {
+    let finished = false, closing = false;
+    const finish = (value) => {
+      if (finished) return;
+      finished = true;
+      h.destroy();
+      close(value);
+    };
+    const h = register(ctx, {
+      root,
+      label,
+      save,
+      saveButton,
+      snapshot: readSnapshot,
+      saveOnLeave,
+      onSaved: (text) => {
+        if (save && text) finish(saveValue);
+      },
+      onExpire: () => finish(cancelValue)
+    });
+    return { handle: h, async done(value) {
+      if (finished || closing) return;
+      closing = true;
+      try {
+        if (value === cancelValue) {
+          if (!await confirmLeave([h])) return;
+        } else if (save && !await h.save()) return;
+        h.saved("");
+        finish(value);
+      } finally {
+        closing = false;
+      }
+    } };
+  }
+  var restoring = false;
+  async function preserve(ctx, work) {
+    if (restoring) return work();
+    const pending = active().filter((h) => (h.ctx === ctx || h.ctx?.alive === ctx?.alive) && (!saving.has(h) || h.editedWhileSaving()) && h.dirty()).map((h) => [h.key, { ...h.capture(), handle: h }]);
+    const result = await work();
+    restoring = true;
+    try {
+      for (const [key, draft] of pending) {
+        const h = active().find((h2) => h2.key === key);
+        if (h && h !== draft.handle) h.restoreDraft(draft);
+      }
+    } finally {
+      restoring = false;
+    }
+    return result;
+  }
+  async function cancel(root, close) {
+    const h = forElement(root);
+    if (!h || await confirmLeave([h])) return close();
+  }
+  function instant(ctx, root, options = {}) {
+    return root && register(ctx, { root, dirty: false, ...options });
+  }
+  function dirty(ctx) {
+    return active().some((h) => (!ctx || h.ctx === ctx) && !saving.has(h) && h.dirty());
+  }
+  async function confirmLeave(only, saved2) {
+    const dirtyForms = () => (only || active()).filter((h) => h.alive() && h !== saved2 && h.dirty()).sort((a, b) => Number(!!b.root.closest(".scrim")) - Number(!!a.root.closest(".scrim")));
+    const pending = dirtyForms();
+    if (!pending.some((h) => h.dirty())) return true;
+    if (leaving) return leaving;
+    leaving = (async () => {
+      const canSave = pending.every((h) => h.canSave);
+      const action = await dialog({
+        title: "Unsaved changes",
+        body: "Save your changes before leaving?",
+        buttons: [{ label: "Stay", value: "stay" }, { label: "Discard", value: "discard" }, ...canSave ? [{ label: "Save", value: "save", className: "btn primary" }] : []],
+        escapeValue: "stay",
+        focus: 0,
+        guard: false
+      });
+      if (action === "stay") return false;
+      for (; ; ) {
+        const h = dirtyForms()[0];
+        if (!h) return true;
+        if (action === "discard") await h.discard();
+        else if (!await h.save()) return false;
+      }
+    })();
+    try {
+      return await leaving;
+    } finally {
+      leaving = null;
+    }
+  }
+  function bindOnce() {
+    if (bound) return;
+    bound = true;
+    window.addEventListener("beforeunload", (e) => {
+      if (active().some((h) => h.dirty())) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
+  }
+  function dialogContext() {
+    return currentContext;
   }
 
   // internal/handler/static/hack/ui.js
@@ -124,10 +685,10 @@
     const guess = Date.UTC(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth(), tomorrow.getUTCDate(), 0, 0, 0);
     const offset1 = offsetMinutes(z, new Date(guess));
     if (offset1 == null) return guess;
-    let instant = guess - offset1 * 6e4;
-    const offset2 = offsetMinutes(z, new Date(instant));
-    if (offset2 != null && offset2 !== offset1) instant = guess - offset2 * 6e4;
-    return instant;
+    let instant2 = guess - offset1 * 6e4;
+    const offset2 = offsetMinutes(z, new Date(instant2));
+    if (offset2 != null && offset2 !== offset1) instant2 = guess - offset2 * 6e4;
+    return instant2;
   }
   function nextDeadline(event) {
     const now = Date.now();
@@ -158,6 +719,7 @@
     note.scrollIntoView({ block: "nearest" });
   }
   function toast(text, near, bad = false) {
+    if (message(text, near || document.querySelector("main"), bad)) return;
     if (!text) return;
     const note = document.createElement("p");
     note.className = "note toast " + (bad ? "bad" : "ok");
@@ -193,9 +755,7 @@
   }
   var saved = (near) => toast("Saved", near);
   function live(main) {
-    return (msg, kind, near) => {
-      if (msg) toast(msg, near || main, kind === "err" || kind === true);
-    };
+    return (msg, kind, near) => toast(msg, near || main, kind === "err" || kind === true);
   }
   var ERROR_MESSAGES = {
     coc_required: "Please agree to the code of conduct.",
@@ -480,7 +1040,8 @@
   function focusablesIn(box) {
     return Array.from(box.querySelectorAll(FOCUSABLE_SEL)).filter((el2) => !el2.disabled && el2.tabIndex !== -1 && !el2.hidden);
   }
-  function dialog({ title: title5, body, buttons, escapeValue = false, focus = 0 }) {
+  var dialogID = 0;
+  function dialog({ title: title5, body, buttons, escapeValue = false, focus = 0, form, guard = true }) {
     return new Promise((resolve2) => {
       const previous = document.activeElement;
       const scrim = document.createElement("div");
@@ -490,12 +1051,13 @@
       box.setAttribute("role", "dialog");
       box.setAttribute("aria-modal", "true");
       const h2 = document.createElement("h2");
-      h2.id = "dialog-title";
+      const id = "dialog-" + ++dialogID;
+      h2.id = id + "-title";
       h2.textContent = title5;
-      box.setAttribute("aria-labelledby", "dialog-title");
+      box.setAttribute("aria-labelledby", h2.id);
       box.append(h2);
-      const nodes = body == null ? [] : Array.isArray(body) ? body : body instanceof Node ? [body] : [Object.assign(document.createElement("p"), { id: "dialog-body", textContent: body })];
-      if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute("aria-describedby", "dialog-body");
+      const nodes = body == null ? [] : Array.isArray(body) ? body : body instanceof Node ? [body] : [Object.assign(document.createElement("p"), { id: id + "-body", textContent: body })];
+      if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute("aria-describedby", id + "-body");
       box.append(...nodes);
       const acts = document.createElement("div");
       acts.className = "acts";
@@ -511,16 +1073,23 @@
       acts.append(...els);
       box.append(acts);
       scrim.append(box);
-      function done(value) {
+      let formLifecycle = null, finished = false;
+      function finish(value) {
+        if (finished) return;
+        finished = true;
         document.removeEventListener("keydown", keydown, true);
         scrim.remove();
         previous?.focus();
         resolve2(value);
       }
+      function done(value) {
+        return formLifecycle ? formLifecycle.done(value) : finish(value);
+      }
       function primaryButton() {
         return els.find((b) => b.classList.contains("primary")) || els[els.length - 1];
       }
       function keydown(e) {
+        if ([...document.querySelectorAll(".scrim .dialog")].at(-1) !== box) return;
         if (e.key === "Escape") {
           e.preventDefault();
           done(escapeValue);
@@ -548,6 +1117,7 @@
       });
       document.addEventListener("keydown", keydown, true);
       document.body.append(scrim);
+      if (guard && box.querySelector(controls)) formLifecycle = dialogForm({ root: box, label: title5, save: form?.save, snapshot: form?.snapshot, saveOnLeave: form?.saveOnLeave, saveButton: primaryButton(), cancelValue: escapeValue, saveValue: buttons[els.indexOf(primaryButton())].value, close: finish });
       if (focus === "first-field") {
         const list = focusablesIn(box);
         const field = list.find((el2) => !acts.contains(el2));
@@ -611,11 +1181,15 @@
       acts.append(cancelBtn, okBtn);
       box.append(acts);
       scrim.append(box);
-      function done(value) {
+      let lifecycle;
+      function finish(value) {
         document.removeEventListener("keydown", keydown, true);
         scrim.remove();
         previous?.focus();
         resolve2(value);
+      }
+      function done(value) {
+        return lifecycle ? lifecycle.done(value) : finish(value);
       }
       function sync() {
         okBtn.disabled = input.value.trim() !== matchText;
@@ -626,6 +1200,7 @@
         if (!okBtn.disabled) done(true);
       });
       function keydown(e) {
+        if ([...document.querySelectorAll(".scrim .dialog")].at(-1) !== box) return;
         if (e.key === "Escape") {
           e.preventDefault();
           done(false);
@@ -644,69 +1219,9 @@
       });
       document.addEventListener("keydown", keydown, true);
       document.body.append(scrim);
+      lifecycle = dialogForm({ root: box, label: title5, cancelValue: false, close: finish });
       input.focus();
     });
-  }
-  var guardCtx = null;
-  var guardGetDirty = null;
-  var guardBound = false;
-  var lastPath = typeof location !== "undefined" ? location.pathname + location.search + location.hash : "";
-  function notePath(path) {
-    lastPath = path ?? location.pathname + location.search + location.hash;
-  }
-  function setDirtyGuard(ctx, getDirty) {
-    guardCtx = ctx;
-    guardGetDirty = getDirty;
-    bindGuardOnce();
-  }
-  function clearDirtyGuard() {
-    guardGetDirty = null;
-  }
-  function currentDirty() {
-    if (!guardGetDirty) return null;
-    if (guardCtx && guardCtx.alive && !guardCtx.alive()) {
-      guardGetDirty = null;
-      return null;
-    }
-    return guardGetDirty();
-  }
-  function bindGuardOnce() {
-    if (guardBound) return;
-    guardBound = true;
-    document.addEventListener("click", onGuardClick, true);
-    window.addEventListener("beforeunload", (e) => {
-      if (currentDirty()) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    });
-  }
-  async function onGuardClick(e) {
-    const info = currentDirty();
-    if (!info) return;
-    const a = e.target.closest("a[href]");
-    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute("download")) return;
-    let url;
-    try {
-      url = new URL(a.href);
-    } catch {
-      return;
-    }
-    if (url.origin !== location.origin) return;
-    if (url.pathname === location.pathname && url.search === location.search) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: "Your changes will be lost.", confirmLabel: "Discard", cancelLabel: "Keep editing", danger: true });
-    if (!ok) return;
-    guardGetDirty = null;
-    if (a.hasAttribute("data-signout")) {
-      a.click();
-      return;
-    }
-    if (isAppRoute(url.pathname)) {
-      lastPath = url.pathname + url.search + url.hash;
-      guardCtx.go(url.pathname + url.search + url.hash);
-    } else location.assign(url);
   }
   var AI_SUGGESTIONS = ["Claude", "ChatGPT", "Gemini", "Lovable", "Copilot", "Cursor"];
   var TOOL_SUGGESTIONS = ["Canva", "Google Sheets", "Figma", "Supabase", "Python", "Airtable"];
@@ -823,23 +1338,6 @@
     }
     tick();
   }
-  async function confirmDiscardForLeave() {
-    const info = currentDirty();
-    const target = location.pathname + location.search + location.hash;
-    if (!info) {
-      lastPath = target;
-      return true;
-    }
-    const from = lastPath;
-    const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: "Your changes will be lost.", confirmLabel: "Discard", cancelLabel: "Keep editing", danger: true });
-    if (!ok) {
-      history.pushState({}, "", from);
-      return false;
-    }
-    guardGetDirty = null;
-    lastPath = target;
-    return true;
-  }
 
   // internal/handler/static/hack/screens/public-judge.js
   var public_judge_exports = {};
@@ -878,23 +1376,6 @@
   }
   function paragraphs(text) {
     return String(text || "").split(/\n{2,}|\r\n\r\n/).map((s) => s.trim()).filter(Boolean);
-  }
-
-  // internal/mcp/apps/frame/platform.js
-  function replaceUrl(url) {
-    try {
-      history.replaceState({}, "", url);
-    } catch (e) {
-    }
-  }
-  function judgeCode() {
-    return window.__hackJudgeCode || "";
-  }
-  function judgeJoined(slug) {
-    window.__hackJudgeJoined(slug);
-  }
-  function onSubmit(form, button, handler) {
-    button.addEventListener("click", handler);
   }
 
   // internal/handler/static/hack/screens/public-judge.js
@@ -956,7 +1437,7 @@
     main.innerHTML = `<div class="pub"><section class="hero"><h1>You\u2019re invited to judge</h1><p>${ui.esc(info.title || "")}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ""}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ""}<p><a href="${eventHref}">See the event page</a></p></section><section class="card"><h2>Code of conduct</h2><p>${ui.esc(info.coc_default || "")}</p>${extraCoc ? `<p>${ui.esc(extraCoc)}</p>` : ""}</section>` + (signedIn ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form">${nameHTML}<label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><div class="form-actions"><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></div></form></section>` : `<div class="card"><p>Read the invitation, then sign in to accept.</p><div class="form-actions"><a class="btn primary lg" href="${ui.esc("/signin?next=" + encodeURIComponent(location.pathname))}">Sign in</a></div></div>`) + `</div>`;
     const form = main.querySelector("#pj-form");
     if (!form) return;
-    onSubmit(form, main.querySelector("#pj-submit"), async (e) => {
+    ui.forms.bind(ctx, form, async (e) => {
       e.preventDefault();
       const errBox = main.querySelector("#pj-err");
       errBox.textContent = "";
@@ -994,7 +1475,7 @@
       }
       if (!hasName && me) me.display_name = name;
       const slug = jr.data && (jr.data.slug || jr.data.event && jr.data.event.slug) || info.slug;
-      judgeJoined(slug);
+      judgeJoined(slug, (path) => ctx.go(path, { saved: ui.forms.forElement(form) }));
     });
   }
 
@@ -1041,6 +1522,11 @@
         ui.live(node)("Cannot reach the server.", "err", button);
       }
     });
+  }
+
+  // internal/mcp/apps/frame/judge-nav.js
+  function href(role, slug, section) {
+    return "#v=" + section;
   }
 
   // internal/handler/static/hack/screens/judge-queue.js
@@ -1143,8 +1629,8 @@
       { id: "scored", label: "Scored", count: scored.length, panel: scoredPanel },
       { id: "conflicts", label: "Teams I know", count: conflicts.length, panel: conflictsPanel }
     ];
-    const active = tabs.find((t) => t.id === ctx.params.get("tab")) || tabs.find((t) => t.count > 0) || tabs[0];
-    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>Teams you are scoring.</p></div></div>` + banner + `<nav class="subtabs" aria-label="My teams filters">${tabs.map((t) => `<a href="#" data-tab="${t.id}"${t.id === active.id ? ' aria-current="page"' : ""}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join("")}</nav>` + tabs.map((t) => `<section data-panel="${t.id}"${t.id === active.id ? "" : " hidden"}>${t.panel}</section>`).join("");
+    const active2 = tabs.find((t) => t.id === ctx.params.get("tab")) || tabs.find((t) => t.count > 0) || tabs[0];
+    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>Teams you are scoring.</p></div></div>` + banner + `<nav class="subtabs" aria-label="My teams filters">${tabs.map((t) => `<a href="#" data-tab="${t.id}"${t.id === active2.id ? ' aria-current="page"' : ""}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join("")}</nav>` + tabs.map((t) => `<section data-panel="${t.id}"${t.id === active2.id ? "" : " hidden"}>${t.panel}</section>`).join("");
     if (!locked && !resultsOut) {
       await bindAcknowledgement(ctx, { node: main.querySelector("#conflicts"), id: "j.conflicts", label: "I don't know any of these teams", role: "judge" });
       if (ctx.alive && !ctx.alive()) return;
@@ -1447,6 +1933,7 @@
     function goTeam(id) {
       ctx.go(`/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(id)}`);
     }
+    let commentForm;
     async function flushComment() {
       clearTimeout(commentTimer);
       if (commentSave) await commentSave;
@@ -1468,6 +1955,7 @@
         }
         comment = val;
         savedComment = val;
+        if (box.value === val) commentForm?.saved();
         return true;
       })();
       commentSave = pending;
@@ -1495,6 +1983,8 @@
     }
     if (!locked) {
       const commentBox = main.querySelector("#jsc-comment");
+      ui.forms.instant(ctx, main.querySelector("#jsc-criteria"));
+      commentForm = ui.forms.register(ctx, { root: commentBox.closest(".field"), label: "Comment", save: flushComment, fields: [commentBox] });
       commentBox.addEventListener("input", () => {
         clearTimeout(commentTimer);
         if (Object.keys(scores).length) commentTimer = setTimeout(flushComment, 900);
@@ -1558,7 +2048,8 @@
           main.querySelector("#jsc-comment-help").textContent = "Optional. Not shown with your name. Saves automatically.";
         }
         const saved2 = main.querySelector("#jsc-saved");
-        if (saved2) saved2.textContent = "Score saved";
+        if (saved2) saved2.textContent = "";
+        ui.toast("Score saved", main.querySelector("#jsc-criteria"));
         if (box.value !== savedComment) flushComment();
       }
       const conflictBtn = main.querySelector("#jsc-conflict");

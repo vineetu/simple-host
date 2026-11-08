@@ -247,3 +247,6 @@ fixtures plus local consistency checks. `make check-release` holds network/publi
 checks. The Makefile is authoritative; commands, fixture lifecycle and deploy/rollback steps are
 in [contributing](docs/architecture/contributing.md). Historical rollout notes are in
 [architecture history](docs/history/architecture-notes-2026-10.md).
+
+Simple Hack `static/hack/forms.js` owns shared edit guards, status, field errors, and focus links;
+see the [frontend guide](docs/architecture/frontend.md#hack-screen-conventions).

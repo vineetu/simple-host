@@ -113,7 +113,8 @@ ${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
     return `<div class="setting" id="leave"><div class="t"><b>Leave this event</b><span>${ui.esc(span)}</span></div><button class="btn danger" type="button" id="leave-open"${disabled ? ' disabled' : ''}>Leave event</button></div>`
   }
 
-  function paint() {
+  function paint() { return ui.forms.preserve(ctx, () => paintContent()) }
+  function paintContent() {
     const $ = id => main.querySelector('#' + id)
     const esc = ui.esc
     main.innerHTML = ({ details: `<section class="card"><h2>Organiser details</h2>
@@ -153,12 +154,14 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class
 
     function flashSaved(id) {
       const el = $(id)
+      ui.forms.forElement(el)?.clearErrors()
       el.hidden = false
       clearTimeout(el._t)
       el._t = setTimeout(() => { el.hidden = true }, 3000)
     }
 
     const appsToggle = $('apps-toggle')
+    if (appsToggle) ui.forms.instant(ctx, appsToggle.closest('.card'))
     if (appsToggle) appsToggle.addEventListener('click', async () => {
       const want = !appsToggle.classList.contains('on')
       appsToggle.disabled = true
@@ -173,7 +176,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class
       } catch (e) { setLive('Cannot reach the server.', 'err', appsToggle); appsToggle.disabled = false }
     })
 
-    $('set-save')?.addEventListener('click', async () => {
+    ui.forms.bind(ctx, $('set-save'), async () => {
       const btn = $('set-save'); btn.disabled = true
       const nRaw = $('set-n').value.trim()
       if (!/^[1-9]\d*$/.test(nRaw) || Number(nRaw) > 100000) { setLive('Expected participants must be between 1 and 100000.', 'err', btn); btn.disabled = false; return }
@@ -198,9 +201,9 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class
     const notifyAdd = $('notify-add')
     if (notifyAdd) notifyAdd.addEventListener('click', () => { addOpen = true; paint() })
     const notifyCancel = $('notify-cancel')
-    if (notifyCancel) notifyCancel.addEventListener('click', () => { addOpen = false; paint() })
+    if (notifyCancel) notifyCancel.addEventListener('click', () => ui.forms.cancel($('notify-form'), () => { addOpen = false; paint() }))
     const notifyForm = $('notify-form')
-    if (notifyForm) notifyForm.addEventListener('submit', async e => {
+    if (notifyForm) ui.forms.bind(ctx, notifyForm, async e => {
       e.preventDefault()
       const events = NOTIFY_EVENTS.map((_, i) => $('notify-ev-' + i)).filter(b => b.checked).map(b => b.dataset.notifyVal)
       if (!events.length) { setLive('Choose at least one event.', 'err'); return }
@@ -299,9 +302,10 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class
 
     $('delete-open')?.addEventListener('click', () => { deleteOpen = true; paint() })
     const delCancel = $('delete-cancel')
-    if (delCancel) delCancel.addEventListener('click', () => { deleteOpen = false; paint() })
+    if (delCancel) delCancel.addEventListener('click', () => ui.forms.cancel(delInput.closest('.setting'), () => { deleteOpen = false; paint() }))
     const delInput = $('delete-confirm')
     if (delInput) delInput.addEventListener('input', () => { $('delete-go').disabled = delInput.value.trim() !== ev.slug })
+    const deletion = delInput && ui.forms.register(ctx, { root: delInput.closest('.setting'), label: 'Delete event' })
     const delGo = $('delete-go')
     if (delGo) delGo.addEventListener('click', async () => {
       if (!requireTyped) {
@@ -314,6 +318,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class
           ? await api('DELETE', path, { confirm: ev.slug })
           : await api('DELETE', path)
         if (r.status !== 204) { setLive(ui.errText(r), 'err', delGo); delGo.disabled = requireTyped ? (delInput.value.trim() !== ev.slug) : false; return }
+        deletion?.saved('')
         ctx.go('/events')
       } catch (e) { setLive('Cannot reach the server.', 'err', delGo); delGo.disabled = false }
     })

@@ -71,7 +71,8 @@ export async function render(ctx, section) {
     return `<div class="control-row" data-q-row="${i}"><input class="input" data-q-prompt="${i}" type="text" maxlength="160" value="${ui.esc(q.prompt || '')}" placeholder="Question" aria-label="Question ${i + 1}"><label class="check"><input type="checkbox" data-q-required="${i}"${q.required ? ' checked' : ''}><span>Required</span></label><button class="btn danger sm" type="button" data-q-rm="${i}">Remove</button></div>`
   }
 
-  function paint() {
+  function paint() { return ui.forms.preserve(ctx, () => paintContent()) }
+  function paintContent() {
     if (!ctx.alive()) return
     const $ = id => main.querySelector('#' + id), esc = ui.esc
     if (section === 'organisers') {
@@ -163,7 +164,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
     }
     $('q-add').addEventListener('click', () => { if (questions.length < 8) { collectQuestions(); questions.push({ id: '', prompt: '', required: false }); paint() } })
     main.querySelectorAll('[data-q-rm]').forEach(btn => btn.addEventListener('click', () => { collectQuestions(); questions.splice(Number(btn.dataset.qRm), 1); paint() }))
-    $('q-save').addEventListener('click', async () => {
+    ui.forms.bind(ctx, $('q-save'), async () => {
       if (guardRegistration($('q-save'))) return
       const btn = $('q-save'); btn.disabled = true
       collectQuestions()
@@ -180,7 +181,8 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
         setLive('Questions saved.', 'ok', btn)
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
-    })
+    }, { key: 'questions', fields: () => [...main.querySelectorAll('[data-q-prompt], [data-q-required]')], snapshot: () => { collectQuestions(); return questions }, restore: value => { questions = value; paint() } })
+    ui.forms.instant(ctx, $('signup-approval').closest('label'), { fields: () => [$('signup-approval')] })
     $('signup-approval').addEventListener('change', async () => {
       if (guardRegistration($('signup-approval'))) { $('signup-approval').checked = approvalRequired; return }
       const box = $('signup-approval'); const prev = !box.checked; box.disabled = true

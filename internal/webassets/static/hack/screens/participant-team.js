@@ -190,24 +190,24 @@ export async function render(ctx) {
     main.querySelectorAll('[data-accept]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-accept')) + '/accept'))))
     main.querySelectorAll('[data-decline]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-decline')) + '/decline'))))
     const lookOn = $('look-on'), lookSave = $('look-save')
-    if (lookSave) lookSave.addEventListener('click', () => act(lookSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/me/looking', { looking: lookOn.checked, intro: $('look-intro').value }), { saved: true }))
+    if (lookSave) ui.forms.bind(ctx, lookSave, () => act(lookSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/me/looking', { looking: lookOn.checked, intro: $('look-intro').value }), { saved: true }))
     const joinGo = $('join-go')
-    if (joinGo) joinGo.addEventListener('click', () => {
+    if (joinGo) ui.forms.bind(ctx, joinGo, () => {
       const err = $('join-code-err')
       const input = $('join-code')
       const code = input.value.trim()
       if (!code) { err.hidden = false; err.textContent = 'Enter a team link or code.'; input.setAttribute('aria-invalid', 'true'); return }
       err.hidden = true; input.removeAttribute('aria-invalid')
-      act(joinGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/join', { code }))
+      return act(joinGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/join', { code }))
     })
     const startGo = $('start-go')
-    if (startGo) startGo.addEventListener('click', () => {
+    if (startGo) ui.forms.bind(ctx, startGo, () => {
       const err = $('start-name-err')
       const input = $('start-name')
       const name = input.value.trim()
       if (!name) { err.hidden = false; err.textContent = 'Enter a team name.'; input.setAttribute('aria-invalid', 'true'); return }
       err.hidden = true; input.removeAttribute('aria-invalid')
-      act(startGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams', { name }))
+      return act(startGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams', { name }))
     })
   }
 
@@ -301,7 +301,7 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     // not something admins turn on or off).
     const parts = [`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Settings</h2><p>${isAdmin ? 'Admins change the team’s name, what it’s looking for, the lock and its link.' : 'Settings for ' + esc(team.name) + '.'}</p></div>`]
     if (isAdmin) {
-      parts.push(`<section class="card"><h2>Team</h2><div class="field"><label for="set-name">Team name</label><input class="input" id="set-name" maxlength="80" value="${esc(team.name)}"${canAct ? '' : ' disabled'}></div><div class="field"><label for="set-looking">Looking for</label><input class="input" id="set-looking" maxlength="120" value="${esc(team.looking_for || '')}"${canAct ? '' : ' disabled'}><p class="help">Shown to people browsing teams. Leave it empty if you’re not looking.</p></div><div class="card-foot"><span class="hint" id="set-hint">No changes</span><button class="btn quiet" type="button" id="set-discard" disabled>Discard</button><button class="btn primary" type="button" id="set-save" disabled${canAct ? '' : ' disabled'}>Save</button></div></section>`)
+      parts.push(`<section class="card"><h2>Team</h2><div class="field"><label for="set-name">Team name</label><input class="input" id="set-name" maxlength="80" value="${esc(team.name)}"${canAct ? '' : ' disabled'}></div><div class="field"><label for="set-looking">Looking for</label><input class="input" id="set-looking" maxlength="120" value="${esc(team.looking_for || '')}"${canAct ? '' : ' disabled'}><p class="help">Shown to people browsing teams. Leave it empty if you’re not looking.</p></div><div class="card-foot"><span class="hint" id="set-hint"></span><button class="btn quiet" type="button" id="set-discard" disabled>Discard</button><button class="btn primary" type="button" id="set-save" disabled${canAct ? '' : ' disabled'}>Save</button></div></section>`)
       if (!frozen) {
         parts.push(`<section class="card"><h2>Joining</h2><div class="setting"><div class="t"><b>Lock team</b><span>No more people can join. The team link, requests and invites stop working, and the organiser’s Fill teams skips ${esc(team.name)}.</span></div><div class="ctl"><button class="toggle${team.locked ? ' on' : ''}" type="button" role="switch" aria-checked="${team.locked ? 'true' : 'false'}" aria-label="Lock team" id="lock-toggle"></button></div></div><div class="setting"><div class="t"><b>New team link</b><span>The old link and code stop working. People already on the team stay.</span></div><div class="ctl"><button class="btn" type="button" id="new-link">New link</button></div></div></section>`)
       }
@@ -349,25 +349,17 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     // Settings
     const setName = $('set-name'), setLooking = $('set-looking'), setDiscard = $('set-discard'), setSave = $('set-save'), setHint = $('set-hint')
     if (setName && setSave) {
-      function checkDirty() {
-        const dirty = setName.value !== team.name || setLooking.value !== (team.looking_for || '')
-        setDiscard.disabled = !dirty
-        setSave.disabled = !dirty
-        setHint.textContent = dirty ? '' : 'No changes'
-      }
-      setName.addEventListener('input', checkDirty)
-      setLooking.addEventListener('input', checkDirty)
-      setDiscard.addEventListener('click', () => { setName.value = team.name; setLooking.value = team.looking_for || ''; checkDirty() })
-      setSave.addEventListener('click', () => {
+      ui.forms.bind(ctx, setSave, () => {
         const name = setName.value.trim()
         if (!name) { ui.toast('Enter a team name.', setSave, true); return }
-        act(setSave, () => api('PATCH', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team', { name, looking_for: setLooking.value }), { saved: true })
-      })
+        return act(setSave, () => api('PATCH', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team', { name, looking_for: setLooking.value }), { saved: true })
+      }, { hint: setHint, discardButton: setDiscard, disableClean: true })
     }
     const lockToggle = $('lock-toggle')
     if (lockToggle) lockToggle.addEventListener('click', onToggleLock)
     const newLink = $('new-link')
     if (newLink) newLink.addEventListener('click', onNewLink)
+    ui.forms.instant(ctx, $('track-select')?.closest('.card'))
     const trackSelect = $('track-select')
     if (trackSelect) trackSelect.addEventListener('change', () => act(null, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/track', { track: trackSelect.value }), { saved: true }))
     const leaveBtn = $('leave-team')
@@ -432,7 +424,8 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
   }
 
   // -------------------------------------------------------------- paint --
-  function paint() {
+  function paint() { return ui.forms.preserve(ctx, () => paintContent()) }
+  function paintContent() {
     let body
     if (!team) {
       body = noTeamHTML()
@@ -444,7 +437,6 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     if (params.get('tab') !== tab) {
       const fixed = `${location.pathname}?s=team&tab=${tab}`
       history.replaceState(history.state, '', fixed)
-      ui.notePath(fixed)
     }
     const trackName = team.track ? team.track.name : 'No track'
     const lockedPill = team.locked ? ` <span class="pill warn" style="margin-left:6px">${LOCK_ICON}Locked</span>` : ''

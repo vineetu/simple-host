@@ -191,7 +191,8 @@ export async function render(ctx) {
     setLive('Unlinked', 'ok', $('acct-ids'));
     await loadIdentities();
   }
-  $('acct-name-form').addEventListener('submit', async function (e) {
+  paintAccount(me)
+  ui.forms.bind(ctx, $('acct-name-form'), async function (e) {
     e.preventDefault();
     setLive('');
     $('acct-name-err').textContent = '';
@@ -199,7 +200,7 @@ export async function render(ctx) {
     $('acct-name-save').disabled = true;
     try {
       var r = await api('PATCH', '/v1/me', { display_name: name });
-      if (!r.ok) { $('acct-name-err').textContent = accountErr(r, 'Could not save'); return; }
+      if (!r.ok) { ui.forms.forElement($('acct-name')).fieldError('acct-name', accountErr(r, 'Could not save')); return; }
       me.display_name = name;
       $('acct-name').value = (r.data && typeof r.data.display_name === 'string') ? r.data.display_name : name;
       setLive('Saved', 'ok', $('acct-name-save'));
@@ -208,9 +209,9 @@ export async function render(ctx) {
     } finally { $('acct-name-save').disabled = false; }
   });
   $('acct-email-open').addEventListener('click', function () { setLive(''); showEmailChange('email'); });
-  $('acct-email-cancel').addEventListener('click', function () { setLive(''); showEmailChange('row'); });
-  $('acct-code-cancel').addEventListener('click', function () { setLive(''); showEmailChange('row'); });
-  $('acct-email-form').addEventListener('submit', async function (e) {
+  $('acct-email-cancel').addEventListener('click', async function () { const h = ui.forms.forElement(this.closest('form')); if (h && !await ui.forms.confirmLeave([h])) return; setLive(''); showEmailChange('row'); });
+  $('acct-code-cancel').addEventListener('click', async function () { const h = ui.forms.forElement(this.closest('form')); if (h && !await ui.forms.confirmLeave([h])) return; setLive(''); showEmailChange('row'); });
+  ui.forms.bind(ctx, $('acct-email-form'), async function (e) {
     e.preventDefault();
     setLive('');
     var email = $('acct-email-input').value.trim();
@@ -226,7 +227,7 @@ export async function render(ctx) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-email-send'));
     } finally { $('acct-email-send').disabled = false; }
   });
-  $('acct-code-form').addEventListener('submit', async function (e) {
+  ui.forms.bind(ctx, $('acct-code-form'), async function (e) {
     e.preventDefault();
     setLive('');
     $('acct-code-go').disabled = true;
@@ -251,7 +252,7 @@ export async function render(ctx) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-code-go'));
     } finally { $('acct-code-go').disabled = false; }
   });
-  $('acct-password-form').addEventListener('submit', async function (e) {
+  ui.forms.bind(ctx, $('acct-password-form'), async function (e) {
     e.preventDefault();
     setLive('');
     $('acct-password-err').textContent = '';
@@ -292,6 +293,7 @@ export async function render(ctx) {
     saveNext('/account');
     startGoogle();
   });
+  ui.forms.instant(ctx, $('acct-alerts').closest('.card'))
   $('acct-alerts').addEventListener('change', async function () {
     var box = $('acct-alerts');
     var want = box.checked;
@@ -333,8 +335,9 @@ export async function render(ctx) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-everywhere'));
     } finally { $('acct-everywhere').disabled = false; }
   });
+  const deletion = ui.forms.register(ctx, { root: $('acct-delete'), label: 'Delete account' })
   $('acct-delete-open').addEventListener('click', function () { setLive(''); showDeleteAccount(true); });
-  $('acct-delete-cancel').addEventListener('click', function () { setLive(''); showDeleteAccount(false); });
+  $('acct-delete-cancel').addEventListener('click', function () { ui.forms.cancel($('acct-delete'), () => { setLive(''); showDeleteAccount(false) }) });
   $('acct-delete-input').addEventListener('input', function () {
     var want = (accountEmail || '').toLowerCase();
     $('acct-delete-go').disabled = !want || $('acct-delete-input').value.trim().toLowerCase() !== want;
@@ -351,7 +354,7 @@ export async function render(ctx) {
         return;
       }
       await ui.confirm({ title: 'Your account and all its data were deleted.', body: 'A confirmation is on its way to your email.', confirmLabel: 'Done' })
-      signOut(true);
+      (deletion.saved(''), signOut(true));
     } catch (err) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', go);
       go.disabled = false;
@@ -384,6 +387,7 @@ export async function render(ctx) {
       var r = await api('PATCH', '/v1/hack/preferences', { email_updates: want });
       if (!r.ok) { setLive(accountErr(r, 'Could not save'), 'err', t); t.disabled = false; return; }
       paintWait(r.data);
+      ui.forms.forElement(t)?.clearErrors();
       var saved = $('acct-wait-saved');
       saved.hidden = false;
       clearTimeout(saved._t);
@@ -435,6 +439,5 @@ export async function render(ctx) {
     } catch (e) { if (!client.isSignedOut(e)) statusEl.textContent = '' }
   }
 
-  paintAccount(me)
   await Promise.all([loadGoogleProvider(), loadIdentities(), loadWait(), loadConnectCard()])
 }

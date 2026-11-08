@@ -47,6 +47,7 @@ hack-next-step
 hack-notices
 hack-publish-finishes-judging
 hack-team-admins-lock-links
+hack-unsaved-edits
 hack-voting
 hackathon-event-instances
 hosted-events-simple-hack-app

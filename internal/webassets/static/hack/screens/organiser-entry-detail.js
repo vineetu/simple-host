@@ -154,7 +154,7 @@ ${e.description ? `<details class="card"><summary>More detail from the team</sum
 
   function wire (lockReason) {
     const takeDown = $('take-down')
-    if (takeDown) takeDown.addEventListener('click', onTakeDown)
+    if (takeDown) ui.forms.bind(ctx, takeDown, onTakeDown)
     const putBack = $('put-back')
     if (putBack) putBack.addEventListener('click', onPutBack)
     const exclude = $('ed-exclude')
@@ -171,7 +171,7 @@ ${e.description ? `<details class="card"><summary>More detail from the team</sum
       confirmLabel: 'Take this site down',
       danger: true
     })
-    if (!ok) return
+    if (!ok) return false
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/takedown', { reason }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
@@ -203,7 +203,7 @@ ${e.description ? `<details class="card"><summary>More detail from the team</sum
       confirmLabel: 'Exclude',
       danger: true
     })
-    if (!ok) return
+    if (!ok) return false
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/entry/exclude', {}) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }

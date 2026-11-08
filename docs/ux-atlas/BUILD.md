@@ -38,6 +38,7 @@ internal/webassets/static/hack/
                     display (errText's server-message-first text always loses to a generic "Something
                     went wrong. Try again." on a 5xx, since the server's own 5xx body is just
                     jargon).
+  forms.js          shared form registration, edit guard, status, field errors and focus links
   nav.js            sidebar items per role (from spec.json roles[].nav; stage rules)
   screens/<atlas-screen-id>.js   one module per atlas screen, e.g. screens/judge-scoring.js
 ```
@@ -173,7 +174,8 @@ Rules of thumb:
 2. Every feature id listed on that screen in `spec.json` works against the real API.
 3. The role's browser test passes on a local server and then on production with test accounts.
 4. `go vet ./... && go test ./internal/handler/ ./internal/mcp/` pass.
-5. The atlas shows the built screenshot next to the prototype (`build.py` "Built" view).
+5. Forms use `forms.js`; check Save/Discard/Stay, Back, reload, field focus, and error/edit/save expiry.
+6. The atlas shows the built screenshot next to the prototype (`build.py` "Built" view).
 
 ## Changing things later
 

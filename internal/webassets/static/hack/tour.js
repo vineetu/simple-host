@@ -207,7 +207,7 @@ export async function startTour(role, ctx, { force = false } = {}) {
   if (url.searchParams.has('walkthrough')) {
     url.searchParams.delete('walkthrough')
     const q = url.searchParams.toString()
-    history.replaceState({}, '', url.pathname + (q ? '?' + q : '') + url.hash)
+    history.replaceState(history.state, '', url.pathname + (q ? '?' + q : '') + url.hash)
   }
 
   teardown() // only one tour at a time

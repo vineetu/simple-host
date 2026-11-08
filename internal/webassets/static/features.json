@@ -4947,6 +4947,34 @@
    ],
    "features": [
     {
+     "id": "hack-unsaved-edits",
+     "name": "Keep form edits",
+     "line": "Save, discard, or keep editing before leaving a changed form.",
+     "who": "Participants, organisers, and judges editing forms.",
+     "how": "Unsaved changes show beside Save. Leaving offers Save, Discard, or Stay. Errors mark the field, clear when it changes, and disappear after a successful save. Missing-item links focus the field.",
+     "example": "Fill in your Entry, open Publish your website, and choose Save to keep your entry before going.",
+     "where": "Simple Hack forms and form dialogs.",
+     "editions": {
+      "host": "no",
+      "hack": "yes",
+      "enterprise": "no",
+      "smallbox": "partial"
+     },
+     "editions_note": "Hosted and self-hosted Simple Hack.",
+     "status": "live",
+     "docs": [
+      {
+       "label": "Join an event",
+       "href": "/docs/start/join/"
+      }
+     ],
+     "status_note": "",
+     "covers": [
+      "hack-unsaved-edits"
+     ],
+     "evidence": "FEATURES.md#hack-unsaved-edits; shared hack/forms.js and form browser tests."
+    },
+    {
      "id": "hack-run-event",
      "name": "Run an event",
      "line": "Create a hackathon at simple-hack.app, move it through its stages with one button, add co-organisers, and delete it when done.",

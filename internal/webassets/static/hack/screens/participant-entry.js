@@ -153,6 +153,10 @@ function paint (ctx, ev, data) {
 
 // --- Status block (Draft / Submitted / Incomplete) ------------------------
 
+function missingLinks(ui, fields) {
+  return fields.map(f => '<button type="button" class="field-link" data-field-focus="' + ui.esc(f) + '">' + ui.esc(FIELD_NAME[f] || f) + '</button>').join(', ')
+}
+
 function statusHTML (ui, status, data, { rules, deadlineText, submittedAtText }) {
   const esc = ui.esc
   const missing = Array.isArray(data.missing) ? data.missing : []
@@ -166,14 +170,14 @@ function statusHTML (ui, status, data, { rules, deadlineText, submittedAtText })
   const summaryMissing = missing.filter(f => SUMMARY_FIELDS.includes(f) || f === 'title' || f === 'description')
   const evidenceMissing = missing.filter(f => !summaryMissing.includes(f))
   const summaryText = 'Summary card' + (summaryStep.of ? ' · ' + (summaryStep.filled || 0) + ' of ' + summaryStep.of : '') +
-    (summaryMissing.length ? ' · Missing: ' + summaryMissing.map(f => FIELD_NAME[f] || f).join(', ') : '')
+    (summaryMissing.length ? ' · Missing: ' + missingLinks(ui, summaryMissing) : '')
   // The rules sentence already names the one-of group, so only lines it
   // doesn't name (a required code link or screenshot) are spelled out.
   const evidenceExtra = evidenceMissing.filter(f => f !== 'one_of' && !(f === 'code_url' && /code link/.test(evidenceLabel)))
-  const evidenceText = ucfirst(evidenceLabel) + (evidenceExtra.length ? ' · Missing: ' + evidenceExtra.map(f => FIELD_NAME[f] || f).join(', ') : '')
+  const evidenceText = esc(ucfirst(evidenceLabel)) + (evidenceExtra.length ? ' · Missing: ' + missingLinks(ui, evidenceExtra) : '')
   const need = '<ul class="need" id="en-need">' +
-    '<li class="' + (summaryUnmet ? '' : 'ok') + '">' + esc(summaryText) + '</li>' +
-    (rules.summary || evidenceMissing.length ? '<li class="' + (evidenceUnmet ? '' : 'ok') + '">' + esc(evidenceText) + '</li>' : '') +
+    '<li class="' + (summaryUnmet ? '' : 'ok') + '">' + summaryText + '</li>' +
+    (rules.summary || evidenceMissing.length ? '<li class="' + (evidenceUnmet ? '' : 'ok') + '">' + evidenceText + '</li>' : '') +
     '</ul>'
   if (status === 'submitted') {
     if (!complete) {
@@ -390,7 +394,7 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
       btn.type = 'button'
       btn.setAttribute('aria-label', 'Remove ' + t)
       btn.textContent = '×'
-      btn.addEventListener('click', () => { tools.splice(i, 1); renderTags(); updatePreview() })
+      btn.addEventListener('click', () => { tools.splice(i, 1); renderTags(); updatePreview(); main.__enForm?.edited($('en-tools-input')) })
       span.append(btn)
       group.insertBefore(span, input)
     })
@@ -419,6 +423,7 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
     if (tools.some(t => t.toLowerCase() === v.toLowerCase())) return
     tools.push(v.slice(0, 30))
     renderTags()
+    main.__enForm?.edited($('en-tools-input'))
   }
   const toolsInput = $('en-tools-input')
   if (toolsInput) {
@@ -427,9 +432,11 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
         e.preventDefault()
         addTag(toolsInput.value)
         toolsInput.value = ''
+        main.__enForm?.edited(toolsInput)
       } else if (e.key === 'Backspace' && !toolsInput.value) {
         tools.pop()
         renderTags()
+        main.__enForm?.edited(toolsInput)
       }
     })
   }
@@ -449,11 +456,8 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
     return true
   }
 
-  function clearErrors () { main.querySelectorAll('.err').forEach(n => { n.textContent = '' }); main.querySelectorAll('.has-error').forEach(n => n.classList.remove('has-error')) }
-  function fieldErr (f, msg) {
-    const n = $('en-' + f + '-err')
-    if (n) { n.textContent = msg || ''; const field = n.closest('.field'); if (field) field.classList.add('has-error') }
-  }
+  const clearErrors = () => form.clearErrors()
+  const fieldErr = (f, msg) => form.fieldError(f, msg)
   function showFieldError (code, msg, sent) {
     if (code === 'invalid_url') {
       const which = ['video_url', 'code_url'].filter(f => sent && Object.prototype.hasOwnProperty.call(sent, f))
@@ -485,6 +489,7 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
 
   async function doSave (btn) {
     clearErrors()
+    if (toolsInput?.value.trim()) { addTag(toolsInput.value); toolsInput.value = '' }
     const body = diffBody()
     if (!Object.keys(body).length) { ui.toast('Saved', btn); return { ok: true, data: data } }
     body.updated_at = entry.updated_at || ''
@@ -521,9 +526,15 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
   }
 
   const saveBtn = $('en-save')
-  if (saveBtn) saveBtn.addEventListener('click', async () => {
+  const form = ui.forms.bind(ctx, saveBtn, async () => {
     const r = await doSave(saveBtn)
-    if (r.ok) { ui.toast('Saved', saveBtn); paint(ctx, ev, r.data) }
+    if (r.ok) { await ui.forms.preserve(ctx, () => paint(ctx, ev, r.data)) }
+    return r
+  }, { root: main, label: 'Entry', snapshot: () => [ui.forms.values(main.querySelectorAll(ui.forms.controls)), tools], restoreFields: true, restore: value => { tools = value[1]; renderTags(); updatePreview() } })
+  main.__enForm = form
+  ;['track', 'tools', 'maturity', 'screenshot', 'one_of', 'site'].forEach(f => {
+    const n = f === 'tools' ? toolsInput : f === 'maturity' ? main.querySelector('[name="en-mat"]') : f === 'screenshot' ? $('en-shot') : f === 'one_of' || f === 'site' ? $('en-video_url') || main.querySelector('a[href*="s=website"]') : $('en-' + f)
+    if (n) n.dataset.formField = f === 'site' ? 'one_of' : f
   })
   const submitFoot = $('en-submit-foot')
   if (submitFoot) submitFoot.addEventListener('click', () => doSubmit(ctx, ev, data))
@@ -549,8 +560,8 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
         else ui.toast(msg, input, true)
         return
       }
-      ui.toast('Screenshot saved', input)
-      paint(ctx, ev, resp.data || {})
+      await ui.forms.preserve(ctx, () => paint(ctx, ev, resp.data || {}))
+      main.__enForm.status('Screenshot saved')
     } catch (e) {
       input.value = ''
       if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', input, true)
@@ -568,8 +579,8 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
         if (await blockedRefresh(resp)) return
         ui.toast(errText(resp), shotRemove, true); shotRemove.disabled = false; return
       }
-      ui.toast('Screenshot removed', main.querySelector('.card'))
-      paint(ctx, ev, resp.data || {})
+      await ui.forms.preserve(ctx, () => paint(ctx, ev, resp.data || {}))
+      main.__enForm.status('Screenshot removed')
     } catch (e) {
       if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', shotRemove, true); shotRemove.disabled = false }
     }
@@ -578,7 +589,7 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
   // Exposed for doSubmit/doUnsubmit below (module-scope functions need the
   // live diff + save, not a stale closure from paint()).
   main.__enDiffBody = diffBody
-  main.__enSave = doSave
+  main.__enSave = async btn => { let response; await form.save(null, async () => { response = await doSave(btn); return response }); return response || { ok: false } }
 }
 
 // Marks every missing line after a refused submit (or a refused save on a
@@ -587,28 +598,18 @@ function wireForm (ctx, ev, data, rules, hasTracks) {
 // refused"). "one_of" is the show-your-work group, named once at the top of
 // that card. "site" has no input, so its line is named on the group's err.
 function markMissing (main, missing, rules) {
+  const form = main.__enForm
+  if (!form) return
   const ADD = {
     title: 'Add a project name.', problem: 'Add the problem, in one line.', tagline: 'Add the solution, in one line.',
-    audience: "Add who it's for.", track: 'Choose a track.', tools: 'Add at least one tool.', maturity: 'Choose what works today.',
-    description: 'Add a description.', video_url: 'Add a video link.', code_url: 'Add a code link.', screenshot: 'Add a screenshot.'
+    audience: "Add who it's for.", track: 'Pick a track', tools: 'Add at least one tool.', maturity: 'Choose what works today.',
+    description: 'Add a description.', video_url: 'Add a video link.', code_url: 'Add a code link.', screenshot: 'Add a screenshot.',
+    one_of: 'Add ' + (rules.summary || 'a video or a website') + '.', site: 'Publish your website.'
   }
-  let first = null
-  missing.forEach(f => {
-    let errId = 'en-' + f + '-err'
-    let msg = ADD[f]
-    if (f === 'one_of') { errId = 'en-one_of-err'; msg = 'Add ' + (rules.summary || 'a video or a website') + '.' }
-    if (f === 'site') { errId = 'en-one_of-err'; msg = 'Publish your website.' }
-    const n = main.querySelector('#' + errId)
-    if (!n) return
-    n.textContent = msg || ''
-    const holder = n.closest('.field') || n.closest('.card')
-    if (holder) holder.classList.add('has-error')
-    if (!first) {
-      const target = f === 'one_of' ? main.querySelector('#en-video_url') : (f === 'maturity' ? main.querySelector('input[name="en-mat"]') : (f === 'tools' ? main.querySelector('#en-tools-input') : main.querySelector('#en-' + f)))
-      if (target) first = target
-    }
-  })
-  if (first) first.focus()
+  form.clearErrors()
+  missing.forEach(f => form.fieldError(f === 'site' ? 'one_of' : f, ADD[f] || 'Fill this in.'))
+  form.summary(missing.map(f => ({ field: f === 'site' ? 'one_of' : f, label: PLAIN[f] || f })), 'Add these first: ')
+  form.focus(missing[0] === 'site' ? 'one_of' : missing[0])
 }
 
 async function doSubmit (ctx, ev, data) {
@@ -622,9 +623,10 @@ async function doSubmit (ctx, ev, data) {
       const saved = await main.__enSave(null)
       if (!saved.ok) { submitBtns.forEach(b => { b.disabled = false }); return }
       if (saved.data && saved.data.entry) data = saved.data
+      if (main.__enForm?.dirty()) { submitBtns.forEach(b => { b.disabled = false }); main.__enForm.status('Not saved'); return }
     }
     const resp = await api('POST', path + '/submit', {})
-    if (resp.ok) { paint(ctx, ev, resp.data || {}); return }
+    if (resp.ok) { await ui.forms.preserve(ctx, () => paint(ctx, ev, resp.data || {})); return }
     // The server unifies this with the save-time guard under one code
     // (entryWrite, hack_entries.go): 422 entry_would_be_incomplete, with a
     // ready-made sentence in `error` ("Add these first: …") and the raw
@@ -632,12 +634,6 @@ async function doSubmit (ctx, ev, data) {
     // draft (main.__enSave above), so no extra GET is needed to repaint it.
     if (resp.data && (resp.data.code === 'entry_incomplete' || resp.data.code === 'entry_would_be_incomplete')) {
       paint(ctx, ev, data)
-      const note = document.createElement('p')
-      note.className = 'note bad'
-      note.setAttribute('role', 'alert')
-      note.textContent = errText(resp, 'Add these before you submit.')
-      const headEl = main.querySelector('.ph')
-      if (headEl) headEl.insertAdjacentElement('afterend', note)
       const missing = Array.isArray(resp.data.missing) ? resp.data.missing : []
       markMissing(main, missing, data.rules || {})
       return

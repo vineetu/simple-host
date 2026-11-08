@@ -139,7 +139,7 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
   function wire () {
     main.querySelectorAll('[data-clear-ext]').forEach(btn => btn.addEventListener('click', () => onClearExtension(btn.getAttribute('data-clear-ext'))))
     const extSave = $('ext-save')
-    if (extSave) extSave.addEventListener('click', onGiveExtension)
+    if (extSave) ui.forms.bind(ctx, extSave, onGiveExtension)
     main.querySelectorAll('[data-exclude]').forEach(btn => btn.addEventListener('click', () => onExclude(btn.getAttribute('data-exclude'), btn.getAttribute('data-name'))))
     main.querySelectorAll('[data-include]').forEach(btn => btn.addEventListener('click', () => onInclude(btn.getAttribute('data-include'))))
     $('export-entries').addEventListener('click', () => client.downloadFile('/v1/hack/events/' + encodeURIComponent(slug) + '/export/entries.csv', slug + '-entries.csv', $('export-entries')))
