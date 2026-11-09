@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-09: Simple Hack entry cards: "Who it's for" is optional by default in both presets. Events on a preset move with it; custom rules stay as they are.
+
 2026-11-08: Simple Hack asks before leaving a form with unsaved edits; clean and just-saved forms leave without a prompt.
 
 2026-11-07: Simple Hack checklist reads batch judging facts by stage, unresolved published ties stay actionable, and rubric acknowledgements use the version displayed. Results edits follow current ties; action links and read-only Home guidance use the event's actual state and address.

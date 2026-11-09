@@ -2496,7 +2496,7 @@
     },
     {
      "q": "What do the presets set?",
-     "decision": "SIM-382 (owner, 2026-11-05/06), replacing the original three: Video or website (the default): everything on the card Required, Video and Website One of, Code Off, Screenshot Optional, Video first. Video, website and code link: everything on the card Required, Video, Website and Code link all Required (not One of), Screenshot Optional, Website first. Title is always Required; Track is ignored when the event has no tracks. The three retired presets (AI build, Coding, Ideas and design) and Custom keep their old tables for an event already on one -- they're simply no longer offered to pick.",
+     "decision": "SIM-382 (owner, 2026-11-05/06), replacing the original three: Video or website (the default): everything on the card Required, Video and Website One of, Code Off, Screenshot Optional, Video first. Video, website and code link: everything on the card Required, Video, Website and Code link all Required (not One of), Screenshot Optional, Website first. Title is always Required; Track is ignored when the event has no tracks. The three retired presets (AI build, Coding, Ideas and design) and Custom keep their old tables for an event already on one -- they're simply no longer offered to pick. SIM-395 (owner, 2026-11-06): Who it's for is Optional in every preset; events still on a preset moved with it, Custom rules stay as set.",
      "why": "Owner: the real choice organisers care about is what evidence teams must show, not the three original event-kind labels; two clear options beat three overlapping ones plus an implicit fourth (Custom)."
     },
     {

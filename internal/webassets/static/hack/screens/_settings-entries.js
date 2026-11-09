@@ -14,12 +14,12 @@ import { href, resolve } from '../nav.js'
 const PRESETS = {
   video_or_website: {
     label: 'Video or website', desc: 'Teams show a demo video or a published website -- at least one of the two.',
-    fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'required', track: 'required', tools: 'required', maturity: 'required', description: 'optional', video_url: 'one_of', site: 'one_of', code_url: 'off', screenshot: 'optional' },
+    fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'optional', track: 'required', tools: 'required', maturity: 'required', description: 'optional', video_url: 'one_of', site: 'one_of', code_url: 'off', screenshot: 'optional' },
     judge_first: 'video'
   },
   video_website_code: {
     label: 'Video, website and code link', desc: 'Teams show a demo video, a published website and a code link -- all three required.',
-    fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'required', track: 'required', tools: 'required', maturity: 'required', description: 'optional', video_url: 'required', site: 'required', code_url: 'required', screenshot: 'optional' },
+    fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'optional', track: 'required', tools: 'required', maturity: 'required', description: 'optional', video_url: 'required', site: 'required', code_url: 'required', screenshot: 'optional' },
     judge_first: 'site'
   }
 }

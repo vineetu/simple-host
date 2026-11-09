@@ -1,5 +1,9 @@
 [
   {
+    "date": "2026-11-09",
+    "what": "SIM-395: Who it's for is Optional by default in both entry presets; events on a preset moved with it, custom rules unchanged."
+  },
+  {
     "date": "2026-11-08",
     "what": "SIM-397: one universal rule protects unsaved page forms before leaving, Back, reload or closing the tab; clean and just-saved forms never ask."
   },

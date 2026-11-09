@@ -537,7 +537,7 @@ func TestHackEntryRulesPresetsAndDryRun(t *testing.T) {
 	// A new event starts on the video_or_website preset, expanded.
 	view := a.at(t, "GET", base, nil, a.key(w.org)).json(t)
 	fields := view["fields"].(map[string]any)
-	if view["preset"] != "video_or_website" || fields["audience"] != "required" || fields["code_url"] != "off" {
+	if view["preset"] != "video_or_website" || fields["audience"] != "optional" || fields["code_url"] != "off" {
 		t.Fatalf("default video_or_website preset: %#v", view)
 	}
 
@@ -570,7 +570,7 @@ func TestHackEntryRulesPresetsAndDryRun(t *testing.T) {
 		t.Fatalf("field override -> custom: %d %#v", overR.status, overR.json(t))
 	}
 	oFields := overR.json(t)["fields"].(map[string]any)
-	if oFields["screenshot"] != "required" || oFields["audience"] != "required" {
+	if oFields["screenshot"] != "required" || oFields["audience"] != "optional" {
 		t.Fatalf("override kept the rest of video_or_website: %#v", oFields)
 	}
 
@@ -662,7 +662,7 @@ func TestHackEntryRequiredAliasDeprecated(t *testing.T) {
 		t.Fatalf("alias did not require screenshot: %#v", fields)
 	}
 	// Fields outside the legacy list are untouched (still video_or_website's values).
-	if fields["audience"] != "required" || fields["code_url"] != "off" {
+	if fields["audience"] != "optional" || fields["code_url"] != "off" {
 		t.Fatalf("alias touched a non-legacy field: %#v", fields)
 	}
 }

@@ -25,7 +25,7 @@ func TestEvaluateEntryPresets(t *testing.T) {
 	}{
 		{"build complete via video", "build", full, false, false, nil, true, nil},
 		{"build missing everything", "build", model.EventEntry{}, false, false, nil, false,
-			[]string{"title", "problem", "tagline", "audience", "tools", "maturity", "one_of"}},
+			[]string{"title", "problem", "tagline", "tools", "maturity", "one_of"}},
 		{"build needs a track when the event has one", "build", full, false, true, nil, false, []string{"track"}},
 		{"build satisfied once a track is chosen", "build", full, false, true, track, true, nil},
 		{"build one_of satisfied by site instead of video", "build",
@@ -45,7 +45,7 @@ func TestEvaluateEntryPresets(t *testing.T) {
 			false, false, nil, true, nil},
 		{"ideas missing required and the one_of group", "ideas",
 			model.EventEntry{Title: "T"}, false, false, nil, false,
-			[]string{"problem", "tagline", "audience", "one_of"}},
+			[]string{"problem", "tagline", "one_of"}},
 		{"title floor: empty title is always missing even under a lenient preset", "ideas",
 			model.EventEntry{Problem: "P", Tagline: "Tag", Audience: "Aud", HasScreenshot: true},
 			false, false, nil, false, []string{"title"}},
@@ -127,7 +127,8 @@ func TestEntryRulesSummary(t *testing.T) {
 // TestEntryMissingMessageCanonicalOrder: missing fields read in
 // RuleFields order, with "one_of" (naming the event's own group) last.
 func TestEntryMissingMessageCanonicalOrder(t *testing.T) {
-	fields := ExpandPreset("ideas") // title, problem, tagline, audience required; one_of group set
+	fields := ExpandPreset("ideas") // title, problem, tagline required; one_of group set
+	fields["audience"] = "required" // presets leave it optional (SIM-395); custom rules may require it
 	check := Evaluate(fields, model.EventEntry{}, false, true, nil)
 	if !slices.Equal(check.Missing, []string{"title", "problem", "tagline", "audience", "track", "one_of"}) {
 		t.Fatalf("canonical order: %v", check.Missing)
@@ -246,5 +247,22 @@ func TestPresetSettable(t *testing.T) {
 	}
 	if PresetKnown("nonsense") {
 		t.Fatalf("nonsense should not be known")
+	}
+}
+
+// TestPresetsLeaveAudienceOptional: SIM-395 (owner, 2026-11-06). "Who it's
+// for" is Optional in every preset, so a card complete except for it is
+// complete: no "Missing:" line, checklist step or reminder names it.
+func TestPresetsLeaveAudienceOptional(t *testing.T) {
+	e := model.EventEntry{Title: "T", Problem: "P", Tagline: "S", Tools: []string{"Go"}, Maturity: "working", VideoURL: "https://example.com/v"}
+	for name := range Presets {
+		fields := ExpandPreset(name)
+		if fields["audience"] != "optional" {
+			t.Fatalf("preset %s: audience = %q, want optional", name, fields["audience"])
+		}
+		check := Evaluate(fields, e, true, false, nil)
+		if slices.Contains(check.Missing, "audience") {
+			t.Fatalf("preset %s: missing names audience: %v", name, check.Missing)
+		}
 	}
 }

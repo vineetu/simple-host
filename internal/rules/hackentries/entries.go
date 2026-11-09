@@ -30,13 +30,15 @@ type EntryRules struct {
 // newly created event starts on ("video_or_website"). SIM-382 (owner,
 // 2026-11-05/06) narrowed the organiser's choice to exactly two presets,
 // both naming what teams hand in:
-//   - Video or website (the default): everything on the card Required,
-//     Video and Website One of, Code Off, Screenshot Optional, video first.
-//   - Video, website and code link: everything on the card Required,
-//     Video, Website and Code link all Required (not One of), Screenshot
-//     Optional, website first.
+//   - Video or website (the default): everything on the card Required
+//     except Who it's for, Video and Website One of, Code Off, Screenshot
+//     Optional, video first.
+//   - Video, website and code link: everything on the card Required
+//     except Who it's for, Video, Website and Code link all Required (not
+//     One of), Screenshot Optional, website first.
 //
-// Description is Optional in both. Title is always Required, and Track is
+// Description and Who it's for (audience) are Optional in every preset
+// (SIM-395, owner 2026-11-06; migration 0010 moved preset-backed events). Title is always Required, and Track is
 // ignored when the event has no tracks.
 //
 // "build", "code" and "ideas" (AI build, Coding, Ideas and design) stay
@@ -48,18 +50,18 @@ type EntryRules struct {
 var Presets = map[string]map[string]string{
 	"video_or_website": {
 		"title": "required", "problem": "required", "tagline": "required",
-		"audience": "required", "track": "required", "tools": "required", "maturity": "required",
+		"audience": "optional", "track": "required", "tools": "required", "maturity": "required",
 		"description": "optional", "video_url": "one_of", "site": "one_of", "code_url": "off", "screenshot": "optional",
 	},
 	"video_website_code": {
 		"title": "required", "problem": "required", "tagline": "required",
-		"audience": "required", "track": "required", "tools": "required", "maturity": "required",
+		"audience": "optional", "track": "required", "tools": "required", "maturity": "required",
 		"description": "optional", "video_url": "required", "site": "required", "code_url": "required", "screenshot": "optional",
 	},
 	// Legacy, read-only from PutRules's point of view (see PresetSettable):
 	"build": {
 		"title": "required", "problem": "required", "tagline": "required",
-		"audience": "required", "track": "required", "tools": "required", "maturity": "required",
+		"audience": "optional", "track": "required", "tools": "required", "maturity": "required",
 		"description": "optional", "video_url": "one_of", "site": "one_of", "code_url": "off", "screenshot": "optional",
 	},
 	"code": {
@@ -69,7 +71,7 @@ var Presets = map[string]map[string]string{
 	},
 	"ideas": {
 		"title": "required", "problem": "required", "tagline": "required",
-		"audience": "required", "track": "required", "tools": "optional", "maturity": "optional",
+		"audience": "optional", "track": "required", "tools": "optional", "maturity": "optional",
 		"description": "optional", "video_url": "one_of", "site": "one_of", "code_url": "off", "screenshot": "one_of",
 	},
 }
