@@ -87,6 +87,7 @@ Change an event's page text and settings. Sends only the fields you set, so omit
 | tagline | string |  | Short line under the title, up to 160 characters. Empty clears it. |
 | team_finding | boolean |  | Enable private team finding. Codes keep working when off. |
 | team_size_max | integer |  | Maximum people on a team, from 1 to 50. |
+| theme | string, one of ``, `poster`, `confetti`, `boardroom`, `garden`, `terminal` |  | Page style for the public event page: poster, confetti, boardroom, garden, terminal, or an empty string for the classic look. The organiser's accent_color still drives buttons and links under every style. |
 | time_zone | string |  | IANA time zone. Empty means UTC. |
 | title | string |  | New title, one line, up to 120 characters. |
 

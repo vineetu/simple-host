@@ -160,6 +160,7 @@ Edit page text and settings (organiser) (EVENTS=hosted only)
 | tagline | string |  |  |
 | team_finding | boolean |  |  |
 | team_size_max | integer |  |  |
+| theme | string, one of ``, `poster`, `confetti`, `boardroom`, `garden`, `terminal` |  | Whole-page style for the public event page; empty is the classic look. accent_color still drives buttons and links under every style. Invalid value is 400 invalid_theme. |
 | time_zone | string |  |  |
 | title | string |  |  |
 
@@ -2011,7 +2012,7 @@ The organiser turns off that person's team key. 204 when they had none. A person
 
 <div data-operation="GET /v1/hack/events/{slug}/public"></div>
 
-Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url. Gallery items carry tools (the entry's tags). Each shown results row carries entry (HackResultCard) when the results were published with cards; rows the visibility setting hides are not emitted, so their cards never appear. fixed_schedule lists the event's real times as read-only schedule rows (HackFixedScheduleRow, without prompts), and schedule rows carry no prompt.
+Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url. Gallery items carry tools (the entry's tags). Each shown results row carries entry (HackResultCard) when the results were published with cards; rows the visibility setting hides are not emitted, so their cards never appear. fixed_schedule lists the event's real times as read-only schedule rows (HackFixedScheduleRow, without prompts), and schedule rows carry no prompt. Carries theme (the organiser's whole-page Look style, or empty for Classic) alongside the usual colour fields.
 
 **Parameters:**
 
