@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-09",
+    "what": "SIM-414: Website considers every events grant, names every app linked to this team and distinguishes no team picked. Account lists every connected app with last use, publishing teams and Disconnect with confirmation; connect steps stay below."
+  },
+  {
+    "date": "2026-11-09",
     "what": "Organiser assistant v2: Ask moves off Home's header into a floating button on every organiser screen of the event (same chat, same history), and it now explains every organiser setting and option from the navigation map's explanation layer (navigation-help.json)."
   },
   {

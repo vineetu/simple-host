@@ -94,3 +94,7 @@ func (s *Service) PurgeExpiredAPIKeys(ctx context.Context, idle time.Duration) (
 
 // NamespaceDomains returns the namespace configured by the composition root.
 func (s *Service) NamespaceDomains() []string { return repo.PlatformDomains() }
+
+func (s *Service) OAuthConnectionTeams(ctx context.Context, userID string) (map[string][]model.OAuthConnectionTeam, error) {
+	return repo.OAuthConnectionTeams(ctx, s.database, userID)
+}

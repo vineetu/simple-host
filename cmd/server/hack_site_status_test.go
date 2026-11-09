@@ -2,8 +2,10 @@ package main
 
 import (
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
 )
@@ -109,7 +111,7 @@ func TestHackSiteStatusConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	keyState := a.api(t, "GET", "/v1/hack/events/"+ev+"/site", nil, p3.key).json(t)["connection"].(map[string]any)
-	if keyState["state"] != "key" {
+	if keyState["state"] != "key" || len(keyState["apps"].([]any)) != 0 {
 		t.Fatalf("key state: %v", keyState)
 	}
 
@@ -158,10 +160,98 @@ func TestHackSiteStatusConnection(t *testing.T) {
 // which moved from hack_connect_steps.go (moving) to hack_assets.go
 // (staying), and needs no teamSiteApp/hackApp fixture.
 
-func TestLatestEventsGrantsByUserEmpty(t *testing.T) {
+func TestEventsGrantsByUserEmpty(t *testing.T) {
 	a := newTeamSiteApp(t)
-	out, err := teams.New(a.database).LatestGrants(t.Context(), nil, "https://example.test/mcp")
+	out, err := teams.EventsGrantsByUser(t.Context(), a.database, nil, "https://example.test/mcp")
 	if err != nil || len(out) != 0 {
 		t.Fatalf("empty input: %v %v", out, err)
+	}
+}
+
+func TestHackSiteStatusAllEventsGrants(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, p, mate := a.newPerson(t, "org"), a.newPerson(t, "p2"), a.newPerson(t, "mate")
+	ev := a.makeEvent(t, org)
+	a.join(t, ev, p, org)
+	a.join(t, ev, mate, org)
+	slug, code := a.startTeam(t, ev, "P2", p)
+	wantTS(t, "mate joins", a.api(t, "POST", "/v1/hack/events/"+ev+"/teams/join", map[string]any{"code": code}, mate.key), 200, "")
+	teamID := teamIDOf(t, a, ev, slug)
+	otherEv := a.makeEvent(t, org)
+	a.join(t, otherEv, p, org)
+	otherSlug, _ := a.startTeam(t, otherEv, "Other", p)
+	otherID := teamIDOf(t, a, otherEv, otherSlug)
+	uid, mateID := a.uid(t, p), a.uid(t, mate)
+	bolt, claude, claude2 := a.registerClient(t, testRedirect), a.registerClient(t, testRedirect), a.registerClient(t, testRedirect)
+	for id, name := range map[string]string{bolt: "Bolt", claude: "Claude", claude2: "Claude"} {
+		if _, err := a.database.Exec(`UPDATE oauth_clients SET client_name=$2 WHERE client_id=$1`, id, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Date(2026, 11, 9, 19, 56, 0, 0, time.UTC)
+	newer := old.Add(time.Minute)
+	type grant struct {
+		user, client, team, scope string
+		at                        time.Time
+	}
+	for _, tc := range []struct {
+		name, state, app string
+		apps             []any
+		grants           []grant
+		at               time.Time
+		mates            int
+	}{
+		{name: "older this team beats latest no team", state: "connected", app: "Bolt", apps: []any{"Bolt"}, at: old,
+			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, claude, "", "sites events", newer}}},
+		{name: "only no team", state: "no_team", app: "Claude", apps: []any{"Claude"}, at: newer,
+			grants: []grant{{uid, claude, "", "sites events", newer}}},
+		{name: "no team beats other team", state: "no_team", app: "Bolt", apps: []any{"Bolt"}, at: old,
+			grants: []grant{{uid, bolt, "", "sites events", old}, {uid, claude, otherID, "sites events", newer}}},
+		{name: "deleted team beats older real team", state: "no_team", app: "Claude", apps: []any{"Claude"}, at: newer,
+			grants: []grant{{uid, bolt, otherID, "sites events", old}, {uid, claude, "00000000-0000-0000-0000-000000000414", "sites events", newer}}},
+		{name: "both without a team", state: "no_team", app: "Claude", apps: []any{"Claude", "Bolt"}, at: newer,
+			grants: []grant{{uid, bolt, "", "sites events", old}, {uid, claude, "", "sites events", newer}}},
+		{name: "this team beats other team", state: "connected", app: "Bolt", apps: []any{"Bolt"}, at: old,
+			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, claude, otherID, "sites events", newer}}},
+		{name: "only other team", state: "other_team", app: "Claude", apps: []any{"Claude"}, at: newer,
+			grants: []grant{{uid, claude, otherID, "sites events", newer}}},
+		{name: "both on this team", state: "connected", app: "Claude", apps: []any{"Claude", "Bolt"}, at: newer,
+			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, claude, teamID, "sites events", newer}}},
+		{name: "teammate older this team", state: "none", apps: []any{}, mates: 1,
+			grants: []grant{{mateID, bolt, teamID, "sites events", old}, {mateID, claude, "", "sites events", newer}}},
+		{name: "legacy team grant ignored", state: "none", apps: []any{},
+			grants: []grant{{uid, bolt, teamID, "sites team:" + teamID, newer}}},
+		{name: "duplicate app names", state: "connected", app: "Bolt", apps: []any{"Bolt"}, at: newer,
+			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, bolt, teamID, "sites events", newer}}},
+		{name: "different clients with same app name", state: "connected", app: "Claude", apps: []any{"Claude"}, at: newer,
+			grants: []grant{{uid, claude, teamID, "sites events", old}, {uid, claude2, teamID, "sites events", newer}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := a.database.Exec(`DELETE FROM oauth_grants WHERE user_id IN ($1,$2)`, uid, mateID); err != nil {
+				t.Fatal(err)
+			}
+			for _, g := range tc.grants {
+				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id,last_used_at) VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6)`, g.user, g.client, g.scope, a.srv.URL+"/mcp", g.team, g.at); err != nil {
+					t.Fatal(err)
+				}
+			}
+			r := a.api(t, "GET", "/v1/hack/events/"+ev+"/site", nil, p.key)
+			if r.status != 200 {
+				t.Fatalf("site: %d %s", r.status, r.body)
+			}
+			c := r.json(t)["connection"].(map[string]any)
+			if c["state"] != tc.state || !reflect.DeepEqual(c["apps"], tc.apps) || len(c["teammates_connected"].([]any)) != tc.mates {
+				t.Fatalf("connection: %v", c)
+			}
+			if tc.app != "" && (c["app"] != tc.app || c["last_used_at"] != tc.at.Format(time.RFC3339)) {
+				t.Fatalf("app/last use: %v", c)
+			}
+			if tc.state == "other_team" {
+				other, ok := c["other_team"].(map[string]any)
+				if !ok || other["team"] != "Other" || other["event"] == "" {
+					t.Fatalf("other team: %v", c)
+				}
+			}
+		})
 	}
 }

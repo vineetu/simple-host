@@ -1577,16 +1577,32 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	teams := map[string][]model.OAuthConnectionTeam{}
+	if h.ed.Kind() == edition.Hack {
+		teams, err = h.accountsSvc().OAuthConnectionTeams(r.Context(), user.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
 	out := make([]map[string]any, 0, len(conns))
 	for _, c := range conns {
-		out = append(out, map[string]any{
+		item := map[string]any{
 			"client_id":         c.ClientID,
 			"name":              c.ClientName,
 			"connected_at":      c.ConnectedAt,
 			"last_used_at":      c.LastUsedAt,
 			"last_visitor_site": c.LastVisitorSite,
 			"device":            c.Device,
-		})
+		}
+		if h.ed.Kind() == edition.Hack {
+			selected := teams[c.ClientID]
+			if selected == nil {
+				selected = []model.OAuthConnectionTeam{}
+			}
+			item["teams"] = selected
+		}
+		out = append(out, item)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"connections": out})
 }

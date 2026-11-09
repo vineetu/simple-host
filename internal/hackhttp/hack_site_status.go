@@ -88,9 +88,21 @@ func (h *HackHandler) connectionStatusJSON(ctx context.Context, eventID string, 
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]any{"state": status.State, "app": nil, "last_used_at": nil, "other_team": nil, "teammates_connected": status.Teammates}
-	if status.State == "connected" || status.State == "other_team" {
-		out["app"] = httpx.CleanClientName(status.App)
+	out := map[string]any{"state": status.State, "app": nil, "apps": []string{}, "last_used_at": nil, "other_team": nil, "teammates_connected": status.Teammates}
+	if status.State == "connected" || status.State == "other_team" || status.State == "no_team" {
+		apps := []string{}
+		seen := map[string]bool{}
+		for _, name := range status.Apps {
+			name = httpx.CleanClientName(name)
+			if !seen[name] {
+				apps = append(apps, name)
+				seen[name] = true
+			}
+		}
+		out["apps"] = apps
+		if len(apps) > 0 {
+			out["app"] = apps[0]
+		}
 	}
 	if status.LastUsedAt != nil {
 		out["last_used_at"] = rfc3339Time(*status.LastUsedAt)

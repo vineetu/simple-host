@@ -300,3 +300,28 @@ func UpsertBuiltinOAuthClient(ctx context.Context, q Querier, clientID, name str
 		clientID, name, pq.Array(redirectURIs))
 	return err
 }
+
+// OAuthConnectionTeams reads distinct existing teams selected by this user's apps.
+func OAuthConnectionTeams(ctx context.Context, database *sql.DB, userID string) (map[string][]model.OAuthConnectionTeam, error) {
+	rows, err := database.QueryContext(ctx, `
+  SELECT DISTINCT g.client_id, e.title, t.name
+  FROM oauth_grants g
+  JOIN event_teams t ON t.id = g.selected_team_id
+  JOIN events e ON e.id = t.event_id
+  WHERE g.user_id = $1
+  ORDER BY g.client_id, e.title, t.name`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]model.OAuthConnectionTeam{}
+	for rows.Next() {
+		var clientID string
+		var team model.OAuthConnectionTeam
+		if err := rows.Scan(&clientID, &team.Event, &team.Team); err != nil {
+			return nil, err
+		}
+		out[clientID] = append(out[clientID], team)
+	}
+	return out, rows.Err()
+}

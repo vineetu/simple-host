@@ -1306,3 +1306,64 @@ func TestConnectorUnknownClientHelp(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectionsTeamsByEdition(t *testing.T) {
+	for _, kind := range []edition.Kind{edition.Hack, edition.Host} {
+		t.Run(kind.String(), func(t *testing.T) {
+			a := newConnectorApp(t, edition.ForKind(kind))
+			p := a.newPerson(t, "connections")
+			var uid string
+			if err := a.database.QueryRow(`SELECT id FROM users WHERE username=$1`, p.email).Scan(&uid); err != nil {
+				t.Fatal(err)
+			}
+			var eventID, teamID string
+			label := strconv.FormatInt(time.Now().UnixNano(), 36)
+			if err := a.database.QueryRow(`INSERT INTO events (slug,account_id,title,organiser_name,contact_email,join_code,judge_code) VALUES ($1,$2,'Practice','Org','org@example.com',$3,$4) RETURNING id`, "connections-"+label, uid, "join-"+label, "judge-"+label).Scan(&eventID); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM events WHERE id=$1`, eventID) })
+			if err := a.database.QueryRow(`INSERT INTO event_teams (event_id,slug,name,code) VALUES ($1,'p2','P2',$2) RETURNING id`, eventID, "team-"+label).Scan(&teamID); err != nil {
+				t.Fatal(err)
+			}
+			bolt, claude := a.registerClient(t, testRedirect), a.registerClient(t, testRedirect)
+			for _, g := range []struct{ client, team string }{{bolt, teamID}, {bolt, teamID}, {claude, ""}} {
+				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id) VALUES ($1,$2,'sites events',$3,NULLIF($4,'')::uuid)`, uid, g.client, a.srv.URL+"/mcp", g.team); err != nil {
+					t.Fatal(err)
+				}
+			}
+			r := a.do(t, "GET", "/v1/me/connections", nil, map[string]string{"X-API-Key": p.key})
+			if r.status != 200 {
+				t.Fatalf("connections: %d %s", r.status, r.body)
+			}
+			list := r.json(t)["connections"].([]any)
+			if len(list) != 2 {
+				t.Fatalf("connections: %v", list)
+			}
+			for _, item := range list {
+				c := item.(map[string]any)
+				raw, present := c["teams"]
+				if kind == edition.Host {
+					if present {
+						t.Fatalf("Host returned teams: %v", c)
+					}
+					continue
+				}
+				teams, ok := raw.([]any)
+				if !ok {
+					t.Fatalf("teams must be an array: %v", c)
+				}
+				if c["client_id"] == bolt {
+					if len(teams) != 1 {
+						t.Fatalf("distinct teams: %v", c)
+					}
+					team := teams[0].(map[string]any)
+					if team["event"] != "Practice" || team["team"] != "P2" {
+						t.Fatalf("team names: %v", c)
+					}
+				} else if len(teams) != 0 {
+					t.Fatalf("no team must be []: %v", c)
+				}
+			}
+		})
+	}
+}

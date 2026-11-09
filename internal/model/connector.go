@@ -73,3 +73,9 @@ type OAuthConnection struct {
 // ErrOAuthCodeUsed is returned when a code has already been redeemed. The
 // caller revokes whatever the first redemption issued.
 var ErrOAuthCodeUsed = errors.New("authorization code already used")
+
+// OAuthConnectionTeam is a selected publishing destination for an app.
+type OAuthConnectionTeam struct {
+	Event string `json:"event"`
+	Team  string `json:"team"`
+}

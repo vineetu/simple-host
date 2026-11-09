@@ -1585,6 +1585,15 @@ paths:
                         connected_at: { type: string, format: date-time }
                         last_used_at: { type: string, format: date-time }
                         last_visitor_site: { type: string, description: "Last site address used by a visitor tool in this app. Empty if none." }
+                        teams:
+                          type: array
+                          description: "Only on a server that hosts events: the event teams this app publishes to; empty when it has not picked one."
+                          items:
+                            type: object
+                            required: [event, team]
+                            properties:
+                              event: { type: string }
+                              team: { type: string }
                         device: { type: string, example: Chrome on macOS, description: "The browser the connection was approved on, summarised, to tell two connections of the same app apart. Never the user agent itself or an IP. Empty when unknown (and for connections made before 2026-09-27)." }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -12380,7 +12389,9 @@ paths:
         published_at, published_via (the live version's recorded author, often
         null), taken_down, taken_down_reason, pinned_version, pinned_at).
         connection is the caller's own state: connected (their Simple Hack
-        connector has this team selected; app names the app), other_team (it has
+        connector has this team selected; apps names every distinct app on this team,
+        newest use first, and app is the first), no_team (a connector has not
+        picked a team yet), other_team (it has
         another team selected; other_team names the event and team), key (no
         connector, but their team key was used in the last 30 days) or none, plus
         teammates_connected, the display names of current teammates whose
@@ -12402,8 +12413,9 @@ paths:
                   connection:
                     type: object
                     properties:
-                      state: { type: string, enum: [none, connected, other_team, key] }
+                      state: { type: string, enum: [none, connected, no_team, other_team, key] }
                       app: { type: string, nullable: true }
+                      apps: { type: array, items: { type: string }, description: "App names for this state, most recently used first; empty for key or none." }
                       last_used_at: { type: string, format: date-time, nullable: true }
                       other_team: { type: object, nullable: true, properties: { event: { type: string }, team: { type: string } } }
                       teammates_connected: { type: array, items: { type: string } }

@@ -114,13 +114,26 @@ function buildPrompt (ev, team, entry) {
   return lines.join('\n')
 }
 
-function connStripHTML (ui, esc, site, conn, closedForPublish) {
+function connApps (conn) {
+  return conn.apps && conn.apps.length ? conn.apps : [conn.app || 'your AI app']
+}
+
+function joinedApps (conn) {
+  const names = connApps(conn)
+  return names.length < 2 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+}
+
+function connStripHTML (ui, esc, site, conn, closedForPublish, teamName) {
   let appCls = '', appLabel, appSub
   if (conn.state === 'connected') {
     appCls = 'on'
-    appLabel = 'Connected in ' + esc(conn.app || 'your AI app')
+    appLabel = 'Connected in ' + esc(joinedApps(conn))
     const mates = conn.teammates_connected || []
     appSub = 'Last used ' + agoText(conn.last_used_at) + (mates.length ? ' · ' + teammateText(esc, mates) : '')
+  } else if (conn.state === 'no_team') {
+    appCls = 'wait'
+    appLabel = esc(joinedApps(conn)) + (connApps(conn).length > 1 ? " are connected but haven't picked a team" : " is connected but hasn't picked a team")
+    appSub = (connApps(conn).length > 1 ? 'Ask them' : 'Ask it') + ' to publish to team ' + esc(teamName || '') + '.'
   } else if (conn.state === 'other_team') {
     appCls = 'wait'
     appLabel = 'Connected in ' + esc(conn.app || 'your AI app') + ', set to another team'
@@ -197,9 +210,8 @@ function publishCardHTML (ui, esc, doc, state, conn, email, promptText, publishe
     return '<section class="card"><h2>Publish from your AI app</h2>' + tabsHTML + fallback + '</section>'
   }
 
-  // Ticked when this tab's app is the one actually connected (connected or
-  // other_team: either way the connector itself is added and signed in).
-  const appConnected = (conn.state === 'connected' || conn.state === 'other_team') && (conn.app || '').toLowerCase() === app.label.toLowerCase()
+  // Ticked when this tab's app has a connector added and signed in.
+  const appConnected = ['connected', 'other_team', 'no_team'].includes(conn.state) && connApps(conn).some(name => name.toLowerCase() === app.label.toLowerCase())
 
   // Shown whenever this tab's app is connected but pointed at a different
   // team -- including once published, since "Publish again" would otherwise
@@ -281,7 +293,7 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
   // after an action) -- never on the very first paint.
   if (state.prevSnapshot) {
     if (state.prevSnapshot.connState !== 'connected' && conn.state === 'connected') {
-      ui.toast('Connected in ' + (conn.app || 'your AI app') + '.', main)
+      ui.toast('Connected in ' + joinedApps(conn) + '.', main)
     }
     if (!state.prevSnapshot.published && site.exists) {
       ui.toast('Published' + (typeof site.live_version === 'number' ? ' · version ' + site.live_version : '') + '.', main)
@@ -290,7 +302,7 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
   state.prevSnapshot = { connState: conn.state, published: !!site.exists }
 
   const head = '<div class="ph"><div class="t"><h1>Website</h1><p>' + esc(ev.title || '') + '</p></div></div>'
-  const strip = connStripHTML(ui, esc, site, conn, closedForPublish)
+  const strip = connStripHTML(ui, esc, site, conn, closedForPublish, state.teamName || team.name)
 
   // ---- Your team site (once published) ----
   let siteCard = ''

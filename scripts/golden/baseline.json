@@ -4334,6 +4334,25 @@
                               "name": {
                                 "description": "The name the app registered with",
                                 "type": "string"
+                              },
+                              "teams": {
+                                "description": "Only on a server that hosts events: the event teams this app publishes to; empty when it has not picked one.",
+                                "items": {
+                                  "properties": {
+                                    "event": {
+                                      "type": "string"
+                                    },
+                                    "team": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "event",
+                                    "team"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
                               }
                             },
                             "required": [
@@ -20042,7 +20061,8 @@
         "last_used_at": null,
         "other_team": null,
         "state": "none",
-        "teammates_connected": []
+        "teammates_connected": [],
+        "apps": []
       },
       "site": {
         "exists": true,

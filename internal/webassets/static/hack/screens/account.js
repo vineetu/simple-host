@@ -30,7 +30,7 @@ export async function render(ctx) {
   }
   main.innerHTML = `<div class="ph"><div class="t"><h1>Account</h1></div></div>
 <section class="card"><h2>Your name</h2><form id="acct-name-form"><div class="field"><label class="sr-only" for="acct-name">Name</label><div class="control-row"><input class="input" id="acct-name" type="text" maxlength="100"><button class="btn primary" id="acct-name-save">Save</button></div><p class="help">The one name shown in every event you join -- to teams, organisers and judges. A change here updates it everywhere at once.</p><p class="help" id="acct-name-err"></p></div></form></section>
-<section class="card" id="acct-connect-card"><h2>Connect your AI app</h2><p class="sub" id="acct-connect-status">Loading…</p><div class="copy" id="acct-connect-url"></div><nav class="app-tabs" id="acct-connect-tabs" aria-label="How you connect"></nav><div id="acct-connect-steps"></div><p class="help"><a href="/get-started#other-ai-apps">Steps for other AI apps</a></p></section>
+<section class="card" id="acct-connect-card"><h2>Connect your AI app</h2><div id="acct-connect-status">Loading…</div><div class="copy" id="acct-connect-url"></div><nav class="app-tabs" id="acct-connect-tabs" aria-label="How you connect"></nav><div id="acct-connect-steps"></div><p class="help"><a href="/get-started#other-ai-apps">Steps for other AI apps</a></p></section>
 <section class="card"><h2>Email</h2><div id="acct-email-row"><p id="acct-email-text">You sign in with <b id="acct-email"></b>. A change needs a code from this address and one from the new one.</p><div class="form-actions" id="acct-email-actions"><button class="btn" id="acct-email-open">Change email</button></div></div>
 <form id="acct-email-form" hidden><div class="field"><label>New email<input class="input" id="acct-email-input" type="email" required autocomplete="email"></label></div><div class="form-actions"><button class="btn primary" id="acct-email-send">Send codes</button><button class="btn" id="acct-email-cancel" type="button">Cancel</button></div></form>
 <form id="acct-code-form" hidden><p>Enter the codes sent to <span id="acct-code-to"></span> and <span id="acct-current-to"></span>.</p><div class="field"><label>New email code<input class="input" id="acct-code" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}"></label></div><div class="field"><label>Current email code<input class="input" id="acct-current-code" inputmode="numeric" required pattern="[0-9]{6}"></label></div><div class="form-actions"><button class="btn primary" id="acct-code-go">Change email</button><button class="btn" id="acct-code-cancel" type="button">Cancel</button></div></form></section>
@@ -406,7 +406,6 @@ export async function render(ctx) {
     const urlBox = $('acct-connect-url')
     const tabsEl = $('acct-connect-tabs')
     const stepsBox = $('acct-connect-steps')
-    const statusEl = $('acct-connect-status')
     const address = location.origin + '/mcp'
     urlBox.innerHTML = ''
     const addrInput = document.createElement('input')
@@ -432,15 +431,47 @@ export async function render(ctx) {
     }
     if (apps.length) paintTab()
 
+    await loadConnections()
+  }
+
+  async function loadConnections() {
+    const statusEl = $('acct-connect-status')
     try {
       const r = await api('GET', '/v1/me/connections')
-      if (!r.ok) { statusEl.textContent = ''; return }
+      if (!r.ok) { statusEl.textContent = ''; setLive(accountErr(r, 'Could not load connected apps'), 'err', statusEl); return }
       const list = (r.data && r.data.connections) || []
+      statusEl.textContent = ''
       if (!list.length) { statusEl.textContent = 'Not connected yet.'; return }
       list.sort((a, b) => new Date(b.last_used_at || b.connected_at || 0) - new Date(a.last_used_at || a.connected_at || 0))
-      const top = list[0]
-      statusEl.textContent = 'Connected: ' + (top.name || 'an AI app') + (top.last_used_at ? ' · last used ' + connectAgoText(top.last_used_at) : '') + '.'
-    } catch (e) { if (!client.isSignedOut(e)) statusEl.textContent = '' }
+      list.forEach(c => {
+        const appName = c.name || 'an AI app'
+        const name = c.device && list.filter(other => (other.name || 'an AI app') === appName).length > 1 ? appName + ' (' + c.device + ')' : appName
+        const row = ui.el('div', { class: 'setting' })
+        const text = ui.el('div', { class: 't' })
+        text.appendChild(ui.el('b', { text: name }))
+        const teams = (c.teams || []).map(t => t.team + ' in ' + t.event)
+        const teamNames = teams.length < 2 ? teams[0] : teams.slice(0, -1).join(', ') + ' and ' + teams[teams.length - 1]
+        const used = connectAgoText(c.last_used_at)
+        text.appendChild(ui.el('span', { text: (used ? 'Last used ' + used + ' · ' : '') + (teams.length ? 'Publishes to ' + teamNames : "Hasn't picked a team yet") }))
+        const btn = ui.el('button', { type: 'button', class: 'btn danger', text: 'Disconnect' })
+        btn.addEventListener('click', async () => {
+          if (!await ui.confirm({ title: 'Disconnect ' + name + '?', confirmLabel: 'Disconnect', danger: true })) return
+          btn.disabled = true
+          try {
+            const r = await api('DELETE', '/v1/me/connections/' + encodeURIComponent(c.client_id))
+            if (!r.ok) { setLive(accountErr(r, 'Could not disconnect app'), 'err', btn); btn.disabled = false; return }
+            row.remove()
+            if (!statusEl.children.length) statusEl.textContent = 'Not connected yet.'
+            await loadConnections()
+          } catch (e) {
+            btn.disabled = false
+            if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn)
+          }
+        })
+        row.append(text, btn)
+        statusEl.appendChild(row)
+      })
+    } catch (e) { statusEl.textContent = ''; if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', statusEl) }
   }
 
   const nameForm = ui.trackForm(ctx, $('acct-name-form'))
