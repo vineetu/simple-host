@@ -84,7 +84,7 @@ func (h *HackHandler) siteStatusJSON(ctx context.Context, ev model.Event, team m
 // security point 4). A member who left the team is not in people, so their
 // old grant is never counted even if it is still pointed at this team.
 func (h *HackHandler) connectionStatusJSON(ctx context.Context, eventID string, team model.EventTeam, callerID string) (map[string]any, error) {
-	status, err := h.teamsSvc().ConnectionStatus(ctx, eventID, team.ID, callerID, h.publicBaseURL+"/mcp")
+	status, err := h.teamsSvc().ConnectionStatus(ctx, eventID, team.ID, callerID, []string{h.publicBaseURL + "/mcp", h.publicBaseURL})
 	if err != nil {
 		return nil, err
 	}

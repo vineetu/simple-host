@@ -21,12 +21,12 @@ type ConnGrant struct {
 }
 
 // EventsGrantsByUser returns all events grants per user, most recently used first.
-func EventsGrantsByUser(ctx context.Context, q *sql.DB, userIDs []string, resource string) (map[string][]ConnGrant, error) {
+func EventsGrantsByUser(ctx context.Context, q *sql.DB, userIDs []string, resources []string) (map[string][]ConnGrant, error) {
 	out := map[string][]ConnGrant{}
 	if len(userIDs) == 0 {
 		return out, nil
 	}
-	rows, err := hackteams.EventsGrants(ctx, q, userIDs, resource)
+	rows, err := hackteams.EventsGrants(ctx, q, userIDs, resources)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ type ConnectionStatus struct {
 }
 
 // ConnectionStatus reads the caller's connection and current teammates.
-func (s *Service) ConnectionStatus(ctx context.Context, eventID, teamID, callerID, resource string) (ConnectionStatus, error) {
+func (s *Service) ConnectionStatus(ctx context.Context, eventID, teamID, callerID string, resources []string) (ConnectionStatus, error) {
 	out := ConnectionStatus{State: "none", Apps: []string{}, Teammates: []string{}}
 	people, err := hackteams.ListTeamPeople(ctx, s.db, teamID)
 	if err != nil {
@@ -69,7 +69,7 @@ func (s *Service) ConnectionStatus(ctx context.Context, eventID, teamID, callerI
 			ids = append(ids, p.UserID)
 		}
 	}
-	grants, err := EventsGrantsByUser(ctx, s.db, ids, resource)
+	grants, err := EventsGrantsByUser(ctx, s.db, ids, resources)
 	if err != nil {
 		return out, err
 	}

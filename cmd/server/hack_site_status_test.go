@@ -162,7 +162,7 @@ func TestHackSiteStatusConnection(t *testing.T) {
 
 func TestEventsGrantsByUserEmpty(t *testing.T) {
 	a := newTeamSiteApp(t)
-	out, err := teams.EventsGrantsByUser(t.Context(), a.database, nil, "https://example.test/mcp")
+	out, err := teams.EventsGrantsByUser(t.Context(), a.database, nil, []string{"https://example.test/mcp", "https://example.test"})
 	if err != nil || len(out) != 0 {
 		t.Fatalf("empty input: %v %v", out, err)
 	}
@@ -192,6 +192,7 @@ func TestHackSiteStatusAllEventsGrants(t *testing.T) {
 	newer := old.Add(time.Minute)
 	type grant struct {
 		user, client, team, scope string
+		resource                  string
 		at                        time.Time
 	}
 	for _, tc := range []struct {
@@ -202,36 +203,40 @@ func TestHackSiteStatusAllEventsGrants(t *testing.T) {
 		mates            int
 	}{
 		{name: "older this team beats latest no team", state: "connected", app: "Bolt", apps: []any{"Bolt"}, at: old,
-			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, claude, "", "sites events", newer}}},
+			grants: []grant{{uid, bolt, teamID, "sites events", a.srv.URL + "/mcp", old}, {uid, claude, "", "sites events", a.srv.URL + "/mcp", newer}}},
+		{name: "bare origin this team beats latest no team", state: "connected", app: "Bolt", apps: []any{"Bolt"}, at: old,
+			grants: []grant{{uid, bolt, teamID, "sites events", a.srv.URL, old}, {uid, claude, "", "sites events", a.srv.URL + "/mcp", newer}, {uid, claude2, teamID, "sites events", "https://other.example/mcp", newer}}},
+		{name: "unrelated resource ignored", state: "none", apps: []any{},
+			grants: []grant{{uid, bolt, teamID, "sites events", "https://other.example/mcp", newer}}},
 		{name: "only no team", state: "no_team", app: "Claude", apps: []any{"Claude"}, at: newer,
-			grants: []grant{{uid, claude, "", "sites events", newer}}},
+			grants: []grant{{uid, claude, "", "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "no team beats other team", state: "no_team", app: "Bolt", apps: []any{"Bolt"}, at: old,
-			grants: []grant{{uid, bolt, "", "sites events", old}, {uid, claude, otherID, "sites events", newer}}},
+			grants: []grant{{uid, bolt, "", "sites events", a.srv.URL + "/mcp", old}, {uid, claude, otherID, "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "deleted team beats older real team", state: "no_team", app: "Claude", apps: []any{"Claude"}, at: newer,
-			grants: []grant{{uid, bolt, otherID, "sites events", old}, {uid, claude, "00000000-0000-0000-0000-000000000414", "sites events", newer}}},
+			grants: []grant{{uid, bolt, otherID, "sites events", a.srv.URL + "/mcp", old}, {uid, claude, "00000000-0000-0000-0000-000000000414", "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "both without a team", state: "no_team", app: "Claude", apps: []any{"Claude", "Bolt"}, at: newer,
-			grants: []grant{{uid, bolt, "", "sites events", old}, {uid, claude, "", "sites events", newer}}},
+			grants: []grant{{uid, bolt, "", "sites events", a.srv.URL + "/mcp", old}, {uid, claude, "", "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "this team beats other team", state: "connected", app: "Bolt", apps: []any{"Bolt"}, at: old,
-			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, claude, otherID, "sites events", newer}}},
+			grants: []grant{{uid, bolt, teamID, "sites events", a.srv.URL + "/mcp", old}, {uid, claude, otherID, "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "only other team", state: "other_team", app: "Claude", apps: []any{"Claude"}, at: newer,
-			grants: []grant{{uid, claude, otherID, "sites events", newer}}},
+			grants: []grant{{uid, claude, otherID, "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "both on this team", state: "connected", app: "Claude", apps: []any{"Claude", "Bolt"}, at: newer,
-			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, claude, teamID, "sites events", newer}}},
+			grants: []grant{{uid, bolt, teamID, "sites events", a.srv.URL + "/mcp", old}, {uid, claude, teamID, "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "teammate older this team", state: "none", apps: []any{}, mates: 1,
-			grants: []grant{{mateID, bolt, teamID, "sites events", old}, {mateID, claude, "", "sites events", newer}}},
+			grants: []grant{{mateID, bolt, teamID, "sites events", a.srv.URL + "/mcp", old}, {mateID, claude, "", "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "legacy team grant ignored", state: "none", apps: []any{},
-			grants: []grant{{uid, bolt, teamID, "sites team:" + teamID, newer}}},
+			grants: []grant{{uid, bolt, teamID, "sites team:" + teamID, a.srv.URL + "/mcp", newer}}},
 		{name: "duplicate app names", state: "connected", app: "Bolt", apps: []any{"Bolt"}, at: newer,
-			grants: []grant{{uid, bolt, teamID, "sites events", old}, {uid, bolt, teamID, "sites events", newer}}},
+			grants: []grant{{uid, bolt, teamID, "sites events", a.srv.URL + "/mcp", old}, {uid, bolt, teamID, "sites events", a.srv.URL + "/mcp", newer}}},
 		{name: "different clients with same app name", state: "connected", app: "Claude", apps: []any{"Claude"}, at: newer,
-			grants: []grant{{uid, claude, teamID, "sites events", old}, {uid, claude2, teamID, "sites events", newer}}},
+			grants: []grant{{uid, claude, teamID, "sites events", a.srv.URL + "/mcp", old}, {uid, claude2, teamID, "sites events", a.srv.URL + "/mcp", newer}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, err := a.database.Exec(`DELETE FROM oauth_grants WHERE user_id IN ($1,$2)`, uid, mateID); err != nil {
 				t.Fatal(err)
 			}
 			for _, g := range tc.grants {
-				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id,last_used_at) VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6)`, g.user, g.client, g.scope, a.srv.URL+"/mcp", g.team, g.at); err != nil {
+				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id,last_used_at) VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6)`, g.user, g.client, g.scope, g.resource, g.team, g.at); err != nil {
 					t.Fatal(err)
 				}
 			}
