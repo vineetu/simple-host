@@ -13,12 +13,25 @@
 
 /* ---------- shared scaffold: every theme sets these vars ---------- */
 .pub-event[data-theme]{background:var(--paper);color:var(--line)}
-/* Page background: scoped to a direct child of <body> so the Look-tab
-   preview -- a .pub-event.preview-head nested deep inside the signed-in
-   app shell -- never paints the app shell's own body. Only the real
-   public page's wrapper (hack-event.html, and every themed prototype
-   file here) is a direct child of <body>. */
-body:has(> .pub-event[data-theme]){background:var(--paper)}
+/* Review fix (full-bleed, 2026-11-09): --paper is a custom property set on
+   .pub-event itself -- custom properties don't inherit upward to <body>, so
+   a body:has() rule painting <body> with var(--paper) never worked (the
+   kit's own cream stayed the page background, and every theme rendered as
+   a tinted 880px column with cream margins on desktop; background patterns
+   like Confetti's dots or Terminal's grid stopped at the column edge
+   instead of reaching the viewport). .pub and .pub-event are the SAME
+   element here (hack-event.html: class="pub pub-event"), so instead of
+   painting <body> separately, the themed wrapper itself goes full-bleed on
+   desktop and keeps its own background -- :not(.preview-head) so the
+   Look-tab preview (a small boxed sample, not the real page) stays a
+   bounded card. 848px matches kit.css's .pub content width (880px
+   max-width minus its 16px+16px padding), so the content column is the
+   same width as Classic; only the margins outside it now carry the theme
+   instead of the kit's cream. */
+.pub-event[data-theme]:not(.preview-head){
+  max-width:none;min-height:100vh;
+  padding-inline:max(16px,calc((100% - 848px)/2));
+}
 /* Every theme drops the event-colour rule down the left of the hero --
    the whole page now carries the theme instead of one coloured edge.
    Applied to the Look-tab preview too, so it stays a true preview. Note:
@@ -28,6 +41,16 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
    selector -- every theme-specific preview-head rule below does the same. */
 .pub-event[data-theme] .ev-header,
 .pub-event[data-theme].preview-head{border-left:0;padding-left:0}
+/* Review fix: the Look-tab preview sat flush against its own coloured box
+   edge (icon/title touching the border in Confetti/Garden/Terminal) and
+   Boardroom's preview turned white-on-white (no visible edge against the
+   app shell's own white card). Give every theme's preview breathing room
+   and a thin edge; a theme that needs something stronger (Poster,
+   Boardroom) sets its own border/background below and wins by source
+   order at equal specificity. */
+.pub-event[data-theme].preview-head{
+  padding:12px 14px;border-radius:var(--r);border:1px solid var(--rule);
+}
 /* Card-shaped things route their radius through --r, buttons and chips
    through --r-sm, so most of the kit's own components (which hardcode
    their radius) pick up each theme's shape without a rule per class. */
@@ -35,15 +58,42 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
 .pub-event[data-theme] .next,
 .pub-event[data-theme] .site-card,
 .pub-event[data-theme] .result-entry,
-.pub-event[data-theme] .list{background:var(--surface);border-color:var(--rule);border-radius:var(--r)}
+.pub-event[data-theme] .list{background:var(--surface);border-color:var(--rule)}
+.pub-event[data-theme] .card,
+.pub-event[data-theme] .next,
+.pub-event[data-theme] .result-entry,
+.pub-event[data-theme] .list{border-radius:var(--r)}
+/* Review fix: kit.css only squares .site-card off (border:0;border-radius:0)
+   under its own max-width:760px breakpoint -- a bare class selector, lower
+   specificity than ours, so our unconditional border-radius:var(--r) above
+   always won even on phone, reintroducing rounded blobs on the borderless
+   list row in Garden/Confetti. Gate the radius to kit's own breakpoint
+   (desktop only) so phone stays exactly what kit already draws. */
+@media (min-width:761px){
+  .pub-event[data-theme] .site-card{border-radius:var(--r)}
+}
 .pub-event[data-theme] .btn,
 .pub-event[data-theme] .chip{border-radius:var(--r-sm)}
+/* Review fix: kit.css's .next{border-left:4px solid var(--accent)} and
+   .pub-event .next{border-left-color:var(--ev)} are both lower specificity
+   than our border-color:var(--rule) above (which sets all four sides,
+   including border-left-color), so the organiser's colour on .next's left
+   bar was being beaten by the theme's own grey rule colour. Poster already
+   gives .next a full ink border by design, so it's excluded here. */
+.pub-event[data-theme=confetti] .next,
+.pub-event[data-theme=boardroom] .next,
+.pub-event[data-theme=garden] .next,
+.pub-event[data-theme=terminal] .next{border-left-color:var(--ev)}
+/* Review fix: square themes (Poster, Terminal; Boardroom and Garden are
+   subtler but still squarer than the kit default 10px) get a frame radius
+   derived from the theme's own card radius instead of kit's fixed 10px. */
+.pub-event[data-theme] .site-frame{border-radius:calc(var(--r) * .5)}
 
 /* =======================================================================
    Poster -- bold, for student hacks
    ======================================================================= */
 .pub-event[data-theme=poster]{
-  --paper:#fff6df;--surface:#fff;--line:#1c1a17;--line-soft:#4a453c;--line-faint:#6b6355;
+  --paper:#fff6df;--paper-hi:#fff0c7;--surface:#fff;--line:#1c1a17;--line-soft:#4a453c;--line-faint:#6b6355;
   --rule:#1c1a17;--rule-hi:#1c1a17;--r:0;--r-sm:0;
 }
 .pub-event[data-theme=poster] h1,
@@ -68,13 +118,21 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
   background:#fff;border:2px solid #1c1a17;color:#1c1a17;
 }
 .pub-event[data-theme=poster] .ev-icon{border-radius:0;border:3px solid #1c1a17}
-.pub-event[data-theme=poster] .site-frame{border-bottom:3px solid #1c1a17}
+/* Review fix: a bottom-only border read as a curved shadow once the shared
+   border-radius:calc(var(--r)*.5) rule above went in (0 here, so no visual
+   curve, but the frame now wants a full outline to match the square ink
+   border the rest of Poster uses on cards/buttons/icon). */
+.pub-event[data-theme=poster] .site-frame{border:2px solid #1c1a17}
+/* Review fix: the tracks grid's cards touched the section/card below with
+   no gap of their own (kit's .grid2 sets a column gap, not a bottom
+   margin). */
+.pub-event[data-theme=poster] #tracks .grid2{margin-bottom:14px}
 
 /* =======================================================================
    Confetti -- bright and playful
    ======================================================================= */
 .pub-event[data-theme=confetti]{
-  --paper:#fffaf3;--surface:#fff;--line:#2a2622;--line-soft:#57504a;--line-faint:#6e665e;
+  --paper:#fffaf3;--paper-hi:#fff3e0;--surface:#fff;--line:#2a2622;--line-soft:#57504a;--line-faint:#6e665e;
   --rule:#efe6da;--rule-hi:#e0d2bb;--r:22px;--r-sm:999px;
   background-color:var(--paper);
   background-image:radial-gradient(var(--accent-soft) 2px, transparent 2.5px);
@@ -109,9 +167,20 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
    Boardroom -- clean, for company events
    ======================================================================= */
 .pub-event[data-theme=boardroom]{
-  --paper:#f5f6f8;--surface:#fff;--line:#18202b;--line-soft:#4a5463;--line-faint:#626c7a;
+  --paper:#f5f6f8;--paper-hi:#e9ecf0;--surface:#fff;--line:#18202b;--line-soft:#4a5463;--line-faint:#626c7a;
   --rule:#dde1e6;--rule-hi:#c7ccd4;--r:4px;--r-sm:4px;
 }
+/* Review fix: kit.css hardcodes .chip/.tag/.pill/.av to warm cream tones
+   (#ece5d3 etc.), so a cool-toned theme like Boardroom still showed the
+   kit's warm chips. :not(.stage):not(.accent) keeps the "Now" teal pill
+   and the "Winner" accent pill untouched -- .chip/.tag/.av already read
+   their text colour from var(--line)/var(--line-soft), which this theme
+   already redefines above, so only the background needs resetting.
+   #e9ecf0 keeps >=4.5:1 against both ink shades. */
+.pub-event[data-theme=boardroom] .chip,
+.pub-event[data-theme=boardroom] .tag,
+.pub-event[data-theme=boardroom] .pill:not(.stage):not(.accent),
+.pub-event[data-theme=boardroom] .av{background:var(--paper-hi)}
 .pub-event[data-theme=boardroom] h1,
 .pub-event[data-theme=boardroom] h2,
 .pub-event[data-theme=boardroom] h3{
@@ -139,9 +208,16 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
    Garden -- calm and friendly
    ======================================================================= */
 .pub-event[data-theme=garden]{
-  --paper:#f2f5ee;--surface:#fbfcf8;--line:#22302a;--line-soft:#4b5a51;--line-faint:#5f6d64;
+  --paper:#f2f5ee;--paper-hi:#e6ece0;--surface:#fbfcf8;--line:#22302a;--line-soft:#4b5a51;--line-faint:#5f6d64;
   --rule:#dfe6d8;--rule-hi:#cddbc7;--r:18px;--r-sm:999px;
 }
+/* Review fix: same warm-neutral leak as Boardroom -- kit's #ece5d3 cream
+   chips/tags/pills/avatars clashed with Garden's cool green palette.
+   #e6ece0 keeps >=4.5:1 against both ink shades. */
+.pub-event[data-theme=garden] .chip,
+.pub-event[data-theme=garden] .tag,
+.pub-event[data-theme=garden] .pill:not(.stage):not(.accent),
+.pub-event[data-theme=garden] .av{background:var(--paper-hi)}
 .pub-event[data-theme=garden] h1,
 .pub-event[data-theme=garden] h2,
 .pub-event[data-theme=garden] h3{
@@ -160,7 +236,7 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
    Terminal -- for developer crowds
    ======================================================================= */
 .pub-event[data-theme=terminal]{
-  --paper:#fafaf7;--surface:#fff;--line:#1b1d1a;--line-soft:#4d514b;--line-faint:#666a63;
+  --paper:#fafaf7;--paper-hi:#e4e4e0;--surface:#fff;--line:#1b1d1a;--line-soft:#4d514b;--line-faint:#666a63;
   --rule:#dddbd0;--rule-hi:#c7c4b5;--r:0;--r-sm:0;
   background-color:var(--paper);
   background-image:
@@ -168,6 +244,13 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
     linear-gradient(90deg, #ecebe4 1px, transparent 1px);
   background-size:24px 24px;
 }
+/* Review fix: same warm-neutral leak as Boardroom/Garden -- a flat neutral
+   grey instead of kit's cream fits Terminal's monochrome palette.
+   #e4e4e0 keeps >=4.5:1 against both ink shades. */
+.pub-event[data-theme=terminal] .chip,
+.pub-event[data-theme=terminal] .tag,
+.pub-event[data-theme=terminal] .pill:not(.stage):not(.accent),
+.pub-event[data-theme=terminal] .av{background:var(--paper-hi)}
 .pub-event[data-theme=terminal] h1,
 .pub-event[data-theme=terminal] h2,
 .pub-event[data-theme=terminal].preview-head h3,
@@ -180,5 +263,9 @@ body:has(> .pub-event[data-theme]){background:var(--paper)}
   background:var(--surface);color:var(--accent);border-color:var(--accent);
 }
 .pub-event[data-theme=terminal] .btn.primary:hover{background:var(--accent-soft)}
-.pub-event[data-theme=terminal] .btn.primary::before{content:"> "}
-.pub-event[data-theme=terminal] .section-title::before{content:"// "}
+/* a11y review fix: the CSS content string / alt-text pair -- the second
+   value (empty string) is what a screen reader announces, so these
+   decorative glyphs stop being read aloud as "greater than" / "slash
+   slash" before every primary button and section title. */
+.pub-event[data-theme=terminal] .btn.primary::before{content:"> " / ""}
+.pub-event[data-theme=terminal] .section-title::before{content:"// " / ""}

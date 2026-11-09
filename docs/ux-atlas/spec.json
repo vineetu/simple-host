@@ -1301,7 +1301,7 @@
      "name": "Look",
      "contents": [
       "Preview card: the top of the public page as visitors see it (icon, title, tagline, the left rule in the chosen colour -- or, with a Page style chosen, that style's own hero treatment). It follows every change at once",
-      "Page style row: six radio cards, two per row on a phone -- a name and one line each: Classic 'Today's look', Poster 'Bold, for student hacks', Confetti 'Bright and playful', Boardroom 'Clean, for company events', Garden 'Calm and friendly', Terminal 'For developer crowds'. A small 'Try another' button beside the heading picks a random theme other than the current one and other than Classic, then selects and saves it like a card click. 'Changes the whole page: background, type, cards and buttons. Your colour still sets buttons and links.' The preview element gets data-theme so it updates at once (SIM-353)",
+      "Page style row: six radio cards, two per row on a phone -- a name and one line each: Classic 'Today's look', Poster 'Bold, for student hacks', Confetti 'Bright and playful', Boardroom 'Clean, for company events', Garden 'Calm and friendly', Terminal 'For developer crowds'. A small 'Try another' button beside the heading picks a random theme other than the current one and other than Classic, then selects and saves it like a card click. 'Background, type and card shapes for your public page.' The preview element gets data-theme so it updates at once (SIM-353)",
       "Event icon row: round preview, Upload icon / Replace (a kit button that opens the file picker), Remove (quiet, only when an icon is uploaded; the automatic letter icon comes back). 'Shown round on your page, in Find a hackathon and on join links. PNG, JPEG or WebP, up to 128 KB.'",
       "Colour row: a radio group of swatches with their names under them: Automatic, Red, Teal, Indigo, Orange, Yellow, Grass, Blush. The chosen one has a teal ring and a tick. 'For buttons, links and your page style's highlights. Automatic picks one from your address.'",
       "Show entries on the event page: a switch. 'Lists every team whose website is live. People's choice voting needs this on.'",
@@ -1385,7 +1385,7 @@
     "urls": "?s=event-page&tab=<basics|about|schedule|sponsors|faq|look|website>. A tab click is history.pushState + re-render of the right column only (the sub-nav stays, scroll goes to the top of the content). A missing or unknown tab lands on Basics via replaceState, so Back never loops. Back/Forward re-render the tab in the URL. document.title is '<Sub-page> · Event page · <event>'. Old links still land: #basics, #schedule, #sponsors, #faq -> that tab; #appearance -> look; #address -> website; #announcements or tab=announcements -> ?s=announcements (replaceState).",
     "focus_and_keys": "After a tab change focus moves to the sub-page h2 (tabindex -1). The sub-nav is a nav of links with aria-current. Dialogs trap focus, Escape cancels, focus returns to the button that opened them. The row menu is a menu button (aria-haspopup, aria-expanded), arrow keys move inside it, Escape closes it. The grip is a button: Up/Down arrow moves the row one place and saves, and a polite live region says 'Kopi Kode moved to position 2 of 3'. After Remove, focus goes to the next row's Edit, or to Add when the list is empty.",
     "data_loading": "Entering Event page loads /content and /website once; switching tabs does not refetch. Every save refreshes only what it changed.",
-    "read_only": "Admin view: everything is read-only on every sub-page. After End: Basics, About and Look's page style, colour and ‘Show entries’ switch stay editable, with the note ‘This event has ended. You can still fix the page text and colour.’; Schedule, Sponsors, FAQ, the event icon and Website show values as text with no controls, because the server rejects those writes once the event is archived (see decisions).",
+    "read_only": "Admin view: everything is read-only on every sub-page. After End: Basics, About and Look's page style, colour and ‘Show entries’ switch stay editable, with the note ‘This event has ended. You can still fix the page text, colour and style.’; Schedule, Sponsors, FAQ, the event icon and Website show values as text with no controls, because the server rejects those writes once the event is archived (see decisions).",
     "custom_site_note": "While your own website is live, Basics, About, Schedule, Sponsors and FAQ each carry one .note.info under their heading: 'Your own website is live at your address. This still saves, and shows again if you switch back to the built-in page.'"
    },
    "states": [
@@ -1452,7 +1452,7 @@
     {
      "name": "Ended",
      "when": "stage archived (and not admin_view)",
-     "shows": "Basics, About and Look (page style, colour, Show entries) stay editable with the note 'This event has ended. You can still fix the page text and colour.'; Schedule, Sponsors, FAQ, the event icon and Website show values as text, no controls."
+     "shows": "Basics, About and Look (page style, colour, Show entries) stay editable with the note 'This event has ended. You can still fix the page text, colour and style.'; Schedule, Sponsors, FAQ, the event icon and Website show values as text, no controls."
     },
     {
      "name": "Sidebar collapsed",
@@ -1538,7 +1538,7 @@
     },
     {
      "q": "Can the Event page be edited after the event ends?",
-     "decision": "Basics, About, colour and the ‘Show entries’ switch stay editable after End, with the note ‘This event has ended. You can still fix the page text and colour.’ Sponsors, FAQ, the event icon, Schedule, Website and Announcements are read-only after End.",
+     "decision": "Basics, About, colour and the ‘Show entries’ switch stay editable after End, with the note ‘This event has ended. You can still fix the page text, colour and style.’ Sponsors, FAQ, the event icon, Schedule, Website and Announcements are read-only after End.",
      "why": "The server refuses those changes after End -- PUT /content (schedule, sponsors, FAQ), PUT/DELETE /icon, PATCH/PUT /website and posting an announcement all answer 409 event_ended/event_closed once the event is archived, while PATCH on the event itself (title, tagline, about, prizes, rules, coc_text, accent_color, gallery_open, dates, time zone) keeps working. Matching the UI to that avoids promising edits that fail. Decided 2026-10-31 (coordinator, correcting the 2026-10-30 reading, which had this backwards)."
     },
     {

@@ -315,7 +315,7 @@ ${customSiteNote(true)}
 
   sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Basics</h2><p>The name, tagline and dates at the top of your page.</p></div>
 ${customSiteNote(false)}
-${ended ? '<div class="note">This event has ended. You can still fix the page text and colour.</div>' : ''}
+${ended ? '<div class="note">This event has ended. You can still fix the page text, colour and style.</div>' : ''}
 <form class="card" aria-labelledby="sp-h">
 <div class="field"><label for="f-title">Title</label><input class="input" id="f-title" maxlength="120" value="${ui.esc(ev.title)}"></div>
 <div class="field"><div class="lab-row"><label for="f-tag">Tagline</label><span class="opt">Optional</span><span class="counter" id="f-tag-ct">${(ev.tagline || '').length} / 160</span></div><input class="input" id="f-tag" maxlength="160" value="${ui.esc(ev.tagline || '')}"><p class="help">One line under the title. Link previews in WhatsApp show it too.</p></div>
@@ -385,7 +385,7 @@ ${customSiteNote(true)}
 
   sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">About</h2><p>The longer text on your page. A blank line starts a new paragraph.</p></div>
 ${customSiteNote(false)}
-${ended ? '<div class="note">This event has ended. You can still fix the page text and colour.</div>' : ''}
+${ended ? '<div class="note">This event has ended. You can still fix the page text, colour and style.</div>' : ''}
 <form class="card" aria-labelledby="sp-h">
 <div class="field"><div class="lab-row"><label for="f-about">About</label><span class="counter" id="f-about-ct">${snapshot.about.length} / 10000</span></div><textarea class="input" id="f-about" rows="7" maxlength="10000">${ui.esc(snapshot.about)}</textarea></div>
 <div class="field" id="prizes"><div class="lab-row"><label for="f-prizes">Prizes</label><span class="opt">Optional</span></div><textarea class="input" id="f-prizes" rows="3" maxlength="5000">${ui.esc(snapshot.prizes)}</textarea></div>
@@ -917,11 +917,11 @@ function renderLook({ sp, ui, api, ctx, ev, admin, locked, ended, path, setLive 
   const iconLocked = ended // (admin already disables everything generically, see paintTab)
   const theme = ev.theme || ''
   sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Look</h2><p>Your icon, colour, page style and whether entries show. Each change saves straight away.</p></div>
-${ended && !admin ? '<div class="note">This event has ended. You can still fix the page text and colour.</div>' : ''}
+${ended && !admin ? '<div class="note">This event has ended. You can still fix the page text, colour and style.</div>' : ''}
 <div class="card"><p class="section-title">Preview</p>
-<div class="pub-event preview-head" id="look-preview" style="--ev:${previewColor}"${theme ? ` data-theme="${theme}"` : ''}><span class="ev-icon">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="" width="52" height="52">` : ''}</span><div><h3>${ui.esc(ev.title)}</h3><p>${ui.esc(ev.tagline || '')}</p></div></div></div>
+<div class="pub-event preview-head" id="look-preview" style="--ev:${previewColor}"${theme ? ` data-theme="${ui.esc(theme)}"` : ''}><span class="ev-icon">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="" width="52" height="52">` : ''}</span><div><h3>${ui.esc(ev.title)}</h3><p>${ui.esc(ev.tagline || '')}</p></div></div></div>
 <div class="card flat">
-<div class="setting stack"><div class="t"><div class="t-row"><b>Page style</b><button class="btn quiet sm" type="button" id="theme-shuffle">Try another</button><span class="saved" id="theme-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>Changes the whole page: background, type, cards and buttons. Your colour still sets buttons and links.</span></div>
+<div class="setting stack"><div class="t"><div class="t-row"><b>Page style</b><button class="btn quiet sm" type="button" id="theme-shuffle">Try another</button><span class="saved" id="theme-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>Background, type and card shapes for your public page.</span></div>
 <div class="choices" role="radiogroup" aria-label="Page style">${THEMES.map(([v, l, d]) => `<label class="choice${theme === v ? ' on' : ''}"><input type="radio" name="theme" value="${v}"${theme === v ? ' checked' : ''}><span><b>${ui.esc(l)}</b><span class="d">${ui.esc(d)}</span></span></label>`).join('')}</div>
 </div>
 <div class="setting wraps"><div class="t"><b>Event icon</b><span>Shown round on your page, in Find a hackathon and on join links. PNG, JPEG or WebP, up to 128 KB.${iconLocked ? ' Can’t change after End.' : ''}</span></div>
@@ -956,7 +956,17 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
     if (val) $('look-preview').setAttribute('data-theme', val); else $('look-preview').removeAttribute('data-theme')
   }
   let themeChain = Promise.resolve()
+  // lastPickedTheme tracks the most recent click regardless of how far its
+  // own PATCH has got. A rapid pick #1 -> pick #2 queues both PATCHes in
+  // order, but pick #1's own failure/success handler below only touches
+  // the preview/cards/radio when pick #1 is STILL the latest pick -- so an
+  // old, now-superseded attempt landing late can no longer stomp on
+  // whatever the user has since chosen (review fix: it used to always
+  // revert/repaint to its own value, flashing the UI back to a stale pick
+  // for a moment even though a newer one was already queued behind it).
+  let lastPickedTheme = theme
   function saveTheme(val) {
+    lastPickedTheme = val
     setPreviewTheme(val)
     paintThemeChoices(val)
     themeChain = themeChain.then(async () => {
@@ -968,26 +978,47 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
         const r = await api('PATCH', path, { theme: val })
         if (!r.ok) {
           setLive(ui.errText(r), 'err')
+          if (val === lastPickedTheme) {
+            setPreviewTheme(prevVal)
+            paintThemeChoices(prevVal)
+            const prevRadio = sp.querySelector(`input[name=theme][value="${prevVal}"]`)
+            if (prevRadio) prevRadio.checked = true
+          }
+          return
+        }
+        ev.theme = val
+        // Re-assert the preview/cards/radio on success too, but only when
+        // this PATCH's value is still the latest pick -- an old pick's
+        // success landing late should not overwrite a newer one; that
+        // newer pick's own chain link will land right after and re-assert
+        // itself regardless.
+        if (val === lastPickedTheme) {
+          setPreviewTheme(val)
+          paintThemeChoices(val)
+          const radio = sp.querySelector(`input[name=theme][value="${val}"]`)
+          if (radio) radio.checked = true
+        }
+        flashSaved('theme-saved')
+      } catch (e) {
+        setLive('Cannot reach the server.', 'err')
+        if (val === lastPickedTheme) {
           setPreviewTheme(prevVal)
           paintThemeChoices(prevVal)
           const prevRadio = sp.querySelector(`input[name=theme][value="${prevVal}"]`)
           if (prevRadio) prevRadio.checked = true
-          return
         }
-        ev.theme = val
-        flashSaved('theme-saved')
-      } catch (e) {
-        setLive('Cannot reach the server.', 'err')
-        setPreviewTheme(prevVal)
-        paintThemeChoices(prevVal)
-        const prevRadio = sp.querySelector(`input[name=theme][value="${prevVal}"]`)
-        if (prevRadio) prevRadio.checked = true
       }
     })
   }
   sp.querySelectorAll('input[name=theme]').forEach(radio => radio.addEventListener('change', () => saveTheme(radio.value)))
   $('theme-shuffle').addEventListener('click', () => {
-    const opts = THEMES.map(([v]) => v).filter(v => v && v !== (ev.theme || ''))
+    // Exclude whatever is currently checked (the in-progress pick, which
+    // may not have saved yet), not just ev.theme's last-committed value --
+    // otherwise Try another could re-roll back onto the theme already
+    // showing in the radios/preview.
+    const checked = sp.querySelector('input[name=theme]:checked')
+    const currentVal = checked ? checked.value : (ev.theme || '')
+    const opts = THEMES.map(([v]) => v).filter(v => v && v !== currentVal)
     const pick = opts[Math.floor(Math.random() * opts.length)]
     const radio = sp.querySelector(`input[name=theme][value="${pick}"]`)
     if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')) }

@@ -55,6 +55,15 @@ func TestHackEventThemeSurfaces(t *testing.T) {
 		t.Fatalf("theme readback %v", view["theme"])
 	}
 
+	// Review fix: a PATCH that touches an unrelated field (title) must not
+	// reset theme to its zero value -- only a PATCH that actually names
+	// "theme" should change it.
+	wantTS(t, "unrelated patch keeps theme", a.at(t, "PATCH", base, map[string]string{"title": "Theme Keeps Title"}, a.key(org)), 200, "")
+	view = a.at(t, "GET", base, nil, a.key(org)).json(t)["event"].(map[string]any)
+	if view["theme"] != "poster" {
+		t.Fatalf("theme did not survive an unrelated title patch: %v", view["theme"])
+	}
+
 	wantTS(t, "invalid theme", a.at(t, "PATCH", base, map[string]string{"theme": "midnight"}, a.key(org)), 400, "invalid_theme")
 
 	wantTS(t, "reset theme", a.at(t, "PATCH", base, map[string]string{"theme": ""}, a.key(org)), 200, "")

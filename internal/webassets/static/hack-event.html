@@ -16,7 +16,7 @@
 {{end}}
 <link rel="icon" href="{{if and .IconURL (not .TakenDown)}}{{.IconURL}}{{else}}{{.AppURL}}/favicon.svg?v=c{{end}}">
 <link rel="stylesheet" href="{{.AppURL}}/hack/kit.css">
-<link rel="stylesheet" href="{{.AppURL}}/hack/public.css">{{if .Theme}}
+<link rel="stylesheet" href="{{.AppURL}}/hack/public.css">{{if and .Theme (not .TakenDown)}}
 <link rel="stylesheet" href="{{.AppURL}}/hack/themes.css">{{end}}
 <style>
   /* A few rules the kit does not carry, kept to a minimum
