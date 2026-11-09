@@ -40,7 +40,7 @@ ANALYTICS_RETENTION_DAYS=90
 API_METRICS_RETENTION_DAYS=7
 ```
 
-**Clean up abandoned sites on a long-running box.** (Needs [email](/docs/self-hosting/settings/email/).)
+**Clean up abandoned sites on a long-running box.** (Needs [email](/docs/self-hosting/settings/email.md).)
 
 ```
 IDLE_CLEANUP=on

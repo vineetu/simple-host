@@ -94,7 +94,7 @@ Have these before `helm install`; the chart cannot make them.
    ```
 
    Note the issuer URL, client ID and client secret. Provider-by-provider
-   steps are in [simple-hack-standalone.md](/docs/self-hosting/platforms/simple-hack-standalone/#registering-the-redirect-uri).
+   steps are in [simple-hack-standalone.md](/docs/self-hosting/platforms/simple-hack-standalone.md#registering-the-redirect-uri).
    Without an identity provider, password sign-in works by default; optionally use emailed codes through Resend
    (`signIn.email`), which needs the pod to reach api.resend.com.
 

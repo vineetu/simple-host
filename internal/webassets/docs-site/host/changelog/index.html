@@ -626,10 +626,10 @@
 <p><strong>Nov 4:</strong> Admin usage now includes background worker lifecycle and progress reports, with a Background workers table in Overview. HTTP cache and limiter cleanup has explicit cancellation and join ownership; server shutdown drains requests before stopping the worker set.</p>
 </li>
 <li>
-<p><strong>Nov 4:</strong> <code>remove_site_passcode</code> now needs a fresh yes (Grok bot, case 30). The Nov 3 wording fix (below) held for ChatGPT asking for a passcode in chat (case 28), but both ChatGPT and Claude still removed a passcode the moment the person asked for it, reading that request itself as enough consent. The tool now takes a <code>confirm</code> argument and refuses with an error until it is <code>true</code>, telling the model to say anyone with the link will be able to open the site once the passcode is gone and get a fresh agreement in the conversation first. No change to the HTTP API (<code>DELETE /v1/sites/{s}/lock</code> is unchanged); any other MCP caller must add <code>confirm: true</code>. No migration.</p>
+<p><strong>Nov 4:</strong> <code>remove_site_passcode</code> now needs a fresh yes (Grok bot SIM-350, case 30). The Nov 3 wording fix (below) held for ChatGPT asking for a passcode in chat (case 28), but both ChatGPT and Claude still removed a passcode the moment the person asked for it, reading that request itself as enough consent. The tool now takes a <code>confirm</code> argument and refuses with an error until it is <code>true</code>, telling the model to say anyone with the link will be able to open the site once the passcode is gone and get a fresh agreement in the conversation first. No change to the HTTP API (<code>DELETE /v1/sites/{s}/lock</code> is unchanged); any other MCP caller must add <code>confirm: true</code>. No migration.</p>
 </li>
 <li>
-<p><strong>Nov 3:</strong> Passcode tool wording (Grok bot, cases 28 and 30). <code>set_site_passcode</code>’s description split “ask the person first” (confirm before calling) from “never ask for the passcode in chat” into two sentences; the combined one let ChatGPT read it as permission to ask the person what passcode they wanted, in chat. <code>remove_site_passcode</code>’s ask-first line now opens the description instead of trailing it, matching <code>grant_site_viewer</code>/<code>revoke_site_viewer</code>’s “ASK THE PERSON FIRST” lead. No behaviour change, no migration.</p>
+<p><strong>Nov 3:</strong> Passcode tool wording (Grok bot SIM-350, cases 28 and 30). <code>set_site_passcode</code>’s description split “ask the person first” (confirm before calling) from “never ask for the passcode in chat” into two sentences; the combined one let ChatGPT read it as permission to ask the person what passcode they wanted, in chat. <code>remove_site_passcode</code>’s ask-first line now opens the description instead of trailing it, matching <code>grant_site_viewer</code>/<code>revoke_site_viewer</code>’s “ASK THE PERSON FIRST” lead. No behaviour change, no migration.</p>
 </li>
 <li>
 <p><strong>Nov 2:</strong> Image matching, fix pass 3c. A check for a site in Recently deleted is postponed while the worker still holds the site’s lock, so a restore can no longer slip in between and leave it waiting an hour. A restore wakes its waiting checks even when the client hangs up after the restore went through. The worker’s first evidence record write keeps a report filed from the admin page, the same as its last write. The docs now say an operator writing into someone else’s files storage is recorded as that operator. Still off until <code>PHOTODNA_API_KEY</code> is set. No migration.</p>
@@ -650,10 +650,10 @@
 <h2 id="october-2026">October 2026</h2>
 <ul>
 <li>
-<p><strong>Oct 31:</strong> Paper metrics for: the server now keeps service-wide totals for the research papers (request time per kind of request, server CPU and memory every five minutes, a nightly count of sites, accounts and feature use, and a weekly anonymous size row per site), with an admin-only export at <code>GET /v1/admin/paper-metrics</code>. Aggregates only, no IP or site name; the Privacy page says so. <code>PAPER_METRICS=off</code> turns it off.</p>
+<p><strong>Oct 31:</strong> Paper metrics for SIM-335: the server now keeps service-wide totals for the research papers (request time per kind of request, server CPU and memory every five minutes, a nightly count of sites, accounts and feature use, and a weekly anonymous size row per site), with an admin-only export at <code>GET /v1/admin/paper-metrics</code>. Aggregates only, no IP or site name; the Privacy page says so. <code>PAPER_METRICS=off</code> turns it off.</p>
 </li>
 <li>
-<p><strong>Oct 31:</strong> <code>find_tools</code> now names “adding or editing your own entry on a shared site” among the jobs it covers, and the visitor_read_site note that points to visitor_add_entry/visitor_change_entry now says to call run_tool with that name directly (or find_tools first). A Grok bot run of found Claude naming those tools itself after reading the note, then searching for them by that literal name instead of calling find_tools or run_tool, so cases 19 and 20 (adding and editing a visitor’s own board entry) always failed.</p>
+<p><strong>Oct 31:</strong> <code>find_tools</code> now names “adding or editing your own entry on a shared site” among the jobs it covers, and the visitor_read_site note that points to visitor_add_entry/visitor_change_entry now says to call run_tool with that name directly (or find_tools first). A Grok bot run of SIM-345 found Claude naming those tools itself after reading the note, then searching for them by that literal name instead of calling find_tools or run_tool, so cases 19 and 20 (adding and editing a visitor’s own board entry) always failed.</p>
 </li>
 <li>
 <p><strong>Oct 30:</strong> The owner’s dashboard opens faster and no longer shows the public showcase first. “Your sites” now links straight to your own page once this browser knows your handle (skipping the /dashboard hop), the page hides the public gallery before it draws, and it asks the server for your account and your site list once each, in parallel, instead of five and three times. An admin’s own page now loads only their own sites rather than every account’s (632 KB for the hosted service). For 174 sites, My sites appears in about 0.3 s instead of about 1 s on a fast connection.</p>
@@ -692,10 +692,10 @@
 <p><strong>Oct 29:</strong> SSO review fixes retire earlier browser sign-ins, complete site sign-out through the apex even after local expiry, preserve newer sign-ins in stale dashboard tabs, allow private-page sign-out redirects, bound pass issuance, and keep Sign in working when provider discovery fails. Website Deploy skills are version 0.27.85.</p>
 </li>
 <li>
-<p><strong>Oct 29:</strong> review fixes keep existing teams code-only, join crossed offers, check current finding settings, clean up removed people’s offers, respect extended deadlines during filling, and correct finding page state and team listing queries.</p>
+<p><strong>Oct 29:</strong> SIM-225 review fixes keep existing teams code-only, join crossed offers, check current finding settings, clean up removed people’s offers, respect extended deadlines during filling, and correct finding page state and team listing queries.</p>
 </li>
 <li>
-<p><strong>Oct 29:</strong> adds private team finding, join requests, solo listings and invites, teammate removal, and organiser team filling with a preview, on the website and through MCP.</p>
+<p><strong>Oct 29:</strong> SIM-225 adds private team finding, join requests, solo listings and invites, teammate removal, and organiser team filling with a preview, on the website and through MCP.</p>
 </li>
 <li>
 <p><strong>Oct 29:</strong> The optional context input for AgentCat’s stated intent is now offered to every connector caller, ChatGPT, OpenAI, and Codex included, superseding the earlier exclusion pending plugin approval.</p>
@@ -734,7 +734,7 @@
 <p><strong>Oct 27:</strong> <strong>Small box on Railway.</strong> <code>deploy/platforms/railway/</code> (a Dockerfile that copies the</p>
 </li>
 <li>
-<p><strong>Oct 26:</strong> On the owner dashboard, a site’s Versions panel and its Storage/Rename/Domain panel no longer stack ( follow-up): opening one closes the other, picking the same Manage item again closes it, Close returns focus to the Manage button, and opening a panel on a different site leaves the first site’s panel open. No change to what the panels do.</p>
+<p><strong>Oct 26:</strong> On the owner dashboard, a site’s Versions panel and its Storage/Rename/Domain panel no longer stack (SIM-211 follow-up): opening one closes the other, picking the same Manage item again closes it, Close returns focus to the Manage button, and opening a panel on a different site leaves the first site’s panel open. No change to what the panels do.</p>
 </li>
 <li>
 <p><strong>Oct 26:</strong> The dashboard’s Versions and Storage panels are easier to read: labels sit above their fields, each storage resource is its own card with one Save, adding storage sits behind an Add storage button, the tips fold under “What do these mean?”, the versions list shows the newest three and the live one with Show all, one sentence says how many versions are kept, and both panels have Close at the top. Same controls and requests as before.</p>

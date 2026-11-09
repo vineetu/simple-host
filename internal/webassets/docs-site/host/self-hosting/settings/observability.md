@@ -43,8 +43,6 @@ before validation, but only a string becomes intent.
 The sender makes a separate copy before enqueueing. Its field inventory, checked against
 the connector schemas and outputs on 2026-10-29, is:
 
-
-
 The SDK's image, audio, binary-resource, unknown-content, and large-base64 placeholders
 run after these removals. The structural walk stops at 32 levels with `[Object]` before
 further descent. Depth 10, breadth 100, and string truncation with `...` run next,

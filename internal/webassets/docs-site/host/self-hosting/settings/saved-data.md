@@ -1,11 +1,11 @@
 # Saved data
 
-**Deprecated, existing sites only.** New sites use storage resources (KV, SQLite, files) — see [storage-migration.md](/docs/self-hosting/settings/storage-migration/) and [storage-and-backups.md](/docs/self-hosting/settings/storage-and-backups/).
+**Deprecated, existing sites only.** New sites use storage resources (KV, SQLite, files) — see [storage-migration.md](/docs/self-hosting/settings/storage-migration.md) and [storage-and-backups.md](/docs/self-hosting/settings/storage-and-backups.md).
 
 This page describes the existing state, collection and declared-kind API,
 which remains supported. New Simple Host sites may instead use owner-declared
 KV, SQLite and files resources with independent whole-resource read/write
-policies. See [the storage migration plan](/docs/self-hosting/settings/storage-migration/) before moving
+policies. See [the storage migration plan](/docs/self-hosting/settings/storage-migration.md) before moving
 an existing site's data; its private Submissions, Personal records, atomic
 operations and undo do not automatically map to a shared resource.
 

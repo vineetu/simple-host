@@ -19,11 +19,11 @@ handing them out; `canonical` hands them out and redirects the old ones.
 The alternate site base is paused; `SITE_BASE_MOVE=off` and a retained distinct
 `SITE_BASE_DOMAIN` 301 old person/site/free-name links to matching app hosts with
 path and query kept. The base certificate directory is unset and the .site issuer
-stays disabled. See [the operations runbook](/docs/self-hosting/operations/site-base-paused/).
+stays disabled. See [the operations runbook](/docs/self-hosting/operations/site-base-paused.md).
 Revisit about 2026-11-09.
 
 **Address families.** An account can also connect `*.<its domain>` so every one of its sites
-answers at `<site>.<its domain>` (see [Domains and certificates](/docs/self-hosting/settings/domains-and-certificates/)).
+answers at `<site>.<its domain>` (see [Domains and certificates](/docs/self-hosting/settings/domains-and-certificates.md)).
 A site then has one main address: its custom domain or free name, else its most specific
 family address (unless that family's `canonical` switch is off), else its own address. The
 site's own address redirects to the main one, and sign-in and saves happen there; every family
@@ -115,7 +115,6 @@ Custom home pages can list projects live from
 `pinned`, `order`), and exactly the showcase visibility rules. Fetch without
 credentials; it allows any origin, caches for 30 seconds and uses public-read
 rate limits. The Website Deploy skill includes a small example.
-
 
 The default showcase is yours to curate. In **Your showcase**, save a plain-text
 bio, pin projects and give each public site an order number. Pinned projects come

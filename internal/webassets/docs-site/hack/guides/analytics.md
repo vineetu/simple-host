@@ -42,5 +42,5 @@ Read `GET /v1/sites/{sitename}/analytics?days=30` with the owner's key.
 | HTTP 400 (no code) | Days is not a positive integer | Use an integer from 1 to 365 |
 
 ## Next
-- [Sites and deploy](/docs/guides/publish/)
-- [Agents and MCP](/docs/guides/agents/)
+- [Sites and deploy](/docs/guides/publish.md)
+- [Agents and MCP](/docs/guides/agents.md)

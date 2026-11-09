@@ -3,7 +3,7 @@
 Every publish is a new version. The owner can publish without going live, open a preview link to
 any kept version, make it live, roll back, rename a site (old links keep working), take it
 offline, put a passcode on it, and download a copy with its saved data. A deleted site waits in
-Recently deleted (see [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention/)).
+Recently deleted (see [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention.md)).
 
 **Size.** `MAX_ARCHIVE_MB` bounds one upload and one site. It is a guard against one upload
 filling a disk, not a budget: the median site on simple-host.app is about 25 KB. A proxy in front
@@ -104,7 +104,6 @@ MAX_SITES_PER_ACCOUNT=20
 ```
 
 **Keep rollback on a bigger disk.** Install with `--keep-versions 5`.
-
 
 ## Existing-site summaries after an upgrade
 

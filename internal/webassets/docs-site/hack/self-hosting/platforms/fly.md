@@ -115,7 +115,7 @@ participant sites on `sites.hack.example.com`.
   running.
 - **Restart:** `fly machine restart <id> -a my-sh` (`fly machines list -a my-sh`
   shows the id). Sites, saved data and accounts all survive.
-- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration/) goes in
+- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration.md) goes in
   `[env]` in `fly.toml` (limits, times) or `fly secrets set` (keys). Email
   sign-in codes need `RESEND_API_KEY` and `MAIL_FROM` as secrets; without them
   participants use the keys the admin issues, which is how a small box runs by

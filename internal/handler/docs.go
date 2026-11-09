@@ -29,6 +29,29 @@ type docsCache struct {
 var docsScriptRE = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script>`)
 var docsScriptSrcRE = regexp.MustCompile(`(?i)\bsrc\s*=`)
 
+// docsRuntimeText is the one set of runtime text passes every served docs
+// page gets, HTML and .md alike: the baseURL origin swap, storage limits,
+// hosted/self and hack/no-hack block resolution, and (self-hosted only) the
+// chrome-wide self-hosted rewrite. HTML additionally wraps this with
+// withChrome beforehand and script externalization afterward
+// (buildDocsCache); kept as one function so the two paths cannot drift, which
+// is how the .md copy once shipped simple-host.app names a self-hosted
+// install's HTML had already rewritten.
+func (p *assetPipeline) docsRuntimeText(body []byte) []byte {
+	// Replace the full origin before the hostname-only chrome pass, as
+	// discovery documents do, preserving PUBLIC_BASE_URL's scheme and port.
+	if !p.pres.HackAssets && p.docs.baseURL != "" && p.hostedOwner() == "" {
+		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(p.docs.baseURL))
+	}
+	body = p.docsStorageLimits(body)
+	body = hostedBlocks(p.HackInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
+	body = hasHackBlocks(body, p.hostedOwner() != "" || p.pres.HackAssets)
+	if p.hostedOwner() == "" {
+		body = p.selfHostedChromeRewrite(body)
+	}
+	return body
+}
+
 // buildDocsCache uses the same chrome and text passes as chromePage. All pages
 // are assembled once per immutable asset pipeline, so cached HTML can fetch its
 // chrome scripts even immediately after a process restart.
@@ -46,14 +69,12 @@ func (p *assetPipeline) buildDocsCache() {
 			if err != nil {
 				return err
 			}
-			// Same runtime text passes as the HTML (buildDocsCache below),
-			// minus chrome, scripts and hasHackBlocks: a .md copy carries no
-			// chrome and is brand-selected already at build time.
-			if !p.pres.HackAssets && p.docs.baseURL != "" && p.hostedOwner() == "" {
-				body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(p.docs.baseURL))
-			}
-			body = p.docsStorageLimits(body)
-			body = hostedBlocks(p.HackInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
+			// Same runtime text passes as the HTML (docsRuntimeText): a
+			// .md copy carries no chrome and needs no script
+			// externalization, but still needs every text rewrite, including
+			// the self-hosted one, or a self-hosted install's .md serves
+			// simple-host.app names its HTML had already rewritten.
+			body = p.docsRuntimeText(body)
 			p.docs.md[name] = body
 			return nil
 		}
@@ -68,17 +89,7 @@ func (p *assetPipeline) buildDocsCache() {
 		if err != nil {
 			return err
 		}
-		// Replace the full origin before the hostname-only chrome pass, as
-		// discovery documents do, preserving PUBLIC_BASE_URL's scheme and port.
-		if !p.pres.HackAssets && p.docs.baseURL != "" && p.hostedOwner() == "" {
-			body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(p.docs.baseURL))
-		}
-		body = p.docsStorageLimits(body)
-		body = hostedBlocks(p.HackInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
-		body = hasHackBlocks(body, p.hostedOwner() != "" || p.pres.HackAssets)
-		if p.hostedOwner() == "" {
-			body = p.selfHostedChromeRewrite(body)
-		}
+		body = p.docsRuntimeText(body)
 		// Astro scripts are externalized at build time. The remaining scripts
 		// belong to the shared chrome; preserve their exact bodies and order.
 		body = docsScriptRE.ReplaceAllFunc(body, func(tag []byte) []byte {

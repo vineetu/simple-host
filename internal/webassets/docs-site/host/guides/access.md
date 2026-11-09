@@ -31,7 +31,6 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 4. On a custom domain, set `window.SH_CONFIG = {site:'your-site'}` before loading the script.
 
 
-
 ## Choose who can open a site
 [What this is](/features.html#access-named-viewers)
 
@@ -52,5 +51,5 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 | `use_custom_domain` (400) | Visitor sign-in needs its own origin | Open the site address |
 
 ## Next
-- [Storage and saved data](/docs/guides/storage/)
-- [Agents and MCP](/docs/guides/agents/)
+- [Storage and saved data](/docs/guides/storage.md)
+- [Agents and MCP](/docs/guides/agents.md)

@@ -12,7 +12,7 @@
    Open Notifications on your team's Website or the organiser's custom website screen. Choose the events, optional storage resource, and receiver URL.
       **API**
 Send `POST /v1/sites/{sitename}/notifications` with `{"url":"https://receiver.example/hook","events":["record.added"]}`. For an organiser's website use `/v1/hack/events/{slug}/website/notifications`.   
-3. Save the signing secret shown once in your receiver configuration. [Verify each message](/docs/webhooks/#verify-before-processing).
+3. Save the signing secret shown once in your receiver configuration. [Verify each message](/docs/webhooks.md#verify-before-processing).
 
 
 ## Subscribe with MCP Events
@@ -60,5 +60,5 @@ Send `POST /v1/sites/{sitename}/notifications` with `{"url":"https://receiver.ex
 | `client_secret` (409) | MCP subscriber manages the secret | Refresh in the subscribing app |
 
 ## Next
-- [Storage and saved data](/docs/guides/storage/)
-- [Agents and MCP](/docs/guides/agents/)
+- [Storage and saved data](/docs/guides/storage.md)
+- [Agents and MCP](/docs/guides/agents.md)

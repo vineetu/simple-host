@@ -21,4 +21,4 @@
 4. Read `code` in an error body shaped as `{"error":"...","code":"..."}`. Branch on the code, and display `error` to the person. Honor `Retry-After` before retrying a limited request.
 
 
-- [API reference](/docs/api/)
+- [API reference](/docs/api.md)

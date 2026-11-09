@@ -7,8 +7,8 @@
 5. Follow the next-step button on **Home** to start building, close entries, start judging, and publish results. Confirm each stage change. **Your events** stays in the pane; open another event there to switch, including its mark when the pane is collapsed.
 
 
-- [Join an event](/docs/start/join/)
-- [Judge](/docs/start/judge/)
+- [Join an event](/docs/start/join.md)
+- [Judge](/docs/start/judge.md)
 
 Use `hack_get_checklist` with the event slug and `role: "organiser"` for current tasks and the next action. Confirm changes before writing.
 

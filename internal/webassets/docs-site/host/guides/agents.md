@@ -34,7 +34,6 @@
 4. Read error `code` values before retrying. Follow a skill update notice by reinstalling the skills from Get started.
 
 
-
 ## Errors you may see
 
 | Code | Means | Do this |
@@ -44,5 +43,5 @@
 | `method_not_allowed` (405) | Wrong HTTP method | Read the API reference |
 
 ## Next
-- [Sites and deploy](/docs/guides/publish/)
-- [Sign-in and access](/docs/guides/access/)
+- [Sites and deploy](/docs/guides/publish.md)
+- [Sign-in and access](/docs/guides/access.md)

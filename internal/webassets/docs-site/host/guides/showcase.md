@@ -49,5 +49,5 @@
 | `bio_too_long` (400) | Bio exceeds the limit | Shorten the bio |
 
 ## Next
-- [Sites and deploy](/docs/guides/publish/)
-- [Traffic and analytics](/docs/guides/analytics/)
+- [Sites and deploy](/docs/guides/publish.md)
+- [Traffic and analytics](/docs/guides/analytics.md)

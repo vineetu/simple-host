@@ -54,7 +54,6 @@ have no Pre-Deploy Command, and a free Postgres expires after 30 days.
 
 ## Commands
 
-
 1. Edit `deploy/platforms/render/render.yaml`: set the three hostnames
    (`SITE_DOMAIN`, `CONTENT_HOST`, `PUBLIC_BASE_URL`) and the two names under
    `domains`. Change `region` (both places) if Oregon is far from you.
@@ -70,11 +69,9 @@ have no Pre-Deploy Command, and a free Postgres expires after 30 days.
 3. Point both names at the service. Its address is on the service's page
    (`simple-host-xxxx.onrender.com`).
 
-
    Render verifies each name and issues its certificate by itself; in the test
    both were live within a minute. (An apex name, `example.com`, takes an A
    record instead; the service's Settings page shows it.)
-
 
 ## Everyday operations
 
@@ -86,7 +83,7 @@ have no Pre-Deploy Command, and a free Postgres expires after 30 days.
   the test, sites answered 502 for about 30 seconds.
 - **Restart:** **Manual Deploy > Restart service** on the service page. Sites,
   saved data and accounts all survive; about 30 seconds of 502 in the test.
-- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration/) goes in the
+- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration.md) goes in the
   service's Environment tab. Email sign-in codes need `RESEND_API_KEY` and
   `MAIL_FROM`; without them participants use the keys the admin issues, which
   is how a small box runs by default.

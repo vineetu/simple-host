@@ -17,7 +17,7 @@ via ACME.
 The simple-host.site move is paused from 2026-10-09 (revisit about 2026-11-09).
 Its issuer path and timer remain stopped and disabled. Existing certificates stay
 on disk without revocation; the old TLS hosts only redirect to matching .app
-addresses. See [Paused site base](/docs/self-hosting/operations/site-base-paused/).
+addresses. See [Paused site base](/docs/self-hosting/operations/site-base-paused.md).
 
 ## Configuration and credentials
 

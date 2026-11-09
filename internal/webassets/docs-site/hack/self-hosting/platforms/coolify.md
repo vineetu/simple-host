@@ -16,9 +16,7 @@ Verified 2026-10-10 with the published v0.7.15 image in disposable native arm64 
 
 Verified 2026-10-09 with the published v0.7.12 image in disposable native arm64 containers: fresh install and an actual v0.7.11 upgrade through Caddy preserve site files, KV, SQLite, file objects and existing full policies across restart. Add/own schemas, a 150-photo gallery, NFC uploads and the separate file pool pass. Generate and status return 404, and the AI API tag and model settings are absent. All four published binary checksums and anonymous pulls of both CPU images pass. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to its tested versions.
 
-
 Verified 2026-10-09 with the published v0.7.11 image in disposable native arm64 containers: fresh install and an actual v0.7.10 upgrade through Caddy preserve site files, KV, SQLite, file objects and existing full policies across restart. Add/own schemas, a 150-photo gallery, NFC uploads and the separate file pool pass. Removed endpoints return 404; setup generators and settings remain available. All four binary checksums and anonymous pulls of both CPU images pass. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to its tested versions.
-
 
 Verified 2026-10-06 with the published v0.7.10 image in disposable local containers: fresh installation and an actual v0.7.9 upgrade through Caddy preserved site files, KV, SQLite, file objects and full-mode policies; add/own order schemas, 150 public photos, NFC upload names, the separate file pool and restart persistence passed. This check used native arm64 and localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
 
@@ -77,7 +75,6 @@ Existing Git-build resources remain supported; keep their volumes and settings.
 This recipe retains its `KEEP_VERSIONS=3` default, while the service template
 defaults to one.
 
-
 1. In Coolify, go to **Projects > your project > New Resource > Public Repository**
    (or Private). Repository `https://github.com/vineetu/simple-host`, branch
    `main`. Build pack **Docker Compose**, Base Directory
@@ -108,7 +105,7 @@ defaults to one.
 - **Settings:** the compose file passes the common ones (`MAX_ARCHIVE_MB`,
   `KEEP_VERSIONS`, `MAX_SITES_PER_ACCOUNT`, email, Google and OIDC sign-in,
   notification limits, photo limits, and all four `MCP_APP_*` flags). Any
-  setting from [configuration.md](/docs/self-hosting/configuration/) goes under the app's
+  setting from [configuration.md](/docs/self-hosting/configuration.md) goes under the app's
   `environment:` in your own fork's copy of `compose.yaml`, as a line like the others. Point the resource at your fork instead of `vineetu/simple-host`.
 - **Backups:** two volumes hold everything, `db` (Postgres) and `data` (sites and
   the access log). Back up both, with Coolify's server backup or your own.
@@ -134,7 +131,6 @@ Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
 manual order also work on small-box path installs. The public person page opens
 the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [Your home page](https://github.com/vineetu/simple-host/blob/main/docs/your-home-page.md).
-
 
 The schema snapshot in the service template includes `zh-site-notifications.sql`
 and `zi-site-search-summary.sql`; its immutable commit and checksum move together.

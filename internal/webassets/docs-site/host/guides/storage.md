@@ -18,7 +18,7 @@ Send `PUT /v1/sites/{sitename}/storage/resources/notes` with `{"kind":"sqlite","
 [What this is](/features.html#storage-rows)
 
 
-1. [Load auth.js and mount sign-in](/docs/start/pages/). Use `SH.storage.sqlite('notes').table('notes').add({text:'Hello'})` for a visitor insert.
+1. [Load auth.js and mount sign-in](/docs/start/pages.md). Use `SH.storage.sqlite('notes').table('notes').add({text:'Hello'})` for a visitor insert.
 2. Use `id INTEGER PRIMARY KEY`; never supply a visitor row's primary key or `visitor_id`. Declare foreign keys and make the parent readable to the visitor.
 3. Read with `.list()` or `.get(id)`; change with `.edit(id, values)` or `.delete(id)`. Check the returned error code.
 4. Before a larger write, read `GET /v1/sites/{sitename}/storage/usage`.
@@ -70,5 +70,5 @@ Use random identifiers or visitor-specific namespaces for global UNIQUE columns,
 | `site_full` (507) | Storage allowance reached | Remove unused data |
 
 ## Next
-- [Notifications](/docs/guides/notifications/)
-- [Sign-in and access](/docs/guides/access/)
+- [Notifications](/docs/guides/notifications.md)
+- [Sign-in and access](/docs/guides/access.md)

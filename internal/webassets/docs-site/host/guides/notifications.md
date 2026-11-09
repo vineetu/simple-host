@@ -12,7 +12,7 @@
    On your sites page, open Settings, Notifications, then Add notification. Choose the site, events, optional storage resource, and receiver URL.
       **API**
 Send `POST /v1/sites/{sitename}/notifications` with `{"url":"https://receiver.example/hook","events":["record.added"]}`.    
-3. Save the signing secret shown once in your receiver configuration. [Verify each message](/docs/webhooks/#verify-before-processing).
+3. Save the signing secret shown once in your receiver configuration. [Verify each message](/docs/webhooks.md#verify-before-processing).
 
 
 ## Subscribe with MCP Events
@@ -61,5 +61,5 @@ Send `POST /v1/sites/{sitename}/notifications` with `{"url":"https://receiver.ex
 | `client_secret` (409) | MCP subscriber manages the secret | Refresh in the subscribing app |
 
 ## Next
-- [Storage and saved data](/docs/guides/storage/)
-- [Agents and MCP](/docs/guides/agents/)
+- [Storage and saved data](/docs/guides/storage.md)
+- [Agents and MCP](/docs/guides/agents.md)

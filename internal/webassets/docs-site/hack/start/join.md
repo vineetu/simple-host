@@ -6,4 +6,4 @@
 4. Open **Entry**, fill in the requested fields, and submit before your team's deadline.
 
 
-- [Sites and deploy](/docs/guides/publish/)
+- [Sites and deploy](/docs/guides/publish.md)

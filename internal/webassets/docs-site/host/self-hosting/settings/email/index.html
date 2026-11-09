@@ -590,8 +590,41 @@ digests, and the account-deleted confirmation. Without
 <code>RESEND_API_KEY</code>, nothing is sent and email-code sign-in is off (Google sign-in and the admin
 key still work).</p>
 <p><code>MAIL_FROM</code> must be on a domain you have verified with Resend.</p>
+<!-- settings:group=email -->
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Allowed</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IDLE_REPLY_TO</code></td>
+<td><code>support@simple-host.app</code></td>
+<td>email address</td>
+<td>Reply-To address of the idle-cleanup emails.</td>
+</tr>
+<tr>
+<td><code>RESEND_API_KEY</code></td>
+<td>none</td>
+<td>secret</td>
+<td>A Resend API key for sending email (sign-in codes, alerts). Without it, email sign-in is off. <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
+<td><code>MAIL_FROM</code></td>
+<td><code>Simple Host &lt;noreply@simple-host.app&gt;</code></td>
+<td>text</td>
+<td>The sender of every email, on a domain verified with Resend.</td>
+</tr>
+</tbody>
+</table>
+<!-- /settings -->
 <h2 id="recipes">Recipes</h2>
 <p><strong>Email sign-in on a small box.</strong> Verify your domain with Resend, then:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>RESEND_API_KEY=re_...</span></span></code></pre>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

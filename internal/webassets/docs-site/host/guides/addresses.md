@@ -84,5 +84,5 @@ Address families on your sites page, or Manage, Domain, All my sites (\*.name). 
 | `use_address_family` (400) | A wildcard sent to a site's domain route | Use `/v1/me/address-families` |
 
 ## Next
-- [Sign-in and access](/docs/guides/access/)
-- [API reference: Custom domains](/docs/api/custom-domains/)
+- [Sign-in and access](/docs/guides/access.md)
+- [API reference: Custom domains](/docs/api/custom-domains.md)

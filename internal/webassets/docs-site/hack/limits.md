@@ -20,7 +20,6 @@
 | Idle key | A key unused for 180 days stops working. |
 | Visitor session | Session has 30-day absolute and 14-day idle lifetimes |
 
-
 ## Storage and saved data
 
 | Limit | Value or action |
@@ -42,7 +41,7 @@
 | History | Retain IDs for the replay window, normally seven days |
 | Receiver | Public HTTPS; answer promptly with 2xx |
 | Signature clock | Within five minutes of the signed timestamp |
-| Retry and suspension | Follow [Webhooks](/docs/webhooks/#retries-and-suspension) |
+| Retry and suspension | Follow [Webhooks](/docs/webhooks.md#retries-and-suspension) |
 
 ## Rate limits and retries
 
@@ -57,4 +56,4 @@ Honor `Retry-After`. Reuse the same `Idempotency-Key` and body when retrying a s
 | Access | `sign_in_required`, `forbidden` | Check account and scope |
 | Storage | `row_conflict`, `invalid_reference` | Check values and parent access |
 | Storage | `site_full`, `sqlite_full`, `bucket_full` | Remove unused data or ask the operator |
-| Notifications | `invalid_url`, `invalid_events`, `client_secret` | Follow the [setup guide](/docs/guides/notifications/) |
+| Notifications | `invalid_url`, `invalid_events`, `client_secret` | Follow the [setup guide](/docs/guides/notifications.md) |

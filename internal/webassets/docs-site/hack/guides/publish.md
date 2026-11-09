@@ -38,7 +38,6 @@ Send `PUT /v1/sites/{sitename}/files?keep=1` with the changed `files`. To replac
 3. Publish it with `PUT /v1/sites/{sitename}/active-version` and `{"version_number":2}`. To roll back, read the version list and send the earlier number instead.
 
 
-
 ## Errors you may see
 
 | Code | Means | Do this |
@@ -49,5 +48,5 @@ Send `PUT /v1/sites/{sitename}/files?keep=1` with the changed `files`. To replac
 | `item_too_large` (413) | Upload exceeds a cap | Check Limits and errors |
 
 ## Next
-- [Storage and saved data](/docs/guides/storage/)
-- [Sign-in and access](/docs/guides/access/)
+- [Storage and saved data](/docs/guides/storage.md)
+- [Sign-in and access](/docs/guides/access.md)

@@ -9,12 +9,6 @@ The offline check is `bash scripts/check-profiles.sh`.
 
 ## Hosted systemd
 
-### What runs
-
-
-### How settings are supplied
-
-
 ### Migration ownership
 
 Hosted: the operator owns migrations; startup migration is off.
@@ -54,32 +48,7 @@ from its read-only sites mount (`compose.yaml:14`, `compose.yaml:37`,
 Edition comes from settings: root Compose passes `EVENTS` through.
 Workers run inside the server process, as listed below.
 
-
-### How settings are supplied
-
-
-### Migration ownership
-
-
-### Upgrade steps and rollback
-
-
-## Kubernetes
-
-### What runs
-
-
-### How settings are supplied
-
-
-### Migration ownership
-
-
-### Upgrade steps and rollback
-
-
 ## Shared worker and migration details
-
 
 Migrations are forward-only: there is no down command. New files must be
 `NNNN-name.sql`, next free number, plain idempotent SQL, additive and safe on a
@@ -87,7 +56,6 @@ live DB. The runner uses the frozen legacy order then numbered files, skips
 historical baseline files, and commits each file with its schema_migrations row
 under a per-database Postgres advisory lock (`db/migrations/migrations.go:4`,
 `db/migrations/migrations.go:302`). Init uses that same lock; manual SQL does not.
-
 
 | Choice | Hosted systemd | Compose small box | Kubernetes |
 |---|---|---|---|
@@ -99,5 +67,3 @@ under a per-database Postgres advisory lock (`db/migrations/migrations.go:4`,
 | Empty DB | schema.sql or migrate -init | Postgres init or standalone release | Server migrate -init path |
 | Rollback | Saved binary + restart | Previous image/package | Helm rollback/previous image |
 | Restore | Paired DB + site tree + keys | Paired DB + files volume + keys | Paired DB + /data + Secret |
-
-## Password sign-in by profile

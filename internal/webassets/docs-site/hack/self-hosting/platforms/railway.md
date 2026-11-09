@@ -132,7 +132,7 @@ reference table; this is the walkthrough.
   new logs `database is up to date; nothing to apply`.
 - **Restart:** the service's **Restart** action in the dashboard. Sites, saved data and
   accounts all survive.
-- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration/) goes in the app
+- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration.md) goes in the app
   service's Variables tab, exactly as named there.
 - **Backups:** Railway's volume backups are native and incremental (Settings → Backups):
   daily (kept 6 days), weekly (kept 27 days), monthly (kept 89 days). Postgres gets the
@@ -185,8 +185,8 @@ reference table; this is the walkthrough.
 - **Simple Hack standalone is not offered on Railway**, for the same reason, one level
   worse: it needs event sites AND team sites nested two wildcard levels deep
   (`<team>.<event>.hack.example.com`), which the same TLS-termination limit rules out
-  entirely. Use the [Coolify](/docs/self-hosting/platforms/simple-hack-coolify/) or
-  [DigitalOcean](/docs/self-hosting/platforms/simple-hack-digitalocean/) guide for Simple Hack.
+  entirely. Use the [Coolify](/docs/self-hosting/platforms/simple-hack-coolify.md) or
+  [DigitalOcean](/docs/self-hosting/platforms/simple-hack-digitalocean.md) guide for Simple Hack.
 - **Volumes cap at 5 GB on Hobby.** `MAX_ARCHIVE_MB` defaults the same as the installer
   (100). `KEEP_VERSIONS` defaults to 3 here, same deliberate deviation as the Render and
   Fly recipes — the installer itself defaults to 1 (no rollback); a hackathon-sized box

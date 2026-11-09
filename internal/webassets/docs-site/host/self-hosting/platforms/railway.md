@@ -64,7 +64,6 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
 
 ## Commands
 
-
 1. **New Project** in the Railway dashboard, then **Deploy from GitHub repo**, your fork.
    In the new service's Settings, set **Root Directory** to `deploy/platforms/railway`.
    Railway finds the `Dockerfile` there on its own; no build command is needed.
@@ -73,6 +72,10 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
 
 3. In the app service's **Variables** tab, add:
 
+   ```
+   DB_DSN=${{Postgres.DATABASE_URL}}?sslmode=disable
+   ADMIN_API_KEY=${{secret(64)}}
+   ```
 
    Leave `CONTENT_HOST` unset; `start.sh` defaults it to `sites.$SITE_DOMAIN`.
 
@@ -87,13 +90,10 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
 
 7. In **Settings → Networking**, add both custom domains to the app service:
 
-
    Railway shows a CNAME and a TXT record for each. Add both at your DNS provider:
-
 
    Railway verifies each name and issues its certificate once the CNAME resolves; in
    earlier tests of this same image on other platforms that took under a minute.
-
 
 ## Everyday operations
 
@@ -103,7 +103,7 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
   new logs `database is up to date; nothing to apply`.
 - **Restart:** the service's **Restart** action in the dashboard. Sites, saved data and
   accounts all survive.
-- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration/) goes in the app
+- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration.md) goes in the app
   service's Variables tab, exactly as named there.
 - **Backups:** Railway's volume backups are native and incremental (Settings → Backups):
   daily (kept 6 days), weekly (kept 27 days), monthly (kept 89 days). Postgres gets the

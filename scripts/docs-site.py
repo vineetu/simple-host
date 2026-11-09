@@ -213,6 +213,18 @@ def check():
                     errors.append(f'{page}: uncompiled tab or split Markdown table')
                 if any(not SRC.search(m[1]) for m in SCRIPT.finditer(body)):
                     errors.append(f'{page}: inline script')
+                # Every page served as HTML is also served as plain Markdown
+                # for agents (internal/handler/docs.go); write_md_copies
+                # ships index.html's sibling next to its directory, not
+                # inside it, so an agent's slug-derived .md URL resolves.
+                if page.name == 'index.html':
+                    tree_root = OUTPUT / brand
+                    if page.parent == tree_root:
+                        md_sibling = tree_root / 'index.md'
+                    else:
+                        md_sibling = page.parent.parent / (page.parent.name + '.md')
+                    if not md_sibling.is_file():
+                        errors.append(f'{page}: missing .md sibling {md_sibling.relative_to(OUTPUT)}')
     except (FileNotFoundError, KeyError):
         errors.append('docs build missing: run scripts/build-docs-site.sh')
     if errors:

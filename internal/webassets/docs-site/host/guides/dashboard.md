@@ -41,5 +41,5 @@
 | `photo_link_site_gone` (404) | Chat photo link: site no longer exists | Ask for a new photo link |
 
 ## Next
-- [Sites and deploy](/docs/guides/publish/)
-- [Notifications](/docs/guides/notifications/)
+- [Sites and deploy](/docs/guides/publish.md)
+- [Notifications](/docs/guides/notifications.md)

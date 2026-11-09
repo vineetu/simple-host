@@ -19,7 +19,7 @@ with a startup `WARNING`.
 `RATE_LIMIT_SITE_OPS` also covers account deletion; `RATE_LIMIT_EXPORT` includes
 link downloads. `RATE_LIMIT_EVENT_APPLY_USER` permits five applications an hour
 by default. Visitor OAuth limits cover both starts and callbacks. Passcode
-limits trigger the [site lockout periods](/docs/self-hosting/settings/sites-and-versions/).
+limits trigger the [site lockout periods](/docs/self-hosting/settings/sites-and-versions.md).
 
 <!-- settings:type=rate -->
 | Setting | Default | Allowed | What it does |

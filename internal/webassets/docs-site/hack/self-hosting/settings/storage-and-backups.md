@@ -52,7 +52,7 @@ WAL, backups and version retention. Storage quotas are shared within a site;
 visitor rate limits slow filling them but do not reserve space for other visitors.
 
 For deployed versions: set `KEEP_VERSIONS` (see
-[Sites and versions](/docs/self-hosting/settings/sites-and-versions/)). The admin page shows disk use.
+[Sites and versions](/docs/self-hosting/settings/sites-and-versions.md)). The admin page shows disk use.
 
 ## Postgres client pool
 
@@ -75,4 +75,4 @@ The website file allowance still applies to each raw-file upload.
 Without `TRUSTED_PROXY_CIDRS` the client address is the last `X-Forwarded-For` entry from any peer. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port; an unproxied install set up that way has no trustworthy IP write limit. With `TRUSTED_PROXY_CIDRS` set (Kubernetes, a load balancer in front), the header is believed only from those networks and a direct connection from anywhere else is its own client.
 
 Kubernetes sets trusted proxy networks to the cluster pod and node ranges; see
-[Kubernetes](/docs/self-hosting/kubernetes/). The same client address controls the country gate.
+[Kubernetes](/docs/self-hosting/kubernetes.md). The same client address controls the country gate.

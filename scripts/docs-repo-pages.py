@@ -49,17 +49,6 @@ def slug_for(group, name):
     return f'self-hosting/{group}/{name}' if name else f'self-hosting/{group}'
 
 
-def slugify(text):
-    """Approximate the heading-id slugger Starlight/rehype-slug uses, for
-    rewriting markdown link fragments."""
-    text = text.strip().lower()
-    text = re.sub(r'[`*_]', '', text)
-    text = re.sub(r'[^a-z0-9\- ]+', '', text)
-    text = re.sub(r'\s+', '-', text)
-    text = re.sub(r'-+', '-', text).strip('-')
-    return text
-
-
 H1_RE = re.compile(r'^#[ \t]+(.+?)[ \t]*$', re.M)
 
 
@@ -78,17 +67,38 @@ def split_title(text):
 # a later ticket cleans up; the public requirement is zero case-insensitive
 # "hack" surviving in the Host build, not a surgical edit.
 
-FENCE_RE = re.compile(r'^(```|~~~)')
+FENCE_RE = re.compile(r'^(```+|~~~+)')
 HEADING_RE = re.compile(r'^(#{2,6})[ \t]+(.*)$')
 LIST_MARK_RE = re.compile(r'^(\s*)([-*+]|\d+[.)])\s')
+COMMENT_LINE_RE = re.compile(r'^\s*<!--.*-->\s*$')
 
 
 def _drop_hack_sections(text):
     """Drop a heading (any level) whose text mentions "hack", and everything
-    under it until the next heading at the same or a shallower level."""
+    under it until the next heading at the same or a shallower level. Lines
+    inside a fenced code block are never read as headings (a shell comment or
+    a Markdown example inside a fence can look like one): a fence closes only
+    on a fence of the same character and at least as many repeats as opened
+    it, matching CommonMark."""
     out = []
     drop_stack = []
+    in_fence = False
+    fence_marker = None
     for line in text.split('\n'):
+        stripped = line.strip()
+        if in_fence:
+            if stripped.startswith(fence_marker):
+                in_fence = False
+            if not drop_stack:
+                out.append(line)
+            continue
+        fm = FENCE_RE.match(stripped)
+        if fm:
+            in_fence = True
+            fence_marker = fm.group(1)
+            if not drop_stack:
+                out.append(line)
+            continue
         m = HEADING_RE.match(line)
         if m:
             level = len(m[1])
@@ -142,49 +152,204 @@ def _split_blocks(text):
 
 
 def _filter_list_items(lines):
-    items = []
-    cur = None
-    for line in lines:
-        if LIST_MARK_RE.match(line):
-            if cur is not None:
-                items.append(cur)
-            cur = [line]
-        else:
-            cur = [line] if cur is None else cur + [line]
-    if cur is not None:
-        items.append(cur)
+    """Drop a list item that mentions "hack" together with every more deeply
+    indented line that follows it (its own nested children), up to the next
+    item at the same or a shallower indent. A sibling or ancestor that does
+    not itself mention "hack" is evaluated, and kept, independently."""
+    n = len(lines)
+    indent = [len(LIST_MARK_RE.match(l)[1]) if LIST_MARK_RE.match(l) else None for l in lines]
+
+    def item_mentions_hack(i):
+        j = i + 1
+        while j < n and indent[j] is None:
+            j += 1
+        return 'hack' in '\n'.join(lines[i:j]).lower()
+
+    out = []
+    drop_stack = []  # indents of items currently being dropped
+    for i, line in enumerate(lines):
+        if indent[i] is not None:
+            while drop_stack and drop_stack[-1] >= indent[i]:
+                drop_stack.pop()
+            if drop_stack or item_mentions_hack(i):
+                drop_stack.append(indent[i])
+                continue
+            out.append(line)
+            continue
+        if drop_stack:
+            continue
+        out.append(line)
+    return out
+
+
+def _filter_table_rows(lines):
+    """A Markdown table's own lines (header, separator, data...), ignoring
+    any leading blank lines kept by the block splitter. Drop the whole table
+    (return None) if its header row mentions "hack"; otherwise keep the
+    header and separator and drop only the data rows that do."""
+    content_idx = [i for i, l in enumerate(lines) if l.strip().startswith('|')]
+    if not content_idx:
+        return lines
+    header_i = content_idx[0]
+    if 'hack' in lines[header_i].lower():
+        return None
+    sep_i = content_idx[1] if len(content_idx) > 1 else None
     kept = []
-    for item in items:
-        if 'hack' not in '\n'.join(item).lower():
-            kept.extend(item)
+    for i, l in enumerate(lines):
+        if i in (header_i, sep_i) or l.strip() == '' or 'hack' not in l.lower():
+            kept.append(l)
     return kept
+
+
+def _filter_fence_block(lines):
+    """A fenced code block's own lines (opening fence, body, closing fence).
+    Drop only the body lines mentioning "hack", keeping the fence; drop the
+    whole block (return None) if nothing is left inside it."""
+    if 'hack' not in '\n'.join(lines).lower():
+        return lines
+    open_line = lines[0]
+    fence_marker = FENCE_RE.match(open_line.strip())[1]
+    has_close = len(lines) > 1 and lines[-1].strip().startswith(fence_marker)
+    body = lines[1:-1] if has_close else lines[1:]
+    kept_body = [l for l in body if 'hack' not in l.lower()]
+    if not kept_body:
+        return None
+    result = [open_line] + kept_body
+    if has_close:
+        result.append(lines[-1])
+    return result
 
 
 def _drop_hack_blocks(text):
     out = []
     for block in _split_blocks(text):
-        first = block[0].strip()
-        joined = '\n'.join(block)
+        # A leading or trailing run of HTML-comment lines (e.g. the
+        # `<!-- settings:group=... -->` / `<!-- /settings -->` pair that
+        # wraps a settings table) belongs with the block it marks: classify
+        # and filter what is between them, then keep the comments only if
+        # that survives.
+        prefix, suffix = [], []
+        body = block
+        while body and COMMENT_LINE_RE.match(body[0]):
+            prefix.append(body[0])
+            body = body[1:]
+        while body and COMMENT_LINE_RE.match(body[-1]):
+            suffix.insert(0, body[-1])
+            body = body[:-1]
+        if not body:
+            out.extend(block)
+            continue
+        first = body[0].strip()
+        joined = '\n'.join(body)
         if first == '':
             out.extend(block)
         elif FENCE_RE.match(first):
-            if 'hack' not in joined.lower():
-                out.extend(block)
-        elif all(l.strip() == '' or l.strip().startswith('|') for l in block):
-            out.extend(l for l in block if 'hack' not in l.lower())
-        elif all(l.strip() == '' or l.strip().startswith('>') for l in block):
-            out.extend(l for l in block if 'hack' not in l.lower())
+            filtered = _filter_fence_block(body)
+            if filtered is not None:
+                out.extend(prefix)
+                out.extend(filtered)
+                out.extend(suffix)
+        elif all(l.strip() == '' or l.strip().startswith('|') for l in body):
+            filtered = _filter_table_rows(body)
+            if filtered is not None:
+                out.extend(prefix)
+                out.extend(filtered)
+                out.extend(suffix)
+        elif all(l.strip() == '' or l.strip().startswith('>') for l in body):
+            out.extend(prefix)
+            out.extend(l for l in body if 'hack' not in l.lower())
+            out.extend(suffix)
         elif LIST_MARK_RE.match(first):
-            out.extend(_filter_list_items(block))
+            out.extend(prefix)
+            out.extend(_filter_list_items(body))
+            out.extend(suffix)
         elif 'hack' not in joined.lower():
-            out.extend(block)
+            out.extend(prefix)
+            out.extend(body)
+            out.extend(suffix)
+    return '\n'.join(out)
+
+
+def _drop_dangling_intros(text):
+    """A line ending in ':' introduces what follows it (a list, a table, a
+    code sample). When filtering has removed everything that followed -- end
+    of section, or the next thing left is a heading -- the intro is now a
+    dead end and is dropped too."""
+    blocks = _split_blocks(text)
+    n = len(blocks)
+    out = []
+    i = 0
+    while i < n:
+        block = blocks[i]
+        if (block != [''] and not FENCE_RE.match(block[0].strip())
+                and block[-1].rstrip().endswith(':')):
+            j = i + 1
+            while j < n and blocks[j] == ['']:
+                j += 1
+            if j >= n or HEADING_RE.match(blocks[j][0]):
+                i += 1
+                continue
+        out.extend(block)
+        i += 1
+    return '\n'.join(out)
+
+
+def _drop_empty_sections(text):
+    """Drop a heading (any level) whose section -- everything before the next
+    heading at the same or a shallower level -- is now blank lines only,
+    ignoring fenced code blocks when scanning for that next heading."""
+    lines = text.split('\n')
+    n = len(lines)
+    out = []
+    i = 0
+    while i < n:
+        m = HEADING_RE.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        level = len(m[1])
+        j = i + 1
+        in_fence = False
+        fence_marker = None
+        while j < n:
+            stripped = lines[j].strip()
+            if in_fence:
+                if stripped.startswith(fence_marker):
+                    in_fence = False
+                j += 1
+                continue
+            fm = FENCE_RE.match(stripped)
+            if fm:
+                in_fence = True
+                fence_marker = fm.group(1)
+                j += 1
+                continue
+            hm = HEADING_RE.match(lines[j])
+            if hm and len(hm[1]) <= level:
+                break
+            j += 1
+        if all(l.strip() == '' for l in lines[i + 1:j]):
+            i = j
+            continue
+        out.append(lines[i])
+        i += 1
     return '\n'.join(out)
 
 
 def host_filter(text):
     """Drop every section, paragraph, list item, table row, blockquote line
-    and fenced code block mentioning "hack", for the Host brand only."""
-    return _drop_hack_blocks(_drop_hack_sections(text))
+    and fenced code block mentioning "hack", for the Host brand only, then
+    clean up what that filtering leaves behind: a heading whose section is
+    now empty, and an intro line ending in ':' with nothing (or a heading)
+    now after it."""
+    text = _drop_hack_blocks(_drop_hack_sections(text))
+    prev = None
+    while text != prev:
+        prev = text
+        text = _drop_dangling_intros(text)
+        text = _drop_empty_sections(text)
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -194,10 +359,13 @@ LINK_RE = re.compile(r'(!?)\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 DIAGRAM_PREFIX = 'https://simple-host.app/diagrams/'
 
 
-def rewrite_links(text, root, repo_path, url_for, copy_image):
+def rewrite_links(text, root, repo_path, url_for, copy_image, is_skipped=lambda rel: False):
     """url_for(repo_relpath) -> page URL or None (not rendered on this brand).
     copy_image(repo_relpath) -> published URL, copying the file as a side
-    effect."""
+    effect. is_skipped(repo_relpath) -> True when the target is a real repo
+    file deliberately left out of this brand (a Hack-only file on Host): the
+    link is dropped, keeping just its text, rather than falling back to a
+    GitHub link that would point a Host reader at Hack-only content."""
     base_dir = (root / repo_path).parent
 
     def repl(m):
@@ -220,6 +388,8 @@ def rewrite_links(text, root, repo_path, url_for, copy_image):
         page_url = url_for(rel)
         if page_url:
             return f'[{label}]({page_url}{"#" + frag if frag else ""})'
+        if is_skipped(rel):
+            return label
         if is_dir:
             return f'[{label}]({GITHUB_TREE}{rel}/)'
         return f'[{label}]({GITHUB_BLOB}{rel})'
@@ -248,11 +418,13 @@ def copy_asset(root, source_dir):
 # Changelog.
 
 CHANGELOG_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2}):\s*(.*)$')
+# Only a parenthetical made up ENTIRELY of ticket references, e.g. "(SIM-391)"
+# or "(SIM-388/SIM-393)", is removable noise. A bare SIM-NNN that is not
+# parenthesized (a direct object: "a run of SIM-345"), or a parenthetical that
+# mixes a ticket with other words (e.g. "(SIM-211 follow-up)" or "(agent
+# notifications phase 2, SIM-356)"), is left exactly as written -- stripping
+# those used to mangle the sentence around the removed token.
 TICKET_PAREN_RE = re.compile(r'\s*\(SIM-\d+(?:\s*[/,]\s*SIM-\d+)*\)')
-# Eats a run of leading whitespace along with the bare ticket, so removal
-# never leaves a stray space before whatever punctuation follows (and never
-# touches unrelated punctuation elsewhere in the line).
-TICKET_BARE_RE = re.compile(r'[ \t]*(?<![\w-])SIM-\d+(?![\w-])')
 
 
 def parse_changelog(text):
@@ -267,7 +439,6 @@ def parse_changelog(text):
 
 def strip_tickets(text):
     text = TICKET_PAREN_RE.sub('', text)
-    text = TICKET_BARE_RE.sub('', text)
     text = re.sub(r'[ \t]{2,}', ' ', text)
     return text.strip()
 
@@ -310,7 +481,8 @@ def generate(root, target, brand):
         title, body = split_title(text)
         if host:
             body = host_filter(body)
-        body = rewrite_links(body, root, repo_path, url_for, copy_image)
+        body = rewrite_links(body, root, repo_path, url_for, copy_image,
+                              lambda rel: host and is_hack_named(rel))
         slug = slug_for(group, name)
         dest = target / slug / 'index.md'
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -354,6 +526,22 @@ def generate(root, target, brand):
 
 FRONTMATTER_RE = re.compile(r'\A---\n(.*?)\n---\n', re.S)
 TITLE_RE = re.compile(r'^title:\s*"?(.*?)"?\s*$', re.M)
+SLUG_RE = re.compile(r'^slug:\s*"?(.*?)"?\s*$', re.M)
+# A Markdown link into another built page (never an image: those keep
+# pointing at the copied asset). Only a directory-style target -- "/docs/" or
+# "/docs/<path>/", with an optional #fragment -- is a page link; it is
+# rewritten to that page's own .md sibling so an agent walking the docs from
+# /docs/index.md stays in Markdown throughout, per llms.txt. A target with no
+# trailing slash (an asset, a script) is left alone.
+MD_PAGE_LINK_RE = re.compile(r'(?<!!)\[([^\]]*)\]\(/docs/([^)\s#]*)(#[^)\s]*)?\)')
+
+
+def _rewrite_md_page_link(m):
+    label, path, frag = m[1], m[2], m[3] or ''
+    if path != '' and not path.endswith('/'):
+        return m[0]
+    new_path = '/docs/index.md' if path == '' else f'/docs/{path[:-1]}.md'
+    return f'[{label}]({new_path}{frag})'
 IMPORT_RE = re.compile(r'^import .+?;?[ \t]*$\n?', re.M)
 COMMENT_RE = re.compile(r'\{/\*.*?\*/\}', re.S)
 WHAT_RE = re.compile(r'<What\s+id="([^"]+)"\s*/>')
@@ -382,10 +570,17 @@ def convert_to_md(text):
     if m:
         tm = TITLE_RE.search(m[1])
         if tm:
-            title = tm[1]
+            # _frontmatter() backslash-escapes a '"' in the title for the YAML
+            # value; undo that for the plain-text .md title, or a literal
+            # backslash-quote would survive into the served page.
+            title = tm[1].replace('\\"', '"')
         text = text[m.end():]
     text = IMPORT_RE.sub('', text)
-    text = COMMENT_RE.sub('', text)
+    # A removed {/* ... */} comment leaves its surrounding blank lines behind
+    # (e.g. self-hosting/index.mdx's build-note comment between the intro
+    # line and the appended page list); collapse the run rather than carry
+    # three blank lines into the served .md.
+    text = re.sub(r'\n[ \t]*\n(?:[ \t]*\n)+', '\n\n', COMMENT_RE.sub('', text))
     text = WHAT_RE.sub(lambda mm: f'[What this is](/features.html#{mm[1]})', text)
     text = STEPS_RE.sub('', text)
     text = CARDGRID_RE.sub('', text)
@@ -405,14 +600,23 @@ def convert_to_md(text):
         return f'<!--/sh:{kind}-->'
 
     text = INSTANCE_RE.sub(inst, text)
+    text = MD_PAGE_LINK_RE.sub(_rewrite_md_page_link, text)
     body = text.strip('\n')
     header = f'# {title}\n\n' if title else ''
     return header + body + '\n'
 
 
-def slug_for_source(rel_posix):
+def slug_for_source(rel_posix, text=''):
     """A .generated-content-relative POSIX path (no extension) to its
-    Starlight slug, matching Astro's glob-loader index convention."""
+    Starlight slug, matching Astro's glob-loader index convention -- unless
+    the page's own frontmatter declares `slug:`, which overrides the
+    path-derived one (e.g. start/run.mdx with `slug: start` is the brand's
+    index page for start/, built to start/index.html, not start/run/)."""
+    fm = FRONTMATTER_RE.match(text)
+    if fm:
+        sm = SLUG_RE.search(fm[1])
+        if sm:
+            return sm[1]
     s = rel_posix.rsplit('.', 1)[0]
     if s == 'index':
         return ''
@@ -434,8 +638,9 @@ def write_md_copies(root, brand):
         if not p.is_file() or p.suffix not in ('.md', '.mdx'):
             continue
         rel = p.relative_to(source_dir).as_posix()
-        slug = slug_for_source(rel)
-        md = convert_to_md(p.read_text())
+        text = p.read_text()
+        slug = slug_for_source(rel, text)
+        md = convert_to_md(text)
         dest = out_dir / (f'{slug}.md' if slug else 'index.md')
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(md)

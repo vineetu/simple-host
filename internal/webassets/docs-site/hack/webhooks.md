@@ -1,6 +1,6 @@
 # Webhooks
 
-Set one up in [Notifications](/docs/guides/notifications/).
+Set one up in [Notifications](/docs/guides/notifications.md).
 
 ## Events
 

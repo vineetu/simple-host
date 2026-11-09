@@ -16,7 +16,6 @@ part of that onboarding.
 
 ![Simple Hack Get started](/docs/self-hosting/assets/simple-hack-get-started.png)
 
-
 **The full platform installer and a private Packer snapshot were tested on
 DigitalOcean on 2026-10-01.** A Marketplace listing has not been submitted or
 approved. This package is separate from the existing Simple Host small-box
@@ -85,7 +84,7 @@ a snapshot; both the build and retained snapshot incur provider charges.
 ## Install from your snapshot
 
 Create a droplet from the snapshot and add your SSH key. Configure the domain
-and email prerequisites from [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone/).
+and email prerequisites from [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md).
 On first root SSH login, setup asks for your domain, verifies the apex, event
 and team DNS shapes against the droplet IPv4, and asks for the Resend key
 without echoing it. This first-login setup uses IPv4: remove existing AAAA
@@ -103,14 +102,14 @@ separate client. The private snapshot passed first-login and persistence
 checks; the earlier live event walkthrough verified the installer on a plain
 droplet. Neither is a Marketplace listing or a test of external email delivery.
 
-For upgrades and backups, follow [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone/).
+For upgrades and backups, follow [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md).
 The installer uses persistent Docker volumes and preserves existing secrets;
 it does not contact simple-host.app to register an event name.
 
 Company sign-in and the TLS mode are environment settings, not part of the
 first-login prompts; add them to `/opt/simple-hack/.env` and rerun
 `/opt/simple-hack-setup/digitalocean/first-login.sh --apply` afterwards (see
-[the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone/#company-sign-in-and-running-inside-your-network)
+[the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md#company-sign-in-and-running-inside-your-network)
 for what each one does). A DigitalOcean droplet is public by nature, so
 `TLS_MODE=internal` or `acme` here only makes sense on a droplet attached to
 a VPC private network with no public inbound rule, reached over a VPN or

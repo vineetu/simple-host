@@ -43,5 +43,5 @@ Open your sites page, choose Analytics, and select the site and period.
 | HTTP 400 (no code) | Days is not a positive integer | Use an integer from 1 to 365 |
 
 ## Next
-- [Sites and deploy](/docs/guides/publish/)
-- [Agents and MCP](/docs/guides/agents/)
+- [Sites and deploy](/docs/guides/publish.md)
+- [Agents and MCP](/docs/guides/agents.md)

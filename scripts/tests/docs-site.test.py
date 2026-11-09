@@ -122,6 +122,8 @@ class HackFilterTest(unittest.TestCase):
     def test_unknown_mcp_family_fails_loudly(self):
         with self.assertRaises(ValueError):
             dr.mcp_pages([{'name': 'x', 'family': 'not-a-real-family', 'listed': True, 'description': ''}], '/install.html')
+
+
 class RepoPagesLinkRewriteTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -176,6 +178,14 @@ class RepoPagesLinkRewriteTest(unittest.TestCase):
         out = self.rewrite('See [us](/docs/guides/publish/) or [them](https://example.com/x).')
         self.assertEqual(out, 'See [us](/docs/guides/publish/) or [them](https://example.com/x).')
 
+    def test_link_to_a_skipped_hack_file_drops_the_link_but_keeps_the_text(self):
+        (self.root / 'docs/advanced/hosted-events.md').write_text('hack only')
+        is_skipped = lambda rel: rel == 'docs/advanced/hosted-events.md'
+        out = pages['rewrite_links'](
+            'See [hosted events](hosted-events.md) for that.', self.root,
+            'docs/advanced/accounts-and-sign-in.md', self.url_for, self.copy_image, is_skipped)
+        self.assertEqual(out, 'See hosted events for that.')
+
 
 class RepoPagesHostFilterTest(unittest.TestCase):
     def test_section_with_hack_heading_is_dropped(self):
@@ -218,9 +228,66 @@ class RepoPagesHostFilterTest(unittest.TestCase):
         self.assertIn('keep', out)
         self.assertIn('also keep', out)
 
+    def test_fenced_code_block_keeps_fence_and_other_lines(self):
+        text = 'keep\n\n```\nFOO=1\nSIMPLE_HACK_IMAGE=x\nBAR=2\n```\n\nalso keep\n'
+        out = pages['host_filter'](text)
+        self.assertIn('```\nFOO=1\nBAR=2\n```', out)
+        self.assertNotIn('hack', out.lower())
+
+    def test_settings_table_with_group_comment_keeps_header_and_drops_only_offending_rows(self):
+        text = (
+            '<!-- settings:group=server -->\n'
+            '| Setting | Default | Allowed | What it does |\n'
+            '|---|---|---|---|\n'
+            '| `A` | 1 | x | keep this row |\n'
+            '| `B` | 2 | x | mentions hack here |\n'
+            '| `C` | 3 | x | keep this too |\n'
+            '<!-- /settings -->\n'
+        )
+        out = pages['host_filter'](text)
+        self.assertIn('<!-- settings:group=server -->', out)
+        self.assertIn('<!-- /settings -->', out)
+        self.assertIn('| Setting | Default | Allowed | What it does |', out)
+        self.assertIn('keep this row', out)
+        self.assertIn('keep this too', out)
+        self.assertNotIn('hack', out.lower())
+
+    def test_table_header_mentioning_hack_drops_whole_table(self):
+        text = (
+            '<!-- settings:group=hack -->\n'
+            '| Hack setting | Default |\n'
+            '|---|---|\n'
+            '| `A` | 1 |\n'
+        )
+        out = pages['host_filter'](text)
+        self.assertNotIn('<!-- settings:group=hack -->', out)
+        self.assertNotIn('`A`', out)
+
+    def test_nested_list_child_dropped_with_its_parent(self):
+        text = '- keep sibling\n- mentions hack\n  - nested child\n  - another nested child\n- keep other sibling\n'
+        out = pages['host_filter'](text)
+        self.assertNotIn('hack', out.lower())
+        self.assertNotIn('nested child', out)
+        self.assertIn('keep sibling', out)
+        self.assertIn('keep other sibling', out)
+
+    def test_heading_emptied_by_filtering_is_dropped(self):
+        text = '## Keep\nkeep this\n\n## Emptied\nmentions hack only here\n\n## Also keep\nkept too\n'
+        out = pages['host_filter'](text)
+        self.assertNotIn('## Emptied', out)
+        self.assertIn('## Keep', out)
+        self.assertIn('## Also keep', out)
+
+    def test_dangling_colon_intro_before_removed_fence_is_dropped(self):
+        text = 'Keep this.\n\nAdd both at your DNS provider:\n\n```\nhack.example.com\n```\n\n## Next\nmore\n'
+        out = pages['host_filter'](text)
+        self.assertNotIn('Add both at your DNS provider:', out)
+        self.assertIn('Keep this.', out)
+        self.assertIn('## Next', out)
+
 
 class RepoPagesChangelogTest(unittest.TestCase):
-    def test_grouped_by_month_newest_first_with_tickets_stripped(self):
+    def test_grouped_by_month_newest_first_with_ticket_only_parens_stripped(self):
         text = (
             '2026-11-08: Did a thing (SIM-391).\n'
             '2026-11-07: Did another SIM-200 thing.\n'
@@ -231,7 +298,9 @@ class RepoPagesChangelogTest(unittest.TestCase):
         self.assertEqual(out, (
             '## November 2026\n\n'
             '- **Nov 8:** Did a thing.\n\n'
-            '- **Nov 7:** Did another thing.\n\n'
+            # A bare, unparenthesized SIM-NNN is not a removable ticket
+            # citation (it's part of the sentence) and must survive as is.
+            '- **Nov 7:** Did another SIM-200 thing.\n\n'
             '## October 2026\n\n'
             '- **Oct 30:** Older thing.\n'
         ))
@@ -241,6 +310,30 @@ class RepoPagesChangelogTest(unittest.TestCase):
         out = pages['render_changelog'](entries, drop_hack=True)
         self.assertNotIn('Hack', out)
         self.assertIn('Simple Host got a feature.', out)
+
+    def test_multi_ticket_paren_is_removed(self):
+        entries = pages['parse_changelog']('2026-11-08: Final review fixes (SIM-388/SIM-393).\n')
+        out = pages['render_changelog'](entries, drop_hack=False)
+        self.assertIn('- **Nov 8:** Final review fixes.\n', out)
+        self.assertNotIn('SIM-388', out)
+
+    def test_bare_ticket_as_direct_object_is_untouched(self):
+        text = '2026-10-31: A Grok bot run of SIM-345 found Claude naming those tools itself.\n'
+        entries = pages['parse_changelog'](text)
+        out = pages['render_changelog'](entries, drop_hack=False)
+        self.assertIn('A Grok bot run of SIM-345 found Claude naming those tools itself.', out)
+
+    def test_ticket_mixed_with_other_words_in_parens_is_untouched(self):
+        text = "2026-10-26: On the owner dashboard, panels no longer stack (SIM-211 follow-up).\n"
+        entries = pages['parse_changelog'](text)
+        out = pages['render_changelog'](entries, drop_hack=False)
+        self.assertIn('panels no longer stack (SIM-211 follow-up).', out)
+
+    def test_ticket_with_trailing_words_in_parens_is_untouched(self):
+        text = '2026-10-31: Simple Hack paper metrics (SIM-335, deployed 2026-10-31; overhead-gate review): details.\n'
+        entries = pages['parse_changelog'](text)
+        out = pages['render_changelog'](entries, drop_hack=False)
+        self.assertIn('paper metrics (SIM-335, deployed 2026-10-31; overhead-gate review): details.', out)
 
 
 class RepoPagesMarkdownConversionTest(unittest.TestCase):
@@ -278,10 +371,34 @@ class RepoPagesMarkdownConversionTest(unittest.TestCase):
 
     def test_linkcard_and_linkbutton_become_links(self):
         out = self.convert('---\ntitle: "T"\n---\n<CardGrid>\n<LinkCard title="Storage" href="/docs/guides/storage/" />\n</CardGrid>\n<LinkButton href="/install.html">Connect</LinkButton>\n')
-        self.assertIn('- [Storage](/docs/guides/storage/)', out)
+        # The internal docs link also gets the .md-sibling rewrite (item 7);
+        # /install.html is not a /docs/ page link, so it is untouched.
+        self.assertIn('- [Storage](/docs/guides/storage.md)', out)
         self.assertIn('[Connect](/install.html)', out)
         self.assertNotIn('<CardGrid>', out)
         self.assertNotIn('<LinkCard', out)
+
+    def test_internal_docs_page_link_points_at_its_md_sibling(self):
+        out = self.convert('---\ntitle: "T"\n---\nSee [Storage](/docs/guides/storage/#limits) and [Docs](/docs/).\n')
+        self.assertIn('[Storage](/docs/guides/storage.md#limits)', out)
+        self.assertIn('[Docs](/docs/index.md)', out)
+
+    def test_non_page_docs_link_is_untouched(self):
+        out = self.convert('---\ntitle: "T"\n---\nSee [schema](/docs/openapi.json).\n')
+        self.assertIn('[schema](/docs/openapi.json)', out)
+
+    def test_escaped_quote_in_title_is_unescaped(self):
+        out = self.convert('---\ntitle: "Say \\"hi\\""\n---\nBody.\n')
+        self.assertTrue(out.startswith('# Say "hi"\n\n'))
+
+
+class RepoPagesSlugOverrideTest(unittest.TestCase):
+    def test_frontmatter_slug_overrides_the_path_derived_one(self):
+        text = '---\ntitle: "Run an event"\nslug: start\n---\nBody.\n'
+        self.assertEqual(pages['slug_for_source']('start/run.mdx', text), 'start')
+
+    def test_no_frontmatter_slug_falls_back_to_the_path(self):
+        self.assertEqual(pages['slug_for_source']('guides/agents/index.mdx', ''), 'guides/agents')
 
 
 if __name__ == '__main__':

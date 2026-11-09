@@ -31,7 +31,6 @@ family and writes one nginx file per family; it never issues, renews or deletes 
 Families need `ADDRESS_FAMILY_CERT_DIR` pointing at that issuer's state directory; without it no
 family is ever served. They are not available on a small box with Caddy yet.
 
-
 <!-- settings:group=domains -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|

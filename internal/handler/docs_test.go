@@ -97,7 +97,7 @@ func TestDocsMarkdownCopies(t *testing.T) {
 			t.Errorf("/docs/index.md: expected a leading H1, got %q", r.Body.String()[:40])
 		}
 		if strings.Contains(r.Body.String(), "<LinkCard") || strings.Contains(r.Body.String(), "import ") {
-			t.Error("/docs/index.md: uncoverted MDX component or import survived")
+			t.Error("/docs/index.md: unconverted MDX component or import survived")
 		}
 		if r := get(t, mux, "", "/docs/guides/storage.md"); r.Code != 200 {
 			t.Errorf("/docs/guides/storage.md: %d", r.Code)
@@ -132,6 +132,14 @@ func TestDocsMarkdownRuntimeText(t *testing.T) {
 	}
 	if bytes.Contains(body, []byte("<!--sh:")) {
 		t.Error(".md copy still carries an unresolved marker")
+	}
+	// webhooks.md's sample payload URL is "https://rosas-bakery.rosa.simple-host.app/":
+	// the bare host name inside it is outside the baseURL's exact-origin
+	// replace, so only selfHostedChromeRewrite's instanceHosts pass catches
+	// it. The HTML got that pass already; the .md path once did not
+	// (docsRuntimeText fixes that by sharing the same text passes).
+	if webhooks := self.docs.md["webhooks.md"]; bytes.Contains(webhooks, []byte("simple-host.app")) {
+		t.Error(".md copy leaked a simple-host.app host name on a self-hosted pipeline")
 	}
 }
 

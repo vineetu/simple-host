@@ -14,7 +14,7 @@ window the app opens, and the app keeps a short access token it refreshes.
 **Visitors** to a site on its own address can sign in with Google or an emailed code, so what
 they save is theirs and private lists stay private. One sign-in covers one site.
 
-Email codes need [email](/docs/self-hosting/settings/email/) set up; Google needs an OAuth client whose redirect URI is
+Email codes need [email](/docs/self-hosting/settings/email.md) set up; Google needs an OAuth client whose redirect URI is
 `<PUBLIC_BASE_URL>/v1/auth/oauth/google/callback`. With neither, only the admin key signs in.
 
 <!-- settings:group=accounts -->

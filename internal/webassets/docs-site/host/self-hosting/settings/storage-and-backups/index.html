@@ -604,6 +604,134 @@
 <p>On a small box both are Docker volumes (<code>simple-host_db</code> and <code>simple-host_sites</code>), and
 <code>/opt/simple-host/.env</code> holds the admin key and the database password, which only that file
 knows.</p>
+<!-- settings:group=storage -->
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Allowed</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VISITOR_AI_WRITES_PER_DAY</code></td>
+<td><code>200</code></td>
+<td>1–100000 writes</td>
+<td>Visitor connector write attempts per person and site per UTC day, shared across apps and restarts. <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_FILES_MAX_OBJECTS</code></td>
+<td><code>1000</code></td>
+<td>1–100000 objects</td>
+<td>Maximum committed file objects per bucket, including empty files; overwrites do not add an object.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_SQL_CONCURRENCY</code></td>
+<td><code>0</code></td>
+<td>0–1024 queries</td>
+<td>Concurrent SQLite executions across the process; defaults to the CPU count.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_ACQUIRE_WAIT_MS</code></td>
+<td><code>250</code></td>
+<td>1–5000 milliseconds</td>
+<td>Wait for a SQLite execution slot before returning 503 with Retry-After.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_WRITE_LOCK_WAIT_MS</code></td>
+<td><code>2000</code></td>
+<td>1–10000 milliseconds</td>
+<td>Wait for the site write/deploy lock before returning 503 with Retry-After.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_OWNER_TIMEOUT_MS</code></td>
+<td><code>5000</code></td>
+<td>1–30000 milliseconds</td>
+<td>Owner SQLite query, schema and write timeout.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS</code></td>
+<td><code>2000</code></td>
+<td>1–5000 milliseconds</td>
+<td>Visitor storage write timeout.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS</code></td>
+<td><code>1000</code></td>
+<td>1–5000 milliseconds</td>
+<td>Visitor SQLite query timeout.</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT_STORAGE_IP</code></td>
+<td><code>120,100ms</code></td>
+<td>any (warns past 10× looser)</td>
+<td>Visitor storage writes per site and client IP; owner credentials are exempt.</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT_STORAGE_VISITOR</code></td>
+<td><code>60,200ms</code></td>
+<td>any (warns past 10× looser)</td>
+<td>Storage writes per site and signed-in visitor; limits add-only flooding.</td>
+</tr>
+<tr>
+<td><code>DB_DSN</code></td>
+<td>none</td>
+<td>secret</td>
+<td>The Postgres connection string. install.sh sets it for the bundled database. <strong>Required.</strong> <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
+<td><code>DB_MAX_OPEN_CONNS</code></td>
+<td><code>25</code></td>
+<td>at least 1 connections</td>
+<td>Maximum open Postgres connections per server process; excess requests wait.</td>
+</tr>
+<tr>
+<td><code>DB_MAX_IDLE_CONNS</code></td>
+<td><code>5</code></td>
+<td>at least 0 connections</td>
+<td>Maximum idle Postgres connections per server process; zero keeps none.</td>
+</tr>
+<tr>
+<td><code>DB_CONN_MAX_LIFETIME_MINUTES</code></td>
+<td><code>30</code></td>
+<td>at least 1 minutes</td>
+<td>Maximum lifetime of each pooled Postgres connection.</td>
+</tr>
+<tr>
+<td><code>DB_CONN_MAX_IDLE_MINUTES</code></td>
+<td><code>5</code></td>
+<td>at least 1 minutes</td>
+<td>Maximum idle time of each pooled Postgres connection.</td>
+</tr>
+<tr>
+<td><code>MIGRATE_ON_START</code></td>
+<td><code>false</code></td>
+<td><code>true</code> / <code>false</code></td>
+<td>true makes the server build an empty database from the embedded schema.sql and apply every pending migration before it listens (the same as <code>simple-host migrate -init</code>). For Kubernetes, where there is no psql and no install command; two pods starting at once are safe (an advisory lock).</td>
+</tr>
+<tr>
+<td><code>DATA_DIR</code></td>
+<td><code>./data/sites</code></td>
+<td>text</td>
+<td>The folder that holds every site’s files and versions.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_FILE_MAX_BYTES</code></td>
+<td><code>1000000</code></td>
+<td>1–10737418240 bytes</td>
+<td>Largest individual raw-file upload for a site storage bucket.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_SQL_RESULT_MAX_BYTES</code></td>
+<td><code>1000000</code></td>
+<td>1–67108864 bytes</td>
+<td>Largest JSON result from one site SQLite query.</td>
+</tr>
+</tbody>
+</table>
+<!-- /settings -->
 <h2 id="recipes">Recipes</h2>
 <p><strong>Back up a small box</strong> (from <code>/opt/simple-host</code>, into the current folder):</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>sudo docker compose exec -T db pg_dump -U simplehost simplehost | gzip &gt; db-$(date +%F).sql.gz &amp;&amp; sudo docker run --rm -v simple-host_sites:/sites -v "$PWD":/out alpine tar czf /out/sites-$(date +%F).tar.gz -C /sites . &amp;&amp; sudo cp .env env-$(date +%F).bak</span></span></code></pre>
@@ -630,7 +758,7 @@ The durable allowance excludes deployment versions, legacy saved data and transi
 The website file allowance still applies to each raw-file upload.</p>
 <p>Without <code>TRUSTED_PROXY_CIDRS</code> the client address is the last <code>X-Forwarded-For</code> entry from any peer. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port; an unproxied install set up that way has no trustworthy IP write limit. With <code>TRUSTED_PROXY_CIDRS</code> set (Kubernetes, a load balancer in front), the header is believed only from those networks and a direct connection from anywhere else is its own client.</p>
 <p>Kubernetes sets trusted proxy networks to the cluster pod and node ranges; see
-<a href="https://github.com/vineetu/simple-host/blob/main/docs/kubernetes.md">Kubernetes</a>. The same client address controls the country gate.</p>
+Kubernetes. The same client address controls the country gate.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

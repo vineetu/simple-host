@@ -628,6 +628,146 @@ family address (unless that family’s <code>canonical</code> switch is off), el
 site’s own address redirects to the main one, and sign-in and saves happen there; every family
 address of a site keeps working. <code>ADDRESS_FAMILIES</code> turns the feature off; it also needs
 <code>ADDRESS_FAMILY_CERT_DIR</code> and the family issuer, so it is off in practice on a small box.</p>
+<!-- settings:group=server -->
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Allowed</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PRIVACY_URL</code></td>
+<td>none</td>
+<td>URL</td>
+<td>This install’s own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link.</td>
+</tr>
+<tr>
+<td><code>CONTENT_HOST</code></td>
+<td><code>sites.&lt;SITE_DOMAIN&gt;</code></td>
+<td>text</td>
+<td>The separate hostname sites are served from, so pages never share an origin with the dashboard.</td>
+</tr>
+<tr>
+<td><code>PUBLIC_BASE_URL</code></td>
+<td><code>https://simple-host.app</code></td>
+<td>text</td>
+<td>The server’s own address, used in emails and sign-in redirects. install.sh sets it to https://&lt;SITE_DOMAIN&gt;.</td>
+</tr>
+<tr>
+<td><code>PORT</code></td>
+<td><code>8090</code></td>
+<td>1–65535</td>
+<td>The port the server listens on.</td>
+</tr>
+<tr>
+<td><code>BIND_ADDR</code></td>
+<td>none</td>
+<td>text</td>
+<td>The interface the server listens on, like 127.0.0.1 behind a proxy. Empty listens on all.</td>
+</tr>
+<tr>
+<td><code>TRUSTED_PROXY_CIDRS</code></td>
+<td>none</td>
+<td>text</td>
+<td>The networks the proxies in front of this server connect from, comma-separated (10.0.0.0/8,fd00::/8). Set, X-Forwarded-For is believed only from a peer in one of them and read right to left past every trusted hop, so a client cannot choose its own address for rate limits. Empty believes the last entry from any peer, which is right behind one local nginx. <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
+<td><code>DEPLOY_SCRIPT</code></td>
+<td>none</td>
+<td>text</td>
+<td>A script run after each site goes live. Empty runs nothing.</td>
+</tr>
+<tr>
+<td><code>PERSON_HOSTS</code></td>
+<td><code>off</code></td>
+<td><code>off</code> / <code>serve</code> / <code>canonical</code></td>
+<td>Each account at its own address, <handle>.&lt;SITE_DOMAIN&gt;. canonical makes it the address handed out.</td>
+</tr>
+<tr>
+<td><code>SITE_HOSTS</code></td>
+<td><code>off</code></td>
+<td><code>off</code> / <code>serve</code> / <code>canonical</code></td>
+<td>Each site at its own address, <site>.<handle>.&lt;SITE_DOMAIN&gt;. Needs PERSON_HOSTS.</td>
+</tr>
+<tr>
+<td><code>SITE_BASE_DOMAIN</code></td>
+<td><code>&lt;SITE_DOMAIN&gt;</code></td>
+<td>text</td>
+<td>Optional alternate base for person/site/free-name addresses. The app stays on SITE_DOMAIN. With SITE_BASE_MOVE=off, retain this only to redirect old base links back to SITE_DOMAIN.</td>
+</tr>
+<tr>
+<td><code>SITE_BASE_MOVE</code></td>
+<td><code>off</code></td>
+<td><code>off</code> / <code>serve</code> / <code>canonical</code> / <code>redirect</code> / <code>permanent</code></td>
+<td>off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301).</td>
+</tr>
+<tr>
+<td><code>SETUP_PASSWORD</code></td>
+<td>none</td>
+<td>secret</td>
+<td>The password a box in setup mode asks for. install.sh generates it. <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
+<td><code>SETUP_PUBLIC_API</code></td>
+<td><code>https://simple-host.app</code></td>
+<td>text</td>
+<td>Where a box in setup mode claims a free hostname from.</td>
+</tr>
+<tr>
+<td><code>MCP_APP_PASSCODE</code></td>
+<td><code>off</code></td>
+<td>text</td>
+<td>Passcode screen in compatible MCP Apps clients. off, on, or accounts:alice,bob. Personal Simple Host callers only.</td>
+</tr>
+<tr>
+<td><code>MCP_PASSCODE_SCREEN_TTL_SECONDS</code></td>
+<td><code>600</code></td>
+<td>at least 1 seconds</td>
+<td>Lifetime of a single-use sealed passcode screen session. Positive integer; invalid values use the default.</td>
+</tr>
+<tr>
+<td><code>MCP_APP_PHOTO_PICKER</code></td>
+<td><code>off</code></td>
+<td>text</td>
+<td>Photo picker in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only.</td>
+</tr>
+<tr>
+<td><code>MCP_APP_MY_SITES</code></td>
+<td><code>off</code></td>
+<td>text</td>
+<td>My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only.</td>
+</tr>
+<tr>
+<td><code>MCP_APP_DASHBOARD</code></td>
+<td><code>off</code></td>
+<td>text</td>
+<td>Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only.</td>
+</tr>
+<tr>
+<td><code>MCP_APP_SITE_PREVIEW</code></td>
+<td><code>off</code></td>
+<td>text</td>
+<td>Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only.</td>
+</tr>
+<tr>
+<td><code>BRAIN_DIR</code></td>
+<td>none</td>
+<td>text</td>
+<td>Folder containing bundle.json for the owner product-knowledge server; empty disables it, and hosted events ignore it.</td>
+</tr>
+<tr>
+<td><code>OPENAI_APPS_CHALLENGE</code></td>
+<td>none</td>
+<td>text</td>
+<td>The OpenAI plugin portal’s domain-verification token. Unset: not served.</td>
+</tr>
+</tbody>
+</table>
+<!-- /settings -->
 <h2 id="reserved-names">Reserved names</h2>
 <p>Some names read as the service, its operator or a sensitive function, so nobody new may take
 them. They are refused, with “this name is reserved; pick another”, to a new or changed

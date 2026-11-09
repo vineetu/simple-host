@@ -7,7 +7,7 @@ Load this in the page head, without `defer`:
 ```
 
 
-1. Create a SQLite resource named `notes`, a `notes` table with `id INTEGER PRIMARY KEY`, `visitor_id TEXT`, and `text TEXT`, and the **personal** preset through the owner API or connector. Follow [Storage and saved data](/docs/guides/storage/).
+1. Create a SQLite resource named `notes`, a `notes` table with `id INTEGER PRIMARY KEY`, `visitor_id TEXT`, and `text TEXT`, and the **personal** preset through the owner API or connector. Follow [Storage and saved data](/docs/guides/storage.md).
 2. Add `<div id="sh-auth"></div>` to the page and mount sign-in from your page's JavaScript:
 
    ```js

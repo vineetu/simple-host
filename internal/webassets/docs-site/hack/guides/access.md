@@ -31,7 +31,6 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 4. On a custom domain, set `window.SH_CONFIG = {site:'your-site'}` before loading the script.
 
 
-
 ## Errors you may see
 
 | Code | Means | Do this |
@@ -42,5 +41,5 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 | `use_custom_domain` (400) | Visitor sign-in needs its own origin | Open the site address |
 
 ## Next
-- [Storage and saved data](/docs/guides/storage/)
-- [Agents and MCP](/docs/guides/agents/)
+- [Storage and saved data](/docs/guides/storage.md)
+- [Agents and MCP](/docs/guides/agents.md)

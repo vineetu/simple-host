@@ -4,7 +4,6 @@
 
 [Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://<your-domain>/mcp`, and choose **Add**. In the sign-in window, sign in with an email code or a configured sign-in provider, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
 
-
 Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
 their AI and it builds their team's site. No coding needed. The best idea wins,
 not the best coder. Organisers choose the platform for college students, product
@@ -20,7 +19,6 @@ publish a team site and complete an entry. No account keys are handed out as
 part of that onboarding.
 
 ![Simple Hack Get started](/docs/self-hosting/assets/simple-hack-get-started.png)
-
 
 **Release status: v0.8.13 is published.** Its default image and ZIP/tar downloads
 are available from the [hack-v0.8.13 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.13).
@@ -76,7 +74,7 @@ and local fonts at 320, 390 and 1280 px in light and dark, including a real
 take-down state with no broken icon requests. The current Coolify
 Compose routing also passed through real local Traefik. The live DigitalOcean installation and private snapshot
 tests used
-v0.8.0; [those test details](/docs/self-hosting/platforms/simple-hack-digitalocean/) distinguish a private
+v0.8.0; [those test details](/docs/self-hosting/platforms/simple-hack-digitalocean.md) distinguish a private
 snapshot from Marketplace approval. This package is separate from the older
 Simple Host small-box installer.
 
@@ -100,7 +98,7 @@ results workflow. Nothing claims a name from simple-host.app.
   conflicting explicit records. Default port bindings use IPv4; remove AAAA
   records unless you also configure and verify IPv6 bindings and routing.
 - Public TCP ports 80 and 443 reaching this installation; no other web server
-  may already occupy them. [Coolify](/docs/self-hosting/platforms/simple-hack-coolify/) uses its existing proxy.
+  may already occupy them. [Coolify](/docs/self-hosting/platforms/simple-hack-coolify.md) uses its existing proxy.
 - Password sign-in works by default (`PASSWORD_SIGNIN=on`, `PASSWORD_SELF_SIGNUP=on`). Set the latter to `off` for admin-created accounts only.
 - Optionally, a Resend API key and a verified sender address. Email-code sign-in requires
   these; setting a fake key does not provide working sign-in. Google sign-in
@@ -287,7 +285,7 @@ docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/
 
 For additional application settings, add environment entries under both
 `release` and `app` as needed in your copy of `compose.yaml`; consult
-[configuration.md](/docs/self-hosting/configuration/). The bundled defaults enable the full
+[configuration.md](/docs/self-hosting/configuration.md). The bundled defaults enable the full
 event platform, with 30-day archived-site retention and a warning 14 days
 before removal. The site byte budget and retention values are environment
 settings, not limits on event attendance.

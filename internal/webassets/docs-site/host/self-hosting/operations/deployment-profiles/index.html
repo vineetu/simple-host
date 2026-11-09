@@ -546,13 +546,7 @@
 		<a href="#docker-compose-small-box" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Docker Compose small box</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#kubernetes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Kubernetes</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#shared-worker-and-migration-details" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Shared worker and migration details</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#password-sign-in-by-profile" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Password sign-in by profile</span></a>
 		
 	</li>
 </ul></div>
@@ -578,13 +572,7 @@
 		<a href="#docker-compose-small-box" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Docker Compose small box</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#kubernetes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Kubernetes</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#shared-worker-and-migration-details" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Shared worker and migration details</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#password-sign-in-by-profile" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Password sign-in by profile</span></a>
 		
 	</li>
 </ul>
@@ -615,8 +603,6 @@ The settings registry is <a href="https://github.com/vineetu/simple-host/blob/ma
 Addresses, persistence and sign-in still need the profile-specific choices below.
 The offline check is <code>bash scripts/check-profiles.sh</code>.</p>
 <h2 id="hosted-systemd">Hosted systemd</h2>
-<h3 id="what-runs">What runs</h3>
-<h3 id="how-settings-are-supplied">How settings are supplied</h3>
 <h3 id="migration-ownership">Migration ownership</h3>
 <p>Hosted: the operator owns migrations; startup migration is off.
 Neither inspected unit sets MIGRATE_ON_START. Apply release SQL before installing
@@ -640,7 +626,7 @@ from a client, check neighbouring sites and startup logs, and run
 <code>/usr/local/bin/simple-host version</code> (<code>CLAUDE.md:93</code>, <code>CLAUDE.md:98</code>,
 <code>internal/handler/health.go:14</code>).</p>
 <h2 id="docker-compose-small-box">Docker Compose small box</h2>
-<h3 id="what-runs-1">What runs</h3>
+<h3 id="what-runs">What runs</h3>
 <p>The root <code>compose.yaml</code> runs Postgres 16, one server container and Caddy.
 The server image is the nonroot Go binary, HTTP 8090, <code>DATA_DIR=/data/sites</code>;
 Caddy publishes 80/443 by default. Named volumes hold the database, sites,
@@ -649,14 +635,6 @@ from its read-only sites mount (<code>compose.yaml:14</code>, <code>compose.yaml
 <code>compose.yaml:277</code>, <code>Dockerfile:31</code>, <code>deploy/compose/Caddyfile:86</code>).
 Edition comes from settings: root Compose passes <code>EVENTS</code> through.
 Workers run inside the server process, as listed below.</p>
-<h3 id="how-settings-are-supplied-1">How settings are supplied</h3>
-<h3 id="migration-ownership-1">Migration ownership</h3>
-<h3 id="upgrade-steps-and-rollback-1">Upgrade steps and rollback</h3>
-<h2 id="kubernetes">Kubernetes</h2>
-<h3 id="what-runs-2">What runs</h3>
-<h3 id="how-settings-are-supplied-2">How settings are supplied</h3>
-<h3 id="migration-ownership-2">Migration ownership</h3>
-<h3 id="upgrade-steps-and-rollback-2">Upgrade steps and rollback</h3>
 <h2 id="shared-worker-and-migration-details">Shared worker and migration details</h2>
 <p>Migrations are forward-only: there is no down command. New files must be
 <code>NNNN-name.sql</code>, next free number, plain idempotent SQL, additive and safe on a
@@ -724,7 +702,6 @@ under a per-database Postgres advisory lock (<code>db/migrations/migrations.go:4
 </tr>
 </tbody>
 </table>
-<h2 id="password-sign-in-by-profile">Password sign-in by profile</h2>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

@@ -100,7 +100,7 @@ the address is `hack.example.com`, with participant sites on
   the test, sites answered 502 for about 30 seconds.
 - **Restart:** **Manual Deploy > Restart service** on the service page. Sites,
   saved data and accounts all survive; about 30 seconds of 502 in the test.
-- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration/) goes in the
+- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration.md) goes in the
   service's Environment tab. Email sign-in codes need `RESEND_API_KEY` and
   `MAIL_FROM`; without them participants use the keys the admin issues, which
   is how a small box runs by default.

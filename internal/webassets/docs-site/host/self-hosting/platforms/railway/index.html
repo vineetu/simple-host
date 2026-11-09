@@ -755,6 +755,8 @@ Railway finds the <code>Dockerfile</code> there on its own; no build command is 
 </li>
 <li>
 <p>In the app service’s <strong>Variables</strong> tab, add:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>DB_DSN=${{Postgres.DATABASE_URL}}?sslmode=disable</span></span>
+<span class="line"><span>ADMIN_API_KEY=${{secret(64)}}</span></span></code></pre>
 <p>Leave <code>CONTENT_HOST</code> unset; <code>start.sh</code> defaults it to <code>sites.$SITE_DOMAIN</code>.</p>
 </li>
 <li>

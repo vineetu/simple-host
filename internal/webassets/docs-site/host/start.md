@@ -12,4 +12,4 @@
 4. Change it from chat: “On my bakery site, change Saturday's closing time to 6 pm.”
 
 
-- [Sites and deploy](/docs/guides/publish/)
+- [Sites and deploy](/docs/guides/publish.md)

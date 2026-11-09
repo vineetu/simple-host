@@ -9,6 +9,29 @@ On a small box both are Docker volumes (`simple-host_db` and `simple-host_sites`
 `/opt/simple-host/.env` holds the admin key and the database password, which only that file
 knows.
 
+<!-- settings:group=storage -->
+| Setting | Default | Allowed | What it does |
+|---|---|---|---|
+| `VISITOR_AI_WRITES_PER_DAY` | `200` | 1–100000 writes | Visitor connector write attempts per person and site per UTC day, shared across apps and restarts. **Security-sensitive.** |
+| `SITE_STORAGE_FILES_MAX_OBJECTS` | `1000` | 1–100000 objects | Maximum committed file objects per bucket, including empty files; overwrites do not add an object. |
+| `SITE_STORAGE_SQL_CONCURRENCY` | `0` | 0–1024 queries | Concurrent SQLite executions across the process; defaults to the CPU count. |
+| `SITE_STORAGE_ACQUIRE_WAIT_MS` | `250` | 1–5000 milliseconds | Wait for a SQLite execution slot before returning 503 with Retry-After. |
+| `SITE_STORAGE_WRITE_LOCK_WAIT_MS` | `2000` | 1–10000 milliseconds | Wait for the site write/deploy lock before returning 503 with Retry-After. |
+| `SITE_STORAGE_OWNER_TIMEOUT_MS` | `5000` | 1–30000 milliseconds | Owner SQLite query, schema and write timeout. |
+| `SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS` | `2000` | 1–5000 milliseconds | Visitor storage write timeout. |
+| `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` | `1000` | 1–5000 milliseconds | Visitor SQLite query timeout. |
+| `RATE_LIMIT_STORAGE_IP` | `120,100ms` | any (warns past 10× looser) | Visitor storage writes per site and client IP; owner credentials are exempt. |
+| `RATE_LIMIT_STORAGE_VISITOR` | `60,200ms` | any (warns past 10× looser) | Storage writes per site and signed-in visitor; limits add-only flooding. |
+| `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
+| `DB_MAX_OPEN_CONNS` | `25` | at least 1 connections | Maximum open Postgres connections per server process; excess requests wait. |
+| `DB_MAX_IDLE_CONNS` | `5` | at least 0 connections | Maximum idle Postgres connections per server process; zero keeps none. |
+| `DB_CONN_MAX_LIFETIME_MINUTES` | `30` | at least 1 minutes | Maximum lifetime of each pooled Postgres connection. |
+| `DB_CONN_MAX_IDLE_MINUTES` | `5` | at least 1 minutes | Maximum idle time of each pooled Postgres connection. |
+| `MIGRATE_ON_START` | `false` | `true` / `false` | true makes the server build an empty database from the embedded schema.sql and apply every pending migration before it listens (the same as `simple-host migrate -init`). For Kubernetes, where there is no psql and no install command; two pods starting at once are safe (an advisory lock). |
+| `DATA_DIR` | `./data/sites` | text | The folder that holds every site's files and versions. |
+| `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Largest individual raw-file upload for a site storage bucket. |
+| `SITE_STORAGE_SQL_RESULT_MAX_BYTES` | `1000000` | 1–67108864 bytes | Largest JSON result from one site SQLite query. |
+<!-- /settings -->
 
 ## Recipes
 
@@ -27,7 +50,7 @@ WAL, backups and version retention. Storage quotas are shared within a site;
 visitor rate limits slow filling them but do not reserve space for other visitors.
 
 For deployed versions: set `KEEP_VERSIONS` (see
-[Sites and versions](/docs/self-hosting/settings/sites-and-versions/)). The admin page shows disk use.
+[Sites and versions](/docs/self-hosting/settings/sites-and-versions.md)). The admin page shows disk use.
 
 ## Postgres client pool
 
@@ -50,4 +73,4 @@ The website file allowance still applies to each raw-file upload.
 Without `TRUSTED_PROXY_CIDRS` the client address is the last `X-Forwarded-For` entry from any peer. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port; an unproxied install set up that way has no trustworthy IP write limit. With `TRUSTED_PROXY_CIDRS` set (Kubernetes, a load balancer in front), the header is believed only from those networks and a direct connection from anywhere else is its own client.
 
 Kubernetes sets trusted proxy networks to the cluster pod and node ranges; see
-[Kubernetes](https://github.com/vineetu/simple-host/blob/main/docs/kubernetes.md). The same client address controls the country gate.
+Kubernetes. The same client address controls the country gate.

@@ -52,7 +52,6 @@ Postgres is stopped. Add a card before you start.
 
 ## Commands
 
-
 1. Edit `deploy/platforms/fly/fly.toml`: set `app`, `primary_region`, and the
    three hostnames (`SITE_DOMAIN`, `CONTENT_HOST`, `PUBLIC_BASE_URL`).
 
@@ -90,9 +89,6 @@ Postgres is stopped. Add a card before you start.
    `my-sh.fly.dev` for each name is enough (or the A and AAAA records that
    `fly certs add` prints). The certificates were issued within a minute.
 
-
-
-
 ## Everyday operations
 
 - **Upgrade:** set the new `SIMPLE_HOST_VERSION` in `fly.toml` and
@@ -101,7 +97,7 @@ Postgres is stopped. Add a card before you start.
   running.
 - **Restart:** `fly machine restart <id> -a my-sh` (`fly machines list -a my-sh`
   shows the id). Sites, saved data and accounts all survive.
-- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration/) goes in
+- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration.md) goes in
   `[env]` in `fly.toml` (limits, times) or `fly secrets set` (keys). Email
   sign-in codes need `RESEND_API_KEY` and `MAIL_FROM` as secrets; without them
   participants use the keys the admin issues, which is how a small box runs by

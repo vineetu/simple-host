@@ -13,7 +13,6 @@ Send `POST /v1/sites/{sitename}/files` with `{"files":{"index.html":"..."}}`, or
 3. Open the returned address and test the links and form saves.
 
 
-
 ## Update files
 [What this is](/features.html#deploy-update)
 
@@ -54,7 +53,6 @@ Send `PUT /v1/sites/{sitename}/files?keep=1` with the changed `files`. To replac
 3. To undo, list `GET /v1/me/deleted-sites` and send `POST /v1/sites/{sitename}/restore` before the returned deadline. A deleted site is restorable for 7 days.
 
 
-
 ## Errors you may see
 
 | Code | Means | Do this |
@@ -66,5 +64,5 @@ Send `PUT /v1/sites/{sitename}/files?keep=1` with the changed `files`. To replac
 | `item_too_large` (413) | Upload exceeds a cap | Check Limits and errors |
 
 ## Next
-- [Storage and saved data](/docs/guides/storage/)
-- [Sign-in and access](/docs/guides/access/)
+- [Storage and saved data](/docs/guides/storage.md)
+- [Sign-in and access](/docs/guides/access.md)

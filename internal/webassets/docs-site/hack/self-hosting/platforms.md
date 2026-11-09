@@ -5,14 +5,14 @@ keeps its files, and Postgres. Anywhere that gives all three can run it.
 
 | Where | How | Status |
 |---|---|---|
-| UpCloud (recommended) | [this guide](/docs/self-hosting/platforms/upcloud/): the installer on the smallest server | tested 2026-09-28, about $4/month; [$25 in credits](https://signup.upcloud.com/?promo=JF2WCV) (referral link) |
+| UpCloud (recommended) | [this guide](/docs/self-hosting/platforms/upcloud.md): the installer on the smallest server | tested 2026-09-28, about $4/month; [$25 in credits](https://signup.upcloud.com/?promo=JF2WCV) (referral link) |
 | Any other Ubuntu VPS | the installer, [simple-host.app/setup](https://simple-host.app/setup) | the same installer |
 | Hostinger VPS | the installer | an Ubuntu VPS like any other |
-| DigitalOcean | [this guide](/docs/self-hosting/platforms/digitalocean/): the 1-Click droplet, or the installer on the $6 droplet | tested 2026-10-01, about $6/month |
-| Fly.io | [this guide](/docs/self-hosting/platforms/fly/) | tested 2026-09-28, about $4.50/month |
-| Render | [this guide](/docs/self-hosting/platforms/render/) | tested 2026-09-28, about $13.55/month (needs a card) |
-| Coolify | [this guide](/docs/self-hosting/platforms/coolify/) | tested 2026-10-01 on Coolify 4.3.23 (resource made through its API) |
-| Railway | [this guide](/docs/self-hosting/platforms/railway/): a GitHub-repo template, Railway Postgres and a volume | built and run locally 2026-10-27 with the exact image, env vars and volume layout (no Railway account available); the real deploy is tracked in a Linear ticket, about $5–15/month (needs a card) |
+| DigitalOcean | [this guide](/docs/self-hosting/platforms/digitalocean.md): the 1-Click droplet, or the installer on the $6 droplet | tested 2026-10-01, about $6/month |
+| Fly.io | [this guide](/docs/self-hosting/platforms/fly.md) | tested 2026-09-28, about $4.50/month |
+| Render | [this guide](/docs/self-hosting/platforms/render.md) | tested 2026-09-28, about $13.55/month (needs a card) |
+| Coolify | [this guide](/docs/self-hosting/platforms/coolify.md) | tested 2026-10-01 on Coolify 4.3.23 (resource made through its API) |
+| Railway | [this guide](/docs/self-hosting/platforms/railway.md): a GitHub-repo template, Railway Postgres and a volume | built and run locally 2026-10-27 with the exact image, env vars and volume layout (no Railway account available); the real deploy is tracked in a Linear ticket, about $5–15/month (needs a card) |
 | Vercel, Netlify, shared PHP hosting | | not as-is: a 4.5 MB request limit (smaller than a site upload), no disk that keeps files, no always-on process |
 
 One diagram per layout, at the top of each guide:

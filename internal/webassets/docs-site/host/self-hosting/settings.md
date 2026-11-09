@@ -1,12 +1,11 @@
 # Advanced settings
 
-For where to run a small box and where settings go, see [deployment profiles](/docs/self-hosting/operations/deployment-profiles/).
+For where to run a small box and where settings go, see [deployment profiles](/docs/self-hosting/operations/deployment-profiles.md).
 
 The installer supplies the required database connection and admin key; you choose
 the address and sign-in methods. The tables state the binary defaults. This folder
 explains each advanced feature in plain terms, lists every setting that changes
 it, and gives recipes for common changes.
-
 
 For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise), choose
 Helm or Kubernetes YAML for a cluster you already run. Both use the same chart and its
@@ -93,23 +92,23 @@ value in force.
 
 | Area | What it covers |
 |---|---|
-| [Server and addresses](/docs/self-hosting/settings/server-and-addresses/) | The domain, the separate content host, per-person and per-site addresses, setup mode |
-| [Accounts and sign-in](/docs/self-hosting/settings/accounts-and-sign-in/) | Owner sign-in (email codes, Google), API keys, visitor sign-in, AI app connections |
-| [Sites and versions](/docs/self-hosting/settings/sites-and-versions/) | Site and upload size, versions kept, preview and download links, sites per account |
-| [Saved data](/docs/self-hosting/settings/saved-data/) | What pages save, undo and history, size limits, who may write |
-| [Storage migration plan](/docs/self-hosting/settings/storage-migration/) | Shipped KV, SQLite and files resources; exact legacy behavior that needs redesign before any owner-directed migration |
-| [Domains and certificates](/docs/self-hosting/settings/domains-and-certificates/) | Custom domains, address families, their checks and release, certificates |
-| [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention/) | Recently deleted, idle-site cleanup, how long analytics are kept |
-| [Email](/docs/self-hosting/settings/email/) | Sending email with Resend, the sender, reply-to |
-| [Storage and backups](/docs/self-hosting/settings/storage-and-backups/) | The database, the site files, what to back up |
-| [Observability](/docs/self-hosting/settings/observability/) | Health, the startup log, the admin page, analytics |
-| [Rate limits](/docs/self-hosting/settings/rate-limits/) | Every rate limit in one table |
+| [Server and addresses](/docs/self-hosting/settings/server-and-addresses.md) | The domain, the separate content host, per-person and per-site addresses, setup mode |
+| [Accounts and sign-in](/docs/self-hosting/settings/accounts-and-sign-in.md) | Owner sign-in (email codes, Google), API keys, visitor sign-in, AI app connections |
+| [Sites and versions](/docs/self-hosting/settings/sites-and-versions.md) | Site and upload size, versions kept, preview and download links, sites per account |
+| [Saved data](/docs/self-hosting/settings/saved-data.md) | What pages save, undo and history, size limits, who may write |
+| [Storage migration plan](/docs/self-hosting/settings/storage-migration.md) | Shipped KV, SQLite and files resources; exact legacy behavior that needs redesign before any owner-directed migration |
+| [Domains and certificates](/docs/self-hosting/settings/domains-and-certificates.md) | Custom domains, address families, their checks and release, certificates |
+| [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention.md) | Recently deleted, idle-site cleanup, how long analytics are kept |
+| [Email](/docs/self-hosting/settings/email.md) | Sending email with Resend, the sender, reply-to |
+| [Storage and backups](/docs/self-hosting/settings/storage-and-backups.md) | The database, the site files, what to back up |
+| [Observability](/docs/self-hosting/settings/observability.md) | Health, the startup log, the admin page, analytics |
+| [Rate limits](/docs/self-hosting/settings/rate-limits.md) | Every rate limit in one table |
 
 ## Keeping this in sync
 
 [settings.json](https://github.com/vineetu/simple-host/blob/main/docs/advanced/settings.json) is generated from the code (`simple-host settings --json`); the
 tables on these pages and the setup helper are checked against it by `make check`.
-[Configuration](/docs/self-hosting/configuration/) is the entry page for the ten registry areas.
+[Configuration](/docs/self-hosting/configuration.md) is the entry page for the ten registry areas.
 After changing a setting in code, run
 `bash scripts/sync-settings.sh` and commit what it changes. The setup helper's copy of the
 enterprise settings comes from an enterprise checkout
@@ -148,7 +147,7 @@ Hosted installations may override these defaults.
   rewritten. The skills published to the Claude and ChatGPT plugin directories describe
   simple-host.app and keep its values.
 - **Units.** Units are in the setting names (`_MINUTES`, `_HOURS`, `_DAYS`); counts are
-  whole numbers. See [Rate limits](/docs/self-hosting/settings/rate-limits/) for the `<burst>,<every>` format.
+  whole numbers. See [Rate limits](/docs/self-hosting/settings/rate-limits.md) for the `<burst>,<every>` format.
 - **Changes apply to new deletions and warnings.** The date a person was promised is stored
   when the promise is made: a deleted site keeps its purge date (`DELETED_RETENTION_DAYS`), an
   idle-warned site its removal date (`IDLE_GRACE_DAYS`), a failing domain whose owner was

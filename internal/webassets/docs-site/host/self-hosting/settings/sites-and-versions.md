@@ -3,7 +3,7 @@
 Every publish is a new version. The owner can publish without going live, open a preview link to
 any kept version, make it live, roll back, rename a site (old links keep working), take it
 offline, put a passcode on it, and download a copy with its saved data. A deleted site waits in
-Recently deleted (see [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention/)).
+Recently deleted (see [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention.md)).
 
 **Size.** `MAX_ARCHIVE_MB` bounds one upload and one site. It is a guard against one upload
 filling a disk, not a budget: the median site on simple-host.app is about 25 KB. A proxy in front
@@ -96,13 +96,11 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 
 ## Recipes
 
-
 ```
 MAX_SITES_PER_ACCOUNT=20
 ```
 
 **Keep rollback on a bigger disk.** Install with `--keep-versions 5`.
-
 
 ## Existing-site summaries after an upgrade
 
@@ -118,16 +116,11 @@ Small-box installer and DigitalOcean installations:
 docker compose --project-directory /opt/simple-host --env-file /opt/simple-host/.env run --rm --no-deps -T app site-summary-backfill
 ```
 
-
-
 For either Coolify recipe, open the app service's terminal after migration and
 run `simple-host site-summary-backfill`. For a manual Compose checkout, run
 `docker compose run --rm --no-deps -T app site-summary-backfill` from its directory.
 The old pinned releases do not contain this command; run it after installing
 the new release. New deploys populate summaries automatically.
-
-## Add photos
-
 
 ## Upload and import behavior
 

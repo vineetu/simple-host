@@ -20,12 +20,11 @@ part of that onboarding.
 
 ![Simple Hack Get started](/docs/self-hosting/assets/simple-hack-get-started.png)
 
-
 **Tested on Coolify 4.3.23 through its API on 2026-10-02.** This guide uses a
 user-defined **Docker Compose Empty Service**. Coolify deployed the published
 `ghcr.io/vineetu/simple-hack:0.8.1` image, ran all 44 migrations, and served an
 event and a published team site over trusted HTTPS. The existing
-[small-box Coolify guide](/docs/self-hosting/platforms/coolify/) describes a different installation.
+[small-box Coolify guide](/docs/self-hosting/platforms/coolify.md) describes a different installation.
 
 [`deploy/hack/standalone/coolify/service-template.yaml`](https://github.com/vineetu/simple-host/blob/main/deploy/hack/standalone/coolify/service-template.yaml)
 is the same file in Coolify's service-template form: Coolify generates the
@@ -38,7 +37,7 @@ certificates through the passthrough, the sign-in page loaded, and an event was
 created through the API.
 
 1. Prepare the domain, verified email sender, and certificate capacity in the
-   [standalone guide](/docs/self-hosting/platforms/simple-hack-standalone/). Point the apex and wildcard DNS
+   [standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md). Point the apex and wildcard DNS
    records at the Coolify server. Use Coolify's **Traefik v3** proxy with `http`
    and `https` entrypoints and the external `coolify` Docker network. In the
    proxy's Compose configuration, add
@@ -62,7 +61,7 @@ created through the API.
    `ALLOWED_EMAIL_DOMAINS`, `OIDC_LABEL`, `OIDC_INSECURE_ALLOWED`,
    `EMAIL_SIGNIN`) and the TLS mode (`TLS_MODE`, `ACME_CA`) go in under the
    same Service environment variables; see
-   [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone/#company-sign-in-and-running-inside-your-network)
+   [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md#company-sign-in-and-running-inside-your-network)
    for what each one does. For `internal`, `acme` or `certs`, place `ca.pem`
    and `certs/` in a `tls/` directory next to this Service's compose file on
    the Coolify host, the same layout the standalone installer creates.

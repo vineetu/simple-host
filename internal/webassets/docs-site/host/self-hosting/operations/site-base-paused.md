@@ -25,11 +25,7 @@ simple-host.site --to simple-host.app` for counts first, then `--apply` to move
 them back. It preserves old disk links; inspect conflicts before proceeding.
 In the previous `serve` mode names were already handed out and stored as .app.
 
-## TLS and issuers
-
-
 ## Verify and rollback
-
 
 If deployment verification fails, restore the backed-up binary and env file and
 restart both services. Restore the old HTTP behavior through the same script
