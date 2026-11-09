@@ -22500,6 +22500,18 @@
                     ],
                     "description": "Empty selects the stable slug crayon; otherwise choose a palette name."
                   },
+                  "theme": {
+                    "type": "string",
+                    "enum": [
+                      "",
+                      "poster",
+                      "confetti",
+                      "boardroom",
+                      "garden",
+                      "terminal"
+                    ],
+                    "description": "Whole-page style for the public event page; empty is the classic look. accent_color still drives buttons and links under every style. Invalid value is 400 invalid_theme."
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -39706,6 +39718,10 @@
           "color": {
             "type": "string",
             "description": "Effective crayon hex seed shared by the page and icon."
+          },
+          "theme": {
+            "type": "string",
+            "description": "Whole-page style for the public event page (poster, confetti, boardroom, garden, terminal), or empty for the classic look."
           },
           "slug": {
             "type": "string"

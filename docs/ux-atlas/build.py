@@ -6,7 +6,8 @@
     python3 docs/ux-atlas/build.py --publish  # build, then publish to the atlas site
 
 What it does:
-  * copies the canonical static/hack/kit.css into prototype/kit.css;
+  * copies the canonical static/hack/kit.css into prototype/kit.css, and
+    static/hack/themes.css (the SIM-353 Look themes) into prototype/themes.css;
   * writes prototype/nav.js from the shared navigation map (spec.json fallback),
     so the clickable prototype always matches the spec;
   * writes prototype/files.json (every prototype view, for the atlas viewer);
@@ -85,6 +86,8 @@ def main():
 
     shutil.copyfile(os.path.join(HERE, "../../internal/webassets/static/hack/kit.css"),
                     os.path.join(PROTO, "kit.css"))
+    shutil.copyfile(os.path.join(HERE, "../../internal/webassets/static/hack/themes.css"),
+                    os.path.join(PROTO, "themes.css"))
     for name, content in generated.items():
         with open(os.path.join(PROTO, name), "w") as f:
             f.write(content)

@@ -116,6 +116,49 @@ func TestHackEventPageCSPNonce(t *testing.T) {
 	}
 }
 
+// TestHackEventPageClassicThemeByteIdentical is SIM-353's compatibility
+// guard: an event with no Look theme set (the zero value, Classic) must
+// render exactly as it did before themes existed -- no data-theme attribute
+// on .pub-event and no themes.css link at all.
+func TestHackEventPageClassicThemeByteIdentical(t *testing.T) {
+	classic := renderHackEvent(t, testHackEvent())
+	if classic.Code != http.StatusOK {
+		t.Fatalf("status %d", classic.Code)
+	}
+	body := classic.Body.String()
+	if strings.Contains(body, "data-theme") {
+		t.Errorf("classic event rendered a data-theme attribute: %s", body)
+	}
+	if strings.Contains(body, "themes.css") {
+		t.Errorf("classic event linked themes.css: %s", body)
+	}
+
+	themed := testHackEvent()
+	themed.Theme = "poster"
+	themedRec := renderHackEvent(t, themed)
+	if themedRec.Code != http.StatusOK {
+		t.Fatalf("status %d", themedRec.Code)
+	}
+	themedBody := themedRec.Body.String()
+	if !strings.Contains(themedBody, `data-theme="poster"`) {
+		t.Errorf("themed event missing data-theme: %s", themedBody)
+	}
+	if !strings.Contains(themedBody, themed.AppURL+"/hack/themes.css") {
+		t.Errorf("themed event missing the themes.css link: %s", themedBody)
+	}
+	// Classic's own render is otherwise identical to the themed one once the
+	// theme markup is stripped back out: the two bodies differ by exactly the
+	// data-theme attribute and the themes.css link line, nothing else (the
+	// per-render CSP nonce legitimately differs between the two calls, so
+	// that part alone is normalised before comparing).
+	stripped := strings.Replace(themedBody, ` data-theme="poster"`, "", 1)
+	stripped = strings.Replace(stripped, "\n<link rel=\"stylesheet\" href=\""+themed.AppURL+"/hack/themes.css\">", "", 1)
+	nonceRe := regexp.MustCompile(`nonce="[^"]+"`)
+	if nonceRe.ReplaceAllString(stripped, `nonce="x"`) != nonceRe.ReplaceAllString(body, `nonce="x"`) {
+		t.Errorf("theme markup changed more than the attribute and the stylesheet link\nclassic:\n%s\nstripped themed:\n%s", body, stripped)
+	}
+}
+
 func TestHackEventPageDraftNoindex(t *testing.T) {
 	p := testHackEvent()
 	p.Stage = "draft"

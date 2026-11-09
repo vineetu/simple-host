@@ -38,9 +38,14 @@ type hackEventPage struct {
 	AppURL                                     string // "https://simple-hack.app"
 	// ApplyURL is the public apply page's URL, built from AppURL; empty
 	// when applications are off (zp-hack-applications.sql, hackApplicationsOpenNow).
-	ApplyURL        string
-	IconURL         string
-	Color           string
+	ApplyURL string
+	IconURL  string
+	Color    string
+	// Theme is the Look setting (SIM-353, 0011-hack-event-theme.sql): "" is
+	// Classic, today's look, with no themes.css link and no data-theme
+	// attribute at all, so Classic renders byte-identical to before this
+	// field existed. Otherwise one of hackThemes.
+	Theme           string
 	TakenDown       bool
 	TakenDownReason string
 	Gallery         []hackGalleryCard
@@ -290,6 +295,10 @@ type hackEventView struct {
 	StagePill                   string
 	IconURL, Initial, Color     string
 	Ink                         string // text colour that reads on --ev (hackEventInk)
+	// Theme (SIM-353): "" is Classic, never rendered as an attribute or a
+	// themes.css link, so a classic event's HTML is unchanged from before
+	// this field existed.
+	Theme string
 	// Slug (Grok retest, Cosmetic #3): the stage card's own script reads it
 	// to ask the app's API, cross-origin, whether the signed-in visitor
 	// already belongs to this event, and swap out "Join with the link from
@@ -478,6 +487,7 @@ func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, erro
 		Initial:         hackInitials(p.Title),
 		Color:           color,
 		Ink:             hackEventInk(color),
+		Theme:           p.Theme,
 		AppURL:          app,
 		TakenDown:       p.TakenDown,
 		TakenDownReason: p.TakenDownReason,

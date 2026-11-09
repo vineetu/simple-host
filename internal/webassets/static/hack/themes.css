@@ -1,0 +1,184 @@
+/* SIM-353 -- whole-page Look themes for the public event page.
+   Classic (events.theme = '') loads neither this stylesheet nor
+   data-theme and renders byte-identical to today -- every rule below is
+   scoped under .pub-event[data-theme="<id>"], so a page or Look-tab
+   preview with no data-theme is never touched by this file.
+
+   The organiser's own colour (--ev / --accent / --accent-soft, set on
+   .pub-event itself in public.css) is never redefined here -- every theme
+   still uses it for buttons, links, the icon fallback and its own
+   highlights.
+
+   Light only. System font stacks only (no @font-face, no web fonts). */
+
+/* ---------- shared scaffold: every theme sets these vars ---------- */
+.pub-event[data-theme]{background:var(--paper);color:var(--line)}
+/* Page background: scoped to a direct child of <body> so the Look-tab
+   preview -- a .pub-event.preview-head nested deep inside the signed-in
+   app shell -- never paints the app shell's own body. Only the real
+   public page's wrapper (hack-event.html, and every themed prototype
+   file here) is a direct child of <body>. */
+body:has(> .pub-event[data-theme]){background:var(--paper)}
+/* Every theme drops the event-colour rule down the left of the hero --
+   the whole page now carries the theme instead of one coloured edge.
+   Applied to the Look-tab preview too, so it stays a true preview. Note:
+   the preview element carries BOTH classes on one <div> (class="pub-event
+   preview-head"), not nested, so it needs the compound form
+   (.pub-event[data-theme].preview-head) rather than a descendant
+   selector -- every theme-specific preview-head rule below does the same. */
+.pub-event[data-theme] .ev-header,
+.pub-event[data-theme].preview-head{border-left:0;padding-left:0}
+/* Card-shaped things route their radius through --r, buttons and chips
+   through --r-sm, so most of the kit's own components (which hardcode
+   their radius) pick up each theme's shape without a rule per class. */
+.pub-event[data-theme] .card,
+.pub-event[data-theme] .next,
+.pub-event[data-theme] .site-card,
+.pub-event[data-theme] .result-entry,
+.pub-event[data-theme] .list{background:var(--surface);border-color:var(--rule);border-radius:var(--r)}
+.pub-event[data-theme] .btn,
+.pub-event[data-theme] .chip{border-radius:var(--r-sm)}
+
+/* =======================================================================
+   Poster -- bold, for student hacks
+   ======================================================================= */
+.pub-event[data-theme=poster]{
+  --paper:#fff6df;--surface:#fff;--line:#1c1a17;--line-soft:#4a453c;--line-faint:#6b6355;
+  --rule:#1c1a17;--rule-hi:#1c1a17;--r:0;--r-sm:0;
+}
+.pub-event[data-theme=poster] h1,
+.pub-event[data-theme=poster] h2,
+.pub-event[data-theme=poster] .section-title,
+.pub-event[data-theme=poster].preview-head h3{
+  font-weight:900;text-transform:uppercase;letter-spacing:-.01em;
+}
+.pub-event[data-theme=poster] .ev-header,
+.pub-event[data-theme=poster].preview-head{
+  background:var(--accent-soft);border:3px solid #1c1a17;box-shadow:6px 6px 0 #1c1a17;
+  padding:22px 18px;margin-top:16px;
+}
+.pub-event[data-theme=poster] .card,
+.pub-event[data-theme=poster] .next{
+  border:3px solid #1c1a17;box-shadow:4px 4px 0 #1c1a17;
+}
+.pub-event[data-theme=poster] .btn:not(.quiet){
+  border:2px solid #1c1a17;box-shadow:3px 3px 0 #1c1a17;font-weight:800;
+}
+.pub-event[data-theme=poster] .chip{
+  background:#fff;border:2px solid #1c1a17;color:#1c1a17;
+}
+.pub-event[data-theme=poster] .ev-icon{border-radius:0;border:3px solid #1c1a17}
+.pub-event[data-theme=poster] .site-frame{border-bottom:3px solid #1c1a17}
+
+/* =======================================================================
+   Confetti -- bright and playful
+   ======================================================================= */
+.pub-event[data-theme=confetti]{
+  --paper:#fffaf3;--surface:#fff;--line:#2a2622;--line-soft:#57504a;--line-faint:#6e665e;
+  --rule:#efe6da;--rule-hi:#e0d2bb;--r:22px;--r-sm:999px;
+  background-color:var(--paper);
+  background-image:radial-gradient(var(--accent-soft) 2px, transparent 2.5px);
+  background-size:22px 22px;background-position:0 0;
+}
+.pub-event[data-theme=confetti] h1,
+.pub-event[data-theme=confetti] h2,
+.pub-event[data-theme=confetti] h3{
+  font-family:ui-rounded,'SF Pro Rounded','Arial Rounded MT Bold',system-ui;font-weight:800;
+}
+.pub-event[data-theme=confetti] .ev-header .ev-head-top{
+  flex-direction:column;align-items:center;text-align:center;
+}
+.pub-event[data-theme=confetti] .ev-header{text-align:center}
+.pub-event[data-theme=confetti] .ev-header .ev-icon{width:88px;height:88px;font-size:30px}
+.pub-event[data-theme=confetti].preview-head{flex-direction:column;text-align:center}
+/* The schedule's current item ("Now") gets a soft fill in the theme's own
+   highlight colour instead of just the pill. */
+.pub-event[data-theme=confetti] .sched li:has(.pill.stage){
+  background:var(--accent-soft);border-top:0;border-radius:var(--r-sm);padding:11px 12px;
+}
+/* FAQ answers as separate rounded tiles instead of one bordered card with
+   dividers between questions. */
+.pub-event[data-theme=confetti] #faq details{
+  background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);
+  margin:0 0 8px;padding:2px 14px;
+}
+.pub-event[data-theme=confetti] #faq details:last-child{margin-bottom:0}
+.pub-event[data-theme=confetti] .card details+details{border-top:0}
+
+/* =======================================================================
+   Boardroom -- clean, for company events
+   ======================================================================= */
+.pub-event[data-theme=boardroom]{
+  --paper:#f5f6f8;--surface:#fff;--line:#18202b;--line-soft:#4a5463;--line-faint:#626c7a;
+  --rule:#dde1e6;--rule-hi:#c7ccd4;--r:4px;--r-sm:4px;
+}
+.pub-event[data-theme=boardroom] h1,
+.pub-event[data-theme=boardroom] h2,
+.pub-event[data-theme=boardroom] h3{
+  font-weight:650;letter-spacing:-.015em;
+}
+.pub-event[data-theme=boardroom] .ev-header,
+.pub-event[data-theme=boardroom].preview-head{
+  background:#fff;border-bottom:4px solid var(--ev);
+}
+.pub-event[data-theme=boardroom] .ev-header{padding:20px 18px 18px}
+.pub-event[data-theme=boardroom] .sched .when{font-variant-numeric:tabular-nums}
+/* Sponsors as a 2-column grid of bordered tiles instead of a stacked list. */
+.pub-event[data-theme=boardroom] #sponsors .stack{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+}
+.pub-event[data-theme=boardroom] #sponsors .stack>*+*{margin-top:0}
+.pub-event[data-theme=boardroom] #sponsors .row-flex{
+  border:1px solid var(--rule);border-radius:var(--r);padding:12px 14px;margin:0;
+}
+@media (max-width:480px){
+  .pub-event[data-theme=boardroom] #sponsors .stack{grid-template-columns:1fr}
+}
+
+/* =======================================================================
+   Garden -- calm and friendly
+   ======================================================================= */
+.pub-event[data-theme=garden]{
+  --paper:#f2f5ee;--surface:#fbfcf8;--line:#22302a;--line-soft:#4b5a51;--line-faint:#5f6d64;
+  --rule:#dfe6d8;--rule-hi:#cddbc7;--r:18px;--r-sm:999px;
+}
+.pub-event[data-theme=garden] h1,
+.pub-event[data-theme=garden] h2,
+.pub-event[data-theme=garden] h3{
+  font-family:ui-serif,Georgia,Cambria,'Times New Roman',serif;font-weight:600;
+}
+.pub-event[data-theme=garden] #faq summary{
+  font-family:ui-serif,Georgia,Cambria,'Times New Roman',serif;
+}
+.pub-event[data-theme=garden] .ev-header{text-align:center}
+.pub-event[data-theme=garden] .ev-header .ev-head-top{
+  flex-direction:column;align-items:center;
+}
+.pub-event[data-theme=garden].preview-head{flex-direction:column;text-align:center}
+
+/* =======================================================================
+   Terminal -- for developer crowds
+   ======================================================================= */
+.pub-event[data-theme=terminal]{
+  --paper:#fafaf7;--surface:#fff;--line:#1b1d1a;--line-soft:#4d514b;--line-faint:#666a63;
+  --rule:#dddbd0;--rule-hi:#c7c4b5;--r:0;--r-sm:0;
+  background-color:var(--paper);
+  background-image:
+    linear-gradient(#ecebe4 1px, transparent 1px),
+    linear-gradient(90deg, #ecebe4 1px, transparent 1px);
+  background-size:24px 24px;
+}
+.pub-event[data-theme=terminal] h1,
+.pub-event[data-theme=terminal] h2,
+.pub-event[data-theme=terminal].preview-head h3,
+.pub-event[data-theme=terminal] .sched .when,
+.pub-event[data-theme=terminal] .chip{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.pub-event[data-theme=terminal] .btn:not(.quiet){border-width:2px}
+.pub-event[data-theme=terminal] .btn.primary{
+  background:var(--surface);color:var(--accent);border-color:var(--accent);
+}
+.pub-event[data-theme=terminal] .btn.primary:hover{background:var(--accent-soft)}
+.pub-event[data-theme=terminal] .btn.primary::before{content:"> "}
+.pub-event[data-theme=terminal] .section-title::before{content:"// "}

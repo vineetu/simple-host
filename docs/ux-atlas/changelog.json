@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-09",
+    "what": "SIM-353: Look gets Page style, five whole-page themes for the public event page (Poster, Confetti, Boardroom, Garden, Terminal) plus Classic, today's page unchanged. Your colour still drives buttons and links. Try another picks a different one."
+  },
+  {
+    "date": "2026-11-09",
     "what": "SIM-395: Who it's for is Optional by default in both entry presets; events on a preset moved with it, custom rules unchanged."
   },
   {

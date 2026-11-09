@@ -38,6 +38,7 @@ enterprise-and-marketing-pages
 entry-deadline-reminders
 entry-summary-card-rules-and-submit
 event-administration
+event-page-look
 extensions
 guided-team-site-publishing
 hack-agents

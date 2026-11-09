@@ -1024,6 +1024,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member mode
 			"website_mode":      ev.WebsiteMode,
 			"icon_url":          h.iconURL(ev),
 			"accent_color":      ev.AccentColor, "color": hackEventAccent(ev),
+			"theme":                ev.Theme,
 			"icon_media_type":      ev.IconMediaType,
 			"taken_down":           ev.TakenDown(),
 			"results_visibility":   ev.ResultsVisibility,
@@ -1285,6 +1286,7 @@ func (h *HackHandler) meView(ctx context.Context, ev model.Event, member model.E
 
 type patchEventReq struct {
 	AccentColor          *string `json:"accent_color"`
+	Theme                *string `json:"theme"`
 	Title                *string `json:"title"`
 	Tagline              *string `json:"tagline"`
 	About                *string `json:"about"`
@@ -1327,6 +1329,12 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 				return false, false, &events.Error{Code: "invalid_accent_color", Message: "choose a crayon colour or an empty string for automatic"}
 			}
 			ev.AccentColor = *req.AccentColor
+		}
+		if req.Theme != nil {
+			if !hackThemeValid(*req.Theme) {
+				return false, false, &events.Error{Code: "invalid_theme", Message: "choose poster, confetti, boardroom, garden, terminal, or an empty string for the classic look"}
+			}
+			ev.Theme = *req.Theme
 		}
 		if req.Title != nil {
 			s, validationErr := checkHackLineValue(*req.Title, "title", 1, 120)

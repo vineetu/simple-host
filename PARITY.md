@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-11-09 (SIM-353): Simple Hack's event page Look (`events.theme`, five whole-page styles plus Classic, organiser-only, same rule as `accent_color`) is hosted hackathon-only. Enterprise has no hackathon UI, so no parity action is needed.
+
 2026-11-07 (SIM-388/SIM-393 slice 1): Hack navigation, shared REST/MCP destination map, membership abilities and organiser judge access apply to hosted and full self-hosted Hack. Enterprise has no Hack event UI; no Enterprise port. Checklist storage and APIs remain a later slice.
 
 2026-11-06 (SIM-389): Host, Hack, and small-box installs serve the embedded Starlight docs at `/docs/`; the separate Enterprise port is pending (`gap → enterprise`).

@@ -50,6 +50,19 @@ function resolveTab(ctx) {
 
 const CRAYONS = [['', 'Automatic'], ['red', 'Red'], ['teal', 'Teal'], ['indigo', 'Indigo'], ['orange', 'Orange'], ['yellow', 'Yellow'], ['grass', 'Grass'], ['blush', 'Blush']]
 const SWATCH_HEX = { red: '#d15d48', teal: '#267b79', indigo: '#4a49a8', orange: '#e9a45f', yellow: '#f2c94c', grass: '#86ab74', blush: '#ee8f92' }
+// SIM-353: whole-page styles for the public event page. '' (Classic) is
+// today's look -- no data-theme, no themes.css link, byte-identical HTML.
+// The Go allowlist (hackThemes in internal/hackhttp/hack_themes.go) is the
+// one source of truth for which non-empty ids are real; this list mirrors
+// it for display order and copy only.
+const THEMES = [
+  ['', 'Classic', "Today's look"],
+  ['poster', 'Poster', 'Bold, for student hacks'],
+  ['confetti', 'Confetti', 'Bright and playful'],
+  ['boardroom', 'Boardroom', 'Clean, for company events'],
+  ['garden', 'Garden', 'Calm and friendly'],
+  ['terminal', 'Terminal', 'For developer crowds']
+]
 
 // #16 (kept from the old file): this screen's own website-zip upload shows
 // the server's raw extractor error in plain English instead of server-debug
@@ -902,16 +915,20 @@ function renderLook({ sp, ui, api, ctx, ev, admin, locked, ended, path, setLive 
   // DELETE /icon both answer 409 once archived -- so only the icon row
   // loses its controls; everything else on this tab stays live.
   const iconLocked = ended // (admin already disables everything generically, see paintTab)
-  sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Look</h2><p>Your icon, colour and whether entries show. Each change saves straight away.</p></div>
+  const theme = ev.theme || ''
+  sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Look</h2><p>Your icon, colour, page style and whether entries show. Each change saves straight away.</p></div>
 ${ended && !admin ? '<div class="note">This event has ended. You can still fix the page text and colour.</div>' : ''}
 <div class="card"><p class="section-title">Preview</p>
-<div class="pub-event preview-head" id="look-preview" style="--ev:${previewColor}"><span class="ev-icon">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="" width="52" height="52">` : ''}</span><div><h3>${ui.esc(ev.title)}</h3><p>${ui.esc(ev.tagline || '')}</p></div></div></div>
+<div class="pub-event preview-head" id="look-preview" style="--ev:${previewColor}"${theme ? ` data-theme="${theme}"` : ''}><span class="ev-icon">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="" width="52" height="52">` : ''}</span><div><h3>${ui.esc(ev.title)}</h3><p>${ui.esc(ev.tagline || '')}</p></div></div></div>
 <div class="card flat">
+<div class="setting stack"><div class="t"><div class="t-row"><b>Page style</b><button class="btn quiet sm" type="button" id="theme-shuffle">Try another</button><span class="saved" id="theme-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>Changes the whole page: background, type, cards and buttons. Your colour still sets buttons and links.</span></div>
+<div class="choices" role="radiogroup" aria-label="Page style">${THEMES.map(([v, l, d]) => `<label class="choice${theme === v ? ' on' : ''}"><input type="radio" name="theme" value="${v}"${theme === v ? ' checked' : ''}><span><b>${ui.esc(l)}</b><span class="d">${ui.esc(d)}</span></span></label>`).join('')}</div>
+</div>
 <div class="setting wraps"><div class="t"><b>Event icon</b><span>Shown round on your page, in Find a hackathon and on join links. PNG, JPEG or WebP, up to 128 KB.${iconLocked ? ' Can’t change after End.' : ''}</span></div>
 <div class="ctl">${iconLocked
     ? `<span class="file-pick"><span class="pv round sm">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="">` : ''}</span></span>`
     : `<span class="file-pick"><span class="pv round sm">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="">` : ''}</span></span><label class="btn sm">${ev.icon_media_type ? 'Replace' : 'Upload icon'}<input type="file" accept="image/png,image/jpeg,image/webp" id="icon-file" aria-label="${ev.icon_media_type ? 'Replace' : 'Upload'} event icon"></label><button class="btn quiet sm" type="button" id="icon-remove"${ev.icon_media_type ? '' : ' disabled'}>Remove</button>`}</div></div>
-<div class="setting stack"><div class="t"><div class="t-row"><b>Colour</b><span class="saved" id="colour-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>For the line beside your title and for links and buttons. Automatic picks one from your address.</span></div>
+<div class="setting stack"><div class="t"><div class="t-row"><b>Colour</b><span class="saved" id="colour-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>For buttons, links and your page style's highlights. Automatic picks one from your address.</span></div>
 <fieldset class="swatches" aria-label="Event colour">${CRAYONS.map(([v, l]) => {
     const hex = v ? SWATCH_HEX[v] : (ev.color || '#d15d48')
     const ink = ui.markInk(hex)
@@ -926,6 +943,55 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
     clearTimeout(el._t)
     el._t = setTimeout(() => { el.hidden = true }, 3000)
   }
+  // Page style: a radio choice that saves at once, same chained-PATCH/revert
+  // shape as Colour below (serialised so a rapid second pick still lands
+  // after the first finishes rather than racing it, and the radios stay
+  // enabled and focusable throughout). The preview gets data-theme so it
+  // updates instantly; themes.css is scoped to .pub-event[data-theme] and
+  // the compound .pub-event[data-theme].preview-head for this preview.
+  function paintThemeChoices(val) {
+    sp.querySelectorAll('input[name=theme]').forEach(r => { r.closest('.choice').classList.toggle('on', r.value === val) })
+  }
+  function setPreviewTheme(val) {
+    if (val) $('look-preview').setAttribute('data-theme', val); else $('look-preview').removeAttribute('data-theme')
+  }
+  let themeChain = Promise.resolve()
+  function saveTheme(val) {
+    setPreviewTheme(val)
+    paintThemeChoices(val)
+    themeChain = themeChain.then(async () => {
+      // prevVal is read here, not at click time, so a second pick made
+      // before the first PATCH lands reverts to whatever the chain has
+      // actually settled on so far (same timing as Colour's prevHex below).
+      const prevVal = ev.theme || ''
+      try {
+        const r = await api('PATCH', path, { theme: val })
+        if (!r.ok) {
+          setLive(ui.errText(r), 'err')
+          setPreviewTheme(prevVal)
+          paintThemeChoices(prevVal)
+          const prevRadio = sp.querySelector(`input[name=theme][value="${prevVal}"]`)
+          if (prevRadio) prevRadio.checked = true
+          return
+        }
+        ev.theme = val
+        flashSaved('theme-saved')
+      } catch (e) {
+        setLive('Cannot reach the server.', 'err')
+        setPreviewTheme(prevVal)
+        paintThemeChoices(prevVal)
+        const prevRadio = sp.querySelector(`input[name=theme][value="${prevVal}"]`)
+        if (prevRadio) prevRadio.checked = true
+      }
+    })
+  }
+  sp.querySelectorAll('input[name=theme]').forEach(radio => radio.addEventListener('change', () => saveTheme(radio.value)))
+  $('theme-shuffle').addEventListener('click', () => {
+    const opts = THEMES.map(([v]) => v).filter(v => v && v !== (ev.theme || ''))
+    const pick = opts[Math.floor(Math.random() * opts.length)]
+    const radio = sp.querySelector(`input[name=theme][value="${pick}"]`)
+    if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')) }
+  })
   if (!iconLocked) {
     $('icon-file').addEventListener('change', async () => {
       const input = $('icon-file')

@@ -114,22 +114,27 @@ func hackBaseEventTools() []Tool {
 			Description: "Change an event's page text and settings. Sends only the fields you set, so omit anything that should stay as it is. " +
 				"Does not change the stage; use hack_set_event_stage for that. Ask the person before overwriting page text. Organiser only.",
 			InputSchema: object(map[string]any{
-				"slug":                  str("The event name."),
-				"title":                 str("New title, one line, up to 120 characters."),
-				"tagline":               str("Short line under the title, up to 160 characters. Empty clears it."),
-				"about":                 str("About text. Empty clears it."),
-				"rules":                 str("Rules text. Empty clears it."),
-				"prizes":                str("Prizes text. Empty clears it."),
-				"coc_text":              str("The organiser's own code of conduct, added to the default. Empty clears it."),
-				"time_zone":             str("IANA time zone. Empty means UTC."),
-				"starts_at":             str("New start. A date means midnight in the event's time zone."),
-				"ends_at":               str("New end. Empty clears it."),
-				"submission_deadline":   str("Entry deadline in the event time zone. Empty clears it."),
-				"judging_ends_at":       str("When judging closes, in the event time zone. Empty clears it. Judges with unscored teams are reminded before this time, once set; with no judging_ends_at they get no reminder."),
-				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Deprecated: use hack_set_entry_rules instead (presets, per-field required/optional/off/one_of, judge_first). Sending this still works: it sets required for exactly the listed fields and demotes the stored preset to custom."},
-				"team_finding":          map[string]any{"type": "boolean", "description": "Enable private team finding. Codes keep working when off."},
-				"applications_open":     map[string]any{"type": "boolean", "description": "Whether people without the join link can apply from Find a hackathon and the event page. On by default; turning it off stops new applications and keeps waiting ones. Ask the organiser before changing it."},
-				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},
+				"slug":                str("The event name."),
+				"title":               str("New title, one line, up to 120 characters."),
+				"tagline":             str("Short line under the title, up to 160 characters. Empty clears it."),
+				"about":               str("About text. Empty clears it."),
+				"rules":               str("Rules text. Empty clears it."),
+				"prizes":              str("Prizes text. Empty clears it."),
+				"coc_text":            str("The organiser's own code of conduct, added to the default. Empty clears it."),
+				"time_zone":           str("IANA time zone. Empty means UTC."),
+				"starts_at":           str("New start. A date means midnight in the event's time zone."),
+				"ends_at":             str("New end. Empty clears it."),
+				"submission_deadline": str("Entry deadline in the event time zone. Empty clears it."),
+				"judging_ends_at":     str("When judging closes, in the event time zone. Empty clears it. Judges with unscored teams are reminded before this time, once set; with no judging_ends_at they get no reminder."),
+				"entry_required":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Deprecated: use hack_set_entry_rules instead (presets, per-field required/optional/off/one_of, judge_first). Sending this still works: it sets required for exactly the listed fields and demotes the stored preset to custom."},
+				"team_finding":        map[string]any{"type": "boolean", "description": "Enable private team finding. Codes keep working when off."},
+				"applications_open":   map[string]any{"type": "boolean", "description": "Whether people without the join link can apply from Find a hackathon and the event page. On by default; turning it off stops new applications and keeps waiting ones. Ask the organiser before changing it."},
+				"gallery_open":        map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},
+				"theme": map[string]any{
+					"type":        "string",
+					"enum":        []string{"", "poster", "confetti", "boardroom", "garden", "terminal"},
+					"description": "Page style for the public event page: poster, confetti, boardroom, garden, terminal, or an empty string for the classic look. The organiser's accent_color still drives buttons and links under every style.",
+				},
 				"team_size_max":         map[string]any{"type": "integer", "description": "Maximum people on a team, from 1 to 50."},
 				"organiser_name":        str("Public event organiser name. Membership uses the account name; if empty, this fills it once."),
 				"organisation":          str("The organiser's company, college or community, if they have one. Empty clears it; leave this out rather than sending a placeholder."),
@@ -250,7 +255,7 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 	body := map[string]any{}
 	for _, key := range []string{
 		"title", "tagline", "about", "rules", "prizes", "coc_text", "time_zone",
-		"starts_at", "ends_at", "submission_deadline", "judging_ends_at", "organiser_name", "organisation", "contact_email", "purpose",
+		"starts_at", "ends_at", "submission_deadline", "judging_ends_at", "organiser_name", "organisation", "contact_email", "purpose", "theme",
 	} {
 		value, present, err := presentString(args, key)
 		if err != nil {
@@ -318,6 +323,7 @@ type hackEventView struct {
 		Rules         string   `json:"rules"`
 		Prizes        string   `json:"prizes"`
 		CocText       string   `json:"coc_text"`
+		Theme         string   `json:"theme"`
 		Stage         string   `json:"stage"`
 		TimeZone      string   `json:"time_zone"`
 		StartsAt      *string  `json:"starts_at"`
@@ -380,6 +386,7 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 		"rules":           view.Event.Rules,
 		"prizes":          view.Event.Prizes,
 		"coc_text":        view.Event.CocText,
+		"theme":           view.Event.Theme,
 		"stage":           view.Event.Stage,
 		"role":            view.Role,
 		"url":             view.Event.URL,
@@ -658,6 +665,7 @@ func hackEventSchemas() hackEventSchemaSet {
 		"rules":           outString("Rules text. Empty when unset."),
 		"prizes":          outString("Prizes text. Empty when unset."),
 		"coc_text":        outString("The organiser's own code of conduct. Empty when unset."),
+		"theme":           outString("Page style for the public event page: poster, confetti, boardroom, garden, terminal, or empty for the classic look. The organiser's accent_color still drives buttons and links under every style."),
 		"stage":           outString("draft, open, building, closed, judging, results or archived."),
 		"can":             hackAbilitiesSchema(),
 		"role":            outString("This person's role: organiser, participant or judge."),
@@ -704,7 +712,7 @@ func hackEventSchemas() hackEventSchemaSet {
 				"on_no_team":   outInteger("Participants who have not joined a team."),
 			}, "participants", "teams", "judges", "on_no_team"),
 		}, "organiser_name", "organisation", "contact_email", "purpose", "expected_participants", "join_code", "join_url", "judge_code", "judge_url", "counts"), "Present only when this person is the organiser."),
-	}, "slug", "title", "tagline", "about", "rules", "prizes", "coc_text", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
+	}, "slug", "title", "tagline", "about", "rules", "prizes", "coc_text", "theme", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
 	listItem := outObject(map[string]any{
 		"slug":       outString("The event name."),
 		"title":      outString("The event title."),

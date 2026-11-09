@@ -31,7 +31,7 @@ const EventColumns = `
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
 	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed,
-	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at, entry_rules_chosen`
+	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at, entry_rules_chosen, theme`
 
 // ScanEventFields returns destinations in EventColumns order.
 func ScanEventFields(e *Event) []any {
@@ -45,7 +45,7 @@ func ScanEventFields(e *Event) []any {
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
 		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen, &e.DirectoryListed,
-		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt, &e.EntryRulesChosen,
+		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt, &e.EntryRulesChosen, &e.Theme,
 	}
 }
 
@@ -267,13 +267,13 @@ func UpdateEventPatch(ctx context.Context, q sqlkit.Querier, e Event) (Event, er
 			time_zone = $8, starts_at = $9, ends_at = $10, team_size_max = $11,
 			organiser_name = $12, organisation = $13, contact_email = $14, purpose = $15,
 			expected_participants = $16, accent_color = $17, updated_at = now(), team_finding = $18, applications_open = $19,
-			judging_ends_at = $20
+			judging_ends_at = $20, theme = $21
 		WHERE id = $1
 		RETURNING `+EventColumns,
 		e.ID, e.Title, e.Tagline, e.About, e.Rules, e.Prizes, e.CocText,
 		e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt), e.TeamSizeMax,
 		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor, e.TeamFinding, e.ApplicationsOpen,
-		nullTime(e.JudgingEndsAt),
+		nullTime(e.JudgingEndsAt), e.Theme,
 	)
 	return ScanEvent(row)
 }

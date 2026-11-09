@@ -22,28 +22,32 @@ type Event struct {
 	WebsiteMode          string
 	IconMediaType        string
 	AccentColor          string
-	About                string
-	Rules                string
-	Prizes               string
-	CocText              string
-	TimeZone             string
-	StartsAt             sql.NullTime
-	EndsAt               sql.NullTime
-	TeamFinding          bool
-	TeamSizeMax          int
-	JoinCode             string
-	JudgeCode            string
-	SubmissionDeadline   sql.NullTime
-	ResultsVisibility    string
-	ResultsPublishedAt   sql.NullTime
-	ClosedAt             sql.NullTime
-	RemovalWarnedAt      sql.NullTime
-	SitesRemovedAt       sql.NullTime
-	KeepSites            bool
-	TakenDownAt          sql.NullTime
-	TakenDownReason      string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	// 0011-hack-event-theme.sql (SIM-353): whole-page style for the public
+	// event page; "" is Classic (today's look). AccentColor still drives
+	// buttons, links and the icon under every theme.
+	Theme              string
+	About              string
+	Rules              string
+	Prizes             string
+	CocText            string
+	TimeZone           string
+	StartsAt           sql.NullTime
+	EndsAt             sql.NullTime
+	TeamFinding        bool
+	TeamSizeMax        int
+	JoinCode           string
+	JudgeCode          string
+	SubmissionDeadline sql.NullTime
+	ResultsVisibility  string
+	ResultsPublishedAt sql.NullTime
+	ClosedAt           sql.NullTime
+	RemovalWarnedAt    sql.NullTime
+	SitesRemovedAt     sql.NullTime
+	KeepSites          bool
+	TakenDownAt        sql.NullTime
+	TakenDownReason    string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 	// M2 (hack2-team-sites.sql): which entry fields are required, and
 	// whether the public gallery is open.
 	EntryRequired []string

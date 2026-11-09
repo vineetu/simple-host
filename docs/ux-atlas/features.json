@@ -84,6 +84,20 @@
     "feature": "hosted-events-simple-hack-app"
   },
   {
+    "id": "set-event-theme",
+    "role": "organiser",
+    "area": "website",
+    "name": "Set event page style",
+    "what": "Picks a whole-page theme (Poster, Confetti, Boardroom, Garden or Terminal) for the public event page, or Classic for today's look; colour still drives buttons, links and the theme's own highlights.",
+    "stages": "any",
+    "today_location": "Manage > Event page > Look > Page style",
+    "api": "PATCH /v1/hack/events/{slug}",
+    "mcp": "hack_update_event",
+    "frequency": "occasional",
+    "risk": "reversible",
+    "feature": "hosted-events-simple-hack-app"
+  },
+  {
     "id": "upload-event-icon",
     "role": "organiser",
     "area": "website",

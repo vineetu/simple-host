@@ -332,6 +332,11 @@ func TestHackToolDispatch(t *testing.T) {
 	if !strings.Contains(got["organiser"].(map[string]any)["judge_url"].(string), "/judge/") || up.last().method != "GET" {
 		t.Fatalf("get: %v via %s", got["organiser"], up.last().method)
 	}
+	// SIM-353: an event with no theme set reads back "" (Classic), even
+	// though the fixture body carries no theme key at all.
+	if got["theme"] != "" {
+		t.Fatalf("hack_get_event theme should default to empty (classic): %v", got["theme"])
+	}
 	participant := strings.Replace(eventBody, `"role":"organiser"`, `"role":"participant"`, 1)
 	participant = participant[:strings.Index(participant, `,"organiser":`)] + "}"
 	up.ans["GET /v1/hack/events/spring"] = jsonReply(200, participant)
@@ -368,6 +373,25 @@ func TestHackToolDispatch(t *testing.T) {
 	}
 	if sent["submission_deadline"] != "2026-10-02" || sent["gallery_open"] != true || len(sent["entry_required"].([]any)) != 2 {
 		t.Fatalf("update omitted deadline, entry fields or gallery setting: %s", up.last().body)
+	}
+	// SIM-353: hack_update_event forwards theme, including an empty string
+	// to clear it back to Classic (the same "present but empty still sends"
+	// rule tagline etc. already follow).
+	check("hack_update_event", map[string]any{"slug": "spring", "theme": "poster"})
+	sent = map[string]any{}
+	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
+		t.Fatal(err)
+	}
+	if sent["theme"] != "poster" {
+		t.Fatalf("update omitted theme: %s", up.last().body)
+	}
+	check("hack_update_event", map[string]any{"slug": "spring", "theme": ""})
+	sent = map[string]any{}
+	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := sent["theme"]; !ok || v != "" {
+		t.Fatalf("update did not send an empty theme to clear it: %s", up.last().body)
 	}
 
 	up.ans["POST /v1/hack/events/spring/stage"] = jsonReply(200, eventBody)

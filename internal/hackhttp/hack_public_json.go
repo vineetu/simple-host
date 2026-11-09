@@ -50,7 +50,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		"starts_at": rfc3339UTC(ev.StartsAt), "ends_at": rfc3339UTC(ev.EndsAt),
 		"submission_deadline": rfc3339UTC(ev.SubmissionDeadline),
 		"url":                 h.EventURL(ev.Slug), "builtin_url": strings.TrimRight(h.publicBaseURL, "/") + "/e/" + ev.Slug,
-		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev),
+		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev), "theme": ev.Theme,
 		"gallery": []any{}, "results": []any{}, "vote_ranking": []any{},
 		"vote_status": "disabled", "tracks": []any{}, "announcements": []any{},
 		"sponsors": []any{}, "faq": []any{}, "schedule": []any{}, "fixed_schedule": []any{},

@@ -149,7 +149,9 @@ var hackColumns = map[string][]string{
 		// 0003-hack-notices-judges-messages.sql
 		"reminder_offsets", "judging_ends_at",
 		// 0005-hack-entry-rules-chosen.sql
-		"entry_rules_chosen"},
+		"entry_rules_chosen",
+		// 0011-hack-event-theme.sql
+		"theme"},
 	"event_team_requests": {"id", "event_id", "team_id", "user_id", "kind", "created_by", "created_at"},
 	"event_teams": {"open", "looking_for", "track_id", "id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql

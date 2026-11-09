@@ -2071,3 +2071,8 @@ CREATE TABLE IF NOT EXISTS event_checklist_acknowledgements (
     acknowledged_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (event_id, subject_id, item_id)
 );
+
+-- 0011-hack-event-theme.sql (SIM-353): whole-page style for the public
+-- event page; '' is Classic (today's look).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS theme text NOT NULL DEFAULT ''
+      CHECK (theme IN ('', 'poster', 'confetti', 'boardroom', 'garden', 'terminal'));
