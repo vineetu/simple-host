@@ -110,8 +110,7 @@ export async function render(ctx) {
   // signals, not just whether judging has been explicitly locked.
   const resultsOut = !!ev.results_published
   if (!ev.scoring_open && !ev.judging_locked_at && !resultsOut) {
-    const when = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
-    main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ', ' + ui.esc(when) : ''}.</p><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></section></div>`
+    main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></section></div>`
     return
   }
   const locked = !!ev.judging_locked_at || resultsOut || !ev.scoring_open

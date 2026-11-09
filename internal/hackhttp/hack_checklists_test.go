@@ -180,7 +180,9 @@ func TestChecklistAcknowledgementsAndCleanup(t *testing.T) {
 
 func TestChecklistJudgingCompletionAndTies(t *testing.T) {
 	w := newJudgingWorld(t, 2, 1)
-	w.setStage(t, "judging")
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	items := func() map[string]map[string]any {
 		r, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
 		return r
@@ -359,6 +361,7 @@ func TestChecklistOrganiserFactRows(t *testing.T) {
 
 func TestChecklistAssignmentModesAndOwnConflicts(t *testing.T) {
 	w := newJudgingWorld(t, 1, 2)
+	w.setStage(t, "judging")
 	exec := func(q string, args ...any) {
 		t.Helper()
 		if _, err := w.a.database.Exec(q, args...); err != nil {
@@ -390,9 +393,17 @@ func TestChecklistAssignmentModesAndOwnConflicts(t *testing.T) {
 	if own["j.closes"]["state"] != "optional" || own["j.scores"]["actionable"] != true {
 		t.Fatal("time alone closed scoring")
 	}
+	w.setStage(t, "closed")
 	for _, mode := range []string{"automatic", "manual", "panel"} {
 		t.Run(mode, func(t *testing.T) {
 			exec(`UPDATE events SET judge_assignment_mode=$2 WHERE slug=$1`, w.slug, mode)
+			if mode == "automatic" {
+				item := read(w.org, "organiser")["o.assignments"]
+				if item["state"] != "done" || item["detail"] != "2 of 2 judges" {
+					t.Fatal("automatic readiness follows judge count", item)
+				}
+				return
+			}
 			if read(w.org, "organiser")["o.assignments"]["state"] != "todo" {
 				t.Fatal("no assignments ready")
 			}
@@ -732,6 +743,9 @@ func TestChecklistTakenDownGuidance(t *testing.T) {
 
 func TestChecklistPartialTiePublication(t *testing.T) {
 	w := newJudgingWorld(t, 4, 1)
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	for i, team := range w.teams {
 		points := 1 + i/2
 		if _, err := w.a.database.Exec(`INSERT INTO event_scores(event_id,judge_id,team_id,criterion_id,points) SELECT event_id,$2,$3,id,$4 FROM rubric_criteria WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug, w.judges[0].id, team.id, points); err != nil {

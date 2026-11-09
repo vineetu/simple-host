@@ -628,7 +628,7 @@ export const navigation = {
       "short": "My teams",
       "phone_tab": true,
       "badge": "3",
-      "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+      "stage_rule": "Shows 'Scoring opens when the organiser starts judging' instead of a list before Judging. Lists assigned entries from Judging on. Read-only once locked or after results publish.",
       "order": 20,
       "group": null
     },
@@ -1856,7 +1856,7 @@ export const navigation = {
           "short": "My teams",
           "phone_tab": true,
           "badge": "3",
-          "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+          "stage_rule": "Shows 'Scoring opens when the organiser starts judging' instead of a list before Judging. Lists assigned entries from Judging on. Read-only once locked or after results publish.",
           "order": 20,
           "group": null,
           "target_id": "j.queue"

@@ -90,7 +90,7 @@ export async function render(ctx) {
         ? assignments.some(a => a.team_id === subject.id && a.judge_id === judge.user_id)
         : panels.some(p => p.track_id === subject.id && p.judge_id === judge.user_id)
       input.checked = !conflict && checked
-      if (conflict || locked) input.disabled = true
+      if (conflict || locked || saveBlocked || ev.stage === 'judging') input.disabled = true
       if (conflict) input.setAttribute('data-conflict', '')
       label.appendChild(input)
       label.appendChild(ui.el('span', { text: ' ' + (judge.display_name || judge.email || 'Someone') + (conflict ? ' · knows someone on ' + subject.name : '') }))
@@ -122,7 +122,7 @@ export async function render(ctx) {
     setLive('Judging access saved', 'ok', top)
   }
 
-  if (locked || saveBlocked) {
+  if (locked || saveBlocked || ev.stage === 'judging') {
     $('jg-grid-save').disabled = true
   } else {
     $('jg-grid-save').addEventListener('click', save)

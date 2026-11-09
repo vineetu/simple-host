@@ -86,7 +86,7 @@ export const tours = {
       // the stage banner on Home already says so, and this tour has
       // nothing to add about scoring.
       { target: '.status', when: scoringOpen, title: 'Is scoring open?', body: 'This tells you whether you can score. It stays open until the organiser locks judging.' },
-      { target: '.status', when: scoringNotYetOpen, title: 'Is scoring open?', body: 'It opens once entries close. This bar shows it.' },
+      { target: '.status', when: scoringNotYetOpen, title: 'Is scoring open?', body: 'It opens when the organiser starts judging. This bar shows it.' },
       { target: '[data-tour="next"]', when: judgeHasNextTeam, title: 'Start here', body: 'Score next opens the next team you haven’t scored.' },
       { target: '[data-tour="next"]', when: judgeAllScored, title: 'Start here', body: 'Review my scores opens My teams, where you can change any score.' },
       { target: '[data-tour="progress"]', title: 'Your progress', body: 'How many of your teams you have scored so far.' },

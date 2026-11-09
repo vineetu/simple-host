@@ -967,6 +967,7 @@ func TestHackConflictsReportHadScore(t *testing.T) {
 	crit := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 10)), w.org)).Criteria[0]
 	judge, scored, unscored := w.judges[0], w.teams[0], w.teams[1]
 
+	w.setStage(t, "judging")
 	if r := w.scoreTeam(t, judge, scored.id, map[string]int{crit.ID: 7}, nil); r.status != http.StatusOK {
 		t.Fatalf("score: %d %s", r.status, r.body)
 	}
@@ -1003,6 +1004,7 @@ func TestHackJudgingScoresUpsertAndRetrySafety(t *testing.T) {
 	judge := w.judges[0]
 
 	// Partial save: only one criterion.
+	w.setStage(t, "judging")
 	r := w.scoreTeam(t, judge, team, map[string]int{c1: 4}, nil)
 	if r.status != http.StatusOK {
 		t.Fatalf("partial score: %d %s", r.status, r.body)
@@ -1106,6 +1108,7 @@ func TestHackJudgingConflictExcludesFromQueueAndScoring(t *testing.T) {
 	}
 
 	// Scoring the conflicted team directly is still refused.
+	w.setStage(t, "judging")
 	r = w.scoreTeam(t, judge, team, map[string]int{c1: 5}, nil)
 	wantHackErr(t, "score conflicted team", r, http.StatusForbidden, "forbidden", "You have a conflict with this team.")
 }
@@ -1123,6 +1126,9 @@ func TestHackJudgingScoreFormulaHandCheck(t *testing.T) {
 	judge := w.judges[0]
 	// Impact 4/5, Craft 8/10:
 	// (60/100 * 4/5)*100 + (40/100 * 8/10)*100 = 48 + 32 = 80
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	r := w.scoreTeam(t, judge, team, map[string]int{c1: 4, c2: 8}, nil)
 	if r.status != http.StatusOK {
 		t.Fatalf("score: %d %s", r.status, r.body)
@@ -1162,7 +1168,11 @@ func TestHackPublishResultsMovesEventToResults(t *testing.T) {
 	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
 	c1 := rv.Criteria[0].ID
 	team := w.teams[0].id
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	w.scoreTeam(t, w.judges[0], team, map[string]int{c1: 5}, nil)
+	w.setStage(t, "closed")
 
 	eventJSON := func() map[string]any {
 		return w.call(t, "GET", "", nil, w.org).json(t)["event"].(map[string]any)
@@ -1247,6 +1257,9 @@ func TestHackJudgingConflictExcludedFromTotal(t *testing.T) {
 	c1 := rv.Criteria[0].ID
 	team := w.teams[0].id
 	// Judge 1 scores normally; judge 2 scores (with a comment) then declares a conflict.
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	w.scoreTeam(t, w.judges[0], team, map[string]int{c1: 5}, nil) // 100
 	conflictedComment := "a comment from the conflicted judge"
 	w.scoreTeam(t, w.judges[1], team, map[string]int{c1: 1}, &conflictedComment) // 20
@@ -1308,6 +1321,9 @@ func TestHackOrganisersCanJudgeAndRemovedOrganiserScoresStopCounting(t *testing.
 	for _, who := range []person{w.part.person, w.outsider} {
 		if r := w.call(t, "GET", "/judge/queue", nil, who); r.status != http.StatusNotFound {
 			t.Fatalf("nonjudge queue: %d %s", r.status, r.body)
+		}
+		if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+			t.Fatalf("start judging: %d %s", r.status, r.body)
 		}
 		if r := w.call(t, "PUT", "/judge/scores/"+team, map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": 5}}}, who); r.status != http.StatusNotFound {
 			t.Fatalf("nonjudge score: %d %s", r.status, r.body)
@@ -1410,6 +1426,9 @@ func TestHackJudgingTiesAndRankOverrides(t *testing.T) {
 	c1 := rv.Criteria[0].ID
 	judge := w.judges[0]
 	// Teams A and B tie at 5/5=100; team C gets 3/5=60.
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	w.scoreTeam(t, judge, w.teams[0].id, map[string]int{c1: 5}, nil)
 	w.scoreTeam(t, judge, w.teams[1].id, map[string]int{c1: 5}, nil)
 	w.scoreTeam(t, judge, w.teams[2].id, map[string]int{c1: 3}, nil)
@@ -1481,6 +1500,9 @@ func TestHackJudgingPublicResultsAndMyResults(t *testing.T) {
 	c1 := rv.Criteria[0].ID
 	judge := w.judges[0]
 	comment := "Great demo"
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	w.scoreTeam(t, judge, w.teams[0].id, map[string]int{c1: 5}, &comment)
 	w.scoreTeam(t, judge, w.teams[1].id, map[string]int{c1: 1}, nil)
 
@@ -1548,6 +1570,7 @@ func TestHackJudgingCSVExportsAndSafety(t *testing.T) {
 	c1 := rv.Criteria[0].ID
 	judge := w.judges[0]
 	team := w.teams[0].id
+	w.setStage(t, "judging")
 	w.scoreTeam(t, judge, team, map[string]int{c1: 4}, nil)
 
 	r := w.call(t, "GET", "/export/scores.csv", nil, w.org)
@@ -1583,9 +1606,11 @@ func TestHackJudgingRubricPreservesScoresAndConfirmsDeletion(t *testing.T) {
 	saved := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(c), w.org))
 	id := saved.Criteria[0].ID
 	score := map[string]any{"scores": []map[string]any{{"criterion_id": id, "points": 4}}}
+	w.setStage(t, "judging")
 	if r := w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, score, w.judges[0].person); r.status != 200 {
 		t.Fatalf("score: %d %s", r.status, r.body)
 	}
+	w.setStage(t, "closed")
 	c["id"] = id
 	c["description"] = "New description"
 	edited := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(c), w.org))
@@ -1605,10 +1630,12 @@ func TestHackJudgingRubricPreservesScoresAndConfirmsDeletion(t *testing.T) {
 		t.Fatalf("invalid score kept: %d", n)
 	}
 	// A scored criterion removal also requires confirmation.
+	w.setStage(t, "judging")
 	score["scores"] = []map[string]any{{"criterion_id": id, "points": 2}}
 	if r := w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, score, w.judges[0].person); r.status != 200 {
 		t.Fatal(string(r.body))
 	}
+	w.setStage(t, "closed")
 	wantHackErr(t, "confirm removal", w.call(t, "PUT", "/rubric", rubricBody(criterion("New", "", 100, 5)), w.org), 409, "score_deletion_confirmation", "1 scores for Impact will be deleted")
 }
 
@@ -1620,12 +1647,12 @@ func TestHackJudgingScoringStageAndAutomaticOrganisers(t *testing.T) {
 			t.Fatal(err)
 		}
 		r := w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, map[string]any{"scores": []map[string]any{{"criterion_id": c.ID, "points": 1}}}, w.judges[0].person)
-		if stage == "closed" || stage == "judging" {
+		if stage == "judging" {
 			if r.status != 200 {
 				t.Fatalf("%s: %d %s", stage, r.status, r.body)
 			}
 		} else {
-			wantHackErr(t, stage, r, 409, "scoring_not_open", "Scoring opens when entries close.")
+			wantHackErr(t, stage, r, 409, "scoring_not_open", "Scoring opens when judging starts.")
 		}
 	}
 	if _, err := w.a.database.Exec(`UPDATE users SET is_admin=true WHERE username=$1`, w.org.email); err != nil {
@@ -1655,3 +1682,106 @@ func TestHackJudgingScoringStageAndAutomaticOrganisers(t *testing.T) {
 type demoPolicyPages struct{ hackPages }
 
 func (demoPolicyPages) AdminUICSP(next http.Handler) http.Handler { return next }
+
+func TestHackJudgingSetupLocksAtJudging(t *testing.T) {
+	for _, tc := range []struct {
+		name, mode, method, path string
+		body                     any
+	}{
+		{"mode", "open", "PATCH", "/judging/settings", map[string]any{"assignment_mode": "manual"}},
+		{"per team", "open", "PATCH", "/judging/settings", map[string]any{"judges_per_team": 2}},
+		{"rubric", "open", "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5))},
+		{"manual", "manual", "PUT", "/assignments", map[string]any{"assignments": []any{}}},
+		{"panels", "panel", "PUT", "/judging/panels", map[string]any{"panels": []any{}}},
+		{"generate", "automatic", "POST", "/assignments/generate", map[string]any{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newJudgingWorld(t, 1, 2)
+			decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": tc.mode}, w.org))
+			if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+				t.Fatalf("start judging: %d %s", r.status, r.body)
+			}
+			wantHackErr(t, tc.name, w.call(t, tc.method, tc.path, tc.body, w.org), 409, "judging_setup_locked", "Judging has started. Move the event back to Entries closed to change this.")
+			if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"score_mode": "normalised", "public_scores": false, "public_ranks": false}, w.org); r.status != 200 {
+				t.Fatalf("score settings stay editable: %d %s", r.status, r.body)
+			}
+			if r := w.call(t, "POST", "/stage", map[string]any{"stage": "closed"}, w.org); r.status != 200 {
+				t.Fatalf("back to closed: %d %s", r.status, r.body)
+			}
+			if r := w.call(t, tc.method, tc.path, tc.body, w.org); r.status != 200 {
+				t.Fatalf("setup unlocked: %d %s", r.status, r.body)
+			}
+		})
+	}
+}
+
+func TestHackAutomaticAssignmentsAtStageMove(t *testing.T) {
+	w := newJudgingWorld(t, 2, 2)
+	decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic", "judges_per_team": 2}, w.org))
+	readAssignments := func() []assignmentRow {
+		t.Helper()
+		r := w.call(t, "GET", "/assignments", nil, w.org)
+		var body struct {
+			Assignments []assignmentRow `json:"assignments"`
+		}
+		if r.status != 200 {
+			t.Fatalf("assignments: %d %s", r.status, r.body)
+		}
+		if err := json.Unmarshal(r.body, &body); err != nil {
+			t.Fatal(err)
+		}
+		return body.Assignments
+	}
+	rows := readAssignments()
+	if len(rows) != 0 {
+		t.Fatal("assigned before Judging", rows)
+	}
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
+	rows = readAssignments()
+	if len(rows) != 4 {
+		t.Fatalf("want 4 assignments, got %+v", rows)
+	}
+	for _, row := range rows {
+		if row.JudgeID != w.judges[0].id && row.JudgeID != w.judges[1].id {
+			t.Fatal("automatic move included organiser", row)
+		}
+	}
+	c := decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0]
+	if r := w.scoreTeam(t, w.judges[0], w.teams[0].id, map[string]int{c.ID: 3}, nil); r.status != 200 {
+		t.Fatalf("score at judging: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "closed"}, w.org); r.status != 200 {
+		t.Fatalf("pause judging: %d %s", r.status, r.body)
+	}
+	wantHackErr(t, "scoring paused", w.scoreTeam(t, w.judges[0], w.teams[0].id, map[string]int{c.ID: 4}, nil), 409, "scoring_not_open", "Scoring opens when judging starts.")
+	if n := w.countRows(t, `SELECT count(*) FROM event_scores WHERE team_id=$1 AND points=3`, w.teams[0].id); n != 1 {
+		t.Fatalf("saved score lost: %d", n)
+	}
+	// Results -> Judging must keep the assignments, even if the pool changes.
+	w.setStage(t, "results")
+	if _, err := w.a.database.Exec(`DELETE FROM event_assignments WHERE team_id=$1`, w.teams[1].id); err != nil {
+		t.Fatal(err)
+	}
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("back from results: %d %s", r.status, r.body)
+	}
+	rows = readAssignments()
+	if len(rows) != 2 {
+		t.Fatalf("regenerated from results: %+v", rows)
+	}
+}
+
+func TestHackAutomaticStageMoveAssignmentFailureStillStartsJudging(t *testing.T) {
+	for _, counts := range []struct{ teams, judges int }{{1, 0}, {0, 1}} {
+		t.Run(fmt.Sprint(counts), func(t *testing.T) {
+			w := newJudgingWorld(t, counts.teams, counts.judges)
+			decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic"}, w.org))
+			r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org)
+			if r.status != 200 || r.json(t)["event"].(map[string]any)["stage"] != "judging" {
+				t.Fatalf("assignment failure prevented stage move: %d %s", r.status, r.body)
+			}
+		})
+	}
+}

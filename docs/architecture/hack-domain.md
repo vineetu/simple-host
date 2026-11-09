@@ -223,8 +223,8 @@ uses pure `rules/hackentries/assignments.go`; writes and validation belong to
 Scores are criterion rows, with a judge comment repeated across that judge's team
 scores. `app/hack/entries/scores.go`, `PutJudgeScores`, locks the event, checks the
 judging lock, scoring stage, current judge/organiser membership, criterion bounds
-and pair eligibility, then commits scores together. Normal scoring stages are
-`closed` and `judging`; the standing demo has a deliberate exception
+and pair eligibility, then commits scores together. The normal scoring stage is
+`judging`; the standing demo has a deliberate exception
 (`hackhttp/hack_judging.go`, `scoringStage`). Declaring a conflict leaves scores
 stored; eligibility excludes them from totals and comments until it is removed.
 

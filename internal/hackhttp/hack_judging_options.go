@@ -48,7 +48,7 @@ func writeJudgingWorkflowError(w http.ResponseWriter, err error) {
 	}
 	status := 400
 	switch e.Code {
-	case "event_closed", "scores_locked", "invalid_assignment_mode", "judge_conflict":
+	case "event_closed", "scores_locked", "judging_setup_locked", "invalid_assignment_mode", "judge_conflict":
 		status = 409
 	case "judge_not_found", "team_not_found", "track_not_found":
 		status = 404

@@ -446,7 +446,7 @@ Event judge-team assignments (organiser)
 
 <div data-operation="PUT /v1/hack/events/{slug}/assignments"></div>
 
-Requires assignment_mode manual. All judge and team ids must belong to this event; organisers are eligible judges too. Conflicted pairs are refused. Locked or archived events refuse changes. Unlisted assignments are removed.
+Requires assignment_mode manual. All judge and team ids must belong to this event; organisers are eligible judges too. Conflicted pairs are refused. Locked or archived events refuse changes. Unlisted assignments are removed. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -468,13 +468,13 @@ Requires assignment_mode manual. All judge and team ids must belong to this even
 | --- | --- |
 | 200 | The event's assignments with judge and team names |
 | 404 | event_not_found |
-| 409 | invalid_assignment_mode |
+| 409 | judging_setup_locked or invalid_assignment_mode, judge_conflict, scores_locked or event_closed |
 
 ## POST /v1/hack/events/{slug}/assignments/generate
 
 <div data-operation="POST /v1/hack/events/{slug}/assignments/generate"></div>
 
-Only when assignment_mode is "automatic" (409 invalid_request otherwise: switch to automatic first). Spreads judges across every team with members, up to judges_per_team each, skipping any declared conflict; deterministic given the same input. Include organisers only with include_organisers true. Replaces any existing assignment. teams_under_target lists teams that got fewer than judges_per_team because not enough non-conflicted judges were available. 400 too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no team has a member yet.
+Only when assignment_mode is "automatic" (409 invalid_request otherwise: switch to automatic first). Spreads judges across every team with members, up to judges_per_team each, skipping any declared conflict; deterministic given the same input. Include organisers only with include_organisers true. Replaces any existing assignment. teams_under_target lists teams that got fewer than judges_per_team because not enough non-conflicted judges were available. 400 too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no team has a member yet. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -499,7 +499,7 @@ Only when assignment_mode is "automatic" (409 invalid_request otherwise: switch 
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | event_taken_down |
 | 404 | event_not_found |
-| 409 | invalid_request (still in open mode) |
+| 409 | judging_setup_locked or invalid_request (still in open mode) |
 
 ## GET /v1/hack/events/{slug}/assistant
 
@@ -1423,7 +1423,7 @@ This judge's current scores for the team (0 for a criterion with no score row ye
 
 <div data-operation="PUT /v1/hack/events/{slug}/judge/scores/{team}"></div>
 
-Scoring is allowed only in closed or judging stages; otherwise 409 scoring_not_open. Upserts whichever criteria are given (a partial list is fine; a retried write of the same value never double-counts). comment, if present (even empty string), is written to every score row this call touches; omit it to leave the stored comment unchanged. A comment with an empty scores array and no existing score row yet is 400 invalid_request ("Score at least one criterion before adding a comment."). 409 scores_locked once judging is locked. 403 forbidden if this judge has a conflict with the team. Returns the full updated score set plus complete (every current rubric criterion has a score).
+Scoring opens when judging starts; otherwise 409 scoring_not_open ("Scoring opens when judging starts."). Upserts whichever criteria are given (a partial list is fine; a retried write of the same value never double-counts). comment, if present (even empty string), is written to every score row this call touches; omit it to leave the stored comment unchanged. A comment with an empty scores array and no existing score row yet is 400 invalid_request ("Score at least one criterion before adding a comment."). 409 scores_locked once judging is locked. 403 forbidden if this judge has a conflict with the team. Returns the full updated score set plus complete (every current rubric criterion has a score).
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1553,7 +1553,7 @@ Track panel members (organiser)
 
 <div data-operation="PUT /v1/hack/events/{slug}/judging/panels"></div>
 
-Track and judge ids must belong to this event; organisers are eligible judges too. Teams without a track have no panel queue. Conflicts still exclude individual team pairs. Locked or archived events refuse changes.
+Track and judge ids must belong to this event; organisers are eligible judges too. Teams without a track have no panel queue. Conflicts still exclude individual team pairs. Locked or archived events refuse changes. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1575,7 +1575,7 @@ Track and judge ids must belong to this event; organisers are eligible judges to
 | --- | --- |
 | 200 | {panels:[{track_id,judge_id}]} |
 | 404 | event_not_found |
-| 409 | scores_locked or event_closed |
+| 409 | judging_setup_locked or scores_locked or event_closed |
 
 ## GET /v1/hack/events/{slug}/judging/preview
 
@@ -1624,7 +1624,7 @@ Assignment mode, result score mode, preselected tie criterion and public score v
 
 <div data-operation="PATCH /v1/hack/events/{slug}/judging/settings"></div>
 
-Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team (1-20), score_mode (raw or normalised), tie_criterion_id, public_ranks, and public_scores. The tie criterion must be chosen before judging starts; score mode can change during judging. A publish stores the chosen mode in its snapshot.
+Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team (1-20), score_mode (raw or normalised), tie_criterion_id, public_ranks, and public_scores. The tie criterion must be chosen before judging starts; score mode can change during judging. A publish stores the chosen mode in its snapshot. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1654,6 +1654,7 @@ Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team 
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | event_taken_down |
 | 404 | event_not_found |
+| 409 | judging_setup_locked or scores_locked or tie_rule_closed |
 
 ## POST /v1/hack/events/{slug}/judging/unlock
 
@@ -2348,7 +2349,7 @@ The event's scoring criteria in order. New events start with Idea, Execution, De
 
 <div data-operation="PUT /v1/hack/events/{slug}/rubric"></div>
 
-Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): unlock it first. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced max_points are deleted. Returns 409 score_deletion_confirmation with counts until confirm_score_deletion is true. Comments on retained scores are preserved.
+Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): unlock it first. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced max_points are deleted. Returns 409 score_deletion_confirmation with counts until confirm_score_deletion is true. Comments on retained scores are preserved. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -2374,7 +2375,7 @@ Replaces every criterion at once (position is the array index). 1 to 10 criteria
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | event_taken_down |
 | 404 | event_not_found |
-| 409 | scores_locked or score_deletion_confirmation or tie_rule_closed |
+| 409 | judging_setup_locked or scores_locked or score_deletion_confirmation or tie_rule_closed |
 
 ## GET /v1/hack/events/{slug}/site
 

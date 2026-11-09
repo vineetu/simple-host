@@ -55,7 +55,7 @@ func (s *Service) PutJudgeScores(ctx context.Context, eventID, judgeID, teamID s
 		return nil, "", false, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
 	}
 	if !scoringStage(ctx, ev) {
-		return nil, "", false, &Error{Code: "scoring_not_open", Message: "Scoring opens when entries close."}
+		return nil, "", false, &Error{Code: "scoring_not_open", Message: "Scoring opens when judging starts."}
 	}
 	member, err := entryrepo.EventJudgeInEvent(ctx, tx, eventID, judgeID)
 	if err != nil {

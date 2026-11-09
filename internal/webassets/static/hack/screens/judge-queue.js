@@ -37,8 +37,7 @@ export async function render(ctx) {
   const resultsOut = !!ev.results_published
 
   if (!ev.scoring_open && !locked && !resultsOut) {
-    const when = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
-    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ', ' + ui.esc(when) : ''}.</p><p><a href="${ui.esc(href('judge', slug, 'home'))}">Back to Overview</a></p></section>`
+    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href('judge', slug, 'home'))}">Back to Overview</a></p></section>`
     return
   }
 

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// hackJudgeAppsFixture builds one event, closed (so scoring_open is true),
+// hackJudgeAppsFixture builds one event, at judging (so scoring_open is true),
 // with one team whose entry carries hostile text -- the same payloads
 // used elsewhere in this suite to prove escaping -- and one judge who has
 // accepted the invite and has that team in their queue.
@@ -41,7 +41,7 @@ func newHackJudgeAppsFixture(t *testing.T) hackJudgeAppsFixture {
 	// secondJudge never accepts: this fixture's judgeCode stays usable for
 	// the invite view, which previews the invite before joining.
 
-	for _, stage := range []string{"building", "closed"} {
+	for _, stage := range []string{"building", "closed", "judging"} {
 		wantTS(t, "stage "+stage, a.api(t, "POST", "/v1/hack/events/"+event+"/stage", map[string]string{"stage": stage}, organiser.key), 200, "")
 	}
 

@@ -16,7 +16,7 @@ Read an event's judging rubric: each criterion's name, description, weight and m
 
 <div data-tool="hack_set_rubric"></div>
 
-Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked.
+Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 
@@ -200,7 +200,7 @@ Read this judge's scores and comment for one queue team.
 
 <div data-tool="hack_score_team"></div>
 
-Save one or more criterion scores and optionally a comment. Confirm the scores with the judge before saving.
+Save one or more criterion scores and optionally a comment. Confirm the scores with the judge before saving. Scoring opens when the event reaches Judging.
 
 **Parameters:**
 
@@ -365,7 +365,7 @@ Read assignment and scoring settings. Organiser only.
 
 <div data-tool="hack_set_judging_settings"></div>
 
-Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only.
+Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only. Mode and judges per team are refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 
@@ -378,7 +378,7 @@ Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public 
 
 <div data-tool="hack_generate_assignments"></div>
 
-Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only.
+Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 
@@ -403,7 +403,7 @@ Read manual assignments. Organiser only.
 
 <div data-tool="hack_set_assignments"></div>
 
-Replace manual assignments with body.assignments. Ask first. Organiser only.
+Replace manual assignments with body.assignments. Ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 
@@ -428,7 +428,7 @@ Read track judging panels. Organiser only.
 
 <div data-tool="hack_set_panels"></div>
 
-Replace track panel memberships with body.panels. Ask first. Organiser only.
+Replace track panel memberships with body.panels. Ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 

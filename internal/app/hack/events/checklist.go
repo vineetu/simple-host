@@ -106,7 +106,7 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			facts["o.rubric-ready"] = rules.ChecklistFact{Done: version != "" && acks["o.rubric-ready"] == version, Version: version}
 		} else {
 			closed := ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "results" || ev.Stage == "archived"
-			queueOpen := (ev.Stage == "closed" || ev.Stage == "judging") && !closed
+			queueOpen := ev.Stage == "judging" && !closed
 			facts["j.invite"] = rules.ChecklistFact{Done: !member.JoinedAt.IsZero()}
 			facts["j.coc"] = rules.ChecklistFact{Done: member.CocAcceptedAt.Valid, BlockedReason: "conduct_record_only"}
 			facts["j.rubric"] = rules.ChecklistFact{Done: version != "" && acks["j.rubric"] == version, Version: version}
@@ -156,7 +156,7 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			facts[d.ID] = f
 		}
 	}
-	out := rules.BuildChecklist(rules.ChecklistInput{Role: role, Stage: ev.Stage, MembershipRole: member.Role, AssignmentMode: ev.JudgeAssignmentMode, ReadOnly: readOnly, Facts: facts, Marks: marks, Forward: forward, ParticipantNext: participantNext}, now)
+	out := rules.BuildChecklist(rules.ChecklistInput{Role: role, Stage: ev.Stage, MembershipRole: member.Role, AssignmentMode: ev.JudgeAssignmentMode, JudgesPerTeam: ev.JudgesPerTeam, ReadOnly: readOnly, Facts: facts, Marks: marks, Forward: forward, ParticipantNext: participantNext}, now)
 	for i := range out.Items {
 		if link, ok := s.targets.Resolve(out.Items[i].TargetID, ev.Slug, params); ok {
 			out.Items[i].Link = &link
@@ -279,7 +279,11 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	f["o.announcement"] = rules.ChecklistFact{Done: len(announcements) > 0, Detail: fmt.Sprintf("%d posted", len(announcements)), Count: intPointer(len(announcements))}
 	set("o.deadline", ev.SubmissionDeadline.Valid)
 	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: judgeReadyDetail(j.Judges, j.Organisers)}
-	f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail}
+	if mode == "automatic" {
+		f["o.assignments"] = rules.ChecklistFact{Done: j.Judges >= ev.JudgesPerTeam, Detail: fmt.Sprintf("%d of %d judges", j.Judges, ev.JudgesPerTeam)}
+	} else {
+		f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail}
+	}
 	f["o.scores"] = rules.ChecklistFact{Done: j.Judgeable > 0 && j.JudgesRequired > 0 && j.JudgesDone == j.JudgesRequired, Detail: fmt.Sprintf("%d of %d %s done", j.JudgesDone, j.JudgesRequired, checklistPlural(j.JudgesRequired, "judge")), Count: intPointer(j.JudgesDone), Total: intPointer(j.JudgesRequired)}
 	if j.JudgesRequired == 0 {
 		v := f["o.scores"]

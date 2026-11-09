@@ -307,6 +307,7 @@ func TestHackLeaveFrozenLoneMemberKeepsTeamEntryAndScores(t *testing.T) {
 	// in agreement in production. A raw UPDATE events SET stage='closed'
 	// would leave the deadline NULL and wrongly let deleteTeamIfEmpty through.
 	wantTS(t, "close", a.at(t, "POST", base+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
+	wantTS(t, "start judging", a.at(t, "POST", base+"/stage", map[string]string{"stage": "judging"}, a.key(org)), 200, "")
 	criterion := a.firstCriterionID(t, slug)
 	score := func(teamID string, points int) {
 		wantTS(t, "score", a.at(t, "PUT", base+"/judge/scores/"+teamID,
@@ -530,7 +531,7 @@ func TestHackLeaveJudgeKeepsScoresAndRejoinClears(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "ScoredTeam")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge One")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 
@@ -892,7 +893,7 @@ func TestHackDeleteFormerJudgeScoresRoute(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -1125,7 +1126,7 @@ func TestHackScoreEligiblePredicateEventScoped(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slugA, p1, "Delendum")
 	a.giveSubmittedEntry(t, slugA, teamID)
 	a.joinJudge(t, judgeCodeA, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slugA); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slugA); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slugA)
@@ -1172,7 +1173,7 @@ func TestHackScorePutRaceRejectsDepartedJudge(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)

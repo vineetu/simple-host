@@ -95,6 +95,7 @@ try {
  await judge.page.getByRole('button',{name:"I don't know any of these teams",exact:true}).click()
  await judge.page.getByRole('button',{name:'Done',exact:true}).waitFor()
  await home(judge.page,'judge'); await state(judge.page,'j.conflicts',true)
+ await api('organiser', 'POST', base + '/stage', {stage:'judging'})
  const queue = (await api('judge','GET',base+'/judge/queue')).queue
  assert.ok(queue.length >= 2)
  await api('judge','PUT',base+'/judge/scores/'+queue[0].team_id,{ scores:rubric.map(c=>({criterion_id:c.id,points:1})),comment:'' })

@@ -198,7 +198,8 @@
     invalid_code: "This link does not work any more.",
     event_closed: "This event has ended.",
     scores_locked: "Judging is locked.",
-    scoring_not_open: "Scoring opens when entries close.",
+    scoring_not_open: "Scoring opens when judging starts.",
+    judging_setup_locked: "Judging has started. Move the event back to Entries closed to change this.",
     team_not_found: "That team was not found.",
     judge_not_found: "That judge was not found.",
     conflict_not_found: "That conflict wasn't found. It may already be gone.",
@@ -1087,8 +1088,7 @@
     const locked = !!ev.judging_locked_at;
     const resultsOut = !!ev.results_published;
     if (!ev.scoring_open && !locked && !resultsOut) {
-      const when = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : "";
-      main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ", " + ui.esc(when) : ""}.</p><p><a href="${ui.esc(href("judge", slug, "home"))}">Back to Overview</a></p></section>`;
+      main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href("judge", slug, "home"))}">Back to Overview</a></p></section>`;
       return;
     }
     const toScore = queue.filter((r) => !r.done);
@@ -1301,8 +1301,7 @@
     }
     const resultsOut = !!ev.results_published;
     if (!ev.scoring_open && !ev.judging_locked_at && !resultsOut) {
-      const when = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : "";
-      main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ", " + ui.esc(when) : ""}.</p><p><a href="${ui.esc(href("judge", slug, "queue"))}">Back to My teams</a></p></section></div>`;
+      main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href("judge", slug, "queue"))}">Back to My teams</a></p></section></div>`;
       return;
     }
     const locked = !!ev.judging_locked_at || resultsOut || !ev.scoring_open;

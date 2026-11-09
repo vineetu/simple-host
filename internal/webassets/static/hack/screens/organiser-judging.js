@@ -5,7 +5,7 @@ export function title() { return 'Judging' }
 
 // Features on this screen: define-rubric, confirm-score-deletion-on-rubric-change,
 // reorder-rubric-criteria, choose-tie-criterion, choose-judge-assignment-mode,
-// set-judges-per-team, generate-automatic-assignments, declare-conflict-organiser,
+// set-judges-per-team, declare-conflict-organiser,
 // remove-conflict-organiser, lock-judging, unlock-judging, view-judging-dashboard.
 export async function render(ctx) {
   const { main, ui } = ctx
@@ -50,7 +50,7 @@ export async function render(ctx) {
   // clicked (B1 -- clicking used to call paintMode(), which re-read
   // settings.assignment_mode and snapped the choice straight back to
   // whatever was last saved). draftMode/draftPerTeam hold the in-progress
-  // choice; paintMode() always paints from the draft, never from settings;
+  // choice; the mode paint always reads the draft, never from settings;
   // saveMode() is the only thing that moves a draft into settings.
   let draftMode = settings.assignment_mode
   let draftPerTeam = settings.judges_per_team
@@ -77,7 +77,7 @@ ${archived ? '' : '<section class="card" id="jg-lockzone"></section>'}`
 <span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc('/e/' + encodeURIComponent(slug) + '/judge?s=home')}">Score as a judge</a>` : ''}</div>
 ${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : ''}
 <p><a href="${ui.esc(href('organiser', slug, 'settings') + '&tab=judging')}">Judging settings</a></p>
-<section class="card"><h2>Assignments</h2><label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label><p class="note" id="jg-assign-note" hidden></p><div class="form-actions"><button class="btn" type="button" id="jg-generate">Generate assignments</button><a class="btn" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div></section>
+<section class="card"><h2>Assignments</h2><div class="form-actions"><a class="btn" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div></section>
 ${restBlock}
 <p id="jg-results-link" hidden><a href="${ui.esc(href('organiser', slug, 'results'))}">Review and publish on Results</a></p>`
 
@@ -141,7 +141,7 @@ ${restBlock}
     if (!r.ok) { setLive(ui.errText(r), 'err'); return }
     locked = true
     ev.judging_locked_at = (r.data && r.data.locked_at) || new Date().toISOString()
-    paintTopAction(); paintLockZone(); paintMode(); paintConflicts()
+    paintTopAction(); paintLockZone(); paintConflicts()
     // Repaint Progress too: a former judge's Delete scores button (and any
     // real judge's own row) needs to show as locked right away, not only
     // after the next unrelated reload.
@@ -159,41 +159,9 @@ ${restBlock}
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
     locked = false
     ev.judging_locked_at = null
-    paintTopAction(); paintLockZone(); paintMode(); paintConflicts()
+    paintTopAction(); paintLockZone(); paintConflicts()
     await reloadDashboard()
     setLive('Judging unlocked', 'ok')
-  }
-
-  function paintMode() {
-    const automatic = settings.assignment_mode === 'automatic'
-    $('jg-generate').hidden = !automatic
-    $('jg-generate').disabled = locked || !!adminLockReason
-    $('jg-include-organisers-wrap').hidden = !automatic
-    $('jg-include-organisers').disabled = locked || !!adminLockReason
-  }
-  const assignmentForm = ui.trackForm(ctx, $('jg-include-organisers').closest('section'))
-  async function generate() {
-    const ok = await ui.confirm({ title: 'Generate assignments?', body: 'This replaces any assignments already generated. Continue?', confirmLabel: 'Generate assignments', danger: true })
-    if (!ok) return
-    const btn = $('jg-generate')
-    btn.disabled = true
-    let r
-    const sent = assignmentForm.snapshot()
-    try { r = await api('POST', base + '/assignments/generate', { include_organisers: $('jg-include-organisers').checked }) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
-    const editedDuring = r.ok && assignmentForm.snapshot() !== sent
-    paintMode()
-    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
-    editedDuring ? assignmentForm.reset(sent) : assignmentForm.reset()
-    const data = r.data || {}
-    assignmentsCount = (data.assignments || []).length
-    const under = data.teams_under_target || []
-    const names = under.map(id => { const t = teams.find(x => x.id === id); return t ? (t.name || t.slug) : id })
-    const note = $('jg-assign-note')
-    note.hidden = false
-    note.textContent = assignmentsCount + ' assignment' + (assignmentsCount === 1 ? '' : 's') + ' made.' +
-      (names.length ? ' ' + names.length + ' team' + (names.length === 1 ? '' : 's') + ' got fewer judges than planned: ' + names.join(', ') + '.' : '')
-    await reloadDashboard()
   }
 
   function paintConflicts() {
@@ -267,15 +235,7 @@ ${restBlock}
     await reloadDashboard()
   }
 
-  // C7 (owner decision, 2026-10-30): judge counts show judges only --
-  // an organiser who can also judge is counted only when "Include
-  // organisers" is on (automatic mode's checkbox, read live off the form),
-  // they already have a real score (done_count > 0), or they have an
-  // assignment (assigned_count > 0 -- Manual/Panel grid assignments, or
-  // Automatic assignments generated with "Include organisers" on at the
-  // time, which survive a later reload even after the checkbox resets).
-  // The dashboard itself doesn't say which role a judge_id belongs to, so
-  // that comes from the /people list already loaded for the conflicts form.
+  // Count organisers only when they have scores or saved assignments.
   function isCountedJudge(judgeId, doneCount, assignedCount) {
     const person = people.find(p => p.user_id === judgeId)
     if (!person || person.role !== 'organiser') return true
@@ -286,8 +246,7 @@ ${restBlock}
     // while the saved mode is Open; Automatic/Manual/Panel keep the
     // assigned_count > 0 check, since there an assignment is a real one.
     if (settings.assignment_mode === 'open') return doneCount > 0
-    const includeOrganisers = draftMode === 'automatic' && $('jg-include-organisers') && $('jg-include-organisers').checked
-    return includeOrganisers || doneCount > 0 || assignedCount > 0
+    return doneCount > 0 || assignedCount > 0
   }
 
   function paintProgress(teamsRows, judgeRows) {
@@ -424,7 +383,6 @@ ${restBlock}
     await reloadDashboard()
   }
 
-  $('jg-generate').addEventListener('click', generate)
 
   // --- initial load ---------------------------------------------------
   paintTopAction()
@@ -459,7 +417,6 @@ ${restBlock}
   draftMode = settings.assignment_mode
   draftPerTeam = settings.judges_per_team
 
-  paintMode()
   paintConflicts()
   await reloadDashboard()
 }

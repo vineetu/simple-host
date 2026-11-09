@@ -120,7 +120,7 @@ func TestHackDeleteFormerJudgeScoresRaceTakenDown(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -188,7 +188,7 @@ func TestHackDeleteFormerJudgeScoresRaceOrganiserRemoved(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -321,7 +321,7 @@ func TestHackRemoveCoOrganiserDeletesScoresAndCleansMail(t *testing.T) {
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -380,7 +380,7 @@ func TestHackRemovePersonFreezesJudgeScores(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -420,7 +420,7 @@ func TestHackParticipantRejoinDeletesFormerScores(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -483,7 +483,7 @@ func TestHackFormerJudgeConflictReversible(t *testing.T) {
 	a.giveSubmittedEntry(t, slug, teamX)
 	a.giveSubmittedEntry(t, slug, teamY)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -567,7 +567,7 @@ func TestHackLeaveDoesNotResurrectNonCountingScore(t *testing.T) {
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	base := "/v1/hack/events/" + slug
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -578,6 +578,10 @@ func TestHackLeaveDoesNotResurrectNonCountingScore(t *testing.T) {
 	// Manual mode with no assignment at all: the judge is no longer
 	// eligible for this team, so the score they already cast stops
 	// counting right now, before they ever leave.
+	// SIM-416: judging setup changes only outside Judging.
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
 	wantTS(t, "set manual", a.at(t, "PATCH", base+"/judging/settings", map[string]any{"assignment_mode": "manual"}, a.key(org)), 200, "")
 
 	eventID := a.eventID(t, slug)
@@ -625,10 +629,8 @@ func TestHackLeaveKeepsTotalsAndRanksStable(t *testing.T) {
 	a.giveSubmittedEntry(t, slug, teamB)
 	a.joinJudge(t, judgeCode, judge1, "Judge1")
 	a.joinJudge(t, judgeCode, judge2, "Judge2")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
-		t.Fatal(err)
-	}
 	base := "/v1/hack/events/" + slug
+	wantTS(t, "start judging", a.at(t, "POST", base+"/stage", map[string]string{"stage": "judging"}, a.key(org)), 200, "")
 	criterion := a.firstCriterionID(t, slug)
 	score := func(judge person, teamID string, points int) {
 		wantTS(t, "score", a.at(t, "PUT", base+"/judge/scores/"+teamID,
@@ -691,7 +693,7 @@ func TestHackRemoveJudgeVsLeaveDeadlock(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Team")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)
@@ -835,7 +837,7 @@ func TestHackDeleteFormerJudgeScoresRequiresConfirm(t *testing.T) {
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	criterion := a.firstCriterionID(t, slug)

@@ -543,7 +543,7 @@
      "short": "My teams",
      "phone_tab": true,
      "badge": "3",
-     "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+     "stage_rule": "Shows 'Scoring opens when the organiser starts judging' instead of a list before Judging. Lists assigned entries from Judging on. Read-only once locked or after results publish.",
      "order": 20,
      "group": null,
      "target_id": "j.queue"
@@ -623,13 +623,13 @@
      "name": "Your next step",
      "contents": [
       "Close entries when building time is over",
-      "Entries close for every team now, except teams with their own extension. Judges can start scoring."
+      "Entries close for every team now, except teams with their own extension. Set up judging now; judges can score once you start judging."
      ],
      "actions": [
       {
        "label": "Close entries",
        "kind": "primary",
-       "confirm": "Close entries? Entries close for every team now, except teams with their own extension. Judges can start scoring. 2 people are not on a team yet."
+       "confirm": "Close entries? Entries close for every team now, except teams with their own extension. Set up judging now; judges can score once you start judging. 2 people are not on a team yet."
       }
      ]
     },
@@ -761,7 +761,7 @@
     {
      "name": "deadline passed, still Building",
      "when": "submission_deadline has passed and stage is still Building",
-     "shows": "the same card turns amber, and the entry deadline's fixed schedule row words it: 'Entries were due at 6:00 pm. Close entries?' / 'Close entries so judges can start scoring. Teams with their own extension keep it.' / 'From your schedule. Nothing changes until you press Close entries.' with Close entries. No separate warning note."
+     "shows": "the same card turns amber, and the entry deadline's fixed schedule row words it: 'Entries were due at 6:00 pm. Close entries?' / 'Close entries, then set up judging. Teams with their own extension keep it.' / 'From your schedule. Nothing changes until you press Close entries.' with Close entries. No separate warning note."
     },
     {
      "name": "Closed, ready to start judging",
@@ -860,6 +860,11 @@
    ],
    "phone": "Stage track hidden, the pill and deadline stay. Change stage stays a compact button beside the h1 (never a full-width bar above the next step). The next-step card stacks: sentence, then its one button. Stat tiles 2x2, link cards full width.",
    "decisions": [
+    {
+     "q": "Scoring opens at Judging",
+     "decision": "Entries closed is setup time. Starting Judging opens scoring, locks mode, judges per team, rubric and assignments, and assigns judges in Automatic mode. Returning to Entries closed pauses scoring and unlocks setup.",
+     "why": "Owner, 2026-11-09, SIM-416."
+    },
     {
      "q": "Keep the first-visit walkthrough dialog?",
      "decision": "Drop the blocking dialog; keep the underlying preference reachable from the sidebar's persistent Help link, which replays the same guidance as a dismissible panel, not a screen-covering modal.",
@@ -2744,7 +2749,7 @@
    "title": "Judging",
    "user_moment": "Amara writes the rubric weeks ahead, picks the tie-break rule before judging starts, then once entries close decides how judges get matched and watches progress.",
    "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
-   "primary_action": "Generate judge assignments, once entries are closed.",
+   "primary_action": "Review scoring progress; set up judging before starting Judging.",
    "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
    "sections": [
     {
@@ -2802,14 +2807,14 @@
     {
      "name": "Assignments",
      "contents": [
-      "Generate with include-organisers input; manual/panel grid. Configuration is on Settings → Judging; permission to judge is separate from assignment inclusion."
+      "Automatic assigns at the move to Judging. Manual and Panel use the assignment grid before Judging."
      ]
     }
    ],
    "states": [
     {
      "name": "assignments not generated (Automatic mode)",
-     "when": "mode is Automatic and Generate hasn't been clicked",
+     "when": "mode is Automatic and Judging has not started",
      "shows": "Progress shows a distinct 'Assignments not generated yet' banner above the per-team/per-judge counts, instead of the same 0-of-0 rows a genuinely empty queue would show"
     },
     {
@@ -2820,7 +2825,7 @@
     {
      "name": "before entries close",
      "when": "stage is before Closed",
-     "shows": "Assignment mode and Generate are visible but disabled: 'Judges get matched once entries close'"
+     "shows": "Judging setup is editable until Judging starts. There is no Generate button."
     },
     {
      "name": "judging is locked",
@@ -2861,6 +2866,11 @@
     "Retest (Grok SIM-346, Critique #7 leftover): in Open mode, Progress's Judges list no longer counts an organiser who has never actually scored -- Open mode's assigned_count is every team a judge is merely eligible for, not a real assignment, so only a real score counts them there."
    ],
    "decisions": [
+    {
+     "q": "Scoring opens at Judging",
+     "decision": "Scoring opens at Judging. Entries closed is setup time. Moving to Judging locks mode, judges per team, rubric and assignments; Automatic assigns judges then. Returning to Entries closed pauses scoring and unlocks setup. Saved scores stay.",
+     "why": "Owner, 2026-11-09, SIM-416: changing mode at Entries closed silently stopped earlier scores counting."
+    },
     {
      "q": "Where should the manual/panel assignment grid live -- inline here, or its own screen?",
      "decision": "A dedicated sub-view, organiser-judging-assignments, reached by 'Open the assignment grid'.",
@@ -2979,6 +2989,11 @@
      "name": "panel mode, conflict not dimmed",
      "when": "mode is Panel and a judge has a declared conflict with one team in a track",
      "shows": "a .note info under the grid: 'Conflicts are per team. In Panel mode a judge can still sit on a track's panel even with a conflict against one team in it -- that team just won't be in their queue.' The checkbox stays tickable (not dimmed), unlike Manual mode"
+    },
+    {
+     "name": "setup locked or mode mismatch",
+     "when": "Judging, judging locked, or grid does not match saved mode",
+     "shows": "Checkboxes and Save are disabled. No dirty form or leave prompt."
     }
    ],
    "replaces": [],
@@ -2988,6 +3003,11 @@
    ],
    "phone": "Grid becomes one card per team/track with a multi-select list of judges underneath, rather than a wide table.",
    "decisions": [
+    {
+     "q": "Scoring opens at Judging",
+     "decision": "Scoring opens at Judging. Entries closed is setup time. Moving to Judging locks mode, judges per team, rubric and assignments; Automatic assigns judges then. Returning to Entries closed pauses scoring and unlocks setup. Saved scores stay.",
+     "why": "Owner, 2026-11-09, SIM-416: changing mode at Entries closed silently stopped earlier scores counting."
+    },
     {
      "q": "Does Panel mode dim a judge's conflicted teams the same way Manual does?",
      "decision": "No -- call out explicitly that it doesn't.",
@@ -5374,7 +5394,7 @@
     {
      "name": "before judging opens",
      "when": "stage is before Closed",
-     "shows": "'Not open yet -- judging opens once entries close, 28 Oct 2026, 18:17' in place of Open/Locked; Score next replaced with a disabled note; Rubric & brief stays open if already saved"
+     "shows": "'Not open yet -- Scoring opens when the organiser starts judging' in place of Open/Locked; Score next replaced with a disabled note; Rubric & brief stays open if already saved"
     },
     {
      "name": "locked, fully done",
@@ -5415,6 +5435,11 @@
      "name": "event ended",
      "when": "stage Ended",
      "shows": "Leave event disabled, with 'This event has ended, so nobody can leave it. It stays on your Home as a record.'"
+    },
+    {
+     "name": "before Judging",
+     "when": "stage is Closed or earlier",
+     "shows": "Not open yet. Scoring opens when the organiser starts judging."
     }
    ],
    "replaces": [
@@ -5427,6 +5452,11 @@
     "Retest (Grok SIM-346, round 2): an untargeted walkthrough card (the centred welcome/explainer step) used to land just under the page header, which is also where this screen's own 'Not open yet' card sits -- covering it. It now sits bottom-right of the content area on desktop, never over that first card, and stays bottom-centred above the phone tab bar / sticky save bar on phone (unchanged there)."
    ],
    "decisions": [
+    {
+     "q": "Scoring opens at Judging",
+     "decision": "Scoring opens at Judging. Entries closed is setup time. Moving to Judging locks mode, judges per team, rubric and assignments; Automatic assigns judges then. Returning to Entries closed pauses scoring and unlocks setup. Saved scores stay.",
+     "why": "Owner, 2026-11-09, SIM-416: changing mode at Entries closed silently stopped earlier scores counting."
+    },
     {
      "q": "Is there a Home for judges at all today?",
      "decision": "Add one; it didn't exist before.",
@@ -5508,7 +5538,7 @@
      "slug": "before-open",
      "name": "Before judging opens",
      "stage": "building",
-     "next": "Judging opens once entries close"
+     "next": "Scoring opens when the organiser starts judging"
     },
     {
      "slug": "locked-partial",
@@ -5619,6 +5649,11 @@
      "name": "everything conflicted",
      "when": "every assignment has a declared conflict",
      "shows": "'To score' reads 'Nothing to score -- you've declared a conflict with everyone assigned to you', distinct from the all-done message's tone (done vs. opted-out)"
+    },
+    {
+     "name": "before Judging",
+     "when": "stage is Closed or earlier",
+     "shows": "Not open yet. Scoring opens when the organiser starts judging."
     }
    ],
    "replaces": [
@@ -5665,6 +5700,11 @@
     }
    ],
    "decisions": [
+    {
+     "q": "Scoring opens at Judging",
+     "decision": "Scoring opens at Judging. Entries closed is setup time. Moving to Judging locks mode, judges per team, rubric and assignments; Automatic assigns judges then. Returning to Entries closed pauses scoring and unlocks setup. Saved scores stay.",
+     "why": "Owner, 2026-11-09, SIM-416: changing mode at Entries closed silently stopped earlier scores counting."
+    },
     {
      "q": "Words a first-time judge understands",
      "decision": "'Queue' becomes 'My teams' and the 'Conflicts' tab becomes 'Teams I know'. 'Rubric' stays: judges are often educators or industry reviewers and know it.",
@@ -5813,6 +5853,11 @@
      "name": "locked",
      "when": "judging is locked",
      "shows": "Chips and comment become read-only text; Save & next and the conflict button hidden; 'Scoring is locked' at the top of the rubric."
+    },
+    {
+     "name": "before Judging",
+     "when": "stage is Closed or earlier",
+     "shows": "Not open yet. Scoring opens when the organiser starts judging."
     }
    ],
    "replaces": [
@@ -5828,6 +5873,11 @@
    ],
    "phone": "One column: back link and 'Team 4 of 6', the card (never folded: it is the 20-second read), Go to scoring ↓, the video (tap to play inline), the website preview at 440px with Open, More detail, then the rubric with 44px chips and the comment. Previous and Save & next pinned above the tab bar. The key hint and the host text in media bars are hidden on a phone.",
    "decisions": [
+    {
+     "q": "Scoring opens at Judging",
+     "decision": "Scoring opens at Judging. Entries closed is setup time. Moving to Judging locks mode, judges per team, rubric and assignments; Automatic assigns judges then. Returning to Entries closed pauses scoring and unlocks setup. Saved scores stay.",
+     "why": "Owner, 2026-11-09, SIM-416: changing mode at Entries closed silently stopped earlier scores counting."
+    },
     {
      "q": "Does this screen follow the site-wide 'one visible Save button per section' rule from organiser-settings?",
      "decision": "No -- explicit exception. Every point chip saves the instant it's tapped; there is no Save button for scores, ever, only Save & next as navigation that also flushes the comment.",
@@ -6011,7 +6061,7 @@
      "slug": "default",
      "name": "Rubric saved",
      "stage": "building",
-     "next": "Judging opens once entries close"
+     "next": "Scoring opens when the organiser starts judging"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -6216,7 +6266,7 @@
    "user_moment": "The top-left brand link, clicked from any screen -- a brand-new account with nothing yet, or a returning person with several events across roles deciding what to do next.",
    "purpose": "Your events; no implicit redirect when visiting /events. Absent-return sign-in alone uses one eligible membership → Home; zero/multiple → /events. Preserve explicit return provenance through every authentication method.",
    "primary_action": "Open an event -- or Create event, Find a hackathon, Account.",
-   "layout": "A Needs you card sits above Your events, one row per thing waiting on this person across every event, each row named for its event and linking into it (2026-11-02). Then same grouping as the switcher -- needs-attention first, then the rest -- each row (an editable list row: the name links to the event, a … menu sits at the right): colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Closed/Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a row under the lists -- Find a hackathon as a normal button, Account as a quiet one -- since both are always one click away in the sidebar's top section too.",
+   "layout": "A Needs you card sits above Your events, one row per thing waiting on this person across every event, each row named for its event and linking into it (2026-11-02). Then same grouping as the switcher -- needs-attention first, then the rest -- each row (an editable list row: the name links to the event, a … menu sits at the right): colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a row under the lists -- Find a hackathon as a normal button, Account as a quiet one -- since both are always one click away in the sidebar's top section too.",
    "sections": [
     {
      "name": "Needs you (across events)",

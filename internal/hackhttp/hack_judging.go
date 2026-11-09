@@ -286,7 +286,7 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		httpx.WriteInternal(w)
 		return
 	}
-	planned, under, err := h.entries.GenerateAssignments(r.Context(), a.event.ID, req.IncludeOrganisers, pool.In)
+	planned, under, err := h.entries.GenerateAssignments(r.Context(), a.event.ID, req.IncludeOrganisers, pool.In, false)
 	if err != nil {
 		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
@@ -771,7 +771,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.scoringStage(r.Context(), a.event) {
-		httpx.WriteError(w, 409, "scoring_not_open", "Scoring opens when entries close.")
+		httpx.WriteError(w, 409, "scoring_not_open", "Scoring opens when judging starts.")
 		return
 	}
 	teamID := r.PathValue("team")
@@ -1431,10 +1431,10 @@ func jsonFloat(v any) float64 {
 }
 
 // scoringStage reports whether judges may score in the event's stage:
-// from entries closed onward, or while building on the standing demo
+// during Judging, or while building on the standing demo
 // (including its weekly replacement slug) so visitors can try judging.
 func (h *HackHandler) scoringStage(ctx context.Context, ev model.Event) bool {
-	if ev.Stage == "closed" || ev.Stage == "judging" {
+	if ev.Stage == "judging" {
 		return true
 	}
 	if h.demoSlug == "" || (ev.Slug != h.demoSlug && !strings.HasPrefix(ev.Slug, h.demoSlug+"-")) {

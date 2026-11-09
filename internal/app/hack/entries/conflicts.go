@@ -15,7 +15,7 @@ func (s *Service) Conflicts(ctx context.Context, eventID, judgeID string) ([]ent
 // DeclareConflict records a conflict under the event lock.
 func (s *Service) DeclareConflict(ctx context.Context, eventID, judgeID, teamID, declaredBy string) (entryrepo.EventConflict, error) {
 	var empty entryrepo.EventConflict
-	tx, ev, err := s.optionsTx(ctx, eventID)
+	tx, ev, err := s.optionsTx(ctx, eventID, false)
 	if err != nil {
 		return empty, err
 	}
@@ -49,7 +49,7 @@ func (s *Service) DeclareConflict(ctx context.Context, eventID, judgeID, teamID,
 
 // DeleteConflict removes a conflict under the event lock.
 func (s *Service) DeleteConflict(ctx context.Context, eventID, judgeID, teamID string) error {
-	tx, _, err := s.optionsTx(ctx, eventID)
+	tx, _, err := s.optionsTx(ctx, eventID, false)
 	if err != nil {
 		return err
 	}

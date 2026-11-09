@@ -637,7 +637,7 @@
         "short": "My teams",
         "phone_tab": true,
         "badge": "3",
-        "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+        "stage_rule": "Shows 'Scoring opens when the organiser starts judging' instead of a list before Judging. Lists assigned entries from Judging on. Read-only once locked or after results publish.",
         "order": 20,
         "group": null
       },
@@ -1865,7 +1865,7 @@
             "short": "My teams",
             "phone_tab": true,
             "badge": "3",
-            "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish.",
+            "stage_rule": "Shows 'Scoring opens when the organiser starts judging' instead of a list before Judging. Lists assigned entries from Judging on. Read-only once locked or after results publish.",
             "order": 20,
             "group": null,
             "target_id": "j.queue"
@@ -2477,7 +2477,8 @@
     invalid_code: "This link does not work any more.",
     event_closed: "This event has ended.",
     scores_locked: "Judging is locked.",
-    scoring_not_open: "Scoring opens when entries close.",
+    scoring_not_open: "Scoring opens when judging starts.",
+    judging_setup_locked: "Judging has started. Move the event back to Entries closed to change this.",
     team_not_found: "That team was not found.",
     judge_not_found: "That judge was not found.",
     conflict_not_found: "That conflict wasn't found. It may already be gone.",
@@ -3244,15 +3245,15 @@
   function backwardEffect(next, judgingLocked) {
     if (next === "draft") return "People who joined stay, but the join link stops working until you open it again.";
     if (next === "open" || next === "building") return "Entries open again. People who joined stay.";
-    if (next === "closed") return "Entries reopen for teams with extra time. Other entries stay closed. People who joined stay.";
+    if (next === "closed") return "Entries reopen for teams with extra time. Other entries stay closed. People who joined stay. Scoring pauses and judging setup unlocks.";
     if (next === "judging" && judgingLocked) return "Judging stays locked. Unlock it on Judging to let judges score again.";
     return "Judging opens again. Entries stay frozen and people who joined stay.";
   }
   var FORWARD_EFFECT = {
     open: "Sign-up opens. Participants can join and apply, and judges can use their invite link.",
     building: "Entries open. Teams can edit their entry and website until you close entries.",
-    closed: "Entries close for every team now, except teams with their own extension. Judges can start scoring.",
-    judging: "Teams can no longer edit their entry, team or website. Judges keep scoring until you lock judging.",
+    closed: "Entries close for every team now, except teams with their own extension. Set up judging now; judges can score once you start judging.",
+    judging: "Teams can no longer edit their entry, team or website. Judges can score. Locked until you go back to Entries closed: judging mode, judges per team, rubric and who judges which teams. In Automatic mode, judges are assigned now.",
     results: "Scoring and sign-up stop. Publish results when you are ready."
   };
   function stagePicker(current, offered, opts = {}) {
@@ -3399,7 +3400,7 @@
       case "building":
         return { title: "Building has started", body: "Building has started. Add your entry and website before entries close." };
       case "closed":
-        return { title: "Entries are closed", body: "Entries are closed and judges are starting to score. Thanks for building!" };
+        return { title: "Entries are closed", body: "Entries are closed. Thanks for building!" };
       case "judging":
         return { title: "Judging has started", body: "Judging has started. Entries, teams and websites can no longer be changed." };
       case "results":
@@ -4267,9 +4268,9 @@
       case "building":
         return { h2: "Start building when people are in", sentence: "Entries open. Teams can edit their entry and website until you close entries.", button: step.label };
       case "closed":
-        return step.deadline_passed ? { h2: "The entry deadline has passed", sentence: "Close entries so judges can start scoring. Teams with their own extension keep it.", button: step.label, warn: true } : { h2: "Close entries when building time is over", sentence: "Entries close for every team now, except teams with their own extension. Judges can start scoring.", button: step.label };
+        return step.deadline_passed ? { h2: "The entry deadline has passed", sentence: "Close entries, then set up judging. Teams with their own extension keep it.", button: step.label, warn: true } : { h2: "Close entries when building time is over", sentence: "Entries close for every team now, except teams with their own extension. Set up judging next.", button: step.label };
       case "judging":
-        return { h2: "Start judging when every entry is in", sentence: "Teams can no longer edit their entry, team or website. Judges keep scoring.", button: step.label };
+        return { h2: "Start judging when every entry is in", sentence: "Judges can score, and the judging setup locks.", confirmBody: FORWARD_EFFECT.judging, button: step.label };
       case "results":
         return { h2: "Finish judging when every judge is done", sentence: "Scoring stops and judging locks. Next you publish results.", button: step.label };
       case "archived":
@@ -4775,7 +4776,7 @@ ${archived ? "" : '<section class="card" id="jg-lockzone"></section>'}`;
 <span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc("/e/" + encodeURIComponent(slug) + "/judge?s=home")}">Score as a judge</a>` : ""}</div>
 ${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : ""}
 <p><a href="${ui.esc(href("organiser", slug, "settings") + "&tab=judging")}">Judging settings</a></p>
-<section class="card"><h2>Assignments</h2><label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label><p class="note" id="jg-assign-note" hidden></p><div class="form-actions"><button class="btn" type="button" id="jg-generate">Generate assignments</button><a class="btn" href="${ui.esc(href("organiser", slug, "assignments"))}">Open the assignment grid</a></div></section>
+<section class="card"><h2>Assignments</h2><div class="form-actions"><a class="btn" href="${ui.esc(href("organiser", slug, "assignments"))}">Open the assignment grid</a></div></section>
 ${restBlock}
 <p id="jg-results-link" hidden><a href="${ui.esc(href("organiser", slug, "results"))}">Review and publish on Results</a></p>`;
     function paintTopAction() {
@@ -4842,7 +4843,6 @@ ${restBlock}
       ev.judging_locked_at = r.data && r.data.locked_at || (/* @__PURE__ */ new Date()).toISOString();
       paintTopAction();
       paintLockZone();
-      paintMode();
       paintConflicts();
       await reloadDashboard();
       setLive("Judging locked", "ok");
@@ -4871,51 +4871,9 @@ ${restBlock}
       ev.judging_locked_at = null;
       paintTopAction();
       paintLockZone();
-      paintMode();
       paintConflicts();
       await reloadDashboard();
       setLive("Judging unlocked", "ok");
-    }
-    function paintMode() {
-      const automatic = settings.assignment_mode === "automatic";
-      $("jg-generate").hidden = !automatic;
-      $("jg-generate").disabled = locked || !!adminLockReason;
-      $("jg-include-organisers-wrap").hidden = !automatic;
-      $("jg-include-organisers").disabled = locked || !!adminLockReason;
-    }
-    const assignmentForm = ui.trackForm(ctx, $("jg-include-organisers").closest("section"));
-    async function generate() {
-      const ok = await ui.confirm({ title: "Generate assignments?", body: "This replaces any assignments already generated. Continue?", confirmLabel: "Generate assignments", danger: true });
-      if (!ok) return;
-      const btn = $("jg-generate");
-      btn.disabled = true;
-      let r;
-      const sent = assignmentForm.snapshot();
-      try {
-        r = await api("POST", base + "/assignments/generate", { include_organisers: $("jg-include-organisers").checked });
-      } catch (e) {
-        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err", btn);
-        paintMode();
-        return;
-      }
-      const editedDuring = r.ok && assignmentForm.snapshot() !== sent;
-      paintMode();
-      if (!r.ok) {
-        setLive(ui.errText(r), "err", btn);
-        return;
-      }
-      editedDuring ? assignmentForm.reset(sent) : assignmentForm.reset();
-      const data = r.data || {};
-      assignmentsCount = (data.assignments || []).length;
-      const under = data.teams_under_target || [];
-      const names = under.map((id) => {
-        const t = teams.find((x) => x.id === id);
-        return t ? t.name || t.slug : id;
-      });
-      const note = $("jg-assign-note");
-      note.hidden = false;
-      note.textContent = assignmentsCount + " assignment" + (assignmentsCount === 1 ? "" : "s") + " made." + (names.length ? " " + names.length + " team" + (names.length === 1 ? "" : "s") + " got fewer judges than planned: " + names.join(", ") + "." : "");
-      await reloadDashboard();
     }
     function paintConflicts() {
       const card = $("jg-conflicts-card");
@@ -5008,8 +4966,7 @@ ${restBlock}
       const person = people.find((p) => p.user_id === judgeId);
       if (!person || person.role !== "organiser") return true;
       if (settings.assignment_mode === "open") return doneCount > 0;
-      const includeOrganisers = draftMode === "automatic" && $("jg-include-organisers") && $("jg-include-organisers").checked;
-      return includeOrganisers || doneCount > 0 || assignedCount > 0;
+      return doneCount > 0 || assignedCount > 0;
     }
     function paintProgress(teamsRows, judgeRows) {
       const card = $("jg-progress-card");
@@ -5132,7 +5089,6 @@ ${restBlock}
       setLive("Scores deleted", "ok");
       await reloadDashboard();
     }
-    $("jg-generate").addEventListener("click", generate);
     paintTopAction();
     paintLockZone();
     let rubricR, settingsR, conflictsR, peopleR, teamsR, assignR;
@@ -5159,7 +5115,6 @@ ${restBlock}
     if (assignR.ok) assignmentsCount = (assignR.data && assignR.data.assignments || []).length;
     draftMode = settings.assignment_mode;
     draftPerTeam = settings.judges_per_team;
-    paintMode();
     paintConflicts();
     await reloadDashboard();
   }

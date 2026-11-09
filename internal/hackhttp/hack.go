@@ -1610,6 +1610,19 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		writeEventsError(w, err)
 		return
 	}
+	if stage == "judging" && (current == "draft" || current == "open" || current == "building" || current == "closed") && updated.JudgeAssignmentMode == "automatic" {
+		allTeams, assignErr := h.entries.TeamsWithMembers(r.Context(), updated.ID)
+		if assignErr == nil {
+			pool, poolErr := h.judgingPoolFor(r.Context(), updated, allTeams)
+			assignErr = poolErr
+			if assignErr == nil {
+				_, _, assignErr = h.entries.GenerateAssignments(r.Context(), updated.ID, false, pool.In, true)
+			}
+		}
+		if assignErr != nil {
+			log.Printf("hack: stage assignments %s: %v", updated.Slug, assignErr)
+		}
+	}
 	if current != updated.Stage {
 		paperHackStage(r, updated)
 	}

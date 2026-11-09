@@ -81,7 +81,10 @@ func TestHackJudgingOpenAndReminderNotices(t *testing.T) {
 	rv := decodeRubric(t, a.api(t, "PUT", base+"/rubric", rubricBody(criterion("Impact", "", 100, 5)), org.key))
 	c1 := rv.Criteria[0].ID
 	teamID := teamIDFor(t, a, slug, team)
-	wantTS(t, "score", a.api(t, "PUT", base+"/judge/scores/"+teamID, map[string]any{"scores": []map[string]any{{"criterion_id": c1, "points": 5}}}, judgeDone.key), 200, "")
+	// Seed a saved score to cover a fully-scored queue when judging opens.
+	if _, err := a.database.Exec(`INSERT INTO event_scores(event_id,judge_id,team_id,criterion_id,points) SELECT id,$2,$3,$4,5 FROM events WHERE slug=$1`, slug, a.uid(t, judgeDone), teamID, c1); err != nil {
+		t.Fatal(err)
+	}
 
 	// Judging opens: every judge gets a line, worded from their own queue.
 	wantTS(t, "stage judging", a.api(t, "POST", base+"/stage", map[string]string{"stage": "judging"}, org.key), 200, "")

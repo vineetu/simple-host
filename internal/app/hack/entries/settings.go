@@ -33,6 +33,9 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 	if (req.Mode != nil || req.PerTeam != nil) && ev.JudgingLockedAt.Valid {
 		return model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
 	}
+	if (req.Mode != nil || req.PerTeam != nil) && ev.Stage == "judging" {
+		return model.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
+	}
 	if req.TieCriterionID != nil {
 		if ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived" {
 			return model.Event{}, &Error{Code: "tie_rule_closed", Message: "choose the tie criterion before judging begins"}

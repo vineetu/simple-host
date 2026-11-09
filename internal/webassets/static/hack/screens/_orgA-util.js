@@ -77,16 +77,16 @@ const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results'
 function backwardEffect(next, judgingLocked) {
   if (next === 'draft') return 'People who joined stay, but the join link stops working until you open it again.'
   if (next === 'open' || next === 'building') return 'Entries open again. People who joined stay.'
-  if (next === 'closed') return 'Entries reopen for teams with extra time. Other entries stay closed. People who joined stay.'
+  if (next === 'closed') return 'Entries reopen for teams with extra time. Other entries stay closed. People who joined stay. Scoring pauses and judging setup unlocks.'
   if (next === 'judging' && judgingLocked) return 'Judging stays locked. Unlock it on Judging to let judges score again.'
   return 'Judging opens again. Entries stay frozen and people who joined stay.'
 }
 // What a forward (or lateral, since the picker offers every other stage, not
 // only the next one) move to each stage means for participants and judges.
 // Each line must match the server's own stage rules (hack_judging.go
-// scoringStage: judges may score only at closed/judging, never results;
-// hack.go submissionsClosedStage/joinable): closed is when scoring actually
-// opens, judging is when it's mid-way, and results is when it stops.
+// scoringStage: judges may score only at Judging, never Results;
+// hack.go submissionsClosedStage/joinable): Closed is setup time,
+// Judging opens scoring and locks setup, and Results stops scoring.
 // Exported for organiser-overview.js: the one next-step button's confirm
 // uses the same effect sentence as the stage picker offers for the same
 // forward move, so the two never drift (spec.json organiser-overview
@@ -94,8 +94,8 @@ function backwardEffect(next, judgingLocked) {
 export const FORWARD_EFFECT = {
   open: 'Sign-up opens. Participants can join and apply, and judges can use their invite link.',
   building: 'Entries open. Teams can edit their entry and website until you close entries.',
-  closed: 'Entries close for every team now, except teams with their own extension. Judges can start scoring.',
-  judging: 'Teams can no longer edit their entry, team or website. Judges keep scoring until you lock judging.',
+  closed: 'Entries close for every team now, except teams with their own extension. Set up judging now; judges can score once you start judging.',
+  judging: 'Teams can no longer edit their entry, team or website. Judges can score. Locked until you go back to Entries closed: judging mode, judges per team, rubric and who judges which teams. In Automatic mode, judges are assigned now.',
   results: 'Scoring and sign-up stop. Publish results when you are ready.'
 }
 export function stagePicker(current, offered, opts = {}) {

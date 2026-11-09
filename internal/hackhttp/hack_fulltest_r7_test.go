@@ -247,6 +247,9 @@ func TestHackMyResultsRankedTeams(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	judge := w.judges[0]
 	w.scoreTeam(t, judge, w.teams[0].id, map[string]int{c1: 4}, nil)
 	w.scoreTeam(t, judge, w.teams[1].id, map[string]int{c1: 4}, nil)

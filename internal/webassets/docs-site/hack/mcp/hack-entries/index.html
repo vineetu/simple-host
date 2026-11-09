@@ -894,7 +894,7 @@
 </table>
 <h2 id="hack_set_rubric">hack_set_rubric</h2>
 <div data-tool="hack_set_rubric"></div>
-<p>Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked.</p>
+<p>Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1298,7 +1298,7 @@
 </table>
 <h2 id="hack_score_team">hack_score_team</h2>
 <div data-tool="hack_score_team"></div>
-<p>Save one or more criterion scores and optionally a comment. Confirm the scores with the judge before saving.</p>
+<p>Save one or more criterion scores and optionally a comment. Confirm the scores with the judge before saving. Scoring opens when the event reaches Judging.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1638,7 +1638,7 @@
 </table>
 <h2 id="hack_set_judging_settings">hack_set_judging_settings</h2>
 <div data-tool="hack_set_judging_settings"></div>
-<p>Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only.</p>
+<p>Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only. Mode and judges per team are refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1666,7 +1666,7 @@
 </table>
 <h2 id="hack_generate_assignments">hack_generate_assignments</h2>
 <div data-tool="hack_generate_assignments"></div>
-<p>Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only.</p>
+<p>Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1716,7 +1716,7 @@
 </table>
 <h2 id="hack_set_assignments">hack_set_assignments</h2>
 <div data-tool="hack_set_assignments"></div>
-<p>Replace manual assignments with body.assignments. Ask first. Organiser only.</p>
+<p>Replace manual assignments with body.assignments. Ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1766,7 +1766,7 @@
 </table>
 <h2 id="hack_set_panels">hack_set_panels</h2>
 <div data-tool="hack_set_panels"></div>
-<p>Replace track panel memberships with body.panels. Ask first. Organiser only.</p>
+<p>Replace track panel memberships with body.panels. Ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>

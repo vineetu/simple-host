@@ -1,6 +1,6 @@
 import { renderChecklist, bindChecklist, checklistActionLabel } from '../checklist.js'
 import { href, resolve } from '../nav.js'
-import { adminLock, stagePicker } from './_orgA-util.js'
+import { adminLock, stagePicker, FORWARD_EFFECT } from './_orgA-util.js'
 import { startTour } from '../tour.js'
 import { cueHeading } from '../schedule.js'
 import { offerStageAnnouncement } from './_stage-announce-dialog.js'
@@ -59,10 +59,10 @@ function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
       return { h2: 'Start building when people are in', sentence: 'Entries open. Teams can edit their entry and website until you close entries.', button: step.label }
     case 'closed':
       return step.deadline_passed
-        ? { h2: 'The entry deadline has passed', sentence: 'Close entries so judges can start scoring. Teams with their own extension keep it.', button: step.label, warn: true }
-        : { h2: 'Close entries when building time is over', sentence: 'Entries close for every team now, except teams with their own extension. Judges can start scoring.', button: step.label }
+        ? { h2: 'The entry deadline has passed', sentence: 'Close entries, then set up judging. Teams with their own extension keep it.', button: step.label, warn: true }
+        : { h2: 'Close entries when building time is over', sentence: 'Entries close for every team now, except teams with their own extension. Set up judging next.', button: step.label }
     case 'judging':
-      return { h2: 'Start judging when every entry is in', sentence: 'Teams can no longer edit their entry, team or website. Judges keep scoring.', button: step.label }
+      return { h2: 'Start judging when every entry is in', sentence: 'Judges can score, and the judging setup locks.', confirmBody: FORWARD_EFFECT.judging, button: step.label }
     case 'results':
       return { h2: 'Finish judging when every judge is done', sentence: 'Scoring stops and judging locks. Next you publish results.', button: step.label }
     case 'archived':

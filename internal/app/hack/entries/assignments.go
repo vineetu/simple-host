@@ -25,7 +25,7 @@ func (e *BeginAssignmentsError) Error() string { return e.Err.Error() }
 func (e *BeginAssignmentsError) Unwrap() error { return e.Err }
 
 // GenerateAssignments plans and replaces assignments in one transaction.
-func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers bool, pool map[string]bool) ([]model.JudgeAssignment, []string, error) {
+func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers bool, pool map[string]bool, atStageMove bool) ([]model.JudgeAssignment, []string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, nil, &BeginAssignmentsError{Err: err}
@@ -40,6 +40,9 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 	}
 	if ev.JudgingLockedAt.Valid {
 		return nil, nil, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
+	}
+	if ev.Stage == "judging" && !atStageMove {
+		return nil, nil, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
 	}
 	// 409, not 400: the route exists, the event is just not in that mode.
 	// The code stays invalid_request, the same name as the other bad-input refusals.
@@ -101,7 +104,7 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 
 // PutManualAssignments replaces the event's manual assignments.
 func (s *Service) PutManualAssignments(ctx context.Context, eventID string, items []model.JudgeAssignment) ([]model.JudgeAssignment, error) {
-	tx, ev, err := s.optionsTx(ctx, eventID)
+	tx, ev, err := s.optionsTx(ctx, eventID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +159,7 @@ func (s *Service) PutManualAssignments(ctx context.Context, eventID string, item
 
 // PutTrackPanels replaces the event's track panels.
 func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []entryrepo.TrackPanelMember) ([]entryrepo.TrackPanelMember, error) {
-	tx, ev, err := s.optionsTx(ctx, eventID)
+	tx, ev, err := s.optionsTx(ctx, eventID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +202,7 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 	return rows, nil
 }
 
-func (s *Service) optionsTx(ctx context.Context, eventID string) (*sql.Tx, model.Event, error) {
+func (s *Service) optionsTx(ctx context.Context, eventID string, setup bool) (*sql.Tx, model.Event, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, model.Event{}, err
@@ -216,6 +219,10 @@ func (s *Service) optionsTx(ctx context.Context, eventID string) (*sql.Tx, model
 	if ev.JudgingLockedAt.Valid {
 		tx.Rollback()
 		return nil, model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
+	}
+	if setup && ev.Stage == "judging" {
+		tx.Rollback()
+		return nil, model.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
 	}
 	return tx, ev, nil
 }

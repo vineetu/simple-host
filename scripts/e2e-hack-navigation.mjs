@@ -94,7 +94,8 @@ try {
   'o.end': 'Closed stage cannot end until Results',
   'o.publish': 'Publication controls appear after judging is locked or results are available',
   'o.former-judges': 'No former judges in this event',
-  'o.ties': 'No scored tied standings before judging'
+  'o.ties': 'No scored tied standings before judging',
+  'j.conflicts': 'The judge queue opens at Judging (SIM-416); checked below after the move'
  }
  for (const target of map.targets.filter(t => t.anchor)) {
   if (absent[target.id]) continue
@@ -122,6 +123,8 @@ try {
 
  await open(page, manage + '?s=settings&tab=judging#set-name', '#jg-rubric-save')
  assert.equal(new URL(page.url()).searchParams.get('tab'), 'judging')
+ // SIM-416: judges score (and review conflicts in the queue) from Judging on.
+ assert.ok((await fetch(info.url+'/v1/hack/events/'+info.slug+'/stage',{method:'POST',headers:{'X-API-Key':info.keys.organiser,'Content-Type':'application/json'},body:JSON.stringify({stage:'judging'})})).ok)
  await open(page, manage + '?s=overview', '#ov-change-stage')
  await page.getByRole('link', { name: 'Score as a judge', exact: true }).click()
  await page.waitForURL(u => u.pathname.endsWith('/judge') && u.searchParams.get('s') === 'home')
@@ -145,6 +148,7 @@ try {
  await open(conflictJudge.page, `/e/${info.slug}/judge?s=queue&tab=conflicts#conflicts`, '[data-remove-conflict]')
  assert.equal(await conflictJudge.page.locator('[data-remove-conflict]').count(), 1, 'own conflict disappeared outside current candidates')
  await conflictJudge.context.close()
+ assert.ok((await fetch(info.url+'/v1/hack/events/'+info.slug+'/stage',{method:'POST',headers:{'X-API-Key':info.keys.organiser,'Content-Type':'application/json'},body:JSON.stringify({stage:'closed'})})).ok)
 
  const editor = await person('multi')
  const settings = `/e/${info.multi_slug}/manage?s=settings&tab=`

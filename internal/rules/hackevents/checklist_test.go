@@ -196,3 +196,30 @@ func TestChecklistCatalogueTargetsInNavigation(t *testing.T) {
 		}
 	}
 }
+
+func TestChecklistAssignmentsFollowMode(t *testing.T) {
+	for _, mode := range []string{"open", "automatic", "manual", "panel"} {
+		t.Run(mode, func(t *testing.T) {
+			out := BuildChecklist(ChecklistInput{Role: "organiser", Stage: "closed", AssignmentMode: mode, JudgesPerTeam: 2}, time.Time{})
+			for _, item := range out.Items {
+				if item.ID != "o.assignments" {
+					continue
+				}
+				if mode == "open" {
+					t.Fatal("Open must omit assignments")
+				}
+				label, target := "Assign judges", "o.assignments"
+				if mode == "automatic" {
+					label, target = "Enough judges for 2 per team", "o.judges"
+				}
+				if item.Label != label || item.TargetID != target {
+					t.Fatalf("got %+v; want %q targeting %s", item, label, target)
+				}
+				return
+			}
+			if mode != "open" {
+				t.Fatal("missing assignments")
+			}
+		})
+	}
+}

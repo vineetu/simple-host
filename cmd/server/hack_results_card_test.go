@@ -114,11 +114,10 @@ func newCardWorld(t *testing.T) *cardWorld {
 		t.Fatalf("deploy alpha site: %d %s", r.status, r.body)
 	}
 
-	// Scoring only opens at closed/judging (scoringStage, hack_judging.go).
-	// Moved by direct SQL, same shortcut newJudgingWorld uses, to skip the
-	// validated stage-transition chain this test does not exercise.
-	if _, err := a.database.Exec(`UPDATE events SET stage = 'closed' WHERE slug = $1`, slug); err != nil {
-		t.Fatal(err)
+	// Scoring only opens at judging (scoringStage, hack_judging.go).
+	// Use the stage API so due team sites are pinned before publishing results.
+	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]any{"stage": "judging"}, org.key); r.status != http.StatusOK {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
 	}
 
 	if r := a.api(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+alphaID, map[string]any{"scores": []map[string]any{{"criterion_id": w.c1, "points": 5}}}, judgeP.key); r.status != http.StatusOK {

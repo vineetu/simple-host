@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-09",
+    "what": "SIM-416: Scoring opens at Judging; Entries closed is setup time. Judging locks setup and Automatic assigns at the move. Returning to Entries closed pauses scoring and unlocks setup. Assignment grids are read-only outside their saved mode or during Judging."
+  },
+  {
+    "date": "2026-11-09",
     "what": "SIM-414: Website considers every events grant, names every app linked to this team and distinguishes no team picked. Account lists every connected app with last use, publishing teams and Disconnect with confirmation; connect steps stay below."
   },
   {

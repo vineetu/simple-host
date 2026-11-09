@@ -54,7 +54,7 @@ export function suggestedAnnouncement(move, opts) {
     case 'building':
       return { title: 'Building has started', body: 'Building has started. Add your entry and website before entries close.' }
     case 'closed':
-      return { title: 'Entries are closed', body: 'Entries are closed and judges are starting to score. Thanks for building!' }
+      return { title: 'Entries are closed', body: 'Entries are closed. Thanks for building!' }
     case 'judging':
       return { title: 'Judging has started', body: 'Judging has started. Entries, teams and websites can no longer be changed.' }
     case 'results':

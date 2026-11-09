@@ -30,6 +30,9 @@ func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []mod
 	if ev.JudgingLockedAt.Valid {
 		return nil, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first to change the rubric."}
 	}
+	if ev.Stage == "judging" {
+		return nil, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
+	}
 	existing, err := entryrepo.ListRubric(ctx, tx, eventID)
 	if err != nil {
 		return nil, err

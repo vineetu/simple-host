@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-09: Simple Hack scoring opens at Judging, which locks judging setup and assigns judges in Automatic mode; returning to Entries closed pauses scoring and unlocks setup.
+
 2026-11-09: Simple Hack checks every connected app when showing a team’s Website connection, names all apps linked to that team, and explains when an app has not picked a team. Account lists every connected app with its last use and publishing teams, and lets you disconnect each with confirmation.
 
 2026-11-09: Simple Hack organisers can now Ask from every screen of their event, not just Home, and the assistant explains every organiser setting and option: what it means, what each choice does, when to use it and what happens if, with a link to where it is.

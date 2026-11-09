@@ -10549,6 +10549,7 @@ paths:
         is locked (409 scores_locked): unlock it first. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced
         max_points are deleted. Returns 409 score_deletion_confirmation with counts
         until confirm_score_deletion is true. Comments on retained scores are preserved.
+        During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -10581,7 +10582,7 @@ paths:
         '400': { description: "invalid_rubric or invalid_request", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: "scores_locked or score_deletion_confirmation or tie_rule_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "judging_setup_locked or scores_locked or score_deletion_confirmation or tie_rule_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/hack/events/{slug}/judging/settings:
@@ -10620,6 +10621,7 @@ paths:
         (1-20), score_mode (raw or normalised), tie_criterion_id, public_ranks, and public_scores.
         The tie criterion must be chosen before judging starts; score mode can
         change during judging. A publish stores the chosen mode in its snapshot.
+        During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -10653,6 +10655,7 @@ paths:
         '400': { description: "invalid_request", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: judging_setup_locked or scores_locked or tie_rule_closed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/hack/events/{slug}/assignments:
@@ -10676,6 +10679,7 @@ paths:
         this event; organisers are eligible judges too. Conflicted pairs are refused.
         Locked or archived events
         refuse changes. Unlisted assignments are removed.
+        During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
       requestBody:
@@ -10684,7 +10688,7 @@ paths:
       responses:
         '200': { description: The event's assignments with judge and team names }
         '404': { description: event_not_found, judge_not_found or team_not_found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: invalid_assignment_mode, judge_conflict, scores_locked or event_closed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "judging_setup_locked or invalid_assignment_mode, judge_conflict, scores_locked or event_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/hack/events/{slug}/judging/panels:
     get:
@@ -10707,6 +10711,7 @@ paths:
         judges too. Teams without a track
         have no panel queue. Conflicts still exclude individual team pairs.
         Locked or archived events refuse changes.
+        During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
       requestBody:
@@ -10715,7 +10720,7 @@ paths:
       responses:
         '200': { description: "{panels:[{track_id,judge_id}]}" }
         '404': { description: event_not_found, track_not_found or judge_not_found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: scores_locked or event_closed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "judging_setup_locked or scores_locked or event_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/hack/events/{slug}/judging/preview:
     get:
@@ -10745,6 +10750,7 @@ paths:
         because not enough non-conflicted judges were available. 400
         too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no
         team has a member yet.
+        During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -10777,7 +10783,7 @@ paths:
         '400': { description: "too_few_judges or too_few_teams", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: "invalid_request (still in open mode)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "judging_setup_locked or invalid_request (still in open mode)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/hack/events/{slug}/conflicts:
@@ -11125,7 +11131,7 @@ paths:
       operationId: putHackJudgeScores
       summary: Save my scores for a team (judge or organiser) (EVENTS=hosted only)
       description: >-
-        Scoring is allowed only in closed or judging stages; otherwise 409 scoring_not_open.
+        Scoring opens when judging starts; otherwise 409 scoring_not_open ("Scoring opens when judging starts.").
         Upserts whichever criteria are given (a partial list is fine; a
         retried write of the same value never double-counts). comment,
         if present (even empty string), is written to every score row this
@@ -16137,7 +16143,7 @@ components:
         gallery_open: { type: boolean }
         team_sites_ready: { type: boolean, description: True once the event's team addresses have a certificate. }
         judging_locked_at: { type: string, format: date-time, nullable: true, description: "When judging was locked. Null while scores can still change." }
-        scoring_open: { type: boolean, description: "Whether judges may score in the current stage (from entries closed onward; also while building on the standing demo). The judging lock applies separately." }
+        scoring_open: { type: boolean, description: "Whether judges may score in the current stage (during Judging; also while building on the standing demo). The judging lock applies separately." }
         judging_lock_reason: { type: string, description: "The reason from the last unlock. Empty until judging has been unlocked once." }
         stages_offered:
           type: array

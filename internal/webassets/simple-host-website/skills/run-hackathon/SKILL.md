@@ -68,6 +68,6 @@ locked.
 
 Visitor-save notifications use MCP Events with the app's receiver: arguments `{site, storage?}` for the selected team, or `{event, storage?}` for an organiser website. `list_notifications` and `remove_notification` accept that context. Team subscriptions are created before the deadline and deliver while membership stays approved. Organiser delivery ends with the event. The team and organiser website screens also manage signed webhooks, tests, history, and rotation. Keep secrets out of chat.
 
-Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
+Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Scoring opens at Judging, which locks mode, judges per team, rubric and assignments and generates Automatic assignments; returning to Entries closed pauses scoring and unlocks setup.
 
 Team rosters from `hack_get_teams` include names and member IDs, with emails omitted by default. Set `include_emails: true` only when the organiser asks for team members' email addresses. Use `hack_get_people` for people management or `hack_export_participants` for a requested participant export. Moving members, changing deadlines, and taking down or restoring team sites return the relevant team state without rosters or invitation codes. The judging dashboard returns judge names and counts without judge IDs.

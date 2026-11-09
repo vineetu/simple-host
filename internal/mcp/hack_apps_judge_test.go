@@ -21,7 +21,7 @@ func judgeUpstream() *http.ServeMux {
 		// about/rules/prizes carry distinctive marker text (not empty
 		// strings) specifically so a test can tell "never present" apart
 		// from "present but happens to be empty".
-		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"closed","scoring_open":true,"judging_locked_at":null,"results_published":false,"submission_deadline":null,"time_zone":"UTC","about":"ORGANISER-PROSE-ABOUT","rules":"ORGANISER-PROSE-RULES","prizes":"ORGANISER-PROSE-PRIZES"},"role":"judge"}`))
+		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"judging","scoring_open":true,"judging_locked_at":null,"results_published":false,"submission_deadline":null,"time_zone":"UTC","about":"ORGANISER-PROSE-ABOUT","rules":"ORGANISER-PROSE-RULES","prizes":"ORGANISER-PROSE-PRIZES"},"role":"judge"}`))
 	})
 	return mux
 }

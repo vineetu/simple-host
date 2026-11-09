@@ -498,6 +498,9 @@ func TestHackJudgeEligibilityIncompleteAndExcluded(t *testing.T) {
 	if _, ok := q[incompleteID]; ok {
 		t.Fatalf("excluded entry still in the queue: %#v", q)
 	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+w.slug+"/stage", map[string]string{"stage": "judging"}, a.key(w.org)); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	scoreR := a.at(t, "PUT", "/v1/hack/events/"+w.slug+"/judge/scores/"+incompleteID, map[string]any{"scores": []any{}}, a.key(w.judge))
 	if scoreR.status == 200 {
 		t.Fatalf("scored an excluded team: %d %s", scoreR.status, scoreR.body)

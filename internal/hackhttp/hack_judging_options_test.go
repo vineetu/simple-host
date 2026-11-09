@@ -35,6 +35,7 @@ func TestHackManualAndPanelJudgingAccess(t *testing.T) {
 	if manualAssigned != 1 {
 		t.Fatalf("manual dashboard ignored assignments: %v", manualJudges)
 	}
+	w.setStage(t, "judging")
 	denied := w.call(t, "PUT", "/judge/scores/"+w.teams[1].id, map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 5}}}, w.judges[0].person)
 	if denied.status != 403 {
 		t.Fatalf("unassigned score: %d %s", denied.status, denied.body)
@@ -76,9 +77,11 @@ func TestHackManualAndPanelJudgingAccess(t *testing.T) {
 	if assigned != 1 {
 		t.Fatalf("panel dashboard ignored memberships: %v", panelJudges)
 	}
+	w.setStage(t, "judging")
 	if r = w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 5}}}, w.judges[0].person); r.status != 403 {
 		t.Fatalf("non-panel score: %d %s", r.status, r.body)
 	}
+	w.setStage(t, "closed")
 	other := uniqueSlug()
 	if r = w.a.createEvent(t, w.outsider, other, nil); r.status != 201 {
 		t.Fatalf("other event: %d %s", r.status, r.body)
@@ -117,6 +120,7 @@ func TestHackOrganiserManualAndPanelJudging(t *testing.T) {
 	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 1 {
 		t.Fatalf("manual organiser queue: %s", r.body)
 	}
+	w.setStage(t, "judging")
 	if r := w.call(t, "PUT", "/judge/scores/"+teamID, map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": 5}}}, w.org); r.status != 200 {
 		t.Fatalf("manual organiser score: %d %s", r.status, r.body)
 	}
@@ -158,15 +162,22 @@ func TestHackTieCriterionAndPrizeSnapshot(t *testing.T) {
 	if r.status != 200 {
 		t.Fatalf("tie rule: %d %s", r.status, r.body)
 	}
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	w.scoreTeam(t, w.judges[0], w.teams[0].id, map[string]int{c1: 5, c2: 3}, nil)
 	w.scoreTeam(t, w.judges[0], w.teams[1].id, map[string]int{c1: 3, c2: 5}, nil)
 	tracks := w.call(t, "PUT", "/tracks", map[string]any{"tracks": []map[string]string{{"slug": "climate", "name": "Climate", "prize": "Trophy"}}}, w.org)
 	if tracks.status != 200 {
 		t.Fatalf("tracks: %d %s", tracks.status, tracks.body)
 	}
-	w.setStage(t, "building") // participants choose tracks before entries close
+	if stage := w.call(t, "POST", "/stage", map[string]any{"stage": "building"}, w.org); stage.status != 200 {
+		t.Fatalf("move to building: %d %s", stage.status, stage.body)
+	}
 	r = w.call(t, "PUT", "/team/track", map[string]string{"track": "climate"}, w.part.person)
-	w.setStage(t, "closed")
+	if stage := w.call(t, "POST", "/stage", map[string]any{"stage": "closed"}, w.org); stage.status != 200 {
+		t.Fatalf("move to closed: %d %s", stage.status, stage.body)
+	}
 	if r.status != 200 {
 		t.Fatalf("team track: %d %s", r.status, r.body)
 	}
@@ -226,6 +237,7 @@ func TestHackTieCriterionAndPrizeSnapshot(t *testing.T) {
 func TestHackNormalisedRankingAndJudgeMajority(t *testing.T) {
 	w := newJudgingWorld(t, 3, 2)
 	c := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 10)), w.org)).Criteria[0].ID
+	w.setStage(t, "judging")
 	for _, tc := range []struct{ judge, team, points int }{{0, 0, 10}, {0, 1, 9}, {1, 0, 0}, {1, 1, 8}, {1, 2, 10}} {
 		w.scoreTeam(t, w.judges[tc.judge], w.teams[tc.team].id, map[string]int{c: tc.points}, nil)
 	}
@@ -262,6 +274,9 @@ func TestHackNormalisedRankingAndJudgeMajority(t *testing.T) {
 
 	major := newJudgingWorld(t, 2, 3)
 	c = decodeRubric(t, major.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), major.org)).Criteria[0].ID
+	if r := major.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, major.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	for _, tc := range []struct{ judge, a, b int }{{0, 5, 4}, {1, 5, 4}, {2, 1, 3}} {
 		major.scoreTeam(t, major.judges[tc.judge], major.teams[0].id, map[string]int{c: tc.a}, nil)
 		major.scoreTeam(t, major.judges[tc.judge], major.teams[1].id, map[string]int{c: tc.b}, nil)
@@ -275,6 +290,9 @@ func TestHackNormalisedRankingAndJudgeMajority(t *testing.T) {
 func TestHackMultiwayOrganiserTieDecisionRecorded(t *testing.T) {
 	w := newJudgingWorld(t, 3, 1)
 	c := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)).Criteria[0].ID
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+		t.Fatalf("start judging: %d %s", r.status, r.body)
+	}
 	for _, team := range w.teams {
 		w.scoreTeam(t, w.judges[0], team.id, map[string]int{c: 5}, nil)
 	}

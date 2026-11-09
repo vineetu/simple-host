@@ -129,6 +129,7 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-09. Scoring opens at Judging (owner, SIM-416).** Entries closed is the setup time: mode, judges per team, rubric and assignments; judges can't score yet. Moving to Judging locks that setup and Automatic mode assigns judges then. Going back to Entries closed pauses scoring and unlocks setup. Reverses 'judges score from Closed on' (2026-11-02). Reason: on the practice event, scores given at Entries closed silently stopped counting when the mode changed.
 - **2026-11-09 (owner). Organiser assistant v2: on every organiser screen, explains every setting.**
   The SIM-394 chat was only on Home and could not answer most settings questions ("a chatbot
   that says it helps you set up but can't answer questions about settings isn't helping; half

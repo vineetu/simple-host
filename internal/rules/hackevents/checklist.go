@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"github.com/vsriram/simple-host/internal/model"
 	"strings"
 	"time"
@@ -112,6 +113,7 @@ type ChecklistFact struct {
 	TargetID      string
 }
 type ChecklistInput struct {
+	JudgesPerTeam                               int
 	Role, Stage, MembershipRole, AssignmentMode string
 	ReadOnly                                    bool
 	Facts                                       map[string]ChecklistFact
@@ -159,6 +161,10 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		}
 		if (d.ID == "j.invite" || d.ID == "j.coc") && in.MembershipRole == "organiser" {
 			continue
+		}
+		if d.ID == "o.assignments" && in.AssignmentMode == "automatic" {
+			d.Label = fmt.Sprintf("Enough judges for %d per team", in.JudgesPerTeam)
+			d.Target = "o.judges"
 		}
 		f := in.Facts[d.ID]
 		target := d.Target
