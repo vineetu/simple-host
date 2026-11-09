@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-09: A GitHub workflow keeps the docs in step with main: after each check run it rebuilds and checks them, and when they are behind it opens a pull request, with Claude updating the task guides when a rebuild alone is not enough.
+
 2026-11-09: Simple Hack event pages get a Look setting: Classic plus five whole-page styles (Poster, Confetti, Boardroom, Garden, Terminal), set next to the organiser's page colour.
 
 2026-11-09: The docs at /docs/ gained a Self-hosting and Enterprise section built from the current settings and runbooks, a Changelog page, and a plain-Markdown copy of every page at the same address with .md added, for agents reading the docs directly.

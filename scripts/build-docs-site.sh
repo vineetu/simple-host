@@ -23,4 +23,5 @@ for brand in host hack; do
   python3 scripts/docs-site.py externalize "$brand"
 done
 python3 scripts/docs-site.py record
-python3 scripts/docs-site.py check
+# The docs-sync workflow runs the full check itself (scripts/check-docs-site.py).
+[[ -n "${DOCS_BUILD_SKIP_CHECK:-}" ]] || python3 scripts/docs-site.py check

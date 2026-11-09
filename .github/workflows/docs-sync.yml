@@ -1,0 +1,139 @@
+# Keeps /docs/ in step with main. After each run of the `check` workflow on
+# main it rebuilds the docs and runs scripts/check-docs-site.py. When a
+# rebuild alone brings the docs up to date it opens a pull request with the
+# rebuilt output; when the check still fails it first asks Claude to update
+# docs/site. It never pushes to main. Pull requests are already held to the
+# same check by ci.yml. Setup: CLAUDE.md "Docs sync agent".
+name: docs-sync
+
+on:
+  # claude-code-action supports workflow_run (not push); `check` runs on every push.
+  workflow_run:
+    workflows: [check]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-sync
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DOCS_BUILD_SKIP_CHECK: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+
+      - run: pip install pyyaml
+
+      - name: Rebuild and check the docs
+        id: check
+        run: |
+          # A re-run for an older commit must not overwrite newer docs.
+          if [ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$HEAD_SHA" ]; then
+            echo "main has moved on from $HEAD_SHA; the newer run covers it."
+            echo "current=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "current=true" >> "$GITHUB_OUTPUT"
+          mkdir -p .docs-sync
+          bash scripts/build-docs-site.sh > .docs-sync/build.log 2>&1 || { tail -40 .docs-sync/build.log; exit 1; }
+          if python3 scripts/check-docs-site.py > .docs-sync/check.log 2>&1; then
+            echo "needs_agent=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_agent=true" >> "$GITHUB_OUTPUT"
+          fi
+          cat .docs-sync/check.log
+          {
+            echo "### Docs sync"
+            echo '```'
+            tail -40 .docs-sync/check.log
+            git status --porcelain -- docs/site internal/webassets/docs-site ':!internal/webassets/docs-site/*/pagefind/**' | head -40
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ask Claude to update docs/site
+        if: steps.check.outputs.current == 'true' && steps.check.outputs.needs_agent == 'true'
+        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            The product docs at /docs/ are behind main (${{ env.HEAD_SHA }}). Edit files under docs/site/ only
+            so the docs match the product. Never change any other file, never run git commands that change
+            anything, never commit or push.
+
+            1. Read CLAUDE.md (voice and docs rules), docs/site/README.md (page rules: task headings, numbered
+               Steps, one What link per task, word limits) and INTENT.md.
+            2. Read .docs-sync/check.log: it lists what the docs check found. Fix what lives in docs/site
+               (task guides under docs/site/src/content/docs, areas.json, old-anchors.json). The API, MCP tool,
+               self-hosting and changelog pages are generated at build time; do not hand-write them.
+            3. See what changed recently: `git log -n 20 --stat -- FEATURES.md CHANGELOG.md internal/webassets/static internal/mcp docs`.
+               Update the task guide for each changed feature: plain words, the same structure as the existing
+               pages, no sections about what is missing. Simple Host pages must never mention Simple Hack; keep
+               Hack-only text inside brand:hack blocks or hack-only pages.
+            Keep the change small.
+          claude_args: |
+            --max-turns 40
+            --allowedTools Read,Glob,Grep,Edit,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+
+      - name: Open or update the docs pull request
+        if: steps.check.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Only docs/site and its build output may change; anything else is discarded.
+          rm -rf .docs-sync
+          { git diff --name-only | grep -vE '^(docs/site/|internal/webassets/docs-site/)' || true; } | while IFS= read -r f; do
+            echo "Discarding change outside docs/site: $f"; git checkout -- "$f"; done
+          { git ls-files --others --exclude-standard | grep -vE '^(docs/site/|internal/webassets/docs-site/)' || true; } | while IFS= read -r f; do
+            echo "Discarding new file outside docs/site: $f"; rm -f -- "$f"; done
+          bash scripts/build-docs-site.sh > /tmp/docs-build.log 2>&1 || { tail -40 /tmp/docs-build.log; exit 1; }
+          set +e; python3 scripts/check-docs-site.py > /tmp/docs-check-after.log 2>&1; after=$?; set -e
+          # Pagefind output differs by CPU, so it alone is not a change worth proposing.
+          if [ -z "$(git status --porcelain -- docs/site internal/webassets/docs-site ':!internal/webassets/docs-site/*/pagefind/**')" ]; then
+            echo "Docs are current."; exit 0
+          fi
+          branch=docs-sync
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$branch"
+          git add -- docs/site internal/webassets/docs-site
+          git -c core.hooksPath=/dev/null commit -q --no-verify -m "Docs: bring /docs/ up to date with ${HEAD_SHA::12}"
+          git push -q --force origin "$branch"
+          {
+            echo "Docs for ${HEAD_SHA}: rebuilt${{ steps.check.outputs.needs_agent == 'true' && ', after Claude updated docs/site' || '' }}."
+            echo
+            if [ "$after" -eq 0 ]; then echo "The docs check passes on this branch."; else echo "The docs check still fails on this branch:"; echo '```'; tail -40 /tmp/docs-check-after.log; echo '```'; fi
+            echo
+            echo "Review the wording before merging. This pull request was opened by a workflow, so re-run the checks on it if you need them."
+          } > /tmp/pr-body.md
+          gh label create docs-sync --color 0075ca --description "Docs update proposed by the docs sync workflow" 2>/dev/null || true
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')" ]; then
+            gh pr edit "$branch" --title "Docs: update for ${HEAD_SHA::12}" --body-file /tmp/pr-body.md
+          else
+            gh pr create --base main --head "$branch" --title "Docs: update for ${HEAD_SHA::12}" --body-file /tmp/pr-body.md --label docs-sync --label documentation
+          fi

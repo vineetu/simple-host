@@ -56,6 +56,12 @@ https://simple-host.app and runs in production for real users.
   one repo is checked against the other the same day (note it in PARITY.md). A new or changed
   feature updates PARITY.md in the same commit. `scripts/check-parity.sh` (in
   `check-docs-sync.sh`) fails if a `## N.` section of FEATURES.md has no PARITY.md row.
+- Docs: a change to openapi.yaml, MCP tool text, CHANGELOG.md, docs/site or the
+  self-hosting docs (docs/advanced, platforms, operations, configuration.md, kubernetes.md) needs
+  `bash scripts/build-docs-site.sh` (Node 22.23.4; on this box it finds
+  `~/.local/node/node-v22.23.4-linux-arm64`; run it under `systemd-run` with MemoryMax=3G) and the
+  rebuilt `internal/webassets/docs-site` in the same commit. `scripts/check-docs-site.py` (in
+  `check-docs-sync.sh`) fails until then.
 - Design docs in `docs/designs/` carry a status line at the top; update it when you ship or drop
   the thing. Finished plans go to `docs/history/`.
 
@@ -157,6 +163,16 @@ older `X-Skill-Version` header (none at all is a plain API call: no notice) adds
 when the body is an object, a `_notice` field spliced in (other fields keep their exact bytes). A
 response never changes shape because of the header: an array stays a bare array. The MCP
 server surfaces it to the agent. State endpoints, static serving and downloads are not wrapped.
+
+## Docs sync agent (GitHub)
+
+`.github/workflows/docs-sync.yml` runs after each `check` run on main (and by hand). It rebuilds
+the docs and runs `scripts/check-docs-site.py`. If a rebuild alone brings them up to date, it
+opens (or updates) the `docs-sync` pull request with the output. If the check still fails, it
+first runs the Claude Code GitHub Action (`anthropics/claude-code-action`, pinned by commit) to
+edit `docs/site`; changes anywhere else are discarded. It never pushes to main. Pull requests
+are held to the same check by `ci.yml`. Setup, once: the repository secret `ANTHROPIC_API_KEY`,
+and Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests".
 
 ## Local dev
 

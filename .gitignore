@@ -33,3 +33,4 @@ REVIEW-hackathon.md
 
 # Local navigation review screenshots.
 .shots/
+scripts/__pycache__/docs-*.pyc

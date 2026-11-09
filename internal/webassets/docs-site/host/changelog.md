@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 9:** A GitHub workflow keeps the docs in step with main: after each check run it rebuilds and checks them, and when they are behind it opens a pull request, with Claude updating the task guides when a rebuild alone is not enough.
+
 - **Nov 9:** The docs at /docs/ gained a Self-hosting and Enterprise section built from the current settings and runbooks, a Changelog page, and a plain-Markdown copy of every page at the same address with .md added, for agents reading the docs directly.
 
 - **Nov 9:** The docs API and MCP tool references are generated straight from the server's own route and tool list, replacing the old Swagger page and a hand-kept tools list.

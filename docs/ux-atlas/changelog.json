@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-09",
+    "what": "SIM-390/391/392 docs: /docs/api/ and /docs/mcp/ are generated per product from the route and tool inventories (Swagger gone); Self-hosting and Enterprise section and Changelog page; every docs page also at /docs/<page>.md; a GitHub workflow proposes docs updates when they fall behind. No Simple Hack screen changed."
+  },
+  {
+    "date": "2026-11-09",
     "what": "SIM-353: Look gets Page style, five whole-page themes for the public event page (Poster, Confetti, Boardroom, Garden, Terminal) plus Classic, today's page unchanged. Your colour still drives buttons and links. Try another picks a different one."
   },
   {
