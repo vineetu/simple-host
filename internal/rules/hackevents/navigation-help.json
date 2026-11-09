@@ -144,11 +144,11 @@
         },
         {
           "label": "Entries closed",
-          "means": "General entries close; future team extensions survive. Judges can score."
+          "means": "General entries close; future team extensions survive. Set up judging now; judges can't score yet."
         },
         {
           "label": "Judging",
-          "means": "All teams stop editing, including extended teams. Judges can score if unlocked."
+          "means": "All teams stop editing, including extended teams. Judges can score if unlocked. Mode, judges per team, rubric and assignments lock; Automatic assigns judges now. Back to Entries closed pauses scoring and unlocks setup."
         },
         {
           "label": "Results",
@@ -1554,7 +1554,7 @@
         },
         {
           "label": "Automatic",
-          "means": "Generate balanced pairs; judges score assigned teams only."
+          "means": "Assigns balanced pairs when Judging starts; judges score assigned teams only."
         },
         {
           "label": "Manual",
@@ -2584,17 +2584,15 @@
         "screens/organiser-judging.js",
         "screens/organiser-judging-assignments.js"
       ],
-      "explains": "Generate a balanced allocation or open the Assignment grid for manual pairs and track panels.",
-      "when": "Allocate work while unlocked, before End.",
+      "explains": "Open the Assignment grid for manual pairs and track panels. Automatic mode assigns judges by itself when Judging starts.",
+      "when": "Set up during Entries closed; locked during Judging.",
       "controls": [
-        "jg-include-organisers",
-        "button:Generate assignments",
         "button:Save judging access"
       ],
       "effects": [
-        "Automatic mode generates assignments; Include organisers who can judge adds organiser judges. Regeneration replaces pairs, never deletes scores, respects conflicts and reports teams below target.",
+        "Automatic mode generates assignments at the move to Judging (judges only, not organisers). It replaces pairs, never deletes scores and respects conflicts.",
         "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
-        "Manual pairs require Manual mode; track panels use Panel mode. Lock and End block changes."
+        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Lock and End block changes; the grid is read-only then."
       ],
       "keywords": [
         "assignment grid",
