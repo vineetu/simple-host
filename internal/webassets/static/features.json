@@ -47,10 +47,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/#publish-a-site"
       }
      ],
      "covers": [],
-     "evidence": "features.html #deploy-inline-files; FEATURES.md §1 Routes row (POST/PUT /v1/sites/{sitename}/files, inline JSON, base64 allowed); FEATURES.md L90 (Hack 25 MB). Not rendered."
+     "evidence": "features.html #deploy-inline-files; FEATURES.md \u00a71 Routes row (POST/PUT /v1/sites/{sitename}/files, inline JSON, base64 allowed); FEATURES.md L90 (Hack 25 MB). Not rendered."
     },
     {
      "id": "deploy-archive",
@@ -78,10 +82,14 @@
       {
        "label": "Cost and limits",
        "href": "/pricing"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #deploy-archive (all facts kept; the en-dash range of phone photo sizes rewritten as '4 to 12 MB'); FEATURES.md §1 L84-90 and Limits row; FEATURES.md §18 L2328 (MAX_ARCHIVE_MB default 100); PARITY row 'Upload validation'. Not rendered."
+     "evidence": "features.html #deploy-archive (all facts kept; the en-dash range of phone photo sizes rewritten as '4 to 12 MB'); FEATURES.md \u00a71 L84-90 and Limits row; FEATURES.md \u00a718 L2328 (MAX_ARCHIVE_MB default 100); PARITY row 'Upload validation'. Not rendered."
     },
     {
      "id": "deploy-update",
@@ -105,10 +113,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/#update-files"
       }
      ],
      "covers": [],
-     "evidence": "features.html #deploy-update; FEATURES.md §1 Routes row (PUT /v1/sites/{sitename}); PARITY row 'Sites: deploy, versions, rollback, delete'. Not rendered."
+     "evidence": "features.html #deploy-update; FEATURES.md \u00a71 Routes row (PUT /v1/sites/{sitename}); PARITY row 'Sites: deploy, versions, rollback, delete'. Not rendered."
     },
     {
      "id": "publish-change-files",
@@ -136,10 +148,14 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §1 MCP tools row (update_site keep_other_files, remove_files); FEATURES.md L935 (PUT .../files?keep=1); FEATURES.md L933 (patch sanitized, site lock held through merge); PARITY row 'Change a few files of a site' (same; must keep an index.html). Hack and small box: not stated, same binary. Not rendered."
+     "evidence": "FEATURES.md \u00a71 MCP tools row (update_site keep_other_files, remove_files); FEATURES.md L935 (PUT .../files?keep=1); FEATURES.md L933 (patch sanitized, site lock held through merge); PARITY row 'Change a few files of a site' (same; must keep an index.html). Hack and small box: not stated, same binary. Not rendered."
     },
     {
      "id": "deploy-ci",
@@ -167,10 +183,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #deploy-ci; FEATURES.md §1 Routes row (?create=1, 409 site_exists, 404 says add ?create=1; keep-versions and lock not for deploy-only keys); PARITY row 'Deploy from CI in one call'. Hack and small box: not stated, same routes. Not rendered."
+     "evidence": "features.html #deploy-ci; FEATURES.md \u00a71 Routes row (?create=1, 409 site_exists, 404 says add ?create=1; keep-versions and lock not for deploy-only keys); PARITY row 'Deploy from CI in one call'. Hack and small box: not stated, same routes. Not rendered."
     },
     {
      "id": "publish-upload-link",
@@ -198,6 +218,10 @@
       {
        "label": "FEATURES: MCP connector",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
@@ -225,10 +249,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-name; FEATURES.md §1 Routes row (?create=1: reserved name check). The old page's redirect clause is kept in #site-rename, since addresses and legacy redirects belong to another area. Not rendered."
+     "evidence": "features.html #site-name; FEATURES.md \u00a71 Routes row (?create=1: reserved name check). The old page's redirect clause is kept in #site-rename, since addresses and legacy redirects belong to another area. Not rendered."
     },
     {
      "id": "static-only",
@@ -256,10 +284,14 @@
       {
        "label": "Architecture",
        "href": "/architecture.html"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #static-only (one banned adverb dropped from the Where text per voice rules); FEATURES.md §1 lead (static site upload). Not rendered."
+     "evidence": "features.html #static-only (one banned adverb dropped from the Where text per voice rules); FEATURES.md \u00a71 lead (static site upload). Not rendered."
     },
     {
      "id": "site-quota",
@@ -283,10 +315,14 @@
       {
        "label": "Cost and limits",
        "href": "/pricing"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-quota; FEATURES.md §1 Limits row (100 sites, MAX_SITES_PER_ACCOUNT, Recently deleted counts, /v1/me reports max_sites); PARITY row 'Quotas' (Enterprise QUOTA_MAX_SITES + QUOTA_MAX_BYTES). Hack: not stated, team sites follow the event. Not rendered."
+     "evidence": "features.html #site-quota; FEATURES.md \u00a71 Limits row (100 sites, MAX_SITES_PER_ACCOUNT, Recently deleted counts, /v1/me reports max_sites); PARITY row 'Quotas' (Enterprise QUOTA_MAX_SITES + QUOTA_MAX_BYTES). Hack: not stated, team sites follow the event. Not rendered."
     },
     {
      "id": "publish-file-limits",
@@ -318,12 +354,16 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [
       "publish-file-limits"
      ],
-     "evidence": "FEATURES.md §1 L82-92 (200 MB, 1024 MB, SITE_TOTAL_CAP_FROM, after-prune checks, 413 site_total_too_large / account_storage_full, /v1/me file_usage, small box and Hack lines); FEATURES.md §18 L2328 (100 MB default); PARITY rows 'Website file allowances', 'Quotas'. Named account exceptions (chhotabreak, vineetu, jot-transcribe) rendered as 'operator exceptions', no customer names. Not rendered."
+     "evidence": "FEATURES.md \u00a71 L82-92 (200 MB, 1024 MB, SITE_TOTAL_CAP_FROM, after-prune checks, 413 site_total_too_large / account_storage_full, /v1/me file_usage, small box and Hack lines); FEATURES.md \u00a718 L2328 (100 MB default); PARITY rows 'Website file allowances', 'Quotas'. Named account exceptions (chhotabreak, vineetu, jot-transcribe) rendered as 'operator exceptions', no customer names. Not rendered."
     },
     {
      "id": "site-list",
@@ -347,10 +387,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-list; FEATURES.md §1 Pages row (showcase.html cards, search from 10 sites) and Routes row (GET /v1/sites newest edited first, file_bytes). Contradiction: the current page says 'there is no search or filter'; FEATURES.md documents search from 10 sites and ?query= filters since 2026-10-23, so FEATURES.md wins. Not rendered."
+     "evidence": "features.html #site-list; FEATURES.md \u00a71 Pages row (showcase.html cards, search from 10 sites) and Routes row (GET /v1/sites newest edited first, file_bytes). Contradiction: the current page says 'there is no search or filter'; FEATURES.md documents search from 10 sites and ?query= filters since 2026-10-23, so FEATURES.md wins. Not rendered."
     },
     {
      "id": "publish-find-sites",
@@ -378,10 +422,14 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §1 Routes row (GET /v1/sites ?query=, date filters, ?order=, paging, compact content summary); Pages row (search from 10 sites); PARITY row 'Find sites by description' (summary fields, same on Enterprise 2026-10-24). Hack and small box: not stated, same binary. Not rendered."
+     "evidence": "FEATURES.md \u00a71 Routes row (GET /v1/sites ?query=, date filters, ?order=, paging, compact content summary); Pages row (search from 10 sites); PARITY row 'Find sites by description' (summary fields, same on Enterprise 2026-10-24). Hack and small box: not stated, same binary. Not rendered."
     },
     {
      "id": "site-versions",
@@ -409,10 +457,14 @@
       {
        "label": "Cost and limits",
        "href": "/pricing"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-versions and the Managing sites lede ('Simple Host keeps your 4 latest versions; operator exceptions apply. Self-hosted instances choose their own retention'); FEATURES.md §1 L84 (4 versions, 403 keep_versions_fixed text), L90 (small box anyone can set, KEEP_VERSIONS 0 = all; Hack 2), Routes row (keep-versions not for deploy-only keys), Pages row (newest three and the live one, Show all); PARITY row 'Versions kept per site' (Enterprise 5). Not rendered."
+     "evidence": "features.html #site-versions and the Managing sites lede ('Simple Host keeps your 4 latest versions; operator exceptions apply. Self-hosted instances choose their own retention'); FEATURES.md \u00a71 L84 (4 versions, 403 keep_versions_fixed text), L90 (small box anyone can set, KEEP_VERSIONS 0 = all; Hack 2), Routes row (keep-versions not for deploy-only keys), Pages row (newest three and the live one, Show all); PARITY row 'Versions kept per site' (Enterprise 5). Not rendered."
     },
     {
      "id": "site-rollback",
@@ -436,10 +488,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-rollback; FEATURES.md §1 Routes row (PUT /v1/sites/{sitename}/active-version also makes a stored version live) and preview prose ('Make live' is the rollback); PARITY row 'Sites: deploy, versions, rollback, delete'. Not rendered."
+     "evidence": "features.html #site-rollback; FEATURES.md \u00a71 Routes row (PUT /v1/sites/{sitename}/active-version also makes a stored version live) and preview prose ('Make live' is the rollback); PARITY row 'Sites: deploy, versions, rollback, delete'. Not rendered."
     },
     {
      "id": "site-preview",
@@ -467,10 +523,14 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/#preview-and-publish-a-version"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-preview; FEATURES.md §1 preview prose (publish=false, hour-long bearer link, noindex, saves refused, 409 preview_unavailable with no own address); PARITY row 'Look before it goes live' (Enterprise owner/team only). Hack: preview_version tool exists; the §10 note that 'preview remains unavailable on Hack' refers to the MCP Apps screen. Not rendered."
+     "evidence": "features.html #site-preview; FEATURES.md \u00a71 preview prose (publish=false, hour-long bearer link, noindex, saves refused, 409 preview_unavailable with no own address); PARITY row 'Look before it goes live' (Enterprise owner/team only). Hack: preview_version tool exists; the \u00a710 note that 'preview remains unavailable on Hack' refers to the MCP Apps screen. Not rendered."
     },
     {
      "id": "site-drafts",
@@ -498,12 +558,16 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [
       "site-drafts"
      ],
-     "evidence": "FEATURES.md §1 'Drafts as versions' (author on deploys, ?pending=1, DELETE .../versions/{version}, discard_version); PARITY row 'Drafts as versions' (Enterprise: not ported)."
+     "evidence": "FEATURES.md \u00a71 'Drafts as versions' (author on deploys, ?pending=1, DELETE .../versions/{version}, discard_version); PARITY row 'Drafts as versions' (Enterprise: not ported)."
     },
     {
      "id": "site-rename",
@@ -527,10 +591,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-rename; FEATURES.md §1 rename prose (old name 302s until reused); PARITY row 'Site rename'. The redirect is kept to one clause because addresses and legacy redirects belong to another area. Not rendered."
+     "evidence": "features.html #site-rename; FEATURES.md \u00a71 rename prose (old name 302s until reused); PARITY row 'Site rename'. The redirect is kept to one clause because addresses and legacy redirects belong to another area. Not rendered."
     },
     {
      "id": "site-delete",
@@ -554,10 +622,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-delete (Recently deleted and Restore split into #publish-recently-deleted; the Who clause 'anyone who deleted the wrong one' moved there); FEATURES.md §1 delete prose (7 days, refused while taken down, account delete immediate) and Limits row (Recently deleted counts toward the cap); PARITY row 'Recently deleted' (Enterprise 30 days). Not rendered."
+     "evidence": "features.html #site-delete (Recently deleted and Restore split into #publish-recently-deleted; the Who clause 'anyone who deleted the wrong one' moved there); FEATURES.md \u00a71 delete prose (7 days, refused while taken down, account delete immediate) and Limits row (Recently deleted counts toward the cap); PARITY row 'Recently deleted' (Enterprise 30 days). Not rendered."
     },
     {
      "id": "publish-recently-deleted",
@@ -585,10 +657,14 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-delete (Recently deleted and Restore facts); FEATURES.md §1 delete prose (7 days, restore brings it back whole, hourly purge, name, saved data, collections and claimed names kept, a deleted site's old names skipped), Routes row (GET /v1/me/deleted-sites, POST .../restore), MCP row (list_deleted_sites, restore_site); PARITY row 'Recently deleted' (Enterprise 30 days, owner, team member or admin). Hack: list_deleted_sites and restore_site exist on Hack. Not rendered."
+     "evidence": "features.html #site-delete (Recently deleted and Restore facts); FEATURES.md \u00a71 delete prose (7 days, restore brings it back whole, hourly purge, name, saved data, collections and claimed names kept, a deleted site's old names skipped), Routes row (GET /v1/me/deleted-sites, POST .../restore), MCP row (list_deleted_sites, restore_site); PARITY row 'Recently deleted' (Enterprise 30 days, owner, team member or admin). Hack: list_deleted_sites and restore_site exist on Hack. Not rendered."
     },
     {
      "id": "site-offline",
@@ -612,10 +688,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-offline; FEATURES.md §1 offline prose (503, noindex, 403 site_offline, leaves the person page, owner keeps deploying, take-down wins); PARITY row 'Take a site offline' (Enterprise only-me access level). Hack: set_site_offline exists on Hack. Not rendered."
+     "evidence": "features.html #site-offline; FEATURES.md \u00a71 offline prose (503, noindex, 403 site_offline, leaves the person page, owner keeps deploying, take-down wins); PARITY row 'Take a site offline' (Enterprise only-me access level). Hack: set_site_offline exists on Hack. Not rendered."
     },
     {
      "id": "site-download",
@@ -639,10 +719,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-download; FEATURES.md §1 Routes row (export.tar.gz with collections.json id, created_at, submitted_by; 10-minute export link; 404 export_link_invalid when expired, deleted or changed); PARITY row 'Site export with saved data'. Hack: export_site exists on Hack. Not rendered."
+     "evidence": "features.html #site-download; FEATURES.md \u00a71 Routes row (export.tar.gz with collections.json id, created_at, submitted_by; 10-minute export link; 404 export_link_invalid when expired, deleted or changed); PARITY row 'Site export with saved data'. Hack: export_site exists on Hack. Not rendered."
     },
     {
      "id": "site-visibility",
@@ -670,10 +754,14 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-visibility (Where said 'on your sites page only'; FEATURES.md lists set_visibility and PUT /v1/sites/{sitename}/visibility, so the AI app can do it too, FEATURES.md wins); FEATURES.md §1 lead (unlisted default, X-Robots-Tag, robots.txt, own domain or name exempt); PARITY row 'Who can open a site' for Enterprise access levels. Hack: set_visibility exists; not stated for Hack showcase. Not rendered."
+     "evidence": "features.html #site-visibility (Where said 'on your sites page only'; FEATURES.md lists set_visibility and PUT /v1/sites/{sitename}/visibility, so the AI app can do it too, FEATURES.md wins); FEATURES.md \u00a71 lead (unlisted default, X-Robots-Tag, robots.txt, own domain or name exempt); PARITY row 'Who can open a site' for Enterprise access levels. Hack: set_visibility exists; not stated for Hack showcase. Not rendered."
     },
     {
      "id": "site-notfound-page",
@@ -697,10 +785,14 @@
       {
        "label": "FEATURES: Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-notfound-page; FEATURES.md §1 Routes row (GET /internal/notfound, nginx @notfound, renamed site's old name 302s), Pages row (st/notfound.html), §15 Caddy hand-off for a missing site on event and small-box instances. Enterprise: not stated, same binary lineage. The 404.html clause comes from the WordPress import output list (FEATURES.md L931), which ships a 404.html. Not rendered."
+     "evidence": "features.html #site-notfound-page; FEATURES.md \u00a71 Routes row (GET /internal/notfound, nginx @notfound, renamed site's old name 302s), Pages row (st/notfound.html), \u00a715 Caddy hand-off for a missing site on event and small-box instances. Enterprise: not stated, same binary lineage. The 404.html clause comes from the WordPress import output list (FEATURES.md L931), which ships a 404.html. Not rendered."
     },
     {
      "id": "publish-wordpress-import",
@@ -728,6 +820,10 @@
       {
        "label": "FEATURES: MCP connector",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [
@@ -761,12 +857,16 @@
       {
        "label": "Terms",
        "href": "/terms"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/publish/"
       }
      ],
      "covers": [
       "publish-idle-cleanup"
      ],
-     "evidence": "FEATURES.md §1 L185-221 (IDLE_CLEANUP default off, 90 + 30 days, Keep it and Restore it links, confirm page + POST, exemptions, 50 emails per run, 90 days of visit records required); Pages row (Keep for good, idle warning with its date); PARITY row 'Idle-site cleanup' (Enterprise IDLE_CLEANUP_DAYS, dashboard Not used lately); FEATURES.md §15 L1836-1839 and L2015 (EVENT_SITES_KEEP_DAYS 30, EVENT_REMOVAL_WARN_DAYS 14). Token hashing and transaction ordering covered silently. Not rendered."
+     "evidence": "FEATURES.md \u00a71 L185-221 (IDLE_CLEANUP default off, 90 + 30 days, Keep it and Restore it links, confirm page + POST, exemptions, 50 emails per run, 90 days of visit records required); Pages row (Keep for good, idle warning with its date); PARITY row 'Idle-site cleanup' (Enterprise IDLE_CLEANUP_DAYS, dashboard Not used lately); FEATURES.md \u00a715 L1836-1839 and L2015 (EVENT_SITES_KEEP_DAYS 30, EVENT_REMOVAL_WARN_DAYS 14). Token hashing and transaction ordering covered silently. Not rendered."
     }
    ]
   },
@@ -809,12 +909,16 @@
       {
        "label": "FEATURES.md: addresses",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#2-per-site-and-per-person-addresses-and-legacy-redirects"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
       "site-url"
      ],
-     "evidence": "FEATURES.md §2 L222-233 (own origin, /v1/ per site, path form until the certificate), L240-249 (site base move paused: .app only, 301 from the old base). features.html entry site-url L361-371. PARITY row 'Per-site hosts' (Enterprise v1.3 same fallback), row 'Small-box path model'. Simple Hack: FEATURES.md §15 team sites on event hosts."
+     "evidence": "FEATURES.md \u00a72 L222-233 (own origin, /v1/ per site, path form until the certificate), L240-249 (site base move paused: .app only, 301 from the old base). features.html entry site-url L361-371. PARITY row 'Per-site hosts' (Enterprise v1.3 same fallback), row 'Small-box path model'. Simple Hack: FEATURES.md \u00a715 team sites on event hosts."
     },
     {
      "id": "addresses-person-address",
@@ -838,10 +942,14 @@
       {
        "label": "FEATURES.md: addresses",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#2-per-site-and-per-person-addresses-and-legacy-redirects"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/addresses/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §2 L225-231 (every handle is a host; person-path form until the certificate), Routes row (PersonHosts; aliased old handle 301s; reserved handles in h/handles.go). PARITY row 'Person / owner index page' (Enterprise sign-in required), 'Small-box path model'. Hack: PARITY row 'Your home page' says Simple Hack owns no personal sites."
+     "evidence": "FEATURES.md \u00a72 L225-231 (every handle is a host; person-path form until the certificate), Routes row (PersonHosts; aliased old handle 301s; reserved handles in h/handles.go). PARITY row 'Person / owner index page' (Enterprise sign-in required), 'Small-box path model'. Hack: PARITY row 'Your home page' says Simple Hack owns no personal sites."
     },
     {
      "id": "addresses-certificate",
@@ -865,10 +973,14 @@
       {
        "label": "FEATURES.md: addresses",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#2-per-site-and-per-person-addresses-and-legacy-redirects"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/addresses/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §2 L227-236 (~10 minutes, weekly/daily caps, waiting/failing states, 6-hour wait, sign-ins and browser-kept data start fresh); External row (queue bounds 10000/week, 1000/day, 30/run, not rendered); certificate fallback paragraphs L264-291 (operator detail, covered silently). PARITY rows '\"Your own address is on its way\"' (Enterprise: admins only, gap) and 'Per-owner certificates', 'Small-box path model'."
+     "evidence": "FEATURES.md \u00a72 L227-236 (~10 minutes, weekly/daily caps, waiting/failing states, 6-hour wait, sign-ins and browser-kept data start fresh); External row (queue bounds 10000/week, 1000/day, 30/run, not rendered); certificate fallback paragraphs L264-291 (operator detail, covered silently). PARITY rows '\"Your own address is on its way\"' (Enterprise: admins only, gap) and 'Per-owner certificates', 'Small-box path model'."
     },
     {
      "id": "legacy-url-redirect",
@@ -892,10 +1004,14 @@
       {
        "label": "FEATURES.md: addresses",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#2-per-site-and-per-person-addresses-and-legacy-redirects"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/addresses/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §2 L236-238 (302 with path and query; renamed site's old name on all three forms), Routes row (LegacyHostRedirect, 'This site was removed'); §3 L320-322 (released free names stay with the site). features.html entry legacy-url-redirect L400-410. Editions for Hack, Enterprise and small box not stated; the legacy hosts are hosted history."
+     "evidence": "FEATURES.md \u00a72 L236-238 (302 with path and query; renamed site's old name on all three forms), Routes row (LegacyHostRedirect, 'This site was removed'); \u00a73 L320-322 (released free names stay with the site). features.html entry legacy-url-redirect L400-410. Editions for Hack, Enterprise and small box not stated; the legacy hosts are hosted history."
     },
     {
      "id": "free-name",
@@ -931,7 +1047,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §3 L299-300 (verified at once, first come), L320-322 (released names stay in legacy_hostnames), Go row (reservedSubdomainLabels). features.html entry free-name L897-907. PARITY row 'Free `<name>.<domain>` names' (Enterprise none, different on purpose). Small box not stated in either source; task sets hosted only."
+     "evidence": "FEATURES.md \u00a73 L299-300 (verified at once, first come), L320-322 (released names stay in legacy_hostnames), Go row (reservedSubdomainLabels). features.html entry free-name L897-907. PARITY row 'Free `<name>.<domain>` names' (Enterprise none, different on purpose). Small box not stated in either source; task sets hosted only."
     },
     {
      "id": "custom-domain-connect",
@@ -967,7 +1083,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §3 L299-320 (provisional, 24 h / 7 days, exclusive, 5 certificates a day, previous_domain kept, taken-down and suspended skipped, simple-hack.app and platform zones refused), Timing row (re-check every 2 min). features.html entry custom-domain-connect L832-842. PARITY row 'Custom domains' (Enterprise none; Caddy on-demand TLS on boxes, hence small box partial). Hack: task sets no; FEATURES.md §3 External mentions Caddy on-demand TLS on event instances, not stated further."
+     "evidence": "FEATURES.md \u00a73 L299-320 (provisional, 24 h / 7 days, exclusive, 5 certificates a day, previous_domain kept, taken-down and suspended skipped, simple-hack.app and platform zones refused), Timing row (re-check every 2 min). features.html entry custom-domain-connect L832-842. PARITY row 'Custom domains' (Enterprise none; Caddy on-demand TLS on boxes, hence small box partial). Hack: task sets no; FEATURES.md \u00a73 External mentions Caddy on-demand TLS on event instances, not stated further."
     },
     {
      "id": "custom-domain-dns-record",
@@ -999,7 +1115,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §3 L299-304 (CNAME/A plus TXT _simple-host.<domain>, verified only while TXT matches and HTTPS serves, grandfathered before 2026-09-27), Routes row (check: rate-limited), Timing row (Check again: 3 at once then one per 30 s). features.html entry custom-domain-dns-record L845-855."
+     "evidence": "FEATURES.md \u00a73 L299-304 (CNAME/A plus TXT _simple-host.<domain>, verified only while TXT matches and HTTPS serves, grandfathered before 2026-09-27), Routes row (check: rate-limited), Timing row (Check again: 3 at once then one per 30 s). features.html entry custom-domain-dns-record L845-855."
     },
     {
      "id": "custom-domain-https",
@@ -1030,7 +1146,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §3 L304-308 (automatic issue, HTTP-01 re-checks TXT and binding, 5 a day), L318-320 (never-proving domain released after 7 days), Timing row (failed after 6 h, DNS/TXT after 15 min). features.html entry custom-domain-https L858-868. Issuer CA fallback (Google Trust Services, ZeroSSL) is operator detail, covered silently."
+     "evidence": "FEATURES.md \u00a73 L304-308 (automatic issue, HTTP-01 re-checks TXT and binding, 5 a day), L318-320 (never-proving domain released after 7 days), Timing row (failed after 6 h, DNS/TXT after 15 min). features.html entry custom-domain-https L858-868. Issuer CA fallback (Google Trust Services, ZeroSSL) is operator detail, covered silently."
     },
     {
      "id": "custom-domain-status",
@@ -1062,7 +1178,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §3 Pages row (owner app: certificate status, both records, last problem, expiry, Check again; partner record and state), Timing row (re-check every 2 min, active re-proved hourly). features.html entry custom-domain-status L871-881."
+     "evidence": "FEATURES.md \u00a73 Pages row (owner app: certificate status, both records, last problem, expiry, Check again; partner record and state), Timing row (re-check every 2 min, active re-proved hourly). features.html entry custom-domain-status L871-881."
     },
     {
      "id": "addresses-domain-lapse",
@@ -1093,7 +1209,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §3 L312-320 (24 h email with last_error, 72 h release of binding, link, server and certificate; 409 domain_releasing; previous address checked too), L320-322 (released free names stay). Timing row (email at 24 h, let go at 72 h). PARITY row 'Custom domains' (lapsed domains released after 72 h). Not on the current page."
+     "evidence": "FEATURES.md \u00a73 L312-320 (24 h email with last_error, 72 h release of binding, link, server and certificate; 409 domain_releasing; previous address checked too), L320-322 (released free names stay). Timing row (email at 24 h, let go at 72 h). PARITY row 'Custom domains' (lapsed domains released after 72 h). Not on the current page."
     },
     {
      "id": "custom-domain-disconnect",
@@ -1125,7 +1241,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §3 L320-321 (DELETE drops only that domain, 409 domain_changed; remove_domain always sends it), MCP row (remove_domain confirm-first). features.html entry custom-domain-disconnect L884-894."
+     "evidence": "FEATURES.md \u00a73 L320-321 (DELETE drops only that domain, 409 domain_changed; remove_domain always sends it), MCP row (remove_domain confirm-first). features.html entry custom-domain-disconnect L884-894."
     },
     {
      "id": "domain-partner",
@@ -1158,7 +1274,7 @@
      "covers": [
       "domain-partner"
      ],
-     "evidence": "FEATURES.md §3 L324-336 (partner redirect-only host, 301, one certificate, dns_partner, conditions, not_set_up, asked again every 6 h, taken off first, bound partner never offered). features.html entry domain-partner L910-920. Small box: PARITY row 'Custom domains' says partner follows the same checks; Caddy on boxes, so partial."
+     "evidence": "FEATURES.md \u00a73 L324-336 (partner redirect-only host, 301, one certificate, dns_partner, conditions, not_set_up, asked again every 6 h, taken off first, bound partner never offered). features.html entry domain-partner L910-920. Small box: PARITY row 'Custom domains' says partner follows the same checks; Caddy on boxes, so partial."
     },
     {
      "id": "addresses-families",
@@ -1197,7 +1313,7 @@
       "address-families",
       "whole-space-custom-apex-stopped"
      ],
-     "evidence": "FEATURES.md §3 L338-368 (wildcard + TXT, site_prefix, www reserved, 24 h pending, first to prove wins, exclusive, canonical main address and redirects, what works on a family address, 24 h / 72 h lapse, waiting_for_operator, simple-hack.app refused; status live hosted only, flag elsewhere needing an operator certificate directory). §13 L1739-1745 (whole-space apex stopped: families do not route the apex to the account home nor cover it with the certificate). PARITY row 'Address families' (Enterprise none, owner decision 2026-09-29). Small box set to no per task; FEATURES.md marks it flag elsewhere. Chhota Break example is a customer already named on the owner's pages; swap for a generic one if the page rule forbids it."
+     "evidence": "FEATURES.md \u00a73 L338-368 (wildcard + TXT, site_prefix, www reserved, 24 h pending, first to prove wins, exclusive, canonical main address and redirects, what works on a family address, 24 h / 72 h lapse, waiting_for_operator, simple-hack.app refused; status live hosted only, flag elsewhere needing an operator certificate directory). \u00a713 L1739-1745 (whole-space apex stopped: families do not route the apex to the account home nor cover it with the certificate). PARITY row 'Address families' (Enterprise none, owner decision 2026-09-29). Small box set to no per task; FEATURES.md marks it flag elsewhere. Chhota Break example is a customer already named on the owner's pages; swap for a generic one if the page rule forbids it."
     }
    ]
   },
@@ -1248,7 +1364,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §23 L2512-2851 (2026-10-02 decision, route surface, pool sizes); PARITY row 'Site storage primitives (2026-10-02)'. Webhooks mentioned in one clause only (another writer's area)."
+     "evidence": "FEATURES.md \u00a723 L2512-2851 (2026-10-02 decision, route surface, pool sizes); PARITY row 'Site storage primitives (2026-10-02)'. Webhooks mentioned in one clause only (another writer's area)."
     },
     {
      "id": "storage-presets",
@@ -1285,7 +1401,7 @@
      "covers": [
       "storage-presets"
      ],
-     "evidence": "FEATURES.md §23 'Access presets' paragraph; PARITY rows 'Storage access presets (2026-10-10)' and 'Comments preset'. Dashboard choice wording from §23 visitor-routes paragraph."
+     "evidence": "FEATURES.md \u00a723 'Access presets' paragraph; PARITY rows 'Storage access presets (2026-10-10)' and 'Comments preset'. Dashboard choice wording from \u00a723 visitor-routes paragraph."
     },
     {
      "id": "storage-rows",
@@ -1316,7 +1432,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §23 'Access presets' paragraph (row routes, filters, stamps) and the SQLite paragraphs (defaults 100/500, 100 columns, row_conflict, timeouts); PARITY row 'Storage access presets' (visitors never send SQL)."
+     "evidence": "FEATURES.md \u00a723 'Access presets' paragraph (row routes, filters, stamps) and the SQLite paragraphs (defaults 100/500, 100 columns, row_conflict, timeouts); PARITY row 'Storage access presets' (visitors never send SQL)."
     },
     {
      "id": "storage-owner-on-site",
@@ -1344,10 +1460,14 @@
       {
        "label": "FEATURES.md: site storage",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#23-site-storage-primitives"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §23 'The owner on their own site (D1)' and the Simple Hack 2026-10-10 passage; PARITY row 'Storage access presets' (Enterprise column)."
+     "evidence": "FEATURES.md \u00a723 'The owner on their own site (D1)' and the Simple Hack 2026-10-10 passage; PARITY row 'Storage access presets' (Enterprise column)."
     },
     {
      "id": "storage-recipes",
@@ -1379,12 +1499,16 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [
       "storage-recipes"
      ],
-     "evidence": "FEATURES.md §23 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in internal/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
+     "evidence": "FEATURES.md \u00a723 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in internal/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
     },
     {
      "id": "each-persons-records",
@@ -1421,7 +1545,7 @@
      "covers": [
       "each-persons-records"
      ],
-     "evidence": "FEATURES.md §23 'Each person's records' paragraph and the add/own SQLite paragraphs; current page lede id each-persons-records (text kept in who). FEATURES.md's 2026-10-08 line says 'not Enterprise or Simple Hack', but the later 2026-10-10 presets passage says Simple Hack uses the same presets including records, and PARITY says Enterprise has the same presets; newer text wins, hack yes, enterprise partial."
+     "evidence": "FEATURES.md \u00a723 'Each person's records' paragraph and the add/own SQLite paragraphs; current page lede id each-persons-records (text kept in who). FEATURES.md's 2026-10-08 line says 'not Enterprise or Simple Hack', but the later 2026-10-10 presets passage says Simple Hack uses the same presets including records, and PARITY says Enterprise has the same presets; newer text wins, hack yes, enterprise partial."
     },
     {
      "id": "storage-comments",
@@ -1449,12 +1573,16 @@
       {
        "label": "FEATURES.md: site storage",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#23-site-storage-primitives"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [
       "storage-comments"
      ],
-     "evidence": "FEATURES.md §23 'Comments preset' paragraph (limits 4000 bytes, 2 links, 10/30 s per address, 60 per site; frame; approve_first; small-box compose passes keys); PARITY row 'Comments preset, spam-checked posting without sign-in (2026-10-14)'."
+     "evidence": "FEATURES.md \u00a723 'Comments preset' paragraph (limits 4000 bytes, 2 links, 10/30 s per address, 60 per site; frame; approve_first; small-box compose passes keys); PARITY row 'Comments preset, spam-checked posting without sign-in (2026-10-14)'."
     },
     {
      "id": "storage-visitor-emails",
@@ -1487,7 +1615,7 @@
      "covers": [
       "storage-visitor-emails"
      ],
-     "evidence": "FEATURES.md §23 'Who sent each record (2026-10-10)' paragraph ('Hosted and small box; not Simple Hack (404 there)'); PARITY row 'Who sent each record (2026-10-10)'."
+     "evidence": "FEATURES.md \u00a723 'Who sent each record (2026-10-10)' paragraph ('Hosted and small box; not Simple Hack (404 there)'); PARITY row 'Who sent each record (2026-10-10)'."
     },
     {
      "id": "storage-owner-for-visitor",
@@ -1520,7 +1648,7 @@
      "covers": [
       "storage-owner-for-visitor"
      ],
-     "evidence": "FEATURES.md §23 'Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06)' paragraph; PARITY row 'Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06)'."
+     "evidence": "FEATURES.md \u00a723 'Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06)' paragraph; PARITY row 'Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06)'."
     },
     {
      "id": "storage-sql-errors",
@@ -1553,7 +1681,7 @@
      "covers": [
       "storage-sql-errors"
      ],
-     "evidence": "FEATURES.md §23 'SQL errors say what to fix (2026-10-26)' paragraph; PARITY row 'Actionable storage errors (2026-10-26)'."
+     "evidence": "FEATURES.md \u00a723 'SQL errors say what to fix (2026-10-26)' paragraph; PARITY row 'Actionable storage errors (2026-10-26)'."
     },
     {
      "id": "storage-schema",
@@ -1586,7 +1714,7 @@
      "covers": [
       "storage-schema"
      ],
-     "evidence": "FEATURES.md §23 'Schema route (2026-10-10)' paragraph plus the own-database schema lines (visitor_id added with an index, removal rolls back) and the per-table rule warnings in the presets paragraph; PARITY row 'Site storage primitives' (Enterprise: no per-site DDL, no SQLite)."
+     "evidence": "FEATURES.md \u00a723 'Schema route (2026-10-10)' paragraph plus the own-database schema lines (visitor_id added with an index, removal rolls back) and the per-table rule warnings in the presets paragraph; PARITY row 'Site storage primitives' (Enterprise: no per-site DDL, no SQLite)."
     },
     {
      "id": "storage-files",
@@ -1621,7 +1749,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §23 route surface (download-link), KV/files paragraph (1000 objects, 16 segments, NFC), add-only paragraph (file_exists, add_only), gallery recipe line; PARITY row 'Site storage primitives' (Enterprise files in bucket, counted in quota)."
+     "evidence": "FEATURES.md \u00a723 route surface (download-link), KV/files paragraph (1000 objects, 16 segments, NFC), add-only paragraph (file_exists, add_only), gallery recipe line; PARITY row 'Site storage primitives' (Enterprise files in bucket, counted in quota)."
     },
     {
      "id": "storage-limits",
@@ -1652,7 +1780,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §23 allowance paragraph (SITE_STORAGE_MAX_BYTES, SITE_STORAGE_FILES_MAX_BYTES, SITE_STORAGE_FILE_MAX_BYTES, Hack pool), rate-limit and lock-wait paragraphs; PARITY row 'Site storage primitives' (Enterprise env settings with hosted's values)."
+     "evidence": "FEATURES.md \u00a723 allowance paragraph (SITE_STORAGE_MAX_BYTES, SITE_STORAGE_FILES_MAX_BYTES, SITE_STORAGE_FILE_MAX_BYTES, Hack pool), rate-limit and lock-wait paragraphs; PARITY row 'Site storage primitives' (Enterprise env settings with hosted's values)."
     },
     {
      "id": "state-shared-store",
@@ -1678,13 +1806,17 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [
       "state-existing-sites-only",
       "the-per-site-cap"
      ],
-     "evidence": "FEATURES.md §4 L383-439 (deprecation, LEGACY_STORAGE_CUTOFF 2026-10-12, 1 MB doc, per-site cap 50 MB, site_full); current page state-shared-store; PARITY rows 'Saved state' and 'Old saved-data cutoff gate'. §5's duplicate deprecation lead is covered here as the same fact.",
+     "evidence": "FEATURES.md \u00a74 L383-439 (deprecation, LEGACY_STORAGE_CUTOFF 2026-10-12, 1 MB doc, per-site cap 50 MB, site_full); current page state-shared-store; PARITY rows 'Saved state' and 'Old saved-data cutoff gate'. \u00a75's duplicate deprecation lead is covered here as the same fact.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1708,10 +1840,14 @@
       {
        "label": "FEATURES.md: saved state",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §4 (ops set/inc/append/remove/removeWhere, max 100 ops, exact numbers, If-Match, Idempotency-Key); current page state-atomic-ops; PARITY row 'Saved state'.",
+     "evidence": "FEATURES.md \u00a74 (ops set/inc/append/remove/removeWhere, max 100 ops, exact numbers, If-Match, Idempotency-Key); current page state-atomic-ops; PARITY row 'Saved state'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1735,10 +1871,14 @@
       {
        "label": "FEATURES.md: saved state",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §4 Limits row (reads 30/s, burst 60) and ETag/If-Match; current page state-live-updates. Not stated for Enterprise in PARITY; marked no.",
+     "evidence": "FEATURES.md \u00a74 Limits row (reads 30/s, burst 60) and ETag/If-Match; current page state-live-updates. Not stated for Enterprise in PARITY; marked no.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1766,10 +1906,14 @@
       {
        "label": "Privacy",
        "href": "/privacy.html"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §4 'read by anyone'; current page state-public; PARITY row 'Saved state' (Enterprise every viewer signed in).",
+     "evidence": "FEATURES.md \u00a74 'read by anyone'; current page state-public; PARITY row 'Saved state' (Enterprise every viewer signed in).",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1797,10 +1941,14 @@
       {
        "label": "Visitor sign-in",
        "href": "/auth.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §4 paragraph on origins, API keys, sites.simple-host.app, 404 for another account's key; current page state-write-gate; PARITY row 'Saved state' (different on purpose).",
+     "evidence": "FEATURES.md \u00a74 paragraph on origins, API keys, sites.simple-host.app, 404 for another account's key; current page state-write-gate; PARITY row 'Saved state' (different on purpose).",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1824,10 +1972,14 @@
       {
        "label": "FEATURES.md: saved state",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §4 Routes row (allowed-origins, owner); cap of 20 confirmed in internal/handler/site.go ('too many origins (max 20)'); current page state-cross-origin (Agent only). Not stated for Enterprise; marked no.",
+     "evidence": "FEATURES.md \u00a74 Routes row (allowed-origins, owner); cap of 20 confirmed in internal/handler/site.go ('too many origins (max 20)'); current page state-cross-origin (Agent only). Not stated for Enterprise; marked no.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1851,12 +2003,16 @@
       {
        "label": "FEATURES.md: collections",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [
       "collections-existing-sites-only"
      ],
-     "evidence": "FEATURES.md §5 (64 KB per item, append rate SAVED_DATA_APPEND_PER_MIN 30, Idempotency-Key) and Kinds (16 KB, 10,000 live); current page collection-append and the 'Site data: collections' lede; PARITY row 'Collections and private collections'.",
+     "evidence": "FEATURES.md \u00a75 (64 KB per item, append rate SAVED_DATA_APPEND_PER_MIN 30, Idempotency-Key) and Kinds (16 KB, 10,000 live); current page collection-append and the 'Site data: collections' lede; PARITY row 'Collections and private collections'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1880,10 +2036,14 @@
       {
        "label": "FEATURES.md: collections",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §5 Limits row (page size 50 default / 200 max), withoutSubmitter; current page collection-read.",
+     "evidence": "FEATURES.md \u00a75 Limits row (page size 50 default / 200 max), withoutSubmitter; current page collection-read.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1907,10 +2067,14 @@
       {
        "label": "FEATURES.md: collections",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §5 Pages row (owner app list view, badges, More menu, sent by column) and deletion rules; current page collection-inventory.",
+     "evidence": "FEATURES.md \u00a75 Pages row (owner app list view, badges, More menu, sent by column) and deletion rules; current page collection-inventory.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1934,10 +2098,14 @@
       {
        "label": "FEATURES.md: collections",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §5 (export.csv owner route, CSV sent_by column, formula-safe); current page collection-csv.",
+     "evidence": "FEATURES.md \u00a75 (export.csv owner route, CSV sent_by column, formula-safe); current page collection-csv.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1965,10 +2133,14 @@
       {
        "label": "Visitor sign-in",
        "href": "/auth.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §5 (private: signed-in, same-origin, never by API key, _submitted_by/_submitted_at, owner edits, withoutSubmitter, custom_domain_required, confirm_public); current page collection-private; PARITY row 'Collections and private collections'.",
+     "evidence": "FEATURES.md \u00a75 (private: signed-in, same-origin, never by API key, _submitted_by/_submitted_at, owner edits, withoutSubmitter, custom_domain_required, confirm_public); current page collection-private; PARITY row 'Collections and private collections'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -1996,10 +2168,14 @@
       {
        "label": "Deploy skill",
        "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §5 Kinds and Personal/Shared board subsections (limits: 1 MB, 20 names, 16 KB, 10,000, 50 names, 64 KB, 1,000 people, 2,000 items, 20 names each, 10-minute undo, few under 3 people); current page data-kinds; PARITY row 'Saved-data kinds and who may save'.",
+     "evidence": "FEATURES.md \u00a75 Kinds and Personal/Shared board subsections (limits: 1 MB, 20 names, 16 KB, 10,000, 50 names, 64 KB, 1,000 people, 2,000 items, 20 names each, 10-minute undo, few under 3 people); current page data-kinds; PARITY row 'Saved-data kinds and who may save'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -2023,12 +2199,16 @@
       {
        "label": "FEATURES.md: collections",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [
       "who-may-save"
      ],
-     "evidence": "FEATURES.md §5 Kinds subsection ('Who may save here', not_allowed_to_save, +tag); 500 from internal/handler/limitstext.go (SAVED_DATA_SAVERS_MAX); current page who-may-save; PARITY row 'Saved-data kinds and who may save'.",
+     "evidence": "FEATURES.md \u00a75 Kinds subsection ('Who may save here', not_allowed_to_save, +tag); 500 from internal/handler/limitstext.go (SAVED_DATA_SAVERS_MAX); current page who-may-save; PARITY row 'Saved-data kinds and who may save'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -2059,7 +2239,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §5 Kinds subsection ('Email on new submissions', notify daily/off/each, SAVED_DATA_NOTIFY_EACH_MINUTES 10, Resend, stop link, claimed once); current page submission-emails.",
+     "evidence": "FEATURES.md \u00a75 Kinds subsection ('Email on new submissions', notify daily/off/each, SAVED_DATA_NOTIFY_EACH_MINUTES 10, Resend, stop link, claimed once); current page submission-emails.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -2087,12 +2267,16 @@
       {
        "label": "FEATURES.md: collections",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/storage/"
       }
      ],
      "covers": [
       "data-history"
      ],
-     "evidence": "FEATURES.md §4 'History and undo' paragraph (30 days, who, diff with daily full copy, 20 MB thinning, clear history typed confirm) and §5 Recently deleted/delete forever and board Restore all window; current page data-history; PARITY rows 'Saved-state history and restore' and 'Who wrote saved data'.",
+     "evidence": "FEATURES.md \u00a74 'History and undo' paragraph (30 days, who, diff with daily full copy, 20 MB thinning, clear history typed confirm) and \u00a75 Recently deleted/delete forever and board Restore all window; current page data-history; PARITY rows 'Saved-state history and restore' and 'Who wrote saved data'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     }
@@ -2134,12 +2318,16 @@
        "href": "/auth.md"
       },
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/#sign-in-to-your-account"
       }
      ],
      "covers": [],
-     "evidence": "features.html signin-email-code; FEATURES.md §7 L747-749 (6 digits, 15 min, 3 tries), §6 L700-712 (shared card, 30-second resend), §7 Limits row (ipLimiter, emailLimiter); PARITY row 'Owner sign-in and sessions'. Hack: same card per FEATURES.md §6 L704-706."
+     "evidence": "features.html signin-email-code; FEATURES.md \u00a77 L747-749 (6 digits, 15 min, 3 tries), \u00a76 L700-712 (shared card, 30-second resend), \u00a77 Limits row (ipLimiter, emailLimiter); PARITY row 'Owner sign-in and sessions'. Hack: same card per FEATURES.md \u00a76 L704-706."
     },
     {
      "id": "signin-magic-link",
@@ -2163,10 +2351,14 @@
       {
        "label": "Sign-in methods (auth.md)",
        "href": "/auth.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [],
-     "evidence": "features.html signin-magic-link; FEATURES.md §7 L747 ('6 digits + dashboard-only magic link, 15 min, 3 tries'), §6 L699 (reason link_other_browser). The current page says 'You land back on the site'; FEATURES.md says the link is dashboard-only, so the Where text now says the sites page."
+     "evidence": "features.html signin-magic-link; FEATURES.md \u00a77 L747 ('6 digits + dashboard-only magic link, 15 min, 3 tries'), \u00a76 L699 (reason link_other_browser). The current page says 'You land back on the site'; FEATURES.md says the link is dashboard-only, so the Where text now says the sites page."
     },
     {
      "id": "signin-google",
@@ -2192,12 +2384,16 @@
        "href": "/auth.md"
       },
       {
-       "label": "FEATURES.md §6 Visitor sign-in",
+       "label": "FEATURES.md \u00a76 Visitor sign-in",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [],
-     "evidence": "features.html signin-google; FEATURES.md §6 L636-639 (Google configured, GitHub wired but unconfigured), §6 L686-690 (Google start on a site host never mints a key), §7 L832 (Unlink); PARITY row 'Owner sign-in and sessions'. 'More providers later' on the current page replaced with the concrete facts (GitHub wired, company OIDC on self-hosted)."
+     "evidence": "features.html signin-google; FEATURES.md \u00a76 L636-639 (Google configured, GitHub wired but unconfigured), \u00a76 L686-690 (Google start on a site host never mints a key), \u00a77 L832 (Unlink); PARITY row 'Owner sign-in and sessions'. 'More providers later' on the current page replaced with the concrete facts (GitHub wired, company OIDC on self-hosted)."
     },
     {
      "id": "access-choose-address",
@@ -2219,14 +2415,18 @@
      "status_note": "",
      "docs": [
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "access-choose-address"
      ],
-     "evidence": "FEATURES.md §7 L784-790; §7 Routes row (choose_handle, suggested_handle, invalid_handle / handle_reserved / handle_taken without using up the code). Not stated for Simple Hack; features.html your-home-page says Simple Hack has no personal sites, so read as no."
+     "evidence": "FEATURES.md \u00a77 L784-790; \u00a77 Routes row (choose_handle, suggested_handle, invalid_handle / handle_reserved / handle_taken without using up the code). Not stated for Simple Hack; features.html your-home-page says Simple Hack has no personal sites, so read as no."
     },
     {
      "id": "account-handle",
@@ -2248,12 +2448,16 @@
      "status_note": "",
      "docs": [
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [],
-     "evidence": "features.html account-handle; FEATURES.md §7 L788-790 (Your address → Change checks while typing), §7 Routes row PATCH /v1/me (free before publishing, once per 30 days, alias, certificate); PARITY row 'Change a person's address (handle)'. Hack: not stated; read as no (no personal sites)."
+     "evidence": "features.html account-handle; FEATURES.md \u00a77 L788-790 (Your address \u2192 Change checks while typing), \u00a77 Routes row PATCH /v1/me (free before publishing, once per 30 days, alias, certificate); PARITY row 'Change a person's address (handle)'. Hack: not stated; read as no (no personal sites)."
     },
     {
      "id": "api-key",
@@ -2283,12 +2487,16 @@
        "href": "/skills/website-deploy/SKILL.md"
       },
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/#create-a-key-for-a-client"
       }
      ],
      "covers": [],
-     "evidence": "features.html api-key; FEATURES.md §7 L747-760 (shk_, SHA-256, names, last 4, last_used_at, Keys panel, own key needed), §7 Limits row (50 keys); PARITY rows 'API keys: hashing', 'API keys: list and revoke one', 'Why a key stopped working', 'Account/credential actions and MCP', 'API keys: expiry' (Enterprise 90 days, 14-day warning). Hack: same binary, not stated separately."
+     "evidence": "features.html api-key; FEATURES.md \u00a77 L747-760 (shk_, SHA-256, names, last 4, last_used_at, Keys panel, own key needed), \u00a77 Limits row (50 keys); PARITY rows 'API keys: hashing', 'API keys: list and revoke one', 'Why a key stopped working', 'Account/credential actions and MCP', 'API keys: expiry' (Enterprise 90 days, 14-day warning). Hack: same binary, not stated separately."
     },
     {
      "id": "access-deploy-key",
@@ -2314,14 +2522,18 @@
        "href": "/skills/website-deploy/SKILL.md"
       },
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "access-deploy-key"
      ],
-     "evidence": "FEATURES.md §7 L762-782; PARITY rows 'API keys: scopes', 'API keys: expiry'. Hack: same binary, not stated separately."
+     "evidence": "FEATURES.md \u00a77 L762-782; PARITY rows 'API keys: scopes', 'API keys: expiry'. Hack: same binary, not stated separately."
     },
     {
      "id": "sign-out",
@@ -2343,12 +2555,16 @@
      "status_note": "",
      "docs": [
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [],
-     "evidence": "features.html sign-out; FEATURES.md §7 L755-758, §6 L619-623 (sign-out revokes the parent key and all site sessions); PARITY rows 'Sign out and sign out everywhere', 'Connected apps: list and disconnect', 'Account/credential actions and MCP'."
+     "evidence": "features.html sign-out; FEATURES.md \u00a77 L755-758, \u00a76 L619-623 (sign-out revokes the parent key and all site sessions); PARITY rows 'Sign out and sign out everywhere', 'Connected apps: list and disconnect', 'Account/credential actions and MCP'."
     },
     {
      "id": "signin-email-change",
@@ -2370,18 +2586,22 @@
      "status_note": "",
      "docs": [
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
       },
       {
        "label": "Support",
        "href": "/support"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "signin-email-change"
      ],
-     "evidence": "features.html signin-email-change; FEATURES.md §7 L814-836; §6 L672 (EMAIL_SIGNIN=off turns off email change); PARITY row 'Change sign-in email'. Hack: same binary (event accounts refused), not stated separately."
+     "evidence": "features.html signin-email-change; FEATURES.md \u00a77 L814-836; \u00a76 L672 (EMAIL_SIGNIN=off turns off email change); PARITY row 'Change sign-in email'. Hack: same binary (event accounts refused), not stated separately."
     },
     {
      "id": "signin-alerts",
@@ -2403,18 +2623,22 @@
      "status_note": "",
      "docs": [
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
       },
       {
        "label": "Privacy",
        "href": "/privacy.html"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "signin-alerts"
      ],
-     "evidence": "features.html signin-alerts; FEATURES.md §7 L838-849; PARITY row 'Sign-in alert email'. Current page said 'never contains your address or IP'; FEATURES.md says never the IP or a location, so the text now says IP address or location. Hack: same binary, not stated separately."
+     "evidence": "features.html signin-alerts; FEATURES.md \u00a77 L838-849; PARITY row 'Sign-in alert email'. Current page said 'never contains your address or IP'; FEATURES.md says never the IP or a location, so the text now says IP address or location. Hack: same binary, not stated separately."
     },
     {
      "id": "account-data",
@@ -2444,14 +2668,18 @@
        "href": "/terms"
       },
       {
-       "label": "FEATURES.md §7 Owner auth",
+       "label": "FEATURES.md \u00a77 Owner auth",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#7-owner-auth-api-keys-email-codes-profile"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "account-data"
      ],
-     "evidence": "features.html account-data; FEATURES.md §7 L792-812; §7 Routes row DELETE /v1/me (account_suspended / site_suspended); PARITY row 'Data export and account erasure'. Hack: same routes (409 event_hostnames refusal exists), not stated separately."
+     "evidence": "features.html account-data; FEATURES.md \u00a77 L792-812; \u00a77 Routes row DELETE /v1/me (account_suspended / site_suspended); PARITY row 'Data export and account erasure'. Hack: same routes (409 event_hostnames refusal exists), not stated separately."
     },
     {
      "id": "visitor-signin",
@@ -2481,14 +2709,18 @@
        "href": "/recipes/personal"
       },
       {
-       "label": "FEATURES.md §6 Visitor sign-in",
+       "label": "FEATURES.md \u00a76 Visitor sign-in",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/#sign-visitors-in-on-a-page"
       }
      ],
      "covers": [
       "visitor-signin"
      ],
-     "evidence": "features.html visitor-signin; FEATURES.md §6 L636-639, L680-697 (two sign-ins, one rule; 403 account_auth_unavailable; 503 email_unavailable), L714-716 (requireSignIn, sessionStorage 15 min); PARITY row 'Visitor sign-in on a site'. Current page's Who listed 'a poll, an RSVP, a guestbook'; replaced with real use cases per the brief."
+     "evidence": "features.html visitor-signin; FEATURES.md \u00a76 L636-639, L680-697 (two sign-ins, one rule; 403 account_auth_unavailable; 503 email_unavailable), L714-716 (requireSignIn, sessionStorage 15 min); PARITY row 'Visitor sign-in on a site'. Current page's Who listed 'a poll, an RSVP, a guestbook'; replaced with real use cases per the brief."
     },
     {
      "id": "access-one-signin",
@@ -2514,21 +2746,25 @@
        "href": "/auth.md"
       },
       {
-       "label": "FEATURES.md §6 Visitor sign-in",
+       "label": "FEATURES.md \u00a76 Visitor sign-in",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "access-one-signin"
      ],
-     "evidence": "FEATURES.md §6 L600-634; PARITY row 'Visitor sign-in on a site'. Small box: 'Instances without an account apex keep the old visitor flow' (L630)."
+     "evidence": "FEATURES.md \u00a76 L600-634; PARITY row 'Visitor sign-in on a site'. Small box: 'Instances without an account apex keep the old visitor flow' (L630)."
     },
     {
      "id": "visitor-signout",
      "name": "Visitors can sign out again",
      "line": "A visitor can end their sign-in from the page they signed in on, and that ends the shared sign-in too.",
      "who": "Anyone on a shared or borrowed device.",
-     "how": "After signing in, a \"Signed in as … Sign out\" chip shows on the site. Sign out ends the session for that site and, through a one-time trip to simple-host.app, the shared sign-in behind it and every other site session that came from it. If the browser's shared sign-in does not match, simple-host.app asks for confirmation before signing out.",
+     "how": "After signing in, a \"Signed in as \u2026 Sign out\" chip shows on the site. Sign out ends the session for that site and, through a one-time trip to simple-host.app, the shared sign-in behind it and every other site session that came from it. If the browser's shared sign-in does not match, simple-host.app asks for confirmation before signing out.",
      "example": "A customer finishes a quote request on a shop's shared tablet and signs out so the next person cannot post under their name.",
      "where": "Offered by the sign-in helper on the page they signed in on.",
      "limits": "Signing out on one site signs the browser out of every site that shared the sign-in. Pages already open may keep showing until they reload.",
@@ -2543,12 +2779,16 @@
      "status_note": "",
      "docs": [
       {
-       "label": "FEATURES.md §6 Visitor sign-in",
+       "label": "FEATURES.md \u00a76 Visitor sign-in",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [],
-     "evidence": "features.html visitor-signout; FEATURES.md §6 L619-627 (sign-out cascade, confirmation for unbound tickets), L714-715 (chip). The current page said signing in on one site never signs you in on another; since 2026-10-29 the shared sign-in changes that, so FEATURES.md wins and the limit now describes the cascade. 'Pages already open may stay' is from the passcode copy's parallel; stated plainly as 'until they reload'."
+     "evidence": "features.html visitor-signout; FEATURES.md \u00a76 L619-627 (sign-out cascade, confirmation for unbound tickets), L714-715 (chip). The current page said signing in on one site never signs you in on another; since 2026-10-29 the shared sign-in changes that, so FEATURES.md wins and the limit now describes the cascade. 'Pages already open may stay' is from the passcode copy's parallel; stated plainly as 'until they reload'."
     },
     {
      "id": "access-signin-card",
@@ -2572,12 +2812,16 @@
       {
        "label": "Sign-in methods (auth.md)",
        "href": "/auth.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "access-signin-card"
      ],
-     "evidence": "FEATURES.md §6 L697-712 (shared sign-in card and error table); PARITY row 'Sign-in card (2026-10-20)'."
+     "evidence": "FEATURES.md \u00a76 L697-712 (shared sign-in card and error table); PARITY row 'Sign-in card (2026-10-20)'."
     },
     {
      "id": "access-company-signin",
@@ -2607,14 +2851,14 @@
        "href": "https://simple-hack.app/companies"
       },
       {
-       "label": "FEATURES.md §6 Visitor sign-in",
+       "label": "FEATURES.md \u00a76 Visitor sign-in",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code"
       }
      ],
      "covers": [
       "access-company-signin"
      ],
-     "evidence": "FEATURES.md §6 L641-664; PARITY rows 'Company sign-in on self-hosted installs (2026-10-16)', 'Owner sign-in and sessions'."
+     "evidence": "FEATURES.md \u00a76 L641-664; PARITY rows 'Company sign-in on self-hosted installs (2026-10-16)', 'Owner sign-in and sessions'."
     },
     {
      "id": "access-email-signin-off",
@@ -2647,7 +2891,7 @@
      "covers": [
       "access-email-signin-off"
      ],
-     "evidence": "FEATURES.md §6 L666-678; PARITY row 'Company sign-in on self-hosted installs (2026-10-16)' (EMAIL_SIGNIN=off turns emailed codes off everywhere). auth.md notes boxes without email omit email-code steps (L676)."
+     "evidence": "FEATURES.md \u00a76 L666-678; PARITY row 'Company sign-in on self-hosted installs (2026-10-16)' (EMAIL_SIGNIN=off turns emailed codes off everywhere). auth.md notes boxes without email omit email-code steps (L676)."
     },
     {
      "id": "access-passcode",
@@ -2673,14 +2917,18 @@
        "href": "/skills/website-deploy/SKILL.md"
       },
       {
-       "label": "FEATURES.md §1 Sites and deploy",
+       "label": "FEATURES.md \u00a71 Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [
       "access-passcode"
      ],
-     "evidence": "FEATURES.md §1 L94-141 (status flag, default on, needs PASSCODE_ENC_KEY, on at simple-host.app since 2026-09-30; limits 5/3m, 15 min lockout, 60/1m; 6 to 128 chars; refused passcode_needs_own_address and on Simple Hack); PARITY rows 'Site passcode', 'Who can open a site'. PARITY says 'switched off on simple-host.app until address families land (2026-09-29)'; FEATURES.md says on since 2026-09-30 and wins. Connector passcodes 2026-10-30 (L130-137): codes shown on screen, never in chat."
+     "evidence": "FEATURES.md \u00a71 L94-141 (status flag, default on, needs PASSCODE_ENC_KEY, on at simple-host.app since 2026-09-30; limits 5/3m, 15 min lockout, 60/1m; 6 to 128 chars; refused passcode_needs_own_address and on Simple Hack); PARITY rows 'Site passcode', 'Who can open a site'. PARITY says 'switched off on simple-host.app until address families land (2026-09-29)'; FEATURES.md says on since 2026-09-30 and wins. Connector passcodes 2026-10-30 (L130-137): codes shown on screen, never in chat."
     },
     {
      "id": "access-named-viewers",
@@ -2710,14 +2958,18 @@
        "href": "/skills/website-deploy/SKILL.md"
       },
       {
-       "label": "FEATURES.md §1 Sites and deploy",
+       "label": "FEATURES.md \u00a71 Sites and deploy",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/#choose-who-can-open-a-site"
       }
      ],
      "covers": [
       "access-named-viewers"
      ],
-     "evidence": "FEATURES.md §1 L143-184 (SITE_VIEWERS_MAX 50, exact match, refused named_viewers_need_own_address, sign_in_unavailable, named_viewers_unavailable on Hack); §6 L607 (named-viewer gates hop automatically); PARITY rows 'Named viewers (2026-10-10 ...)', 'Who can open a site'."
+     "evidence": "FEATURES.md \u00a71 L143-184 (SITE_VIEWERS_MAX 50, exact match, refused named_viewers_need_own_address, sign_in_unavailable, named_viewers_unavailable on Hack); \u00a76 L607 (named-viewer gates hop automatically); PARITY rows 'Named viewers (2026-10-10 ...)', 'Who can open a site'."
     },
     {
      "id": "access-country-block",
@@ -2745,6 +2997,10 @@
       {
        "label": "FEATURES.md: abuse limits",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#18-abuse-limits-and-hardening"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/"
       }
      ],
      "covers": [],
@@ -2819,12 +3075,12 @@
        "href": "/recipes/booking"
       },
       {
-       "label": "FEATURES.md §19 Signals and notifications",
+       "label": "FEATURES.md \u00a719 Signals and notifications",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications"
       }
      ],
      "covers": [],
-     "evidence": "features.html notify-webhook and section lede; FEATURES.md §19 Events, REST manage, Payload, Signatures, Delivery, Defaults rows; PARITY rows 'Notifications', 'Notification secret encryption'."
+     "evidence": "features.html notify-webhook and section lede; FEATURES.md \u00a719 Events, REST manage, Payload, Signatures, Delivery, Defaults rows; PARITY rows 'Notifications', 'Notification secret encryption'."
     },
     {
      "id": "notify-site-events",
@@ -2850,12 +3106,12 @@
        "href": "/docs/guides/notifications/"
       },
       {
-       "label": "FEATURES.md §19 Signals and notifications",
+       "label": "FEATURES.md \u00a719 Signals and notifications",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §19 lead paragraph and Events, Payload, REST list, MCP rows (phase 2, 2026-11-02, SIM-356); PARITY row 'Notifications' (gap → hack, enterprise for the site events); CHANGELOG 2026-11-02."
+     "evidence": "FEATURES.md \u00a719 lead paragraph and Events, Payload, REST list, MCP rows (phase 2, 2026-11-02, SIM-356); PARITY row 'Notifications' (gap \u2192 hack, enterprise for the site events); CHANGELOG 2026-11-02."
     },
     {
      "id": "notify-controls",
@@ -2882,7 +3138,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §19 REST delivery, Delivery, Signatures rows; §19 L2355-2362 (Hack team and organiser controls); PARITY row 'Notifications' (Hack: create, pause/resume, test, rotate-secret and history stay website-only)."
+     "evidence": "FEATURES.md \u00a719 REST delivery, Delivery, Signatures rows; \u00a719 L2355-2362 (Hack team and organiser controls); PARITY row 'Notifications' (Hack: create, pause/resume, test, rotate-secret and history stay website-only)."
     },
     {
      "id": "notify-mcp-events",
@@ -2908,12 +3164,12 @@
        "href": "/docs/guides/notifications/"
       },
       {
-       "label": "FEATURES.md §19 Signals and notifications",
+       "label": "FEATURES.md \u00a719 Signals and notifications",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications"
       }
      ],
      "covers": [],
-     "evidence": "features.html notify-mcp-events; FEATURES.md §19 MCP and Defaults rows (TTL 7 days default, 5 minutes minimum, URL redaction), §19 L2355-2362 (Hack rules). The current page said 'Enterprise needs a separate port'; PARITY row 'Notifications' says Enterprise phase 3 shipped 2026-10-24, so editions say yes and the port note is dropped (FEATURES.md L2368 still says it; PARITY is dated later)."
+     "evidence": "features.html notify-mcp-events; FEATURES.md \u00a719 MCP and Defaults rows (TTL 7 days default, 5 minutes minimum, URL redaction), \u00a719 L2355-2362 (Hack rules). The current page said 'Enterprise needs a separate port'; PARITY row 'Notifications' says Enterprise phase 3 shipped 2026-10-24, so editions say yes and the port note is dropped (FEATURES.md L2368 still says it; PARITY is dated later)."
     },
     {
      "id": "notify-web-push",
@@ -2935,16 +3191,20 @@
      "status_note": "Behind WEB_PUSH_ACCOUNTS; off until an account is named.",
      "docs": [
       {
-       "label": "FEATURES.md §19 Signals and notifications",
+       "label": "FEATURES.md \u00a719 Signals and notifications",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications"
       },
       {
        "label": "Privacy",
        "href": "/privacy.html"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/notifications/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §19 Web push row (SIM-360): kind=web-push on site_notifications, WEB_PUSH_ACCOUNTS flag, VAPID keypair generated once and sealed under PASSCODE_ENC_KEY, visitor subscriptions forced to record events and one resource, recipients enforced in the event fan-out (never config alone), 404/410 deletes the subscription, push endpoints excluded from AgentCat/exports and deleted on sign-out/viewer removal/account or site deletion/erasure."
+     "evidence": "FEATURES.md \u00a719 Web push row (SIM-360): kind=web-push on site_notifications, WEB_PUSH_ACCOUNTS flag, VAPID keypair generated once and sealed under PASSCODE_ENC_KEY, visitor subscriptions forced to record events and one resource, recipients enforced in the event fan-out (never config alone), 404/410 deletes the subscription, push endpoints excluded from AgentCat/exports and deleted on sign-out/viewer removal/account or site deletion/erasure."
     },
     {
      "id": "notify-emails",
@@ -2970,12 +3230,16 @@
        "href": "/privacy.html"
       },
       {
-       "label": "FEATURES.md §19 Signals and notifications",
+       "label": "FEATURES.md \u00a719 Signals and notifications",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/notifications/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §19 L2376-2385 (outbound email list), §19 Delivery row (one owner email on suspension), §7 L838-849 (alerts). Hack and Enterprise email sets not stated in the ranges read; best reading recorded in editions_note. 'No marketing emails' is a reading of the fixed list, stated as 'on this list'."
+     "evidence": "FEATURES.md \u00a719 L2376-2385 (outbound email list), \u00a719 Delivery row (one owner email on suspension), \u00a77 L838-849 (alerts). Hack and Enterprise email sets not stated in the ranges read; best reading recorded in editions_note. 'No marketing emails' is a reading of the fixed list, stated as 'on this list'."
     },
     {
      "id": "notify-skill-notice",
@@ -3003,10 +3267,14 @@
       {
        "label": "Install the skills",
        "href": "/install.html#manual-skills"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/notifications/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §19 L2385-2387 (stale-skill _notice, X-Skill-Notice, arrays stay bare, only for callers with an older X-Skill-Version). Not stated for Enterprise (separate code base); read as no. Hack: same binary, not stated separately."
+     "evidence": "FEATURES.md \u00a719 L2385-2387 (stale-skill _notice, X-Skill-Notice, arrays stay bare, only for callers with an older X-Skill-Version). Not stated for Enterprise (separate code base); read as no. Hack: same binary, not stated separately."
     },
     {
      "id": "notify-secrets",
@@ -3032,12 +3300,12 @@
        "href": "/docs/webhooks/#verify-before-processing"
       },
       {
-       "label": "FEATURES.md §19 Signals and notifications",
+       "label": "FEATURES.md \u00a719 Signals and notifications",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §19 L2345 (sealing, refusal without key, start-up sweep 10 seconds, keyless removal, rotation grace), §19 REST delivery row (secrets shown once, never listed); PARITY row 'Notification secret encryption' (Enterprise NOTIFY_ENC_KEY; installers forward the key by default 2026-10-24)."
+     "evidence": "FEATURES.md \u00a719 L2345 (sealing, refusal without key, start-up sweep 10 seconds, keyless removal, rotation grace), \u00a719 REST delivery row (secrets shown once, never listed); PARITY row 'Notification secret encryption' (Enterprise NOTIFY_ENC_KEY; installers forward the key by default 2026-10-24)."
     }
    ]
   },
@@ -3085,10 +3353,14 @@
       {
        "label": "FEATURES.md section 8",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/#connect-an-app"
       }
      ],
      "covers": [],
-     "evidence": "features.html #connector; FEATURES.md §8 L926-945 (OAuth 2.1, PKCE, consent, Tokens row: refresh 90 days rotating; Perplexity not listed); PARITY rows 'MCP connector and OAuth', 'Connector token lifetime and reach' (Enterprise refresh 30 d, OAUTH_REDIRECT_HOSTS)."
+     "evidence": "features.html #connector; FEATURES.md \u00a78 L926-945 (OAuth 2.1, PKCE, consent, Tokens row: refresh 90 days rotating; Perplexity not listed); PARITY rows 'MCP connector and OAuth', 'Connector token lifetime and reach' (Enterprise refresh 30 d, OAUTH_REDIRECT_HOSTS)."
     },
     {
      "id": "agents-connected-apps",
@@ -3112,10 +3384,14 @@
       {
        "label": "FEATURES.md section 8",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §8 Routes row (`/v1/me/connections`: name, connected, last used, device; empty before 2026-09-27), §8 L868 ('Connected apps show the last site used by a visitor tool'), §8 upload links stop on disconnect. Enterprise per-app list not stated in PARITY 'Dashboard' row; marked partial from the 'MCP connector and OAuth' row."
+     "evidence": "FEATURES.md \u00a78 Routes row (`/v1/me/connections`: name, connected, last used, device; empty before 2026-09-27), \u00a78 L868 ('Connected apps show the last site used by a visitor tool'), \u00a78 upload links stop on disconnect. Enterprise per-app list not stated in PARITY 'Dashboard' row; marked partial from the 'MCP connector and OAuth' row."
     },
     {
      "id": "agents-plugin",
@@ -3143,10 +3419,14 @@
       {
        "label": "FEATURES.md section 9",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#9-skills-and-plugin-distribution"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §9 L975-985 (Claude directories live, ChatGPT steps, hosted-only directory text, hack-toolkit); PARITY row 'Skills and plugin' (Enterprise `plugin.zip`). ChatGPT listing review status left out as it changes week to week."
+     "evidence": "FEATURES.md \u00a79 L975-985 (Claude directories live, ChatGPT steps, hosted-only directory text, hack-toolkit); PARITY row 'Skills and plugin' (Enterprise `plugin.zip`). ChatGPT listing review status left out as it changes week to week."
     },
     {
      "id": "skill-website-deploy",
@@ -3178,10 +3458,14 @@
       {
        "label": "Get started",
        "href": "/install.html"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/#install-the-skills"
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-website-deploy; FEATURES.md §9 Skills row (website-deploy + references), Routes row (skill files served with instance hostnames and limits), hack-toolkit/skills lists website-deploy; PARITY row 'Skills and plugin'."
+     "evidence": "features.html #skill-website-deploy; FEATURES.md \u00a79 Skills row (website-deploy + references), Routes row (skill files served with instance hostnames and limits), hack-toolkit/skills lists website-deploy; PARITY row 'Skills and plugin'."
     },
     {
      "id": "skill-website-deploy-builder",
@@ -3209,10 +3493,14 @@
       {
        "label": "Install the skills",
        "href": "/install.html#manual-skills"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-website-deploy-builder; FEATURES.md §9 Skills row; hack-toolkit/skills lists website-deploy-builder; PARITY row 'Skills and plugin' (Enterprise `simple-host-builder`)."
+     "evidence": "features.html #skill-website-deploy-builder; FEATURES.md \u00a79 Skills row; hack-toolkit/skills lists website-deploy-builder; PARITY row 'Skills and plugin' (Enterprise `simple-host-builder`)."
     },
     {
      "id": "skill-connect-domain",
@@ -3244,7 +3532,7 @@
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-connect-domain; FEATURES.md §9 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (§21) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in internal/handler/hack_assets.go excludes connect-domain."
+     "evidence": "features.html #skill-connect-domain; FEATURES.md \u00a79 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (\u00a721) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in internal/handler/hack_assets.go excludes connect-domain."
     },
     {
      "id": "skill-install-page",
@@ -3272,10 +3560,14 @@
       {
        "label": "Simple Hack get started",
        "href": "https://simple-hack.app/get-started"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-install-page; FEATURES.md §8 L943-944 (apps checked 2026-10-15, Gemini US personal accounts, Meta Muse), §9 Hack /get-started paragraph, hosted-only text replaced on other servers; PARITY rows 'Meta Muse Client ID', 'Dashboard' (Enterprise first run shows the connect step)."
+     "evidence": "features.html #skill-install-page; FEATURES.md \u00a78 L943-944 (apps checked 2026-10-15, Gemini US personal accounts, Meta Muse), \u00a79 Hack /get-started paragraph, hosted-only text replaced on other servers; PARITY rows 'Meta Muse Client ID', 'Dashboard' (Enterprise first run shows the connect step)."
     },
     {
      "id": "skill-install-oneline",
@@ -3303,10 +3595,14 @@
       {
        "label": "Install the skills",
        "href": "/install.html#manual-skills"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-install-oneline; FEATURES.md §9 L970 (version 0.27.62, npx skills add), Routes row (`/install.sh`, `/install.ps1`; on Simple Hack they return 410, coding-agent row uses npx skills add); PARITY row 'Skills and plugin' (Enterprise `plugin.zip`)."
+     "evidence": "features.html #skill-install-oneline; FEATURES.md \u00a79 L970 (version 0.27.62, npx skills add), Routes row (`/install.sh`, `/install.ps1`; on Simple Hack they return 410, coding-agent row uses npx skills add); PARITY row 'Skills and plugin' (Enterprise `plugin.zip`)."
     },
     {
      "id": "skill-setup-panel",
@@ -3330,6 +3626,10 @@
       {
        "label": "Install the skills",
        "href": "/install.html#manual-skills"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
@@ -3364,7 +3664,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §8 MCP tools row (58 tools; core 20 → 21 after SIM-190 2026-10-30; paths up to 10; edits; stale-schema line; instructions under 2,000), §21 L2405-2407 (Hack full listing; no credential tools; who_am_i read-only). The task brief said 'a core of 20'; FEATURES.md and PARITY 'MCP tools' say 21 since 2026-10-30, so 21 is used. PARITY row 'MCP instructions length by mode'."
+     "evidence": "FEATURES.md \u00a78 MCP tools row (58 tools; core 20 \u2192 21 after SIM-190 2026-10-30; paths up to 10; edits; stale-schema line; instructions under 2,000), \u00a721 L2405-2407 (Hack full listing; no credential tools; who_am_i read-only). The task brief said 'a core of 20'; FEATURES.md and PARITY 'MCP tools' say 21 since 2026-10-30, so 21 is used. PARITY row 'MCP instructions length by mode'."
     },
     {
      "id": "agents-visitor-tools",
@@ -3388,10 +3688,14 @@
       {
        "label": "FEATURES.md section 21",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#21-mcp-tool-index-58-website-tools-hosted-simple-hack-event-tools"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §8 L868 (SIM-338 phase 4: per-call pass, mine, VISITOR_AI_WRITES_PER_DAY default 200, 256 KiB, via <app name>, consent names visitor access, Hack does not offer), §21 visitor tools table; PARITY row 'Visitor connector tools' (Enterprise: later port). Small box not stated; same binary."
+     "evidence": "FEATURES.md \u00a78 L868 (SIM-338 phase 4: per-call pass, mine, VISITOR_AI_WRITES_PER_DAY default 200, 256 KiB, via <app name>, consent names visitor access, Hack does not offer), \u00a721 visitor tools table; PARITY row 'Visitor connector tools' (Enterprise: later port). Small box not stated; same binary."
     },
     {
      "id": "agents-data-minimisation",
@@ -3419,12 +3723,16 @@
       {
        "label": "FEATURES.md section 8",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [
       "agents-data-minimisation"
      ],
-     "evidence": "FEATURES.md §8 'Data minimisation (2026-10-28)' lead and 'Host MCP privacy (2026-10-28)' paragraph; PARITY L32 (Enterprise: no port, usernames by design). Small box not stated; same binary."
+     "evidence": "FEATURES.md \u00a78 'Data minimisation (2026-10-28)' lead and 'Host MCP privacy (2026-10-28)' paragraph; PARITY L32 (Enterprise: no port, usernames by design). Small box not stated; same binary."
     },
     {
      "id": "agents-discovery",
@@ -3452,12 +3760,16 @@
       {
        "label": "FEATURES.md section 16",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#16-enterprise-and-marketing-pages"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/#give-an-agent-the-references"
       }
      ],
      "covers": [
       "agents-discovery"
      ],
-     "evidence": "FEATURES.md §16 'Agent discovery (2026-10-23)' lead (L2085-2107); §8 L874-875 (cards, registry listing, mcp.so and Smithery pending); PARITY rows 'Markdown content negotiation and homepage', '/.well-known/ard.json', '/.well-known/api-catalog', 'Discovery Link response headers', 'MCP server card', 'Agent capability card', 'llms.txt', 'MCP host alias', 'Public DNS-AID records', 'Official MCP registry listing'."
+     "evidence": "FEATURES.md \u00a716 'Agent discovery (2026-10-23)' lead (L2085-2107); \u00a78 L874-875 (cards, registry listing, mcp.so and Smithery pending); PARITY rows 'Markdown content negotiation and homepage', '/.well-known/ard.json', '/.well-known/api-catalog', 'Discovery Link response headers', 'MCP server card', 'Agent capability card', 'llms.txt', 'MCP host alias', 'Public DNS-AID records', 'Official MCP registry listing'."
     },
     {
      "id": "agents-usage-analytics",
@@ -3485,10 +3797,14 @@
       {
        "label": "FEATURES.md section 8",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §8 L876 (AgentCat event fields, caps, scrubbing, no IP, not enrolled elsewhere), §8 MCP tools row (read_site_file 54% of calls → paths), §10 (passcode screen sends neither arguments nor results); PARITY row 'AgentCat MCP usage analytics'."
+     "evidence": "FEATURES.md \u00a78 L876 (AgentCat event fields, caps, scrubbing, no IP, not enrolled elsewhere), \u00a78 MCP tools row (read_site_file 54% of calls \u2192 paths), \u00a710 (passcode screen sends neither arguments nor results); PARITY row 'AgentCat MCP usage analytics'."
     },
     {
      "id": "agents-error-hints",
@@ -3519,7 +3835,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §8 Errors and API transport errors rows, MCP tools row (reconnect steps ride on the signed-out error); PARITY rows 'MCP error hints', 'API route errors'."
+     "evidence": "FEATURES.md \u00a78 Errors and API transport errors rows, MCP tools row (reconnect steps ride on the signed-out error); PARITY rows 'MCP error hints', 'API route errors'."
     },
     {
      "id": "agents-asks-first",
@@ -3547,10 +3863,14 @@
       {
        "label": "llms.txt",
        "href": "/llms.txt"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §9 L986-992 (INTENT 2026-09-28 ask-first rules in skills, llms.txt and server instructions). Enterprise not stated; same rule carried in its own skills by best reading."
+     "evidence": "FEATURES.md \u00a79 L986-992 (INTENT 2026-09-28 ask-first rules in skills, llms.txt and server instructions). Enterprise not stated; same rule carried in its own skills by best reading."
     },
     {
      "id": "skill-stale-notice",
@@ -3578,17 +3898,21 @@
       {
        "label": "FEATURES.md section 9",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#9-skills-and-plugin-distribution"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-stale-notice; FEATURES.md §9 Go row (`X-Skill-Version` → `_notice`), L2385-2386 (notice and header, only in-band notice, none without the header); PARITY row 'Skills and plugin' (Enterprise: obsolete skill refused)."
+     "evidence": "features.html #skill-stale-notice; FEATURES.md \u00a79 Go row (`X-Skill-Version` \u2192 `_notice`), L2385-2386 (notice and header, only in-band notice, none without the header); PARITY row 'Skills and plugin' (Enterprise: obsolete skill refused)."
     },
     {
      "id": "api-reference",
      "name": "Full API reference",
-     "line": "Read task guides, search the docs, and browse this server’s API at /docs/.",
+     "line": "Read task guides, search the docs, and browse this server\u2019s API at /docs/.",
      "who": "Developers, and agents that prefer a specification to prose.",
-     "how": "Open Docs, choose a task guide, or search. Open API reference for the Swagger routes and schemas.",
+     "how": "Open Docs, choose a task guide, or search. Open API reference for the routes and schemas.",
      "example": "A startup wires its own build pipeline to publish a release notes site from CI using the reference and a deploy-only key.",
      "where": "/docs/ on this install; /docs/api/ for the API reference.",
      "limits": "A few internal and download addresses are not listed there. Older saved-data endpoints that existing sites still use keep working but are no longer listed.",
@@ -3612,7 +3936,7 @@
       }
      ],
      "covers": [],
-     "evidence": "features.html #api-reference; FEATURES.md §9 L958-968 (audience-specific openapi/docs/llms.txt, legacy operations unlisted but serving); PARITY rows '/auth.md authentication reference', 'llms.txt', 'MCP connector and OAuth' (/auth.md rewritten per instance)."
+     "evidence": "features.html #api-reference; FEATURES.md \u00a79 L958-968 (audience-specific openapi/docs/llms.txt, legacy operations unlisted but serving); PARITY rows '/auth.md authentication reference', 'llms.txt', 'MCP connector and OAuth' (/auth.md rewritten per instance)."
     }
    ]
   },
@@ -3647,10 +3971,14 @@
       {
        "label": "FEATURES.md section 10",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/dashboard/#open-your-sites"
       }
      ],
      "covers": [],
-     "evidence": "features.html legend 'Your sites page'; FEATURES.md §10 L1580-1584 (owner app is the one place; Sign out everywhere stays on the apex app bar), Site order row, Dialogs row; PARITY rows 'Your sites card and Manage menu', 'Dashboard'. Keys, Your data: FEATURES.md §7 L859."
+     "evidence": "features.html legend 'Your sites page'; FEATURES.md \u00a710 L1580-1584 (owner app is the one place; Sign out everywhere stays on the apex app bar), Site order row, Dialogs row; PARITY rows 'Your sites card and Manage menu', 'Dashboard'. Keys, Your data: FEATURES.md \u00a77 L859."
     },
     {
      "id": "dashboard-remembered-handle",
@@ -3674,12 +4002,16 @@
       {
        "label": "FEATURES.md section 10",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/dashboard/"
       }
      ],
      "covers": [
       "dashboard-remembered-handle"
      ],
-     "evidence": "FEATURES.md §10 'Owner app load (2026-10-30)' paragraph (L1585). Enterprise and Hack not stated; Hack has no personal sites page, Enterprise has its own dashboard."
+     "evidence": "FEATURES.md \u00a710 'Owner app load (2026-10-30)' paragraph (L1585). Enterprise and Hack not stated; Hack has no personal sites page, Enterprise has its own dashboard."
     },
     {
      "id": "dashboard-main",
@@ -3703,10 +4035,14 @@
       {
        "label": "FEATURES.md section 10",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/dashboard/#change-your-account-settings"
       }
      ],
      "covers": [],
-     "evidence": "features.html legend 'Main dashboard'; FEATURES.md §10 L1580-1584, Site order row, §7 L859 (index.html sign-in: code, Google, paste key; Sign out everywhere); PARITY row 'Dashboard'."
+     "evidence": "features.html legend 'Main dashboard'; FEATURES.md \u00a710 L1580-1584, Site order row, \u00a77 L859 (index.html sign-in: code, Google, paste key; Sign out everywhere); PARITY row 'Dashboard'."
     },
     {
      "id": "dashboard-add-photos",
@@ -3739,7 +4075,7 @@
      "covers": [
       "dashboard-add-photos"
      ],
-     "evidence": "features.html legend 'Add photos'; FEATURES.md §10 'Add photos (SIM-185, 2026-10-23)' lead (L1529); §8 photo-link paragraph (60 minutes, 10 saves, no sign-in, bound to site name); PARITY row 'Add photos page and upload API'. Internal byte caps (PHOTO_MAX_BYTES, concurrency slots, body deadline) left out as env knobs."
+     "evidence": "features.html legend 'Add photos'; FEATURES.md \u00a710 'Add photos (SIM-185, 2026-10-23)' lead (L1529); \u00a78 photo-link paragraph (60 minutes, 10 saves, no sign-in, bound to site name); PARITY row 'Add photos page and upload API'. Internal byte caps (PHOTO_MAX_BYTES, concurrency slots, body deadline) left out as env knobs."
     },
     {
      "id": "dashboard-webmcp",
@@ -3763,13 +4099,17 @@
       {
        "label": "FEATURES.md section 10",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/dashboard/"
       }
      ],
      "covers": [
       "webmcp-on-add-photos",
       "webmcp-on-the-owner-app"
      ],
-     "evidence": "FEATURES.md §10 'WebMCP on Add photos (SIM-186, 2026-10-24)' and 'WebMCP on the owner app' paragraphs; PARITY row 'WebMCP page tools' (small box serves the same files; Hack not touched; Enterprise not built)."
+     "evidence": "FEATURES.md \u00a710 'WebMCP on Add photos (SIM-186, 2026-10-24)' and 'WebMCP on the owner app' paragraphs; PARITY row 'WebMCP page tools' (small box serves the same files; Hack not touched; Enterprise not built)."
     },
     {
      "id": "dashboard-mcp-apps",
@@ -3793,12 +4133,16 @@
       {
        "label": "FEATURES.md section 10",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
       "dashboard-mcp-apps"
      ],
-     "evidence": "FEATURES.md §10 'MCP Apps (SIM-195, 2026-10-23, default off)' lead (L1044-1115: five screens, flags off/on/accounts, passcode screen TTL 600 s single use, preview off, run_tool gets link, ChatGPT same standard); PARITY row 'MCP Apps screens' (Enterprise default on v0.9.9, preview off everywhere; installers forward flags)."
+     "evidence": "FEATURES.md \u00a710 'MCP Apps (SIM-195, 2026-10-23, default off)' lead (L1044-1115: five screens, flags off/on/accounts, passcode screen TTL 600 s single use, preview off, run_tool gets link, ChatGPT same standard); PARITY row 'MCP Apps screens' (Enterprise default on v0.9.9, preview off everywhere; installers forward flags)."
     },
     {
      "id": "dashboard-mcp-apps-hack",
@@ -3826,6 +4170,10 @@
       {
        "label": "FEATURES.md section 10",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/agents/#open-an-event-screen-in-chat"
       }
      ],
      "covers": [
@@ -3833,7 +4181,7 @@
       "simple-hack-judge-app",
       "simple-hack-organiser-app"
      ],
-     "evidence": "FEATURES.md §10 leads 'Simple Hack My sites and dashboard (2026-10-24, default off)' (L1131-1146), 'Simple Hack judge app (SIM-344 phase 0+1, default off)' (L1147 first paragraph), 'Simple Hack organiser app (SIM-344 phase 2, default off)' (L1376 first paragraph); PARITY row 'MCP Apps screens' (UI-declared only, never ChatGPT/OpenAI/Codex, not ported to Enterprise). Self-hosted judge/organiser availability not stated; marked partial."
+     "evidence": "FEATURES.md \u00a710 leads 'Simple Hack My sites and dashboard (2026-10-24, default off)' (L1131-1146), 'Simple Hack judge app (SIM-344 phase 0+1, default off)' (L1147 first paragraph), 'Simple Hack organiser app (SIM-344 phase 2, default off)' (L1376 first paragraph); PARITY row 'MCP Apps screens' (UI-declared only, never ChatGPT/OpenAI/Codex, not ported to Enterprise). Self-hosted judge/organiser availability not stated; marked partial."
     },
     {
      "id": "dashboard-theme",
@@ -3857,10 +4205,14 @@
       {
        "label": "FEATURES.md section 10",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §10 Theme row (2026-09-28: one setting, Match my system / Light / Dark, before first paint, other origins follow system), §10 MCP Apps (screens follow host theme); PARITY row 'Light/dark theme' (Enterprise light only; published sites untouched)."
+     "evidence": "FEATURES.md \u00a710 Theme row (2026-09-28: one setting, Match my system / Light / Dark, before first paint, other origins follow system), \u00a710 MCP Apps (screens follow host theme); PARITY row 'Light/dark theme' (Enterprise light only; published sites untouched)."
     },
     {
      "id": "dashboard-icon",
@@ -3884,12 +4236,16 @@
       {
        "label": "FEATURES.md section 9",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#9-skills-and-plugin-distribution"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
       "dashboard-icon"
      ],
-     "evidence": "FEATURES.md §9 'Product icon (Simple Host: \"Rounded\", 2026-10-24; Simple Hack: 2026-10-13)' lead (L956); PARITY row 'Product icon'."
+     "evidence": "FEATURES.md \u00a79 'Product icon (Simple Host: \"Rounded\", 2026-10-24; Simple Hack: 2026-10-13)' lead (L956); PARITY row 'Product icon'."
     }
    ]
   },
@@ -3924,10 +4280,14 @@
       {
        "label": "FEATURES.md: showcase",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#13-showcase--person-index"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/showcase/#edit-your-public-profile"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §13 L1771-1776 (public sites at the person host, taken down/offline/passcode left out, old sites.* links 302), L1757-1760 (publicShowcaseData filter incl. unlisted, deleted, suspended). features.html entry public-profile L541-551: its Limits says 'no ordering, description or cover image: names and dates only', which FEATURES.md §13 contradicts (pins, order, bio, feed titles since 2026-10-05); FEATURES.md wins. PARITY row 'Person / owner index page' (Enterprise sign-in required), 'Your home page' (Simple Hack owns no personal sites). Small box: /<handle>/ renders the showcase by path (FEATURES.md §15 Caddy row)."
+     "evidence": "FEATURES.md \u00a713 L1771-1776 (public sites at the person host, taken down/offline/passcode left out, old sites.* links 302), L1757-1760 (publicShowcaseData filter incl. unlisted, deleted, suspended). features.html entry public-profile L541-551: its Limits says 'no ordering, description or cover image: names and dates only', which FEATURES.md \u00a713 contradicts (pins, order, bio, feed titles since 2026-10-05); FEATURES.md wins. PARITY row 'Person / owner index page' (Enterprise sign-in required), 'Your home page' (Simple Hack owns no personal sites). Small box: /<handle>/ renders the showcase by path (FEATURES.md \u00a715 Caddy row)."
     },
     {
      "id": "showcase-pins-and-bio",
@@ -3951,12 +4311,16 @@
       {
        "label": "FEATURES.md: showcase",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#13-showcase--person-index"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/showcase/#pin-and-order-sites"
       }
      ],
      "covers": [
       "showcase-pins-and-bio"
      ],
-     "evidence": "FEATURES.md §13 L1725-1738 (pins, order 0-1000000, ties by creation time, bio, owner key or connector only, 280 chars range 1-2000, same order for HTML and feed, unlisted hidden even when pinned). features.html your-home-page entry Showcase row L138. PARITY row 'Your home page' (Enterprise: bio/pin/order in REST, OIDC MCP and dashboard)."
+     "evidence": "FEATURES.md \u00a713 L1725-1738 (pins, order 0-1000000, ties by creation time, bio, owner key or connector only, 280 chars range 1-2000, same order for HTML and feed, unlisted hidden even when pinned). features.html your-home-page entry Showcase row L138. PARITY row 'Your home page' (Enterprise: bio/pin/order in REST, OIDC MCP and dashboard)."
     },
     {
      "id": "showcase-feed",
@@ -3984,12 +4348,16 @@
       {
        "label": "FEATURES.md: showcase",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#13-showcase--person-index"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/showcase/#read-your-showcase-feed"
       }
      ],
      "covers": [
       "showcase-feed"
      ],
-     "evidence": "FEATURES.md §13 L1747-1757 (no key, CORS *, cached 30 s, rate-limited, fields, same filter as HTML, custom home may fetch from the apex, hosted events excluded). features.html your-home-page entry API row L138. PARITY row 'Your home page' (Enterprise: signed-in showcase.json, owner-index visibility filter, no-store)."
+     "evidence": "FEATURES.md \u00a713 L1747-1757 (no key, CORS *, cached 30 s, rate-limited, fields, same filter as HTML, custom home may fetch from the apex, hosted events excluded). features.html your-home-page entry API row L138. PARITY row 'Your home page' (Enterprise: signed-in showcase.json, owner-index visibility filter, no-store)."
     },
     {
      "id": "your-home-page",
@@ -4017,12 +4385,16 @@
       {
        "label": "FEATURES.md: showcase",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#13-showcase--person-index"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/showcase/#choose-a-home-page"
       }
      ],
      "covers": [
       "your-home-page"
      ],
-     "evidence": "FEATURES.md §13 L1759-1770 (GET/PUT /v1/me/home, set_home_page, home_site, Your address panel selector, follows rename, cleared on deletion, fallback while offline/taken down/suspended, same gates as the site host, missing-file 302, sessions bound to exact host and site, hosted events excluded). features.html your-home-page entry L138 (all facts kept). PARITY row 'Your home page' (small-box path showcase opens its existing URL; Enterprise opens existing site URL after access checks)."
+     "evidence": "FEATURES.md \u00a713 L1759-1770 (GET/PUT /v1/me/home, set_home_page, home_site, Your address panel selector, follows rename, cleared on deletion, fallback while offline/taken down/suspended, same gates as the site host, missing-file 302, sessions bound to exact host and site, hosted events excluded). features.html your-home-page entry L138 (all facts kept). PARITY row 'Your home page' (small-box path showcase opens its existing URL; Enterprise opens existing site URL after access checks)."
     }
    ]
   },
@@ -4059,10 +4431,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/#read-a-sites-visitor-numbers"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-traffic-split; FEATURES.md §12 L1669-1670 (bot/human classes); PARITY row 'Analytics' (Enterprise: in-app access log, bots split). Not stated for Hack or the small box in so many words; same binary, same log ingest (nginx or Caddy)."
+     "evidence": "features.html #analytics-traffic-split; FEATURES.md \u00a712 L1669-1670 (bot/human classes); PARITY row 'Analytics' (Enterprise: in-app access log, bots split). Not stated for Hack or the small box in so many words; same binary, same log ingest (nginx or Caddy)."
     },
     {
      "id": "analytics-people",
@@ -4086,10 +4462,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-people; FEATURES.md §12 (views by class); PARITY row 'Analytics'."
+     "evidence": "features.html #analytics-people; FEATURES.md \u00a712 (views by class); PARITY row 'Analytics'."
     },
     {
      "id": "analytics-own-visits",
@@ -4117,12 +4497,16 @@
       {
        "label": "llms.txt: Analytics",
        "href": "/llms.txt"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [
       "analytics-own-visits"
      ],
-     "evidence": "FEATURES.md §12 'Your own visits are not counted' (2026-11-02, SIM-151); PARITY row 'Own visits left out of view counts'; web/analytics-parse.js owner class; internal/mcp/tools.go text in list_sites, get_site and site_analytics."
+     "evidence": "FEATURES.md \u00a712 'Your own visits are not counted' (2026-11-02, SIM-151); PARITY row 'Own visits left out of view counts'; web/analytics-parse.js owner class; internal/mcp/tools.go text in list_sites, get_site and site_analytics."
     },
     {
      "id": "analytics-infra-separated",
@@ -4146,10 +4530,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-infra-separated; FEATURES.md §12 (classify.go bot/human classes). Not stated for Enterprise; its PARITY row names daily views and bots only."
+     "evidence": "features.html #analytics-infra-separated; FEATURES.md \u00a712 (classify.go bot/human classes). Not stated for Enterprise; its PARITY row names daily views and bots only."
     },
     {
      "id": "analytics-unique-visitors",
@@ -4173,10 +4561,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-unique-visitors; FEATURES.md §12 (salted ip_hash, site_visitor_hourly). Not stated for Enterprise (PARITY lists daily views, downloads, top pages only)."
+     "evidence": "features.html #analytics-unique-visitors; FEATURES.md \u00a712 (salted ip_hash, site_visitor_hourly). Not stated for Enterprise (PARITY lists daily views, downloads, top pages only)."
     },
     {
      "id": "analytics-daily-trend",
@@ -4200,10 +4592,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-daily-trend; FEATURES.md §12 Pages (st/showcase.html Analytics tab); PARITY row 'Analytics'."
+     "evidence": "features.html #analytics-daily-trend; FEATURES.md \u00a712 Pages (st/showcase.html Analytics tab); PARITY row 'Analytics'."
     },
     {
      "id": "analytics-last-24h",
@@ -4227,10 +4623,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-last-24h; FEATURES.md §12 (site_view_hourly). Not stated for Enterprise."
+     "evidence": "features.html #analytics-last-24h; FEATURES.md \u00a712 (site_view_hourly). Not stated for Enterprise."
     },
     {
      "id": "analytics-earlier-history",
@@ -4254,10 +4654,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-earlier-history; FEATURES.md §12 DB (site_view_daily, site_visitor_daily legacy, pruned after 400 days). Hack and small box not stated; a newer install has no pre-split records."
+     "evidence": "features.html #analytics-earlier-history; FEATURES.md \u00a712 DB (site_view_daily, site_visitor_daily legacy, pruned after 400 days). Hack and small box not stated; a newer install has no pre-split records."
     },
     {
      "id": "analytics-site-cards",
@@ -4281,10 +4685,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-site-cards; FEATURES.md §12 Pages (st/index.html site cards). Not stated for Enterprise."
+     "evidence": "features.html #analytics-site-cards; FEATURES.md \u00a712 Pages (st/index.html site cards). Not stated for Enterprise."
     },
     {
      "id": "analytics-owner-tab",
@@ -4308,10 +4716,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-owner-tab; FEATURES.md §12 Pages (st/showcase.html Analytics tab); FEATURES.md L2846 (Your sites Sites/Analytics/Settings on Simple Host). PARITY row 'Analytics'."
+     "evidence": "features.html #analytics-owner-tab; FEATURES.md \u00a712 Pages (st/showcase.html Analytics tab); FEATURES.md L2846 (Your sites Sites/Analytics/Settings on Simple Host). PARITY row 'Analytics'."
     },
     {
      "id": "analytics-top-pages",
@@ -4335,10 +4747,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/#read-pages-and-countries"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-top-pages; FEATURES.md §12 L1671-1680 (ANALYTICS_PAGES_PER_SITE_DAY 200, ANALYTICS_REFERRERS_PER_SITE_DAY 100, top 20); PARITY row 'Top pages and where visitors came from' says top 10 for hosted; FEATURES.md and the current page say top 20, FEATURES.md wins."
+     "evidence": "features.html #analytics-top-pages; FEATURES.md \u00a712 L1671-1680 (ANALYTICS_PAGES_PER_SITE_DAY 200, ANALYTICS_REFERRERS_PER_SITE_DAY 100, top 20); PARITY row 'Top pages and where visitors came from' says top 10 for hosted; FEATURES.md and the current page say top 20, FEATURES.md wins."
     },
     {
      "id": "analytics-range",
@@ -4362,10 +4778,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/#compare-sites-over-a-period"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-range; FEATURES.md §12 DB (legacy daily tables pruned after 400 days, about 13 months). Not stated for Enterprise."
+     "evidence": "features.html #analytics-range; FEATURES.md \u00a712 DB (legacy daily tables pruned after 400 days, about 13 months). Not stated for Enterprise."
     },
     {
      "id": "analytics-sort-by-people",
@@ -4389,10 +4809,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-sort-by-people; FEATURES.md §12 Pages (st/index.html). Not stated for Enterprise."
+     "evidence": "features.html #analytics-sort-by-people; FEATURES.md \u00a712 Pages (st/index.html). Not stated for Enterprise."
     },
     {
      "id": "analytics-no-script",
@@ -4416,10 +4840,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-no-script; FEATURES.md §12 (no client script, salted ip_hash, logrotate 29 archives: raw IPs at most 30 days, DB-IP Lite local geo); PARITY row 'Analytics'."
+     "evidence": "features.html #analytics-no-script; FEATURES.md \u00a712 (no client script, salted ip_hash, logrotate 29 archives: raw IPs at most 30 days, DB-IP Lite local geo); PARITY row 'Analytics'."
     },
     {
      "id": "analytics-countries",
@@ -4443,10 +4871,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-countries; FEATURES.md §12 (site_geo_daily, internal/geoip DB-IP mmdb, geoip-refresh timer); PARITY row 'Analytics' ('geo is a public-web need')."
+     "evidence": "features.html #analytics-countries; FEATURES.md \u00a712 (site_geo_daily, internal/geoip DB-IP mmdb, geoip-refresh timer); PARITY row 'Analytics' ('geo is a public-web need')."
     },
     {
      "id": "analytics-api",
@@ -4477,7 +4909,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §12 Routes (GET /v1/sites/{sitename}/analytics, /analytics/geo, /analytics/top, GET /v1/analytics/sites), MCP tools (site_analytics), §21 L2491 (site_analytics = analytics?days= + analytics/top?days=), L1234 (chart series in answer.Meta 'would swamp a conversation'); PARITY row 'Top pages and where visitors came from' (Enterprise site_activity). Route paths kept out of rendered text."
+     "evidence": "FEATURES.md \u00a712 Routes (GET /v1/sites/{sitename}/analytics, /analytics/geo, /analytics/top, GET /v1/analytics/sites), MCP tools (site_analytics), \u00a721 L2491 (site_analytics = analytics?days= + analytics/top?days=), L1234 (chart series in answer.Meta 'would swamp a conversation'); PARITY row 'Top pages and where visitors came from' (Enterprise site_activity). Route paths kept out of rendered text."
     },
     {
      "id": "analytics-preview-marker",
@@ -4501,10 +4933,14 @@
       {
        "label": "FEATURES.md: Analytics and geo",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/analytics/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §10 L1116-1120 (_sh_preview=1 does not count as visitors; anyone can add it; traffic still counts; later unmarked child requests can count), L1119 (preview unavailable on Hack). Not stated for Enterprise or the small box; same binary for the small box."
+     "evidence": "FEATURES.md \u00a710 L1116-1120 (_sh_preview=1 does not count as visitors; anyone can add it; traffic still counts; later unmarked child requests can count), L1119 (preview unavailable on Hack). Not stated for Enterprise or the small box; same binary for the small box."
     }
    ]
   },
@@ -4543,6 +4979,10 @@
       {
        "label": "FEATURES.md: Admin (operator)",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#11-admin-operator"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
@@ -4550,7 +4990,7 @@
       "network",
       "moderation"
      ],
-     "evidence": "FEATURES.md §11 L1603-1636 (six tabs, Overview, Network, Users, Sites, API, Moderation, Tools, admin reads any site's analytics via ?owner=, export.tar.gz, API_GROWTH_RETENTION_DAYS 400, api_self_daily 'from this server', DELETE /v1/admin/sites/{id}/lock never reads the passcode, RATE_LIMIT_SITE_OPS on wrong keys); PARITY rows 'Admin', 'Reissue another person's key', 'Data export and account erasure'. The owner's product knowledge server (§11 'Owner product knowledge') left out on instruction. Not linked: /admin is owner-only."
+     "evidence": "FEATURES.md \u00a711 L1603-1636 (six tabs, Overview, Network, Users, Sites, API, Moderation, Tools, admin reads any site's analytics via ?owner=, export.tar.gz, API_GROWTH_RETENTION_DAYS 400, api_self_daily 'from this server', DELETE /v1/admin/sites/{id}/lock never reads the passcode, RATE_LIMIT_SITE_OPS on wrong keys); PARITY rows 'Admin', 'Reissue another person's key', 'Data export and account erasure'. The owner's product knowledge server (\u00a711 'Owner product knowledge') left out on instruction. Not linked: /admin is owner-only."
     },
     {
      "id": "admin-takedown",
@@ -4578,10 +5018,14 @@
       {
        "label": "Terms",
        "href": "/terms"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §11 Take-down row (410 on every path, 403 site_suspended, account_suspended, re-enable reverses, markers re-synced at boot); §17 (offline and take-down pages carry no link; appeals within 30 days); PARITY row 'Admin take-down and suspension'."
+     "evidence": "FEATURES.md \u00a711 Take-down row (410 on every path, 403 site_suspended, account_suspended, re-enable reverses, markers re-synced at boot); \u00a717 (offline and take-down pages carry no link; appeals within 30 days); PARITY row 'Admin take-down and suspension'."
     },
     {
      "id": "admin-report-page",
@@ -4609,12 +5053,16 @@
       {
        "label": "FEATURES.md: Legal and support pages",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#17-legal-and-support-pages"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
       "admin-report-page"
      ],
-     "evidence": "FEATURES.md §17 'Report a page.' (GET/POST /report, eight reasons, same-origin, 5 per address then 1 per 10 min, 60 an hour, caps URL 2,048 details 4,000 email 254 body 16 KB, Resend mailer, nothing stored, log keeps reason and host, reserved name); §18 Report form row. Not stated for Hack or the small box; same binary. '/report' shown because the current page style allows a page address and the brief lists it as a doc link."
+     "evidence": "FEATURES.md \u00a717 'Report a page.' (GET/POST /report, eight reasons, same-origin, 5 per address then 1 per 10 min, 60 an hour, caps URL 2,048 details 4,000 email 254 body 16 KB, Resend mailer, nothing stored, log keeps reason and host, reserved name); \u00a718 Report form row. Not stated for Hack or the small box; same binary. '/report' shown because the current page style allows a page address and the brief lists it as a doc link."
     },
     {
      "id": "admin-terms-privacy-support",
@@ -4646,10 +5094,14 @@
       {
        "label": "Support",
        "href": "/support"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §17 L2263-2282 (terms updated 2026-09-28, coverage list, 48 hours, appeals 30 days, 14 days' notice, DMCA-1081064, support@simple-host.app, Simple Hack scope); PARITY row 'Static, marketing and legal pages' (shared Host/Hack terms, privacy and support; Enterprise: landing, docs, capabilities, install, changelog). Small box not stated; same binary serves the pages."
+     "evidence": "FEATURES.md \u00a717 L2263-2282 (terms updated 2026-09-28, coverage list, 48 hours, appeals 30 days, 14 days' notice, DMCA-1081064, support@simple-host.app, Simple Hack scope); PARITY row 'Static, marketing and legal pages' (shared Host/Hack terms, privacy and support; Enterprise: landing, docs, capabilities, install, changelog). Small box not stated; same binary serves the pages."
     },
     {
      "id": "admin-signup-source",
@@ -4673,12 +5125,16 @@
       {
        "label": "FEATURES.md: Admin (operator)",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#11-admin-operator"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
       "admin-signup-source"
      ],
-     "evidence": "FEATURES.md §7 L738-745 ('Sign-up source', 2026-09-29: website, connector:<app>, agent with 40-character name, IP-shaped values dropped, signup_method, signup_inferred, never an IP); §11 L1628-1636 (drill-down 2026-10-15: funnel, same-visit URL/form attribution only, CSV); PARITY row 'Sign-ups by source (2026-10-15)' (2026-10-24: same-visit only, no cookies, no 30-day window). FEATURES §7 still says 'within 30 days of landing' with an arrival cookie; §11 and PARITY (later dated) say same-visit only, so the same-visit reading is used. Not stated for Hack or the small box; same binary."
+     "evidence": "FEATURES.md \u00a77 L738-745 ('Sign-up source', 2026-09-29: website, connector:<app>, agent with 40-character name, IP-shaped values dropped, signup_method, signup_inferred, never an IP); \u00a711 L1628-1636 (drill-down 2026-10-15: funnel, same-visit URL/form attribution only, CSV); PARITY row 'Sign-ups by source (2026-10-15)' (2026-10-24: same-visit only, no cookies, no 30-day window). FEATURES \u00a77 still says 'within 30 days of landing' with an arrival cookie; \u00a711 and PARITY (later dated) say same-visit only, so the same-visit reading is used. Not stated for Hack or the small box; same binary."
     },
     {
      "id": "admin-rate-limits",
@@ -4709,7 +5165,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §18 L2310-2318 (RateLimit headers, Retry-After), table rows Per-IP token buckets, Saved-data reads 30/s burst 60, List appends 30/min; PARITY rows 'RateLimit response headers', 'Rate limits and abuse caps', 'API route errors', 'Operational times and limits'."
+     "evidence": "FEATURES.md \u00a718 L2310-2318 (RateLimit headers, Retry-After), table rows Per-IP token buckets, Saved-data reads 30/s burst 60, List appends 30/min; PARITY rows 'RateLimit response headers', 'Rate limits and abuse caps', 'API route errors', 'Operational times and limits'."
     },
     {
      "id": "admin-size-caps",
@@ -4740,7 +5196,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §18 table rows Size caps (MAX_ARCHIVE_MB 100, overrides 300 for two accounts, state 1 MB, item 64 KB, 100 PATCH ops, saved data 50 MB 507 site_full), Blocked upload types, Reserved names, Headers / CSP; §17 ('report' is a reserved new name); PARITY rows 'Quotas' (100 sites per account; Enterprise QUOTA_MAX_SITES + QUOTA_MAX_BYTES), 'Security headers and CSP' (same)."
+     "evidence": "FEATURES.md \u00a718 table rows Size caps (MAX_ARCHIVE_MB 100, overrides 300 for two accounts, state 1 MB, item 64 KB, 100 PATCH ops, saved data 50 MB 507 site_full), Blocked upload types, Reserved names, Headers / CSP; \u00a717 ('report' is a reserved new name); PARITY rows 'Quotas' (100 sites per account; Enterprise QUOTA_MAX_SITES + QUOTA_MAX_BYTES), 'Security headers and CSP' (same)."
     },
     {
      "id": "admin-idempotency",
@@ -4771,7 +5227,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §18 L2297-2309 (create replay 24 h, routes, 409 idempotency_key_reused, in memory, restart loses, rate limits apply, link expiry not renewed), table row Idempotency (list POST and state PATCH, signed-in identities only); PARITY row 'Idempotency-Key create replay' (Enterprise Postgres, 422)."
+     "evidence": "FEATURES.md \u00a718 L2297-2309 (create replay 24 h, routes, 409 idempotency_key_reused, in memory, restart loses, rate limits apply, link expiry not renewed), table row Idempotency (list POST and state PATCH, signed-in identities only); PARITY row 'Idempotency-Key create replay' (Enterprise Postgres, 422)."
     },
     {
      "id": "admin-enterprise",
@@ -4806,7 +5262,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §16 L2085-2127 routes (GET /enterprise, /enterprise/brief, /enterprise/architecture); §16 'Setup helper' (Helm chart, existing Postgres with TLS, S3-compatible bucket, company OIDC, cert-manager, does not create clusters); PARITY rows 'Deployment model', 'Storage backend', 'Uninstall runbook', 'Admin', 'Light/dark theme' (Enterprise light only, not rendered). 'Version 0.x' from the owner's standing decision in PARITY's Enterprise versioning (v0.9.10 on 2026-10-28, L32). No upgrade path mentioned by instruction."
+     "evidence": "FEATURES.md \u00a716 L2085-2127 routes (GET /enterprise, /enterprise/brief, /enterprise/architecture); \u00a716 'Setup helper' (Helm chart, existing Postgres with TLS, S3-compatible bucket, company OIDC, cert-manager, does not create clusters); PARITY rows 'Deployment model', 'Storage backend', 'Uninstall runbook', 'Admin', 'Light/dark theme' (Enterprise light only, not rendered). 'Version 0.x' from the owner's standing decision in PARITY's Enterprise versioning (v0.9.10 on 2026-10-28, L32). No upgrade path mentioned by instruction."
     },
     {
      "id": "admin-cost-calculator",
@@ -4834,6 +5290,10 @@
       {
        "label": "Enterprise",
        "href": "/enterprise"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
@@ -4841,7 +5301,7 @@
       "cost-calculator-existing-ingress",
       "prices-and-sources"
      ],
-     "evidence": "FEATURES.md §16 'Cost calculator (`/costs`).' (inputs, traffic levels, four switches, providers, stacked bar, line items with calculator links, Example 2,000 people, How we size it, Prices and sources, 45-day age check, state in the address, runs in the browser); PARITY row 'Cost calculator'. Quoted headline ranges left out: they live on /enterprise and change with prices."
+     "evidence": "FEATURES.md \u00a716 'Cost calculator (`/costs`).' (inputs, traffic levels, four switches, providers, stacked bar, line items with calculator links, Example 2,000 people, How we size it, Prices and sources, 45-day age check, state in the address, runs in the browser); PARITY row 'Cost calculator'. Quoted headline ranges left out: they live on /enterprise and change with prices."
     },
     {
      "id": "admin-setup-helper",
@@ -4869,13 +5329,17 @@
       {
        "label": "Set up Enterprise",
        "href": "/setup?product=enterprise"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [
       "setup-helper",
       "enterprise"
      ],
-     "evidence": "FEATURES.md §16 'Setup helper (`/setup`).' (Small box or Enterprise, Helm or YAML, Basic and Advanced fields, pinned installer with sha256, chart ZIP contents, Set it up with your AI agent, UpCloud $4 line and $25 referral, never asks for a secret, credentials omit, does not create clusters); PARITY row 'Setup helper and advanced docs' (assistant and mistake check removed 2026-10-09; no form choices sent to a model). Status 'built' in FEATURES.md rendered as live."
+     "evidence": "FEATURES.md \u00a716 'Setup helper (`/setup`).' (Small box or Enterprise, Helm or YAML, Basic and Advanced fields, pinned installer with sha256, chart ZIP contents, Set it up with your AI agent, UpCloud $4 line and $25 referral, never asks for a secret, credentials omit, does not create clusters); PARITY row 'Setup helper and advanced docs' (assistant and mistake check removed 2026-10-09; no form choices sent to a model). Status 'built' in FEATURES.md rendered as live."
     },
     {
      "id": "self-host",
@@ -4903,10 +5367,14 @@
       {
        "label": "FEATURES.md: Operations",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#20-operations-health-schema-cli"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [],
-     "evidence": "features.html #self-host; FEATURES.md §20 (Small-box upgrade: re-run install.sh, migrate, failed migrate leaves the app as it was; Operational times and limits: 95 env vars, range checks, 4x cap on sign-in limiters; DigitalOcean 1-Click first-login.sh); PARITY rows 'Deployment model' (install.sh + Docker Compose + Caddy), 'Storage backend' (local disk), 'Operational times and limits', 'Uninstall runbook' (download entries, DNS first, delete the box), 'Static, marketing and legal pages' (self-hosted Host or Hack). Current page's 'an optional check looks over the numbers you changed' dropped: PARITY says the assistant and mistake check were removed 2026-10-09. DigitalOcean image 'not yet built on DigitalOcean' per §20; mentioned only as running the same installer."
+     "evidence": "features.html #self-host; FEATURES.md \u00a720 (Small-box upgrade: re-run install.sh, migrate, failed migrate leaves the app as it was; Operational times and limits: 95 env vars, range checks, 4x cap on sign-in limiters; DigitalOcean 1-Click first-login.sh); PARITY rows 'Deployment model' (install.sh + Docker Compose + Caddy), 'Storage backend' (local disk), 'Operational times and limits', 'Uninstall runbook' (download entries, DNS first, delete the box), 'Static, marketing and legal pages' (self-hosted Host or Hack). Current page's 'an optional check looks over the numbers you changed' dropped: PARITY says the assistant and mistake check were removed 2026-10-09. DigitalOcean image 'not yet built on DigitalOcean' per \u00a720; mentioned only as running the same installer."
     },
     {
      "id": "admin-health",
@@ -4930,10 +5398,14 @@
       {
        "label": "FEATURES.md: Operations",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#20-operations-health-schema-cli"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/limits/"
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md §20 (GET /healthz, GET /readyz DB ping; startup VerifySchema fails fast and names simple-host migrate, never migrates; migrations in lexical order, once, own transaction, schema_migrations, advisory lock; simple-host version; small-box upgrade; sh-uptime-watch every two minutes, alerts after two failed checks); PARITY rows 'Health and metrics' (Enterprise /metrics on its own port), 'Schema migrations and version stamp' (init container). Health paths rendered on instruction (operator feature)."
+     "evidence": "FEATURES.md \u00a720 (GET /healthz, GET /readyz DB ping; startup VerifySchema fails fast and names simple-host migrate, never migrates; migrations in lexical order, once, own transaction, schema_migrations, advisory lock; simple-host version; small-box upgrade; sh-uptime-watch every two minutes, alerts after two failed checks); PARITY rows 'Health and metrics' (Enterprise /metrics on its own port), 'Schema migrations and version stamp' (init container). Health paths rendered on instruction (operator feature)."
     }
    ]
   },
@@ -4976,6 +5448,10 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
@@ -4984,14 +5460,14 @@
       "hack-next-step",
       "weekly-demo-reset"
      ],
-     "evidence": "FEATURES.md §15 L1811-1834 (M0/M1 status, stages), Env row EVENT_CREATE_PER_DAY (3) and EVENT_MAX_ACTIVE_PER_ORGANISER (2), 'Delete an event', 'Event administration', 'Organiser Overview', 'Weekly demo reset' (hosted deploy/prod script, hence hosted only). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system'."
+     "evidence": "FEATURES.md \u00a715 L1811-1834 (M0/M1 status, stages), Env row EVENT_CREATE_PER_DAY (3) and EVENT_MAX_ACTIVE_PER_ORGANISER (2), 'Delete an event', 'Event administration', 'Organiser Overview', 'Weekly demo reset' (hosted deploy/prod script, hence hosted only). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system'."
     },
     {
      "id": "hack-registration",
      "name": "Registration, applications, tracks, and announcements",
      "line": "People join by link or apply from the public listing; organisers ask sign-up questions, set tracks and prizes, and post announcements.",
      "who": "Participants joining an event, and organisers deciding who gets in and keeping everyone informed.",
-     "how": "Participants join with the event's link, or, for an event listed in Find a hackathon, apply from the listing or the event's public page without a link. Applications are on by default and every application waits for an organiser's decision in People, Applications; an applicant may add a city, country, age range, and gender, which stay with that event and are never shown to other organisers. Organisers can ask up to eight text questions at sign-up and require approval; pending and rejected applicants see their own status. Up to twelve tracks each carry a challenge and a prize, and each team picks one track before its deadline. Organisers publish sponsors, an FAQ, a schedule with time zones, and announcements, can edit or delete an announcement, and can email participants, send a receipt on a team's first complete entry, and show a public submission countdown. The schedule shows the real times on its own (event start and end, the entry deadline, the voting window, results), so they never drift, and a schedule row can ask the organiser for the next step when its time comes, for example “Kickoff is now. Open sign-up?” It never moves the stage itself. Participants see “Demos starts in 12 minutes” on their Home.",
+     "how": "Participants join with the event's link, or, for an event listed in Find a hackathon, apply from the listing or the event's public page without a link. Applications are on by default and every application waits for an organiser's decision in People, Applications; an applicant may add a city, country, age range, and gender, which stay with that event and are never shown to other organisers. Organisers can ask up to eight text questions at sign-up and require approval; pending and rejected applicants see their own status. Up to twelve tracks each carry a challenge and a prize, and each team picks one track before its deadline. Organisers publish sponsors, an FAQ, a schedule with time zones, and announcements, can edit or delete an announcement, and can email participants, send a receipt on a team's first complete entry, and show a public submission countdown. The schedule shows the real times on its own (event start and end, the entry deadline, the voting window, results), so they never drift, and a schedule row can ask the organiser for the next step when its time comes, for example \u201cKickoff is now. Open sign-up?\u201d It never moves the stage itself. Participants see \u201cDemos starts in 12 minutes\u201d on their Home.",
      "example": "A company running a public AI hackathon lists it in Find a hackathon, takes applications over two weeks, approves 80 people, and announces the final schedule by email the night before.",
      "where": "Find a hackathon and the event's public page for applicants; Manage (Settings, People, Content) for organisers; or ask your AI app.",
      "limits": "Only listed events take applications; unlisted events are join-link only. Five applications per account and 30 per IP address each hour, 20 pending applications per account, and 500 pending applications per event. A rejected applicant can apply again only after withdrawing. Editing an announcement does not send a new email. Track names may repeat; removing a chosen track warns how many teams lose their choice.",
@@ -5016,6 +5492,10 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
@@ -5024,7 +5504,7 @@
       "registration-tracks-and-challenges",
       "outgoing-mail-visibility"
      ],
-     "evidence": "FEATURES.md §15 'Applications without a join link' (limits 5/account, 30/IP per hour, 20 pending, 500 per event), 'Registration, tracks and challenges', 2026-10-27 track and announcement notes, 'Leave this event' (rejected applicant withdraws and may apply again, superseding 'cannot re-apply'). PARITY row 'Event content and communications'. 'Outgoing mail visibility' is an operator-side mail journal and daily watch with no user-visible surface; covered silently."
+     "evidence": "FEATURES.md \u00a715 'Applications without a join link' (limits 5/account, 30/IP per hour, 20 pending, 500 per event), 'Registration, tracks and challenges', 2026-10-27 track and announcement notes, 'Leave this event' (rejected applicant withdraws and may apply again, superseding 'cannot re-apply'). PARITY row 'Event content and communications'. 'Outgoing mail visibility' is an operator-side mail journal and daily watch with no user-visible surface; covered silently."
     },
     {
      "id": "hack-teams",
@@ -5056,6 +5536,10 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
@@ -5065,7 +5549,7 @@
       "hack-notices",
       "team-messages"
      ],
-     "evidence": "FEATURES.md §15 'Team finding', 'Teams redesign' (team size default 20, EVENT_TEAM_SIZE_DEFAULT), 'Leave this event'. PARITY rows 'Simple Hack: leave an event', 'Simple Hack: team admins and links', 'Hosted hackathon platform'. Contradiction: the §15 Env table row still lists EVENT_TEAM_SIZE_DEFAULT (4); the 2026-10-31 prose says 20 and wins. Standalone v0.8.13 carries team finding; the 2026-10-31 teams redesign and leave are not stated for the standalone package. 'Notify people when something waits on them' (2026-11-02): Needs you on Home, Overview and Home across events, sidebar badges, emails at most once per kind per 15 minutes, Account opt-out, hack_get_my_todos. 'Team messages' (2026-11-05): an organiser can message one or up to 25 teams at once; the team sees it in app and by email, with its own sent-message history."
+     "evidence": "FEATURES.md \u00a715 'Team finding', 'Teams redesign' (team size default 20, EVENT_TEAM_SIZE_DEFAULT), 'Leave this event'. PARITY rows 'Simple Hack: leave an event', 'Simple Hack: team admins and links', 'Hosted hackathon platform'. Contradiction: the \u00a715 Env table row still lists EVENT_TEAM_SIZE_DEFAULT (4); the 2026-10-31 prose says 20 and wins. Standalone v0.8.13 carries team finding; the 2026-10-31 teams redesign and leave are not stated for the standalone package. 'Notify people when something waits on them' (2026-11-02): Needs you on Home, Overview and Home across events, sidebar badges, emails at most once per kind per 15 minutes, Account opt-out, hack_get_my_todos. 'Team messages' (2026-11-05): an organiser can message one or up to 25 teams at once; the team sees it in app and by email, with its own sent-message history."
     },
     {
      "id": "hack-entries",
@@ -5091,7 +5575,13 @@
       "results-show-what-each-team-built",
       "reminder-times"
      ],
-     "evidence": "FEATURES.md §15 'Reminder times' (2026-11-05): one list of offsets (up to 5, 15 minutes to 14 days each, default 24 hours and 1 hour) drives both this entry reminder and the judging reminder, organiser-editable on Entries."
+     "evidence": "FEATURES.md \u00a715 'Reminder times' (2026-11-05): one list of offsets (up to 5, 15 minutes to 14 days each, default 24 hours and 1 hour) drives both this entry reminder and the judging reminder, organiser-editable on Entries.",
+     "docs": [
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
+      }
+     ]
     },
     {
      "id": "hack-judging",
@@ -5123,6 +5613,10 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
@@ -5136,7 +5630,7 @@
       "panel-untracked-teams",
       "judge-notices"
      ],
-     "evidence": "FEATURES.md §15 'Judging (M3)', 'Judging choices', 'Organisers can also judge', 'Judging fixes' (confirmation on scored criteria, judges-only default, scoring opens when entries close), 'Archive cleanup' (default rubric). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system' (judging-first Manage). Standalone v0.8.9 carries judging-first Manage. 'Judge notices' (2026-11-05): judges are told in app and by email when judging opens and, while they still have teams to score, before it closes."
+     "evidence": "FEATURES.md \u00a715 'Judging (M3)', 'Judging choices', 'Organisers can also judge', 'Judging fixes' (confirmation on scored criteria, judges-only default, scoring opens when entries close), 'Archive cleanup' (default rubric). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system' (judging-first Manage). Standalone v0.8.9 carries judging-first Manage. 'Judge notices' (2026-11-05): judges are told in app and by email when judging opens and, while they still have teams to score, before it closes."
     },
     {
      "id": "hack-voting",
@@ -5164,12 +5658,16 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
       "hack-voting"
      ],
-     "evidence": "FEATURES.md §15 'People's choice and directory', 2026-10-27 review (confirm_vote_removal), 'Applications without a join link' (only listed events take applications). PARITY row 'Simple Hack sign-up, stages, voting and directory fixes'. Standalone availability not stated for voting; read as the same binary."
+     "evidence": "FEATURES.md \u00a715 'People's choice and directory', 2026-10-27 review (confirm_vote_removal), 'Applications without a join link' (only listed events take applications). PARITY row 'Simple Hack sign-up, stages, voting and directory fixes'. Standalone availability not stated for voting; read as the same binary."
     },
     {
      "id": "hack-sites",
@@ -5201,13 +5699,17 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
       "archive-cleanup",
       "guided-team-site-publishing"
      ],
-     "evidence": "FEATURES.md §15 L1806-1814 (zip uploads, versions, latest five), M2 status (team sites, take-down), 'Archive cleanup' (30 and 14 days), Env row MAX_ARCHIVE_MB=25 and KEEP_VERSIONS=2, 2026-10-27 review (zip limiter, freezes), 'Stage and entry fixes' (freeze at Judging), 'Personal connector parity' (select team then generic site tools). hackathons.html L96-101 (addresses, 25 MB, two versions, 1,000,000-byte allowance). PARITY rows 'Hack event websites and icon', 'Hosted hackathon platform'; webhooks from v0.8.11 release note."
+     "evidence": "FEATURES.md \u00a715 L1806-1814 (zip uploads, versions, latest five), M2 status (team sites, take-down), 'Archive cleanup' (30 and 14 days), Env row MAX_ARCHIVE_MB=25 and KEEP_VERSIONS=2, 2026-10-27 review (zip limiter, freezes), 'Stage and entry fixes' (freeze at Judging), 'Personal connector parity' (select team then generic site tools). hackathons.html L96-101 (addresses, 25 MB, two versions, 1,000,000-byte allowance). PARITY rows 'Hack event websites and icon', 'Hosted hackathon platform'; webhooks from v0.8.11 release note."
     },
     {
      "id": "hack-agents",
@@ -5239,12 +5741,16 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
       "hack-agents"
      ],
-     "evidence": "FEATURES.md §15 'Personal connector parity', Skill row (run-hackathon), 'Role films and standing demo' (copyable prompts), standalone v0.8.9 (self-hosted Get started names its own connector). PARITY row 'Hack agent toolkit' (five-skill hack-toolkit install, five connector setups). hackathons.html L85-86. Lead is marked 'implementing' in FEATURES.md but PARITY says deployed; treated as live."
+     "evidence": "FEATURES.md \u00a715 'Personal connector parity', Skill row (run-hackathon), 'Role films and standing demo' (copyable prompts), standalone v0.8.9 (self-hosted Get started names its own connector). PARITY row 'Hack agent toolkit' (five-skill hack-toolkit install, five connector setups). hackathons.html L85-86. Lead is marked 'implementing' in FEATURES.md but PARITY says deployed; treated as live."
     },
     {
      "id": "hack-companies",
@@ -5276,6 +5782,10 @@
       {
        "label": "FEATURES.md section 15",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
@@ -5283,7 +5793,7 @@
       "hack-company-pitch",
       "kubernetes"
      ],
-     "evidence": "FEATURES.md §15 'Standalone full-platform package' (v0.8.10 OIDC, EMAIL_SIGNIN=off, --tls internal|acme|certs, --ca-cert), 'Company pitch for the standalone package' (2 GB RAM, providers, 45-second film). hackathons.html L88-101. PARITY rows 'Simple Hack for companies', 'Single-container Simple Hack' (not built), 'Event / hackathon instances'. FEATURES.md calls /companies 'Hosted-only' and in the same paragraph says it answers on every full self-hosted instance; the task's reading (hosted only) is used in editions_note."
+     "evidence": "FEATURES.md \u00a715 'Standalone full-platform package' (v0.8.10 OIDC, EMAIL_SIGNIN=off, --tls internal|acme|certs, --ca-cert), 'Company pitch for the standalone package' (2 GB RAM, providers, 45-second film). hackathons.html L88-101. PARITY rows 'Simple Hack for companies', 'Single-container Simple Hack' (not built), 'Event / hackathon instances'. FEATURES.md calls /companies 'Hosted-only' and in the same paragraph says it answers on every full self-hosted instance; the task's reading (hosted only) is used in editions_note."
     },
     {
      "id": "hack-films",
@@ -5311,12 +5821,16 @@
       {
        "label": "Simple Hack",
        "href": "https://simple-hack.app/"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/start/"
       }
      ],
      "covers": [
       "hack-films"
      ],
-     "evidence": "FEATURES.md §15 'Role films and standing demo' (hosted-only /watch, demo JSON and redirects, self-hosted 404), 'Weekly demo reset'."
+     "evidence": "FEATURES.md \u00a715 'Role films and standing demo' (hosted-only /watch, demo JSON and redirects, self-hosted 404), 'Weekly demo reset'."
     }
    ],
    "tag": "A separate product on the same software"

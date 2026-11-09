@@ -5,6 +5,14 @@ import fs from 'node:fs';
 const brand = process.env.BRAND || 'host';
 const areas = JSON.parse(fs.readFileSync(new URL('./areas.json', import.meta.url)));
 const guides = Object.entries(areas).filter(([, a]) => a.brands.includes(brand) && a.guide);
+// Written by scripts/docs-reference.py (docs-site.py prepare) from the Go
+// inventory commands, not a hand-kept list.
+const reference = JSON.parse(fs.readFileSync(new URL('./.generated-content/reference.json', import.meta.url)));
+const referenceGroup = (entries) => ({
+  label: entries[0].title,
+  collapsed: true,
+  items: entries.map((e) => ({ label: e.title, slug: e.slug })),
+});
 export default defineConfig({
   base: '/docs/',
   trailingSlash: 'always',
@@ -35,7 +43,7 @@ export default defineConfig({
       ] },
       { label: 'Guides', items: guides.map(([id, a]) => ({label:a.title, slug:`guides/${id}`})) },
       { slug: 'webhooks' }, { slug: 'limits' },
-      { label: 'Reference', items: [{ slug: 'api' }, { slug: 'mcp' }] },
+      { label: 'Reference', items: [referenceGroup(reference.api), referenceGroup(reference.mcp)] },
       { label: 'Self-hosting', items: [{ slug: 'self-hosting' }, { slug: 'self-hosting/operate' }] },
     ],
   })],

@@ -19,7 +19,7 @@ SKILL_BUILD=internal/webassets/simple-host-website/skills/website-deploy-builder
 fail=0
 python3 scripts/build-hack-navigation.py --check || fail=1
 python3 scripts/tests/docs-site.test.py || fail=1
-python3 scripts/docs-site.py check || fail=1
+python3 scripts/check-docs-site.py || fail=1
 
 # Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight
 #. Setup operations are accounted for as internal.
@@ -198,7 +198,6 @@ listed=$(sed -n '/^var rewrittenAssets = \[\]string{/,/^}/p' internal/handler/in
 missing=""
 for f in internal/webassets/static/*; do
   base=$(basename "$f")
-  case "$base" in swagger-ui*) continue ;; esac
   grep -q "simple-host\.app" "$f" 2>/dev/null || continue
   grep -qxF "$base" <<<"$listed" && continue
   # Pages served through serveStaticPage are templates, not agent-facing docs;

@@ -62,7 +62,7 @@ func TestNoPageDecidesItsOwnTheme(t *testing.T) {
 		default:
 			return nil
 		}
-		if p == "static/partials/theme.html" || p == "static/swagger-ui-bundle.js" || p == "static/signin.js" {
+		if p == "static/partials/theme.html" || p == "static/signin.js" {
 			return nil
 		}
 		b, _ := staticFiles.ReadFile(p)

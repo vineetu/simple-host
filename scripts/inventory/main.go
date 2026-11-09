@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 type route struct {
@@ -48,7 +49,21 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: inventory routes|tools|write|check")
+		return fmt.Errorf("usage: inventory routes|tools|tools-json|openapi-json|write|check")
+	}
+	if args[0] == "tools-json" || args[0] == "openapi-json" {
+		flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
+		edition := flags.String("edition", "host", "host or hack")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *edition != "host" && *edition != "hack" {
+			return fmt.Errorf("unknown edition: %s", *edition)
+		}
+		if args[0] == "openapi-json" {
+			return writeOpenAPIJSON(*edition)
+		}
+		return writeToolsJSON(*edition)
 	}
 	if args[0] == "tools" {
 		flags := flag.NewFlagSet("tools", flag.ContinueOnError)
@@ -446,4 +461,47 @@ func featureLines(text string) []string {
 		}
 	}
 	return lines
+}
+
+// docsTool is one connector tool as the docs reference shows it.
+type docsTool struct {
+	Name        string         `json:"name"`
+	Title       string         `json:"title,omitempty"`
+	Family      string         `json:"family"`
+	Listed      bool           `json:"listed"`
+	Description string         `json:"description"`
+	InputSchema map[string]any `json:"input_schema"`
+}
+
+// writeToolsJSON prints every tool a connector of this edition can call, in
+// registration order. Hidden declarations are not part of the public surface.
+func writeToolsJSON(edition string) error {
+	tools := []docsTool{}
+	for _, t := range mcp.Inventory() {
+		if t.Edition != edition || t.Hidden {
+			continue
+		}
+		tools = append(tools, docsTool{t.Name, t.Title, t.Family, t.Listed, t.Description, t.InputSchema})
+	}
+	out, err := json.MarshalIndent(tools, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Println(string(out))
+	return err
+}
+
+// writeOpenAPIJSON prints the edition's public API contract, exactly as the
+// server filters it for /openapi.json.
+func writeOpenAPIJSON(edition string) error {
+	source, err := os.ReadFile("internal/webassets/static/openapi.json")
+	if err != nil {
+		return err
+	}
+	out, err := webassets.PublicOpenAPISpec(source, "public-"+edition)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Println(string(out))
+	return err
 }

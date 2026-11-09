@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Prepare brand Markdown, externalize build scripts, and check docs offline."""
 import hashlib
+import importlib.util
 import json
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+_spec = importlib.util.spec_from_file_location('docs_reference', Path(__file__).resolve().parent / 'docs-reference.py')
+docs_reference = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(docs_reference)
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs/site'
@@ -16,8 +22,21 @@ BRANDS = ('host', 'hack')
 def sources():
     paths = [p for p in SOURCE.rglob('*') if p.is_file() and not any(
         x in p.relative_to(SOURCE).parts for x in ('node_modules', '.astro', '.generated-content', 'dist'))]
-    paths += [ROOT / 'scripts/build-docs-site.sh', ROOT / 'scripts/docs-site.py']
+    paths += [ROOT / 'scripts/build-docs-site.sh', ROOT / 'scripts/docs-site.py', ROOT / 'scripts/docs-reference.py']
     return sorted(paths)
+
+
+def reference_digest():
+    """Digest of the four generated-reference inputs (tools-json and
+    openapi-json for both brands), so the manifest catches drift even when the
+    Go source changed but nothing under docs/site did."""
+    h = hashlib.sha256()
+    for brand in BRANDS:
+        for command in ('tools-json', 'openapi-json'):
+            out = subprocess.run(['go', 'run', './scripts/inventory', command, '-edition', brand],
+                                  cwd=ROOT, check=True, capture_output=True, text=True).stdout
+            h.update(brand.encode() + b'\0' + command.encode() + b'\0' + out.encode() + b'\0')
+    return h.hexdigest()
 
 
 def digest(paths, base):
@@ -59,6 +78,10 @@ def prepare(brand):
             dest = target / p.relative_to(SOURCE / 'src/content/docs')
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text)
+    # Generated API/MCP reference pages, from the Go inventory commands, not
+    # hand-kept lists (SIM-390). docs_reference also writes reference.json,
+    # which astro.config.mjs reads for the Reference sidebar group.
+    docs_reference.generate(brand, target)
 
 
 SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
@@ -94,7 +117,7 @@ def externalize(brand):
 
 
 def record():
-    manifest = {'sources': digest(sources(), ROOT), 'brands': {}}
+    manifest = {'sources': digest(sources(), ROOT), 'references': reference_digest(), 'brands': {}}
     for brand in BRANDS:
         files = output_files(OUTPUT / brand)
         manifest['brands'][brand] = {'sha256': digest(files, OUTPUT), 'bytes': sum(p.stat().st_size for p in files)}
@@ -164,6 +187,8 @@ def check():
         manifest = json.loads((OUTPUT / 'manifest.json').read_text())
         if manifest['sources'] != digest(sources(), ROOT):
             errors.append('docs sources changed: run scripts/build-docs-site.sh')
+        if manifest.get('references') != reference_digest():
+            errors.append('docs references are behind: run scripts/build-docs-site.sh')
         for brand in BRANDS:
             files = output_files(OUTPUT / brand)
             if not (OUTPUT / brand / 'index.html').is_file() or digest(files, OUTPUT) != manifest['brands'][brand]['sha256']:

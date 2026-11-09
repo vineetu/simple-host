@@ -12,6 +12,22 @@ verifies source/output hashes without Node, plus each brand's Pagefind directory
 entry JSON, indexed HTML page count, and referenced metadata/WASM files. The same
 check runs on freshly rebuilt CI output.
 
+## Generated reference pages
+
+`/docs/api/` and `/docs/mcp/` are not hand-written. `scripts/docs-reference.py`
+(called from `docs-site.py prepare`) runs `go run ./scripts/inventory tools-json`
+and `openapi-json` for the brand and writes plain `.md` pages (not MDX, so stray
+`<` and `>` in descriptions are safe once escaped) under `.generated-content/api`
+and `.generated-content/mcp`, plus `reference.json`, which `astro.config.mjs`
+reads to build the collapsed Reference sidebar groups. Each operation and tool
+carries a `data-operation`/`data-tool` marker exactly once per brand tree;
+`scripts/check-docs-site.py` enforces that, plus internal link health and the
+owner rule that the Host build never says "hack" (the generator drops Hack
+parentheticals and sentences from Host text, trimming a two-product sentence
+down to its Host half rather than deleting it outright). The manifest also
+tracks a digest of the four inventory JSON outputs, so `docs-site.py check`
+catches a route or tool change that never made it into a rebuild.
+
 ## Write a page
 
 Use plain task headings, numbered Steps, and a `What` feature link under each task

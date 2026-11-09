@@ -19,8 +19,8 @@ const canonicalSiteDomain = "simple-host.app"
 
 // rewrittenAssets are served through a handler that substitutes the instance's
 // own hostnames, and hidden from the file server so there is exactly one path
-// to each. Binary and vendored assets are excluded: nothing in swagger-ui or an
-// image mentions the host, and rewriting bytes we do not own is a bad habit.
+// to each. Binary and vendored assets are excluded: nothing in them mentions
+// the host, and rewriting bytes we do not own is a bad habit.
 var rewrittenAssets = []string{
 	"llms.txt",
 	"install.html",

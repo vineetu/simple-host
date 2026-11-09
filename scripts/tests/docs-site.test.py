@@ -70,5 +70,58 @@ class PagefindCheckTest(unittest.TestCase):
         self.assertEqual(self.check(), [])
 
 
+dr = docs['docs_reference']
+
+
+class SlugifyTest(unittest.TestCase):
+    def test_lowercases_and_hyphenates(self):
+        self.assertEqual(dr.slugify('Custom Domains'), 'custom-domains')
+
+    def test_strips_punctuation(self):
+        self.assertEqual(dr.slugify('Storage resources!'), 'storage-resources')
+
+    def test_empty_falls_back(self):
+        self.assertEqual(dr.slugify('   '), 'x')
+
+
+class EscapeTest(unittest.TestCase):
+    def test_escapes_angle_brackets(self):
+        self.assertEqual(dr.esc('a <handle> value'), 'a &lt;handle&gt; value')
+
+    def test_none_is_empty(self):
+        self.assertEqual(dr.esc(None), '')
+
+    def test_table_cell_escapes_pipe_too(self):
+        self.assertEqual(dr.cell('a|b <c>'), 'a\\|b &lt;c&gt;')
+
+
+class HackFilterTest(unittest.TestCase):
+    def test_drops_hack_parenthetical(self):
+        text = 'Deletes the site (Simple Hack team sites excluded) right away.'
+        self.assertEqual(dr.drop_hack_mentions(text, 'x'), 'Deletes the site right away.')
+
+    def test_drops_whole_sentence_naming_hack(self):
+        text = 'Lists this account sites. Hack team sites use a different route. Newest first.'
+        self.assertEqual(dr.drop_hack_mentions(text, 'x'),
+                          'Lists this account sites. Newest first.')
+
+    def test_trims_conjunction_rather_than_whole_sentence(self):
+        text = 'Signed notifications for writes on Simple Host and Simple Hack.'
+        self.assertEqual(dr.drop_hack_mentions(text, 'x'),
+                          'Signed notifications for writes on Simple Host.')
+
+    def test_leaves_hackless_text_untouched(self):
+        text = 'Nothing to see here.'
+        self.assertEqual(dr.drop_hack_mentions(text, 'x'), text)
+
+    def test_fails_loudly_when_everything_would_vanish(self):
+        with self.assertRaises(ValueError):
+            dr.drop_hack_mentions('Entirely about Simple Hack team sites.', 'where')
+
+    def test_unknown_mcp_family_fails_loudly(self):
+        with self.assertRaises(ValueError):
+            dr.mcp_pages([{'name': 'x', 'family': 'not-a-real-family', 'listed': True, 'description': ''}], '/install.html')
+
+
 if __name__ == '__main__':
     unittest.main()

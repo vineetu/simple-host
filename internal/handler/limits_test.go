@@ -173,7 +173,7 @@ func servedTexts(t *testing.T) map[string]string {
 				return err
 			}
 			switch {
-			case strings.Contains(p, "enterprise"), strings.Contains(p, "swagger-ui"):
+			case strings.Contains(p, "enterprise"):
 				return nil
 			case strings.HasSuffix(p, ".html"), strings.HasSuffix(p, ".txt"), strings.HasSuffix(p, ".yaml"),
 				strings.HasSuffix(p, ".json"), strings.HasSuffix(p, ".md"), strings.HasSuffix(p, ".js"):

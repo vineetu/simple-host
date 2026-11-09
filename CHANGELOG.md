@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-09: The docs API and MCP tool references are generated straight from the server's own route and tool list, replacing the old Swagger page and a hand-kept tools list.
+
 2026-11-09: Simple Hack entry cards: "Who it's for" is optional by default in both presets. Events on a preset move with it; custom rules stay as they are.
 
 2026-11-08: Simple Hack asks before leaving a form with unsaved edits; clean and just-saved forms leave without a prompt.

@@ -213,9 +213,13 @@ func (r *toolRegistry) declaredTools(edition toolEdition) []Tool {
 }
 
 // InventoryTool identifies one registered declaration, including hidden tools.
+// Hidden tools are never offered to a connector; the rest are callable, and
+// unlisted ones are reached through find_tools and run_tool.
 type InventoryTool struct {
 	Name, Family, Edition string
-	Listed                bool
+	Listed, Hidden        bool
+	Title, Description    string
+	InputSchema           map[string]any
 }
 
 // Inventory returns every registered tool with Events enabled. Listed describes
@@ -232,7 +236,12 @@ func Inventory() []InventoryTool {
 		if entry.edition == editionScreen {
 			edition = "screen"
 		}
-		out = append(out, InventoryTool{entry.tool.Name, string(entry.family), edition, !entry.policy.unlisted && !entry.policy.connectorHidden})
+		out = append(out, InventoryTool{
+			Name: entry.tool.Name, Family: string(entry.family), Edition: edition,
+			Listed: !entry.policy.unlisted && !entry.policy.connectorHidden,
+			Hidden: entry.policy.connectorHidden,
+			Title:  entry.tool.Title, Description: entry.tool.Description, InputSchema: entry.tool.InputSchema,
+		})
 	}
 	return out
 }

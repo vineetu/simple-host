@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"html"
 	"io"
 	"io/fs"
@@ -366,182 +365,13 @@ func hackOpenAPISpec(source []byte) ([]byte, error) {
 	return publicOpenAPISpec(source, "public-hack")
 }
 
-// publicOpenAPISpec selects operations from the single contract by audience.
-// Internal operations remain in the contract for coverage, never in a public spec.
+// publicOpenAPISpec selects operations from the single contract by audience
+// (webassets.PublicOpenAPISpec, shared with the docs reference generator).
 func publicOpenAPISpec(source []byte, audience string) ([]byte, error) {
-	var spec map[string]any
-	if err := json.Unmarshal(source, &spec); err != nil {
-		return nil, err
-	}
-	paths, ok := spec["paths"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("openapi paths missing")
-	}
-	usedTags := map[string]bool{}
-	for path, value := range paths {
-		methods, _ := value.(map[string]any)
-		retained := false
-		for method, value := range methods {
-			if !openAPIMethod(method) {
-				continue
-			}
-			operation, _ := value.(map[string]any)
-			audiences, _ := operation["x-audience"].([]any)
-			include := false
-			for _, value := range audiences {
-				include = include || value == audience
-			}
-			if !include {
-				delete(methods, method)
-				continue
-			}
-			retained = true
-			delete(operation, "x-audience")
-			if audience == "public-hack" {
-				if description := hackOpenAPIDescription(path, method); description != "" {
-					operation["description"] = description
-				}
-			}
-			tags, _ := operation["tags"].([]any)
-			for _, tag := range tags {
-				name, _ := tag.(string)
-				usedTags[name] = true
-			}
-		}
-		if !retained {
-			delete(paths, path)
-		}
-	}
-	if audience == "public-hack" {
-		// Hack accounts have event roles and team sites, without personal homes.
-		me, _ := paths["/v1/me"].(map[string]any)
-		get, _ := me["get"].(map[string]any)
-		responses, _ := get["responses"].(map[string]any)
-		okResponse, _ := responses["200"].(map[string]any)
-		content, _ := okResponse["content"].(map[string]any)
-		media, _ := content["application/json"].(map[string]any)
-		schema, _ := media["schema"].(map[string]any)
-		properties, _ := schema["properties"].(map[string]any)
-		delete(properties, "home_site")
-		spec["info"] = map[string]any{
-			"title":       "Simple Hack API",
-			"version":     "2.0.0",
-			"description": "Hosted hackathons, team and custom event websites, and owner-declared KV, SQLite and raw-file resources. Website storage has resource-wide access policies. Use the signed-in connector or the trusted Simple Hack browser for event work.",
-		}
-		spec["servers"] = []any{map[string]any{"url": "https://simple-hack.app"}}
-	}
-	if tags, ok := spec["tags"].([]any); ok {
-		current := make([]any, 0, len(tags))
-		for _, value := range tags {
-			tag, _ := value.(map[string]any)
-			name, _ := tag["name"].(string)
-			if usedTags[name] {
-				current = append(current, value)
-			}
-		}
-		spec["tags"] = current
-	}
-	// Keep component definitions only when a retained operation references
-	// them, including references reached through another component.
-	if components, ok := spec["components"].(map[string]any); ok {
-		if audience == "public-hack" {
-			if responses, ok := components["responses"].(map[string]any); ok {
-				if tooLarge, ok := responses["TooLarge"].(map[string]any); ok {
-					tooLarge["description"] = "The request or deployment exceeds its applicable size limit."
-				}
-			}
-			if schemas, ok := components["schemas"].(map[string]any); ok {
-				if errSchema, ok := schemas["Error"].(map[string]any); ok {
-					if properties, ok := errSchema["properties"].(map[string]any); ok {
-						if code, ok := properties["code"].(map[string]any); ok {
-							code["description"] = "Stable snake_case refusal code; see the response for details."
-						}
-					}
-				}
-			}
-		}
-		used := map[string]bool{}
-		var scan func(any)
-		scan = func(value any) {
-			switch v := value.(type) {
-			case map[string]any:
-				if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/components/") && !used[ref] {
-					used[ref] = true
-					parts := strings.Split(strings.TrimPrefix(ref, "#/components/"), "/")
-					if len(parts) == 2 {
-						if section, ok := components[parts[0]].(map[string]any); ok {
-							scan(section[parts[1]])
-						}
-					}
-				}
-				for _, child := range v {
-					scan(child)
-				}
-			case []any:
-				for _, child := range v {
-					scan(child)
-				}
-			}
-		}
-		scan(paths)
-		for sectionName, value := range components {
-			if sectionName == "securitySchemes" {
-				continue
-			}
-			section, ok := value.(map[string]any)
-			if !ok {
-				continue
-			}
-			for name := range section {
-				if !used["#/components/"+sectionName+"/"+name] {
-					delete(section, name)
-				}
-			}
-		}
-	}
-	return json.MarshalIndent(spec, "", "  ")
+	return webassets.PublicOpenAPISpec(source, audience)
 }
 
-func openAPIMethod(method string) bool {
-	switch method {
-	case "get", "post", "put", "patch", "delete", "head", "options", "trace":
-		return true
-	}
-	return false
-}
-
-// Shared Host operation descriptions for these still-live routes explain the
-// retired state/collection model. Hack keeps the routes but describes its
-// current website resources instead.
-func hackOpenAPIDescription(path, method string) string {
-	switch path {
-	case "/v1/admin/export.tar.gz", "/v1/export", "/v1/me/export.tar.gz", "/v1/me/export.zip", "/v1/sites/{sitename}/export-link", "/v1/sites/{sitename}/export.tar.gz":
-		return "Download an owner-authorised archive of website files and stored data. It may include historical private data from before the previous storage model was retired. Keep the archive and any download link private."
-	}
-	switch path + " " + method {
-	case "/v1/admin/users/{id}/key post":
-		return "Replace a participant's lost account key. The new key is shown once; their websites and event work remain intact."
-	case "/v1/idle/restore post":
-		return "Restore a website from Recently deleted with its versions and stored resources, using the emailed confirmation link."
-	case "/v1/me delete":
-		return "Permanently delete the signed-in account and its websites, stored resources and connected apps. This cannot be undone; offer the account export first."
-	case "/v1/me/deleted-sites get":
-		return "List websites recently deleted by this account, including their restoration deadline."
-	case "/v1/me/keys post":
-		return "Create an account key for a trusted CI client or another machine. A deploy-only key can publish the account's permitted websites but cannot manage account settings or website storage. The key is returned once; keep it outside chat."
-	case "/v1/sites/{sitename} delete":
-		return "Take the website offline and move it to Recently deleted, retaining its versions and stored resources until the restoration deadline."
-	case "/v1/sites/{sitename} patch":
-		return "Change the website's offline status or name. While offline, visitor storage reads and writes are refused; versions and stored resources remain available to the owner."
-	case "/v1/sites/{sitename}/restore post":
-		return "Restore a website from Recently deleted with its versions, stored resources and connected address."
-	case "/v1/sites/{sitename}/lock put":
-		return "Set or generate the owner's website passcode through this trusted REST route. Visitors must unlock each host before viewing the site. A passcode is a site gate, not per-person privacy for a storage resource."
-	case "/v1/sites/{sitename}/storage/usage get":
-		return "The default limit is 1,000,000 bytes pooled across this website's KV, SQLite and raw-file resources. Deployed assets and historical data have separate limits."
-	}
-	return ""
-}
+func openAPIMethod(method string) bool { return webassets.OpenAPIMethod(method) }
 
 // hackPersonalPresentationHTML: shared help pages omit personal
 // presentation when served on Hack.

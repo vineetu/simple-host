@@ -65,7 +65,7 @@ func TestDocsRoutes(t *testing.T) {
 					t.Errorf("%s: missing %s", route, brand)
 				}
 			}
-			for route, mime := range map[string]string{"/docs/pagefind/pagefind.js": "javascript", "/docs/old-anchors.js": "javascript", "/docs/swagger-theme.css": "text/css"} {
+			for route, mime := range map[string]string{"/docs/pagefind/pagefind.js": "javascript", "/docs/old-anchors.js": "javascript"} {
 				r := get(t, mux, "", route)
 				if r.Code != 200 || !strings.Contains(r.Header().Get("Content-Type"), mime) || r.Header().Get("Cache-Control") == "" {
 					t.Errorf("asset %s: %d %v", route, r.Code, r.Header())

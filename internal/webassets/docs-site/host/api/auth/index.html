@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz">
+	<head>
+		<!--sh:head-->
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Auth | Simple Host</title><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.10"/><meta property="og:title" content="Auth"/><meta property="og:type" content="article"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="Simple Host"/><meta name="twitter:card" content="summary_large_image"/>
+		
+		
+		<link rel="stylesheet" href="/docs/_astro/print.C9eyqPGL.css" media="print">
+	<link rel="stylesheet" href="/docs/_astro/index.C1x2hpYy.css">
+<link rel="stylesheet" href="/docs/_astro/Icon.U1EK5lRe.css">
+<link rel="stylesheet" href="/docs/_astro/LinkButton.B-IDtby6.css"><script type="module" src="/docs/_astro/page.cNngjUgL.js"></script></head>
+	<body class="astro-g5ptsecz">
+		<a class="sl-skip-link astro-qb7clj6f" href="#_top">Skip to content</a>
+		<div class="docs-product-header"><!--sh:header--></div>
+<div class="page sl-flex astro-yntsjkba">
+	<header class="header astro-yntsjkba"><div class="docs-bar"><span class="docs-label">Docs</span><site-search class=" astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}">
+	<button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o">
+		<svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+		<span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">Search</span>
+		<kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none">
+			<kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd>
+		</kbd>
+	</button>
+
+	<dialog style="padding: 0" aria-label="Search" class="astro-b5kgnn7o">
+		<div class="dialog-frame sl-flex astro-b5kgnn7o">
+			
+			<button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">
+				Cancel
+			</button>
+			<div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div>
+		</div>
+	</dialog>
+</site-search>
+
+
+<script src="/docs/_scripts/7ffcc0504ef8b9c73725.js"></script>
+
+<script type="module" src="/docs/_astro/Search.astro_astro_type_script_index_0_lang._gc9pYsW.js"></script></div>
+<script type="module" src="/docs/_scripts/e9e04975f547e3a0b7f0.js"></script></header>
+	<nav class="sidebar print:hidden astro-yntsjkba" aria-label="Main">
+		<button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg">
+	<svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg>
+	<svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg>
+	<span class="sr-only astro-r2osgdlg">Menu</span>
+</button>
+		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
+		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ekjrwe" class="astro-ipdry5cl">
+	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
+
+	<ul class="top-level astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Docs home</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Get started</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="0"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/start/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Your first site</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Use the REST API</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/pages/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Code on your own pages</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Guides</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="1"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/guides/publish/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/addresses/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Domains and addresses</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage and saved data</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/access/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sign-in and access</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/agents/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Agents and MCP</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/dashboard/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Owner dashboard</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/showcase/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Showcase and home page</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/analytics/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Traffic and analytics</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/webhooks/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Webhooks</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/limits/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Limits and errors</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="2"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">API reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="3"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">API reference</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/account/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Account</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/address-families/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Address families</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/analytics/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Analytics</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/auth/" aria-current="page" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Auth</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/custom-domains/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Custom domains</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/deploy/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/discovery/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Discovery</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/health/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Health</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/showcase/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Showcase</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/skills/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Skills</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/versions/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/visitor-sign-in/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Visitor sign-in</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">MCP tools</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="4"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">MCP tools</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/access/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Passcodes, viewers and domains</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/accounts/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Account</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/imports/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Imports and uploads</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/discovery/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Finding tools</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Self-hosting</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="5"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Self-hosting and Enterprise</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operate/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run and operate</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li>
+</ul>
+
+	<script aria-hidden="true" src="/docs/_scripts/ede095e23b6caf8b7892.js"></script>
+</sl-sidebar-state-persist>
+
+<div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh">
+	<div class="social-icons astro-p4azlveh"></div>
+	
+	
+
+
+</div></div></div>
+		</sl-sidebar-pane>
+	</nav>
+	<div class="main-frame astro-yntsjkba">
+  
+  
+  
+			
+			<script type="module" src="/docs/_scripts/560ae070a06f20cdd7a6.js"></script>
+			<div class="lg:sl-flex astro-lrzkfocr">
+	<aside class="right-sidebar-container print:hidden astro-lrzkfocr">
+		<div class="right-sidebar astro-lrzkfocr">
+		<div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="2" class="astro-66cqc7ze">
+	<nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze">
+		<details id="starlight__mobile-toc" class="astro-66cqc7ze">
+			<summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze">
+				<span class="toggle sl-flex astro-66cqc7ze">
+					On this page
+					<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</span>
+				<span class="display-current astro-66cqc7ze"></span>
+			</summary>
+			<div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-authmd" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /auth.md</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1auth" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1authoauthproviders" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/auth/oauth/providers</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1authoauthprovider" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/auth/oauth/{provider}</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1authoauthprovidercallback" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/auth/oauth/{provider}/callback</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1authpassword" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth/password</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1authpasswordsignup" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth/password/signup</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1authverify" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth/verify</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1handlescheck" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/handles/check</span></a>
+		
+	</li>
+</ul></div>
+		</details>
+	</nav>
+</mobile-starlight-toc>
+
+
+
+<script type="module" src="/docs/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div>
+		<div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx">
+			<div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="2">
+	<nav aria-labelledby="starlight__on-this-page">
+		<h2 id="starlight__on-this-page">On this page</h2>
+		<ul class="astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-authmd" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /auth.md</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1auth" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1authoauthproviders" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/auth/oauth/providers</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1authoauthprovider" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/auth/oauth/{provider}</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1authoauthprovidercallback" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/auth/oauth/{provider}/callback</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1authpassword" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth/password</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1authpasswordsignup" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth/password/signup</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1authverify" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/auth/verify</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1handlescheck" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/handles/check</span></a>
+		
+	</li>
+</ul>
+	</nav>
+</starlight-toc>
+
+<script type="module" src="/docs/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div>
+		</div>
+	</div>
+	</aside>
+	<div class="main-pane astro-lrzkfocr">
+				
+				<main data-pagefind-body class="astro-g5ptsecz" lang="en" dir="ltr">
+					
+					
+					
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<h1 id="_top" class="astro-bebwqqxs">Auth</h1>
+								</div>
+</div>
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<div class="sl-markdown-content"><p>Account sign-in by emailed code or Google, for Simple Host account owners and the agents working for them. It ends in an API key. It is never for a site’s visitors: these routes answer only on the app’s own address (403 account_auth_unavailable elsewhere), and an API key never belongs in a page. A page signs its visitors in with the Visitor sign-in routes through auth.js.</p>
+<h2 id="get-authmd">GET /auth.md</h2>
+<div data-operation="GET /auth.md"></div>
+<p>Read the authentication reference</p>
+<p>No authentication required.</p>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Instance-aware sign-in documentation. Email-code steps are omitted when unavailable.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="post-v1auth">POST /v1/auth</h2>
+<div data-operation="POST /v1/auth"></div>
+<p>For Simple Host account owners and their agents, never for a site’s visitors. Answers only on the app’s own address: on a site’s address, a person’s address, a connected domain, or from a page’s origin it is 403 account_auth_unavailable, and no code is sent. A page signs its visitors in with POST /v1/sites/{sitename}/visitor/auth through auth.js instead. Emails a 6-digit code (and a magic link) to the address. No user row is created here — the account is created lazily on the first successful verify, so this can’t be used to enumerate users.</p>
+<p><strong>Request body:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>email</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>nonce_hash</td>
+<td>string</td>
+<td></td>
+<td>Browser pages only. base64url SHA-256 of a random nonce the page keeps. With it the email also carries a sign-in link, redeemable only together with that nonce (so only in that browser). Without it the email carries the code alone.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>202</td>
+<td>Code sent</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.</td>
+</tr>
+<tr>
+<td>403</td>
+<td>account_auth_unavailable: account sign-in answers only on the app’s own address; a page’s visitors use visitor sign-in (auth.js SH.mount). Or email_signin_off (EMAIL_SIGNIN=off): sign in with the company account button instead.</td>
+</tr>
+<tr>
+<td>429</td>
+<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="get-v1authoauthproviders">GET /v1/auth/oauth/providers</h2>
+<div data-operation="GET /v1/auth/oauth/providers"></div>
+<p>Public discovery for pages and the dashboard: auth.js reads it from a site to offer Google; it is not account sign-in and sets nothing. Google, GitHub and a company’s own identity provider (oidc). Returns the enabled provider names so pages never hardcode a provider. Empty when sign-in is not configured. Sign-in creates or links a <code>users</code> row; a hosted-page session still does not disclose an API key.</p>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Enabled providers</td>
+</tr>
+</tbody>
+</table>
+<h2 id="get-v1authoauthprovider">GET /v1/auth/oauth/{provider}</h2>
+<div data-operation="GET /v1/auth/oauth/{provider}"></div>
+<p>Account sign-in starts only on the app’s own address. On any other host (a site’s address, a connected domain) the same path answers 302 to GET /v1/visitor/oauth/{provider} on that host with the same return_to, so a hand-written link still reaches visitor sign-in and never an account key; from a page’s origin on the apex it is 403 account_auth_unavailable. A page offers Google to its visitors with auth.js SH.signIn(), which starts the SSO hop on the site’s host when configured, or GET /v1/visitor/oauth/{provider} on instances without an apex. Apex start. Query <code>return_to</code> is required and must be an absolute URL. Owner return addresses include the apex <code>/v1/sso/hop</code> with its state and browser nonce hash. The other shapes are the dashboard origin <code>/</code> (owner purpose — callback hands off via <code>/?token=</code>; success 302s to the provider with PKCE S256) or a site’s own address — a site host <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/...</code> (or, while that person’s certificate is pending, the person address <code>https://&lt;handle&gt;.simple-host.app/&lt;site&gt;/...</code>), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to <code>GET /v1/visitor/oauth/{provider}</code> on that site’s own host, which binds the sign-in to the browser. Unknown or disabled provider is 404. No cookie is set here. The Legacy path-address (<code>sites.&lt;domain&gt;/&lt;handle&gt;/&lt;site&gt;/</code>) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard and SSO hop. The caller cannot set <code>purpose</code>; it is derived from <code>return_to</code>.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>provider</td>
+<td>path</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>return_to</td>
+<td>query</td>
+<td>string</td>
+<td>yes</td>
+<td>Absolute URL of the page to return to after sign-in</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>302</td>
+<td>Redirect to the identity provider</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid or missing return_to</td>
+</tr>
+<tr>
+<td>403</td>
+<td>account_auth_unavailable: on the app’s address but from a page’s origin.</td>
+</tr>
+<tr>
+<td>404</td>
+<td>Unknown or disabled provider</td>
+</tr>
+<tr>
+<td>429</td>
+<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+</tr>
+<tr>
+<td>503</td>
+<td>oidc_unavailable: company sign-in’s identity provider could not be reached yet (lazy discovery); retry shortly.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="get-v1authoauthprovidercallback">GET /v1/auth/oauth/{provider}/callback</h2>
+<div data-operation="GET /v1/auth/oauth/{provider}/callback"></div>
+<p>Answers only on the app’s own address (403 account_auth_unavailable elsewhere). Provider redirect URI on the apex. Consumes the one-time <code>state</code>. Identifies via userinfo, then <code>resolveUser</code> (link or create a <code>users</code> row on a verified email; refuse missing/unverified email, and refuse an address that already has a PASSWORD_SIGNIN password account, a themed HTML page naming neither account). Site purpose 302s to <code>https://&lt;return-host&gt;/v1/visitor/establish?once=…</code>. Owner purpose 302s to <code>{PUBLIC_BASE_URL}/?token=…</code> for the dashboard to redeem via <code>POST /v1/auth/verify</code>. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>provider</td>
+<td>path</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>code</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>state</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>error</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>302</td>
+<td>Site purpose: redirect to /v1/visitor/establish on the stored host. Owner purpose: redirect to /?token= on PUBLIC_BASE_URL.</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Bad, replayed, or expired state, or provider error</td>
+</tr>
+<tr>
+<td>403</td>
+<td>account_auth_unavailable (JSON): not on the app’s own address. For oidc only, also a business-rule refusal (unverified email, domain not on ALLOWED_EMAIL_DOMAINS, Google hd not allowed): a themed no-store HTML page naming the reason in plain words, no internals.</td>
+</tr>
+<tr>
+<td>404</td>
+<td>Unknown or disabled provider</td>
+</tr>
+<tr>
+<td>429</td>
+<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+</tr>
+<tr>
+<td>502</td>
+<td>Token or userinfo failure</td>
+</tr>
+</tbody>
+</table>
+<h2 id="post-v1authpassword">POST /v1/auth/password</h2>
+<div data-operation="POST /v1/auth/password"></div>
+<p>Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in.</p>
+<p>No authentication required.</p>
+<p><strong>Request body:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>login</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>name</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>new_password</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>password</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>sso_state</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Authenticated</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Wrong username or password (bad_credentials), including unknown and passwordless accounts.</td>
+</tr>
+<tr>
+<td>403</td>
+<td>password_change_required: current password verified; resubmit with a different new_password. Or account_suspended.</td>
+</tr>
+<tr>
+<td>404</td>
+<td>not found: PASSWORD_SIGNIN is off.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="post-v1authpasswordsignup">POST /v1/auth/password/signup</h2>
+<div data-operation="POST /v1/auth/password/signup"></div>
+<p>Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Username accepts any value, an email is suggested but not required; it is trimmed and lower-cased, 1–254 characters, no control characters.</p>
+<p>No authentication required.</p>
+<p><strong>Request body:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>password</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>username</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Authenticated</td>
+</tr>
+<tr>
+<td>400</td>
+<td>invalid_username or invalid_password</td>
+</tr>
+<tr>
+<td>403</td>
+<td>signup_unavailable_region</td>
+</tr>
+<tr>
+<td>404</td>
+<td>not found: PASSWORD_SIGNIN off or PASSWORD_SELF_SIGNUP off</td>
+</tr>
+<tr>
+<td>409</td>
+<td>username_taken</td>
+</tr>
+<tr>
+<td>429</td>
+<td>rate_limited; Retry-After header</td>
+</tr>
+</tbody>
+</table>
+<h2 id="post-v1authverify">POST /v1/auth/verify</h2>
+<div data-operation="POST /v1/auth/verify"></div>
+<p>Answers only on the app’s own address (403 account_auth_unavailable elsewhere), so no hosted page can mint an account key. The apex visitor sign-in card also uses this endpoint, keeping the account key on the apex and returning only a site cookie through the SSO hop. After success, browser sign-in calls POST /v1/sso/session with the returned key to establish the apex SSO cookie. Exchange <code>{email, code}</code> (CLI/agent) or a magic-link <code>{token}</code> (browser) for an API key. The first successful email-code verify creates the account. Dashboard Google also redeems through this endpoint (<code>/?token=&amp;cn=</code>). A link token is redeemed only with the <code>nonce</code> whose hash it was issued with, so a sign-in link works only in the browser that asked for it. Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>from</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Optional same-visit attribution label (letters, digits, hyphens); recorded only for a new browser/connector account, never a permission or cookie.</td>
+</tr>
+<tr>
+<td>utm_source</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only.</td>
+</tr>
+<tr>
+<td>utm_medium</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only.</td>
+</tr>
+<tr>
+<td>utm_campaign</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only.</td>
+</tr>
+<tr>
+<td>utm_term</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only.</td>
+</tr>
+<tr>
+<td>utm_content</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only.</td>
+</tr>
+<tr>
+<td>referrer</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Request body:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>choose_handle</td>
+<td>boolean</td>
+<td></td>
+<td>When this sign-in would create a new account: create nothing yet and answer 409 with code choose_handle and a suggested_handle, without using up the code. Ask the person which address they want, then verify again with the same code and handle. Ignored for an existing account.</td>
+</tr>
+<tr>
+<td>code</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>email</td>
+<td>string</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>handle</td>
+<td>string</td>
+<td></td>
+<td>The address (&lt;handle&gt;.simple-host.app) a NEW account takes; ignored for an existing account. Refused as 400 invalid_handle, 409 handle_reserved or 409 handle_taken without using up the code, so another can be tried. It can be changed later (PATCH /v1/me), not more than once in 30 days after publishing. Without handle or choose_handle a new account is given one.</td>
+</tr>
+<tr>
+<td>name</td>
+<td>string</td>
+<td></td>
+<td>Optional label for the key this sign-in issues, shown in the Keys list (GET /v1/me/keys). Defaults to “dashboard sign-in” for a link or Google, “agent sign-in” for a typed code.</td>
+</tr>
+<tr>
+<td>nonce</td>
+<td>string</td>
+<td></td>
+<td>required with token — the nonce whose hash was sent when the link was requested</td>
+</tr>
+<tr>
+<td>sso_state</td>
+<td>string</td>
+<td></td>
+<td>Optional server-issued hop state for visitor signup attribution</td>
+</tr>
+<tr>
+<td>token</td>
+<td>string</td>
+<td></td>
+<td>magic-link token (alternative to email+code)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Authenticated</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Invalid code. <code>code</code> stays invalid_code. <code>reason</code> is code_wrong, code_used_up, code_expired, or link_other_browser; <code>tries_left</code> is set on code_wrong.</td>
+</tr>
+<tr>
+<td>403</td>
+<td>account_auth_unavailable: account sign-in answers only on the app’s own address; a page’s visitors use visitor sign-in (auth.js SH.mount). Or email_signin_off (EMAIL_SIGNIN=off), for the email+code shape only — a magic-link token (from the company sign-in or Google flow) still redeems normally.</td>
+</tr>
+<tr>
+<td>409</td>
+<td>code choose_handle (a new account: choose its address first; carries suggested_handle and address), handle_taken / handle_reserved (the handle sent cannot be had; error names the address), or password_account_exists (this address already has a password account from PASSWORD_SIGNIN; the code is spent, sign in with the password instead). The code is not used up except for password_account_exists.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="get-v1handlescheck">GET /v1/handles/check</h2>
+<div data-operation="GET /v1/handles/check"></div>
+<p>Whether &lt;handle&gt;.simple-host.app can be taken as an account’s address: at sign-up (POST /v1/auth/verify with handle) or as a change (PATCH /v1/me). Handles, old handles that still redirect, free &lt;name&gt;.simple-host.app addresses claimed by sites, other accounts’ live site names (an unclaimed &lt;name&gt;.simple-host.app still redirects to that site) and reserved names share one namespace. With X-API-Key the account’s own handle counts as available. Rate limited per address (RATE_LIMIT_HANDLE_CHECK); no CORS, and a cross-site browser request gets 403. A claim still decides.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>handle</td>
+<td>query</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>The verdict</td>
+</tr>
+<tr>
+<td>403</td>
+<td>Cross-site browser request</td>
+</tr>
+<tr>
+<td>429</td>
+<td>Too many checks from this address</td>
+</tr>
+</tbody>
+</table>
+</div>
+								<footer class="sl-flex astro-ddtxxk7k">
+	<div class="meta sl-flex astro-ddtxxk7k">
+		
+		
+	</div>
+	<div class="pagination-links print:hidden astro-b5raizh3" dir="ltr">
+	<a href="/docs/api/analytics/" rel="prev" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg>
+		<span class="astro-b5raizh3">
+			Previous
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Analytics</span>
+		</span>
+	</a>
+	<a href="/docs/api/custom-domains/" rel="next" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>
+		<span class="astro-b5raizh3">
+			Next
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Custom domains</span>
+		</span>
+	</a>
+</div>
+
+	
+</footer>
+							</div>
+</div>
+						
+				</main>
+			</div>
+</div>
+		
+</div>
+</div>
+<!--sh:footer-->
+	</body>
+</html>
