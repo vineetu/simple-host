@@ -1614,7 +1614,7 @@
 </tr>
 <tr>
 <td>accent_color</td>
-<td>string</td>
+<td>string, one of ``, <code>red</code>, <code>teal</code>, <code>indigo</code>, <code>orange</code>, <code>yellow</code>, <code>grass</code>, <code>blush</code></td>
 <td></td>
 <td>Empty selects the stable slug crayon; otherwise choose a palette name.</td>
 </tr>
@@ -1644,7 +1644,7 @@
 </tr>
 <tr>
 <td>entry_required</td>
-<td>array of string</td>
+<td>array of string, one of <code>title</code>, <code>tagline</code>, <code>description</code>, <code>video_url</code>, <code>code_url</code>, <code>screenshot</code></td>
 <td></td>
 <td>Deprecated: use PUT …/entry-rules instead, which replaced this for the fuller rules model (presets, optional/off/one_of, judge_first). Sending this still works: it sets required for exactly the listed fields (everything else optional) and demotes the stored preset to custom. Anything else is 400 invalid_entry_field.</td>
 </tr>
@@ -2217,7 +2217,7 @@
 <tbody>
 <tr>
 <td>decision</td>
-<td>string</td>
+<td>string, one of <code>approved</code>, <code>rejected</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -2337,7 +2337,7 @@
 </tr>
 <tr>
 <td>age_range</td>
-<td>string</td>
+<td>string, one of ``, <code>under_18</code>, <code>18_24</code>, <code>25_34</code>, <code>35_plus</code></td>
 <td></td>
 <td>Optional.</td>
 </tr>
@@ -2367,7 +2367,7 @@
 </tr>
 <tr>
 <td>gender</td>
-<td>string</td>
+<td>string, one of ``, <code>woman</code>, <code>man</code>, <code>non_binary</code>, <code>another</code>, <code>prefer_not_to_say</code></td>
 <td></td>
 <td>Optional.</td>
 </tr>
@@ -2624,7 +2624,7 @@
 <tr>
 <td>role</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>organiser</code>, <code>judge</code>, <code>participant</code></td>
 <td></td>
 <td>Defaults to actual membership. Organisers may also request judge; synthetic admin inspection is read-only organiser.</td>
 </tr>
@@ -2911,7 +2911,7 @@
 <tr>
 <td>kind</td>
 <td>path</td>
-<td>string</td>
+<td>string, one of <code>join</code>, <code>judge</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -2974,7 +2974,7 @@
 <tr>
 <td>mine</td>
 <td>query</td>
-<td>integer</td>
+<td>integer, one of <code>1</code></td>
 <td></td>
 <td>Restrict to the caller, including an organiser in the judge area.</td>
 </tr>
@@ -3522,7 +3522,7 @@
 </tr>
 <tr>
 <td>maturity</td>
-<td>string</td>
+<td>string, one of ``, <code>working</code>, <code>partial</code>, <code>concept</code></td>
 <td></td>
 <td>How far along it is, or empty to clear. Anything else is 400 invalid_maturity.</td>
 </tr>
@@ -3711,13 +3711,13 @@
 </tr>
 <tr>
 <td>judge_first</td>
-<td>string</td>
+<td>string, one of <code>video</code>, <code>site</code></td>
 <td></td>
 <td>Which evidence judges see first. Anything else is 400 invalid_judge_first.</td>
 </tr>
 <tr>
 <td>preset</td>
-<td>string</td>
+<td>string, one of <code>video_or_website</code>, <code>video_website_code</code></td>
 <td></td>
 <td>Expands to that preset’s own field table first; any fields below are then applied on top. video_or_website (the default): video and site one_of, code off. video_website_code: video, site and code all required. An older preset (build, code, ideas, custom) is refused with 400 invalid_preset naming these two – an event already on one keeps it until a current preset is set here.</td>
 </tr>
@@ -5216,7 +5216,7 @@
 <tbody>
 <tr>
 <td>assignment_mode</td>
-<td>string</td>
+<td>string, one of <code>open</code>, <code>automatic</code>, <code>manual</code>, <code>panel</code></td>
 <td></td>
 <td></td>
 </tr>
@@ -5240,7 +5240,7 @@
 </tr>
 <tr>
 <td>score_mode</td>
-<td>string</td>
+<td>string, one of <code>raw</code>, <code>normalised</code></td>
 <td></td>
 <td></td>
 </tr>
@@ -5616,7 +5616,7 @@
 <tbody>
 <tr>
 <td>close</td>
-<td>string</td>
+<td>string, one of <code>end</code>, <code>delete</code></td>
 <td></td>
 <td>The only organiser only</td>
 </tr>
@@ -6671,7 +6671,7 @@
 <tr>
 <td>action</td>
 <td>path</td>
-<td>string</td>
+<td>string, one of <code>accept</code>, <code>decline</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -7117,7 +7117,7 @@
 <tr>
 <td>create</td>
 <td>query</td>
-<td>integer</td>
+<td>integer, one of <code>0</code>, <code>1</code></td>
 <td></td>
 <td></td>
 </tr>
@@ -7201,7 +7201,7 @@
 <tbody>
 <tr>
 <td>stage</td>
-<td>string</td>
+<td>string, one of <code>draft</code>, <code>open</code>, <code>building</code>, <code>closed</code>, <code>judging</code>, <code>results</code>, <code>archived</code></td>
 <td>yes</td>
 <td>closed makes the deadline now when it is unset or still later. Moving from closed back to open or building clears a passed deadline and passed team extensions. Judging and results keep submissions closed; archived ends the event permanently.</td>
 </tr>
@@ -9923,7 +9923,7 @@
 </tr>
 <tr>
 <td>eligibility</td>
-<td>string</td>
+<td>string, one of <code>all_signed_in</code>, <code>event_members</code>, <code>participants</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -10038,7 +10038,7 @@
 <tr>
 <td>create</td>
 <td>query</td>
-<td>integer</td>
+<td>integer, one of <code>0</code>, <code>1</code></td>
 <td></td>
 <td></td>
 </tr>
@@ -10110,7 +10110,7 @@
 <tbody>
 <tr>
 <td>mode</td>
-<td>string</td>
+<td>string, one of <code>builtin</code>, <code>custom</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -10169,7 +10169,7 @@
 <tr>
 <td>create</td>
 <td>query</td>
-<td>integer</td>
+<td>integer, one of <code>0</code>, <code>1</code></td>
 <td></td>
 <td></td>
 </tr>
@@ -10714,7 +10714,7 @@
 <tbody>
 <tr>
 <td>accept_coc</td>
-<td>boolean</td>
+<td>boolean, one of <code>True</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -10819,7 +10819,7 @@
 </tr>
 <tr>
 <td>theme</td>
-<td>string</td>
+<td>string, one of <code>system</code>, <code>light</code>, <code>dark</code></td>
 <td></td>
 <td></td>
 </tr>

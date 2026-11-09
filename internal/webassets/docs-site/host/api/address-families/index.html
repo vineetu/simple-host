@@ -503,7 +503,7 @@
 </tr>
 <tr>
 <td>cert_mode</td>
-<td>string</td>
+<td>string, one of <code>wildcard</code>, <code>per_host</code></td>
 <td></td>
 <td>wildcard: the operator’s wildcard certificate. per_host is not available yet (400 cert_mode_unavailable).</td>
 </tr>
@@ -552,7 +552,7 @@
 </tr>
 <tr>
 <td>400</td>
-<td>invalid_domain , invalid_site_prefix (lowercase letters, digits and hyphens, not at the start, up to 40 characters), invalid_rank (0 to 1000), cert_mode_unavailable (per_host), invalid_cert_mode.</td>
+<td>invalid_domain, invalid_site_prefix (lowercase letters, digits and hyphens, not at the start, up to 40 characters), invalid_rank (0 to 1000), cert_mode_unavailable (per_host), invalid_cert_mode.</td>
 </tr>
 <tr>
 <td>401</td>
@@ -594,7 +594,7 @@
 <tr>
 <td>sites</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>1</code></td>
 <td></td>
 <td>1: list every matching site and its address</td>
 </tr>

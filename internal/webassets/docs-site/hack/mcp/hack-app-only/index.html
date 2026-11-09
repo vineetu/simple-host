@@ -506,7 +506,6 @@
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><h2 id="hack_app_get_people">hack_app_get_people</h2>
 <div data-tool="hack_app_get_people"></div>
-<p><strong>App: load people</strong></p>
 <p>App-only companion of hack_get_people (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_people instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -529,7 +528,6 @@
 </table>
 <h2 id="hack_app_get_applications">hack_app_get_applications</h2>
 <div data-tool="hack_app_get_applications"></div>
-<p><strong>App: load applications</strong></p>
 <p>App-only companion of hack_get_applications (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_applications instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -552,7 +550,6 @@
 </table>
 <h2 id="hack_app_get_registration">hack_app_get_registration</h2>
 <div data-tool="hack_app_get_registration"></div>
-<p><strong>App: load sign-up settings</strong></p>
 <p>App-only companion of hack_get_registration (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_registration instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -575,7 +572,6 @@
 </table>
 <h2 id="hack_app_get_judging_settings">hack_app_get_judging_settings</h2>
 <div data-tool="hack_app_get_judging_settings"></div>
-<p><strong>App: load judging settings</strong></p>
 <p>App-only companion of hack_get_judging_settings (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_judging_settings instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -598,7 +594,6 @@
 </table>
 <h2 id="hack_app_get_conflicts">hack_app_get_conflicts</h2>
 <div data-tool="hack_app_get_conflicts"></div>
-<p><strong>App: load conflicts</strong></p>
 <p>App-only companion of hack_get_conflicts (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_conflicts instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -621,7 +616,6 @@
 </table>
 <h2 id="hack_app_get_teams">hack_app_get_teams</h2>
 <div data-tool="hack_app_get_teams"></div>
-<p><strong>App: load teams</strong></p>
 <p>App-only companion of hack_get_teams (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_teams instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -650,7 +644,6 @@
 </table>
 <h2 id="hack_app_get_assignments">hack_app_get_assignments</h2>
 <div data-tool="hack_app_get_assignments"></div>
-<p><strong>App: load assignments</strong></p>
 <p>App-only companion of hack_get_assignments (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_assignments instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -673,7 +666,6 @@
 </table>
 <h2 id="hack_app_get_judging_dashboard">hack_app_get_judging_dashboard</h2>
 <div data-tool="hack_app_get_judging_dashboard"></div>
-<p><strong>App: load judging progress</strong></p>
 <p>App-only companion of hack_get_judging_dashboard (SIM-344): the Judging view calls this on its own, every time it opens. Returns a fixed summary and counts; the real coverage data (team and judge names, former judges) goes to the view only, never to the model. Use hack_get_judging_dashboard instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -696,7 +688,6 @@
 </table>
 <h2 id="hack_app_set_event_stage">hack_app_set_event_stage</h2>
 <div data-tool="hack_app_set_event_stage"></div>
-<p><strong>App: change event stage</strong></p>
 <p>App-only companion of hack_set_event_stage (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_set_event_stage instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -717,7 +708,7 @@
 </tr>
 <tr>
 <td>stage</td>
-<td>string</td>
+<td>string, one of <code>draft</code>, <code>open</code>, <code>building</code>, <code>closed</code>, <code>judging</code>, <code>results</code>, <code>archived</code></td>
 <td>yes</td>
 <td>The stage to set. archived ends the event.</td>
 </tr>
@@ -725,7 +716,6 @@
 </table>
 <h2 id="hack_app_regenerate_code">hack_app_regenerate_code</h2>
 <div data-tool="hack_app_regenerate_code"></div>
-<p><strong>App: make a new join or judge link</strong></p>
 <p>App-only companion of hack_regenerate_code (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_regenerate_code instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -754,7 +744,6 @@
 </table>
 <h2 id="hack_app_create_organiser_invite">hack_app_create_organiser_invite</h2>
 <div data-tool="hack_app_create_organiser_invite"></div>
-<p><strong>App: create a co-organiser invitation</strong></p>
 <p>App-only companion of hack_create_organiser_invite (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_create_organiser_invite instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -777,7 +766,6 @@
 </table>
 <h2 id="hack_app_set_judging_ends_at">hack_app_set_judging_ends_at</h2>
 <div data-tool="hack_app_set_judging_ends_at"></div>
-<p><strong>App: set when judging closes</strong></p>
 <p>App-only companion of hack_update_event (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_update_event instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -806,7 +794,6 @@
 </table>
 <h2 id="hack_app_get_rubric">hack_app_get_rubric</h2>
 <div data-tool="hack_app_get_rubric"></div>
-<p><strong>App: load the rubric</strong></p>
 <p>App-only companion of hack_get_rubric (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_rubric instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -829,7 +816,6 @@
 </table>
 <h2 id="hack_app_get_judge_queue">hack_app_get_judge_queue</h2>
 <div data-tool="hack_app_get_judge_queue"></div>
-<p><strong>App: load the judging queue</strong></p>
 <p>App-only companion of hack_get_judge_queue (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_judge_queue instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -852,7 +838,6 @@
 </table>
 <h2 id="hack_app_get_judge_scores">hack_app_get_judge_scores</h2>
 <div data-tool="hack_app_get_judge_scores"></div>
-<p><strong>App: load my scores for a team</strong></p>
 <p>App-only companion of hack_get_judge_scores (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_judge_scores instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -881,7 +866,6 @@
 </table>
 <h2 id="hack_app_get_my_conflicts">hack_app_get_my_conflicts</h2>
 <div data-tool="hack_app_get_my_conflicts"></div>
-<p><strong>App: load my conflicts</strong></p>
 <p>App-only companion of hack_get_my_conflicts (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_my_conflicts instead for an explicit chat request.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -904,7 +888,6 @@
 </table>
 <h2 id="hack_show_judge">hack_show_judge</h2>
 <div data-tool="hack_show_judge"></div>
-<p><strong>Show the judge view</strong></p>
 <p>Open the judge app view in chat: invite (accept a judge invite, needs code), queue (My teams), score (one entry’s scoring, optional team_id) or rubric. Only offered to a connection whose app can render it; every judging action also has a plain tool (hack_get_judge_queue, hack_score_team, hack_declare_my_conflict, hack_get_rubric, hack_preview_judge, hack_join_judge) that works the same everywhere.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -937,7 +920,7 @@
 </tr>
 <tr>
 <td>view</td>
-<td>string</td>
+<td>string, one of <code>invite</code>, <code>queue</code>, <code>score</code>, <code>rubric</code></td>
 <td>yes</td>
 <td>Which judge view to open.</td>
 </tr>
@@ -945,7 +928,6 @@
 </table>
 <h2 id="hack_show_organiser">hack_show_organiser</h2>
 <div data-tool="hack_show_organiser"></div>
-<p><strong>Show the organiser view</strong></p>
 <p>Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (assignments, progress and former judges; rubric in website Settings). Only offered to a connection whose app can render it; every organiser action also has a plain tool (hack_get_event, hack_set_event_stage, hack_get_applications, hack_decide_application, hack_get_judging_dashboard, hack_lock_judging, …) that works the same everywhere.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -966,7 +948,7 @@
 </tr>
 <tr>
 <td>view</td>
-<td>string</td>
+<td>string, one of <code>overview</code>, <code>people</code>, <code>judging</code></td>
 <td>yes</td>
 <td>Which organiser view to open.</td>
 </tr>

@@ -732,7 +732,7 @@
 <tr>
 <td>X-Photo-Reconcile</td>
 <td>header</td>
-<td>string</td>
+<td>string, one of <code>1</code></td>
 <td></td>
 <td>Set to 1 after an uncertain save to check matching live photo bytes without writing a version. A missing match returns 409, never another upload.</td>
 </tr>
@@ -784,7 +784,7 @@
 </table>
 <h2 id="post-v1sitessitename">POST /v1/sites/{sitename}</h2>
 <div data-operation="POST /v1/sites/{sitename}"></div>
-<p>Upload a <code>.tar.gz</code> or <code>.zip</code> (for framework builds, binary assets, large sites). Max 100 MB. errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Upload a <code>.tar.gz</code> or <code>.zip</code> (for framework builds, binary assets, large sites). Max 100 MB.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -855,7 +855,7 @@
 </table>
 <h2 id="put-v1sitessitename">PUT /v1/sites/{sitename}</h2>
 <div data-operation="PUT /v1/sites/{sitename}"></div>
-<p>Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. <code>curl -X PUT ".../v1/sites/&lt;name&gt;?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz</code>. errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. <code>curl -X PUT ".../v1/sites/&lt;name&gt;?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz</code>.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -886,7 +886,7 @@
 <tr>
 <td>create</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>1</code>, <code>0</code>, <code>true</code>, <code>false</code></td>
 <td></td>
 <td>1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists</td>
 </tr>
@@ -933,7 +933,7 @@
 </table>
 <h2 id="post-v1sitessitenamefiles">POST /v1/sites/{sitename}/files</h2>
 <div data-operation="POST /v1/sites/{sitename}/files"></div>
-<p>The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in <code>files</code>; base64-encoded binary goes in <code>files_base64</code>. <code>index.html</code> is required. Relative paths only (<code>..</code>/absolute are rejected); secret files (<code>.env</code>, <code>.git/*</code>, <code>id_rsa</code>) are dropped and script extensions (<code>.sh .py .php …</code>) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in <code>files</code>; base64-encoded binary goes in <code>files_base64</code>. <code>index.html</code> is required. Relative paths only (<code>..</code>/absolute are rejected); secret files (<code>.env</code>, <code>.git/*</code>, <code>id_rsa</code>) are dropped and script extensions (<code>.sh .py .php …</code>) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1030,7 +1030,7 @@
 </table>
 <h2 id="put-v1sitessitenamefiles">PUT /v1/sites/{sitename}/files</h2>
 <div data-operation="PUT /v1/sites/{sitename}/files"></div>
-<p>Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps. errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1061,7 +1061,7 @@
 <tr>
 <td>create</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>1</code>, <code>0</code>, <code>true</code>, <code>false</code></td>
 <td></td>
 <td>1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists</td>
 </tr>
@@ -1075,7 +1075,7 @@
 <tr>
 <td>keep</td>
 <td>query</td>
-<td>integer</td>
+<td>integer, one of <code>1</code></td>
 <td></td>
 <td>Keep unchanged files from the live version; merged files use ordinary unpacked-file caps</td>
 </tr>
@@ -1145,7 +1145,7 @@
 </table>
 <h2 id="post-v1sitessitenamephotos">POST /v1/sites/{sitename}/photos</h2>
 <div data-operation="POST /v1/sites/{sitename}/photos"></div>
-<p>The Add photos page at /photos prepares images on the person’s device. Upload 1 to 30 WebP or JPEG files as repeated photos multipart parts. The endpoint accepts X-API-Key, including the dashboard’s stored owner key and account-wide deploy-only keys (not site-scoped), with the normal deploy permissions and rate limit. Visitor cookies do not authorize it. Browser origins must match the apex. Default limits are 1,000,000 bytes per photo (PHOTO_MAX_BYTES) and 2048 pixels on the longest side (PHOTO_MAX_DIMENSION). The server validates headers and container structure without decoding pixels or re-encoding. This is header-only validation, not a full decode of the compressed image. JPEG allows JFIF APP0, ICC_PROFILE APP2 (16 KB total), and Adobe APP14; comments and other APP markers are refused. WebP ICCP is limited to 16 KB; EXIF, XMP, animation, unknown chunks and trailing data are refused. ICC contents are not inspected; browser canvas output carries no profile or a standard profile. Signed-in and photo-token saves share PHOTO_MAX_CONCURRENT slots (default 3), acquired before body reads. Both entry points set a body-read deadline of 60 seconds (PHOTO_BODY_TIMEOUT_SECONDS) on the real response writer; unsupported writers continue normally. Full capacity returns 429 with error “Busy, try again in a moment” and Retry-After of 2 seconds, without queueing. Filenames must match ^[a-z0-9][a-z0-9-]{0,59}.(webp|jpg)$ and the extension must match the contents. Files go under images/, with -2, -3, and further suffixes for collisions. Every other live file is kept. After an uncertain response, resend the batch with X-Photo-Reconcile: 1. This only checks for distinct live files with matching names (including collision suffixes) and identical bytes. A full match returns the current version and reconciled: true; it confirms presence, not which request wrote the files. A missing match returns 409 photo_save_uncertain. Checks never create a version. Ordinary saves create one normal published version, with normal file quotas and retention. Hosted and small-box Simple Host only;</p>
+<p>The Add photos page at /photos prepares images on the person’s device. Upload 1 to 30 WebP or JPEG files as repeated photos multipart parts. The endpoint accepts X-API-Key, including the dashboard’s stored owner key and account-wide deploy-only keys (not site-scoped), with the normal deploy permissions and rate limit. Visitor cookies do not authorize it. Browser origins must match the apex. Default limits are 1,000,000 bytes per photo (PHOTO_MAX_BYTES) and 2048 pixels on the longest side (PHOTO_MAX_DIMENSION). The server validates headers and container structure without decoding pixels or re-encoding. This is header-only validation, not a full decode of the compressed image. JPEG allows JFIF APP0, ICC_PROFILE APP2 (16 KB total), and Adobe APP14; comments and other APP markers are refused. WebP ICCP is limited to 16 KB; EXIF, XMP, animation, unknown chunks and trailing data are refused. ICC contents are not inspected; browser canvas output carries no profile or a standard profile. Signed-in and photo-token saves share PHOTO_MAX_CONCURRENT slots (default 3), acquired before body reads. Both entry points set a body-read deadline of 60 seconds (PHOTO_BODY_TIMEOUT_SECONDS) on the real response writer; unsupported writers continue normally. Full capacity returns 429 with error “Busy, try again in a moment” and Retry-After of 2 seconds, without queueing. Filenames must match ^[a-z0-9][a-z0-9-]{0,59}.(webp|jpg)$ and the extension must match the contents. Files go under images/, with -2, -3, and further suffixes for collisions. Every other live file is kept. After an uncertain response, resend the batch with X-Photo-Reconcile: 1. This only checks for distinct live files with matching names (including collision suffixes) and identical bytes. A full match returns the current version and reconciled: true; it confirms presence, not which request wrote the files. A missing match returns 409 photo_save_uncertain. Checks never create a version. Ordinary saves create one normal published version, with normal file quotas and retention. Hosted and small-box Simple Host only.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1176,7 +1176,7 @@
 <tr>
 <td>X-Photo-Reconcile</td>
 <td>header</td>
-<td>string</td>
+<td>string, one of <code>1</code></td>
 <td></td>
 <td>Set to 1 after an uncertain save to check matching live photo bytes without writing a version. A missing match returns 409, never another upload.</td>
 </tr>
@@ -1228,7 +1228,7 @@
 </table>
 <h2 id="post-v1uploadstoken">POST /v1/uploads/{token}</h2>
 <div data-operation="POST /v1/uploads/{token}"></div>
-<p>Use the private link returned by create_upload_link with archive true from a shell . Works once for one site for 15 minutes, including failed uploads. Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.</p>
+<p>Use the private link returned by create_upload_link with archive true from a shell. Works once for one site for 15 minutes, including failed uploads. Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.</p>
 <p>No authentication required.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1301,7 +1301,7 @@
 </table>
 <h2 id="put-v1uploadstoken">PUT /v1/uploads/{token}</h2>
 <div data-operation="PUT /v1/uploads/{token}"></div>
-<p>Use the private link returned by create_upload_link with archive true from a shell . Works once for one site for 15 minutes, including failed uploads. Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.</p>
+<p>Use the private link returned by create_upload_link with archive true from a shell. Works once for one site for 15 minutes, including failed uploads. Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.</p>
 <p>No authentication required.</p>
 <p><strong>Parameters:</strong></p>
 <table>

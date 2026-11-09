@@ -151,7 +151,7 @@ html.sh-hack tr.on td {
   --accent:var(--paper); --accent-hover:var(--paper);
   box-shadow:inset 0 0 0 2px var(--line); font-weight:700;
 }
-/* Nested labels (provider details, Swagger tablinks, counts) retain contrast. */
+/* Nested labels (provider details, counts) retain contrast. */
 html.sh-hack :is(button,a,[role="tab"],.tab,.chip,.owner-tab,.range-opt):is(
   [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
   .active,.on,.selected,.current
@@ -167,8 +167,7 @@ html.sh-hack :is([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is(
   [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
   .active,.on,.selected,.current
 ),
-html.sh-hack #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current),
-html.sh-hack .swagger-ui .tab li.active button.tablinks {
+html.sh-hack #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current) {
   position:relative; background:transparent; color:var(--line) !important; box-shadow:none;
   border-bottom-color:transparent;
   --text:var(--line); --text-secondary:var(--line-soft); --accent:#a33f31;
@@ -177,7 +176,6 @@ html.sh-hack[data-theme="dark"] :is([role="tab"],.tab,.chip,.owner-tab,.range-op
 html.sh-hack .chip.chip:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current) { border-color:var(--line); }
 /* In the phone section menu the selected cell shrinks to its label, so the mark does too. */
 html.sh-hack #mg-tabs.menu-open .tab[aria-selected="true"] { justify-self:start; }
-html.sh-hack .swagger-ui .tab li.active { background:transparent; }
 
 /* Header: the current page keeps its ink and gets a hand-drawn red
    underline, the same mark as the tabs above.
@@ -206,7 +204,6 @@ html.sh-hack :is([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is(
   .active,.on,.selected,.current
 )::after,
 html.sh-hack #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after,
-html.sh-hack .swagger-ui .tab li.active button.tablinks::after,
 html.sh-hack .sh-header :is(.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"]))::after {
   content:""; position:absolute; left:10px; right:10px; bottom:6px; height:7px; pointer-events:none;
   background:var(--nav-mark);
@@ -216,7 +213,6 @@ html.sh-hack .sh-header :is(.sh-signin,.sh-signout):is([aria-current]:not([aria-
 html.sh-hack .sh-header .sh-acct-link:is([aria-current]:not([aria-current="false"]))::after { left:4px; right:4px; }
 /* Where the mark sits on each control: under the label, not the padding. */
 html.sh-hack .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after,
-html.sh-hack .swagger-ui .tab li.active button.tablinks::after,
 html.sh-hack #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:10px; right:10px; bottom:4px; }
 html.sh-hack .owner-tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:-2px; right:-2px; bottom:4px; }
 html.sh-hack :is(.range-opt,[data-os],.chip):is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:9px; right:9px; bottom:2px; height:6px; }

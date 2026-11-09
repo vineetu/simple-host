@@ -8,6 +8,7 @@ Output is plain Markdown (not MDX) under docs/site/.generated-content/<slug>/,
 written by generate(brand, target) and wired into docs-site.py's prepare().
 Deterministic: same inventory JSON in, same bytes out.
 """
+import functools
 import json
 import re
 import subprocess
@@ -34,11 +35,17 @@ FAMILY_LABELS = {
 }
 
 
-def run_inventory(command, brand):
+@functools.lru_cache(maxsize=None)
+def inventory_text(command, brand):
+    """One go run per command and brand per process (build and check share it)."""
     proc = subprocess.run(
         ['go', 'run', './scripts/inventory', command, '-edition', brand],
         cwd=ROOT, check=True, capture_output=True, text=True)
-    return json.loads(proc.stdout)
+    return proc.stdout
+
+
+def run_inventory(command, brand):
+    return json.loads(inventory_text(command, brand))
 
 
 def slugify(text):
@@ -105,11 +112,12 @@ def schema_type(schema, spec, depth=0):
             return 'array'
         return f"array of {schema_type(schema.get('items', {}), spec, depth + 1)}"
     if t == 'object' or (t is None and ('properties' in schema or 'additionalProperties' in schema)):
-        if depth >= 1:
-            return 'object'
         return 'object'
     if isinstance(t, list):
         return ' or '.join(t)
+    if schema.get('enum'):
+        values = ', '.join(f'`{v}`' for v in schema['enum'])
+        return f"{t or 'any'}, one of {values}"
     return t or 'any'
 
 
@@ -235,6 +243,8 @@ def api_pages(spec, hack_filter=None):
         if not ops:
             continue
         slug = slugify(name)
+        if slug in pages:
+            raise ValueError(f'two API tags share the page slug {slug!r}')
         tag_description = tag_obj.get('description', '')
         if hack_filter is not None:
             tag_description = hack_filter(tag_description, f'tag {name}')
@@ -302,9 +312,6 @@ def mcp_pages(tools, install_href, hack_filter=None):
             lines.append('')
             lines.append(f'<div data-tool="{tool["name"]}"></div>')
             lines.append('')
-            if tool.get('title'):
-                lines.append(f'**{esc(tool["title"])}**')
-                lines.append('')
             lines.append(esc(tool.get('description', '')))
             lines.append('')
             rows = mcp_param_rows(tool.get('input_schema'), filt=hack_filter)
@@ -325,37 +332,40 @@ def mcp_pages(tools, install_href, hack_filter=None):
 
 # ── Host owner constraint: public Simple Host output must never say "hack" ──
 HACK_WORD = re.compile(r'hack', re.I)
-PARENS = re.compile(r'\([^()]*\)')
-SENTENCE_SPLIT = re.compile(r'(?<=[.!?;])\s+')
-
-
+PARENS = re.compile(r'\s*\([^()]*\)')
+SENTENCE_SPLIT = re.compile(r'(?<=[.!?])\s+')
 CONJUNCTION = re.compile(r'\s*(?:,\s*)?(?:and|or|&)\s+(?:on\s+)?Simple Hack\b', re.I)
+
+
+def drop_hack_clauses(sentence):
+    """Within one sentence, a Hack clause and the clauses after it (split on
+    ';') are about Hack; the clauses before it still describe Host."""
+    clauses = sentence.split('; ')
+    for i, clause in enumerate(clauses):
+        if HACK_WORD.search(clause):
+            kept = '; '.join(clauses[:i]).rstrip(' ,:;')
+            if not kept:
+                return ''
+            return kept if kept[-1] in '.!?' else kept + '.'
+    return sentence
 
 
 def drop_hack_mentions(text, where):
     if not text or not HACK_WORD.search(text):
         return text
     text = PARENS.sub(lambda m: '' if HACK_WORD.search(m.group(0)) else m.group(0), text)
-    text = re.sub(r'\s{2,}', ' ', text).strip()
+    text = re.sub(r'[ \t]{2,}', ' ', text).strip()
     if not HACK_WORD.search(text):
         return text
     # A sentence naming both products as a conjunction ("... on Simple Host
-    # and Simple Hack.") is about Host too; drop just the Hack half rather
-    # than the whole sentence.
+    # and Simple Hack.") is about Host too; drop just the Hack half.
     trimmed = CONJUNCTION.sub('', text)
     if not HACK_WORD.search(trimmed):
         return trimmed.strip()
-    sentences = SENTENCE_SPLIT.split(trimmed)
-    kept = [s for s in sentences if not HACK_WORD.search(s)]
+    kept = [c for c in (drop_hack_clauses(s) for s in SENTENCE_SPLIT.split(trimmed)) if c]
     if not kept:
         raise ValueError(f'host description would vanish entirely after the Hack filter: {where}')
     return ' '.join(kept).strip()
-
-
-def build_api_filter():
-    def _filter(description, where):
-        return drop_hack_mentions(description, where)
-    return _filter
 
 
 def generate(brand, generated_content):
@@ -365,7 +375,7 @@ def generate(brand, generated_content):
     tools = run_inventory('tools-json', brand)
     spec = run_inventory('openapi-json', brand)
 
-    hack_filter = build_api_filter() if brand == 'host' else None
+    hack_filter = drop_hack_mentions if brand == 'host' else None
     api_index, api_tag_pages = api_pages(spec, hack_filter)
     if brand == 'host':
         for tool in tools:

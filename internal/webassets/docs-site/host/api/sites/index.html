@@ -767,7 +767,7 @@
 </table>
 <h2 id="get-v1sites">GET /v1/sites</h2>
 <div data-operation="GET /v1/sites"></div>
-<p>Returns the authenticated account’s own sites, newest edited first (updated_at desc, then created_at desc). all=1 widens an admin’s list to every account’s sites; refused (403) for a non-admin. errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Returns the authenticated account’s own sites, newest edited first (updated_at desc, then created_at desc). all=1 widens an admin’s list to every account’s sites; refused (403) for a non-admin.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -819,7 +819,7 @@
 <tr>
 <td>order</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>updated</code>, <code>created</code>, <code>name</code></td>
 <td></td>
 <td>Sort key; default updated (last edited first).</td>
 </tr>
@@ -840,7 +840,7 @@
 <tr>
 <td>all</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>1</code></td>
 <td></td>
 <td>Admin only: every account’s sites instead of just this one. 403 for a non-admin.</td>
 </tr>
@@ -1008,7 +1008,7 @@
 </table>
 <h2 id="get-v1sitessitenameaccess">GET /v1/sites/{sitename}/access</h2>
 <div data-operation="GET /v1/sites/{sitename}/access"></div>
-<p>Owner only (the owner’s key or connector token; a deploy-only key is refused). <code>access</code> is <code>anyone</code> (anyone with the address, or with the passcode when the site has one) or <code>specific</code> (only the owner and the named viewers, each signed in with visitor sign-in on the site’s own address). <code>viewers</code> lists the named viewers by the email they sign in with. Never cached (Cache-Control: no-store). Hosted Simple Host and small boxes only;</p>
+<p>Owner only (the owner’s key or connector token; a deploy-only key is refused). <code>access</code> is <code>anyone</code> (anyone with the address, or with the passcode when the site has one) or <code>specific</code> (only the owner and the named viewers, each signed in with visitor sign-in on the site’s own address). <code>viewers</code> lists the named viewers by the email they sign in with. Never cached (Cache-Control: no-store). Hosted Simple Host and small boxes only.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1096,7 +1096,7 @@
 <tbody>
 <tr>
 <td>access</td>
-<td>string</td>
+<td>string, one of <code>anyone</code>, <code>specific</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -1911,7 +1911,7 @@
 <tbody>
 <tr>
 <td>visibility</td>
-<td>string</td>
+<td>string, one of <code>public</code>, <code>unlisted</code></td>
 <td>yes</td>
 <td></td>
 </tr>

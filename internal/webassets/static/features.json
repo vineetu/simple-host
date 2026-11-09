@@ -2853,6 +2853,10 @@
       {
        "label": "FEATURES.md \u00a76 Visitor sign-in",
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/self-hosting/"
       }
      ],
      "covers": [
@@ -2886,6 +2890,10 @@
       {
        "label": "Sign-in methods (auth.md)",
        "href": "/auth.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/self-hosting/"
       }
      ],
      "covers": [
@@ -3028,6 +3036,10 @@
       {
        "href": "/auth.md",
        "label": "Authentication"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/self-hosting/"
       }
      ],
      "covers": [
@@ -5259,6 +5271,10 @@
       {
        "label": "Enterprise brief",
        "href": "/enterprise/brief"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/self-hosting/"
       }
      ],
      "covers": [],

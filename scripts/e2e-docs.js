@@ -28,7 +28,7 @@ const fs = require('node:fs');
           }).observe(document, {childList:true, subtree:true});
         });
         const guide = brand === 'host' ? 'addresses' : 'notifications';
-        for (const [path, name] of [['/docs/','home'], [`/docs/guides/${guide}/`,'guide'], ['/docs/api/','api']]) {
+        for (const [path, name] of [['/docs/','home'], [`/docs/guides/${guide}/`,'guide'], ['/docs/api/','api'], ['/docs/api/sites/','api-area']]) {
           const response = await page.goto(base + path, {waitUntil:'networkidle'});
           assert.equal(response.status(), 200);
           assert.equal(await page.locator('script:not([src])').count(), 0);
@@ -38,7 +38,7 @@ const fs = require('node:fs');
           assert.equal(state.theme, scheme, `${brand} ${path} theme`);
           assert.equal(state.first, scheme, `${brand} ${path} first paint`);
           assert.ok(state.width <= width, `${brand} ${path} ${width}px overflows to ${state.width}`);
-          if (name === 'api') await page.locator('#swagger-ui .opblock').first().waitFor();
+          if (name === 'api-area') assert.ok(await page.locator('[data-operation]').count() > 0, `${brand} API area has operations`);
           await page.screenshot({path:`${shots}/${brand}-${name}-${width}-${scheme}.png`,fullPage:true});
         }
         await page.goto(base + '/docs/', {waitUntil:'networkidle'});
@@ -101,7 +101,7 @@ const fs = require('node:fs');
         await page.goto(base + '/docs.html#unrecognised-old-anchor');
         assert.equal(new URL(page.url()).pathname, '/docs/');
         assert.deepEqual(errors, [], `${brand} ${width}px ${scheme}: browser errors`);
-        console.log(`ok: ${brand} ${width}px ${scheme}, chrome, theme, search, menu, Swagger, tabs, anchors`);
+        console.log(`ok: ${brand} ${width}px ${scheme}, chrome, theme, search, menu, API reference, tabs, anchors`);
         await context.close();
       }
     }

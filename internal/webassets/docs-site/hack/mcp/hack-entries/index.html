@@ -680,7 +680,6 @@
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><h2 id="hack_get_rubric">hack_get_rubric</h2>
 <div data-tool="hack_get_rubric"></div>
-<p><strong>Get the rubric</strong></p>
 <p>Read an event’s judging rubric: each criterion’s name, description, weight and maximum points, never scores. Organiser, judge, or an approved participant reading their own event’s rubric.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -703,7 +702,6 @@
 </table>
 <h2 id="hack_set_rubric">hack_set_rubric</h2>
 <div data-tool="hack_set_rubric"></div>
-<p><strong>Replace the rubric</strong></p>
 <p>Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -738,7 +736,6 @@
 </table>
 <h2 id="hack_export_scores">hack_export_scores</h2>
 <div data-tool="hack_export_scores"></div>
-<p><strong>Export scores</strong></p>
 <p>Download the event’s scores as CSV (team, judge, criterion, points, max points, comment). Organiser only. Give the file to the person; do not post it publicly.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -761,7 +758,6 @@
 </table>
 <h2 id="hack_export_results">hack_export_results</h2>
 <div data-tool="hack_export_results"></div>
-<p><strong>Export results</strong></p>
 <p>Download the event’s results as CSV (team, total, rank, tied, judges scored). Uses the published results when there are some, otherwise the current totals. Organiser only. Give the file to the person; do not post it publicly.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -784,7 +780,6 @@
 </table>
 <h2 id="hack_get_entry">hack_get_entry</h2>
 <div data-tool="hack_get_entry"></div>
-<p><strong>Read my team’s entry</strong></p>
 <p>Read the entry, the event’s entry rules, completeness, submit status, the Home progress checklist and entry deadline.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -807,7 +802,6 @@
 </table>
 <h2 id="hack_update_entry">hack_update_entry</h2>
 <div data-tool="hack_update_entry"></div>
-<p><strong>Update my team’s entry</strong></p>
 <p>Set only the entry fields supplied. Empty strings clear fields. tagline is the one-line solution shown on the summary card; description is the longer write-up. Saving a draft never checks or changes completeness and never submits it – call hack_submit_entry when it’s ready. tools lists what was used, up to 10 items, each 1-30 characters, case-insensitive duplicates dropped. maturity is how far along it is: working, partial, concept, or empty to clear. track sets the team’s chosen track by its slug, or clears it with an empty string. A save on an already-submitted entry that would make it incomplete is refused with <code>missing</code>. Ask before overwriting team text.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -840,7 +834,7 @@
 </tr>
 <tr>
 <td>maturity</td>
-<td>string</td>
+<td>string, one of ``, <code>working</code>, <code>partial</code>, <code>concept</code></td>
 <td></td>
 <td>How far along it is, or empty to clear.</td>
 </tr>
@@ -896,7 +890,6 @@
 </table>
 <h2 id="hack_submit_entry">hack_submit_entry</h2>
 <div data-tool="hack_submit_entry"></div>
-<p><strong>Submit my team’s entry</strong></p>
 <p>Move the entry from draft to submitted. Refused with <code>missing</code> (422 entry_incomplete, “Add these first: …”) when a required field or the show-your-work evidence is missing. Idempotent: submitting an already-submitted entry just keeps it submitted. A complete draft is also auto-submitted on its own at the deadline; an incomplete one stays a draft, is still judged, and is flagged Incomplete – organisers can exclude it by hand with hack_set_entry_excluded.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -925,7 +918,6 @@
 </table>
 <h2 id="hack_unsubmit_entry">hack_unsubmit_entry</h2>
 <div data-tool="hack_unsubmit_entry"></div>
-<p><strong>Unsubmit my team’s entry</strong></p>
 <p>Put a submitted entry back to draft. Works only before the deadline; refused once it has passed. Reversible: call hack_submit_entry again anytime before the deadline.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -948,7 +940,6 @@
 </table>
 <h2 id="hack_delete_entry_screenshot">hack_delete_entry_screenshot</h2>
 <div data-tool="hack_delete_entry_screenshot"></div>
-<p><strong>Remove my entry screenshot</strong></p>
 <p>Remove the team’s entry screenshot. Confirm first.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -971,7 +962,6 @@
 </table>
 <h2 id="hack_get_voting">hack_get_voting</h2>
 <div data-tool="hack_get_voting"></div>
-<p><strong>Read voting options</strong></p>
 <p>Read voting status, eligible teams and published vote ranking when available.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -994,7 +984,6 @@
 </table>
 <h2 id="hack_get_my_vote">hack_get_my_vote</h2>
 <div data-tool="hack_get_my_vote"></div>
-<p><strong>Read my vote</strong></p>
 <p>Read this person’s current vote.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1017,7 +1006,6 @@
 </table>
 <h2 id="hack_vote">hack_vote</h2>
 <div data-tool="hack_vote"></div>
-<p><strong>Cast or change my vote</strong></p>
 <p>Vote for an eligible team. This can replace the person’s previous vote. Confirm their choice first.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1046,7 +1034,6 @@
 </table>
 <h2 id="hack_get_my_results">hack_get_my_results</h2>
 <div data-tool="hack_get_my_results"></div>
-<p><strong>Read my team’s results</strong></p>
 <p>Read this participant’s published result and judge comments.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1069,7 +1056,6 @@
 </table>
 <h2 id="hack_get_judge_queue">hack_get_judge_queue</h2>
 <div data-tool="hack_get_judge_queue"></div>
-<p><strong>Read my judging queue</strong></p>
 <p>List eligible entries, entry, pinned website link, conflicts and scoring status. Records any due submission deadline pins.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1092,7 +1078,6 @@
 </table>
 <h2 id="hack_get_judge_scores">hack_get_judge_scores</h2>
 <div data-tool="hack_get_judge_scores"></div>
-<p><strong>Read my scores for a team</strong></p>
 <p>Read this judge’s scores and comment for one queue team.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1121,7 +1106,6 @@
 </table>
 <h2 id="hack_score_team">hack_score_team</h2>
 <div data-tool="hack_score_team"></div>
-<p><strong>Score a team</strong></p>
 <p>Save one or more criterion scores and optionally a comment. Confirm the scores with the judge before saving.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1162,7 +1146,6 @@
 </table>
 <h2 id="hack_get_my_conflicts">hack_get_my_conflicts</h2>
 <div data-tool="hack_get_my_conflicts"></div>
-<p><strong>Read my conflicts</strong></p>
 <p>List this judge’s declared conflicts.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1185,7 +1168,6 @@
 </table>
 <h2 id="hack_declare_my_conflict">hack_declare_my_conflict</h2>
 <div data-tool="hack_declare_my_conflict"></div>
-<p><strong>Declare a conflict</strong></p>
 <p>Declare that this judge has a conflict with a team; scores for it will be unavailable. Confirm first.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1214,7 +1196,6 @@
 </table>
 <h2 id="hack_remove_my_conflict">hack_remove_my_conflict</h2>
 <div data-tool="hack_remove_my_conflict"></div>
-<p><strong>Remove my conflict</strong></p>
 <p>Remove this judge’s conflict with a team. Confirm first.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1243,7 +1224,6 @@
 </table>
 <h2 id="hack_get_entry_screenshot">hack_get_entry_screenshot</h2>
 <div data-tool="hack_get_entry_screenshot"></div>
-<p><strong>Read my team’s screenshot</strong></p>
 <p>Read my team’s screenshot</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1266,7 +1246,6 @@
 </table>
 <h2 id="hack_set_entry_screenshot">hack_set_entry_screenshot</h2>
 <div data-tool="hack_set_entry_screenshot"></div>
-<p><strong>Upload my team’s screenshot. Ask the person before replacing the current image.</strong></p>
 <p>Upload my team’s screenshot. Ask the person before replacing the current image.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1295,7 +1274,6 @@
 </table>
 <h2 id="hack_get_voting_settings">hack_get_voting_settings</h2>
 <div data-tool="hack_get_voting_settings"></div>
-<p><strong>Read voting settings</strong></p>
 <p>Read event voting settings. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1318,7 +1296,6 @@
 </table>
 <h2 id="hack_set_voting_settings">hack_set_voting_settings</h2>
 <div data-tool="hack_set_voting_settings"></div>
-<p><strong>Set voting settings</strong></p>
 <p>Replace voting settings in the REST body. Narrowing eligibility removes earlier ineligible votes and returns votes_removed. Check votes_to_remove in hack_get_voting_settings and ask before removing votes; send confirm_vote_removal: true after confirmation or receive 409 vote_removal_confirmation with the count. Opening voting is public; ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1347,7 +1324,6 @@
 </table>
 <h2 id="hack_get_entries">hack_get_entries</h2>
 <div data-tool="hack_get_entries"></div>
-<p><strong>List entries</strong></p>
 <p>Read all team entries and pinned website links, plus counts by status (submitted, drafts, not_started, not_submitted, sites_live). Records any due submission deadline pins. Organiser or judge.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1370,7 +1346,6 @@
 </table>
 <h2 id="hack_get_entry_rules">hack_get_entry_rules</h2>
 <div data-tool="hack_get_entry_rules"></div>
-<p><strong>Read entry rules</strong></p>
 <p>Read which entry fields are required, optional, off or one of (for the show-your-work evidence: video, website, code or screenshot), the active preset (video_or_website, video_website_code, or a legacy build/code/ideas/custom an older event may still carry), which evidence judges see first (judge_first: video or site), the one-sentence rules summary participants see, and whether rules can still change (editable, false from Closed on). Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1393,7 +1368,6 @@
 </table>
 <h2 id="hack_set_entry_rules">hack_set_entry_rules</h2>
 <div data-tool="hack_set_entry_rules"></div>
-<p><strong>Set entry rules</strong></p>
 <p>Choose a preset – video_or_website (the default: at least one of a video or a website) or video_website_code (video, website and code link all required) – and/or set individual fields to required, optional, off, or one_of (video_url, site, code_url and screenshot only; exactly one such field needs to be met). judge_first picks which evidence (video or site) judges see first. Setting a field that differs from the active preset’s own table demotes the stored preset to custom. An event already on an older preset (build, code, ideas or custom) keeps it and its saved values until you set one of the two current presets or change a field; preset build, code, ideas or custom is refused (400 invalid_preset) – it names the two you can choose. dry_run:true returns the impact (how many submitted entries would newly read as missing something, how many drafts would be newly blocked, and which teams) and a preview, without saving anything. Tightening never un-submits an already-submitted entry. Refused once entries have closed (Closed stage onward): rules are fixed so judging sees one definition of complete. On a new event this is also the organiser’s first move (next_step.kind entry_rules on hack_get_event): ask which preset before opening sign-up, even if they want the default. Ask before narrowing rules on a live event. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1422,7 +1396,6 @@
 </table>
 <h2 id="hack_get_team_screenshot">hack_get_team_screenshot</h2>
 <div data-tool="hack_get_team_screenshot"></div>
-<p><strong>Read team screenshot</strong></p>
 <p>Read one team’s entry screenshot as base64 image bytes. Organiser or judge.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1451,7 +1424,6 @@
 </table>
 <h2 id="hack_get_judging_settings">hack_get_judging_settings</h2>
 <div data-tool="hack_get_judging_settings"></div>
-<p><strong>Read judging settings</strong></p>
 <p>Read assignment and scoring settings. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1474,7 +1446,6 @@
 </table>
 <h2 id="hack_set_judging_settings">hack_set_judging_settings</h2>
 <div data-tool="hack_set_judging_settings"></div>
-<p><strong>Set judging settings</strong></p>
 <p>Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1503,7 +1474,6 @@
 </table>
 <h2 id="hack_generate_assignments">hack_generate_assignments</h2>
 <div data-tool="hack_generate_assignments"></div>
-<p><strong>Generate judge assignments</strong></p>
 <p>Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1532,7 +1502,6 @@
 </table>
 <h2 id="hack_get_assignments">hack_get_assignments</h2>
 <div data-tool="hack_get_assignments"></div>
-<p><strong>Read judge assignments</strong></p>
 <p>Read manual assignments. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1555,7 +1524,6 @@
 </table>
 <h2 id="hack_set_assignments">hack_set_assignments</h2>
 <div data-tool="hack_set_assignments"></div>
-<p><strong>Replace judge assignments</strong></p>
 <p>Replace manual assignments with body.assignments. Ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1584,7 +1552,6 @@
 </table>
 <h2 id="hack_get_panels">hack_get_panels</h2>
 <div data-tool="hack_get_panels"></div>
-<p><strong>Read judging panels</strong></p>
 <p>Read track judging panels. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1607,7 +1574,6 @@
 </table>
 <h2 id="hack_set_panels">hack_set_panels</h2>
 <div data-tool="hack_set_panels"></div>
-<p><strong>Replace judging panels</strong></p>
 <p>Replace track panel memberships with body.panels. Ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1636,7 +1602,6 @@
 </table>
 <h2 id="hack_preview_judging_assignments">hack_preview_judging_assignments</h2>
 <div data-tool="hack_preview_judging_assignments"></div>
-<p><strong>Preview judging</strong></p>
 <p>Preview assignment coverage without changing it. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1659,7 +1624,6 @@
 </table>
 <h2 id="hack_get_conflicts">hack_get_conflicts</h2>
 <div data-tool="hack_get_conflicts"></div>
-<p><strong>Read conflicts</strong></p>
 <p>Read declared judge/team conflicts. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1682,7 +1646,6 @@
 </table>
 <h2 id="hack_set_judge_conflict">hack_set_judge_conflict</h2>
 <div data-tool="hack_set_judge_conflict"></div>
-<p><strong>Record judge conflict</strong></p>
 <p>Record a conflict for any event judge using body.team_id and body.judge_user_id. Organisers may also omit judge_user_id to record their own conflict. Existing scores for that pairing leave current totals; ask first.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1711,7 +1674,6 @@
 </table>
 <h2 id="hack_remove_judge_conflict">hack_remove_judge_conflict</h2>
 <div data-tool="hack_remove_judge_conflict"></div>
-<p><strong>Remove judge conflict</strong></p>
 <p>Remove a conflict; use query judge_user_id to choose another judge, or omit it for yourself. Ask before removing. Organiser only for another judge.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1746,7 +1708,6 @@
 </table>
 <h2 id="hack_get_judging_dashboard">hack_get_judging_dashboard</h2>
 <div data-tool="hack_get_judging_dashboard"></div>
-<p><strong>Read judging progress</strong></p>
 <p>Read judging coverage and totals, plus former_judges (people who left after scoring: their counted_teams still count toward totals until deleted). Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1769,7 +1730,6 @@
 </table>
 <h2 id="hack_delete_former_judge_scores">hack_delete_former_judge_scores</h2>
 <div data-tool="hack_delete_former_judge_scores"></div>
-<p><strong>Delete a departed judge’s scores</strong></p>
 <p>Delete the scores and comments of a judge who left the event, so they stop counting. user_id from former_judges in hack_get_judging_dashboard. confirm is the event’s address name, sent only after the person agreed. Refused while judging is locked. Published results change only when results are published again. Ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1804,7 +1764,6 @@
 </table>
 <h2 id="hack_lock_judging">hack_lock_judging</h2>
 <div data-tool="hack_lock_judging"></div>
-<p><strong>Lock judging</strong></p>
 <p>Freeze scores and comments. Ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1827,7 +1786,6 @@
 </table>
 <h2 id="hack_unlock_judging">hack_unlock_judging</h2>
 <div data-tool="hack_unlock_judging"></div>
-<p><strong>Unlock judging</strong></p>
 <p>Reopen scoring with body.reason. Ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1856,7 +1814,6 @@
 </table>
 <h2 id="hack_publish_results">hack_publish_results</h2>
 <div data-tool="hack_publish_results"></div>
-<p><strong>Publish results</strong></p>
 <p>Publish results using body.rank_overrides for any tie breaks. This replaces the previous public snapshot: show the preview and ask first. Refused before entries close (409 judging_not_started). From Closed or Judging it moves the event to the Results stage and locks judging first, the same as Finish judging, so the stage and the public page never keep saying Judging once winners are out. Safe to call again after the event has ended, to fix a result (for example a disqualified team); it never reopens an ended event. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1885,7 +1842,6 @@
 </table>
 <h2 id="hack_set_results_view">hack_set_results_view</h2>
 <div data-tool="hack_set_results_view"></div>
-<p><strong>Set public results view</strong></p>
 <p>Set body.full_ranking to show all ranks or winners only. Ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1914,7 +1870,6 @@
 </table>
 <h2 id="hack_get_public_results">hack_get_public_results</h2>
 <div data-tool="hack_get_public_results"></div>
-<p><strong>Read public results</strong></p>
 <p>Read published results. Available publicly after publication.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1937,7 +1892,6 @@
 </table>
 <h2 id="hack_export_entries">hack_export_entries</h2>
 <div data-tool="hack_export_entries"></div>
-<p><strong>Export entries</strong></p>
 <p>Read the entries CSV. Organiser only; keep private.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1960,7 +1914,6 @@
 </table>
 <h2 id="hack_set_entry_excluded">hack_set_entry_excluded</h2>
 <div data-tool="hack_set_entry_excluded"></div>
-<p><strong>Exclude or include an entry</strong></p>
 <p>Hand-exclude a team’s entry from judging, or put it back in. Organisers typically do this for an entry flagged Incomplete at the deadline (coordinator decision 2026-11-02: an incomplete draft is still judged by default, and organisers can exclude it by hand instead; the entry and its scores are unaffected, only judging eligibility changes). Ask the person first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>

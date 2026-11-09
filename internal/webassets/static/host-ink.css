@@ -147,21 +147,14 @@ html.sh-host :is(pre,code,.copyrow code,.key,.path,.url){overflow-wrap:anywhere}
 html.sh-host .copyrow code{white-space:normal;min-width:0}
 html.sh-host :is(.tabs,.owner-tabs,.range-seg){flex-wrap:wrap}
 html.sh-host :is(.metric-value,.stat-value,.num,.kpi,.count,.bytes,.inv-ver,.an-value){font-family:var(--font);font-variant-numeric:tabular-nums}
-html.sh-host :is(.swagger-ui .info .title,.swagger-ui .opblock-tag){font-family:var(--hand)!important}
-html.sh-host .swagger-ui :is(.opblock-summary-path,code,pre,.model){font-family:var(--mono)!important}
-html.sh-host .swagger-ui :is(.opblock-summary-description,.renderedMarkdown,table){font-family:var(--font)!important}
-html.sh-host .swagger-ui :is(button,.btn,.opblock-summary){min-height:44px}
 html.sh-host :is(.app,.q){border-bottom:1.5px dashed var(--line-soft)}
 html.sh-host :is(.app-name,.app-btn,.q summary){font-family:var(--note)}
 html.sh-host .app-btn{list-style:none;box-shadow:none;text-align:left}
 html.sh-host .app-btn::-webkit-details-marker{display:none}
 html.sh-host .app[open] .chev{transform:translateY(3px) rotate(-135deg)}
 html.sh-host .app-panel{font-family:var(--font)}
-@media(max-width:640px){html.sh-host :is(.sh-bar,.sh-foot){flex-wrap:wrap}html.sh-host :is(.grid,.split,.two-col){min-width:0}html.sh-host .swagger-ui .opblock-summary{flex-wrap:wrap}}
+@media(max-width:640px){html.sh-host :is(.sh-bar,.sh-foot){flex-wrap:wrap}html.sh-host :is(.grid,.split,.two-col){min-width:0}}
 /* WebKit counts the native server option's full text as scrollable content. */
-html.sh-host .swagger-ui :is(.schemes-server-container,.servers){min-width:0;max-width:100%}
-html.sh-host .swagger-ui .servers{overflow:hidden}
-html.sh-host .swagger-ui .servers select{width:100%;text-overflow:ellipsis;overflow:hidden}
 html.sh-host .panel-field:has(select){overflow:hidden}
 html.sh-host h1 > label{font:inherit}
 
@@ -201,7 +194,7 @@ html.sh-host tr.on td {
   --accent:var(--paper); --accent-hover:var(--paper);
   box-shadow:inset 0 0 0 2px var(--line); font-weight:700;
 }
-/* Nested labels (provider details, Swagger tablinks, counts) retain contrast. */
+/* Nested labels (provider details, counts) retain contrast. */
 html.sh-host :is(button,a,[role="tab"],.tab,.chip,.owner-tab,.range-opt):is(
   [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
   .active,.on,.selected,.current
@@ -217,8 +210,7 @@ html.sh-host :is([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is(
   [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
   .active,.on,.selected,.current
 ),
-html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current),
-html.sh-host .swagger-ui .tab li.active button.tablinks {
+html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current) {
   position:relative; background:transparent; color:var(--line) !important; box-shadow:none;
   border-bottom-color:transparent;
   --text:var(--line); --text-secondary:var(--line-soft); --accent:#116b77;
@@ -227,7 +219,6 @@ html.sh-host[data-theme="dark"] :is([role="tab"],.tab,.chip,.owner-tab,.range-op
 html.sh-host .chip.chip:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current) { border-color:var(--line); }
 /* In the phone section menu the selected cell shrinks to its label, so the mark does too. */
 html.sh-host #mg-tabs.menu-open .tab[aria-selected="true"] { justify-self:start; }
-html.sh-host .swagger-ui .tab li.active { background:transparent; }
 
 /* Header nav: the current page keeps its ink and gets a hand-drawn teal
    underline, the same mark as the tabs above.
@@ -249,7 +240,6 @@ html.sh-host :is([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is(
   .active,.on,.selected,.current
 )::after,
 html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after,
-html.sh-host .swagger-ui .tab li.active button.tablinks::after,
 html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"]))::after {
   content:""; position:absolute; left:-2px; right:-2px; bottom:7px; height:7px; pointer-events:none;
   background:var(--nav-mark);
@@ -260,7 +250,6 @@ html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:
 html.sh-host .sh-header .sh-bar .sh-signin:is([aria-current]:not([aria-current="false"]))::after { left:12px; right:12px; bottom:6px; }
 /* Where the mark sits on each control: under the label, not the padding. */
 html.sh-host .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after,
-html.sh-host .swagger-ui .tab li.active button.tablinks::after,
 html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:10px; right:10px; bottom:4px; }
 html.sh-host .owner-tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:-2px; right:-2px; bottom:4px; }
 html.sh-host :is(.range-opt,[data-os],.chip):is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:9px; right:9px; bottom:2px; height:6px; }

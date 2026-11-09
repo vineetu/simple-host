@@ -455,7 +455,7 @@
 								<div class="sl-markdown-content"><p>Inspect retained deployments, preview and roll back.</p>
 <h2 id="put-v1sitessitenameactive-version">PUT /v1/sites/{sitename}/active-version</h2>
 <div data-operation="PUT /v1/sites/{sitename}/active-version"></div>
-<p>Re-point the live site at an existing version number: an earlier one, or one stored with publish=false (which then counts as live). errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Re-point the live site at an existing version number: an earlier one, or one stored with publish=false (which then counts as live).</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -546,7 +546,7 @@
 <tr>
 <td>pending</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>1</code>, <code>true</code>, <code>yes</code></td>
 <td></td>
 <td>1 lists only the versions stored with publish=false that have never been live (status ready, not the live one)</td>
 </tr>

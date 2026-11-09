@@ -537,7 +537,7 @@
 <tr>
 <td>create</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>1</code>, <code>0</code>, <code>true</code>, <code>false</code></td>
 <td></td>
 <td>1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists</td>
 </tr>
@@ -712,7 +712,7 @@
 <tr>
 <td>create</td>
 <td>query</td>
-<td>string</td>
+<td>string, one of <code>1</code>, <code>0</code>, <code>true</code>, <code>false</code></td>
 <td></td>
 <td>1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists</td>
 </tr>
@@ -726,7 +726,7 @@
 <tr>
 <td>keep</td>
 <td>query</td>
-<td>integer</td>
+<td>integer, one of <code>1</code></td>
 <td></td>
 <td>Keep unchanged files from the live version; merged files use ordinary unpacked-file caps</td>
 </tr>

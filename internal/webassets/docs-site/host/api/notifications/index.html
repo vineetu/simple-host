@@ -527,7 +527,7 @@
 								<div class="sl-markdown-content"><p>Signed HTTPS notifications for visitor storage writes on Simple Host.</p>
 <h2 id="get-v1notifications">GET /v1/notifications</h2>
 <div data-operation="GET /v1/notifications"></div>
-<p>Owner credentials required on Host. subscriptions belong to the person, not the holding account.</p>
+<p>Owner credentials required on Host.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Responses:</strong></p>
 <table>
@@ -580,7 +580,7 @@
 </table>
 <h2 id="get-v1sitessitenamenotifications">GET /v1/sites/{sitename}/notifications</h2>
 <div data-operation="GET /v1/sites/{sitename}/notifications"></div>
-<p>Owner credentials required on Host. subscriptions belong to the person, not the holding account.</p>
+<p>Owner credentials required on Host.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -621,7 +621,7 @@
 <tbody>
 <tr>
 <td>200</td>
-<td>List notifications for a site;</td>
+<td>List notifications for a site.</td>
 </tr>
 <tr>
 <td>401</td>
@@ -639,7 +639,7 @@
 </table>
 <h2 id="post-v1sitessitenamenotifications">POST /v1/sites/{sitename}/notifications</h2>
 <div data-operation="POST /v1/sites/{sitename}/notifications"></div>
-<p>The owner-entered URL is accepted without an MCP verification challenge. Generates a secret unless one is supplied; the response shows it once. Optional custom header and svix-* aliases are sent only for owner-made subscriptions. MCP and REST share the site subscription cap. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
+<p>The owner-entered URL is accepted without an MCP verification challenge. Generates a secret unless one is supplied; the response shows it once. Optional custom header and svix-* aliases are sent only for owner-made subscriptions. MCP and REST share the site subscription cap. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -695,7 +695,7 @@
 </tr>
 <tr>
 <td>events</td>
-<td>array of string</td>
+<td>array of string, one of <code>record.added</code>, <code>record.changed</code>, <code>file.uploaded</code>, <code>site.deployed</code>, <code>domain.status_changed</code>, <code>viewer.access_requested</code>, <code>visitor.signed_up</code></td>
 <td>yes</td>
 <td></td>
 </tr>
@@ -762,7 +762,7 @@
 </table>
 <h2 id="patch-v1sitessitenamenotificationsid">PATCH /v1/sites/{sitename}/notifications/{id}</h2>
 <div data-operation="PATCH /v1/sites/{sitename}/notifications/{id}"></div>
-<p>false also resumes suspension and makes held deliveries due now. Owner credentials required. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
+<p>false also resumes suspension and makes held deliveries due now. Owner credentials required. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -847,7 +847,7 @@
 </table>
 <h2 id="delete-v1sitessitenamenotificationsid">DELETE /v1/sites/{sitename}/notifications/{id}</h2>
 <div data-operation="DELETE /v1/sites/{sitename}/notifications/{id}"></div>
-<p>Owner credentials required on Host. subscriptions belong to the person, not the holding account.</p>
+<p>Owner credentials required on Host.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -913,7 +913,7 @@
 </table>
 <h2 id="get-v1sitessitenamenotificationsiddeliveries">GET /v1/sites/{sitename}/notifications/{id}/deliveries</h2>
 <div data-operation="GET /v1/sites/{sitename}/notifications/{id}/deliveries"></div>
-<p>Newest first, at most 200 within the configured history window (default 7 days). Pending deliveries are held while suspended. Five attempts by default; HTTP 410/413 and refused addresses are not retried. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
+<p>Newest first, at most 200 within the configured history window (default 7 days). Pending deliveries are held while suspended. Five attempts by default; HTTP 410/413 and refused addresses are not retried. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -979,7 +979,7 @@
 </table>
 <h2 id="post-v1sitessitenamenotificationsidrotate-secret">POST /v1/sites/{sitename}/notifications/{id}/rotate-secret</h2>
 <div data-operation="POST /v1/sites/{sitename}/notifications/{id}/rotate-secret"></div>
-<p>Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours, until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret instead. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
+<p>Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours, until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret instead. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1049,7 +1049,7 @@
 </table>
 <h2 id="post-v1sitessitenamenotificationsidtest">POST /v1/sites/{sitename}/notifications/{id}/test</h2>
 <div data-operation="POST /v1/sites/{sitename}/notifications/{id}/test"></div>
-<p>Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id starts with evt_test_. The response reports the HTTP status and result category, never the receiver body. Test sends require an unexpired owner-made subscription and do not appear in delivery history. Challenge and test sends share limits of 10/minute per owner, host, and resolved IP, with at most 10 running at once. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
+<p>Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id starts with evt_test_. The response reports the HTTP status and result category, never the receiver body. Test sends require an unexpired owner-made subscription and do not appear in delivery history. Challenge and test sends share limits of 10/minute per owner, host, and resolved IP, with at most 10 running at once. Leaving, removal, moves, or loss of approval delete the affected subscriptions.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1441,7 +1441,7 @@
 </tr>
 <tr>
 <td>recipients</td>
-<td>string</td>
+<td>string, one of <code>owner</code>, <code>row_owner</code>, <code>both</code>, <code>none</code></td>
 <td></td>
 <td></td>
 </tr>

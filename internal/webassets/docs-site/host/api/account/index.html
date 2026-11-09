@@ -1411,7 +1411,7 @@
 </tr>
 <tr>
 <td>scope</td>
-<td>string</td>
+<td>string, one of <code>full</code>, <code>deploy</code></td>
 <td></td>
 <td>deploy: create, update, roll back and list sites and make preview links, nothing else</td>
 </tr>
@@ -1498,7 +1498,7 @@
 </table>
 <h2 id="post-v1mepassword">POST /v1/me/password</h2>
 <div data-operation="POST /v1/me/password"></div>
-<p>Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither, and answers 403 . new_password must be 8-256 characters and differ from current_password. Only a real account API key may call this; a connector’s OAuth access token, even one otherwise valid for the REST API, is refused. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.</p>
+<p>Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither, and answers 403. new_password must be 8-256 characters and differ from current_password. Only a real account API key may call this; a connector’s OAuth access token, even one otherwise valid for the REST API, is refused. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Request body:</strong></p>
 <table>

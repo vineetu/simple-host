@@ -3,6 +3,7 @@
 (a) output matches its recorded source/reference digests (docs-site.py check);
 (b) every public operation/tool is documented exactly once per brand;
 (c) every internal docs/features/llms/skills link resolves, page and fragment;
+(d) every shown features.json feature has a docs link that resolves where it is on;
 (e) limitstext.go's exact phrases survive into the built HTML verbatim;
 (f) the Host build never says "hack".
 
@@ -40,7 +41,10 @@ def problems_current():
 def expected_markers(brand):
     tools = dr.run_inventory('tools-json', brand)
     spec = dr.run_inventory('openapi-json', brand)
-    ops = {f'{method.upper()} {path}' for tag, path, method, op, sp in dr.operation_entries(spec)}
+    # Independent of the generator: every documented HTTP method in the spec
+    # (OPTIONS preflights and HEAD mirrors are not separate operations).
+    ops = {f'{method.upper()} {path}' for path, item in spec['paths'].items()
+           for method in item if method in ('get', 'post', 'put', 'patch', 'delete')}
     names = {t['name'] for t in tools}
     return ops, names
 
@@ -100,7 +104,7 @@ def resolve_docs_path(tree, url_path):
 
 def split_href(href):
     href = href.split('#', 1)
-    path = href[0]
+    path = href[0].split('?', 1)[0]
     frag = href[1] if len(href) > 1 else None
     return path, frag
 
@@ -128,7 +132,7 @@ def docs_relative(href, brand):
     else None."""
     for prefix in (f'https://{BRAND_DOMAIN[brand]}/docs/', f'http://{BRAND_DOMAIN[brand]}/docs/'):
         if href.startswith(prefix):
-            return href[len(prefix) - 1:]  # keep the leading '/'... actually strip to path
+            return href[len(prefix) - 1:]  # the path after /docs, with its leading '/'
     if href.startswith('/docs/') or href == '/docs':
         return href[len('/docs'):] or '/'
     return None
@@ -160,7 +164,9 @@ def problems_links():
     for area in features.get('areas', []):
         for feature in area.get('features', []):
             docs_links = feature.get('docs', []) or []
-            needed = [b for b in BRANDS if feature.get('editions', {}).get(b) in ('yes', 'partial')]
+            # Features on neither hosted brand (Enterprise, small box) are
+            # covered by the Host build's self-hosting pages.
+            needed = [b for b in BRANDS if feature.get('editions', {}).get(b) in ('yes', 'partial')] or ['host']
             has_resolving_docs_link = False
             for link in docs_links:
                 href = link.get('href', '') if isinstance(link, dict) else link
@@ -176,10 +182,9 @@ def problems_links():
                         ok_everywhere = False
                 if ok_everywhere:
                     has_resolving_docs_link = True
-            if needed and not has_resolving_docs_link:
+            if not has_resolving_docs_link:
                 errors.append(f'features.json {feature.get("id")}: no /docs/ link resolving in every brand it is on ({", ".join(needed)})')
 
-    shared_docs = [ROOT / 'internal/webassets/static/llms.txt']
     per_brand_docs = {
         'host': [ROOT / 'internal/webassets/static/llms.txt'],
         'hack': [ROOT / 'internal/webassets/static/hack-llms.txt'],
@@ -188,7 +193,8 @@ def problems_links():
         for doc in per_brand_docs.get(brand, []):
             if not doc.is_file():
                 continue
-            for href in re.findall(r'(?:href=["\']|\()([^\s"\'()]+)', doc.read_text()):
+            for href in re.findall(r'(?:href=["\']|\(|(?<![\w/]))((?:https?://[^\s"\'()<>]+)|/docs/[^\s"\'()<>]*)', doc.read_text()):
+                href = href.rstrip('.,;:')
                 rel = docs_relative(href, brand)
                 if rel is None:
                     continue

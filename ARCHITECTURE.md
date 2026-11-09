@@ -188,7 +188,7 @@ build time; committed output in `internal/webassets/docs-site/{host,hack}` has i
 `all:` embed and is never reachable through the ordinary static server. `handler/docs.go`
 serves `/docs/` with shared chrome, theme, instance text, limits, and UI CSP. Assembled
 HTML and extracted shared chrome scripts are cached per asset pipeline. Pagefind search
-uses only that brand's compiled pages. The API reference remains Swagger at `/docs/api/`.
+uses only that brand's compiled pages. The API reference (`/docs/api/`) and MCP tools reference (`/docs/mcp/`) are generated per brand by `scripts/docs-reference.py`.
 CI rebuilds both brands; the offline docs check verifies source and output hashes.
 
 ## Where to read next

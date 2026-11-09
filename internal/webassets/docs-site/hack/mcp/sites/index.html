@@ -416,7 +416,6 @@
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><h2 id="hack_get_event_website">hack_get_event_website</h2>
 <div data-tool="hack_get_event_website"></div>
-<p><strong>Read event website mode</strong></p>
 <p>Read whether the built-in or custom event website is live and list published versions and upload limits. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -439,7 +438,6 @@
 </table>
 <h2 id="hack_publish_event_website">hack_publish_event_website</h2>
 <div data-tool="hack_publish_event_website"></div>
-<p><strong>Publish event website files</strong></p>
 <p>Publish a complete event website from inline files (include index.html, with optional files_base64 for assets) or one archive_base64 tar.gz. This replaces the custom site’s files, keeps version history, and switches the event host to custom. Ask the organiser before publishing. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -480,7 +478,6 @@
 </table>
 <h2 id="hack_set_event_website_mode">hack_set_event_website_mode</h2>
 <div data-tool="hack_set_event_website_mode"></div>
-<p><strong>Choose event website</strong></p>
 <p>Switch the event host between builtin and custom. The custom website must have been published first; switching back preserves its files. Ask the organiser first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -495,7 +492,7 @@
 <tbody>
 <tr>
 <td>mode</td>
-<td>string</td>
+<td>string, one of <code>builtin</code>, <code>custom</code></td>
 <td>yes</td>
 <td>builtin: the event page Simple Hack renders itself; custom: the website the organiser published with the event website tools.</td>
 </tr>
