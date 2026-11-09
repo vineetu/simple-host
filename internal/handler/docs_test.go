@@ -86,6 +86,55 @@ func TestDocsRoutes(t *testing.T) {
 	}
 }
 
+func TestDocsMarkdownCopies(t *testing.T) {
+	for _, kind := range []edition.Kind{edition.Host, edition.Hack} {
+		mux := chromeTestMux(t, kind)
+		r := get(t, mux, "", "/docs/index.md")
+		if r.Code != 200 || !strings.HasPrefix(r.Header().Get("Content-Type"), "text/markdown") {
+			t.Fatalf("/docs/index.md: %d %s", r.Code, r.Header().Get("Content-Type"))
+		}
+		if !strings.HasPrefix(strings.TrimSpace(r.Body.String()), "# Docs") {
+			t.Errorf("/docs/index.md: expected a leading H1, got %q", r.Body.String()[:40])
+		}
+		if strings.Contains(r.Body.String(), "<LinkCard") || strings.Contains(r.Body.String(), "import ") {
+			t.Error("/docs/index.md: uncoverted MDX component or import survived")
+		}
+		if r := get(t, mux, "", "/docs/guides/storage.md"); r.Code != 200 {
+			t.Errorf("/docs/guides/storage.md: %d", r.Code)
+		}
+		if r := get(t, mux, "", "/docs/unknown.md"); r.Code != 404 {
+			t.Errorf("/docs/unknown.md: %d", r.Code)
+		}
+	}
+}
+
+func TestDocsMarkdownRuntimeText(t *testing.T) {
+	oldHosted, oldCanonical := instanceIsHostedService, instanceIsCanonical
+	oldHosts, oldDomain := instanceHosts, instanceSiteDomain
+	t.Cleanup(func() {
+		instanceIsHostedService, instanceIsCanonical = oldHosted, oldCanonical
+		instanceHosts, instanceSiteDomain = oldHosts, oldDomain
+		clearAssetText()
+		chromeCache.Clear()
+	})
+	instanceIsHostedService = true
+	host := newAssetPipeline(edition.ForKind(edition.Host), "")
+	host.docs.once.Do(host.buildDocsCache)
+	if !bytes.Contains(host.docs.md["guides/agents.md"], []byte("npx skills add")) {
+		t.Fatal("hosted instructions absent from the .md copy")
+	}
+	SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
+	self := newAssetPipeline(edition.ForKind(edition.Host), "https://docs-box.example")
+	self.docs.once.Do(self.buildDocsCache)
+	body := self.docs.md["guides/agents.md"]
+	if bytes.Contains(body, []byte("npx skills add")) || !bytes.Contains(body, []byte("this install")) {
+		t.Error(".md hosted/self blocks were not resolved")
+	}
+	if bytes.Contains(body, []byte("<!--sh:")) {
+		t.Error(".md copy still carries an unresolved marker")
+	}
+}
+
 func TestDocsRuntimeText(t *testing.T) {
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "2345678")
 	t.Setenv("SITE_STORAGE_FILE_MAX_BYTES", "123456")

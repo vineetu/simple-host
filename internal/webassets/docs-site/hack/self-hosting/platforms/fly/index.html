@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz">
+	<head>
+		<!--sh:head-->
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Run the small box on Fly.io | Simple Hack</title><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.10"/><meta property="og:title" content="Run the small box on Fly.io"/><meta property="og:type" content="article"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="Simple Hack"/><meta name="twitter:card" content="summary_large_image"/>
+		
+		
+		<link rel="stylesheet" href="/docs/_astro/print.C9eyqPGL.css" media="print">
+	<link rel="stylesheet" href="/docs/_astro/index.C1x2hpYy.css">
+<link rel="stylesheet" href="/docs/_astro/Icon.U1EK5lRe.css">
+<link rel="stylesheet" href="/docs/_astro/LinkButton.B-IDtby6.css"><script type="module" src="/docs/_astro/page.cNngjUgL.js"></script></head>
+	<body class="astro-g5ptsecz">
+		<a class="sl-skip-link astro-qb7clj6f" href="#_top">Skip to content</a>
+		<div class="docs-product-header"><!--sh:header--></div>
+<div class="page sl-flex astro-yntsjkba">
+	<header class="header astro-yntsjkba"><div class="docs-bar"><span class="docs-label">Docs</span><site-search class=" astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}">
+	<button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o">
+		<svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+		<span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">Search</span>
+		<kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none">
+			<kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd>
+		</kbd>
+	</button>
+
+	<dialog style="padding: 0" aria-label="Search" class="astro-b5kgnn7o">
+		<div class="dialog-frame sl-flex astro-b5kgnn7o">
+			
+			<button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">
+				Cancel
+			</button>
+			<div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div>
+		</div>
+	</dialog>
+</site-search>
+
+
+<script src="/docs/_scripts/7ffcc0504ef8b9c73725.js"></script>
+
+<script type="module" src="/docs/_astro/Search.astro_astro_type_script_index_0_lang._gc9pYsW.js"></script></div>
+<script type="module" src="/docs/_scripts/e9e04975f547e3a0b7f0.js"></script></header>
+	<nav class="sidebar print:hidden astro-yntsjkba" aria-label="Main">
+		<button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg">
+	<svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg>
+	<svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg>
+	<span class="sr-only astro-r2osgdlg">Menu</span>
+</button>
+		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
+		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="08okeuu" class="astro-ipdry5cl">
+	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
+
+	<ul class="top-level astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Docs home</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Get started</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="0"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/start/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run an event</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/join/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Join an event</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/judge/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Judge</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Use the REST API</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/pages/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Code on your own pages</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Guides</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="1"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/guides/publish/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage and saved data</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/access/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sign-in and access</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/agents/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Agents and MCP</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/analytics/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Traffic and analytics</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/webhooks/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Webhooks</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/limits/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Limits and errors</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="2"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">API reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="3"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">API reference</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/account/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Account</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/auth/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Auth</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/deploy/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/discovery/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Discovery</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Events</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/health/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Health</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/hosted-events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Hosted events</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/skills/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Skills</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/versions/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/visitor-sign-in/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Visitor sign-in</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">MCP tools</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="4"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">MCP tools</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/hack-events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Events, teams and members</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/hack-entries/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Entries, judging and results</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/hack-app-only/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">App screens</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Self-hosting and Enterprise</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="5"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Overview</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operate/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run and operate</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/configuration/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Configuration</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Settings</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="6"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Advanced settings</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/accounts-and-sign-in/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Accounts and sign-in</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/cleanup-and-retention/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Cleanup and retention</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/domains-and-certificates/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Domains and certificates</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/email/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Email</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/hosted-events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Hosted events</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/observability/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Observability</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/rate-limits/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Rate limits</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/saved-data/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Saved data</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/server-and-addresses/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Server and addresses</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/sites-and-versions/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/storage-and-backups/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage and backups</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Platforms</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="7"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Where it runs</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/coolify/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Coolify</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/digitalocean/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on DigitalOcean</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/fly/" aria-current="page" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Fly.io</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/railway/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Railway</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/render/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Render</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/simple-hack-coolify/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Full Simple Hack on Coolify</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/simple-hack-digitalocean/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Full Simple Hack on DigitalOcean</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/simple-hack-standalone/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Install the full Simple Hack platform</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/upcloud/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on UpCloud</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Operations</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="8"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/certificates/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Certificates on the hosted box</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/deployment-profiles/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Deployment profiles</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/simple-hack/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Simple Hack operations</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/site-base-paused/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Paused site base (2026-10-09)</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/kubernetes/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Simple Hack on Kubernetes</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/changelog/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Changelog</span>
+				
+			</a>
+	</li>
+</ul>
+
+	<script aria-hidden="true" src="/docs/_scripts/ede095e23b6caf8b7892.js"></script>
+</sl-sidebar-state-persist>
+
+<div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh">
+	<div class="social-icons astro-p4azlveh"></div>
+	
+	
+
+
+</div></div></div>
+		</sl-sidebar-pane>
+	</nav>
+	<div class="main-frame astro-yntsjkba">
+  
+  
+  
+			
+			<script type="module" src="/docs/_scripts/560ae070a06f20cdd7a6.js"></script>
+			<div class="lg:sl-flex astro-lrzkfocr">
+	<aside class="right-sidebar-container print:hidden astro-lrzkfocr">
+		<div class="right-sidebar astro-lrzkfocr">
+		<div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="2" class="astro-66cqc7ze">
+	<nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze">
+		<details id="starlight__mobile-toc" class="astro-66cqc7ze">
+			<summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze">
+				<span class="toggle sl-flex astro-66cqc7ze">
+					On this page
+					<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</span>
+				<span class="display-current astro-66cqc7ze"></span>
+			</summary>
+			<div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#what-it-looks-like" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">What it looks like</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#minimum-size-and-cost" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Minimum size and cost</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#commands" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Commands</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#everyday-operations" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Everyday operations</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#gotchas" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Gotchas</span></a>
+		
+	</li>
+</ul></div>
+		</details>
+	</nav>
+</mobile-starlight-toc>
+
+
+
+<script type="module" src="/docs/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div>
+		<div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx">
+			<div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="2">
+	<nav aria-labelledby="starlight__on-this-page">
+		<h2 id="starlight__on-this-page">On this page</h2>
+		<ul class="astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#what-it-looks-like" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">What it looks like</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#minimum-size-and-cost" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Minimum size and cost</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#commands" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Commands</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#everyday-operations" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Everyday operations</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#gotchas" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Gotchas</span></a>
+		
+	</li>
+</ul>
+	</nav>
+</starlight-toc>
+
+<script type="module" src="/docs/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div>
+		</div>
+	</div>
+	</aside>
+	<div class="main-pane astro-lrzkfocr">
+				
+				<main data-pagefind-body class="astro-g5ptsecz" lang="en" dir="ltr">
+					
+					
+					
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<h1 id="_top" class="astro-bebwqqxs">Run the small box on Fly.io</h1>
+								</div>
+</div>
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<div class="sl-markdown-content"><p><img src="/diagrams/fly.svg" alt="Simple Host on Fly.io: your DNS points both names at the app; Fly’s edge ends HTTPS and forwards to one machine running Caddy and the Simple Host server with a 1 GB volume; a separate Fly Postgres app on Fly’s private network"></p>
+<p>The small box (the installer’s Postgres + server + Caddy) runs on Fly.io as two
+apps: one for Simple Host, one for its Postgres. Tested end to end on
+2026-09-28 with v0.7.4: deploy, first admin, admin sign-in, publish, update,
+rollback, saved data, download my data, machine restart, redeploy with
+migrations, and <code>/internal/*</code> hidden. Then everything was deleted.</p>
+<p>The files are in <a href="https://github.com/vineetu/simple-host/tree/main/deploy/platforms/fly/"><code>deploy/platforms/fly/</code></a>:
+<code>fly.toml</code>, a <code>Dockerfile</code> that copies the released server into the Caddy
+image, a <code>Caddyfile</code> (the small box’s, without its TLS parts), and <code>start.sh</code>.
+Nothing is compiled; no change to the server is needed.</p>
+<h2 id="what-it-looks-like">What it looks like</h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>On a VPS (installer)</th>
+<th>On Fly</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTPS</td>
+<td>Caddy, on-demand certificates</td>
+<td>Fly’s edge: <code>fly certs add</code> for both names</td>
+</tr>
+<tr>
+<td>Sites served from disk, <code>/internal/*</code> hidden, access log</td>
+<td>Caddy container</td>
+<td>Caddy in the same machine as the server (port 8080)</td>
+</tr>
+<tr>
+<td>Server</td>
+<td><code>app</code> container</td>
+<td>same machine, as a normal user, on 127.0.0.1:8090</td>
+</tr>
+<tr>
+<td>Database</td>
+<td><code>db</code> container</td>
+<td>a separate Fly Postgres app, attached as <code>DB_DSN</code></td>
+</tr>
+<tr>
+<td>Sites on disk</td>
+<td>Docker volume</td>
+<td>1 GB Fly volume at <code>/data</code></td>
+</tr>
+<tr>
+<td>Schema and migrations</td>
+<td>the installer runs <code>simple-host migrate</code></td>
+<td><code>release_command</code> loads <code>schema.sql</code> into an empty database, then runs <code>simple-host migrate</code>, before every deploy</td>
+</tr>
+</tbody>
+</table>
+<h2 id="minimum-size-and-cost">Minimum size and cost</h2>
+<p>Everything at the smallest size worked: the Simple Host machine used about
+75 MB of its 256 MB (server ~25 MB, Caddy ~50 MB).</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Size</th>
+<th>Per month</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simple Host machine</td>
+<td>shared-cpu-1x, 256 MB</td>
+<td>about $2</td>
+</tr>
+<tr>
+<td>Postgres machine</td>
+<td>shared-cpu-1x, 256 MB</td>
+<td>about $2</td>
+</tr>
+<tr>
+<td>Two volumes</td>
+<td>1 GB each, $0.15/GB</td>
+<td>$0.30</td>
+</tr>
+<tr>
+<td>Two certificates</td>
+<td>$0.10 each</td>
+<td>$0.20</td>
+</tr>
+<tr>
+<td>Shared IPv4 and IPv6</td>
+<td></td>
+<td>free</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td><strong>about $4.50</strong>, plus egress ($0.02/GB in North America and Europe)</td>
+</tr>
+</tbody>
+</table>
+<p>Why this Postgres: Fly’s Managed Postgres starts at $38/month (Basic plan),
+eight times the rest of the box put together. The unmanaged <code>fly postgres</code>
+cluster is a normal Fly app on a volume, the same thing the VPS small box runs
+in a container. Fly does not support it (no managed failover or help), but it
+does take daily volume snapshots, and a small box did not have more than that
+on a VPS either. Any other Postgres works too: set <code>DB_DSN</code> to its URL.</p>
+<p><strong>A Fly account needs a card.</strong> On a trial account without one, Fly stops
+every machine after 5 minutes (“Trial machine stopping”). The box then goes
+dark, and the next deploy fails with <code>database not reachable: EOF</code> because
+Postgres is stopped. Add a card before you start.</p>
+<h2 id="commands">Commands</h2>
+<p>You need <code>flyctl</code> (<code>fly auth login</code>), a domain, and the release you want
+(this guide: 0.7.12, set in <code>fly.toml</code> as <code>SIMPLE_HOST_VERSION</code>). Below, the app
+is <code>my-sh</code>, the region <code>sjc</code>, and the address <code>hack.example.com</code>, with
+participant sites on <code>sites.hack.example.com</code>.</p>
+<ol>
+<li>
+<p>Edit <code>deploy/platforms/fly/fly.toml</code>: set <code>app</code>, <code>primary_region</code>, and the
+three hostnames (<code>SITE_DOMAIN</code>, <code>CONTENT_HOST</code>, <code>PUBLIC_BASE_URL</code>).</p>
+</li>
+<li>
+<p>Create Postgres, the app, and the volume, then attach the database.
+<code>attach</code> stores the connection string as the secret <code>DB_DSN</code>, which the
+server reads. It also prints the string, so do not paste that output
+anywhere.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> postgres</span><span style="color:#9ECBFF"> create</span><span style="color:#79B8FF"> --name</span><span style="color:#9ECBFF"> my-sh-db</span><span style="color:#79B8FF"> --org</span><span style="color:#9ECBFF"> personal</span><span style="color:#79B8FF"> --region</span><span style="color:#9ECBFF"> sjc</span><span style="color:#79B8FF"> --vm-size</span><span style="color:#9ECBFF"> shared-cpu-1x</span><span style="color:#79B8FF"> --volume-size</span><span style="color:#79B8FF"> 1</span><span style="color:#79B8FF"> --initial-cluster-size</span><span style="color:#79B8FF"> 1</span></span>
+<span class="line"><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> apps</span><span style="color:#9ECBFF"> create</span><span style="color:#9ECBFF"> my-sh</span><span style="color:#79B8FF"> --org</span><span style="color:#9ECBFF"> personal</span></span>
+<span class="line"><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> postgres</span><span style="color:#9ECBFF"> attach</span><span style="color:#9ECBFF"> my-sh-db</span><span style="color:#79B8FF"> -a</span><span style="color:#9ECBFF"> my-sh</span><span style="color:#79B8FF"> --variable-name</span><span style="color:#9ECBFF"> DB_DSN</span></span>
+<span class="line"><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> volumes</span><span style="color:#9ECBFF"> create</span><span style="color:#9ECBFF"> simple_host_data</span><span style="color:#79B8FF"> --size</span><span style="color:#79B8FF"> 1</span><span style="color:#79B8FF"> -r</span><span style="color:#9ECBFF"> sjc</span><span style="color:#79B8FF"> -a</span><span style="color:#9ECBFF"> my-sh</span><span style="color:#79B8FF"> -y</span></span></code></pre>
+</li>
+<li>
+<p>Make the admin key and store it. Save the file somewhere safe: it is the
+first admin’s sign-in.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#79B8FF">umask</span><span style="color:#79B8FF"> 077</span><span style="color:#E1E4E8">; </span><span style="color:#79B8FF">echo</span><span style="color:#9ECBFF"> "sh_admin_$(</span><span style="color:#B392F0">head</span><span style="color:#79B8FF"> -c</span><span style="color:#79B8FF"> 24</span><span style="color:#9ECBFF"> /dev/urandom </span><span style="color:#F97583">|</span><span style="color:#B392F0"> od</span><span style="color:#79B8FF"> -An</span><span style="color:#79B8FF"> -tx1</span><span style="color:#F97583"> |</span><span style="color:#B392F0"> tr</span><span style="color:#79B8FF"> -d</span><span style="color:#9ECBFF"> ' \n')"</span><span style="color:#F97583"> &gt;</span><span style="color:#9ECBFF"> admin.key</span><span style="color:#E1E4E8">; </span><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> secrets</span><span style="color:#9ECBFF"> set</span><span style="color:#9ECBFF"> ADMIN_API_KEY="$(</span><span style="color:#B392F0">cat</span><span style="color:#9ECBFF"> admin.key)"</span><span style="color:#79B8FF"> -a</span><span style="color:#9ECBFF"> my-sh</span><span style="color:#79B8FF"> --stage</span></span></code></pre>
+</li>
+<li>
+<p>Deploy from the directory with the files. The first deploy loads the schema
+and applies every migration (<code>applied 28 migration(s)</code>) before the machine
+starts.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#79B8FF">cd</span><span style="color:#9ECBFF"> deploy/platforms/fly</span><span style="color:#E1E4E8"> &amp;&amp; </span><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> deploy</span><span style="color:#79B8FF"> --ha=false</span></span></code></pre>
+<p><code>--ha=false</code> keeps it at one machine: the volume holds the sites, so the
+app cannot run two.</p>
+</li>
+<li>
+<p>Point both names at the app, then ask Fly for their certificates. A CNAME to
+<code>my-sh.fly.dev</code> for each name is enough (or the A and AAAA records that
+<code>fly certs add</code> prints). The certificates were issued within a minute.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>hack.example.com        CNAME  my-sh.fly.dev</span></span>
+<span class="line"><span>sites.hack.example.com  CNAME  my-sh.fly.dev</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> certs</span><span style="color:#9ECBFF"> add</span><span style="color:#9ECBFF"> hack.example.com</span><span style="color:#79B8FF"> -a</span><span style="color:#9ECBFF"> my-sh</span><span style="color:#E1E4E8"> &amp;&amp; </span><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> certs</span><span style="color:#9ECBFF"> add</span><span style="color:#9ECBFF"> sites.hack.example.com</span><span style="color:#79B8FF"> -a</span><span style="color:#9ECBFF"> my-sh</span></span></code></pre>
+</li>
+<li>
+<p>Sign in: open <code>https://hack.example.com/admin</code> and paste the admin key.
+From there, issue participant accounts (“Issue participant accounts”) and
+hand out their keys, as on any small box.</p>
+</li>
+</ol>
+<h2 id="everyday-operations">Everyday operations</h2>
+<ul>
+<li><strong>Upgrade:</strong> set the new <code>SIMPLE_HOST_VERSION</code> in <code>fly.toml</code> and
+<code>fly deploy --ha=false</code>. The release command runs the new release’s
+migrations first; if they fail, the deploy stops and the old version keeps
+running.</li>
+<li><strong>Restart:</strong> <code>fly machine restart &lt;id&gt; -a my-sh</code> (<code>fly machines list -a my-sh</code>
+shows the id). Sites, saved data and accounts all survive.</li>
+<li><strong>Settings:</strong> anything in <a href="/docs/self-hosting/configuration/">configuration.md</a> goes in
+<code>[env]</code> in <code>fly.toml</code> (limits, times) or <code>fly secrets set</code> (keys). Email
+sign-in codes need <code>RESEND_API_KEY</code> and <code>MAIL_FROM</code> as secrets; without them
+participants use the keys the admin issues, which is how a small box runs by
+default.</li>
+<li><strong>Admin key lost:</strong> <code>fly ssh console -a my-sh -C "printenv ADMIN_API_KEY"</code>.</li>
+<li><strong>Backups:</strong> Fly snapshots each volume daily and keeps 5 days
+(<code>fly volumes snapshots list &lt;vol-id&gt;</code>); snapshots over 10 GB cost
+$0.08/GB. “Download my data” and the admin export work as on any small box.</li>
+<li><strong>Delete everything:</strong> <code>fly apps destroy my-sh -y &amp;&amp; fly apps destroy my-sh-db -y</code>,
+then remove the two DNS records. Destroying an app takes its machines,
+volume, IP addresses and certificates with it.</li>
+</ul>
+<h2 id="gotchas">Gotchas</h2>
+<ul>
+<li><strong>Trial accounts stop machines after 5 minutes.</strong> See above.</li>
+<li><strong>The release image cannot run alone on Fly.</strong> It is the server only. Sites
+are served from disk by Caddy, and Caddy also hides <code>/internal/*</code> and writes
+the access log that visitor analytics reads. So the Dockerfile puts both in
+one machine; pointing Fly straight at the server leaves every site a 404
+and exposes <code>/internal/*</code>.</li>
+<li><strong>A new database is empty.</strong> <code>simple-host migrate</code> only adds to an existing
+schema. <code>start.sh release</code> loads <code>db/schema.sql</code> from the same release tag
+first, only when the <code>users</code> table is missing.</li>
+<li><strong>New Fly volumes belong to root.</strong> <code>start.sh</code> hands <code>/data/sites</code> to the
+server’s user on first boot.</li>
+<li><strong>Visitor addresses.</strong> Every request reaches Caddy from Fly’s proxy. The
+Caddyfile trusts the private range and reads <code>Fly-Client-IP</code>, then sends the
+server that address alone in <code>X-Forwarded-For</code>. Without this, rate limits
+would put every visitor in one bucket, and analytics would count the proxy.</li>
+<li><strong>Health checks and the log.</strong> Fly checks <code>/healthz</code> about twice a second.
+Logged, that is roughly 250 MB a day on a 1 GB volume, so the Caddyfile does
+not log <code>/healthz</code>.</li>
+<li><strong><code>sites.&lt;domain&gt;/healthz</code> is a 404.</strong> Only the main address answers it,
+as on a VPS.</li>
+</ul>
+<p>Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See <a href="https://github.com/vineetu/simple-host/blob/main/docs/your-home-page.md">Your home page</a>.</p>
+</div>
+								<footer class="sl-flex astro-ddtxxk7k">
+	<div class="meta sl-flex astro-ddtxxk7k">
+		
+		
+	</div>
+	<div class="pagination-links print:hidden astro-b5raizh3" dir="ltr">
+	<a href="/docs/self-hosting/platforms/digitalocean/" rel="prev" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg>
+		<span class="astro-b5raizh3">
+			Previous
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Run the small box on DigitalOcean</span>
+		</span>
+	</a>
+	<a href="/docs/self-hosting/platforms/railway/" rel="next" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>
+		<span class="astro-b5raizh3">
+			Next
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Run the small box on Railway</span>
+		</span>
+	</a>
+</div>
+
+	
+</footer>
+							</div>
+</div>
+						
+				</main>
+			</div>
+</div>
+		
+</div>
+</div>
+<!--sh:footer-->
+	</body>
+</html>

@@ -22,6 +22,7 @@ type docsCache struct {
 	once    sync.Once
 	pages   map[string][]byte
 	scripts map[string][]byte
+	md      map[string][]byte
 	err     error
 }
 
@@ -34,10 +35,30 @@ var docsScriptSrcRE = regexp.MustCompile(`(?i)\bsrc\s*=`)
 func (p *assetPipeline) buildDocsCache() {
 	p.docs.pages = make(map[string][]byte)
 	p.docs.scripts = make(map[string][]byte)
+	p.docs.md = make(map[string][]byte)
 	d := p.chromeDataFor(&http.Request{URL: &url.URL{Path: "/docs/"}}, "")
 	p.docs.err = fs.WalkDir(webassets.DocsTree(p.pres.HackAssets), ".", func(name string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".html") {
+		if err != nil || entry.IsDir() {
 			return err
+		}
+		if strings.HasSuffix(name, ".md") {
+			body, err := fs.ReadFile(webassets.DocsTree(p.pres.HackAssets), name)
+			if err != nil {
+				return err
+			}
+			// Same runtime text passes as the HTML (buildDocsCache below),
+			// minus chrome, scripts and hasHackBlocks: a .md copy carries no
+			// chrome and is brand-selected already at build time.
+			if !p.pres.HackAssets && p.docs.baseURL != "" && p.hostedOwner() == "" {
+				body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(p.docs.baseURL))
+			}
+			body = p.docsStorageLimits(body)
+			body = hostedBlocks(p.HackInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
+			p.docs.md[name] = body
+			return nil
+		}
+		if !strings.HasSuffix(name, ".html") {
+			return nil
 		}
 		body, err := fs.ReadFile(webassets.DocsTree(p.pres.HackAssets), name)
 		if err != nil {
@@ -87,6 +108,19 @@ func (p *assetPipeline) serveDocs(w http.ResponseWriter, r *http.Request) {
 	p.docs.once.Do(p.buildDocsCache)
 	if p.docs.err != nil {
 		http.Error(w, "Documentation could not be loaded", http.StatusInternalServerError)
+		return
+	}
+	if strings.HasSuffix(name, ".md") {
+		body, ok := p.docs.md[name]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(body)
+		}
 		return
 	}
 	if body, ok := p.docs.pages[name]; ok {

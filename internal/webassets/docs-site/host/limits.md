@@ -1,0 +1,71 @@
+# Limits and errors
+
+## Sites and deploy
+
+| Limit | Value or action |
+|---|---|
+| Sites per account | Up to a hundred sites |
+| Archive entries | 50,000 entries |
+| Deleted sites | Recently deleted for 7 days |
+| Preview links | A preview link stops working after an hour |
+| File and archive size | Each upload may be at most 100 MB. |
+| Blocked files | Keep executables, installers, and archives outside the deployed site |
+| Reserved names | Choose another name when the response says `name_reserved` |
+
+## Sign-in and access
+
+| Limit | Value or action |
+|---|---|
+| Email code | valid for 15 minutes |
+| Account keys | at most 50 keys |
+| Idle key | A key unused for 180 days stops working. |
+| Visitor session | Session has 30-day absolute and 14-day idle lifetimes |
+
+## Domains and addresses
+
+| Limit | Value or action |
+|---|---|
+| DNS proof | An unproven connection expires after 24 hours |
+| Checking | Checks run about every two minutes |
+| Certificates | at most 5 new domain certificates per account per day |
+| Recently disconnected | Retry `domain_releasing` in 10 minutes |
+
+## Storage and saved data
+
+| Limit | Value or action |
+|---|---|
+| KV and SQLite pool | Up to 10,000,000 bytes for KV and SQLite |
+| Files pool | Up to 10,000,000 bytes for files |
+| Individual file | Up to 1,000,000 bytes per file |
+| Resource allowance | Read `GET /v1/sites/{sitename}/storage/usage` before writing |
+| File paths | At most 16 segments |
+| Tables accessed by visitors | At most 100 total columns, including server-managed columns |
+| Query result size | Up to 1,000,000 bytes per query result |
+| Busy storage | Retry after a short wait; honor `Retry-After` when supplied |
+
+## Notifications
+
+| Limit | Value or action |
+|---|---|
+| Subscriptions | At most 10 subscriptions per site |
+| Events | At most 60 events per minute and 5,000 per day per site |
+| History | Retain IDs for the replay window, normally seven days |
+| Receiver | Public HTTPS; answer promptly with 2xx |
+| Signature clock | Within five minutes of the signed timestamp |
+| Retry and suspension | Follow [Webhooks](/docs/webhooks/#retries-and-suspension) |
+
+## Rate limits and retries
+
+Honor `Retry-After`. Reuse the same `Idempotency-Key` and body when retrying a supported create request after an uncertain response. Do not reuse it for a different operation.
+
+| Area | Code | Action |
+|---|---|---|
+| API | `not_found`, `method_not_allowed` | Check path and `Allow` |
+| API | `rate_limited` | Wait for `Retry-After` |
+| Deploy | `site_exists`, `site_not_found` | Check the site name |
+| Deploy | `item_too_large`, `site_too_large` | Reduce the upload |
+| Access | `sign_in_required`, `forbidden` | Check account and scope |
+| Domains | `domain_taken`, `invalid_domain` | Choose or correct the name |
+| Storage | `row_conflict`, `invalid_reference` | Check values and parent access |
+| Storage | `site_full`, `sqlite_full`, `bucket_full` | Remove unused data or ask the operator |
+| Notifications | `invalid_url`, `invalid_events`, `client_secret` | Follow the [setup guide](/docs/guides/notifications/) |

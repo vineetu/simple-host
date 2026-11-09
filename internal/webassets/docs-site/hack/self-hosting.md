@@ -1,0 +1,35 @@
+# Self-hosting and Enterprise
+
+Run your own copy of the server, or run Simple Host Enterprise on your own infrastructure; read [Enterprise](/enterprise) for that. These pages are generated from the current settings and runbooks:
+
+
+
+- [Configuration](/docs/self-hosting/configuration/)
+- [Advanced settings](/docs/self-hosting/settings/)
+- [Accounts and sign-in](/docs/self-hosting/settings/accounts-and-sign-in/)
+- [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention/)
+- [Domains and certificates](/docs/self-hosting/settings/domains-and-certificates/)
+- [Email](/docs/self-hosting/settings/email/)
+- [Hosted events](/docs/self-hosting/settings/hosted-events/)
+- [Observability](/docs/self-hosting/settings/observability/)
+- [Rate limits](/docs/self-hosting/settings/rate-limits/)
+- [Saved data](/docs/self-hosting/settings/saved-data/)
+- [Server and addresses](/docs/self-hosting/settings/server-and-addresses/)
+- [Sites and versions](/docs/self-hosting/settings/sites-and-versions/)
+- [Storage and backups](/docs/self-hosting/settings/storage-and-backups/)
+- [Moving a site to storage resources](/docs/self-hosting/settings/storage-migration/)
+- [Where it runs](/docs/self-hosting/platforms/)
+- [Run the small box on Coolify](/docs/self-hosting/platforms/coolify/)
+- [Run the small box on DigitalOcean](/docs/self-hosting/platforms/digitalocean/)
+- [Run the small box on Fly.io](/docs/self-hosting/platforms/fly/)
+- [Run the small box on Railway](/docs/self-hosting/platforms/railway/)
+- [Run the small box on Render](/docs/self-hosting/platforms/render/)
+- [Full Simple Hack on Coolify](/docs/self-hosting/platforms/simple-hack-coolify/)
+- [Full Simple Hack on DigitalOcean](/docs/self-hosting/platforms/simple-hack-digitalocean/)
+- [Install the full Simple Hack platform](/docs/self-hosting/platforms/simple-hack-standalone/)
+- [Run the small box on UpCloud](/docs/self-hosting/platforms/upcloud/)
+- [Certificates on the hosted box](/docs/self-hosting/operations/certificates/)
+- [Deployment profiles](/docs/self-hosting/operations/deployment-profiles/)
+- [Simple Hack operations](/docs/self-hosting/operations/simple-hack/)
+- [Paused site base (2026-10-09)](/docs/self-hosting/operations/site-base-paused/)
+- [Simple Hack on Kubernetes](/docs/self-hosting/kubernetes/)

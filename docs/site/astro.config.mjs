@@ -13,6 +13,13 @@ const referenceGroup = (entries) => ({
   collapsed: true,
   items: entries.map((e) => ({ label: e.title, slug: e.slug })),
 });
+// Written by scripts/docs-repo-pages.py's prepare(), freshly for this brand.
+const repoPages = JSON.parse(fs.readFileSync(new URL('./.generated-content/self-hosting-pages.json', import.meta.url)));
+const subgroup = (key) => ({
+  label: repoPages[key].label,
+  collapsed: true,
+  items: [...(repoPages[key].overview ? [repoPages[key].overview] : []), ...repoPages[key].items],
+});
 export default defineConfig({
   base: '/docs/',
   trailingSlash: 'always',
@@ -44,7 +51,16 @@ export default defineConfig({
       { label: 'Guides', items: guides.map(([id, a]) => ({label:a.title, slug:`guides/${id}`})) },
       { slug: 'webhooks' }, { slug: 'limits' },
       { label: 'Reference', items: [referenceGroup(reference.api), referenceGroup(reference.mcp)] },
-      { label: 'Self-hosting', items: [{ slug: 'self-hosting' }, { slug: 'self-hosting/operate' }] },
+      { label: 'Self-hosting and Enterprise', items: [
+        { label: 'Overview', slug: 'self-hosting' },
+        { label: 'Run and operate', slug: 'self-hosting/operate' },
+        repoPages.configuration,
+        subgroup('settings'),
+        subgroup('platforms'),
+        subgroup('operations'),
+        ...(repoPages.kubernetes ? [repoPages.kubernetes] : []),
+      ] },
+      repoPages.changelog,
     ],
   })],
 });

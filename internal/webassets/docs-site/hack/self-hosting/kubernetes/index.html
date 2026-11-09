@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz">
+	<head>
+		<!--sh:head-->
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Simple Hack on Kubernetes | Simple Hack</title><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.10"/><meta property="og:title" content="Simple Hack on Kubernetes"/><meta property="og:type" content="article"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="Simple Hack"/><meta name="twitter:card" content="summary_large_image"/>
+		
+		
+		<link rel="stylesheet" href="/docs/_astro/print.C9eyqPGL.css" media="print">
+	<link rel="stylesheet" href="/docs/_astro/index.C1x2hpYy.css">
+<link rel="stylesheet" href="/docs/_astro/Icon.U1EK5lRe.css">
+<link rel="stylesheet" href="/docs/_astro/LinkButton.B-IDtby6.css"><script type="module" src="/docs/_astro/page.cNngjUgL.js"></script></head>
+	<body class="astro-g5ptsecz">
+		<a class="sl-skip-link astro-qb7clj6f" href="#_top">Skip to content</a>
+		<div class="docs-product-header"><!--sh:header--></div>
+<div class="page sl-flex astro-yntsjkba">
+	<header class="header astro-yntsjkba"><div class="docs-bar"><span class="docs-label">Docs</span><site-search class=" astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}">
+	<button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o">
+		<svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+		<span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">Search</span>
+		<kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none">
+			<kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd>
+		</kbd>
+	</button>
+
+	<dialog style="padding: 0" aria-label="Search" class="astro-b5kgnn7o">
+		<div class="dialog-frame sl-flex astro-b5kgnn7o">
+			
+			<button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">
+				Cancel
+			</button>
+			<div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div>
+		</div>
+	</dialog>
+</site-search>
+
+
+<script src="/docs/_scripts/7ffcc0504ef8b9c73725.js"></script>
+
+<script type="module" src="/docs/_astro/Search.astro_astro_type_script_index_0_lang._gc9pYsW.js"></script></div>
+<script type="module" src="/docs/_scripts/e9e04975f547e3a0b7f0.js"></script></header>
+	<nav class="sidebar print:hidden astro-yntsjkba" aria-label="Main">
+		<button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg">
+	<svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg>
+	<svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg>
+	<span class="sr-only astro-r2osgdlg">Menu</span>
+</button>
+		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
+		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="08okeuu" class="astro-ipdry5cl">
+	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
+
+	<ul class="top-level astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Docs home</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Get started</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="0"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/start/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run an event</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/join/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Join an event</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/judge/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Judge</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Use the REST API</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/pages/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Code on your own pages</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Guides</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="1"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/guides/publish/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage and saved data</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/access/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sign-in and access</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/agents/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Agents and MCP</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/analytics/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Traffic and analytics</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/webhooks/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Webhooks</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/limits/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Limits and errors</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="2"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">API reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="3"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">API reference</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/account/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Account</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/auth/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Auth</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/deploy/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/discovery/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Discovery</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Events</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/health/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Health</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/hosted-events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Hosted events</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/skills/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Skills</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/versions/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/visitor-sign-in/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Visitor sign-in</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">MCP tools</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="4"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">MCP tools</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/hack-events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Events, teams and members</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/hack-entries/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Entries, judging and results</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/hack-app-only/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">App screens</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Self-hosting and Enterprise</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="5"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Overview</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operate/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run and operate</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/configuration/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Configuration</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Settings</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="6"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Advanced settings</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/accounts-and-sign-in/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Accounts and sign-in</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/cleanup-and-retention/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Cleanup and retention</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/domains-and-certificates/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Domains and certificates</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/email/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Email</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/hosted-events/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Hosted events</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/observability/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Observability</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/rate-limits/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Rate limits</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/saved-data/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Saved data</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/server-and-addresses/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Server and addresses</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/sites-and-versions/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/storage-and-backups/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage and backups</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Platforms</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="7"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Where it runs</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/coolify/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Coolify</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/digitalocean/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on DigitalOcean</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/fly/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Fly.io</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/railway/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Railway</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/render/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Render</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/simple-hack-coolify/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Full Simple Hack on Coolify</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/simple-hack-digitalocean/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Full Simple Hack on DigitalOcean</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/simple-hack-standalone/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Install the full Simple Hack platform</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/upcloud/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on UpCloud</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Operations</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="8"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/certificates/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Certificates on the hosted box</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/deployment-profiles/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Deployment profiles</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/simple-hack/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Simple Hack operations</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/site-base-paused/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Paused site base (2026-10-09)</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/kubernetes/" aria-current="page" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Simple Hack on Kubernetes</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/changelog/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Changelog</span>
+				
+			</a>
+	</li>
+</ul>
+
+	<script aria-hidden="true" src="/docs/_scripts/ede095e23b6caf8b7892.js"></script>
+</sl-sidebar-state-persist>
+
+<div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh">
+	<div class="social-icons astro-p4azlveh"></div>
+	
+	
+
+
+</div></div></div>
+		</sl-sidebar-pane>
+	</nav>
+	<div class="main-frame astro-yntsjkba">
+  
+  
+  
+			
+			<script type="module" src="/docs/_scripts/560ae070a06f20cdd7a6.js"></script>
+			<div class="lg:sl-flex astro-lrzkfocr">
+	<aside class="right-sidebar-container print:hidden astro-lrzkfocr">
+		<div class="right-sidebar astro-lrzkfocr">
+		<div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="2" class="astro-66cqc7ze">
+	<nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze">
+		<details id="starlight__mobile-toc" class="astro-66cqc7ze">
+			<summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze">
+				<span class="toggle sl-flex astro-66cqc7ze">
+					On this page
+					<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</span>
+				<span class="display-current astro-66cqc7ze"></span>
+			</summary>
+			<div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#prerequisites" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prerequisites</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#install" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Install</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#first-sign-in-and-the-first-admin" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">First sign-in and the first admin</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#upgrades" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Upgrades</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#backups" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Backups</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#what-doesnt-work-without-what" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">What doesn’t work without what</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#troubleshooting" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Troubleshooting</span></a>
+		
+	</li>
+</ul></div>
+		</details>
+	</nav>
+</mobile-starlight-toc>
+
+
+
+<script type="module" src="/docs/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div>
+		<div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx">
+			<div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="2">
+	<nav aria-labelledby="starlight__on-this-page">
+		<h2 id="starlight__on-this-page">On this page</h2>
+		<ul class="astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#prerequisites" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prerequisites</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#install" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Install</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#first-sign-in-and-the-first-admin" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">First sign-in and the first admin</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#upgrades" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Upgrades</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#backups" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Backups</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#what-doesnt-work-without-what" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">What doesn’t work without what</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#troubleshooting" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Troubleshooting</span></a>
+		
+	</li>
+</ul>
+	</nav>
+</starlight-toc>
+
+<script type="module" src="/docs/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div>
+		</div>
+	</div>
+	</aside>
+	<div class="main-pane astro-lrzkfocr">
+				
+				<main data-pagefind-body class="astro-g5ptsecz" lang="en" dir="ltr">
+					
+					
+					
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<h1 id="_top" class="astro-bebwqqxs">Simple Hack on Kubernetes</h1>
+								</div>
+</div>
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<div class="sl-markdown-content"><p>One container image, one pod, your Postgres, your load balancer. This is the
+runbook for an internal hackathon run inside a company: the chart is
+<code>deploy/kubernetes/simple-hack/</code>, the same chart rendered to plain YAML is
+<code>deploy/kubernetes/manifests/simple-hack.yaml</code>, and the image is
+<code>ghcr.io/vineetu/simple-host:hack-&lt;release&gt;</code> (the Simple Hack release build;
+0.8.14 is the first that can build its own database, which this needs).</p>
+<p>The pod runs <code>simple-host</code> in Hack mode (<code>EVENTS=hosted</code>): organisers sign in
+at <code>https://&lt;host&gt;/</code> and create events, each event’s page is
+<code>https://&lt;event&gt;.&lt;host&gt;/</code>, and each team’s site is its own origin,
+<code>https://&lt;team&gt;.&lt;event&gt;.&lt;host&gt;/</code> (so no team’s page can read another’s
+visitor sessions). TLS ends at your load balancer; the pod speaks plain HTTP
+on 8090.</p>
+<p>Running many events at once and hitting your load balancer’s or
+certificate’s per-name limits (prerequisite 3 below)? Set
+<code>teamSites.flatHosts: true</code> and a team’s site becomes
+<code>https://&lt;team&gt;--&lt;event&gt;.&lt;host&gt;/</code> instead — one DNS label, so the same
+<code>*.&lt;host&gt;</code> wildcard DNS, certificate and Ingress rule you already have for
+event pages covers every team site too, with no per-event certificate SAN
+or <code>helm upgrade</code>. Off by default, matching simple-hack.app.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p>Have these before <code>helm install</code>; the chart cannot make them.</p>
+<ol>
+<li>
+<p><strong>A Postgres 16 database and a role that owns it, not a superuser.</strong>
+No extensions.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#F97583">CREATE</span><span style="color:#F97583"> ROLE</span><span style="color:#E1E4E8"> hack </span><span style="color:#F97583">LOGIN</span><span style="color:#F97583"> PASSWORD</span><span style="color:#9ECBFF"> '...'</span><span style="color:#E1E4E8">;</span></span>
+<span class="line"><span style="color:#F97583">CREATE</span><span style="color:#F97583"> DATABASE</span><span style="color:#B392F0"> hack</span><span style="color:#F97583"> OWNER</span><span style="color:#E1E4E8"> hack;</span></span></code></pre>
+<p>The pod builds the schema in an empty database on its first start and
+applies migrations on every start (<code>MIGRATE_ON_START=true</code>, under a
+Postgres advisory lock, so a second pod starting at the same moment
+waits). Keep the connection string handy:
+<code>postgres://hack:PASSWORD@&lt;pg-host&gt;:5432/hack?sslmode=require</code>.
+The server opens at most 25 connections (<code>DB_MAX_OPEN_CONNS</code>).</p>
+</li>
+<li>
+<p><strong>DNS: the apex and one wildcard</strong>, both to the address of the load
+balancer in front of your ingress controller: <code>hack.example.com</code> and
+<code>*.hack.example.com</code>. A DNS wildcard matches more than one label, so that
+one record also resolves <code>team.event.hack.example.com</code>. Inside a company
+these are records in the internal zone. Check <code>hack.example.com</code>,
+<code>anything.hack.example.com</code> and <code>a.b.hack.example.com</code> all resolve before
+installing.</p>
+</li>
+<li>
+<p><strong>The load balancer and TLS.</strong> A certificate for <code>hack.example.com</code>,
+<code>*.hack.example.com</code> (event pages) and, for each event you will run,
+<code>*.&lt;event&gt;.hack.example.com</code> (its team sites): a wildcard certificate
+covers one label only, so the event’s wildcard has to be a SAN of its
+own. Decide the event’s slug (what the organiser types when creating it;
+<code>spring-hack</code> gives <code>spring-hack.hack.example.com</code>) and get the
+certificate issued with that SAN. Inside a company that is one request to
+the internal CA; a public CA issues it too (Let’s Encrypt with a DNS
+challenge). Terminate TLS at the load balancer or the ingress controller.
+Whatever terminates it must forward <code>X-Forwarded-Proto: https</code> and append
+the client address to <code>X-Forwarded-For</code>; every common load balancer and
+ingress controller does. Without <code>X-Forwarded-Proto</code> the sign-in cookies
+lose their <code>Secure</code> flag; without a sane <code>X-Forwarded-For</code> every
+participant shares one rate limit. Uploads are up to 64 MB per request
+(<code>MAX_ARCHIVE_MB</code>, default 25 in Hack, plus overhead): raise the proxy’s
+body limit to match (the chart’s ingress-nginx annotations do).</p>
+<p>The Ingress needs the same list: an Ingress host wildcard also matches one
+label, so the chart adds a <code>*.&lt;event&gt;.hack.example.com</code> rule for every
+slug under <code>ingress.events</code>. An event created later is one line and a
+<code>helm upgrade</code> away (or <code>ingress.catchAll: true</code> when the controller is
+this app’s alone).</p>
+<p><strong><code>teamSites.flatHosts: true</code> skips all of that.</strong> A team’s site becomes
+the single label <code>&lt;team&gt;--&lt;event&gt;.hack.example.com</code> instead of
+<code>&lt;team&gt;.&lt;event&gt;.hack.example.com</code>, which the <code>hack.example.com</code> and
+<code>*.hack.example.com</code> certificate and Ingress rule from the start of this
+step already cover — no per-event SAN, no <code>ingress.events</code> entry, no
+<code>helm upgrade</code> per event. Running against AWS ALB specifically: this is
+the escape hatch for its per-certificate SAN and per-listener rule
+limits, which a growing roster of concurrent events runs into otherwise.
+Turn it on for a new install, or before any event exists: existing
+two-level team addresses are not redirected to the flat form, so turning
+it on after events are already running leaves their team sites at the
+old addresses.</p>
+</li>
+<li>
+<p><strong>An OIDC client at your identity provider</strong> (Entra ID, Okta, Google
+Workspace, Keycloak): a confidential web client, authorization-code
+grant, with exactly this redirect URI:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>https://hack.example.com/v1/auth/oauth/oidc/callback</span></span></code></pre>
+<p>Note the issuer URL, client ID and client secret. Provider-by-provider
+steps are in <a href="/docs/self-hosting/platforms/simple-hack-standalone/#registering-the-redirect-uri">simple-hack-standalone.md</a>.
+Without an identity provider, password sign-in works by default; optionally use emailed codes through Resend
+(<code>signIn.email</code>), which needs the pod to reach api.resend.com.</p>
+</li>
+<li>
+<p><strong>A storage class</strong> that can give a ReadWriteOnce volume (every default
+one can). The volume holds every site; 20 GB is plenty for a hackathon.</p>
+</li>
+<li>
+<p><code>kubectl</code> and <code>helm</code> 3 pointed at the cluster, and a namespace.</p>
+</li>
+</ol>
+<h2 id="install">Install</h2>
+<p>Copy <a href="https://github.com/vineetu/simple-host/blob/main/deploy/kubernetes/examples/values-example.yaml"><code>deploy/kubernetes/examples/values-example.yaml</code></a>
+to <code>my-values.yaml</code> and fill in the “set this” lines (<code>host</code>,
+<code>database.dsn</code>, <code>signIn.oidc.issuer</code>, <code>clientId</code>, <code>clientSecret</code>) and the
+event slug under <code>ingress.events</code>. Every other value is documented in
+<a href="https://github.com/vineetu/simple-host/blob/main/deploy/kubernetes/simple-hack/values.yaml"><code>values.yaml</code></a>. Then:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">helm</span><span style="color:#9ECBFF"> install</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> deploy/kubernetes/simple-hack</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --namespace</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#79B8FF"> --create-namespace</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  -f</span><span style="color:#9ECBFF"> my-values.yaml</span></span>
+<span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> rollout</span><span style="color:#9ECBFF"> status</span><span style="color:#9ECBFF"> deploy/simple-hack</span></span>
+<span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> logs</span><span style="color:#9ECBFF"> deploy/simple-hack</span></span></code></pre>
+<p>The log shows <code>MIGRATE_ON_START: building the schema if the database is empty</code>, <code>built the schema from db/schema.sql</code>, the migrations being
+recorded, then <code>hosted events: on (the hackathon platform at https://hack.example.com)</code> and the listen line. The pod is Ready when
+<code>/readyz</code> can ping Postgres.</p>
+<p>Check from outside:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">curl</span><span style="color:#79B8FF"> -sS</span><span style="color:#9ECBFF"> https://hack.example.com/healthz</span><span style="color:#6A737D">          # {"status":"ok"}</span></span>
+<span class="line"><span style="color:#B392F0">curl</span><span style="color:#79B8FF"> -sS</span><span style="color:#79B8FF"> -o</span><span style="color:#9ECBFF"> /dev/null</span><span style="color:#79B8FF"> -w</span><span style="color:#9ECBFF"> '%{http_code}\n'</span><span style="color:#9ECBFF"> https://hack.example.com/</span><span style="color:#6A737D">   # 200</span></span></code></pre>
+<p>Without Helm: create the Secret from
+<a href="https://github.com/vineetu/simple-host/blob/main/deploy/kubernetes/manifests/secret.example.yaml"><code>manifests/secret.example.yaml</code></a>,
+edit the hostnames in
+<a href="https://github.com/vineetu/simple-host/blob/main/deploy/kubernetes/manifests/simple-hack.yaml"><code>manifests/simple-hack.yaml</code></a>,
+and <code>kubectl apply -f</code> both. Re-render your own copy with
+<code>deploy/kubernetes/render.sh</code> after changing the example values.</p>
+<h3 id="pod-security">Pod security</h3>
+<p>The pod meets the Kubernetes <em>restricted</em> Pod Security Standard: non-root
+(uid 65532), read-only root filesystem, no capabilities, seccomp
+<code>RuntimeDefault</code>, no service-account token. The namespace can carry
+<code>pod-security.kubernetes.io/enforce=restricted</code>. It writes only to <code>/data</code>
+(the volume) and <code>/tmp</code> (an emptyDir).</p>
+<h2 id="first-sign-in-and-the-first-admin">First sign-in and the first admin</h2>
+<p>There is no admin step. The first person to open <code>https://hack.example.com/</code>
+signs in with the company account, lands on their home page and creates the
+event; they are its organiser. Anyone else who signs in and has the event’s
+join link, judge link or applies from the event page takes part. Nothing
+about the first account is special.</p>
+<p>The <em>platform admin</em> is not a person: it is the <code>ADMIN_API_KEY</code>, used as an
+<code>X-API-Key</code> header against <code>/v1/admin/*</code> (list every event, take a site
+down, create key-only accounts for a bot or a test). The chart generated it
+on the first install and keeps it across upgrades:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> get</span><span style="color:#9ECBFF"> secret</span><span style="color:#9ECBFF"> simple-hack-secrets</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  -o</span><span style="color:#9ECBFF"> jsonpath='{.data.ADMIN_API_KEY}'</span><span style="color:#F97583"> |</span><span style="color:#B392F0"> base64</span><span style="color:#79B8FF"> -d</span></span></code></pre>
+<p>Keep it out of chat and tickets. With <code>signIn.email.enabled: "off"</code> (the
+example values), password accounts still work by default. For company accounts
+only, also set <code>signIn.password.enabled: false</code>.
+<code>signIn.oidc.allowedEmailDomains</code> refuses anyone outside the listed domains
+even when the provider would have let them through.</p>
+<h2 id="upgrades">Upgrades</h2>
+<p>A release is a new image tag. Migrations run on start, so an upgrade is:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">helm</span><span style="color:#9ECBFF"> upgrade</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> deploy/kubernetes/simple-hack</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --namespace</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#79B8FF"> -f</span><span style="color:#9ECBFF"> my-values.yaml</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --set</span><span style="color:#9ECBFF"> image.tag=hack-0.8.15</span></span>
+<span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> rollout</span><span style="color:#9ECBFF"> status</span><span style="color:#9ECBFF"> deploy/simple-hack</span></span></code></pre>
+<p>The Deployment’s strategy is <code>Recreate</code>: the old pod stops, the new one
+starts, applies the release’s pending migrations, then listens. Expect about
+thirty seconds of downtime per upgrade; do it between sessions, not during
+judging. A migration that fails leaves the pod in <code>CrashLoopBackOff</code> with
+the reason in its log and the database as it was (each file runs in its own
+transaction); <code>helm rollback simple-hack</code> brings the previous image back,
+and a database the newer release already migrated still runs the older
+binary (migrations are additive).</p>
+<p>Changing a value restarts the pod (the settings are read at start). The
+generated secrets (<code>ADMIN_API_KEY</code>, <code>PASSCODE_ENC_KEY</code>, <code>ANALYTICS_SALT</code>)
+are read back from the live Secret on every upgrade and never rotate on
+their own; the Secret and the volume claim survive <code>helm uninstall</code>.</p>
+<p>To prepare a database by hand instead (<code>migrateOnStart: false</code>), run the
+same image once:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> run</span><span style="color:#9ECBFF"> migrate</span><span style="color:#79B8FF"> --rm</span><span style="color:#79B8FF"> -it</span><span style="color:#79B8FF"> --restart=Never</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --image</span><span style="color:#9ECBFF"> ghcr.io/vineetu/simple-host:hack-0.8.14</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --env</span><span style="color:#9ECBFF"> DB_DSN="$(</span><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack get secret simple-hack-secrets </span><span style="color:#79B8FF">-o</span><span style="color:#9ECBFF"> jsonpath='{.data.DB_DSN}' </span><span style="color:#F97583">|</span><span style="color:#B392F0"> base64</span><span style="color:#79B8FF"> -d</span><span style="color:#9ECBFF">)"</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --</span><span style="color:#9ECBFF"> migrate</span><span style="color:#79B8FF"> -init</span></span></code></pre>
+<h2 id="backups">Backups</h2>
+<p>Two things hold state, and a restore needs both from about the same time:</p>
+<ul>
+<li>
+<p><strong>Postgres</strong>: accounts, events, teams, scores, which site version is
+live. Your database’s own backups cover it; by hand,
+<code>pg_dump -Fc "$DB_DSN" &gt; hack.dump</code> and <code>pg_restore -d "$DB_DSN" hack.dump</code>.</p>
+</li>
+<li>
+<p><strong>The volume</strong> (<code>/data</code>): every site’s files and versions, and each
+site’s SQLite, KV and uploaded files. Take a VolumeSnapshot of the
+claim <code>simple-hack-data</code> (your CSI driver’s class), or copy it out:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> exec</span><span style="color:#9ECBFF"> deploy/simple-hack</span><span style="color:#79B8FF"> --</span><span style="color:#9ECBFF"> tar</span><span style="color:#79B8FF"> -C</span><span style="color:#9ECBFF"> /data</span><span style="color:#79B8FF"> -cf</span><span style="color:#9ECBFF"> -</span><span style="color:#9ECBFF"> .</span><span style="color:#F97583"> &gt;</span><span style="color:#9ECBFF"> data.tar</span></span></code></pre>
+<p>(<code>tar</code> is not in the image; use <code>kubectl cp</code> or a debug container with
+the volume mounted, or the snapshot.)</p>
+</li>
+</ul>
+<p>Take the two together while the pod is scaled to zero
+(<code>kubectl -n simple-hack scale deploy/simple-hack --replicas=0</code>) for a
+consistent pair; during an event, a live <code>pg_dump</code> plus a snapshot a minute
+apart is fine (a site saved in between is missing from one and the server
+tolerates it). To restore: scale to zero, <code>pg_restore</code>, restore the snapshot
+into a new claim, set <code>persistence.existingClaim</code>, scale back up.</p>
+<p>A copy of the Secret belongs with the backups: <code>PASSCODE_ENC_KEY</code> seals every
+site passcode and notification secret, and the data is unreadable without it.</p>
+<h2 id="what-doesnt-work-without-what">What doesn’t work without what</h2>
+<table>
+<thead>
+<tr>
+<th>Without</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The wildcard DNS record</td>
+<td><code>https://hack.example.com/</code> works; every event page and team site is unreachable. The platform’s home page still hands out those addresses.</td>
+</tr>
+<tr>
+<td>A certificate that covers <code>*.hack.example.com</code></td>
+<td>Event pages warn or fail in the browser.</td>
+</tr>
+<tr>
+<td>The event’s <code>*.&lt;event&gt;.hack.example.com</code> SAN in that certificate (<code>teamSites.flatHosts: false</code>, the default)</td>
+<td>Team sites warn or fail in the browser; the rest of the event (sign-up, teams, judging) works.</td>
+</tr>
+<tr>
+<td>The event’s slug under <code>ingress.events</code> (or <code>ingress.catchAll</code>), with <code>teamSites.flatHosts: false</code></td>
+<td>The ingress controller answers <code>https://&lt;team&gt;.&lt;event&gt;.hack.example.com/</code> with its default backend (404). Add the slug and <code>helm upgrade</code>, or turn <code>teamSites.flatHosts</code> on instead.</td>
+</tr>
+<tr>
+<td>Team sites at <code>&lt;event&gt;.hack.example.com/&lt;team&gt;/</code></td>
+<td>Not served, by design: each team is its own origin so no team’s page can read another’s visitor sessions or storage.</td>
+</tr>
+<tr>
+<td><code>X-Forwarded-Proto: https</code> from the proxy</td>
+<td>Sign-in works; cookies are set without <code>Secure</code>.</td>
+</tr>
+<tr>
+<td>A trustworthy <code>X-Forwarded-For</code> (or <code>trustedProxyCIDRs</code> covering the proxy)</td>
+<td>Everyone shares one rate limit, and <code>SIGNUP_BLOCKED_COUNTRIES</code> sees the proxy’s address.</td>
+</tr>
+<tr>
+<td>The identity provider reachable from the pod</td>
+<td>Company sign-in fails at the redirect; the pod’s log says why. With <code>signIn.email</code> on, emailed codes still work.</td>
+</tr>
+<tr>
+<td>Resend reachable (when <code>signIn.email</code> is on)</td>
+<td>No sign-in codes and no notices. Company sign-in is unaffected.</td>
+</tr>
+<tr>
+<td>A role that owns the database</td>
+<td>The first start fails to build the schema (<code>permission denied</code>); the log says so.</td>
+</tr>
+<tr>
+<td>An empty database owned by another application</td>
+<td>The start refuses: the users table exists but is not ours. Give Simple Hack its own database.</td>
+</tr>
+<tr>
+<td>The volume</td>
+<td>Nothing starts (<code>persistence.enabled: false</code> is refused).</td>
+</tr>
+<tr>
+<td>A second replica</td>
+<td>Refused by design: one pod, <code>Recreate</code>. Uploads, imports and rate limits are in-process, and the volume is ReadWriteOnce.</td>
+</tr>
+<tr>
+<td>Egress to the internet</td>
+<td>Fine for an internal event with company sign-in, as long as the identity provider is reachable. Team sites that call outside services do that from the browser, not the pod. Site-storage webhooks (team notifications) need egress to wherever they point.</td>
+</tr>
+<tr>
+<td>The connector screens (<code>MCP_APP_*</code>)</td>
+<td>Off here; they are the hosted service’s. Everything else over MCP works at <code>https://hack.example.com/mcp</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li><code>kubectl -n simple-hack logs deploy/simple-hack</code> has every startup reason:
+a missing setting, a database it cannot reach (it waits two minutes, then
+exits), a schema it refuses.</li>
+<li><code>kubectl -n simple-hack exec deploy/simple-hack -- /usr/local/bin/simple-host migrate -status</code>
+lists which migrations the database has.</li>
+<li>A pod that is Running but not Ready cannot ping Postgres: <code>/readyz</code>
+returns 503 with <code>{"status":"unready"}</code>.</li>
+<li><code>kubectl -n simple-hack port-forward deploy/simple-hack 8090:8090</code> and
+<code>curl -H 'Host: hack.example.com' http://127.0.0.1:8090/</code> reaches the pod
+without the load balancer, to tell its problems from the proxy’s.</li>
+<li><code>deploy/kubernetes/tests/kind-check.sh</code> runs the whole thing against a
+throwaway kind cluster with its own Postgres, as a release check.</li>
+</ul>
+<p>Password sign-in is enabled by default in the chart (<code>signIn.password.enabled: true</code>, <code>signIn.password.selfSignup: true</code>). It renders <code>PASSWORD_SIGNIN=on</code> and <code>PASSWORD_SELF_SIGNUP=on</code>, and needs neither OIDC nor Resend. Set <code>selfSignup: false</code> for admin-created accounts only, or <code>enabled: false</code> to require another sign-in method. Admin Users creates accounts and resets temporary passwords.</p>
+</div>
+								<footer class="sl-flex astro-ddtxxk7k">
+	<div class="meta sl-flex astro-ddtxxk7k">
+		
+		
+	</div>
+	<div class="pagination-links print:hidden astro-b5raizh3" dir="ltr">
+	<a href="/docs/self-hosting/operations/site-base-paused/" rel="prev" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg>
+		<span class="astro-b5raizh3">
+			Previous
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Paused site base (2026-10-09)</span>
+		</span>
+	</a>
+	<a href="/docs/changelog/" rel="next" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>
+		<span class="astro-b5raizh3">
+			Next
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Changelog</span>
+		</span>
+	</a>
+</div>
+
+	
+</footer>
+							</div>
+</div>
+						
+				</main>
+			</div>
+</div>
+		
+</div>
+</div>
+<!--sh:footer-->
+	</body>
+</html>

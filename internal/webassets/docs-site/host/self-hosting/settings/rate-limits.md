@@ -1,0 +1,67 @@
+# Rate limits
+
+Each rate limit is `<burst>,<every>`: that many requests at once, then one more every `<every>`
+(a duration: `500ms`, `5s`, `6m`, `1h`). `RATE_LIMIT_SIGNIN_IP=20,5s` allows 20 sign-in requests
+from one address at once, then one every 5 seconds. Limits are per client address unless the
+description says otherwise.
+
+**Security-sensitive** limits (sign-in, visitor sign-in, the connector's OAuth) can be made
+stricter freely but at most four times looser than the default; anything looser stops the server
+at startup. The others may be set to anything, with a startup warning past ten times looser.
+
+Burst must be 1–100,000 and `<every>` 1ms–24h, within any stricter security
+ceiling. Security-sensitive limits also include email codes, site passcode tries
+and spam-checked posts. Their burst may be at most four times the default and
+`<every>` at least a quarter of it; startup errors name the ceiling. Other limits
+log `WARNING` beyond ten times looser. Unknown `RATE_LIMIT_*` names are ignored
+with a startup `WARNING`.
+
+`RATE_LIMIT_SITE_OPS` also covers account deletion; `RATE_LIMIT_EXPORT` includes
+link downloads. `RATE_LIMIT_EVENT_APPLY_USER` permits five applications an hour
+by default. Visitor OAuth limits cover both starts and callbacks. Passcode
+limits trigger the [site lockout periods](/docs/self-hosting/settings/sites-and-versions/).
+
+<!-- settings:type=rate -->
+| Setting | Default | Allowed | What it does |
+|---|---|---|---|
+| `RATE_LIMIT_SIGNIN_IP` | `20,5s` | stricter freely; loosest `80,1.25s` | Sign-in and email-change requests per address. **Security-sensitive.** |
+| `RATE_LIMIT_SIGNIN_EMAIL` | `5,50s` | stricter freely; loosest `20,12.5s` | Sign-in codes sent to one email address. **Security-sensitive.** |
+| `RATE_LIMIT_VISITOR_OAUTH` | `20,5s` | stricter freely; loosest `80,1.25s` | Visitor Google sign-ins per address. **Security-sensitive.** |
+| `RATE_LIMIT_VISITOR_AUTH` | `20,5s` | stricter freely; loosest `80,1.25s` | Visitor email-code sign-ins per address. **Security-sensitive.** |
+| `RATE_LIMIT_VISITOR` | `20,5s` | stricter freely; loosest `80,1.25s` | Finishing a visitor sign-in and signing out, per address. **Security-sensitive.** |
+| `RATE_LIMIT_HANDLE_CHECK` | `30,2s` | any (warns past 10× looser) | Address availability checks while someone types a handle (GET /v1/handles/check), per address. |
+| `RATE_LIMIT_OAUTH_REGISTER` | `10,6m` | stricter freely; loosest `40,1m30s` | AI app registrations on the connector, per address. **Security-sensitive.** |
+| `RATE_LIMIT_OAUTH_AUTHORIZE` | `30,2s` | stricter freely; loosest `120,500ms` | AI app sign-in requests on the connector, per address. **Security-sensitive.** |
+| `RATE_LIMIT_OAUTH_TOKEN` | `30,2s` | stricter freely; loosest `120,500ms` | AI app token requests on the connector, per address. **Security-sensitive.** |
+| `RATE_LIMIT_UPLOAD` | `30,10s` | any (warns past 10× looser) | Uploads and deploys per client. |
+| `RATE_LIMIT_SITE_OPS` | `30,2s` | any (warns past 10× looser) | Deleting, changing and restoring sites, and admin sign-in tries, per address. |
+| `RATE_LIMIT_EXPORT` | `10,10s` | any (warns past 10× looser) | Site and account downloads per address. |
+| `RATE_LIMIT_ANALYTICS` | `30,2s` | any (warns past 10× looser) | Top pages and referring domains reads, per address. |
+| `RATE_LIMIT_PASSCODE_IP` | `5,3m` | stricter freely; loosest `20,45s` | Wrong passcode tries on one site per address. **Security-sensitive.** |
+| `RATE_LIMIT_PASSCODE_SITE` | `60,1m` | stricter freely; loosest `240,15s` | Wrong passcode tries on one site from everyone together. **Security-sensitive.** |
+| `RATE_LIMIT_SPAM_CHECKED_IP` | `10,30s` | stricter freely; loosest `40,7.5s` | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. **Security-sensitive.** |
+| `RATE_LIMIT_SPAM_CHECKED_SITE` | `60,10s` | stricter freely; loosest `240,2.5s` | Posts on comments-preset resources, per site from everyone together. **Security-sensitive.** |
+| `RATE_LIMIT_STATE` | `60,1s` | any (warns past 10× looser) | Saved-data and list writes per client. |
+| `RATE_LIMIT_TLS_ASK` | `60,100ms` | any (warns past 10× looser) | Certificate checks (/internal/tls-ask), per address. |
+| `RATE_LIMIT_DOMAIN_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on a domain, per address. |
+| `RATE_LIMIT_DOMAIN_CHECK_USER` | `3,30s` | any (warns past 10× looser) | "Check again" on a domain, per account. |
+| `RATE_LIMIT_ADDRESS_FAMILY_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on an address family, per address. |
+| `RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER` | `3,30s` | any (warns past 10× looser) | "Check again" on an address family, per account. |
+| `RATE_LIMIT_EVENT_CODES_IP` | `120,1s` | any (warns past 10× looser) | Hosted events: join, judge and team-code lookups and joins, per network address (roomy: a whole venue can share one address). |
+| `RATE_LIMIT_EVENT_CODES_USER` | `20,3s` | any (warns past 10× looser) | Hosted events: join, judge and team-code joins and lookups, per account. |
+| `RATE_LIMIT_EVENT_NAMES_USER` | `60,1s` | any (warns past 10× looser) | Hosted events: event address checks while someone types one, per account. |
+| `RATE_LIMIT_EVENT_APPLY_IP` | `30,2m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per network address. |
+| `RATE_LIMIT_EVENT_APPLY_USER` | `5,12m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per account. |
+| `RATE_LIMIT_STORAGE_IP` | `120,100ms` | any (warns past 10× looser) | Visitor storage writes per site and client IP; owner credentials are exempt. |
+| `RATE_LIMIT_STORAGE_VISITOR` | `60,200ms` | any (warns past 10× looser) | Storage writes per site and signed-in visitor; limits add-only flooding. |
+<!-- /settings -->
+
+## Recipes
+
+**A busy event on one box** (many people behind one venue address):
+
+```
+RATE_LIMIT_SIGNIN_IP=80,1250ms
+RATE_LIMIT_UPLOAD=120,2s
+RATE_LIMIT_STATE=240,250ms
+```

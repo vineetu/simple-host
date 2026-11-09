@@ -48,6 +48,19 @@ Use `<Instance kind="hosted">` / `<Instance kind="self">` for runtime instance
 variants. Both variants are excluded from Pagefind so search covers only shared instructions. Preserve limitstext.go's exact
 phrases, including spaces, so the server can substitute configured limits.
 
+Self-hosting and Enterprise, and the changelog, are not hand-written MDX: `scripts/docs-repo-pages.py`
+renders them from `docs/configuration.md`, `docs/advanced/*.md`, `docs/platforms/*.md`,
+`docs/operations/*.md`, `docs/kubernetes.md` and `CHANGELOG.md` into plain `.md` under
+`.generated-content` during `prepare()`, rewriting relative links to the matching `/docs/` page or
+a GitHub link, and (Host brand only) dropping anything that mentions Simple Hack. The page list it
+writes to `self-hosting-pages.json` feeds the sidebar in `astro.config.mjs` and the section home
+page. The content loader's glob covers both `.mdx` and `.md` for this reason.
+
+Every built page is also served as `/docs/<page>.md`, for agents: `write_md_copies()` converts the
+brand-selected source (Starlight components to Markdown/links, `<Instance>` to the same
+`<!--sh:hosted-->`/`<!--sh:self-->` markers the HTML uses) during `externalize()`; the Go handler
+runs the same runtime text passes on it as the HTML, minus chrome and scripts.
+
 Legacy fragments are mapped per brand in `old-anchors.json`. The build writes each
 map into `old-anchors.js`; Go tests verify every target page and heading in the
 embedded brand tree. `install-skills` goes to `/install.html` on both brands.

@@ -1,0 +1,53 @@
+# Showcase and home page
+
+## Edit your public profile
+[What this is](/features.html#public-profile)
+
+
+1. Sign in, open **Your sites**, and go to **Settings**.
+2. Update your display name and bio. Keep contact details in the bio only if you want them public.
+3. To edit the bio from a client, send `PUT /v1/me/bio` with `{"bio":"Ceramics and workshops in York."}`.
+4. Open your public page in a signed-out browser and read it before sharing its address.
+
+
+## Pin and order sites
+[What this is](/features.html#showcase-pins-and-bio)
+
+
+1. In Settings, find the showcase controls and choose a site you want to show.
+2. Tick **Pin to top** and set its order number. Put smaller numbers first among pinned sites, then among the remaining sites.
+3. With the API, send `PUT /v1/sites/{sitename}/showcase` with `{"pinned":true,"order":10}`.
+4. Update the site's title and description with the site's editing controls if its card text needs changing. Check its visibility before looking for it on the public page; unlisted sites are omitted.
+
+
+## Choose a home page
+[What this is](/features.html#your-home-page)
+
+
+1. Publish the site you want to use and test its links.
+2. Open **Settings**, then the **Home page** selector. Choose the site, or choose **Showcase** to use the listing again.
+3. With the API, send `PUT /v1/me/home` with `{"site":"portfolio"}`. Send `{"site":null}` to choose the showcase.
+4. Open your person address and check the selected page. Keep the chosen site online.
+
+
+## Read your showcase feed
+[What this is](/features.html#showcase-feed)
+
+
+1. Request `GET /v1/u/{handle}/showcase.json` with your public handle.
+2. Use the returned site links and ordering when building another page that lists your projects.
+3. Render titles and descriptions as text, and follow the returned URLs when opening a project.
+
+
+## Errors you may see
+
+| Code | Means | Do this |
+|---|---|---|
+| `missing_api_key` (401) | Owner credential missing | Send the owner key in `X-API-Key` |
+| `not_found` (404) | No matching owned site | Read the site list |
+| HTTP 400 (no code) | Malformed setting | Check the response and request fields |
+| `bio_too_long` (400) | Bio exceeds the limit | Shorten the bio |
+
+## Next
+- [Sites and deploy](/docs/guides/publish/)
+- [Traffic and analytics](/docs/guides/analytics/)

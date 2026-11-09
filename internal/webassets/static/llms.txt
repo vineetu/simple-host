@@ -4,6 +4,10 @@ Simple Host hosts static websites, each with a small backend for saved data and 
 
 Cost: free to use. [Cost and limits](https://simple-host.app/pricing) states today's sites-per-account, storage, version and rate-limit numbers for this install, generated from its own configuration.
 
+## Docs for agents
+
+Every page at [/docs/](https://simple-host.app/docs/) is also served as plain Markdown at the same path with `.md` appended (`/docs/` is `/docs/index.md`); start there and follow its links to walk the whole set, including [Webhooks](https://simple-host.app/docs/webhooks.md), [Limits](https://simple-host.app/docs/limits.md), [Self-hosting](https://simple-host.app/docs/self-hosting.md) and the [Changelog](https://simple-host.app/docs/changelog.md).
+
 ## When to use Simple Host
 
 - Build a quick static site from a chat prompt: connect the [MCP connector](https://simple-host.app/mcp), or use the [website-deploy skill](https://simple-host.app/v1/skills/website-deploy) with a locally configured API key.

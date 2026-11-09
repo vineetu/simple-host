@@ -12,6 +12,12 @@ from pathlib import Path
 _spec = importlib.util.spec_from_file_location('docs_reference', Path(__file__).resolve().parent / 'docs-reference.py')
 docs_reference = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(docs_reference)
+# Hyphenated filename (matches this file's own convention): load by path,
+# since `import docs-repo-pages` is not valid Python syntax.
+_drp_spec = importlib.util.spec_from_file_location(
+    'docs_repo_pages', Path(__file__).resolve().parent / 'docs-repo-pages.py')
+docs_repo_pages = importlib.util.module_from_spec(_drp_spec)
+_drp_spec.loader.exec_module(docs_repo_pages)
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs/site'
@@ -22,7 +28,9 @@ BRANDS = ('host', 'hack')
 def sources():
     paths = [p for p in SOURCE.rglob('*') if p.is_file() and not any(
         x in p.relative_to(SOURCE).parts for x in ('node_modules', '.astro', '.generated-content', 'dist'))]
-    paths += [ROOT / 'scripts/build-docs-site.sh', ROOT / 'scripts/docs-site.py', ROOT / 'scripts/docs-reference.py']
+    paths += [ROOT / 'scripts/build-docs-site.sh', ROOT / 'scripts/docs-site.py', ROOT / 'scripts/docs-reference.py', ROOT / 'scripts/docs-repo-pages.py']
+    paths += [ROOT / p for p, _, _ in docs_repo_pages.repo_doc_files(ROOT)]
+    paths += [ROOT / 'CHANGELOG.md']
     return sorted(paths)
 
 
@@ -82,6 +90,7 @@ def prepare(brand):
     # hand-kept lists (SIM-390). docs_reference also writes reference.json,
     # which astro.config.mjs reads for the Reference sidebar group.
     docs_reference.generate(brand, target)
+    docs_repo_pages.generate(ROOT, target, brand)
 
 
 SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
@@ -114,6 +123,7 @@ def externalize(brand):
         page.write_text(body)
     for p in tree.rglob('*.map'):
         p.unlink()
+    docs_repo_pages.write_md_copies(ROOT, brand)
 
 
 def record():

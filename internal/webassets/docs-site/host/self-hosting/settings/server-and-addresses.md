@@ -1,0 +1,112 @@
+# Server and addresses
+
+**Setup mode.** A box installed without `--host` starts in setup mode: it serves one page that
+asks for the setup password (printed once by the installer) and then where the box lives.
+
+**Per-person and per-site addresses.** simple-host.app gives each account its own address,
+`<handle>.<domain>`, and each site its own origin, `<site>.<handle>.<domain>`. That needs a
+wildcard certificate per person, which a small box does not have, so both are `off` there and
+sites live at `sites.<domain>/<handle>/<site>/`. `serve` answers on the new addresses without
+handing them out; `canonical` hands them out and redirects the old ones.
+
+**Hosted address decision (2026-10-09).** simple-host.app is the only address.
+The alternate site base is paused; `SITE_BASE_MOVE=off` and a retained distinct
+`SITE_BASE_DOMAIN` 301 old person/site/free-name links to matching app hosts with
+path and query kept. The base certificate directory is unset and the .site issuer
+stays disabled. See [the operations runbook](/docs/self-hosting/operations/site-base-paused/).
+Revisit about 2026-11-09.
+
+**Address families.** An account can also connect `*.<its domain>` so every one of its sites
+answers at `<site>.<its domain>` (see [Domains and certificates](/docs/self-hosting/settings/domains-and-certificates/)).
+A site then has one main address: its custom domain or free name, else its most specific
+family address (unless that family's `canonical` switch is off), else its own address. The
+site's own address redirects to the main one, and sign-in and saves happen there; every family
+address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it also needs
+`ADDRESS_FAMILY_CERT_DIR` and the family issuer, so it is off in practice on a small box.
+
+
+## Reserved names
+
+Some names read as the service, its operator or a sensitive function, so nobody new may take
+them. They are refused, with "this name is reserved; pick another", to a new or changed
+handle, to a newly claimed free address `<name>.<domain>`, and to an account's automatic
+handle at sign-up (it gets `<name>-2` instead). Accounts and sites that already hold one keep it,
+and it keeps working. The list lives in one place in the code (`reservedNewNames` in
+`internal/handler/platformsubdomain.go`):
+
+
+
+The names the server itself routes (v1, internal, sites, skills, the platform's own hosts and
+the ones nginx answers itself) were reserved before and stay refused everywhere.
+
+## Recipes
+
+
+**Behind your own reverse proxy.** Set `BIND_ADDR=127.0.0.1` and `PORT=8090`, and have the proxy
+send both hostnames to that port with the original `Host` header.
+
+## Your home page
+
+Your address opens your showcase by default. Choose a site in the owner app's
+**Your address → Home page** control, or use connector `set_home_page` with
+`{"site":"portfolio"}`. Owner REST clients use `GET/PUT /v1/me/home`;
+`{"site":null}` restores the showcase. Deploy-only keys cannot change it.
+The site's normal address still works. Your home has the same file serving,
+404, passcode, sign-in and storage; its API and visitor sign-ins cover that site
+only. Include `https://simple-host.app/auth.js`; `SH_CONFIG.site` may name the selected site.
+Rename follows the choice. Offline, taken-down or suspended homes fall back to
+the showcase; deleting the home clears the choice, including Recently deleted.
+Both base domains work in their serving modes; hosted events are excluded.
+
+Custom home pages can list projects live from
+`GET https://simple-host.app/v1/u/{handle}/showcase.json`. This public feed has
+`bio` and `sites[]` (`name`, optional `title`/`description`, `url`, `updated_at`,
+`pinned`, `order`), and exactly the showcase visibility rules. Fetch without
+credentials; it allows any origin, caches for 30 seconds and uses public-read
+rate limits. The Website Deploy skill includes a small example.
+
+
+The default showcase is yours to curate. In **Your showcase**, save a plain-text
+bio, pin projects and give each public site an order number. Pinned projects come
+first, then smaller order numbers; ties retain creation order. Unlisted sites
+stay hidden even when pinned. The feed uses this same order and bio.
+
+Owner REST: `GET/PUT /v1/me/bio` with `{"bio":"I make things"}` (empty clears),
+and `GET/PUT /v1/sites/{sitename}/showcase` with `{"pinned":true,"order":10}`;
+you can send either field alone. Orders range from 0 to 1000000. Connector tools
+are `set_bio` and `set_showcase_site`. Deploy-only keys cannot curate. The bio limit
+is `SHOWCASE_BIO_MAX_LENGTH` (280 characters by default, configurable from 1 to 2000).
+
+An account's own apex domain for its whole space is not available yet. The
+current family scripts handle site labels and an already supplied wildcard
+certificate; account-home apex routing and apex-plus-wildcard certificate
+provisioning need further proxy/issuer work. Per-site custom domains and address
+families remain available.
+
+## Your home page
+
+Your public person address opens your showcase, or an owned site you choose.
+In the owner dashboard, use **Your address → Home page** and **Your showcase**
+for a plain-text bio, pins and order. Connector tools are `set_home_page`,
+`set_bio`, `set_showcase_site`; owner REST uses `GET/PUT /v1/me/home`,
+`GET/PUT /v1/me/bio`, `GET/PUT /v1/sites/{name}/showcase`.
+`{"site":null}` restores the showcase. Rename follows the site; deletion clears
+it, and offline, suspended or taken-down homes fall back to the showcase.
+Pinned sites come first, then smaller order numbers, then newest creation time.
+The bio limit is `SHOWCASE_BIO_MAX_LENGTH` (280 characters; range 1–2000).
+
+A custom home can fetch `GET /v1/u/{handle}/showcase.json` from the API origin
+without credentials. Its `handle`, `bio` and `sites` include each visible site's
+`name`, `url`, `title`, `description`, `created_at`, `updated_at`, `pinned` and
+`order`. The feed uses the public showcase filter, CORS without credentials and
+a 30-second cache. Unlisted, offline, passcode-protected, named-viewers-only and taken-down sites
+stay hidden.
+
+
+## MCP Apps in installed copies
+
+
+The Passcode screen is a separate opt-in: pass `MCP_APP_PASSCODE` to the server
+process as `on` or `accounts:alice,bob`. It defaults off and is personal Simple Host
+only. `MCP_PASSCODE_SCREEN_TTL_SECONDS` sets its single-use session lifetime (600
+seconds by default). Installer forwarding for these two settings is not included.

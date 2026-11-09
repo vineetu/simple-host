@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-09: The docs at /docs/ gained a Self-hosting and Enterprise section built from the current settings and runbooks, a Changelog page, and a plain-Markdown copy of every page at the same address with .md added, for agents reading the docs directly.
+
 2026-11-09: The docs API and MCP tool references are generated straight from the server's own route and tool list, replacing the old Swagger page and a hand-kept tools list.
 
 2026-11-09: Simple Hack entry cards: "Who it's for" is optional by default in both presets. Events on a preset move with it; custom rules stay as they are.

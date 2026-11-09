@@ -1,0 +1,198 @@
+# Run the small box on Railway
+
+![Simple Host on Railway: your DNS points both names at the service, Railway's own edge ends HTTPS and forwards to one service running Caddy and the Simple Host server with a volume, Railway Postgres in the same project, your GitHub repository holds the Dockerfile the template builds from](/diagrams/railway.svg)
+
+The small box (the installer's Postgres + server + Caddy) runs on
+[Railway](https://railway.com) as one service with a volume, plus a Railway Postgres
+database, both in one project. Railway's edge ends HTTPS for both names itself (no
+separate CDN in front, unlike Render's Cloudflare); inside the service Caddy and the
+server share one container, same as the Fly, Render and older Coolify recipes.
+
+The files are in [`deploy/platforms/railway/`](https://github.com/vineetu/simple-host/tree/main/deploy/platforms/railway/):
+a `Dockerfile` that copies the released server into the Caddy image, a `Caddyfile`
+(the small box's, without its TLS parts), and `start.sh`. Nothing is compiled; no
+change to the server is needed.
+
+## Unlike Render or Coolify: there is no file to import
+
+Render reads `render.yaml`; Coolify's service template is a `compose.yaml` you paste in.
+Railway has no equivalent committed file — a Railway template is a project configured
+once in the dashboard (or `railway templates create`), then **published**, which is what
+produces the `railway.com/deploy/<slug>` link a "Deploy on Railway" button points at.
+Until that publishing step has happened once (tracked in the Linear ticket above), there
+is no slug and no working one-click link, so none is shown here: a button that looks
+clickable but does not deploy anything is worse than no button. Build the project by hand
+with the commands below; `deploy/platforms/railway/README.md` is the reproducible list of
+every setting used, so the result is exactly what the button will deploy once published,
+and the project can be rebuilt or audited without Railway's UI being the only record of it.
+
+## What it looks like
+
+| Piece | On a VPS (installer) | On Railway |
+|---|---|---|
+| HTTPS | Caddy, on-demand certificates | Railway's edge: a certificate for each custom domain |
+| Sites served from disk, `/internal/*` hidden, access log | Caddy container | Caddy in the same service as the server, on the service's `PORT` |
+| Server | `app` container | same service, as a normal user, on 127.0.0.1:8090 |
+| Database | `db` container | Railway Postgres, referenced as `${{Postgres.DATABASE_URL}}` |
+| Sites on disk | Docker volume | a Railway volume mounted at `/data` |
+| Schema and migrations | the installer runs `simple-host migrate` | the Pre-Deploy Command loads `schema.sql` into an empty database, then runs `simple-host migrate`, before every deploy |
+| Generated secrets | you run `openssl rand -hex 32` | `${{secret(64)}}` in the template, except `PASSCODE_ENC_KEY` (see Gotchas) |
+
+## Minimum size and cost
+
+Rates from railway.com/pricing on 2026-10-27, billed per second (stopped services cost
+nothing). This is an estimate, not a measured bill: no Railway account was available to run
+it for a full month. The server and Caddy used about 75 MB on Fly's equivalent test, so a
+small always-on service like this one stays well under Hobby's 48 vCPU/48 GB per-service
+ceiling; the question is whether it fits inside the plan's included credit.
+
+| Item | Plan | Included | Per month if you stay on it |
+|---|---|---|---|
+| Workspace | Hobby | $5/month, includes $5 of usage | $5 |
+| Compute overage | — | — | ≈$10/GB-month memory, ≈$20/vCPU-month, both metered to the second past the included $5 |
+| Volume (sites + access log) | Hobby | up to 5 GB | ≈$0.15/GB-month past the included $5 |
+| Postgres | same project | shares the $5 credit | counted the same way, as its own service |
+| Custom domains | Hobby: 2 per service | free | free |
+
+A card is required even for the $5 trial credit (Railway has required one since 2023).
+Running one small instance (app + Postgres) continuously for 30 days typically draws more
+than $5 of the metered compute and storage above, so budget roughly **$5 (plan) plus a few
+dollars of overage** — in the same range as Fly.io (about $4.50/month) or the DigitalOcean
+droplet (about $6/month), and cheaper than Render (about $13.55/month, which has separate
+paid minimums for its disk and Postgres tiers). Pro ($20/month, included credit $20) removes
+the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per service.
+
+## Commands
+
+
+1. **New Project** in the Railway dashboard, then **Deploy from GitHub repo**, your fork.
+   In the new service's Settings, set **Root Directory** to `deploy/platforms/railway`.
+   Railway finds the `Dockerfile` there on its own; no build command is needed.
+
+2. **+ New → Database → PostgreSQL** in the same project.
+
+3. In the app service's **Variables** tab, add:
+
+
+   Leave `CONTENT_HOST` unset; `start.sh` defaults it to `sites.$SITE_DOMAIN`.
+
+4. In **Settings → Deploy**: Healthcheck Path `/healthz`, Pre-Deploy Command
+   `/usr/local/bin/start.sh release`.
+
+5. In **Settings → Volumes**, attach a volume at mount path `/data`.
+
+6. **Deploy.** The first build copies the release into the image. The Pre-Deploy Command
+   runs first, in its own container (`empty database: loading schema.sql`, then
+   `simple-host migrate`); only once it succeeds does the new deployment go live.
+
+7. In **Settings → Networking**, add both custom domains to the app service:
+
+
+   Railway shows a CNAME and a TXT record for each. Add both at your DNS provider:
+
+
+   Railway verifies each name and issues its certificate once the CNAME resolves; in
+   earlier tests of this same image on other platforms that took under a minute.
+
+
+## Everyday operations
+
+- **Upgrade:** change `SIMPLE_HOST_VERSION` (the Dockerfile's `ARG`, default 0.7.21) in
+  your fork and push. The Pre-Deploy Command runs the new release's migrations first; if
+  they fail, the deploy stops and the old version keeps running. A redeploy with nothing
+  new logs `database is up to date; nothing to apply`.
+- **Restart:** the service's **Restart** action in the dashboard. Sites, saved data and
+  accounts all survive.
+- **Settings:** anything in [configuration.md](/docs/self-hosting/configuration/) goes in the app
+  service's Variables tab, exactly as named there.
+- **Backups:** Railway's volume backups are native and incremental (Settings → Backups):
+  daily (kept 6 days), weekly (kept 27 days), monthly (kept 89 days). Postgres gets the
+  same volume backups, plus its own point-in-time tools. "Download my data" and the admin
+  export work as on any small box.
+- **Delete everything:** delete the project (this removes the service, the volume and the
+  database together), then remove the two DNS records.
+
+## Gotchas
+
+- **Check `DB_DSN`'s resolved value before deploying.** The Variables tab previews what
+  `${{Postgres.DATABASE_URL}}?sslmode=disable` resolves to. Confirmed on a live Railway
+  deploy 2026-11-06: `DATABASE_URL` carries no query string of its own, so the appended
+  `?sslmode=disable` is valid as written. If that ever changes, use `&sslmode=disable`
+  instead (appending a second `?` would otherwise produce an invalid DSN that lib/pq
+  rejects rather than a silently insecure connection).
+- **Railway's edge does not forward a client-supplied `X-Forwarded-For` or `X-Real-IP`
+  unchanged; it drops both and sets its own.** Confirmed on a live deploy 2026-11-06
+  (`curl -H "X-Forwarded-For: 1.2.3.4" ...` to a test site): the edge connects to the
+  container from `100.64.0.0/10` (CGNAT, not an RFC 1918 private range), and forwards
+  `X-Forwarded-For: <real client>, <Railway edge public IP>` and
+  `X-Real-IP: <real client>`, both already correct. The Caddyfile now trusts
+  `100.64.0.0/10` and reads `X-Real-IP` directly, so a visitor cannot spoof the address
+  used for rate limits and analytics. (Before this fix, `trusted_proxies` only listed
+  `private_ranges`, so Caddy trusted neither header at all and every visitor recorded as
+  the same address.)
+- **A card is required**, even for the trial credit.
+- **No committed template file.** Unlike `render.yaml` or Coolify's `compose.yaml`, nothing
+  here is "pasted into" Railway. The dashboard project built from the steps above, once
+  published, is the template; `deploy/platforms/railway/README.md` is what lets it be
+  rebuilt from scratch if the published copy is ever lost or needs a fix.
+- **`PASSCODE_ENC_KEY` is not auto-generated.** It must be exactly 32 random bytes in
+  standard base64 (`openssl rand -base64 32`). Railway's template `secret()` function
+  generates a random string of a given length from a given alphabet, which cannot be made
+  to reliably produce that exact byte-aligned, padded format. Rather than ship a key that
+  looks generated but might not decode, this template leaves it unset: site passcodes stay
+  off until you add the variable by hand. That is a real limit of this template, not an
+  oversight — the feature works fully once you set the key, or is not offered at all.
+- **The release image cannot run alone.** It is the server only. Sites are served from the
+  volume by Caddy, and Caddy also hides `/internal/*` and writes the access log that
+  visitor analytics reads. Pointing Railway straight at the server image leaves every site
+  a 404 and exposes `/internal/*`.
+- **A new database is empty.** `simple-host migrate` only adds to an existing schema.
+  `start.sh release` loads `db/schema.sql` from the same release tag first, only when the
+  `users` table is missing.
+- **CMD, not ENTRYPOINT.** The image starts with `CMD`, so the Pre-Deploy Command
+  (`/usr/local/bin/start.sh release`) runs on its own rather than being handed to an
+  entrypoint.
+- **Root and the volume.** A new volume is owned by root, and Railway's containers, like
+  Render's, do not let root signal another user's processes. `start.sh` hands `/data` to
+  the server's user and then runs everything as that user.
+
+## What was tested
+
+Built and run locally on 2026-10-27 with the exact `deploy/platforms/railway` Dockerfile,
+`PORT` set the way Railway injects it, and a volume at `/data`, against a local Postgres
+container (no Railway account was available to this agent yet): `start.sh release` (the
+Pre-Deploy Command) loaded `schema.sql` into an empty database and applied all 61
+migrations cleanly; the admin key signed in at `/v1/me`; `POST /v1/admin/users` issued a
+participant account and key; that key published a site (`POST /v1/sites/{name}` with the
+archive as the raw body, `Content-Type: application/zip`), which answered 200 on the
+`sites.`-prefixed host and correctly 404 on the dashboard host (content only ever serves
+on `sites.*`, matching production); a KV resource and key written through
+`/v1/sites/{name}/storage/kv/...` read back correctly; and a container restart (`docker
+restart`) kept the site, the KV value and the admin account, with `/healthz` answering 200
+before and after. One bug this test caught before it could ship: `start.sh` was first
+committed without its executable bit, which would have made the container fail to start
+entirely (`permission denied`) the moment it shipped on Railway's `CMD`-based image, exactly
+as it does locally without `chmod 755`.
+
+**Real Railway deploy, 2026-11-06 (SIM-212):** the project above was built for real on the
+existing Railway account (Hobby workspace, no new account or card), Root Directory
+`deploy/platforms/railway`, following the Commands steps exactly. Build and healthcheck
+passed; Pre-Deploy logged the same `schema.sql` load and 61 migrations, then the app started;
+the admin key signed in at `/v1/me`; `POST /v1/admin/users` issued a participant account; a
+test site published (`POST /v1/sites/{name}`, raw zip body) and answered 200 on the
+`sites.`-prefixed host; a KV resource (`PUT /v1/sites/{site}/storage/resources/{name}` with
+`{"kind":"kv",...}`) and key (`PUT /v1/sites/{site}/storage/kv/{name}/keys/{key}` with
+`{"value": <json>}`) wrote and read back correctly; a service restart kept the site, KV
+value and admin account, with `/healthz` 200 before and after. Custom DNS (step 7) was not
+tested, no spare domain was available. One limit found: a generated `*.up.railway.app`
+domain is a single label, so the `sites.`-prefixed host cannot be reached over the public
+internet on it; that needs a real custom domain (step 7) or testing over Railway's private
+network with the `sites.` Host header set by hand. **Generate Template from Project** and
+**Publish** are still not done: neither the Railway connector nor Railway's own agent can
+run them, and no CLI or dashboard session was signed in from this box. That is the one step
+left before the slug and "Deploy on Railway" button exist.
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [Your home page](https://github.com/vineetu/simple-host/blob/main/docs/your-home-page.md).

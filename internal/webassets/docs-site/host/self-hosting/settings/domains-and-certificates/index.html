@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz">
+	<head>
+		<!--sh:head-->
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Domains and certificates | Simple Host</title><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.10"/><meta property="og:title" content="Domains and certificates"/><meta property="og:type" content="article"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="Simple Host"/><meta name="twitter:card" content="summary_large_image"/>
+		
+		
+		<link rel="stylesheet" href="/docs/_astro/print.C9eyqPGL.css" media="print">
+	<link rel="stylesheet" href="/docs/_astro/index.C1x2hpYy.css">
+<link rel="stylesheet" href="/docs/_astro/Icon.U1EK5lRe.css">
+<link rel="stylesheet" href="/docs/_astro/LinkButton.B-IDtby6.css"><script type="module" src="/docs/_astro/page.cNngjUgL.js"></script></head>
+	<body class="astro-g5ptsecz">
+		<a class="sl-skip-link astro-qb7clj6f" href="#_top">Skip to content</a>
+		<div class="docs-product-header"><!--sh:header--></div>
+<div class="page sl-flex astro-yntsjkba">
+	<header class="header astro-yntsjkba"><div class="docs-bar"><span class="docs-label">Docs</span><site-search class=" astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}">
+	<button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o">
+		<svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+		<span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">Search</span>
+		<kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none">
+			<kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd>
+		</kbd>
+	</button>
+
+	<dialog style="padding: 0" aria-label="Search" class="astro-b5kgnn7o">
+		<div class="dialog-frame sl-flex astro-b5kgnn7o">
+			
+			<button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">
+				Cancel
+			</button>
+			<div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div>
+		</div>
+	</dialog>
+</site-search>
+
+
+<script src="/docs/_scripts/7ffcc0504ef8b9c73725.js"></script>
+
+<script type="module" src="/docs/_astro/Search.astro_astro_type_script_index_0_lang._gc9pYsW.js"></script></div>
+<script type="module" src="/docs/_scripts/e9e04975f547e3a0b7f0.js"></script></header>
+	<nav class="sidebar print:hidden astro-yntsjkba" aria-label="Main">
+		<button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg">
+	<svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg>
+	<svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg>
+	<span class="sr-only astro-r2osgdlg">Menu</span>
+</button>
+		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
+		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="19dnjjr" class="astro-ipdry5cl">
+	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
+
+	<ul class="top-level astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Docs home</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Get started</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="0"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/start/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Your first site</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Use the REST API</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/start/pages/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Code on your own pages</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Guides</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="1"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/guides/publish/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/addresses/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Domains and addresses</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage and saved data</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/access/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sign-in and access</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/agents/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Agents and MCP</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/dashboard/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Owner dashboard</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/showcase/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Showcase and home page</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/guides/analytics/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Traffic and analytics</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/webhooks/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Webhooks</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/limits/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Limits and errors</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="2"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">API reference</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="3"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/api/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">API reference</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/account/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Account</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/address-families/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Address families</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/analytics/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Analytics</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/auth/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Auth</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/custom-domains/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Custom domains</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/deploy/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Deploy</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/discovery/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Discovery</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/health/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Health</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/showcase/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Showcase</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/skills/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Skills</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/versions/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/visitor-sign-in/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Visitor sign-in</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">MCP tools</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="4"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">MCP tools</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/sites/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/access/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Passcodes, viewers and domains</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/storage/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/accounts/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Account</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/imports/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Imports and uploads</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/notifications/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Notifications</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/mcp/discovery/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Finding tools</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Self-hosting and Enterprise</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="5"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Overview</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operate/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run and operate</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/configuration/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Configuration</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<details open class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Settings</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="6"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Advanced settings</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/accounts-and-sign-in/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Accounts and sign-in</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/cleanup-and-retention/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Cleanup and retention</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/domains-and-certificates/" aria-current="page" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Domains and certificates</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/email/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Email</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/observability/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Observability</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/rate-limits/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Rate limits</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/saved-data/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Saved data</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/server-and-addresses/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Server and addresses</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/sites-and-versions/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Sites and versions</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/storage-and-backups/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Storage and backups</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Platforms</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="7"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Where it runs</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/coolify/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Coolify</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/digitalocean/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on DigitalOcean</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/fly/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Fly.io</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/railway/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Railway</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/render/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on Render</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/platforms/upcloud/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Run the small box on UpCloud</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<details class="astro-rmhv4bp6">
+				<summary class="astro-rmhv4bp6">
+					<span class="group-label astro-rmhv4bp6">
+						<span class="large astro-rmhv4bp6">Operations</span>
+						
+					</span>
+					<svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</summary>
+				<sl-sidebar-restore data-index="8"></sl-sidebar-restore>
+				<ul class="astro-rmhv4bp6">
+	<li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/certificates/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Certificates on the hosted box</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/deployment-profiles/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Deployment profiles</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/self-hosting/operations/site-base-paused/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Paused site base (2026-10-09)</span>
+				
+			</a>
+	</li>
+</ul>
+			</details>
+	</li>
+</ul>
+			</details>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/changelog/" class="large astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Changelog</span>
+				
+			</a>
+	</li>
+</ul>
+
+	<script aria-hidden="true" src="/docs/_scripts/ede095e23b6caf8b7892.js"></script>
+</sl-sidebar-state-persist>
+
+<div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh">
+	<div class="social-icons astro-p4azlveh"></div>
+	
+	
+
+
+</div></div></div>
+		</sl-sidebar-pane>
+	</nav>
+	<div class="main-frame astro-yntsjkba">
+  
+  
+  
+			
+			<script type="module" src="/docs/_scripts/560ae070a06f20cdd7a6.js"></script>
+			<div class="lg:sl-flex astro-lrzkfocr">
+	<aside class="right-sidebar-container print:hidden astro-lrzkfocr">
+		<div class="right-sidebar astro-lrzkfocr">
+		<div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="2" class="astro-66cqc7ze">
+	<nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze">
+		<details id="starlight__mobile-toc" class="astro-66cqc7ze">
+			<summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze">
+				<span class="toggle sl-flex astro-66cqc7ze">
+					On this page
+					<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>
+				</span>
+				<span class="display-current astro-66cqc7ze"></span>
+			</summary>
+			<div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#recipes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Recipes</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#certificate-issuers-root-scripts" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Certificate issuers (root scripts)</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#checks-and-certificate-hand-off" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Checks and certificate hand-off</span></a>
+		
+	</li>
+</ul></div>
+		</details>
+	</nav>
+</mobile-starlight-toc>
+
+
+
+<script type="module" src="/docs/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div>
+		<div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx">
+			<div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="2">
+	<nav aria-labelledby="starlight__on-this-page">
+		<h2 id="starlight__on-this-page">On this page</h2>
+		<ul class="astro-jugkfwgx" style="--depth: 0;">
+	<li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#recipes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Recipes</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#certificate-issuers-root-scripts" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Certificate issuers (root scripts)</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#checks-and-certificate-hand-off" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Checks and certificate hand-off</span></a>
+		
+	</li>
+</ul>
+	</nav>
+</starlight-toc>
+
+<script type="module" src="/docs/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div>
+		</div>
+	</div>
+	</aside>
+	<div class="main-pane astro-lrzkfocr">
+				
+				<main data-pagefind-body class="astro-g5ptsecz" lang="en" dir="ltr">
+					
+					
+					
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<h1 id="_top" class="astro-bebwqqxs">Domains and certificates</h1>
+								</div>
+</div>
+							<div class="content-panel astro-a7po4psb">
+	<div class="sl-container astro-a7po4psb">
+								<div class="sl-markdown-content"><p>An owner can give a site their own domain: a subdomain with a CNAME record, or a bare domain with
+an A record, plus one TXT record that proves ownership. The certificate is issued automatically
+(on a small box, by Caddy when the name is first asked for). <code>www</code> and the bare domain work
+together, one redirecting to the other.</p>
+<p><strong>Checks and release.</strong> A connected domain whose DNS never points here is released after
+<code>DOMAIN_UNPROVEN_HOURS</code>; one that points here but never goes live over HTTPS after
+<code>DOMAIN_UNPROVEN_MAX_DAYS</code>. A live domain that starts failing every check gets its owner an email,
+and later stops being the site’s address; the date in that email holds even if the setting
+changes.</p>
+<p><strong>Address families.</strong> An account can connect <code>*.&lt;its domain&gt;</code> once, and every one of its sites
+then answers at <code>&lt;site&gt;.&lt;its domain&gt;</code> (with an optional site-name prefix: <code>*.voucher.brand.com</code>
+with prefix <code>voucher-</code> serves the sites <code>voucher-&lt;name&gt;</code>). The owner adds a wildcard record
+(<code>CNAME *.&lt;domain&gt;</code> to <code>CNAME_TARGET</code>, or an A record to <code>CUSTOM_DOMAIN_IP</code>) and a TXT record
+<code>_simple-host.&lt;domain&gt;</code> holding the family’s token. Nothing is served before both are seen; a
+family still unproven after <code>ADDRESS_FAMILY_UNPROVEN_HOURS</code> is dropped. Once verified it is the
+account’s alone: no other account can connect it, a family overlapping it, or a custom domain
+under it. A family failing its checks emails its owner after <code>ADDRESS_FAMILY_LAPSE_WARN_HOURS</code>
+and is disconnected after <code>ADDRESS_FAMILY_LAPSE_HOURS</code>. The event domains and the server’s own
+zones are never accepted as a custom domain or a family.</p>
+<p>Certificates for families are the operator’s in this release: issue a wildcard certificate for
+<code>*.&lt;domain&gt;</code> with certbot (DNS-01, renewed as usual), then name its lineage on the family from
+the admin API (<code>PUT /v1/admin/address-families/{id}/cert-mode</code>
+<code>{"cert_mode":"wildcard","cert_name":"&lt;lineage&gt;"}</code>). Until then the family shows
+<code>waiting_for_operator</code>. The family issuer (<code>deploy/family-certs/</code>) checks the lineage covers the
+family and writes one nginx file per family; it never issues, renews or deletes a certificate.
+Families need <code>ADDRESS_FAMILY_CERT_DIR</code> pointing at that issuer’s state directory; without it no
+family is ever served. They are not available on a small box with Caddy yet.</p>
+<!-- settings:group=domains -->
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Allowed</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DOMAIN_UNPROVEN_HOURS</code></td>
+<td><code>24</code></td>
+<td>1–720 hours</td>
+<td>A connected domain whose DNS never points here is released after this long.</td>
+</tr>
+<tr>
+<td><code>DOMAIN_UNPROVEN_MAX_DAYS</code></td>
+<td><code>7</code></td>
+<td>1–90 days</td>
+<td>A domain that points here but never goes live over HTTPS is released after this long.</td>
+</tr>
+<tr>
+<td><code>DOMAIN_LAPSE_WARN_HOURS</code></td>
+<td><code>24</code></td>
+<td>1–720 hours</td>
+<td>A live domain failing every check: its owner is emailed after this long.</td>
+</tr>
+<tr>
+<td><code>DOMAIN_LAPSE_HOURS</code></td>
+<td><code>72</code></td>
+<td>2–2160 hours</td>
+<td>… and it stops being the site’s address after this long. Longer than DOMAIN_LAPSE_WARN_HOURS.</td>
+</tr>
+<tr>
+<td><code>DOMAIN_CHECK_INTERVAL_MINUTES</code></td>
+<td><code>2</code></td>
+<td>1–60 minutes</td>
+<td>How often connected domains are checked.</td>
+</tr>
+<tr>
+<td><code>DOMAIN_CERTS_PER_ACCOUNT_DAILY</code></td>
+<td><code>5</code></td>
+<td>1–1000 certificates</td>
+<td>New custom-domain certificates one account may ask for in a day.</td>
+</tr>
+<tr>
+<td><code>EVENT_TTL_DAYS</code></td>
+<td><code>21</code></td>
+<td>1–60 days</td>
+<td>How long a claimed event hostname lives (only where EVENT_DNS_TOKEN is set).</td>
+</tr>
+<tr>
+<td><code>EVENT_MAX_CLAIMS</code></td>
+<td><code>5</code></td>
+<td>1–100 names</td>
+<td>Event hostnames one account may hold at once.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILIES</code></td>
+<td><code>on</code></td>
+<td><code>on</code> / <code>off</code></td>
+<td>on lets an account connect *.<its domain> once, so every site of the account answers at <site>.<its domain> (an address family). Families also need ADDRESS_FAMILY_CERT_DIR and a wildcard certificate the operator sets up.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILIES_PER_ACCOUNT</code></td>
+<td><code>5</code></td>
+<td>0–100 families</td>
+<td>Address families one account may connect. 0: none.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_UNPROVEN_HOURS</code></td>
+<td><code>24</code></td>
+<td>1–720 hours</td>
+<td>How long a new address family may wait for its DNS records before it is dropped.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_LAPSE_WARN_HOURS</code></td>
+<td><code>24</code></td>
+<td>1–720 hours</td>
+<td>How long a working address family may fail its checks before its owner is emailed.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_LAPSE_HOURS</code></td>
+<td><code>72</code></td>
+<td>2–2160 hours</td>
+<td>How long a working address family may fail its checks before it is disconnected. Must be longer than ADDRESS_FAMILY_LAPSE_WARN_HOURS.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_CHECK_INTERVAL_MINUTES</code></td>
+<td><code>10</code></td>
+<td>1–60 minutes</td>
+<td>How often address families are checked.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_ACTIVE_RECHECK_MINUTES</code></td>
+<td><code>60</code></td>
+<td>5–1440 minutes</td>
+<td>How often a working address family’s DNS records are proved again.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_CERTS_PER_ACCOUNT_DAILY</code></td>
+<td><code>12</code></td>
+<td>1–1000 certificates</td>
+<td>Per-site-name certificates one account’s families may ask for in a day (for a later release; wildcard families need none).</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_RESERVED_LABELS</code></td>
+<td><code>www</code></td>
+<td>DNS labels</td>
+<td>Names (comma-separated) that never name a site under an address family.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_CACHE_SECONDS</code></td>
+<td><code>30</code></td>
+<td>1–3600 seconds</td>
+<td>How long the server keeps its list of working address families before reading it again.</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT_TLS_ASK</code></td>
+<td><code>60,100ms</code></td>
+<td>any (warns past 10× looser)</td>
+<td>Certificate checks (/internal/tls-ask), per address.</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT_DOMAIN_CHECK</code></td>
+<td><code>10,10s</code></td>
+<td>any (warns past 10× looser)</td>
+<td>“Check again” on a domain, per address.</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT_DOMAIN_CHECK_USER</code></td>
+<td><code>3,30s</code></td>
+<td>any (warns past 10× looser)</td>
+<td>“Check again” on a domain, per account.</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT_ADDRESS_FAMILY_CHECK</code></td>
+<td><code>10,10s</code></td>
+<td>any (warns past 10× looser)</td>
+<td>“Check again” on an address family, per address.</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER</code></td>
+<td><code>3,30s</code></td>
+<td>any (warns past 10× looser)</td>
+<td>“Check again” on an address family, per account.</td>
+</tr>
+<tr>
+<td><code>CNAME_TARGET</code></td>
+<td><code>cname.&lt;SITE_DOMAIN&gt;</code></td>
+<td>text</td>
+<td>The hostname people point their own domain at with a CNAME record.</td>
+</tr>
+<tr>
+<td><code>CUSTOM_DOMAIN_IP</code></td>
+<td>none</td>
+<td>text</td>
+<td>This server’s public IPv4, given as the A record for a bare domain (brand.com).</td>
+</tr>
+<tr>
+<td><code>CUSTOM_DOMAIN_IP_ALSO</code></td>
+<td>none</td>
+<td>text</td>
+<td>Earlier public IPv4s of this server, comma-separated. Domains still pointed at one keep working; only CUSTOM_DOMAIN_IP is handed out.</td>
+</tr>
+<tr>
+<td><code>SITE_CERT_DIR</code></td>
+<td>none</td>
+<td>text</td>
+<td>Where per-person certificates are requested from, and found ready from, the certificate issuer.</td>
+</tr>
+<tr>
+<td><code>SITE_BASE_CERT_DIR</code></td>
+<td>none</td>
+<td>text</td>
+<td>Like SITE_CERT_DIR for the alternate base. Required with ready/ and requests/ while the split base move is on. Unset when the move is off; no certificates are requested for the paused base.</td>
+</tr>
+<tr>
+<td><code>DOMAIN_CERT_DIR</code></td>
+<td>none</td>
+<td>text</td>
+<td>Where custom-domain certificates are requested from the certificate issuer. Empty: issued by hand.</td>
+</tr>
+<tr>
+<td><code>ADDRESS_FAMILY_CERT_DIR</code></td>
+<td>none</td>
+<td>text</td>
+<td>Where address-family requests go to the family issuer, and where it says a family is served (ready/). Empty: no address family is ever served.</td>
+</tr>
+<tr>
+<td><code>EVENT_DNS_TOKEN</code></td>
+<td>none</td>
+<td>secret</td>
+<td>The DNS token that hands out event hostnames. The public instance only. <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
+<td><code>EVENT_DNS_TEAM_ID</code></td>
+<td>none</td>
+<td>text</td>
+<td>The DNS account the event token belongs to.</td>
+</tr>
+<tr>
+<td><code>EVENT_DOMAINS</code></td>
+<td>none</td>
+<td>text</td>
+<td>Zones (comma-separated) event hostnames are handed out under.</td>
+</tr>
+</tbody>
+</table>
+<!-- /settings -->
+<h2 id="recipes">Recipes</h2>
+<p><strong>Bare domains on a small box.</strong> Set <code>CUSTOM_DOMAIN_IP</code> to the server’s public IPv4 so owners are
+told the right A record.</p>
+<p><strong>Changing the server’s address.</strong> Point both addresses at the box, set <code>CUSTOM_DOMAIN_IP</code> to the
+new one and <code>CUSTOM_DOMAIN_IP_ALSO</code> to the old one. New domains are told the new A record; domains
+still on the old address keep passing their checks and renewing their certificates until their
+owners move the record. Remove the old address from <code>CUSTOM_DOMAIN_IP_ALSO</code> once none points there,
+and at once if the server ever loses it: whoever holds the address next would pass the same checks.</p>
+<p><strong>Faster release of abandoned domains.</strong></p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>DOMAIN_UNPROVEN_HOURS=6</span></span>
+<span class="line"><span>DOMAIN_UNPROVEN_MAX_DAYS=2</span></span></code></pre>
+<p><strong>Adopt an existing hand-made wildcard server.</strong> Connect the family for the account from the
+admin API with its lineage (<code>POST /v1/admin/users/{id}/address-families</code>
+<code>{"suffix":"*.trips.brand.com","cert_name":"trips.brand.com","canonical":false}</code>, and
+<code>"proof_exempt":true</code> if you already run its DNS). Once it is verified, the issuer reports
+“already served here” until <code>deploy/prod/family-adopt.sh &lt;domain&gt; --old &lt;vhost&gt;</code> (dry run; then
+<code>--apply</code>) swaps the hand-made server for the managed one; <code>--rollback --apply</code> puts it back.</p>
+<h2 id="certificate-issuers-root-scripts">Certificate issuers (root scripts)</h2>
+<p>The two root certificate issuers in <code>deploy/</code> are not part of the service’s environment. Each
+reads its own conf file, sourced as shell, which is where their limits are changed; the file is
+optional and unset values keep the script’s defaults.</p>
+<p><code>/etc/simple-host-domain-certs.conf</code> (custom domains, <code>deploy/domain-certs/issue.sh</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DAILY</code></td>
+<td>50</td>
+<td>New custom-domain certificates per rolling 24 hours, for the whole server.</td>
+</tr>
+<tr>
+<td><code>PER_RUN</code></td>
+<td>10</td>
+<td>Certificates one run may request.</td>
+</tr>
+<tr>
+<td><code>RETRY_AFTER</code></td>
+<td>21600</td>
+<td>Seconds before a failed domain is tried again.</td>
+</tr>
+</tbody>
+</table>
+<p>The per-account cap the app enforces (<code>DOMAIN_CERTS_PER_ACCOUNT_DAILY</code>) is separate from, and
+normally well under, this server-wide <code>DAILY</code>.</p>
+<p><code>/etc/simple-host-site-certs.conf</code> (per-person <code>*.&lt;handle&gt;</code> addresses, <code>deploy/site-certs/issue.sh</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BUDGET</code></td>
+<td>40</td>
+<td>New certificates per rolling 7 days. Let’s Encrypt allows 50 per registered domain per week; keep it at or under 50.</td>
+</tr>
+<tr>
+<td><code>DAILY</code></td>
+<td>12</td>
+<td>New certificates per rolling 24 hours.</td>
+</tr>
+<tr>
+<td><code>PER_RUN</code></td>
+<td>6</td>
+<td>Certificates one run may request.</td>
+</tr>
+<tr>
+<td><code>RETRY_AFTER</code></td>
+<td>21600</td>
+<td>Seconds before a failed handle is tried again.</td>
+</tr>
+</tbody>
+</table>
+<p>The site-certs issuer writes the limits in force to <code>$SITE_CERT_DIR/limits</code>, and the app reads
+them from there for the waiting-time estimate it shows, so nothing else needs changing. How
+often each issuer runs is its systemd timer (<code>simple-host-*-certs.timer</code>, every 10 minutes);
+change it with a drop-in (<code>systemctl edit</code>).</p>
+<h2 id="checks-and-certificate-hand-off">Checks and certificate hand-off</h2>
+<p><code>DOMAIN_UNPROVEN_MAX_DAYS</code> must not be shorter than <code>DOMAIN_UNPROVEN_HOURS</code>.
+Domain and address-family certificate daily caps use rolling days. Pending
+address families serve nothing while waiting for the wildcard and TXT records.
+<code>www.&lt;family&gt;</code> belongs to the customer; reserved labels never name a site.
+Every family change refreshes the working-family cache immediately.
+Per-site-name family certificates are for a later per-host release; wildcard
+families need none.</p>
+<p><code>SITE_CERT_DIR</code>, <code>DOMAIN_CERT_DIR</code> and <code>ADDRESS_FAMILY_CERT_DIR</code> hand off to
+<code>deploy/site-certs/</code>, <code>deploy/domain-certs/</code> and <code>deploy/family-certs/</code> respectively.
+The alternate-base issuer uses <code>deploy/site-certs/simple-host-site-certs-site.*</code>.
+When the move is on and <code>SITE_BASE_DOMAIN</code> differs from <code>SITE_DOMAIN</code>, startup
+fails without <code>SITE_BASE_CERT_DIR</code> or its <code>ready/</code> and <code>requests/</code> directories;
+the app never creates those directories. The hosted move was paused on
+2026-10-09, to revisit about 2026-11-09; see the
+<a href="https://github.com/vineetu/simple-host/blob/main/docs/history/site-base-domain-move.md">historical plan</a>.</p>
+</div>
+								<footer class="sl-flex astro-ddtxxk7k">
+	<div class="meta sl-flex astro-ddtxxk7k">
+		
+		
+	</div>
+	<div class="pagination-links print:hidden astro-b5raizh3" dir="ltr">
+	<a href="/docs/self-hosting/settings/cleanup-and-retention/" rel="prev" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg>
+		<span class="astro-b5raizh3">
+			Previous
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Cleanup and retention</span>
+		</span>
+	</a>
+	<a href="/docs/self-hosting/settings/email/" rel="next" class="astro-b5raizh3">
+		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>
+		<span class="astro-b5raizh3">
+			Next
+			<br class="astro-b5raizh3">
+			<span class="link-title astro-b5raizh3">Email</span>
+		</span>
+	</a>
+</div>
+
+	
+</footer>
+							</div>
+</div>
+						
+				</main>
+			</div>
+</div>
+		
+</div>
+</div>
+<!--sh:footer-->
+	</body>
+</html>
