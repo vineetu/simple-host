@@ -4,6 +4,8 @@ Verified 2026-10-31 in local Docker containers (no DigitalOcean token configured
 
 Verified 2026-10-24 on a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`, a `<ip>.nip.io` name, a Let's Encrypt certificate) with the published v0.7.21 image: a v0.7.20 box with a site, a KV value and a records SQLite resource upgraded to v0.7.21 by re-running the installer with no flags (no new migrations: this release is a Go 1.27.3 toolchain and dependency bump only). The box kept its addresses, admin key, site, KV value and records row. `/healthz`, the home page and `/.well-known/mcp/server-card.json` answered correctly, `docker compose config` parsed, and the published image's binary reports `go1.27.3`. The droplet was deleted.
 
+Verified 2026-10-24 on two real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`, `<ip>.nip.io` names, Let's Encrypt certificates) with the published v0.7.20 image: a fresh install, and a v0.7.19 box with a site, a public KV value and a records SQLite resource upgraded to v0.7.20 by re-running the installer with no flags. `/healthz`, the home page, `/.well-known/mcp/server-card.json`, `/auth.md` and an MCP `initialize` call all answered correctly, and `docker compose config` parsed. Both droplets were deleted.
+
 Verified 2026-10-15 on two real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`, `<ip>.nip.io` names, Let's Encrypt certificates) with the published v0.7.19 image: a fresh install; a v0.7.17 box with a site, a public KV value and a records SQLite resource upgraded straight to v0.7.19 by re-running the installer with no flags; and a v0.7.17 box taken through v0.7.18 to v0.7.19 the same way. Every box kept its addresses, the site, the KV value and the presets, applied `ze-spam-checked-posts.sql` and `zf-signup-detail.sql` once, refused the comments preset with `spam_check_unavailable` until Turnstile keys were added to `.env` (then accepted it, and a re-run kept the keys), and named itself, never simple-host.app, in robots.txt, Get started, llms.txt and the connector's instructions. Both droplets were deleted.
 
 Verified 2026-10-10 with the published v0.7.17 image in disposable native arm64 containers: fresh install and an actual v0.7.16 upgrade through the installer's compose file (the image's `migrate`, as install.sh runs it) preserve the site list, KV values and resource policies across the swap; the storage-presets migration applies once and nothing is left pending; existing resources show their preset (an open write-anyone resource as `legacy`), and a preset with per-table rules, the row edit route and an R1 refusal answer as designed.
@@ -63,6 +65,8 @@ the site's own address, and a restart had nothing to migrate.
 ## Before you start
 
 - A server with Coolify installed, its proxy on ports 80 and 443.
+- A domain, say `example.com`, with two `A` records to the server's address:
+  `example.com` and `sites.example.com`.
 
 ## Older Git-build recipe
 
@@ -76,10 +80,21 @@ defaults to one.
    `main`. Build pack **Docker Compose**, Base Directory
    `/deploy/platforms/coolify`, Docker Compose Location `/compose.yaml`.
 
+2. Under **Environment Variables**, add `SITE_DOMAIN` = `example.com`.
+   `ADMIN_API_KEY` and the database password are generated for you.
+
 3. Under the app service's **Domains**, enter both names:
+
+   ```
+   https://example.com,https://sites.example.com
+   ```
 
 4. **Deploy.** The first build copies the release into the image and takes
    about a minute. The `release` step runs first and exits. Then the app starts.
+
+5. Open `https://example.com/admin` and paste the value of
+   `SERVICE_PASSWORD_ADMIN` (Environment Variables). From there, issue
+   participant accounts and hand out their keys, as on any small box.
 
 ## Everyday operations
 

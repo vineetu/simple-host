@@ -25,7 +25,13 @@ simple-host.site --to simple-host.app` for counts first, then `--apply` to move
 them back. It preserves old disk links; inspect conflicts before proceeding.
 In the previous `serve` mode names were already handed out and stored as .app.
 
+## TLS and issuers
+
+Leave `simple-host-site-certs-site.path` and `.timer` stopped and disabled. The certificate watch skips disabled issuers, so the paused base sends no missing-certificate alerts. The app writes no .site requests while `SITE_BASE_MOVE=off`, and the issuer that creates DNS records only runs on a request, so no new .site DNS records appear. Keep the existing `*.<handle>.simple-host.site` records at Vercel: shared .site links need them to resolve and reach the 301. Stale .site request and failed markers from before the pause were moved to `/var/backups/simple-host-site-pause-<timestamp>/site-certs-state/` on 2026-10-11. Keep all existing .site certificates on disk; do not revoke or renew them. The shared `certbot.timer` still renews other domains. Move only `.site` renewal configuration files from `/etc/letsencrypt/renewal/` into a dated, root-only `/var/backups/simple-host-site-pause-<timestamp>/renewal/` directory so that ordinary `certbot renew` does not renew the paused zone. Do not move the live, archive or nginx certificate files. Preserve these configurations for a later resume. Serialize this step with the issuer/renewal lock `/run/simple-host-certbot.lock`; leave the shared lock implementation alone. Keep the nginx TLS proxy blocks so shared HTTPS links reach the app while their existing certificates are valid. Apply the generated HTTP redirect option with `sudo HTTP_MODE=app bash deploy/prod/nginx-site-base-domain.sh --apply` from the repo root: HTTP links go directly to matching .app hosts, while HTTPS continues through the app redirect. The script backs up its generated file, tests nginx and reloads, restoring on a failed test.
+
 ## Verify and rollback
+
+From a client, check a real person host and site host on .site for 301s to their matching .app hosts, with path and query kept. Check health, the .app site and person page, the legacy content link and neighbouring services as in CLAUDE.md. A new deployment must return an .app `site_url`. Public pages, OpenAPI, llms.txt, connector descriptions and skill downloads must contain only .app examples.
 
 If deployment verification fails, restore the backed-up binary and env file and
 restart both services. Restore the old HTTP behavior through the same script

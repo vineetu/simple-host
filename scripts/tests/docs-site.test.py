@@ -278,8 +278,19 @@ class RepoPagesHostFilterTest(unittest.TestCase):
         self.assertIn('## Keep', out)
         self.assertIn('## Also keep', out)
 
+    def test_placeholder_domain_and_reserved_names_keep_host_text(self):
+        text = 'Point `hack.example.com` here. Simple Hack differs.\n\nNames: simplehost, simplehack, simple-hack, test.\n'
+        out = pages['host_filter'](text)
+        self.assertIn('Point `example.com` here.', out)
+        self.assertNotIn('Simple Hack differs', out)
+        self.assertIn('Names: simplehost, test.', out)
+
+    def test_placeholders_are_escaped_outside_code(self):
+        out = pages['escape_angles']('a <handle> `<x>` <!-- c --> <https://a.b>\n```\n<raw>\n```\n')
+        self.assertEqual(out, 'a &lt;handle> `<x>` <!-- c --> <https://a.b>\n```\n<raw>\n```\n')
+
     def test_dangling_colon_intro_before_removed_fence_is_dropped(self):
-        text = 'Keep this.\n\nAdd both at your DNS provider:\n\n```\nhack.example.com\n```\n\n## Next\nmore\n'
+        text = 'Keep this.\n\nAdd both at your DNS provider:\n\n```\nsimple-hack.app\n```\n\n## Next\nmore\n'
         out = pages['host_filter'](text)
         self.assertNotIn('Add both at your DNS provider:', out)
         self.assertIn('Keep this.', out)

@@ -49,7 +49,7 @@ Email codes need [email](/docs/self-hosting/settings/email.md) set up; Google ne
 | `OIDC_CLIENT_ID` | none | text | Company sign-in: the OAuth client id registered at the identity provider. |
 | `OIDC_CLIENT_SECRET` | none | secret | Company sign-in: the client secret. **Security-sensitive.** |
 | `ALLOWED_EMAIL_DOMAINS` | none | text | Comma-separated email domains company sign-in accepts, e.g. example.com,example.co.uk. Sign-in from another domain is refused. Required when OIDC_ISSUER is Google (https://accounts.google.com). |
-| `OIDC_LABEL` | `your company account` | text | Names the company sign-in button: "Sign in with <label>". |
+| `OIDC_LABEL` | `your company account` | text | Names the company sign-in button: "Sign in with &lt;label>". |
 | `OIDC_INSECURE_ALLOWED` | `false` | `true` / `false` | true permits a plain-http OIDC_ISSUER. Local testing only. **Security-sensitive.** |
 | `PASSWORD_SIGNIN` | `off` | `on` / `off` | on enables username/password accounts on this install. Off on the hosted services. |
 | `PASSWORD_SELF_SIGNUP` | `on` | `on` / `off` | When password sign-in is on, on lets people create accounts; off allows only admin-created accounts. |

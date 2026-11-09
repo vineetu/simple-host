@@ -546,6 +546,9 @@
 		<a href="#existing-site-summaries-after-an-upgrade" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Existing-site summaries after an upgrade</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#add-photos" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Add photos</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#upload-and-import-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Upload and import behavior</span></a>
 		
 	</li>
@@ -570,6 +573,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#existing-site-summaries-after-an-upgrade" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Existing-site summaries after an upgrade</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#add-photos" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Add photos</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#upload-and-import-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Upload and import behavior</span></a>
@@ -702,13 +708,13 @@ passcode, never both. <code>SITE_VIEWERS_MAX</code> caps the list per site.</p>
 <td><code>MAX_SITES_OVERRIDES</code></td>
 <td>none</td>
 <td>handle:sites</td>
-<td>Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.</td>
+<td>Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated &lt;handle&gt;:&lt;sites&gt;, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.</td>
 </tr>
 <tr>
 <td><code>MAX_ARCHIVE_MB_OVERRIDES</code></td>
 <td>none</td>
 <td>handle:mb</td>
-<td>Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.</td>
+<td>Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated &lt;handle&gt;:&lt;MB&gt;, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.</td>
 </tr>
 <tr>
 <td><code>KEEP_VERSIONS_OVERRIDES</code></td>
@@ -900,6 +906,7 @@ passcode, never both. <code>SITE_VIEWERS_MAX</code> caps the list per site.</p>
 </table>
 <!-- /settings -->
 <h2 id="recipes">Recipes</h2>
+<p>The installer’s defaults already fit: <code>--max-site-mb 100 --keep-versions 1</code>. To cap each participant too:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>MAX_SITES_PER_ACCOUNT=20</span></span></code></pre>
 <p><strong>Keep rollback on a bigger disk.</strong> Install with <code>--keep-versions 5</code>.</p>
 <h2 id="existing-site-summaries-after-an-upgrade">Existing-site summaries after an upgrade</h2>
@@ -915,6 +922,8 @@ run <code>simple-host site-summary-backfill</code>. For a manual Compose checkou
 <code>docker compose run --rm --no-deps -T app site-summary-backfill</code> from its directory.
 The old pinned releases do not contain this command; run it after installing
 the new release. New deploys populate summaries automatically.</p>
+<h2 id="add-photos">Add photos</h2>
+<p><code>PHOTO_MAX_BYTES</code> sets the maximum bytes per prepared photo (default 1,000,000). <code>PHOTO_MAX_DIMENSION</code> sets the longest allowed side in pixels (default 2048). <code>PHOTO_MAX_CONCURRENT</code> bounds photo saves across the process (default 3). <code>PHOTO_BODY_TIMEOUT_SECONDS</code> sets the body-read deadline at both the owner and photo-token entry points (default 60 seconds; positive integers). Unsupported response writers continue without a deadline. Both signed-in and token saves acquire a slot before reading the request body; full capacity returns 429 “Busy, try again in a moment” and <code>Retry-After: 2</code> without queueing. A slot is held through commit. Each request still allows 30 photos of 1,000,000 bytes plus bounded multipart overhead by default. The Add photos page prepares small WebP or JPEG copies on the device. The server validates them without decoding pixels or resizing. Each request takes up to 30 photos; the normal site upload, retained-version, account, and deploy rate limits also apply.</p>
 <h2 id="upload-and-import-behavior">Upload and import behavior</h2>
 <p><code>MAX_SITES_PER_ACCOUNT</code> applies to non-admin accounts; exceeding it returns
 403 <code>site_quota_reached</code>. Malformed <code>MAX_SITES_OVERRIDES</code> or

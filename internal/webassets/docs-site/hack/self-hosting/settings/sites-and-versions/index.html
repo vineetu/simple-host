@@ -718,13 +718,13 @@ passcode, never both. <code>SITE_VIEWERS_MAX</code> caps the list per site.</p>
 <td><code>MAX_SITES_OVERRIDES</code></td>
 <td>none</td>
 <td>handle:sites</td>
-<td>Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.</td>
+<td>Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated &lt;handle&gt;:&lt;sites&gt;, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.</td>
 </tr>
 <tr>
 <td><code>MAX_ARCHIVE_MB_OVERRIDES</code></td>
 <td>none</td>
 <td>handle:mb</td>
-<td>Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.</td>
+<td>Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated &lt;handle&gt;:&lt;MB&gt;, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.</td>
 </tr>
 <tr>
 <td><code>KEEP_VERSIONS_OVERRIDES</code></td>

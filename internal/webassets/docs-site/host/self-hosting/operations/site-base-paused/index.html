@@ -543,6 +543,9 @@
 		<a href="#live-settings" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Live settings</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#tls-and-issuers" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">TLS and issuers</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#verify-and-rollback" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Verify and rollback</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -567,6 +570,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#live-settings" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Live settings</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#tls-and-issuers" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">TLS and issuers</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#verify-and-rollback" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Verify and rollback</span></a>
@@ -616,7 +622,10 @@ Do not remove the base setting: it identifies the old links to redirect.</p>
 <p>If stored free names were moved, use <code>simple-host move-site-base --from simple-host.site --to simple-host.app</code> for counts first, then <code>--apply</code> to move
 them back. It preserves old disk links; inspect conflicts before proceeding.
 In the previous <code>serve</code> mode names were already handed out and stored as .app.</p>
+<h2 id="tls-and-issuers">TLS and issuers</h2>
+<p>Leave <code>simple-host-site-certs-site.path</code> and <code>.timer</code> stopped and disabled. The certificate watch skips disabled issuers, so the paused base sends no missing-certificate alerts. The app writes no .site requests while <code>SITE_BASE_MOVE=off</code>, and the issuer that creates DNS records only runs on a request, so no new .site DNS records appear. Keep the existing <code>*.&lt;handle&gt;.simple-host.site</code> records at Vercel: shared .site links need them to resolve and reach the 301. Stale .site request and failed markers from before the pause were moved to <code>/var/backups/simple-host-site-pause-&lt;timestamp&gt;/site-certs-state/</code> on 2026-10-11. Keep all existing .site certificates on disk; do not revoke or renew them. The shared <code>certbot.timer</code> still renews other domains. Move only <code>.site</code> renewal configuration files from <code>/etc/letsencrypt/renewal/</code> into a dated, root-only <code>/var/backups/simple-host-site-pause-&lt;timestamp&gt;/renewal/</code> directory so that ordinary <code>certbot renew</code> does not renew the paused zone. Do not move the live, archive or nginx certificate files. Preserve these configurations for a later resume. Serialize this step with the issuer/renewal lock <code>/run/simple-host-certbot.lock</code>; leave the shared lock implementation alone. Keep the nginx TLS proxy blocks so shared HTTPS links reach the app while their existing certificates are valid. Apply the generated HTTP redirect option with <code>sudo HTTP_MODE=app bash deploy/prod/nginx-site-base-domain.sh --apply</code> from the repo root: HTTP links go directly to matching .app hosts, while HTTPS continues through the app redirect. The script backs up its generated file, tests nginx and reloads, restoring on a failed test.</p>
 <h2 id="verify-and-rollback">Verify and rollback</h2>
+<p>From a client, check a real person host and site host on .site for 301s to their matching .app hosts, with path and query kept. Check health, the .app site and person page, the legacy content link and neighbouring services as in CLAUDE.md. A new deployment must return an .app <code>site_url</code>. Public pages, OpenAPI, llms.txt, connector descriptions and skill downloads must contain only .app examples.</p>
 <p>If deployment verification fails, restore the backed-up binary and env file and
 restart both services. Restore the old HTTP behavior through the same script
 with <code>HTTP_MODE=same --apply</code>. Keep the .site issuer units disabled during rollback.

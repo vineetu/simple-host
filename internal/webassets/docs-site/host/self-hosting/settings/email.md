@@ -22,4 +22,5 @@ key still work).
 
 ```
 RESEND_API_KEY=re_...
+MAIL_FROM=Simple Host <noreply@example.com>
 ```

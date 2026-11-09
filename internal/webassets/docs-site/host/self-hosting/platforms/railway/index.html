@@ -620,7 +620,8 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p><img src="/diagrams/railway.svg" alt="Simple Host on Railway: your DNS points both names at the service, Railway’s own edge ends HTTPS and forwards to one service running Caddy and the Simple Host server with a volume, Railway Postgres in the same project, your GitHub repository holds the Dockerfile the template builds from"></p>
+								<div class="sl-markdown-content"><p>Built 2026-10-27 and verified locally first; a real end-to-end pass against the existing Railway account ran 2026-11-06 (see “What was tested” below): build, migrations, sign-in, a published site, KV, and a restart all worked. The template itself is not published yet — the Railway connector and CLI used for the test cannot run <strong>Generate Template from Project</strong> or <strong>Publish</strong>; that step needs a signed-in dashboard or CLI session.</p>
+<p><img src="/diagrams/railway.svg" alt="Simple Host on Railway: your DNS points both names at the service, Railway’s own edge ends HTTPS and forwards to one service running Caddy and the Simple Host server with a volume, Railway Postgres in the same project, your GitHub repository holds the Dockerfile the template builds from"></p>
 <p>The small box (the installer’s Postgres + server + Caddy) runs on
 <a href="https://railway.com">Railway</a> as one service with a volume, plus a Railway Postgres
 database, both in one project. Railway’s edge ends HTTPS for both names itself (no
@@ -744,6 +745,11 @@ droplet (about $6/month), and cheaper than Render (about $13.55/month, which has
 paid minimums for its disk and Postgres tiers). Pro ($20/month, included credit $20) removes
 the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per service.</p>
 <h2 id="commands">Commands</h2>
+<p>You need a Railway account with a card, a GitHub repository with these files (a fork of
+Simple Host, or your own repository with <code>deploy/platforms/railway/</code> copied in), and a
+domain. Below, the address is <code>example.com</code>, with participant sites on
+<code>sites.example.com</code>. <code>deploy/platforms/railway/README.md</code> has the same steps as a
+reference table; this is the walkthrough.</p>
 <ol>
 <li>
 <p><strong>New Project</strong> in the Railway dashboard, then <strong>Deploy from GitHub repo</strong>, your fork.
@@ -756,7 +762,8 @@ Railway finds the <code>Dockerfile</code> there on its own; no build command is 
 <li>
 <p>In the app service’s <strong>Variables</strong> tab, add:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>DB_DSN=${{Postgres.DATABASE_URL}}?sslmode=disable</span></span>
-<span class="line"><span>ADMIN_API_KEY=${{secret(64)}}</span></span></code></pre>
+<span class="line"><span>ADMIN_API_KEY=${{secret(64)}}</span></span>
+<span class="line"><span>SITE_DOMAIN=example.com</span></span></code></pre>
 <p>Leave <code>CONTENT_HOST</code> unset; <code>start.sh</code> defaults it to <code>sites.$SITE_DOMAIN</code>.</p>
 </li>
 <li>
@@ -773,9 +780,18 @@ runs first, in its own container (<code>empty database: loading schema.sql</code
 </li>
 <li>
 <p>In <strong>Settings → Networking</strong>, add both custom domains to the app service:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>example.com</span></span>
+<span class="line"><span>sites.example.com</span></span></code></pre>
 <p>Railway shows a CNAME and a TXT record for each. Add both at your DNS provider:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>example.com        CNAME  &lt;value Railway shows&gt;</span></span>
+<span class="line"><span>sites.example.com  CNAME  &lt;value Railway shows&gt;</span></span></code></pre>
 <p>Railway verifies each name and issues its certificate once the CNAME resolves; in
 earlier tests of this same image on other platforms that took under a minute.</p>
+</li>
+<li>
+<p>Sign in: the admin key is the value you generated for <code>ADMIN_API_KEY</code> (Variables tab).
+Open <code>https://example.com/admin</code> and paste it. From there, issue participant
+accounts and hand out their keys, as on any small box.</p>
 </li>
 </ol>
 <h2 id="everyday-operations">Everyday operations</h2>
@@ -825,6 +841,8 @@ to reliably produce that exact byte-aligned, padded format. Rather than ship a k
 looks generated but might not decode, this template leaves it unset: site passcodes stay
 off until you add the variable by hand. That is a real limit of this template, not an
 oversight — the feature works fully once you set the key, or is not offered at all.</li>
+<li><strong>Canonical per-person and per-site subdomains are not offered.</strong> <code>PERSON_HOSTS</code> and <code>SITE_HOSTS</code> stay at their installer default (<code>off</code>, path-style addresses: <code>sites.example.com/&lt;handle&gt;/&lt;site&gt;/</code>). Turning them to <code>canonical</code> would need an unbounded number of arbitrary subdomains two levels deep (<code>&lt;site&gt;.&lt;handle&gt;.example.com</code>) provisioned on the fly. Path-style addresses are not a downgrade of a feature; they are what every other small-box platform guide (Fly, Render, Coolify) also ships by default.</li>
+<li><strong>Volumes cap at 5 GB on Hobby.</strong> <code>MAX_ARCHIVE_MB</code> defaults the same as the installer (100).</li>
 <li><strong>The release image cannot run alone.</strong> It is the server only. Sites are served from the
 volume by Caddy, and Caddy also hides <code>/internal/*</code> and writes the access log that
 visitor analytics reads. Pointing Railway straight at the server image leaves every site

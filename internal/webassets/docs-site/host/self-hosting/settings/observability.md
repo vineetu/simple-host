@@ -43,6 +43,11 @@ before validation, but only a string becomes intent.
 The sender makes a separate copy before enqueueing. Its field inventory, checked against
 the connector schemas and outputs on 2026-10-29, is:
 
+- Secrets: field names containing `passcode`, `password`, `secret`, `token`, `apikey`, `authorization`, or `cookie` after lowercasing and removing underscores and hyphens; also `code`, `signincode`, `verificationcode`, `teamkey`, `signingkey`, and `privatekey`. This includes `passcode_protected` and `passcode_set_at` under the requested name rule. `auth_header` is removed as a whole because its credential is in a child named `value`. Webhook signing secrets are carried by REST and `events/subscribe`, not current tool-call results; `secret` is covered structurally.
+- Links: `upload_url`, `photos_url`, `import_url`, `download_url`, `signed_url`, `preview_url`, `pinned_url`, `join_url`, `judge_url`, and `invite_url`, plus `join_code` and `judge_code`. `create_upload_link.how` is removed because its curl command repeats the signed URL.
+
+The client's text, structured result, and metadata are unchanged. UI metadata is not included in telemetry.
+
 The SDK's image, audio, binary-resource, unknown-content, and large-base64 placeholders
 run after these removals. The structural walk stops at 32 levels with `[Object]` before
 further descent. Depth 10, breadth 100, and string truncation with `...` run next,

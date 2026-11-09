@@ -700,6 +700,11 @@ The resource name and error reporting stay unchanged. Non-string context is also
 before validation, but only a string becomes intent.</p>
 <p>The sender makes a separate copy before enqueueing. Its field inventory, checked against
 the connector schemas and outputs on 2026-10-29, is:</p>
+<ul>
+<li>Secrets: field names containing <code>passcode</code>, <code>password</code>, <code>secret</code>, <code>token</code>, <code>apikey</code>, <code>authorization</code>, or <code>cookie</code> after lowercasing and removing underscores and hyphens; also <code>code</code>, <code>signincode</code>, <code>verificationcode</code>, <code>teamkey</code>, <code>signingkey</code>, and <code>privatekey</code>. This includes <code>passcode_protected</code> and <code>passcode_set_at</code> under the requested name rule. <code>auth_header</code> is removed as a whole because its credential is in a child named <code>value</code>. Webhook signing secrets are carried by REST and <code>events/subscribe</code>, not current tool-call results; <code>secret</code> is covered structurally.</li>
+<li>Links: <code>upload_url</code>, <code>photos_url</code>, <code>import_url</code>, <code>download_url</code>, <code>signed_url</code>, <code>preview_url</code>, <code>pinned_url</code>, <code>join_url</code>, <code>judge_url</code>, and <code>invite_url</code>, plus <code>join_code</code> and <code>judge_code</code>. <code>create_upload_link.how</code> is removed because its curl command repeats the signed URL.</li>
+</ul>
+<p>The client’s text, structured result, and metadata are unchanged. UI metadata is not included in telemetry.</p>
 <p>The SDK’s image, audio, binary-resource, unknown-content, and large-base64 placeholders
 run after these removals. The structural walk stops at 32 levels with <code>[Object]</code> before
 further descent. Depth 10, breadth 100, and string truncation with <code>...</code> run next,

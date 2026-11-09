@@ -7,6 +7,8 @@ the address and sign-in methods. The tables state the binary defaults. This fold
 explains each advanced feature in plain terms, lists every setting that changes
 it, and gives recipes for common changes.
 
+**Easiest start: the setup helper at https://simple-host.app/setup?product=small-box.** It asks a few questions (or every question, in Advanced mode), keeps the default for anything you skip, and writes the one-line install command and the `.env` for a small box. Nothing is required: with no domain yet, the command installs the box in setup mode, which asks for the domain in the browser afterwards, and any value only you can know is left in the `.env` as a blank under a `# Fill in:` line, named in one line above it. It runs in your browser and never asks for a password or key. Just before your files it can **check your choices** for likely mistakes (a setting that weakens sign-in, a retention or undo promise cut short, an upload size the box cannot hold): it sends only the names and values of the numbers, durations, switches, choices and limits you changed, never hostnames, emails or secrets, and you Apply or Ignore each suggestion. You can skip it; where the server has no model backend it is skipped by itself. The files step also gives one block to hand to **your own AI agent**: what the server needs, every step with your files in it, and how to check the result.
+
 For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise), choose
 Helm or Kubernetes YAML for a cluster you already run. Both use the same chart and its
 `values.yaml`; the page does not create cloud infrastructure. Connect existing Postgres

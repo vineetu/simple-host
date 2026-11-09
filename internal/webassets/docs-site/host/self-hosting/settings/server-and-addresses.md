@@ -1,5 +1,11 @@
 # Server and addresses
 
+A Simple Host server needs one domain it owns, like `example.com`. The dashboard, the API
+and the connector live there; sites are served from a second hostname, `sites.<domain>`, so a
+page someone publishes can never script the dashboard. On a small box, Caddy fetches a
+certificate for each name the first time it is asked for, once the server confirms the name is
+its own.
+
 **Setup mode.** A box installed without `--host` starts in setup mode: it serves one page that
 asks for the setup password (printed once by the installer) and then where the box lives.
 
@@ -28,14 +34,15 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
 | `PRIVACY_URL` | none | URL | This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link. |
+| `SITE_DOMAIN` | none | text | The domain this server lives at, like example.com. Unset, the server starts in setup mode and asks for one. |
 | `CONTENT_HOST` | `sites.<SITE_DOMAIN>` | text | The separate hostname sites are served from, so pages never share an origin with the dashboard. |
-| `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://<SITE_DOMAIN>. |
+| `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://&lt;SITE_DOMAIN>. |
 | `PORT` | `8090` | 1–65535 | The port the server listens on. |
 | `BIND_ADDR` | none | text | The interface the server listens on, like 127.0.0.1 behind a proxy. Empty listens on all. |
 | `TRUSTED_PROXY_CIDRS` | none | text | The networks the proxies in front of this server connect from, comma-separated (10.0.0.0/8,fd00::/8). Set, X-Forwarded-For is believed only from a peer in one of them and read right to left past every trusted hop, so a client cannot choose its own address for rate limits. Empty believes the last entry from any peer, which is right behind one local nginx. **Security-sensitive.** |
 | `DEPLOY_SCRIPT` | none | text | A script run after each site goes live. Empty runs nothing. |
-| `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out. |
-| `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS. |
+| `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, &lt;handle>.&lt;SITE_DOMAIN>. canonical makes it the address handed out. |
+| `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, &lt;site>.&lt;handle>.&lt;SITE_DOMAIN>. Needs PERSON_HOSTS. |
 | `SITE_BASE_DOMAIN` | `<SITE_DOMAIN>` | text | Optional alternate base for person/site/free-name addresses. The app stays on SITE_DOMAIN. With SITE_BASE_MOVE=off, retain this only to redirect old base links back to SITE_DOMAIN. |
 | `SITE_BASE_MOVE` | `off` | `off` / `serve` / `canonical` / `redirect` / `permanent` | off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301). |
 | `SETUP_PASSWORD` | none | secret | The password a box in setup mode asks for. install.sh generates it. **Security-sensitive.** |
@@ -59,10 +66,29 @@ handle at sign-up (it gets `<name>-2` instead). Accounts and sites that already 
 and it keeps working. The list lives in one place in the code (`reservedNewNames` in
 `internal/handler/platformsubdomain.go`):
 
+admin, administrator, root, sys, system, support, help, helpdesk, info, contact, hello,
+security, abuse, postmaster, hostmaster, webmaster, noreply, no-reply, mail, email, smtp, www,
+api, app, apps, status, billing, payments, pay, login, signin, sign-in, signup, sign-up, auth,
+oauth, sso, account, accounts, dashboard, console, docs, doc, blog, cdn, static, assets, media,
+files, download, downloads, setup, enterprise, legal, privacy, terms, report, policy, team, staff,
+official, verify, verification, update, secure, simplehost, simple-host, test, dev, staging, prod, internal, localhost, photos, photo-codecs.
+
+A site name only ever appears under its owner's address (`<site>.<handle>.<domain>`), so for
+new sites only the names that pass for the service or its operator are refused: admin,
+administrator, root, sys, system, support, helpdesk, security, abuse, postmaster, hostmaster,
+webmaster, noreply, no-reply, billing, payments, login, signin, sign-in, signup, sign-up, auth,
+oauth, sso, account, accounts, verify, verification, secure, official, simplehost, simple-host,
+internal, localhost. Everyday names such as blog, docs or team stay
+free for sites.
+
 The names the server itself routes (v1, internal, sites, skills, the platform's own hosts and
 the ones nginx answers itself) were reserved before and stay refused everywhere.
 
 ## Recipes
+
+**A small box for an event.** Point `example.com` and `sites.example.com` at the
+server, then run the installer with `--host example.com --content sites.example.com`.
+Nothing else is needed.
 
 **Behind your own reverse proxy.** Set `BIND_ADDR=127.0.0.1` and `PORT=8090`, and have the proxy
 send both hostnames to that port with the original `Host` header.
@@ -123,9 +149,15 @@ without credentials. Its `handle`, `bio` and `sites` include each visible site's
 a 30-second cache. Unlisted, offline, passcode-protected, named-viewers-only and taken-down sites
 stay hidden.
 
+On hosted Simple Host, the selected site serves at the person-host root and keeps its normal URL; sign-in and data on that origin cover the selected site only. On a small-box install, including Droplet 1-Click and Coolify, the default path model remains: `https://sites.<domain>/<handle>` opens the selected site's normal URL. The owner dashboard remains `https://<domain>/<handle>`. No wildcard DNS or extra certificate is required for path-model home selection. Person-host installations keep the hosted behavior when configured. A domain for a whole personal space has not shipped; existing per-site domains remain.
+
 ## MCP Apps in installed copies
+
+The original four `MCP_APP_*` flags are off by default in every package. Set `on` or `accounts:alice,bob` in the installation's `.env` or Coolify environment settings, then recreate the app container. Dashboard also needs My sites. Leave site preview off unless both the client and the site permit framing. Configured instance hosts determine its frame origins; this setting does not change site framing headers.
 
 The Passcode screen is a separate opt-in: pass `MCP_APP_PASSCODE` to the server
 process as `on` or `accounts:alice,bob`. It defaults off and is personal Simple Host
 only. `MCP_PASSCODE_SCREEN_TTL_SECONDS` sets its single-use session lifetime (600
 seconds by default). Installer forwarding for these two settings is not included.
+
+`MCP_APP_MY_SITES` and `MCP_APP_DASHBOARD` are read from the server process environment on each request. Both default to `off`; `on` enables all eligible connections, and `accounts:alice,bob` limits them to authenticated handles. Dashboard requires My sites.

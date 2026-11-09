@@ -546,7 +546,13 @@
 		<a href="#docker-compose-small-box" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Docker Compose small box</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#kubernetes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Kubernetes</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#shared-worker-and-migration-details" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Shared worker and migration details</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#password-sign-in-by-profile" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Password sign-in by profile</span></a>
 		
 	</li>
 </ul></div>
@@ -572,7 +578,13 @@
 		<a href="#docker-compose-small-box" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Docker Compose small box</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#kubernetes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Kubernetes</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#shared-worker-and-migration-details" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Shared worker and migration details</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#password-sign-in-by-profile" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Password sign-in by profile</span></a>
 		
 	</li>
 </ul>
@@ -603,6 +615,10 @@ The settings registry is <a href="https://github.com/vineetu/simple-host/blob/ma
 Addresses, persistence and sign-in still need the profile-specific choices below.
 The offline check is <code>bash scripts/check-profiles.sh</code>.</p>
 <h2 id="hosted-systemd">Hosted systemd</h2>
+<h3 id="what-runs">What runs</h3>
+<p>Workers run inside each server process; see the shared worker list below.</p>
+<h3 id="how-settings-are-supplied">How settings are supplied</h3>
+<p>systemd loads the respective EnvironmentFile. Neither inspected unit exposes individual setting names or values; the env files were not opened. Each must supply <code>ADMIN_API_KEY</code> and <code>DB_DSN</code>, with different databases for the two instances. Hosted family addresses use <code>PERSON_HOSTS=canonical</code> and <code>SITE_HOSTS=canonical</code> (<code>ARCHITECTURE.md</code>, Deploy).</p>
 <h3 id="migration-ownership">Migration ownership</h3>
 <p>Hosted: the operator owns migrations; startup migration is off.
 Neither inspected unit sets MIGRATE_ON_START. Apply release SQL before installing
@@ -626,7 +642,7 @@ from a client, check neighbouring sites and startup logs, and run
 <code>/usr/local/bin/simple-host version</code> (<code>CLAUDE.md:93</code>, <code>CLAUDE.md:98</code>,
 <code>internal/handler/health.go:14</code>).</p>
 <h2 id="docker-compose-small-box">Docker Compose small box</h2>
-<h3 id="what-runs">What runs</h3>
+<h3 id="what-runs-1">What runs</h3>
 <p>The root <code>compose.yaml</code> runs Postgres 16, one server container and Caddy.
 The server image is the nonroot Go binary, HTTP 8090, <code>DATA_DIR=/data/sites</code>;
 Caddy publishes 80/443 by default. Named volumes hold the database, sites,
@@ -635,13 +651,31 @@ from its read-only sites mount (<code>compose.yaml:14</code>, <code>compose.yaml
 <code>compose.yaml:277</code>, <code>Dockerfile:31</code>, <code>deploy/compose/Caddyfile:86</code>).
 Edition comes from settings: root Compose passes <code>EVENTS</code> through.
 Workers run inside the server process, as listed below.</p>
+<p>The entrypoint sets <code>EVENTS=hosted</code>. Its <code>/data</code> volume holds sites, logs and Caddy state; the server listens on 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080. Default published ports are 80/443 and loopback 18080.</p>
+<h3 id="how-settings-are-supplied-1">How settings are supplied</h3>
+<p>Compose substitutes <code>.env</code>/shell values into explicit container environment entries. Root Compose requires <code>DB_PASSWORD</code> and <code>ADMIN_API_KEY</code>, constructs <code>DB_DSN</code>, and passes <code>SITE_DOMAIN</code> and <code>PUBLIC_BASE_URL</code>. Blank SITE_DOMAIN deliberately enters browser setup; configure the real domain/base URL before normal use. Dockerfile supplies the persistent DATA_DIR and port (<code>compose.yaml:19</code>, <code>compose.yaml:40</code>, <code>Dockerfile:37</code>). Standalone also requires <code>PASSCODE_ENC_KEY</code>, <code>ANALYTICS_SALT</code> and <code>SITE_DOMAIN</code>; it derives PUBLIC_BASE_URL and enables password sign-in by default. With password sign-in off, it requires either complete OIDC settings or <code>RESEND_API_KEY</code> plus <code>MAIL_FROM</code> for sign-in.</p>
+<h3 id="migration-ownership-1">Migration ownership</h3>
+<p>Compose: the installer migrates before starting the new app. The root installer pulls the image, starts the database, runs <code>docker compose run --rm -T app migrate</code>, then starts the app. Failure leaves the app unrestarted. For an empty database volume, Postgres loads the mounted schema.sql first; migrate then applies/records pending files under the advisory lock (<code>deploy/install/install.sh:273</code>, <code>compose.yaml:22</code>). Plain <code>compose up</code> on an existing database does not do that upgrade step by itself. Standalone’s installer stops the app and runs <code>release</code> before starting it; Compose also gates app startup on successful release. Its entrypoint loads schema.sql with psql when <code>public.users</code> is absent, then executes migrate.</p>
+<h3 id="upgrade-steps-and-rollback-1">Upgrade steps and rollback</h3>
+<p>Take paired DB/files backups and keep <code>.env</code> and sealing keys. Re-run the versioned installer; root Compose uses the published image, not a local build. SQL stays applied, subject to the compatibility limits below. If restoring data, restore the DB and sites volume together (standalone: DB and <code>/data</code>). The database records live versions while files hold those versions and runtime SQLite/uploads (<code>ARCHITECTURE.md</code>, Data model; <code>compose.yaml:290</code>). Check public HTTPS, <code>/healthz</code>, <code>/readyz</code>, a deployed site and logs; check the actual image’s release with <code>docker compose exec app simple-host version</code> (<code>deploy/install/install.sh:293</code>, <code>cmd/server/migrate.go:148</code>).</p>
+<h2 id="kubernetes">Kubernetes</h2>
+<h3 id="what-runs-2">What runs</h3>
+<p>HTTP is 8090; TLS ends upstream. One replica and <code>Recreate</code> stop the old pod before the new one uses the ReadWriteOnce volume. <code>/data/sites</code> and <code>/data/geoip</code> are on <code>/data</code>; <code>/tmp</code> is an emptyDir.</p>
+<h3 id="how-settings-are-supplied-2">How settings are supplied</h3>
+<p>envFrom loads a ConfigMap and Secret. Values set <code>SITE_DOMAIN</code>, <code>PUBLIC_BASE_URL</code>, <code>EVENTS=hosted</code>, persistence paths and port; extraConfig and extraSecrets add registry names. Set <code>host</code>, a database DSN (or existing Secret), and password sign-in (on by default), OIDC credentials or email sign-in credentials. ADMIN_API_KEY is generated and retained by Helm, or supplied in your existing Secret; DB_DSN is supplied by you.</p>
+<h3 id="migration-ownership-2">Migration ownership</h3>
+<p>Kubernetes: the server migrates before listening. The default <code>migrateOnStart: true</code> renders MIGRATE_ON_START=true. On every start, the server waits for Postgres, initializes schema.sql if <code>public.users</code> is absent, applies pending files under the advisory lock, and checks the schema. The database role must own the database.</p>
+<h3 id="upgrade-steps-and-rollback-2">Upgrade steps and rollback</h3>
+<p>Back up Postgres and the <code>/data</code> volume as a pair, preferably with the pod scaled to zero, and preserve the Secret, especially PASSCODE_ENC_KEY. Change the image tag with <code>helm upgrade</code> (or update/apply rendered YAML), wait for rollout and inspect logs. Recreate means downtime during migration/startup. Use <code>helm rollback</code> or restore the previous manifest/image for binary rollback; SQL stays applied. Earlier successful migration files remain committed if a later file fails. Restore DB plus volume together if data rollback is needed (<code>docs/kubernetes.md:152</code>, <code>docs/kubernetes.md:187</code>, <code>db/migrations/migrations.go:20</code>). Check external <code>/healthz</code>, <code>/readyz</code>, a team site, and <code>kubectl exec</code> the pod’s <code>/usr/local/bin/simple-host version</code>.</p>
 <h2 id="shared-worker-and-migration-details">Shared worker and migration details</h2>
+<p>Workers are goroutines in the server, not separate queue services in any profile. Conditions/settings can leave workers inactive; setup mode returns before normal worker wiring (<code>:155</code>).</p>
 <p>Migrations are forward-only: there is no down command. New files must be
 <code>NNNN-name.sql</code>, next free number, plain idempotent SQL, additive and safe on a
 live DB. The runner uses the frozen legacy order then numbered files, skips
 historical baseline files, and commits each file with its schema_migrations row
 under a per-database Postgres advisory lock (<code>db/migrations/migrations.go:4</code>,
 <code>db/migrations/migrations.go:302</code>). Init uses that same lock; manual SQL does not.</p>
+<p>An older binary is intended to work on the newer additive schema, but startup does not prove full backwards compatibility. It does not compare schema versions, reject extra columns/newer migration rows, or check column types or index definitions. Missing requirements abort startup; extra schema is accepted (<code>cmd/server/main.go:131</code>, <code>internal/db/schemacheck.go:170</code>, <code>internal/db/schemacheck.go:196</code>). <code>/healthz</code> means HTTP is answering; <code>/readyz</code> also pings Postgres (<code>internal/handler/health.go:19</code>). The version command needs no database and prints release/commit plus embedded migration information (<code>cmd/server/migrate.go:148</code>).</p>
 <table>
 <thead>
 <tr>
@@ -702,6 +736,8 @@ under a per-database Postgres advisory lock (<code>db/migrations/migrations.go:4
 </tr>
 </tbody>
 </table>
+<h2 id="password-sign-in-by-profile">Password sign-in by profile</h2>
+<p>Hosted systemd: leave <code>PASSWORD_SIGNIN=off</code> (binary default); existing email and provider sign-ins continue. No mail or identity provider is required for password sign-in. Kubernetes: <code>signIn.password.enabled: true</code> and <code>signIn.password.selfSignup: true</code> render both settings as <code>on</code>; setting either false renders <code>off</code>. Password sign-in satisfies the chart’s sign-in requirement without OIDC or Resend. An operator may set <code>PASSWORD_SELF_SIGNUP=off</code> and create/reset accounts through Admin Users. People must change temporary passwords before completing sign-in. Existing email accounts can receive passwords by admin reset; existing keys and sessions continue to work.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

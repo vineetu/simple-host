@@ -610,6 +610,7 @@
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><p>Verified 2026-10-31 in local Docker containers (no DigitalOcean token configured on the release host) with the published v0.7.22 image: a v0.7.21 box with a site and a KV value upgraded to v0.7.22 by a bare <code>migrate</code> re-run, kept its site, KV value and admin key, and applied the 7 new migrations once. <code>/healthz</code>, the home page and <code>/.well-known/mcp/server-card.json</code> answered correctly, <code>docker compose config</code> parsed, and the published image’s binary reports <code>v0.7.22 (commit 3a097ad)</code>.</p>
 <p>Verified 2026-10-24 on a real DigitalOcean droplet (sfo2, <code>s-1vcpu-2gb</code>, a <code>&lt;ip&gt;.nip.io</code> name, a Let’s Encrypt certificate) with the published v0.7.21 image: a v0.7.20 box with a site, a KV value and a records SQLite resource upgraded to v0.7.21 by re-running the installer with no flags (no new migrations: this release is a Go 1.27.3 toolchain and dependency bump only). The box kept its addresses, admin key, site, KV value and records row. <code>/healthz</code>, the home page and <code>/.well-known/mcp/server-card.json</code> answered correctly, <code>docker compose config</code> parsed, and the published image’s binary reports <code>go1.27.3</code>. The droplet was deleted.</p>
+<p>Verified 2026-10-24 on two real DigitalOcean droplets (sfo2, <code>s-1vcpu-2gb</code>, <code>&lt;ip&gt;.nip.io</code> names, Let’s Encrypt certificates) with the published v0.7.20 image: a fresh install, and a v0.7.19 box with a site, a public KV value and a records SQLite resource upgraded to v0.7.20 by re-running the installer with no flags. <code>/healthz</code>, the home page, <code>/.well-known/mcp/server-card.json</code>, <code>/auth.md</code> and an MCP <code>initialize</code> call all answered correctly, and <code>docker compose config</code> parsed. Both droplets were deleted.</p>
 <p>Verified 2026-10-15 on two real DigitalOcean droplets (sfo2, <code>s-1vcpu-2gb</code>, <code>&lt;ip&gt;.nip.io</code> names, Let’s Encrypt certificates) with the published v0.7.19 image: a fresh install; a v0.7.17 box with a site, a public KV value and a records SQLite resource upgraded straight to v0.7.19 by re-running the installer with no flags; and a v0.7.17 box taken through v0.7.18 to v0.7.19 the same way. Every box kept its addresses, the site, the KV value and the presets, applied <code>ze-spam-checked-posts.sql</code> and <code>zf-signup-detail.sql</code> once, refused the comments preset with <code>spam_check_unavailable</code> until Turnstile keys were added to <code>.env</code> (then accepted it, and a re-run kept the keys), and named itself, never simple-host.app, in robots.txt, Get started, llms.txt and the connector’s instructions. Both droplets were deleted.</p>
 <p>Verified 2026-10-10 with the published v0.7.17 image in disposable native arm64 containers: fresh install and an actual v0.7.16 upgrade through the installer’s compose file (the image’s <code>migrate</code>, as install.sh runs it) preserve the site list, KV values and resource policies across the swap; the storage-presets migration applies once and nothing is left pending; existing resources show their preset (an open write-anyone resource as <code>legacy</code>), and a preset with per-table rules, the row edit route and an R1 refusal answer as designed.</p>
 <p>Verified 2026-10-10 with the published v0.7.16 image in disposable native arm64 containers: fresh install and an actual v0.7.15 upgrade through the installer’s compose file (the image’s <code>migrate</code>, as install.sh runs it) preserve the site list, KV values and resource policies across the swap; the new migration applies once and nothing is left pending, and the named-viewers and visitor-lookup routes answer. All four binary checksums pass, and both CPU images are published (arm64 run). This check used localhost HTTP against the app, without Caddy; earlier evidence below remains dated to its tested versions.</p>
@@ -654,6 +655,8 @@ the site’s own address, and a restart had nothing to migrate.</p>
 <h2 id="before-you-start">Before you start</h2>
 <ul>
 <li>A server with Coolify installed, its proxy on ports 80 and 443.</li>
+<li>A domain, say <code>example.com</code>, with two <code>A</code> records to the server’s address:
+<code>example.com</code> and <code>sites.example.com</code>.</li>
 </ul>
 <h2 id="older-git-build-recipe">Older Git-build recipe</h2>
 <p>The service template above supersedes this recipe for new installations.
@@ -668,11 +671,21 @@ defaults to one.</p>
 <code>/deploy/platforms/coolify</code>, Docker Compose Location <code>/compose.yaml</code>.</p>
 </li>
 <li>
+<p>Under <strong>Environment Variables</strong>, add <code>SITE_DOMAIN</code> = <code>example.com</code>.
+<code>ADMIN_API_KEY</code> and the database password are generated for you.</p>
+</li>
+<li>
 <p>Under the app service’s <strong>Domains</strong>, enter both names:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>https://example.com,https://sites.example.com</span></span></code></pre>
 </li>
 <li>
 <p><strong>Deploy.</strong> The first build copies the release into the image and takes
 about a minute. The <code>release</code> step runs first and exits. Then the app starts.</p>
+</li>
+<li>
+<p>Open <code>https://example.com/admin</code> and paste the value of
+<code>SERVICE_PASSWORD_ADMIN</code> (Environment Variables). From there, issue
+participant accounts and hand out their keys, as on any small box.</p>
 </li>
 </ol>
 <h2 id="everyday-operations">Everyday operations</h2>

@@ -36,13 +36,13 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `PRIVACY_URL` | none | URL | This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link. |
 | `SITE_DOMAIN` | none | text | The domain this server lives at, like hack.example.com. Unset, the server starts in setup mode and asks for one. |
 | `CONTENT_HOST` | `sites.<SITE_DOMAIN>` | text | The separate hostname sites are served from, so pages never share an origin with the dashboard. |
-| `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://<SITE_DOMAIN>. |
+| `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://&lt;SITE_DOMAIN>. |
 | `PORT` | `8090` | 1–65535 | The port the server listens on. |
 | `BIND_ADDR` | none | text | The interface the server listens on, like 127.0.0.1 behind a proxy. Empty listens on all. |
 | `TRUSTED_PROXY_CIDRS` | none | text | The networks the proxies in front of this server connect from, comma-separated (10.0.0.0/8,fd00::/8). Set, X-Forwarded-For is believed only from a peer in one of them and read right to left past every trusted hop, so a client cannot choose its own address for rate limits. Empty believes the last entry from any peer, which is right behind one local nginx. **Security-sensitive.** |
 | `DEPLOY_SCRIPT` | none | text | A script run after each site goes live. Empty runs nothing. |
-| `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out. |
-| `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS. |
+| `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, &lt;handle>.&lt;SITE_DOMAIN>. canonical makes it the address handed out. |
+| `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, &lt;site>.&lt;handle>.&lt;SITE_DOMAIN>. Needs PERSON_HOSTS. |
 | `SITE_BASE_DOMAIN` | `<SITE_DOMAIN>` | text | Optional alternate base for person/site/free-name addresses. The app stays on SITE_DOMAIN. With SITE_BASE_MOVE=off, retain this only to redirect old base links back to SITE_DOMAIN. |
 | `SITE_BASE_MOVE` | `off` | `off` / `serve` / `canonical` / `redirect` / `permanent` | off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301). |
 | `SETUP_PASSWORD` | none | secret | The password a box in setup mode asks for. install.sh generates it. **Security-sensitive.** |

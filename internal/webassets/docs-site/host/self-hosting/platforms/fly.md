@@ -52,6 +52,11 @@ Postgres is stopped. Add a card before you start.
 
 ## Commands
 
+You need `flyctl` (`fly auth login`), a domain, and the release you want
+(this guide: 0.7.12, set in `fly.toml` as `SIMPLE_HOST_VERSION`). Below, the app
+is `my-sh`, the region `sjc`, and the address `example.com`, with
+participant sites on `sites.example.com`.
+
 1. Edit `deploy/platforms/fly/fly.toml`: set `app`, `primary_region`, and the
    three hostnames (`SITE_DOMAIN`, `CONTENT_HOST`, `PUBLIC_BASE_URL`).
 
@@ -88,6 +93,19 @@ Postgres is stopped. Add a card before you start.
 5. Point both names at the app, then ask Fly for their certificates. A CNAME to
    `my-sh.fly.dev` for each name is enough (or the A and AAAA records that
    `fly certs add` prints). The certificates were issued within a minute.
+
+   ```
+   example.com        CNAME  my-sh.fly.dev
+   sites.example.com  CNAME  my-sh.fly.dev
+   ```
+
+   ```sh
+   fly certs add example.com -a my-sh && fly certs add sites.example.com -a my-sh
+   ```
+
+6. Sign in: open `https://example.com/admin` and paste the admin key.
+   From there, issue participant accounts ("Issue participant accounts") and
+   hand out their keys, as on any small box.
 
 ## Everyday operations
 

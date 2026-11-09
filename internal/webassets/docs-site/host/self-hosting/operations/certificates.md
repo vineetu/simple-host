@@ -7,6 +7,8 @@ ordered fallback: Google Trust Services, then ZeroSSL if Google fails for any
 reason (including a rate limit, outage or missing credentials). Lock contention
 stops the chain for a short retry, since changing CA cannot resolve it.
 
+Custom domains keep HTTP-01, webroot and all requested names, including an eligible www/bare partner. No nginx configuration changes are needed. Address families still use operator-provided certificates and do not issue via ACME.
+
 The simple-host.site move is paused from 2026-10-09 (revisit about 2026-11-09).
 Its issuer path and timer remain stopped and disabled. Existing certificates stay
 on disk without revocation; the old TLS hosts only redirect to matching .app
@@ -72,6 +74,8 @@ large simultaneous arrival. No burst simulation was run.
 
 ## Serialization, failures and recovery
 
+`cert_run` in `runtime.sh` holds it only around Certbot and its hooks. Queue locks remain per instance; DNS preparation and Signal RPC do not hold the shared lock. `CERTBOT_LOCK_WAIT=180` bounds each wait; timeout exits 75 and is transient. The paced Google runner inherits an already-held lock when called by issuance or renewal. Address-family processing never invokes Certbot; its certificates renew through the same locked service.
+
 Failure markers now contain a readable first line (`transient: lock-busy`,
 `transient: network-or-dns-timeout`, `ca: invalid-challenge`, etc.), `attempt`
 and `retry_at` epoch seconds. Marker mtime is backdated so existing app
@@ -126,6 +130,8 @@ simple-host.site is paused, is never alerted on; re-enabling its units brings
 its alerts back with no other change.
 
 ## Install and verify
+
+`sudo bash deploy/cert-issuers/install.sh` installs the shared fallback and Google pacing/locking runners, retry/recovery helpers, issuer scripts, DNS/deploy helpers, unchanged domain template, service/path/timer units, the independent certificate watch and the locked Certbot renewal drop-in. Wholly disabled issuer instances stay disabled. It preserves existing configs and creates the shared config only when absent. `--google-default` explicitly sets the hosted fallback chain and raises the platform queue caps in existing instance configs. Every replaced file/config is backed up under `/var/backups/simple-host-cert-issuers/<UTC timestamp>/`. No nginx configuration is opened or edited. No app rebuild is needed for these script changes.
 
 `make check` includes concurrent issuer fixtures with a Certbot internal-lock
 stub, classification/backoff and bounded-wait checks, legacy journal migration,

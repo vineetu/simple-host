@@ -631,6 +631,7 @@ any signed-in visitor, not a private row for each person.</p>
 </tr>
 </tbody>
 </table>
+<p>KV and SQLite share a default 10,000,000-byte allowance per website; Host files have a separate 10 MB allowance. Owner-only <code>GET /v1/sites/{site}/storage/usage</code> (connector: <code>storage_get_usage</code>) reports <code>used_bytes</code>, <code>remaining_bytes</code>, <code>limit_bytes</code>, <code>files_used_bytes</code>, <code>files_limit_bytes</code>, <code>files_remaining_bytes</code>, and a <code>breakdown</code> of <code>kv_bytes</code>, <code>sqlite_bytes</code> and <code>files_bytes</code>. SQLite counts the checkpointed main database, with temporary WAL bytes excluded. Website deployment assets and legacy saved data are outside this allowance and retain their existing limits. Inspect usage before a large copy; a rejected growth write leaves the existing data in place.</p>
 <p>Before any owner-directed migration, identify the exact names in use, define the
 new resource schema and policy, export a recoverable copy, and test read/write
 behavior as an anonymous visitor, a signed-in visitor, and the owner. Copy only

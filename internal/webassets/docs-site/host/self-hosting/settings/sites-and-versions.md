@@ -59,8 +59,8 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 | `IMPORT_FETCH_MAX_MB` | `40` | 1–200 MB | Maximum bytes fetched for one import file, in MiB. |
 | `IMPORT_FETCH_TOTAL_MB` | `1500` | 1–10240 MB | Combined download budget for one import, in MiB. |
 | `MAX_SITES_PER_ACCOUNT` | `100` | 1–100000 sites | Sites one account may hold (sites in Recently deleted count). |
-| `MAX_SITES_OVERRIDES` | none | handle:sites | Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one. |
-| `MAX_ARCHIVE_MB_OVERRIDES` | none | handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
+| `MAX_SITES_OVERRIDES` | none | handle:sites | Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated &lt;handle>:&lt;sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one. |
+| `MAX_ARCHIVE_MB_OVERRIDES` | none | handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated &lt;handle>:&lt;MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
 | `KEEP_VERSIONS_OVERRIDES` | none | handle:versions | Account defaults in place of KEEP_VERSIONS, as handle:n (1 to 1000). Current and old handles match. |
 | `MAX_SITE_TOTAL_OVERRIDES` | none | handle:mb | Account site-total limits in MB, as handle:MB (1 to 1000000); current and old handles match. |
 | `MAX_ACCOUNT_MB_OVERRIDES` | none | handle:mb | Account file allowances in MB, as handle:MB (1 to 1000000); current and old handles match. |
@@ -96,6 +96,8 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 
 ## Recipes
 
+The installer's defaults already fit: `--max-site-mb 100 --keep-versions 1`. To cap each participant too:
+
 ```
 MAX_SITES_PER_ACCOUNT=20
 ```
@@ -121,6 +123,10 @@ run `simple-host site-summary-backfill`. For a manual Compose checkout, run
 `docker compose run --rm --no-deps -T app site-summary-backfill` from its directory.
 The old pinned releases do not contain this command; run it after installing
 the new release. New deploys populate summaries automatically.
+
+## Add photos
+
+`PHOTO_MAX_BYTES` sets the maximum bytes per prepared photo (default 1,000,000). `PHOTO_MAX_DIMENSION` sets the longest allowed side in pixels (default 2048). `PHOTO_MAX_CONCURRENT` bounds photo saves across the process (default 3). `PHOTO_BODY_TIMEOUT_SECONDS` sets the body-read deadline at both the owner and photo-token entry points (default 60 seconds; positive integers). Unsupported response writers continue without a deadline. Both signed-in and token saves acquire a slot before reading the request body; full capacity returns 429 "Busy, try again in a moment" and `Retry-After: 2` without queueing. A slot is held through commit. Each request still allows 30 photos of 1,000,000 bytes plus bounded multipart overhead by default. The Add photos page prepares small WebP or JPEG copies on the device. The server validates them without decoding pixels or resizing. Each request takes up to 30 photos; the normal site upload, retained-version, account, and deploy rate limits also apply.
 
 ## Upload and import behavior
 

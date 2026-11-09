@@ -165,12 +165,34 @@ def _filter_list_items(lines):
             j += 1
         return 'hack' in '\n'.join(lines[i:j]).lower()
 
+    def item_end(i):
+        j = i + 1
+        while j < n and indent[j] is None:
+            j += 1
+        return j
+
     out = []
+    skip = set()
     drop_stack = []  # indents of items currently being dropped
     for i, line in enumerate(lines):
+        if i in skip:
+            continue
         if indent[i] is not None:
             while drop_stack and drop_stack[-1] >= indent[i]:
                 drop_stack.pop()
+            if not drop_stack and item_mentions_hack(i):
+                # Keep an item whose lead sentence is about Host: drop only
+                # its Hack sentences.
+                j = item_end(i)
+                mark = LIST_MARK_RE.match(line)[0]
+                body = ' '.join([line[len(mark):].strip()] + [l.strip() for l in lines[i + 1:j]])
+                sentences = SENTENCE_RE.split(body)
+                kept = [x for x in sentences if 'hack' not in x.lower()]
+                nested = j < n and indent[j] > indent[i]
+                if kept and kept[0] == sentences[0] and not nested:
+                    out.append(mark + ' '.join(kept))
+                    skip.update(range(i + 1, j))
+                    continue
             if drop_stack or item_mentions_hack(i):
                 drop_stack.append(indent[i])
                 continue
@@ -267,7 +289,17 @@ def _drop_hack_blocks(text):
             out.extend(prefix)
             out.extend(body)
             out.extend(suffix)
+        elif not first.startswith('#'):
+            # Prose: drop only the sentences about Hack.
+            kept = [x for x in SENTENCE_RE.split(' '.join(l.strip() for l in body)) if 'hack' not in x.lower()]
+            if kept:
+                out.extend(prefix)
+                out.append(' '.join(kept))
+                out.extend(suffix)
     return '\n'.join(out)
+
+
+SENTENCE_RE = re.compile(r'(?<=[.!?])\s+(?=[A-Z`*\[(])')
 
 
 def _drop_dangling_intros(text):
@@ -337,12 +369,21 @@ def _drop_empty_sections(text):
     return '\n'.join(out)
 
 
+PLACEHOLDER_DOMAIN = re.compile(r'\bhack\.example\.com\b', re.I)
+# Reserved-name lists name the Hack product's own spellings; drop just those items.
+HACK_LIST_ITEM = re.compile(r'\bsimple-?hack,\s*', re.I)
+
+
 def host_filter(text):
     """Drop every section, paragraph, list item, table row, blockquote line
     and fenced code block mentioning "hack", for the Host brand only, then
     clean up what that filtering leaves behind: a heading whose section is
     now empty, and an intro line ending in ':' with nothing (or a heading)
-    now after it."""
+    now after it. The docs' placeholder domain hack.example.com is only an
+    example name, so it becomes example.com first instead of costing Host
+    the rows and paragraphs that use it."""
+    text = PLACEHOLDER_DOMAIN.sub('example.com', text)
+    text = HACK_LIST_ITEM.sub('', text)
     text = _drop_hack_blocks(_drop_hack_sections(text))
     prev = None
     while text != prev:
@@ -461,6 +502,36 @@ def render_changelog(entries, drop_hack):
 # prepare(): write the generated self-hosting pages, the changelog page and
 # the manifest astro.config.mjs and self-hosting/index.mdx read.
 
+CODE_SPAN_RE = re.compile(r'(`+)(.+?)\1')
+RAW_ANGLE_RE = re.compile(r'<(?!!--|https?://)')
+
+
+def escape_angles(text):
+    """The repo docs write placeholders such as <handle> in prose; Markdown
+    would read them as HTML tags. Escape every '<' outside code (fences and
+    backtick spans), except HTML comments and <https://...> autolinks."""
+    out, fence = [], None
+    for line in text.split('\n'):
+        m = FENCE_RE.match(line.strip())
+        if fence:
+            if m and m.group(0)[0] == fence[0] and len(m.group(0)) >= len(fence):
+                fence = None
+            out.append(line)
+            continue
+        if m:
+            fence = m.group(0)
+            out.append(line)
+            continue
+        parts, last = [], 0
+        for c in CODE_SPAN_RE.finditer(line):
+            parts.append(RAW_ANGLE_RE.sub('&lt;', line[last:c.start()]))
+            parts.append(c.group(0))
+            last = c.end()
+        parts.append(RAW_ANGLE_RE.sub('&lt;', line[last:]))
+        out.append(''.join(parts))
+    return '\n'.join(out)
+
+
 def _frontmatter(title, body):
     safe_title = title.replace('"', '\\"')
     return f'---\ntitle: "{safe_title}"\n---\n\n{body}\n'
@@ -486,7 +557,7 @@ def generate(root, target, brand):
         slug = slug_for(group, name)
         dest = target / slug / 'index.md'
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(_frontmatter(title, body))
+        dest.write_text(_frontmatter(title, escape_angles(body)))
         entry = {'label': title, 'slug': slug}
         if group in ('configuration', 'kubernetes'):
             manifest[group] = entry
@@ -513,7 +584,7 @@ def generate(root, target, brand):
 
     changelog_text = (root / 'CHANGELOG.md').read_text()
     rendered_changelog = render_changelog(parse_changelog(changelog_text), host)
-    (target / 'changelog.md').write_text(_frontmatter('Changelog', rendered_changelog))
+    (target / 'changelog.md').write_text(_frontmatter('Changelog', escape_angles(rendered_changelog)))
     manifest['changelog'] = {'label': 'Changelog', 'slug': 'changelog'}
 
     (target / 'self-hosting-pages.json').write_text(json.dumps(manifest, indent=2) + '\n')

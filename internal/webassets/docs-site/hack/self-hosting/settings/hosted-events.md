@@ -24,10 +24,10 @@ keep one account from flooding the server, and every one is an environment setti
 | `RATE_LIMIT_EVENT_NAMES_USER` | `60,1s` | any (warns past 10× looser) | Hosted events: event address checks while someone types one, per account. |
 | `RATE_LIMIT_EVENT_APPLY_IP` | `30,2m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per network address. |
 | `RATE_LIMIT_EVENT_APPLY_USER` | `5,12m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per account. |
-| `EVENTS` | `off` | `off` / `hosted` | hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at <event>.<SITE_DOMAIN>, and accounts own no personal sites. |
+| `EVENTS` | `off` | `off` / `hosted` | hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at &lt;event>.&lt;SITE_DOMAIN>, and accounts own no personal sites. |
 | `HACK_DEMO_EVENT_SLUG` | `demo` | text | Base event slug for the standing demo on the hosted hackathon platform; empty uses demo. |
-| `EVENT_NAME_PEER` | none | text | The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise. |
-| `TEAM_SITE_FLAT_HOSTS` | `false` | `true` / `false` | Hosted events: true serves a team's site at <team>--<event>.<SITE_DOMAIN> (one DNS label) instead of <team>.<event>.<SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged. |
+| `EVENT_NAME_PEER` | none | text | The loopback address (http://127.0.0.1:&lt;port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise. |
+| `TEAM_SITE_FLAT_HOSTS` | `false` | `true` / `false` | Hosted events: true serves a team's site at &lt;team>--&lt;event>.&lt;SITE_DOMAIN> (one DNS label) instead of &lt;team>.&lt;event>.&lt;SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged. |
 <!-- /settings -->
 
 ## Claim and application behavior

@@ -42,7 +42,7 @@ family is ever served. They are not available on a small box with Caddy yet.
 | `DOMAIN_CERTS_PER_ACCOUNT_DAILY` | `5` | 1–1000 certificates | New custom-domain certificates one account may ask for in a day. |
 | `EVENT_TTL_DAYS` | `21` | 1–60 days | How long a claimed event hostname lives (only where EVENT_DNS_TOKEN is set). |
 | `EVENT_MAX_CLAIMS` | `5` | 1–100 names | Event hostnames one account may hold at once. |
-| `ADDRESS_FAMILIES` | `on` | `on` / `off` | on lets an account connect *.<its domain> once, so every site of the account answers at <site>.<its domain> (an address family). Families also need ADDRESS_FAMILY_CERT_DIR and a wildcard certificate the operator sets up. |
+| `ADDRESS_FAMILIES` | `on` | `on` / `off` | on lets an account connect *.&lt;its domain> once, so every site of the account answers at &lt;site>.&lt;its domain> (an address family). Families also need ADDRESS_FAMILY_CERT_DIR and a wildcard certificate the operator sets up. |
 | `ADDRESS_FAMILIES_PER_ACCOUNT` | `5` | 0–100 families | Address families one account may connect. 0: none. |
 | `ADDRESS_FAMILY_UNPROVEN_HOURS` | `24` | 1–720 hours | How long a new address family may wait for its DNS records before it is dropped. |
 | `ADDRESS_FAMILY_LAPSE_WARN_HOURS` | `24` | 1–720 hours | How long a working address family may fail its checks before its owner is emailed. |

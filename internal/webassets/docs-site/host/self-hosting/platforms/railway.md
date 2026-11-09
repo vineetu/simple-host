@@ -1,5 +1,7 @@
 # Run the small box on Railway
 
+Built 2026-10-27 and verified locally first; a real end-to-end pass against the existing Railway account ran 2026-11-06 (see "What was tested" below): build, migrations, sign-in, a published site, KV, and a restart all worked. The template itself is not published yet — the Railway connector and CLI used for the test cannot run **Generate Template from Project** or **Publish**; that step needs a signed-in dashboard or CLI session.
+
 ![Simple Host on Railway: your DNS points both names at the service, Railway's own edge ends HTTPS and forwards to one service running Caddy and the Simple Host server with a volume, Railway Postgres in the same project, your GitHub repository holds the Dockerfile the template builds from](/diagrams/railway.svg)
 
 The small box (the installer's Postgres + server + Caddy) runs on
@@ -64,6 +66,12 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
 
 ## Commands
 
+You need a Railway account with a card, a GitHub repository with these files (a fork of
+Simple Host, or your own repository with `deploy/platforms/railway/` copied in), and a
+domain. Below, the address is `example.com`, with participant sites on
+`sites.example.com`. `deploy/platforms/railway/README.md` has the same steps as a
+reference table; this is the walkthrough.
+
 1. **New Project** in the Railway dashboard, then **Deploy from GitHub repo**, your fork.
    In the new service's Settings, set **Root Directory** to `deploy/platforms/railway`.
    Railway finds the `Dockerfile` there on its own; no build command is needed.
@@ -75,6 +83,7 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
    ```
    DB_DSN=${{Postgres.DATABASE_URL}}?sslmode=disable
    ADMIN_API_KEY=${{secret(64)}}
+   SITE_DOMAIN=example.com
    ```
 
    Leave `CONTENT_HOST` unset; `start.sh` defaults it to `sites.$SITE_DOMAIN`.
@@ -90,10 +99,24 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
 
 7. In **Settings → Networking**, add both custom domains to the app service:
 
+   ```
+   example.com
+   sites.example.com
+   ```
+
    Railway shows a CNAME and a TXT record for each. Add both at your DNS provider:
+
+   ```
+   example.com        CNAME  <value Railway shows>
+   sites.example.com  CNAME  <value Railway shows>
+   ```
 
    Railway verifies each name and issues its certificate once the CNAME resolves; in
    earlier tests of this same image on other platforms that took under a minute.
+
+8. Sign in: the admin key is the value you generated for `ADMIN_API_KEY` (Variables tab).
+   Open `https://example.com/admin` and paste it. From there, issue participant
+   accounts and hand out their keys, as on any small box.
 
 ## Everyday operations
 
@@ -142,6 +165,8 @@ the 5 GB volume cap (up to 1 TB) and raises the custom-domain limit to 20 per se
   looks generated but might not decode, this template leaves it unset: site passcodes stay
   off until you add the variable by hand. That is a real limit of this template, not an
   oversight — the feature works fully once you set the key, or is not offered at all.
+- **Canonical per-person and per-site subdomains are not offered.** `PERSON_HOSTS` and `SITE_HOSTS` stay at their installer default (`off`, path-style addresses: `sites.example.com/<handle>/<site>/`). Turning them to `canonical` would need an unbounded number of arbitrary subdomains two levels deep (`<site>.<handle>.example.com`) provisioned on the fly. Path-style addresses are not a downgrade of a feature; they are what every other small-box platform guide (Fly, Render, Coolify) also ships by default.
+- **Volumes cap at 5 GB on Hobby.** `MAX_ARCHIVE_MB` defaults the same as the installer (100).
 - **The release image cannot run alone.** It is the server only. Sites are served from the
   volume by Caddy, and Caddy also hides `/internal/*` and writes the access log that
   visitor analytics reads. Pointing Railway straight at the server image leaves every site

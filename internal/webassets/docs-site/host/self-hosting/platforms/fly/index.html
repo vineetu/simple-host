@@ -715,6 +715,10 @@ every machine after 5 minutes (“Trial machine stopping”). The box then goes
 dark, and the next deploy fails with <code>database not reachable: EOF</code> because
 Postgres is stopped. Add a card before you start.</p>
 <h2 id="commands">Commands</h2>
+<p>You need <code>flyctl</code> (<code>fly auth login</code>), a domain, and the release you want
+(this guide: 0.7.12, set in <code>fly.toml</code> as <code>SIMPLE_HOST_VERSION</code>). Below, the app
+is <code>my-sh</code>, the region <code>sjc</code>, and the address <code>example.com</code>, with
+participant sites on <code>sites.example.com</code>.</p>
 <ol>
 <li>
 <p>Edit <code>deploy/platforms/fly/fly.toml</code>: set <code>app</code>, <code>primary_region</code>, and the
@@ -747,6 +751,14 @@ app cannot run two.</p>
 <p>Point both names at the app, then ask Fly for their certificates. A CNAME to
 <code>my-sh.fly.dev</code> for each name is enough (or the A and AAAA records that
 <code>fly certs add</code> prints). The certificates were issued within a minute.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>example.com        CNAME  my-sh.fly.dev</span></span>
+<span class="line"><span>sites.example.com  CNAME  my-sh.fly.dev</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> certs</span><span style="color:#9ECBFF"> add</span><span style="color:#9ECBFF"> example.com</span><span style="color:#79B8FF"> -a</span><span style="color:#9ECBFF"> my-sh</span><span style="color:#E1E4E8"> &amp;&amp; </span><span style="color:#B392F0">fly</span><span style="color:#9ECBFF"> certs</span><span style="color:#9ECBFF"> add</span><span style="color:#9ECBFF"> sites.example.com</span><span style="color:#79B8FF"> -a</span><span style="color:#9ECBFF"> my-sh</span></span></code></pre>
+</li>
+<li>
+<p>Sign in: open <code>https://example.com/admin</code> and paste the admin key.
+From there, issue participant accounts (“Issue participant accounts”) and
+hand out their keys, as on any small box.</p>
 </li>
 </ol>
 <h2 id="everyday-operations">Everyday operations</h2>
