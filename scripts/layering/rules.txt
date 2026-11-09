@@ -15,7 +15,7 @@ app/accounts -> repository/{accounts,sites,hackevents} rules/{auth,hackevents} o
 app/sites -> app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball wpimport eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rules/{storage,auth} sitelocks
-app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackentries,auth} storage capacity
+app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackentries,auth} storage capacity llm
 app/hack/{teams,members} -> app/{accounts,sites,storage,notifications} app/hack/{events,entries} repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackteams,sites,auth}
 app/hack/entries -> app/{accounts,sites,storage,notifications} repository/{hackentries,hackevents,hackteams,sites} rules/{hackentries,hackevents} storage
 app/notifications -> app/accounts repository/{notifications,accounts,hackevents,hackentries,legacy} email rules/{hackevents,hackentries}
@@ -30,6 +30,7 @@ storage -> model
 geoip -> workers
 {app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
 {brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,wpimport,testdb,geoip/geoiptest} -> -
+llm -> -
 # Permanent module-specific packages and command rows.
 @/cmd/analytics-rebuild -> analytics config
 @/cmd/ip-country-load -> -
@@ -39,6 +40,6 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 [test]
 /** -> testdb geoip/geoiptest
 @/** -> testdb geoip/geoiptest
-{handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email
+{handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email llm
 mcp -> mcp/apps/bundlegen
 [transitional]

@@ -28,6 +28,14 @@ keep one account from flooding the server, and every one is an environment setti
 | `HACK_DEMO_EVENT_SLUG` | `demo` | text | Base event slug for the standing demo on the hosted hackathon platform; empty uses demo. |
 | `EVENT_NAME_PEER` | none | text | The loopback address (http://127.0.0.1:&lt;port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise. |
 | `TEAM_SITE_FLAT_HOSTS` | `false` | `true` / `false` | Hosted events: true serves a team's site at &lt;team>--&lt;event>.&lt;SITE_DOMAIN> (one DNS label) instead of &lt;team>.&lt;event>.&lt;SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged. |
+| `ASSISTANT_BASE_URL` | none | text | The OpenAI-compatible API root (e.g. an Ollama Cloud endpoint) the organiser assistant chat sends chat-completions requests to. Unset (with ASSISTANT_MODEL): the assistant is off and the UI shows nothing. |
+| `ASSISTANT_MODEL` | none | text | The model name sent to ASSISTANT_BASE_URL for the organiser assistant chat. Unset: the assistant is off. |
+| `ASSISTANT_API_KEY` | none | secret | Bearer key for ASSISTANT_BASE_URL, when the endpoint needs one. **Security-sensitive.** |
+| `ASSISTANT_REASONING_EFFORT` | none | text | Sent as reasoning_effort when set; `none` turns thinking off on DeepSeek via Ollama Cloud. Leave empty for providers that reject it. |
+| `ASSISTANT_MONTHLY_BUDGET_USD` | `5` | text | Instance-wide monthly spend ceiling for the organiser assistant, in US dollars. Once reached, every event's assistant refuses new questions until the 1st of the next month. |
+| `ASSISTANT_DAILY_QUESTIONS` | `30` | text | Questions one organiser may ask the assistant per UTC day, across every event they organise. |
+| `ASSISTANT_PRICE_INPUT_PER_MTOK_USD` | `0.5` | text | The configured model's input price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD. |
+| `ASSISTANT_PRICE_OUTPUT_PER_MTOK_USD` | `2.0` | text | The configured model's output price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD. |
 <!-- /settings -->
 
 ## Claim and application behavior

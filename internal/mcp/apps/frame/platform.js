@@ -52,3 +52,9 @@ export function onSubmit(form, button, handler) {
 export function wantsSection(name) {
   return name === 'signup' && !!window.__hackOrgSignupOpen
 }
+
+// The organiser assistant is website-only: inside an AI app the organiser
+// already has one, and this frame cannot stream from the server.
+export function hasAssistant() {
+  return false
+}

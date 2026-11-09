@@ -60,6 +60,7 @@ internal/
   analytics/ netusage/ papermetrics/   measurement and aggregation helpers
   email/ eventdns/ oauth/ imagescan/   external provider clients
   brain/ buildinfo/ capacity/ geoip/ tarball/ wpimport/   existing focused helpers
+  llm/                        tiny OpenAI-compatible chat-completions client (SIM-394)
   testdb/ geoip/geoiptest/     test fixtures only
 ```
 
@@ -99,7 +100,7 @@ The following is the final production allowlist, matching the `[final]` rows in 
 | `app/sites` | `app/{accounts,storage,notifications}`, `repository/{sites,accounts}`, `rules/{sites,auth}`, `storage`, `sitelocks`, `tarball`, `wpimport`, `eventdns`, `capacity` |
 | `app/storage` | `app/{accounts,notifications}`, `repository/{storage,sites}`, `rules/{storage,auth}`, `storage`, `sitelocks` |
 | `app/legacy` | `app/{accounts,storage,notifications}`, `repository/{legacy,sites}`, `rules/{storage,auth}`, `sitelocks` |
-| `app/hack/events` | `app/{accounts,sites,storage,notifications}`, `app/hack/entries`, `repository/{hackevents,hackteams,hackentries,accounts,sites}`, `rules/{hackevents,hackentries,auth}`, `storage`, `capacity` |
+| `app/hack/events` | `app/{accounts,sites,storage,notifications}`, `app/hack/entries`, `repository/{hackevents,hackteams,hackentries,accounts,sites}`, `rules/{hackevents,hackentries,auth}`, `storage`, `capacity`, `llm` |
 | `app/hack/{teams,members}` | `app/{accounts,sites,storage,notifications}`, `app/hack/{events,entries}`, `repository/{hackevents,hackteams,hackentries,accounts,sites}`, `rules/{hackevents,hackteams,sites,auth}` |
 | `app/hack/entries` | `app/{accounts,sites,storage,notifications}`, `repository/{hackentries,hackevents,hackteams,sites}`, `rules/{hackentries,hackevents}`, `storage` |
 | `app/notifications` | `app/accounts`, `repository/{notifications,accounts,hackevents,hackentries,legacy}`, `email`, `rules/{hackevents,hackentries}` |
@@ -114,6 +115,7 @@ The following is the final production allowlist, matching the `[final]` rows in 
 | `geoip` | `workers` |
 | `{app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets}` | None |
 | `{brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,wpimport,testdb,geoip/geoiptest}` | None |
+| `llm` | None |
 | `@/cmd/analytics-rebuild` | `analytics`, `config` |
 | `@/cmd/ip-country-load` | None |
 | `@/scripts/layering` | None |
@@ -122,7 +124,7 @@ The following is the final production allowlist, matching the `[final]` rows in 
 
 `app/errors` is a small error-value package, not a framework. Cross-service calls follow the directed rows above. A needed reverse dependency is expressed as a narrow interface owned by the consumer and wired in `main`, not an import cycle. For example, sites can enqueue image scans through an injected interface implemented by operations. App interfaces must not mention handler types. Shared site operations must not call Hack HTTP to decide permission.
 
-Test imports use the production allowance plus the exact package under test, `testdb`, and `geoip/geoiptest`. MCP tests additionally allow `mcp/apps/bundlegen` for the bundle freshness test. Integration fixtures in transport `_test.go` files may also import `config`, `repository/**`, `storage`, `sitelocks`, and `email` to construct a real instance. These additions never apply to production files. `testdb` is never a runtime dependency. Existing exceptional test edges must be named individually, not hidden under `internal/**`.
+Test imports use the production allowance plus the exact package under test, `testdb`, and `geoip/geoiptest`. MCP tests additionally allow `mcp/apps/bundlegen` for the bundle freshness test. Integration fixtures in transport `_test.go` files may also import `config`, `repository/**`, `storage`, `sitelocks`, `email`, and `llm` to construct a real instance (SIM-394: hackhttp's assistant tests wire a real `*llm.Client` against an `httptest` fake provider). These additions never apply to production files. `testdb` is never a runtime dependency. Existing exceptional test edges must be named individually, not hidden under `internal/**`.
 
 The layering check reads Go's package graph, including `Imports`, `TestImports` and `XTestImports`, against `scripts/layering/rules.txt`. Normalize synthetic test package IDs and check nested packages independently. Check packages in this module, not third-party internals. Commands and module-local generators have explicit dependency rows in the final table.
 

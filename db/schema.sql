@@ -2076,3 +2076,15 @@ CREATE TABLE IF NOT EXISTS event_checklist_acknowledgements (
 -- event page; '' is Classic (today's look).
 ALTER TABLE events ADD COLUMN IF NOT EXISTS theme text NOT NULL DEFAULT ''
       CHECK (theme IN ('', 'poster', 'confetti', 'boardroom', 'garden', 'terminal'));
+
+-- SIM-394: db/migrations/0012-hack-assistant-usage.sql.
+CREATE TABLE IF NOT EXISTS hack_assistant_usage (
+    user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day       DATE NOT NULL,
+    questions INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+);
+CREATE TABLE IF NOT EXISTS hack_assistant_spend (
+    month         DATE PRIMARY KEY,
+    cost_micro_usd BIGINT NOT NULL DEFAULT 0
+);

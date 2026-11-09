@@ -129,6 +129,17 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-07 (owner, SIM-394). A built-in assistant for organisers only.** An exception to
+  "people use their own AI apps": setting up an event is complicated, so organiser Home gets a
+  small chat that answers questions about that event in one or two lines and links to where to
+  act. Participants and judges don't get it. It never changes the event. Accuracy beats
+  coverage: when unsure it says so and links the setting or the docs. Its knowledge is only the
+  shared navigation map, the event's own data and checklist, and the docs. The server calls any
+  OpenAI-compatible endpoint (base URL, model, key); the key never reaches the browser. Hosted
+  uses Ollama Cloud (DeepSeek), with a $5 a month hard cap and 30 questions per organiser per
+  day; self-hosted is off until the operator sets an endpoint. Chats stay in the browser. An
+  eval set of real organiser questions runs on each build. Hosted privacy page names the provider.
+
 - **2026-11-06 (owner, SIM-389). Documentation ships inside the product at /docs/.**
   Starlight source is in docs/site; build Host and Hack separately, commit static output,
   and embed it in the Go binary. Node is build-time only. Reuse the shared site chrome,

@@ -713,6 +713,54 @@ keep one account from flooding the server, and every one is an environment setti
 <td><code>true</code> / <code>false</code></td>
 <td>Hosted events: true serves a team’s site at &lt;team&gt;–&lt;event&gt;.&lt;SITE_DOMAIN&gt; (one DNS label) instead of &lt;team&gt;.&lt;event&gt;.&lt;SITE_DOMAIN&gt; (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged.</td>
 </tr>
+<tr>
+<td><code>ASSISTANT_BASE_URL</code></td>
+<td>none</td>
+<td>text</td>
+<td>The OpenAI-compatible API root (e.g. an Ollama Cloud endpoint) the organiser assistant chat sends chat-completions requests to. Unset (with ASSISTANT_MODEL): the assistant is off and the UI shows nothing.</td>
+</tr>
+<tr>
+<td><code>ASSISTANT_MODEL</code></td>
+<td>none</td>
+<td>text</td>
+<td>The model name sent to ASSISTANT_BASE_URL for the organiser assistant chat. Unset: the assistant is off.</td>
+</tr>
+<tr>
+<td><code>ASSISTANT_API_KEY</code></td>
+<td>none</td>
+<td>secret</td>
+<td>Bearer key for ASSISTANT_BASE_URL, when the endpoint needs one. <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
+<td><code>ASSISTANT_REASONING_EFFORT</code></td>
+<td>none</td>
+<td>text</td>
+<td>Sent as reasoning_effort when set; <code>none</code> turns thinking off on DeepSeek via Ollama Cloud. Leave empty for providers that reject it.</td>
+</tr>
+<tr>
+<td><code>ASSISTANT_MONTHLY_BUDGET_USD</code></td>
+<td><code>5</code></td>
+<td>text</td>
+<td>Instance-wide monthly spend ceiling for the organiser assistant, in US dollars. Once reached, every event’s assistant refuses new questions until the 1st of the next month.</td>
+</tr>
+<tr>
+<td><code>ASSISTANT_DAILY_QUESTIONS</code></td>
+<td><code>30</code></td>
+<td>text</td>
+<td>Questions one organiser may ask the assistant per UTC day, across every event they organise.</td>
+</tr>
+<tr>
+<td><code>ASSISTANT_PRICE_INPUT_PER_MTOK_USD</code></td>
+<td><code>0.5</code></td>
+<td>text</td>
+<td>The configured model’s input price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD.</td>
+</tr>
+<tr>
+<td><code>ASSISTANT_PRICE_OUTPUT_PER_MTOK_USD</code></td>
+<td><code>2.0</code></td>
+<td>text</td>
+<td>The configured model’s output price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD.</td>
+</tr>
 </tbody>
 </table>
 <!-- /settings -->

@@ -39,7 +39,7 @@
   <main class="container">
     <div class="eyebrow">Privacy</div>
     <h1>Privacy Policy</h1>
-    <p class="updated">Simple Host<!--sh:hashack--> and Simple Hack<!--/sh:hashack--> · last updated 2026-11-05</p>
+    <p class="updated">Simple Host<!--sh:hashack--> and Simple Hack<!--/sh:hashack--> · last updated 2026-11-09</p>
     <!--sh:owner-->
 
     <div class="note">
@@ -151,6 +151,7 @@
       <li><strong>AgentCat</strong>, which shows us how AI apps use the Simple Host connector. For each AI-app tool call, AgentCat receives what the app sent and received and why the app says it used the tool. AgentCat's redaction removes email addresses, links, and other identifiers before storing it, and we leave out passcodes, keys, and file contents. It never gets the IP address you connect from.</li>
       <li><strong>Webhook destinations you configure.</strong> When enabled, notifications send visitor-save events to the HTTPS destination you choose, or to your connected AI app through MCP Events. Events include the site and resource, event type and time, the affected row, key, or file path, a visitor reference when signed in, and submitted fields where included. Submitted fields can contain personal data. Notifications do not automatically resolve a visitor's sign-in email. You can remove subscriptions from the dashboard or connector.</li>
       <li data-sh="web-push"><strong>Apple and Google push services (Web Push, where enabled).</strong> If you or a site's owner turns on push for a device, only the encrypted push message reaches Apple's or Google's push service; we hold the signing key, and they cannot read the content. By default the push text names no row content, just that something changed; a site's owner can choose to show one named field in the push text, and the device's lock screen says so before you turn it on. We never put your email address or IP address in a push event. We keep the device's push address and keys only to deliver pushes; they are never included in exports and never sent to AgentCat. We delete them when you turn push off for that device, sign out on that device, are removed as a named viewer, or the account or site is deleted, and on request.</li>
+      <!--sh:hosted--><!--sh:hashack--><li><strong>Ollama</strong>, the AI provider behind the Simple Hack organiser assistant. When an organiser asks it a question, Ollama gets the question, that chat so far, and the event's details, settings and checklist (including the organiser's name), and sends back the answer; chats are not kept on our servers.</li><!--/sh:hashack--><!--/sh:hosted-->
       <li><strong>Our hosting and backup providers.</strong> The service runs on rented cloud servers. Backups are encrypted before they are stored with a cloud storage provider, so it cannot read them.</li>
       <li><strong>Site owners</strong> get what visitors submit to their sites, as described above.</li>
       <li><strong>Authorities.</strong> We may share information when we believe the law requires it, or to protect people or the service. We report child sexual abuse material as the law requires.</li>

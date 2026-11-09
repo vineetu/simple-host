@@ -1,4 +1,5 @@
 import { toast } from './ui.js'
+import { clearAllAssistantHistory } from './assistant.js'
 export function apiKey() { try { return localStorage.getItem('apiKey') || '' } catch { return '' } }
 let signedOut = () => {}
 export function onSignedOut(fn) { signedOut = fn }
@@ -49,6 +50,9 @@ export async function signOut(ask, deleted = false) {
   }
   for (const key of ['apiKey','sh-email-nonce']) { try { localStorage.removeItem(key) } catch {} }
   for (const key of ['sh-google-nonce','sh-connect-nonce']) { try { sessionStorage.removeItem(key) } catch {} }
+  // SIM-394 M7: a shared computer must not carry one person's assistant
+  // chats into the next sign-in.
+  clearAllAssistantHistory()
   if (warn) await ask({title:'Signed out of this browser, but the server could not be reached to end its key.',body:'If this is a shared computer, sign in again and choose "Sign out everywhere".',confirmLabel:'Done'})
   location.replace('/')
 }

@@ -77,6 +77,20 @@ func (s *statusCapture) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
+// Flush forwards to the wrapped writer when it supports it (an SSE/MCP
+// stream under /v1/ or /mcp needs this to actually reach the client as it
+// writes, not only once the handler returns). http.ResponseController
+// already finds this through Unwrap without it, but a direct
+// w.(http.Flusher) assertion -- as a caller might still reasonably write --
+// would otherwise silently see "no, this writer can't flush", since an
+// embedded http.ResponseWriter field never promotes the concrete writer's
+// own Flush method.
+func (s *statusCapture) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func metricsAdmin(w http.ResponseWriter, r *http.Request) bool {
 	user := auth.GetUser(r.Context())
 	if user == nil {

@@ -22083,6 +22083,175 @@
         }
       }
     },
+    "/v1/hack/events/{slug}/assistant": {
+      "get": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "getHackAssistant",
+        "summary": "Read whether the organiser assistant is on and today's remaining questions",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assistant status for the calling organiser",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "enabled"
+                  ],
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "False until the operator sets an OpenAI-compatible endpoint"
+                    },
+                    "daily_limit": {
+                      "type": "integer"
+                    },
+                    "used_today": {
+                      "type": "integer"
+                    },
+                    "remaining_today": {
+                      "type": "integer"
+                    },
+                    "budget_reached": {
+                      "type": "boolean"
+                    },
+                    "resets": {
+                      "type": "string",
+                      "description": "First day of next month (UTC), when the monthly budget resets"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "organisers_only"
+          },
+          "404": {
+            "description": "event_not_found"
+          }
+        }
+      },
+      "post": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "askHackAssistant",
+        "summary": "Ask the organiser assistant a question; the answer streams back",
+        "description": "Read-only. The server answers from the navigation map, the organiser's event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "messages"
+                ],
+                "properties": {
+                  "messages": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "description": "The chat so far; the last message is the user's question. Each content is at most 2000 characters, 12000 in total.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "role",
+                        "content"
+                      ],
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "assistant"
+                          ]
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-sent events: {\"delta\":\"...\"} chunks, then {\"done\":true,\"remaining_today\":N} or {\"error\":\"provider_error\",\"message\":\"...\"}",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "organisers_only"
+          },
+          "404": {
+            "description": "event_not_found or assistant_off"
+          },
+          "429": {
+            "description": "daily_limit or monthly_budget"
+          },
+          "502": {
+            "description": "provider_error"
+          }
+        }
+      }
+    },
     "/v1/hack/events/{slug}/checklist": {
       "get": {
         "x-audience": [

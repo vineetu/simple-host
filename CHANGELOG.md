@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-09: Simple Hack organisers can ask a small assistant on Home about their event. It answers in a line or two from the event, its checklist and the docs, links to where to act, and never changes anything. On self-hosted installs it is off until you set an OpenAI-compatible endpoint.
+
 2026-11-09: A GitHub workflow keeps the docs in step with main: after each check run it rebuilds and checks them, and when they are behind it opens a pull request, with Claude updating the task guides when a rebuild alone is not enough.
 
 2026-11-09: Simple Hack event pages get a Look setting: Classic plus five whole-page styles (Poster, Confetti, Boardroom, Garden, Terminal), set next to the organiser's page colour.

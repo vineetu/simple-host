@@ -5848,6 +5848,35 @@
       "hack-films"
      ],
      "evidence": "FEATURES.md \u00a715 'Role films and standing demo' (hosted-only /watch, demo JSON and redirects, self-hosted 404), 'Weekly demo reset'."
+    },
+    {
+     "id": "hack-organiser-assistant",
+     "name": "Ask about this event",
+     "line": "Organisers can ask a small assistant on Home about their event; it answers in a line or two and links to where to act.",
+     "who": "Organisers setting up an event who want to know what a setting means or what is left to do.",
+     "how": "Press Ask on Home and type a question. The answer comes from the event's own settings and checklist, the app's screens and the docs, streams in as it is written, and links to the place to change things. When it isn't sure it says so and links the closest setting or docs page. It never changes the event. Chats stay in your browser, per event. Participants and judges don't have it.",
+     "example": "Two weeks before kickoff, an organiser asks \"Is my setup done?\" and gets \"Not yet: choose what teams hand in\" with a link to Settings, Entries.",
+     "where": "Ask on the organiser's Home.",
+     "limits": "30 questions per organiser per day and a monthly budget for the whole service on simple-hack.app. Self-hosted installs turn it on by setting an OpenAI-compatible endpoint (ASSISTANT_BASE_URL, ASSISTANT_MODEL, ASSISTANT_API_KEY); it is off until then. Text only.",
+     "editions": {
+      "host": "no",
+      "hack": "yes",
+      "enterprise": "no",
+      "smallbox": "no"
+     },
+     "editions_note": "Simple Hack; self-hosted when an endpoint is set",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "Run an event",
+       "href": "/docs/start/"
+      }
+     ],
+     "covers": [
+      "organiser-assistant"
+     ],
+     "evidence": "FEATURES.md \u00a715 'Organiser assistant (SIM-394)'."
     }
    ],
    "tag": "A separate product on the same software"

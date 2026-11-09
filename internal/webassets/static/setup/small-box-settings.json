@@ -2939,6 +2939,94 @@
       "small_box": false
     },
     {
+      "name": "ASSISTANT_BASE_URL",
+      "group": "events",
+      "description": "The OpenAI-compatible API root (e.g. an Ollama Cloud endpoint) the organiser assistant chat sends chat-completions requests to. Unset (with ASSISTANT_MODEL): the assistant is off and the UI shows nothing.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "ASSISTANT_MODEL",
+      "group": "events",
+      "description": "The model name sent to ASSISTANT_BASE_URL for the organiser assistant chat. Unset: the assistant is off.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "ASSISTANT_API_KEY",
+      "group": "events",
+      "description": "Bearer key for ASSISTANT_BASE_URL, when the endpoint needs one.",
+      "type": "secret",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "ASSISTANT_REASONING_EFFORT",
+      "group": "events",
+      "description": "Sent as reasoning_effort when set; `none` turns thinking off on DeepSeek via Ollama Cloud. Leave empty for providers that reject it.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "ASSISTANT_MONTHLY_BUDGET_USD",
+      "group": "events",
+      "description": "Instance-wide monthly spend ceiling for the organiser assistant, in US dollars. Once reached, every event's assistant refuses new questions until the 1st of the next month.",
+      "type": "string",
+      "default": "5",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "ASSISTANT_DAILY_QUESTIONS",
+      "group": "events",
+      "description": "Questions one organiser may ask the assistant per UTC day, across every event they organise.",
+      "type": "string",
+      "default": "30",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "ASSISTANT_PRICE_INPUT_PER_MTOK_USD",
+      "group": "events",
+      "description": "The configured model's input price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD.",
+      "type": "string",
+      "default": "0.5",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "ASSISTANT_PRICE_OUTPUT_PER_MTOK_USD",
+      "group": "events",
+      "description": "The configured model's output price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD.",
+      "type": "string",
+      "default": "2.0",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "IDLE_EXEMPT_FAMILY_SITES",
       "group": "cleanup",
       "description": "on: a site whose main address is an address family is never removed as idle, like one with its own domain.",

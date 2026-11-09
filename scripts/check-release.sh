@@ -66,6 +66,19 @@ if [ -n "$enterprise_source" ]; then
   fi
 fi
 
+# SIM-394: the hack organiser assistant's eval set, against the real
+# configured model. Only when ASSISTANT_BASE_URL/ASSISTANT_MODEL are
+# already in the environment (there is no default endpoint to check
+# against, and this never invents or prints credentials) -- same
+# conditional-on-having-credentials shape as the Enterprise checks above,
+# not the hard run_fixture requirement below.
+if [ -n "${ASSISTANT_BASE_URL:-}" ] && [ -n "${ASSISTANT_MODEL:-}" ]; then
+  echo "== hack organiser assistant eval (SIM-394) =="
+  bash scripts/check-hack-assistant-eval.sh || fail=1
+else
+  echo "SKIPPED: organiser assistant eval (set ASSISTANT_BASE_URL/MODEL/API_KEY to run)"
+fi
+
 # Only compare another checkout when explicitly supplied; there is no default
 # path to a developer's machine or implicit second checkout in CI.
 if [ -n "${PARITY_OTHER:-}" ]; then

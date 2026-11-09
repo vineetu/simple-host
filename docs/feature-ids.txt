@@ -64,6 +64,7 @@ mcp-tool-index
 moderation
 network
 operations
+organiser-assistant
 organisers-can-also-judge
 outgoing-mail-visibility
 overview

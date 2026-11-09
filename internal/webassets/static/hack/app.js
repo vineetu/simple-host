@@ -4,6 +4,7 @@ import { mount } from './shell.js'
 import { resolveRoute, isAppRoute, href, normalizeURL } from './nav.js'
 import { endTour } from './tour.js'
 import { openLeave } from './leave.js'
+import { clearAllAssistantHistory } from './assistant.js'
 // Attribution carry-over (arrival.js) is only present on chromed pages.
 const arrival = u => (window.SHArrival ? window.SHArrival.url(u) : u)
 // Same as partials/dialog.html shStartSSO: bind this browser's apex SSO session to the key.
@@ -71,6 +72,9 @@ const setLive = msg => ui.toast(msg)
   }
   function signedOut() {
     try { localStorage.removeItem('apiKey'); } catch (e) {}
+    // SIM-394 M7: a 401 means the session itself is gone -- the next
+    // sign-in on this browser must not inherit this person's chats.
+    clearAllAssistantHistory();
     if (window.shAuthRender) window.shAuthRender();
     // A rejected key on a join link stays on that link. The key is still removed.
     var here = location.pathname.replace(/\/+$/, '') || '/';

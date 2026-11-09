@@ -4,6 +4,7 @@ import { adminLock, stagePicker } from './_orgA-util.js'
 import { startTour } from '../tour.js'
 import { cueHeading } from '../schedule.js'
 import { offerStageAnnouncement } from './_stage-announce-dialog.js'
+import { mountAssistant } from '../assistant.js'
 
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
 
@@ -248,9 +249,6 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
   }
   adminLock(main, admin)
 
-  if (openWalk) startTour('organiser', ctx, { force: true })
-  else if (!autoTourTried) { autoTourTried = true; startTour('organiser', ctx) }
-
   async function callStage(target) {
     return api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/stage', { stage: target })
   }
@@ -373,4 +371,18 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
       await ctx.refresh()
     } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
   })
+
+  // SIM-394: the Ask button appears only when the server says the
+  // assistant is configured -- mountAssistant renders nothing at all
+  // otherwise. Every other control on this screen is already wired by the
+  // time this starts, so its own GET never delays them. Awaited before the
+  // tour starts: the tour's own walkthrough step targets this button, and
+  // tour.js decides which steps can show by querying the DOM once,
+  // synchronously, right as it starts -- a fire-and-forget mount would
+  // almost always lose that race and the step would silently never show.
+  await mountAssistant(ctx, { api, anchor: $('ov-change-stage'), container: main, ev, checklist: data.checklist })
+  if (!ctx.alive()) return
+
+  if (openWalk) startTour('organiser', ctx, { force: true })
+  else if (!autoTourTried) { autoTourTried = true; startTour('organiser', ctx) }
 }

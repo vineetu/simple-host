@@ -18,6 +18,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/analytics"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	events "github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
@@ -30,6 +31,7 @@ import (
 	"github.com/vsriram/simple-host/internal/hackhttp"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/imagescan"
+	"github.com/vsriram/simple-host/internal/llm"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
@@ -450,6 +452,29 @@ func main() {
 		// for open events' certificates.
 		hack.SetSites(siteHandler)
 		connector.SetHackTeams(true)
+		// SIM-394 organiser assistant: off unless both are set. Built here
+		// (not in hackhttp) because the client needs internal/llm and the
+		// docs text needs internal/webassets, neither of which hackhttp may
+		// import (scripts/layering/rules.txt).
+		if cfg.AssistantBaseURL != "" && cfg.AssistantModel != "" {
+			assistantLLM := llm.New(llm.Config{
+				BaseURL:         cfg.AssistantBaseURL,
+				Model:           cfg.AssistantModel,
+				APIKey:          cfg.AssistantAPIKey,
+				ReasoningEffort: cfg.AssistantReasoningEffort,
+				MaxTokens:       events.AssistantMaxTokens,
+			})
+			hack.SetAssistant(events.NewAssistant(db, assistantLLM, events.AssistantConfig{
+				BaseURL:               cfg.AssistantBaseURL,
+				Model:                 cfg.AssistantModel,
+				APIKey:                cfg.AssistantAPIKey,
+				ReasoningEffort:       cfg.AssistantReasoningEffort,
+				MonthlyBudgetUSD:      cfg.AssistantMonthlyBudgetUSD,
+				DailyQuestions:        cfg.AssistantDailyQuestions,
+				PriceInputPerMTokUSD:  cfg.AssistantPriceInputPerMTokUSD,
+				PriceOutputPerMTokUSD: cfg.AssistantPriceOutputPerMTokUSD,
+			}, newAssistantDocsTextFunc()))
+		}
 		hackSweep = func(ctx context.Context) {
 			hack.RequestOpenEventCerts(ctx)
 			hack.SettleDueEntries(ctx)

@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +103,68 @@ func TestAPIMetricsWrapCountsOnlyOutsideAPICalls(t *testing.T) {
 		t.Fatalf("self calls=%d err=%v", n, err)
 	}
 
+}
+
+// TestAPIMetricsWrapFlushesSSEStream is the adversarial-review regression
+// test for the SIM-394 organiser assistant's SSE blocker: every /v1/
+// request goes through APIMetrics.Wrap, whose statusCapture wraps the
+// real ResponseWriter. A handler's http.NewResponseController(w).Flush()
+// (what hack_assistant.go now calls, instead of a direct w.(http.Flusher)
+// assertion that statusCapture would fail) must actually reach the
+// client's socket -- not sit buffered until the handler returns. Proven
+// over a real connection (httptest.NewServer, not NewRecorder, which
+// cannot distinguish "flushed" from "buffered"): the client's first Read
+// must succeed while the handler is still blocked waiting to write a
+// second chunk.
+func TestAPIMetricsWrapFlushesSSEStream(t *testing.T) {
+	release := make(chan struct{})
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "data: one\n\n")
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			t.Errorf("Flush: %v", err)
+		}
+		<-release
+		fmt.Fprint(w, "data: two\n\n")
+	})
+	m := NewAPIMetrics(operations.NewAPIMetrics(nil, nil))
+	srv := httptest.NewServer(m.Wrap(h))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/v1/stream-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	readDone := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 64)
+		n, _ := resp.Body.Read(buf)
+		readDone <- string(buf[:n])
+	}()
+
+	select {
+	case got := <-readDone:
+		if !strings.Contains(got, "one") {
+			t.Fatalf("first chunk = %q, want it to contain %q", got, "one")
+		}
+	case <-time.After(2 * time.Second):
+		// The handler is still blocked on <-release, so this can only
+		// mean the first write never reached the client -- Flush isn't
+		// propagating through statusCapture.
+		t.Fatal("first delta never arrived while the handler was still writing -- SSE flush regression")
+	}
+
+	close(release)
+	rest, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read rest: %v", err)
+	}
+	if !strings.Contains(string(rest), "two") {
+		t.Fatalf("second chunk missing from %q", rest)
+	}
 }
 
 func TestUploadMetricsUsePattern(t *testing.T) {

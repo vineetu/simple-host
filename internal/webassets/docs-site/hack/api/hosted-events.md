@@ -501,6 +501,61 @@ Only when assignment_mode is "automatic" (409 invalid_request otherwise: switch 
 | 404 | event_not_found |
 | 409 | invalid_request (still in open mode) |
 
+## GET /v1/hack/events/{slug}/assistant
+
+<div data-operation="GET /v1/hack/events/{slug}/assistant"></div>
+
+Read whether the organiser assistant is on and today's remaining questions
+
+**Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| slug | path | string | yes |  |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 200 | Assistant status for the calling organiser |
+| 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
+| 403 | organisers_only |
+| 404 | event_not_found |
+
+## POST /v1/hack/events/{slug}/assistant
+
+<div data-operation="POST /v1/hack/events/{slug}/assistant"></div>
+
+Read-only. The server answers from the navigation map, the organiser's event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.
+
+**Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| slug | path | string | yes |  |
+
+**Request body:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| messages | array of object | yes | The chat so far; the last message is the user's question. Each content is at most 2000 characters, 12000 in total. |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 200 | Server-sent events: {"delta":"..."} chunks, then {"done":true,"remaining_today":N} or {"error":"provider_error","message":"..."} |
+| 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
+| 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
+| 403 | organisers_only |
+| 404 | event_not_found or assistant_off |
+| 429 | daily_limit or monthly_budget |
+| 502 | provider_error |
+
 ## GET /v1/hack/events/{slug}/checklist
 
 <div data-operation="GET /v1/hack/events/{slug}/checklist"></div>

@@ -31,8 +31,8 @@ func (h *HackHandler) LimiterWorkers() workers.Owner {
 	}
 	o := h.limiterOwner
 	if o.runner == nil {
-		for i, l := range []*httpx.RateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites, h.applyIP, h.applyUser} {
-			h.addLimiter([]string{"http.hack.codes_ip", "http.hack.codes_user", "http.hack.names_user", "http.hack.entry_writes", "http.hack.shot_writes", "http.hack.apply_ip", "http.hack.apply_user"}[i], l)
+		for i, l := range []*httpx.RateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites, h.applyIP, h.applyUser, h.assistantWrites} {
+			h.addLimiter([]string{"http.hack.codes_ip", "http.hack.codes_user", "http.hack.names_user", "http.hack.entry_writes", "http.hack.shot_writes", "http.hack.apply_ip", "http.hack.apply_user", "http.hack.assistant_writes"}[i], l)
 		}
 		o.tracker = workers.NewTracker("http.hack.limiters")
 		o.runner = workers.NewRunner(o.tracker)

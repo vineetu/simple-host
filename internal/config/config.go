@@ -118,6 +118,28 @@ type Config struct {
 	EventDNSTeamID string
 	EventDomains   []string
 
+	// SIM-394 hack organiser assistant (Hack edition only). The assistant is
+	// off unless both AssistantBaseURL and AssistantModel are set.
+	// AssistantReasoningEffort is sent as the request's reasoning_effort
+	// field only when non-empty: the hosted DeepSeek model on Ollama Cloud
+	// is a reasoning model, and "none" turns its thinking off, but other
+	// OpenAI-compatible providers may reject an unknown field, so it is
+	// omitted by default.
+	AssistantBaseURL         string
+	AssistantModel           string
+	AssistantAPIKey          string
+	AssistantReasoningEffort string
+	// AssistantMonthlyBudgetUSD is the instance-wide monthly spend ceiling
+	// (default 5); AssistantDailyQuestions is the per-organiser daily
+	// question ceiling (default 30). AssistantPriceInputPerMTokUSD and
+	// AssistantPriceOutputPerMTokUSD price the configured model for the
+	// worst-case-reservation/actual-settlement accounting in
+	// internal/app/hack/events (default 0.5 / 2.0 per million tokens).
+	AssistantMonthlyBudgetUSD      float64
+	AssistantDailyQuestions        int
+	AssistantPriceInputPerMTokUSD  float64
+	AssistantPriceOutputPerMTokUSD float64
+
 	// WriteAuthMode gates anonymous state/collections writes: off | log | on.
 	// Unset or any unrecognized value is "log". The source default is never "on".
 	WriteAuthMode string
@@ -334,6 +356,7 @@ func Load() (Config, error) {
 		loadDataWriteAuth,
 		loadServerPersonHosts,
 		loadEvents,
+		loadAssistant,
 		loadServerSiteAddresses,
 		loadCleanup,
 		loadDataLegacyCutoff,
@@ -580,6 +603,55 @@ func loadEvents(cfg *Config) error {
 		}
 	}
 	cfg.TeamSiteFlatHosts = strings.EqualFold(strings.TrimSpace(os.Getenv("TEAM_SITE_FLAT_HOSTS")), "true")
+	return nil
+}
+
+// loadAssistant reads the SIM-394 hack organiser assistant settings. The
+// assistant is off unless both ASSISTANT_BASE_URL and ASSISTANT_MODEL are
+// set; a malformed numeric setting warns and falls back to its default
+// rather than failing startup (matches loadCleanup/loadSitesPreview).
+func loadAssistant(cfg *Config) error {
+	cfg.AssistantBaseURL = strings.TrimSpace(os.Getenv("ASSISTANT_BASE_URL"))
+	cfg.AssistantModel = strings.TrimSpace(os.Getenv("ASSISTANT_MODEL"))
+	cfg.AssistantAPIKey = os.Getenv("ASSISTANT_API_KEY")
+	cfg.AssistantReasoningEffort = strings.TrimSpace(os.Getenv("ASSISTANT_REASONING_EFFORT"))
+
+	cfg.AssistantMonthlyBudgetUSD = 5
+	if v := strings.TrimSpace(os.Getenv("ASSISTANT_MONTHLY_BUDGET_USD")); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil && n >= 0 {
+			cfg.AssistantMonthlyBudgetUSD = n
+		} else {
+			log.Printf("warning: invalid ASSISTANT_MONTHLY_BUDGET_USD %q; using the default", v)
+		}
+	}
+	cfg.AssistantDailyQuestions = 30
+	if v := strings.TrimSpace(os.Getenv("ASSISTANT_DAILY_QUESTIONS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.AssistantDailyQuestions = n
+		} else {
+			log.Printf("warning: invalid ASSISTANT_DAILY_QUESTIONS %q; using the default", v)
+		}
+	}
+	// Strictly > 0, not >= 0: a price of 0 makes every reservation 0 --
+	// with MonthlyBudgetUSD > 0 that is an uncapped assistant, not a
+	// cheap one, since AssistantReserve's "spent + reserveMicro >
+	// budgetMicro" check can then never trip (adversarial review).
+	cfg.AssistantPriceInputPerMTokUSD = 0.5
+	if v := strings.TrimSpace(os.Getenv("ASSISTANT_PRICE_INPUT_PER_MTOK_USD")); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil && n > 0 {
+			cfg.AssistantPriceInputPerMTokUSD = n
+		} else {
+			log.Printf("warning: invalid ASSISTANT_PRICE_INPUT_PER_MTOK_USD %q; using the default", v)
+		}
+	}
+	cfg.AssistantPriceOutputPerMTokUSD = 2.0
+	if v := strings.TrimSpace(os.Getenv("ASSISTANT_PRICE_OUTPUT_PER_MTOK_USD")); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil && n > 0 {
+			cfg.AssistantPriceOutputPerMTokUSD = n
+		} else {
+			log.Printf("warning: invalid ASSISTANT_PRICE_OUTPUT_PER_MTOK_USD %q; using the default", v)
+		}
+	}
 	return nil
 }
 

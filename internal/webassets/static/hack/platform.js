@@ -45,3 +45,9 @@ export function onSubmit(form, button, handler) {
 export function wantsSection(name) {
   return location.hash === '#' + name
 }
+
+// assistant.js: the organiser assistant lives on the website only. Inside an
+// AI app's frame the organiser already has an assistant, so it stays hidden.
+export function hasAssistant() {
+  return true
+}

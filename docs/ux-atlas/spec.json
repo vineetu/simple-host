@@ -102,6 +102,11 @@
     "body": "This button opens the next checklist task or moves the event forward. Stage changes ask you to confirm."
    },
    {
+    "target": "[data-tour=\"assistant\"]",
+    "title": "Ask about your event",
+    "body": "Want to know more about a setting? Ask here. It answers in a line or two and links to the place to change it."
+   },
+   {
     "target": "[data-tour=\"change-stage\"]",
     "title": "Move the event on",
     "body": "To move to any other stage, or back, use Change stage. Each change says what will happen before you confirm."
@@ -711,6 +716,28 @@
        "confirm": "This is final. The event moves to Ended, scoring and sign-up lock for good, and team sites start their 30-day countdown before cleanup. Continue?"
       }
      ]
+    },
+    {
+     "name": "Ask (assistant)",
+     "contents": [
+      "Ask button in the header, next to Change stage, shown only when GET .../assistant says enabled:true (hidden entirely otherwise).",
+      "Opens a chat panel: desktop a ~400px fixed right-side panel (shadow like a dialog, no scrim, the rest of the page stays usable); phone a full-screen sheet.",
+      "Empty thread: 'Short answers, with a link to where to act. It can't change anything.' plus three starter chips (stage-based, the checklist's next item, and a fixed join/judge-links question).",
+      "Textarea (Enter sends, Shift+Enter newline), Send becomes Stop while streaming. An assistant reply shows Thinking... then streams in; Stop keeps the partial text.",
+      "Per reply: Copy; the last reply (and any error line) also offers Retry. A remaining-questions hint appears under the input at 5 or fewer left today."
+     ],
+     "actions": [
+      {
+       "label": "Ask",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "New chat",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
     }
    ],
    "states": [
@@ -798,6 +825,26 @@
      "name": "offering to tell participants (SIM-341, 2026-11-05)",
      "when": "the next-step move, Publish results, Change stage, or End event just succeeded",
      "shows": "a dialog (formDialog/ui.dialog, never a new scrim), now built once as offerStageAnnouncement (_stage-announce-dialog.js) and shared verbatim with organiser-results's own Publish/Publish again button: heading 'Tell participants?', 'Post an announcement about this change. You can edit it first.', an editable Title input and Body textarea prefilled with a suggested message for that move (stage-announce.js's suggestedAnnouncement; e.g. open: 'Sign-up is open' / 'Sign-up is open. Join with the event link and find a team.', archived: 'The event has ended' / 'The event has ended. Thanks for taking part. The event page stays up as a record.'; a backward Change-stage move gets its own wording, e.g. closed backward: 'Entries are closed' / 'Entries are closed. Teams with extra time can still edit.', judging backward: 'Judging has reopened' / 'Judging has reopened. Entries stay as they are.' -- unless judging stays locked, i.e. the move is back from Results, in which case it reads 'Results are on hold' / 'Results are on hold while we take another look. Entries stay as they are.' instead, never promising scoring reopens by itself), the same 'Email N participants' checkbox the Announcements screen uses (off by default, disabled with its explanation when emailable_participants is 0), and two buttons, 'Don't send' and 'Send'. Escape or a scrim click is 'Don't send'. Send posts through the same POST .../announcements call and reports the same live-region messages (posted / posted and emailed N) as Announcements; an empty title or body is refused inline, and a server error keeps what was typed. For End event, the event archives after this dialog closes, and the announcement posts (when Send was chosen) before the archive call -- the server refuses an announcement on an already-ended event."
+    },
+    {
+     "name": "Ask: empty thread with starters (SIM-394)",
+     "when": "the assistant is configured and the chat panel just opened with no messages yet (or after New chat)",
+     "shows": "the sub-line under the title, three starter chips, and the empty textarea. No remaining-questions hint unless 5 or fewer are left today."
+    },
+    {
+     "name": "Ask: streaming a reply (SIM-394)",
+     "when": "a question was just sent",
+     "shows": "the user's message, then an assistant bubble reading Thinking... until the first token, then the reply streaming in; Send reads Stop and aborts the stream, keeping whatever text arrived."
+    },
+    {
+     "name": "Ask: daily or monthly limit reached (SIM-394)",
+     "when": "a question returns daily_limit or monthly_budget",
+     "shows": "the server's own message as an error line in the thread, and the input disabled with that same message shown under it until the panel is reopened."
+    },
+    {
+     "name": "Ask: not set up (SIM-394)",
+     "when": "GET .../assistant returns enabled:false, or errors",
+     "shows": "nothing -- no Ask button at all, self-hosted default."
     }
    ],
    "replaces": [
@@ -881,6 +928,21 @@
      "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
      "decision": "Home with stage checklist and optional Not needed, checklist-led next action then existing forward confirmation; Rubric final / Mark as final in Settings → Judging.",
      "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
+    },
+    {
+     "q": "Who can use the assistant, and what can it reach?",
+     "decision": "Organisers only (the Ask button and the whole panel). It answers from the shared navigation map, this organiser's own event view (including the checklist, secret-looking fields stripped) and the Simple Hack docs; links render only when the href is relative and starts with /e/<this slug>/ or /docs/ -- anything else shows as plain text. It has no tools and can never change anything.",
+     "why": "SIM-394 api-contract.md: organisers_only on every other role; the browser enforces the same link allowlist the server's own prompt rules already promise."
+    },
+    {
+     "q": "Where does the chat live?",
+     "decision": "In this browser only, under localStorage key sh-assistant-<slug>, capped at 20 messages / 12000 characters (oldest trimmed first). Never on the server. Restored when the panel opens; New chat clears it.",
+     "why": "The server itself is stateless per request (api-contract.md: the client sends the whole message list each time) -- keeping history client-side avoids a second place the model's output would need to be stored and matches Settings/Announcements' existing per-browser patterns."
+    },
+    {
+     "q": "Side panel or a dialog?",
+     "decision": "Desktop: a fixed right-side panel (role complementary), no scrim, so the rest of Overview stays usable while asking. Phone: a full-screen sheet (role dialog, aria-modal, focus trapped), since there is no room beside the content.",
+     "why": "The owner's 'light UI, nothing dark-only' rule plus 'never changes the event' means a blocking modal would overstate what this does -- it is a reference panel, not a workflow."
     }
    ],
    "features": [
@@ -896,7 +958,8 @@
     "schedule-row-prompt",
     "organiser-needs-you",
     "organiser-stage-checklist",
-    "dismiss-optional-checklist-item"
+    "dismiss-optional-checklist-item",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {

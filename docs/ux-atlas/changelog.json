@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-09",
+    "what": "SIM-394: organiser-overview gets an Ask button (hidden when the assistant isn't configured) that opens a chat panel -- short answers with a link to where to act, three starter questions, never changes the event. Desktop side panel, phone full-screen sheet; history stays in this browser."
+  },
+  {
+    "date": "2026-11-09",
     "what": "SIM-390/391/392 docs: /docs/api/ and /docs/mcp/ are generated per product from the route and tool inventories (Swagger gone); Self-hosting and Enterprise section and Changelog page; every docs page also at /docs/<page>.md; a GitHub workflow proposes docs updates when they fall behind. No Simple Hack screen changed."
   },
   {

@@ -607,6 +607,12 @@
 		<a href="#post-v1hackeventsslugassignmentsgenerate" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/assignments/generate</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1hackeventsslugassistant" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/hack/events/{slug}/assistant</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1hackeventsslugassistant" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/assistant</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#get-v1hackeventsslugchecklist" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/hack/events/{slug}/checklist</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -1069,6 +1075,12 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#post-v1hackeventsslugassignmentsgenerate" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/assignments/generate</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#get-v1hackeventsslugassistant" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/hack/events/{slug}/assistant</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1hackeventsslugassistant" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/assistant</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#get-v1hackeventsslugchecklist" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/hack/events/{slug}/checklist</span></a>
@@ -2793,6 +2805,141 @@
 <tr>
 <td>409</td>
 <td>invalid_request (still in open mode)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="get-v1hackeventsslugassistant">GET /v1/hack/events/{slug}/assistant</h2>
+<div data-operation="GET /v1/hack/events/{slug}/assistant"></div>
+<p>Read whether the organiser assistant is on and today’s remaining questions</p>
+<p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>slug</td>
+<td>path</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Assistant status for the calling organiser</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body’s code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).</td>
+</tr>
+<tr>
+<td>403</td>
+<td>organisers_only</td>
+</tr>
+<tr>
+<td>404</td>
+<td>event_not_found</td>
+</tr>
+</tbody>
+</table>
+<h2 id="post-v1hackeventsslugassistant">POST /v1/hack/events/{slug}/assistant</h2>
+<div data-operation="POST /v1/hack/events/{slug}/assistant"></div>
+<p>Read-only. The server answers from the navigation map, the organiser’s event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.</p>
+<p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>slug</td>
+<td>path</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Request body:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>messages</td>
+<td>array of object</td>
+<td>yes</td>
+<td>The chat so far; the last message is the user’s question. Each content is at most 2000 characters, 12000 in total.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Server-sent events: {“delta”:“…”} chunks, then {“done”:true,“remaining_today”:N} or {“error”:“provider_error”,“message”:“…”}</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body’s code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).</td>
+</tr>
+<tr>
+<td>403</td>
+<td>organisers_only</td>
+</tr>
+<tr>
+<td>404</td>
+<td>event_not_found or assistant_off</td>
+</tr>
+<tr>
+<td>429</td>
+<td>daily_limit or monthly_budget</td>
+</tr>
+<tr>
+<td>502</td>
+<td>provider_error</td>
 </tr>
 </tbody>
 </table>

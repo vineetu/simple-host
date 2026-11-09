@@ -3462,6 +3462,728 @@
     });
   }
 
+  // internal/mcp/apps/frame/platform.js
+  function onSubmit(form, button, handler) {
+    button.addEventListener("click", handler);
+  }
+  function hasAssistant() {
+    return false;
+  }
+
+  // internal/handler/static/hack/assistant.js
+  var FOCUSABLE_SEL2 = "a[href],button,input,select,textarea,[tabindex]";
+  var MAX_MESSAGES = 20;
+  var MAX_TOTAL_CHARS = 12e3;
+  var MAX_MSG_CHARS = 2e3;
+  var MOUNT_RACE_MS = 1500;
+  function isPhone() {
+    return window.innerWidth <= 760;
+  }
+  function cpLen(s) {
+    return [...String(s || "")].length;
+  }
+  function storageKey(slug, userId) {
+    return userId !== null && userId !== void 0 && userId !== "" ? "sh-assistant-" + userId + "-" + slug : "sh-assistant-" + slug;
+  }
+  function loadHistory(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.messages)) return [];
+      return parsed.messages.filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string");
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveHistory(key, messages) {
+    try {
+      localStorage.setItem(key, JSON.stringify({ messages, updated: Date.now() }));
+    } catch (e) {
+    }
+  }
+  function clearHistory(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+    }
+  }
+  function capMessages(messages) {
+    const list = messages.slice();
+    while (list.length > MAX_MESSAGES) list.shift();
+    let total = list.reduce((n, m) => n + cpLen(m.content), 0);
+    while (total > MAX_TOTAL_CHARS && list.length > 0) {
+      total -= cpLen(list[0].content);
+      list.shift();
+    }
+    while (list.length && list[0].role === "assistant") list.shift();
+    return list;
+  }
+  function normaliseHref(href2) {
+    const h = String(href2 || "").replace(/[\s​-‏⁠﻿]/g, "");
+    return /^\/\/(e|docs)\//.test(h) ? h.slice(1) : h;
+  }
+  function allowedHref(h, slug) {
+    return (h.startsWith("/e/" + slug + "/") || h.startsWith("/docs/")) && !h.includes("..");
+  }
+  var INLINE_RE = /`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  function appendInline(node, text, slug) {
+    let last = 0, m;
+    INLINE_RE.lastIndex = 0;
+    while (m = INLINE_RE.exec(text)) {
+      if (m.index > last) node.append(document.createTextNode(text.slice(last, m.index)));
+      if (m[1] !== void 0) {
+        node.append(el("code", { text: m[1] }));
+      } else if (m[2] !== void 0) {
+        const href2 = normaliseHref(m[3]);
+        if (allowedHref(href2, slug)) node.append(el("a", { href: href2, text: m[2] }));
+        else node.append(document.createTextNode(m[2]));
+      } else if (m[4] !== void 0) node.append(el("strong", { text: m[4] }));
+      else if (m[5] !== void 0) node.append(el("em", { text: m[5] }));
+      last = INLINE_RE.lastIndex;
+    }
+    if (last < text.length) node.append(document.createTextNode(text.slice(last)));
+  }
+  function renderMarkdownInto(container, text, slug) {
+    const lines = String(text || "").split("\n");
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^```/.test(line)) {
+        i++;
+        const codeLines = [];
+        while (i < lines.length && !/^```/.test(lines[i])) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+        i++;
+        const pre = document.createElement("pre");
+        pre.append(el("code", { text: codeLines.join("\n") }));
+        container.append(pre);
+        continue;
+      }
+      if (line.trim() === "") {
+        i++;
+        continue;
+      }
+      if (/^[-*]\s+/.test(line)) {
+        const ul = document.createElement("ul");
+        while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+          const li = document.createElement("li");
+          appendInline(li, lines[i].replace(/^[-*]\s+/, ""), slug);
+          ul.append(li);
+          i++;
+        }
+        container.append(ul);
+        continue;
+      }
+      if (/^\d+\.\s+/.test(line)) {
+        const ol = document.createElement("ol");
+        while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+          const li = document.createElement("li");
+          appendInline(li, lines[i].replace(/^\d+\.\s+/, ""), slug);
+          ol.append(li);
+          i++;
+        }
+        container.append(ol);
+        continue;
+      }
+      const paraLines = [];
+      while (i < lines.length && lines[i].trim() !== "" && !/^```/.test(lines[i]) && !/^[-*]\s+/.test(lines[i]) && !/^\d+\.\s+/.test(lines[i])) {
+        paraLines.push(lines[i]);
+        i++;
+      }
+      const p = document.createElement("p");
+      paraLines.forEach((l, idx) => {
+        if (idx > 0) p.append(document.createElement("br"));
+        appendInline(p, l, slug);
+      });
+      container.append(p);
+    }
+  }
+  async function readSSE(response, onEvent) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) !== -1) {
+        const chunk = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        const line = chunk.split("\n").find((l) => l.startsWith("data:"));
+        if (!line) continue;
+        const jsonStr = line.slice(5).trim();
+        if (!jsonStr) continue;
+        let data;
+        try {
+          data = JSON.parse(jsonStr);
+        } catch (e) {
+          continue;
+        }
+        onEvent(data);
+      }
+    }
+  }
+  function stageChip(stage) {
+    if (stage === "draft" || stage === "open") return "Is my setup done?";
+    if (stage === "building") return "What happens when I close entries?";
+    if (stage === "closed" || stage === "judging") return "How do I lock judging?";
+    if (stage === "results") return "How do I publish results?";
+    if (stage === "archived" || stage === "ended") return "Where do I download the results?";
+    return "Is my setup done?";
+  }
+  function checklistChipSafe(checklist) {
+    const items = checklist && checklist.items || [];
+    const label = checklist && checklist.next && checklist.next.label || (items.find((it) => it.state !== "done") || {}).label;
+    return label ? 'What does "' + label + '" mean?' : "What should I do next?";
+  }
+  function starterChips(stage, checklist) {
+    const raw = [stageChip(stage), checklistChipSafe(checklist), "Where do I find the join and judge links?"];
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const c of raw) {
+      if (c && !seen.has(c)) {
+        seen.add(c);
+        out.push(c);
+      }
+    }
+    return out;
+  }
+  var MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function formatResetDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+    if (!m) return String(iso || "");
+    const month = MONTH_NAMES[parseInt(m[2], 10) - 1];
+    return month ? parseInt(m[3], 10) + " " + month : String(iso);
+  }
+  function monthlyBudgetLine(resets) {
+    return "The assistant has used this month's budget. It's back on " + formatResetDate(resets) + ".";
+  }
+  function dailyLimitLine(dailyLimit) {
+    return "You've asked " + dailyLimit + " questions today. The limit resets at midnight UTC.";
+  }
+  var chatStates = /* @__PURE__ */ new Map();
+  function getChatState(key) {
+    let s = chatStates.get(key);
+    if (!s) {
+      s = {
+        key,
+        loaded: false,
+        messages: [],
+        remainingToday: null,
+        limitMessage: "",
+        streaming: false,
+        turnId: 0,
+        turnAcc: "",
+        abortController: null,
+        open: false,
+        // The DOM panel currently showing this chat, shared across mounts
+        // (see the H2 note above the map) so an in-flight stream started by
+        // an older, now-torn-down mount keeps updating whichever panel is
+        // actually on screen right now, not a detached one nobody can see.
+        panelEl: null
+      };
+      chatStates.set(key, s);
+    }
+    return s;
+  }
+  async function mountAssistant(ctx, opts) {
+    const mounted = doMount(ctx, opts);
+    await Promise.race([mounted, new Promise((resolve3) => setTimeout(resolve3, MOUNT_RACE_MS))]);
+  }
+  async function doMount(ctx, { api, anchor, container, ev, checklist }) {
+    if (!hasAssistant()) return;
+    const slug = ev.slug;
+    let status;
+    try {
+      status = await api("GET", "/v1/hack/events/" + encodeURIComponent(slug) + "/assistant");
+    } catch (e) {
+      return;
+    }
+    if (ctx.alive && !ctx.alive()) return;
+    if (!status.ok || !status.data || status.data.enabled !== true) return;
+    if (!anchor || !anchor.isConnected) return;
+    const userId = (ctx.me && (ctx.me.id ?? ctx.me.username)) ?? null;
+    const key = storageKey(slug, userId);
+    const state = getChatState(key);
+    if (!state.loaded) {
+      state.loaded = true;
+      state.messages = capMessages(loadHistory(key));
+      state.remainingToday = typeof status.data.remaining_today === "number" ? status.data.remaining_today : null;
+    }
+    if (!state.limitMessage) {
+      if (status.data.budget_reached) state.limitMessage = monthlyBudgetLine(status.data.resets);
+      else if (status.data.remaining_today === 0) state.limitMessage = dailyLimitLine(status.data.daily_limit);
+    }
+    const askBtn = el("button", { class: "btn quiet sm", type: "button", "data-tour": "assistant", text: "Ask", "aria-expanded": "false", "aria-controls": "assistant-panel-" + slug });
+    anchor.insertAdjacentElement("afterend", askBtn);
+    function apiKeyHeader() {
+      try {
+        return ctx.api.apiKey();
+      } catch (e) {
+        return "";
+      }
+    }
+    function scrollToBottom(thread) {
+      if (thread) thread.scrollTop = thread.scrollHeight;
+    }
+    function renderHint() {
+      if (!state.panelEl) return;
+      const hintEl = state.panelEl.querySelector("[data-assistant-hint]");
+      if (!hintEl) return;
+      if (state.limitMessage) {
+        hintEl.textContent = state.limitMessage;
+        hintEl.className = "note bad small assistant-hint";
+        hintEl.hidden = false;
+        return;
+      }
+      if (typeof state.remainingToday === "number" && state.remainingToday <= 5) {
+        const n = state.remainingToday;
+        hintEl.textContent = n + (n === 1 ? " question left today." : " questions left today.");
+        hintEl.className = "small muted assistant-hint";
+        hintEl.hidden = false;
+        return;
+      }
+      hintEl.hidden = true;
+    }
+    function setRemaining(n) {
+      if (typeof n === "number") state.remainingToday = n;
+      renderHint();
+    }
+    function bumpRemainingLocal() {
+      if (typeof state.remainingToday === "number") state.remainingToday = Math.max(0, state.remainingToday - 1);
+      renderHint();
+    }
+    function disableForLimit(message) {
+      state.limitMessage = message;
+      if (!state.panelEl) return;
+      const ta = state.panelEl.querySelector("[data-assistant-input]");
+      const send2 = state.panelEl.querySelector("[data-assistant-send]");
+      if (ta) ta.disabled = true;
+      if (send2) send2.disabled = true;
+      renderHint();
+      refocusAfterTurn();
+    }
+    function announce(text) {
+      const live2 = state.panelEl && state.panelEl.querySelector("[data-assistant-live]");
+      if (!live2) return;
+      live2.textContent = "";
+      requestAnimationFrame(() => {
+        if (live2.isConnected) live2.textContent = text;
+      });
+    }
+    function refocusAfterTurn() {
+      if (!state.panelEl) return;
+      const active = document.activeElement;
+      if (active !== state.panelEl.querySelector("[data-assistant-send]") && active !== document.body) return;
+      const ta = state.panelEl.querySelector("[data-assistant-input]");
+      const close = state.panelEl.querySelector("[data-assistant-close]");
+      if (ta && !ta.disabled) ta.focus();
+      else if (close) close.focus();
+    }
+    function syncSendButton() {
+      if (!state.panelEl) return;
+      const ta = state.panelEl.querySelector("[data-assistant-input]");
+      const send2 = state.panelEl.querySelector("[data-assistant-send]");
+      const thread = state.panelEl.querySelector("[data-assistant-thread]");
+      if (thread) thread.setAttribute("aria-busy", state.streaming ? "true" : "false");
+      if (!ta || !send2) return;
+      if (state.streaming) {
+        send2.textContent = "Stop";
+        send2.disabled = false;
+        return;
+      }
+      send2.textContent = "Send";
+      send2.disabled = state.limitMessage ? true : ta.value.trim() === "";
+    }
+    function renderAssistantBubble(thread, text, { thinking, acts } = {}) {
+      const bubble = document.createElement("div");
+      bubble.className = "assistant-bubble";
+      if (thinking) bubble.append(el("p", { class: "assistant-thinking", text: "Thinking\u2026" }));
+      else renderMarkdownInto(bubble, text, slug);
+      const wrap = document.createElement("div");
+      wrap.className = "assistant-msg assistant";
+      wrap.append(bubble);
+      if (acts) wrap.append(acts);
+      thread.append(wrap);
+      return wrap;
+    }
+    function retryActsRow(onRetry) {
+      const acts = document.createElement("div");
+      acts.className = "assistant-acts";
+      const retryBtn = el("button", { class: "btn quiet sm", type: "button", "data-assistant-retry": "", text: "Retry" });
+      retryBtn.addEventListener("click", onRetry);
+      acts.append(retryBtn);
+      return acts;
+    }
+    function appendErrorLine(thread, message, { retry = true } = {}) {
+      if (!thread) return;
+      const row = document.createElement("div");
+      row.className = "note bad small assistant-error";
+      row.append(el("span", { text: message }));
+      if (retry) {
+        const retryBtn = el("button", { class: "btn quiet sm", type: "button", text: "Retry" });
+        retryBtn.addEventListener("click", () => {
+          row.remove();
+          retryLast();
+        });
+        row.append(retryBtn);
+      }
+      thread.append(row);
+      scrollToBottom(thread);
+    }
+    function hideChipsAndSub() {
+      if (!state.panelEl) return;
+      const chips = state.panelEl.querySelector("[data-assistant-chips]");
+      const sub = state.panelEl.querySelector("[data-assistant-sub]");
+      if (chips) chips.remove();
+      if (sub) sub.remove();
+    }
+    function renderThread() {
+      if (!state.panelEl) return;
+      const thread = state.panelEl.querySelector("[data-assistant-thread]");
+      if (!thread) return;
+      thread.querySelectorAll("[data-assistant-structural]").forEach((n) => n.remove());
+      const frag = document.createDocumentFragment();
+      state.messages.forEach((m, idx) => {
+        const isLast = idx === state.messages.length - 1;
+        if (m.role === "user") {
+          const node = el("div", { class: "assistant-msg user", text: m.content });
+          node.setAttribute("data-assistant-structural", "");
+          frag.append(node);
+          if (isLast && !state.streaming) {
+            const row = document.createElement("div");
+            row.className = "assistant-acts";
+            row.setAttribute("data-assistant-structural", "");
+            const retryBtn = el("button", { class: "btn quiet sm", type: "button", "data-assistant-retry": "", text: "Retry" });
+            retryBtn.addEventListener("click", () => retryLast());
+            row.append(retryBtn);
+            frag.append(row);
+          }
+          return;
+        }
+        const acts = isLast && !state.streaming ? retryActsRow(() => retryLast()) : null;
+        const wrap = renderAssistantBubble(frag, m.content, { acts });
+        wrap.setAttribute("data-assistant-structural", "");
+        if (acts) acts.insertBefore(copyButton(m.content, "Copy"), acts.firstChild);
+      });
+      if (state.streaming) {
+        const wrap = renderAssistantBubble(frag, state.turnAcc, { thinking: !state.turnAcc });
+        wrap.setAttribute("data-assistant-structural", "");
+        wrap.setAttribute("data-assistant-live-turn", "");
+      }
+      thread.prepend(frag);
+      scrollToBottom(thread);
+    }
+    function updateLiveBubble() {
+      if (!state.panelEl) return;
+      const thread = state.panelEl.querySelector("[data-assistant-thread]");
+      const wrap = thread && thread.querySelector("[data-assistant-live-turn]");
+      if (!wrap) {
+        renderThread();
+        return;
+      }
+      const bubble = wrap.querySelector(".assistant-bubble");
+      bubble.innerHTML = "";
+      renderMarkdownInto(bubble, state.turnAcc, slug);
+      scrollToBottom(thread);
+    }
+    async function runTurn() {
+      const myTurn = ++state.turnId;
+      state.streaming = true;
+      state.turnAcc = "";
+      renderThread();
+      syncSendButton();
+      const controller = new AbortController();
+      state.abortController = controller;
+      const headers = { "Content-Type": "application/json" };
+      const k = apiKeyHeader();
+      if (k) headers["X-API-Key"] = k;
+      let res;
+      try {
+        res = await fetch("/v1/hack/events/" + encodeURIComponent(slug) + "/assistant", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ messages: state.messages.map((m) => ({ role: m.role, content: m.content })) }),
+          signal: controller.signal
+        });
+      } catch (e) {
+        if (state.turnId !== myTurn) return;
+        state.streaming = false;
+        renderThread();
+        syncSendButton();
+        if (!(e && e.name === "AbortError")) appendErrorLine(state.panelEl && state.panelEl.querySelector("[data-assistant-thread]"), "Cannot reach the server.");
+        refocusAfterTurn();
+        return;
+      }
+      if (!res.ok) {
+        if (state.turnId !== myTurn) return;
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (e) {
+        }
+        if (state.turnId !== myTurn) return;
+        state.streaming = false;
+        let poppedText = "";
+        if (res.status >= 400 && res.status < 500 && state.messages.length && state.messages[state.messages.length - 1].role === "user") {
+          poppedText = state.messages[state.messages.length - 1].content;
+          state.messages = state.messages.slice(0, -1);
+          saveHistory(key, state.messages);
+        }
+        renderThread();
+        syncSendButton();
+        const thread2 = state.panelEl && state.panelEl.querySelector("[data-assistant-thread]");
+        let msg, retry = true;
+        if (res.status === 400) {
+          msg = cpLen(poppedText) > MAX_MSG_CHARS ? "That question is too long. Shorten it and try again." : data && typeof data.message === "string" && data.message || "Something went wrong. Refresh the page and try again.";
+          if (state.panelEl) {
+            const ta = state.panelEl.querySelector("[data-assistant-input]");
+            if (ta) {
+              ta.value = poppedText;
+              ta.dispatchEvent(new Event("input"));
+            }
+          }
+        } else {
+          msg = data && typeof data.message === "string" && data.message || "Something went wrong. Refresh the page and try again.";
+        }
+        if (data && (data.error === "daily_limit" || data.error === "monthly_budget")) {
+          disableForLimit(msg);
+          retry = false;
+        }
+        if (data && typeof data.remaining_today === "number") setRemaining(data.remaining_today);
+        appendErrorLine(thread2, msg, { retry });
+        refocusAfterTurn();
+        return;
+      }
+      let acc = "", abortedByUser = false, midStreamError = "", doneReceived = false;
+      try {
+        await readSSE(res, (evt) => {
+          if (state.turnId !== myTurn) return;
+          if (typeof evt.delta === "string") {
+            acc += evt.delta;
+            state.turnAcc = acc;
+            updateLiveBubble();
+          } else if (evt.done) {
+            doneReceived = true;
+            setRemaining(evt.remaining_today);
+          } else if (evt.error) {
+            midStreamError = evt.message || "The assistant couldn't answer. Try again.";
+          }
+        });
+      } catch (e) {
+        if (e && e.name === "AbortError") abortedByUser = true;
+        else midStreamError = midStreamError || "Cannot reach the server.";
+      }
+      if (state.turnId !== myTurn) return;
+      if (!doneReceived && !midStreamError && !abortedByUser) midStreamError = "The assistant couldn't answer. Try again.";
+      if (!doneReceived && (abortedByUser || midStreamError)) bumpRemainingLocal();
+      state.streaming = false;
+      state.abortController = null;
+      const text = acc.trim() ? acc : "";
+      if (text) {
+        state.messages.push({ role: "assistant", content: acc });
+        state.messages = capMessages(state.messages);
+        saveHistory(key, state.messages);
+      }
+      state.turnAcc = "";
+      renderThread();
+      if (text && !abortedByUser) announce(acc);
+      const thread = state.panelEl && state.panelEl.querySelector("[data-assistant-thread]");
+      if (midStreamError) appendErrorLine(thread, midStreamError);
+      syncSendButton();
+      refocusAfterTurn();
+    }
+    function retryLast() {
+      if (state.streaming) return;
+      if (!navigator.onLine) {
+        appendErrorLine(state.panelEl && state.panelEl.querySelector("[data-assistant-thread]"), "You're offline. Reconnect and try again.");
+        return;
+      }
+      if (state.messages.length && state.messages[state.messages.length - 1].role === "assistant") {
+        state.messages = state.messages.slice(0, -1);
+      }
+      saveHistory(key, state.messages);
+      runTurn();
+    }
+    function send(text) {
+      if (!text || state.streaming) return;
+      hideChipsAndSub();
+      state.messages.push({ role: "user", content: text });
+      state.messages = capMessages(state.messages);
+      saveHistory(key, state.messages);
+      runTurn();
+    }
+    function buildPanel() {
+      const phone = isPhone();
+      const panel = document.createElement("div");
+      panel.id = "assistant-panel-" + slug;
+      panel.className = "assistant-panel" + (phone ? " sheet" : "");
+      panel.dataset.phone = phone ? "1" : "";
+      panel.setAttribute("role", phone ? "dialog" : "complementary");
+      if (phone) panel.setAttribute("aria-modal", "true");
+      panel.setAttribute("aria-label", "Ask about this event");
+      const head = el("div", { class: "assistant-head" });
+      head.append(el("h2", { text: "Ask about this event" }));
+      const acts = el("div", { class: "assistant-head-acts" });
+      const newChatBtn = el("button", { class: "btn quiet sm", type: "button", text: "New chat" });
+      const closeBtn = el("button", { class: "icon-btn", type: "button", "data-assistant-close": "", "aria-label": "Close", text: "\u2715" });
+      acts.append(newChatBtn, closeBtn);
+      head.append(acts);
+      panel.append(head);
+      if (state.messages.length === 0) {
+        panel.append(el("p", { class: "assistant-sub small muted", "data-assistant-sub": "", text: "Short answers, with a link to where to act. It can't change anything." }));
+      }
+      const thread = el("div", { class: "assistant-thread", "data-assistant-thread": "", "aria-busy": state.streaming ? "true" : "false" });
+      panel.append(thread);
+      if (state.messages.length === 0 && !state.streaming) {
+        const chips = el("div", { class: "assistant-chips", "data-assistant-chips": "" });
+        starterChips(ev.stage, checklist).forEach((text) => {
+          const chip = el("button", { class: "chip", type: "button", text });
+          chip.addEventListener("click", () => {
+            trySend(text);
+          });
+          chips.append(chip);
+        });
+        panel.append(chips);
+      }
+      const compose = el("div", { class: "assistant-compose" });
+      const row = el("div", { class: "assistant-input-row" });
+      const ta = el("textarea", { class: "input assistant-textarea", "data-assistant-input": "", placeholder: "Ask about this event\u2026", rows: "1", maxlength: String(MAX_MSG_CHARS) });
+      const sendBtn = el("button", { class: "btn primary sm", type: "button", "data-assistant-send": "", text: "Send" });
+      sendBtn.disabled = true;
+      ta.value = state.draft || "";
+      row.append(ta, sendBtn);
+      compose.append(row);
+      const hint = el("p", { class: "small muted assistant-hint", "data-assistant-hint": "" });
+      hint.hidden = true;
+      compose.append(hint);
+      panel.append(compose);
+      panel.append(el("div", { class: "sr-only", role: "status", "aria-live": "polite", "data-assistant-live": "" }));
+      function grow() {
+        ta.style.height = "auto";
+        ta.style.height = ta.scrollHeight + "px";
+      }
+      function trySend(text) {
+        if (!text || state.streaming) return;
+        if (!navigator.onLine) {
+          appendErrorLine(thread, "You're offline. Reconnect and try again.");
+          return;
+        }
+        ta.value = "";
+        state.draft = "";
+        grow();
+        syncSendButton();
+        send(text);
+      }
+      ta.addEventListener("input", () => {
+        state.draft = ta.value;
+        grow();
+        syncSendButton();
+      });
+      ta.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+          e.preventDefault();
+          trySend(ta.value.trim());
+        }
+      });
+      sendBtn.addEventListener("click", () => {
+        if (state.streaming) {
+          state.abortController?.abort();
+          return;
+        }
+        trySend(ta.value.trim());
+      });
+      newChatBtn.addEventListener("click", () => {
+        if (state.streaming) state.abortController?.abort();
+        state.turnId++;
+        state.streaming = false;
+        state.abortController = null;
+        state.turnAcc = "";
+        state.messages = [];
+        clearHistory(key);
+        document.removeEventListener("keydown", onKeydown, true);
+        panel.remove();
+        state.panelEl = null;
+        openPanel();
+      });
+      closeBtn.addEventListener("click", () => {
+        if (state.streaming) state.abortController?.abort();
+        closePanel();
+      });
+      if (phone) {
+        panel.addEventListener("click", (e) => {
+          if (e.target.closest("a[href]")) closePanel();
+        });
+      }
+      if (state.limitMessage) {
+        ta.disabled = true;
+        sendBtn.disabled = true;
+      }
+      requestAnimationFrame(grow);
+      return panel;
+    }
+    function onKeydown(e) {
+      if (ctx.alive && !ctx.alive()) {
+        document.removeEventListener("keydown", onKeydown, true);
+        return;
+      }
+      if (!state.panelEl) return;
+      if (document.querySelector(".scrim") || document.querySelector(".tour-card")) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (state.streaming) {
+          state.abortController?.abort();
+          return;
+        }
+        closePanel();
+        return;
+      }
+      if (state.panelEl.dataset.phone === "1" && e.key === "Tab") {
+        const list = Array.from(state.panelEl.querySelectorAll(FOCUSABLE_SEL2)).filter((x) => !x.disabled && x.tabIndex !== -1 && !x.hidden);
+        if (!list.length) return;
+        e.preventDefault();
+        const idx = list.indexOf(document.activeElement);
+        const next = idx === -1 ? 0 : (idx + (e.shiftKey ? list.length - 1 : 1)) % list.length;
+        list[next].focus();
+      }
+    }
+    function panelIsLive() {
+      return !!(state.panelEl && state.panelEl.isConnected);
+    }
+    function openPanel() {
+      if (panelIsLive()) return;
+      state.panelEl = buildPanel();
+      container.append(state.panelEl);
+      state.open = true;
+      askBtn.setAttribute("aria-expanded", "true");
+      document.addEventListener("keydown", onKeydown, true);
+      renderThread();
+      renderHint();
+      state.panelEl.querySelector("[data-assistant-input]")?.focus();
+    }
+    function closePanel() {
+      if (!panelIsLive()) {
+        state.panelEl = null;
+        return;
+      }
+      document.removeEventListener("keydown", onKeydown, true);
+      state.panelEl.remove();
+      state.panelEl = null;
+      state.open = false;
+      askBtn.setAttribute("aria-expanded", "false");
+      if (askBtn.isConnected) askBtn.focus();
+    }
+    askBtn.addEventListener("click", () => {
+      if (panelIsLive()) closePanel();
+      else openPanel();
+    });
+    if (state.open) openPanel();
+  }
+
   // internal/handler/static/hack/screens/organiser-overview.js
   var STAGE_ORDER2 = ["draft", "open", "building", "closed", "judging", "results", "archived"];
   var autoTourTried = false;
@@ -3619,11 +4341,6 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
       bindChecklist(card, { api: client, slug: ev.slug, refresh: ctx.refresh, alive: ctx.alive, ui });
     }
     adminLock(main, admin);
-    if (openWalk) startTour("organiser", ctx, { force: true });
-    else if (!autoTourTried) {
-      autoTourTried = true;
-      startTour("organiser", ctx);
-    }
     async function callStage(target) {
       return api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/stage", { stage: target });
     }
@@ -3740,6 +4457,13 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
         btn.disabled = false;
       }
     });
+    await mountAssistant(ctx, { api, anchor: $("ov-change-stage"), container: main, ev, checklist: data.checklist });
+    if (!ctx.alive()) return;
+    if (openWalk) startTour("organiser", ctx, { force: true });
+    else if (!autoTourTried) {
+      autoTourTried = true;
+      startTour("organiser", ctx);
+    }
   }
 
   // internal/handler/static/hack/screens/organiser-people.js
@@ -3959,13 +4683,6 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
     render: () => render3,
     title: () => title3
   });
-
-  // internal/mcp/apps/frame/platform.js
-  function onSubmit(form, button, handler) {
-    button.addEventListener("click", handler);
-  }
-
-  // internal/handler/static/hack/screens/organiser-judging.js
   function title3() {
     return "Judging";
   }

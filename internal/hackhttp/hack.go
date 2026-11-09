@@ -101,8 +101,13 @@ type HackHandler struct {
 	shotWrites         *httpx.RateLimiter // screenshot uploads, per account (2 MB each)
 	applyIP            *httpx.RateLimiter // applications without a join link, per network address
 	applyUser          *httpx.RateLimiter // the same, per account
-	namePeer           func(ctx context.Context, name string) (bool, error)
-	usageFn            func(ctx context.Context) (int64, error)
+	assistantWrites    *httpx.RateLimiter // organiser assistant questions, per account (SIM-394)
+	// assistant is nil until SetAssistant is called (main wires it only
+	// when ASSISTANT_BASE_URL and ASSISTANT_MODEL are both set); every
+	// handler checks h.assistant == nil the same as !h.assistant.Enabled().
+	assistant *events.AssistantService
+	namePeer  func(ctx context.Context, name string) (bool, error)
+	usageFn   func(ctx context.Context) (int64, error)
 	// sites reaches the team sites (the SiteHandler; hack_sites.go). nil in
 	// tests that do not need it: team addresses then count as not ready.
 	sites hackSiteHooks
@@ -406,12 +411,20 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 		shotWrites:         httpx.NewRateLimiter(5, 0.1),
 		applyIP:            httpx.NewRateLimiter(float64(lim.RateEventApplyIP.Burst), lim.RateEventApplyIP.PerSecond()),
 		applyUser:          httpx.NewRateLimiter(float64(lim.RateEventApplyUser.Burst), lim.RateEventApplyUser.PerSecond()),
+		assistantWrites:    httpx.NewRateLimiter(40, 0.2), // burst 40 (above the 30/day business limit and the 18-question eval set), refills one every 5s: abuse defense only
 		archiveLinkKey:     newHackArchiveKey(),
 		events:             events.New(database),
 	}
 	h.entries = entries.New(h.database, h.entrySiteLive)
 	return h
 }
+
+// SetAssistant wires the SIM-394 organiser assistant (main builds it, since
+// it needs the llm client and the webassets-derived docs text, neither of
+// which hackhttp may import directly). Never called: every assistant route
+// behaves as enabled:false / 404 assistant_off, same as an unset
+// ASSISTANT_BASE_URL/ASSISTANT_MODEL.
+func (h *HackHandler) SetAssistant(a *events.AssistantService) { h.assistant = a }
 
 // defaultSiteArchiveSize matches handler's own starting maxSiteArchiveSize
 // (site.go) before any MAX_ARCHIVE_MB env override; SetSiteArchiveDefault
@@ -469,6 +482,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 		return authMW(http.HandlerFunc(fn))
 	}
 	h.registerChecklists(mux, wrap)
+	h.registerAssistant(mux, wrap)
 	mux.Handle("GET /v1/hack/directory", http.HandlerFunc(h.getDirectory))
 	mux.HandleFunc("GET /v1/hack/events/{slug}/public", h.PublicEventJSON)
 	mux.HandleFunc("OPTIONS /v1/hack/events/{slug}/public", h.PublicEventJSON)
