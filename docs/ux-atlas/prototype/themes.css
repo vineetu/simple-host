@@ -179,8 +179,8 @@
    #e9ecf0 keeps >=4.5:1 against both ink shades. */
 .pub-event[data-theme=boardroom] .chip,
 .pub-event[data-theme=boardroom] .tag,
-.pub-event[data-theme=boardroom] .pill:not(.stage):not(.accent),
-.pub-event[data-theme=boardroom] .av{background:var(--paper-hi)}
+.pub-event[data-theme=boardroom] .pill:not(.stage):not(.accent):not([class*="mat-"]),
+.pub-event[data-theme=boardroom] .av:not(.accent){background:var(--paper-hi)}
 .pub-event[data-theme=boardroom] h1,
 .pub-event[data-theme=boardroom] h2,
 .pub-event[data-theme=boardroom] h3{
@@ -216,8 +216,8 @@
    #e6ece0 keeps >=4.5:1 against both ink shades. */
 .pub-event[data-theme=garden] .chip,
 .pub-event[data-theme=garden] .tag,
-.pub-event[data-theme=garden] .pill:not(.stage):not(.accent),
-.pub-event[data-theme=garden] .av{background:var(--paper-hi)}
+.pub-event[data-theme=garden] .pill:not(.stage):not(.accent):not([class*="mat-"]),
+.pub-event[data-theme=garden] .av:not(.accent){background:var(--paper-hi)}
 .pub-event[data-theme=garden] h1,
 .pub-event[data-theme=garden] h2,
 .pub-event[data-theme=garden] h3{
@@ -249,8 +249,8 @@
    #e4e4e0 keeps >=4.5:1 against both ink shades. */
 .pub-event[data-theme=terminal] .chip,
 .pub-event[data-theme=terminal] .tag,
-.pub-event[data-theme=terminal] .pill:not(.stage):not(.accent),
-.pub-event[data-theme=terminal] .av{background:var(--paper-hi)}
+.pub-event[data-theme=terminal] .pill:not(.stage):not(.accent):not([class*="mat-"]),
+.pub-event[data-theme=terminal] .av:not(.accent){background:var(--paper-hi)}
 .pub-event[data-theme=terminal] h1,
 .pub-event[data-theme=terminal] h2,
 .pub-event[data-theme=terminal].preview-head h3,
