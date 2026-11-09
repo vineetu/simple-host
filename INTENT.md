@@ -129,6 +129,19 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-09 (owner). Organiser assistant v2: on every organiser screen, explains every setting.**
+  The SIM-394 chat was only on Home and could not answer most settings questions ("a chatbot
+  that says it helps you set up but can't answer questions about settings isn't helping; half
+  information is worse than none"). Its point is to help the organiser run the whole event, so
+  Ask floats on every organiser screen of the event (same chat, same history), and it covers
+  all of organising: what every organiser setting, option and action means, its effects, when
+  to use it, where it is, and what happens if. Its product knowledge is one source kept with
+  the app: the explanation layer of the shared navigation map
+  (`internal/rules/hackevents/navigation-help.json`), checked against the screens so a setting
+  without an explanation fails the build, plus the event's own current settings. Still never
+  changes anything and never guesses; the eval covers every settings area. Same limits ($5 a
+  month, 30 questions per organiser per day). Organisers only, as before.
+
 - **2026-11-07 (owner, SIM-394). A built-in assistant for organisers only.** An exception to
   "people use their own AI apps": setting up an event is complicated, so organiser Home gets a
   small chat that answers questions about that event in one or two lines and links to where to

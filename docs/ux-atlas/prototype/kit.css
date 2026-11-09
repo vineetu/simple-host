@@ -1289,12 +1289,19 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
  .steps li:is([data-checklist-id^="o."],[data-checklist-id^="j."]) .act.btn{padding:4px 8px}
 }
 
-/* ---------- organiser assistant (SIM-394) ----------
-   Desktop: a fixed right-side panel, shadow like .dialog, no scrim -- the
-   rest of the page stays usable. Phone: a full-screen sheet. Both are
-   appended inside the screen's own <main>; position:fixed still anchors to
-   the viewport (no ancestor here sets a transform/filter/contain), so the
-   panel is torn down for free the next time the screen re-renders. */
+/* ---------- organiser assistant (SIM-394, floating v2) ----------
+   One Ask pill, fixed bottom-right, on every organiser screen of an event
+   (mounted from the router -- assistant.js/app.js -- not any one screen).
+   Desktop: opens a fixed right-side panel, shadow like .dialog, no scrim --
+   the rest of the page stays usable. Phone: a full-screen sheet. Both the
+   button and the panel are appended straight to document.body, never
+   inside a screen's own <main>, so a screen re-render and in-app
+   navigation (including clicking a link inside a reply) never tears
+   either down. z-index sits below the tour card/scrim/dialog and below
+   the panel itself (.assistant-fab 45 < .tour-card 55 < .assistant-panel/
+   .scrim 50-60), but above the phone sticky save bars it shares the
+   bottom-right corner with at narrow widths (see the bump below). */
+.assistant-fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:45;border-radius:999px;box-shadow:0 10px 24px rgba(43,41,37,.18)}
 .assistant-panel{position:fixed;top:0;right:0;bottom:0;width:400px;z-index:50;background:var(--surface);border-left:1px solid var(--rule-hi);box-shadow:0 16px 40px rgba(43,41,37,.18);display:flex;flex-direction:column;min-height:0}
 .assistant-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 4px}
 .assistant-head h2{font-size:16px;flex:1;min-width:0}
@@ -1322,4 +1329,10 @@ textarea.input.assistant-textarea{resize:none;min-height:var(--control-h);max-he
 @media(max-width:760px){
   .assistant-panel.sheet{inset:0;width:auto;border-left:0;z-index:60}
   .assistant-thread{padding:4px 16px}
+  /* A phone sticky save bar (.sticky-foot, .card-foot.sticky -- both
+     position:fixed at this width, see above) sits in the same bottom-right
+     corner; when either is on screen the fab sits above it instead of
+     under it. :has() keeps this in step with the bar's own, already-
+     conditional markup -- no resize/mutation listener needed. */
+  body:has(.sticky-foot,.card-foot.sticky) .assistant-fab{bottom:calc(112px + env(safe-area-inset-bottom))}
 }

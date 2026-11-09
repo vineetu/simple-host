@@ -116,7 +116,7 @@ ${restBlock}
       const form = ui.el('form')
       const field = ui.el('div', { class: 'field' })
       const label = ui.el('label', { text: 'Reason' })
-      const textarea = ui.el('textarea', { class: 'input', required: '', maxlength: '300' })
+      const textarea = ui.el('textarea', { 'data-help': 'lock', class: 'input', required: '', maxlength: '300' })
       textarea.disabled = !!adminLockReason
       label.appendChild(textarea)
       field.appendChild(label)
@@ -221,9 +221,9 @@ ${restBlock}
     if (judges.length && teams.length) {
       const form = ui.el('form')
       const row = ui.el('div', { class: 'control-row' })
-      const judgeSelect = ui.el('select', { class: 'select', 'aria-label': 'Judge' })
+      const judgeSelect = ui.el('select', { 'data-help': 'conflicts', class: 'select', 'aria-label': 'Judge' })
       judges.forEach(p => judgeSelect.appendChild(ui.el('option', { value: p.user_id, text: p.display_name || p.email || 'Someone' })))
-      const teamSelect = ui.el('select', { class: 'select', 'aria-label': 'Team' })
+      const teamSelect = ui.el('select', { 'data-help': 'conflicts', class: 'select', 'aria-label': 'Team' })
       teams.forEach(t => teamSelect.appendChild(ui.el('option', { value: t.id, text: t.name || t.slug })))
       const add = ui.el('button', { class: 'btn', type: 'submit', text: 'Add' })
       judgeSelect.disabled = teamSelect.disabled = add.disabled = locked || !!adminLockReason

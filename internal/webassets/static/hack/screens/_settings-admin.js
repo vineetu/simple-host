@@ -78,9 +78,9 @@ ${s.previous_valid_until ? `<p class="help">The previous secret keeps working un
     const isOwner = n.source !== 'mcp'
     return `<div class="setting" data-notify="${ui.esc(n.id)}"><div class="t"><b>${ui.esc(receiverName(n))}</b><span>${ui.esc(events)} &middot; ${ui.esc(n.storage || 'all saved data')}</span><span class="small muted">${ui.esc(state)} &middot; ${ui.esc(result)}</span></div>
 <div class="row-flex">
-<button class="btn sm" type="button" data-notify-history="${ui.esc(n.id)}">${deliveriesFor === n.id ? 'Hide deliveries' : 'Deliveries'}</button>
+<button data-help="notifications" class="btn sm" type="button" data-notify-history="${ui.esc(n.id)}">${deliveriesFor === n.id ? 'Hide deliveries' : 'Deliveries'}</button>
 ${canManage && isOwner && n.state !== 'expired' ? `<button class="btn sm" type="button" data-notify-test="${ui.esc(n.id)}">Send test</button>` : ''}
-${canManage ? `<button class="btn sm" type="button" data-notify-pause="${ui.esc(n.id)}">${n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause'}</button>` : ''}
+${canManage ? `<button data-help="notifications" class="btn sm" type="button" data-notify-pause="${ui.esc(n.id)}">${n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause'}</button>` : ''}
 ${canManage && isOwner ? `<button class="btn sm" type="button" data-notify-rotate="${ui.esc(n.id)}">Rotate secret</button>` : ''}
 <button class="btn danger sm" type="button" data-notify-off="${ui.esc(n.id)}">Remove</button>
 </div>

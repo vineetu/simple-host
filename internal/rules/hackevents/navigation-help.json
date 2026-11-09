@@ -1,0 +1,3433 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "home",
+      "target": "o.home",
+      "label": "Home",
+      "sources": [
+        "screens/organiser-overview.js",
+        "navigation-data.js",
+        "tour.js"
+      ],
+      "explains": "Follow the next step, review setup and attention items, and share joining links.",
+      "when": "Check what needs attention during the event.",
+      "related": [
+        "stage",
+        "end",
+        "checklist",
+        "snapshot",
+        "links.join",
+        "links.judge"
+      ],
+      "controls": [
+        "button:Skip",
+        "button:Next"
+      ],
+      "effects": [
+        "In the walkthrough, Next and Back move between steps; Skip or Done finishes it."
+      ]
+    },
+    {
+      "id": "checklist",
+      "target": "o.home",
+      "label": "Your next step",
+      "sources": [
+        "screens/organiser-overview.js",
+        "checklist.js"
+      ],
+      "explains": "Stage-based guidance and optional checklist acknowledgements; marking an item not needed neither changes its setting nor enforces a prerequisite.",
+      "keywords": [
+        "checklist",
+        "needs attention",
+        "setup"
+      ],
+      "related": [
+        "stage",
+        "entry.rules",
+        "rubric",
+        "publish"
+      ],
+      "controls": [
+        "button:Use this item",
+        "button:Not needed"
+      ],
+      "effects": [
+        "Not needed dismisses an optional item; Use this item restores it. Neither changes the underlying setting."
+      ]
+    },
+    {
+      "id": "snapshot",
+      "target": "o.home",
+      "label": "Snapshot",
+      "sources": [
+        "screens/organiser-overview.js"
+      ],
+      "explains": "Counts participants, teams, judges and people without teams, distinguishing organiser judges from dedicated judges.",
+      "keywords": [
+        "counts",
+        "statistics"
+      ],
+      "related": [
+        "people",
+        "solo"
+      ]
+    },
+    {
+      "id": "event-page",
+      "target": "o.event-page",
+      "label": "Event page",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js"
+      ],
+      "explains": "Edit the built-in public event page and manage a custom website.",
+      "when": "Prepare or update your public page.",
+      "related": [
+        "basics",
+        "about",
+        "schedule",
+        "tracks",
+        "sponsors",
+        "faq",
+        "look",
+        "website"
+      ]
+    },
+    {
+      "id": "settings",
+      "target": "o.settings",
+      "label": "Settings",
+      "sources": [
+        "screens/organiser-settings.js",
+        "navigation-data.js"
+      ],
+      "explains": "Configure joining, teams, entries, judging, results and administration.",
+      "when": "Set up or revise your event.",
+      "controls": [
+        "settings-section"
+      ],
+      "related": [
+        "signup",
+        "team.finding",
+        "entry.rules",
+        "rubric",
+        "result.ranking"
+      ]
+    },
+    {
+      "id": "stage",
+      "target": "o.stage",
+      "label": "Change stage",
+      "sources": [
+        "screens/organiser-overview.js",
+        "screens/_orgA-util.js",
+        "ui.js"
+      ],
+      "explains": "Move stages explicitly, including backwards before Ended. Dates and prompts never move stages automatically.",
+      "when": "Open joining, start work, close entries or correct a premature stage change.",
+      "controls": [
+        "stage-pick"
+      ],
+      "options": [
+        {
+          "label": "Not open yet",
+          "means": "Draft: set up before participant joining opens."
+        },
+        {
+          "label": "Sign-up open",
+          "means": "Open: participants can join and form teams."
+        },
+        {
+          "label": "Building",
+          "means": "Participants build and can join or change teams."
+        },
+        {
+          "label": "Entries closed",
+          "means": "General entries close; future team extensions survive. Judges can score."
+        },
+        {
+          "label": "Judging",
+          "means": "All teams stop editing, including extended teams. Judges can score if unlocked."
+        },
+        {
+          "label": "Results",
+          "means": "Stops scoring and locks judging; does not itself publish a results snapshot."
+        },
+        {
+          "label": "Ended",
+          "means": "Permanent end. Cannot reopen."
+        }
+      ],
+      "effects": [
+        "Entering Open/Building from outside those stages clears passed deadlines and reopens settled drafts; submitted entries stay submitted. Moving between Open and Building does neither.",
+        "Returning from Results to Judging keeps the lock; unlock separately with a reason."
+      ],
+      "keywords": [
+        "reopen",
+        "backwards",
+        "start building",
+        "close entries",
+        "finish judging"
+      ],
+      "related": [
+        "end",
+        "deadline",
+        "lock",
+        "publish"
+      ]
+    },
+    {
+      "id": "end",
+      "target": "o.end",
+      "label": "End event",
+      "sources": [
+        "screens/organiser-overview.js",
+        "ui.js"
+      ],
+      "explains": "Permanently end the event. It cannot be reopened.",
+      "when": "Finish an event people have joined.",
+      "effects": [
+        "At least one approved participant must exist; delete an unused event instead.",
+        "The public record and results remain. Team sites are removed after the number of days in CURRENT SETTINGS (30 by default); events can be exempted by the platform. Entries and scoring freeze; nobody can leave an Ended event.",
+        "After End, title, tagline, About, Rules, Prizes, conduct, time zone, dates, page style, colour, organiser details, gallery and directory listing remain editable. An AI app connected to Simple Hack can still change team finding, team size and Judging closes, even though the screens disable them. Unlocking, rubric edits and entry exclusion remain possible; scoring stays closed. Results can be republished."
+      ],
+      "keywords": [
+        "archive",
+        "ended",
+        "retention",
+        "30 days"
+      ],
+      "related": [
+        "delete",
+        "leave",
+        "publish",
+        "stage"
+      ]
+    },
+    {
+      "id": "basics",
+      "target": "o.basics",
+      "label": "Basics",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js"
+      ],
+      "explains": "Set the public title and tagline. The tagline is also used in link previews.",
+      "when": "Name your event or correct its details.",
+      "controls": [
+        "f-title",
+        "f-tag"
+      ],
+      "limits": [
+        "Title: 1–120 characters. Tagline: up to 160."
+      ],
+      "related": [
+        "times",
+        "timezone"
+      ]
+    },
+    {
+      "id": "times",
+      "target": "o.times",
+      "label": "Starts",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "screens/organiser-create-event.js"
+      ],
+      "explains": "Set event start and optional end dates and times. End cannot precede start.",
+      "when": "Set or correct the advertised dates.",
+      "controls": [
+        "new-start",
+        "new-end",
+        "${prefix}-time"
+      ],
+      "effects": [
+        "Dates supply schedule rows and prompts, not automatic stage changes. A date-only end includes the whole day in the event time zone."
+      ],
+      "related": [
+        "stage",
+        "schedule",
+        "timezone"
+      ]
+    },
+    {
+      "id": "timezone",
+      "target": "o.basics",
+      "label": "Time zone",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "screens/organiser-create-event.js"
+      ],
+      "explains": "Choose the zone used to enter and display event dates, deadlines and schedule times.",
+      "when": "Match your event’s local time.",
+      "controls": [
+        "f-tz",
+        "new-tz"
+      ],
+      "effects": [
+        "Changing the zone keeps deadline instants. Existing event start and end times keep their local calendar date and wall-clock time in the new zone."
+      ],
+      "limits": [
+        "Use a valid IANA time zone, such as Europe/London."
+      ],
+      "related": [
+        "times",
+        "deadline"
+      ]
+    },
+    {
+      "id": "about",
+      "target": "o.about",
+      "label": "About",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js"
+      ],
+      "explains": "Describe the event on its public page. Blank lines separate paragraphs.",
+      "when": "Explain the event to visitors.",
+      "controls": [
+        "f-about"
+      ],
+      "limits": [
+        "Up to 10,000 characters."
+      ],
+      "related": [
+        "prizes",
+        "rules",
+        "conduct"
+      ]
+    },
+    {
+      "id": "prizes",
+      "target": "o.prizes",
+      "label": "Prizes",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Describe prizes on the public page.",
+      "when": "Tell teams what they can win.",
+      "controls": [
+        "f-prizes"
+      ],
+      "limits": [
+        "Up to 5,000 characters."
+      ]
+    },
+    {
+      "id": "rules",
+      "target": "o.rules",
+      "label": "Rules",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Publish event-specific rules.",
+      "when": "Tell teams how your competition works.",
+      "controls": [
+        "f-rules"
+      ],
+      "limits": [
+        "Up to 10,000 characters."
+      ],
+      "related": [
+        "conduct"
+      ]
+    },
+    {
+      "id": "conduct",
+      "target": "o.coc",
+      "label": "Code of conduct",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Your additions appear after the standard code when people join. They supplement the standard code.",
+      "when": "Set conduct expectations for joining.",
+      "controls": [
+        "f-coc"
+      ],
+      "limits": [
+        "Your additions: up to 10,000 characters."
+      ],
+      "keywords": [
+        "behaviour",
+        "conduct",
+        "safety"
+      ]
+    },
+    {
+      "id": "schedule",
+      "target": "o.schedule",
+      "label": "Schedule",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js",
+        "schedule.js"
+      ],
+      "explains": "Add, edit or remove public schedule items. Fixed event dates and deadlines come from their settings and must be changed there.",
+      "when": "Plan or revise sessions before End.",
+      "controls": [
+        "d-title",
+        "d-desc",
+        "d-prompt",
+        "button:Add time"
+      ],
+      "options": [
+        {
+          "label": "Nothing",
+          "means": "No stage prompt."
+        },
+        {
+          "label": "Open sign-up",
+          "means": "Ask the organiser to open joining."
+        },
+        {
+          "label": "Start building",
+          "means": "Ask to begin Building."
+        },
+        {
+          "label": "Close entries",
+          "means": "Ask to close entries."
+        },
+        {
+          "label": "Start judging",
+          "means": "Ask to begin Judging."
+        },
+        {
+          "label": "Finish judging",
+          "means": "Ask to move to Results and lock judging."
+        },
+        {
+          "label": "Publish results",
+          "means": "Ask to publish a results snapshot."
+        }
+      ],
+      "effects": [
+        "When this starts, ask to only prompts the organiser. No transition occurs without their action. Content lists cannot change after End."
+      ],
+      "limits": [
+        "Up to 100 items. Title: 1–120 characters. Details: up to 500. End must be after start."
+      ],
+      "related": [
+        "times",
+        "deadline",
+        "judging.closes",
+        "stage"
+      ]
+    },
+    {
+      "id": "tracks",
+      "target": "o.tracks",
+      "label": "Tracks",
+      "sources": [
+        "screens/_event-tracks.js",
+        "navigation-data.js"
+      ],
+      "explains": "Optional challenges with a Track name, Challenge and Prize. Each team chooses one track; without tracks everyone competes together.",
+      "when": "Offer separate challenges before End.",
+      "controls": [
+        "trk-name",
+        "trk-challenge",
+        "trk-prize",
+        "button:Add track"
+      ],
+      "effects": [
+        "Removing a track clears its teams’ selections. Changes stop after End. All tracks use the same event-wide rubric; Panel changes judge access, not criteria."
+      ],
+      "limits": [
+        "Up to 12 tracks; field limits are explained separately."
+      ],
+      "keywords": [
+        "categories",
+        "challenge",
+        "track prize"
+      ],
+      "related": [
+        "rubric",
+        "judging.mode",
+        "tracks.name",
+        "tracks.challenge",
+        "tracks.prize"
+      ]
+    },
+    {
+      "id": "sponsors",
+      "target": "o.sponsors",
+      "label": "Sponsors",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js"
+      ],
+      "explains": "Add sponsor Logo, Name, Tier and Link; drag or use Move up/down to order them publicly.",
+      "when": "Credit event supporters before End.",
+      "controls": [
+        "d-logo-file",
+        "d-name",
+        "d-tier",
+        "d-link",
+        "button:Add sponsor"
+      ],
+      "effects": [
+        "Remove deletes the sponsor from the list. List editing stops after End."
+      ],
+      "related": [
+        "sponsors.logo",
+        "sponsors.name",
+        "sponsors.tier",
+        "sponsors.link"
+      ],
+      "limits": [
+        "Up to 20 sponsors."
+      ]
+    },
+    {
+      "id": "faq",
+      "target": "o.faq",
+      "label": "FAQ",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js"
+      ],
+      "explains": "Add public Questions and Answers. Answers start folded; drag or use the menu to reorder.",
+      "when": "Answer common visitor questions before End.",
+      "controls": [
+        "d-q",
+        "d-a",
+        "button:Add question"
+      ],
+      "effects": [
+        "Remove deletes that question. List editing stops after End."
+      ],
+      "keywords": [
+        "common questions"
+      ],
+      "related": [],
+      "limits": [
+        "Up to 30 questions. Question: 1–200 characters. Answer: 1–2,000."
+      ]
+    },
+    {
+      "id": "look",
+      "target": "o.look",
+      "label": "Look",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js"
+      ],
+      "explains": "Choose the built-in public page appearance. Style and colour changes save immediately.",
+      "when": "Match the page to your event.",
+      "related": [
+        "look.style",
+        "look.colour",
+        "look.icon",
+        "gallery"
+      ]
+    },
+    {
+      "id": "look.style",
+      "target": "o.look",
+      "label": "Page style",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Choose the visual style of the built-in event page. Your colour still drives buttons and links in every style, and content is kept when switching.",
+      "when": "Match the look to your audience.",
+      "options": [
+        {
+          "label": "Classic",
+          "means": "Today's look: the standard event page."
+        },
+        {
+          "label": "Poster",
+          "means": "Bold, for student hacks."
+        },
+        {
+          "label": "Confetti",
+          "means": "Bright and playful."
+        },
+        {
+          "label": "Boardroom",
+          "means": "Clean, for company events."
+        },
+        {
+          "label": "Garden",
+          "means": "Calm and friendly."
+        },
+        {
+          "label": "Terminal",
+          "means": "For developer crowds."
+        }
+      ],
+      "keywords": [
+        "theme",
+        "design"
+      ],
+      "controls": [
+        "button:Try another"
+      ],
+      "effects": [
+        "Try another picks another page style. Changes save immediately."
+      ]
+    },
+    {
+      "id": "look.colour",
+      "target": "o.look",
+      "label": "Colour",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Choose the event accent colour. Automatic uses a stable colour based on the event address.",
+      "when": "Use your event’s colours.",
+      "options": [
+        {
+          "label": "Automatic",
+          "means": "Choose a stable colour from the event address."
+        },
+        {
+          "label": "Red",
+          "means": "Use this accent."
+        },
+        {
+          "label": "Teal",
+          "means": "Use this accent."
+        },
+        {
+          "label": "Indigo",
+          "means": "Use this accent."
+        },
+        {
+          "label": "Orange",
+          "means": "Use this accent."
+        },
+        {
+          "label": "Yellow",
+          "means": "Use this accent."
+        },
+        {
+          "label": "Grass",
+          "means": "Use this accent."
+        },
+        {
+          "label": "Blush",
+          "means": "Use this accent."
+        }
+      ]
+    },
+    {
+      "id": "look.icon",
+      "target": "o.look",
+      "label": "Event icon",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Upload, replace or remove the event icon. Without an uploaded icon the event has a generated fallback.",
+      "when": "Add your event image before End.",
+      "controls": [
+        "icon-file"
+      ],
+      "effects": [
+        "Icon changes stop after End."
+      ],
+      "limits": [
+        "PNG, JPEG or WebP; upload size is limited by the server’s event icon allowance."
+      ]
+    },
+    {
+      "id": "gallery",
+      "target": "o.gallery",
+      "label": "Show entries on the event page",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Control whether visitors can browse the public entry gallery.",
+      "when": "Share entries, including after End.",
+      "controls": [
+        "gallery-toggle"
+      ],
+      "effects": [
+        "People’s choice requires the gallery to be open. This does not exclude entries from judging.",
+        "The public gallery lists live team websites. The switch stays editable after End."
+      ],
+      "related": [
+        "voting",
+        "exclusion"
+      ]
+    },
+    {
+      "id": "website",
+      "target": "o.website",
+      "label": "Website",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "navigation-data.js"
+      ],
+      "explains": "Choose what appears at the event website address. The address cannot be renamed here.",
+      "when": "Choose your public website before End.",
+      "controls": [
+        "site-zip"
+      ],
+      "options": [
+        {
+          "label": "Built-in event page",
+          "means": "Show the page configured in these tabs."
+        },
+        {
+          "label": "Your own website",
+          "means": "Show an uploaded static website; requires an upload."
+        }
+      ],
+      "effects": [
+        "Switching modes retains both built-in content and website uploads. Built-in edits still save while a custom site is shown.",
+        "Uploading a zip publishes immediately. Earlier uploads are listed, but an older version cannot be made live again; upload it again instead. Mode changes and publishing stop after End."
+      ],
+      "limits": [
+        "Zip limit is set by the server and appears in CURRENT SETTINGS as Website zip upload limit. Include index.html at the top level."
+      ],
+      "keywords": [
+        "custom website",
+        "upload",
+        "restore",
+        "version",
+        "zip"
+      ]
+    },
+    {
+      "id": "signup",
+      "target": "o.signup",
+      "label": "Sign-up",
+      "sources": [
+        "screens/_settings-people.js",
+        "navigation-data.js"
+      ],
+      "explains": "Control approval for people joining with the shared join link. Public applications always require review.",
+      "when": "Decide how to admit new people.",
+      "controls": [
+        "signup-approval"
+      ],
+      "effects": [
+        "Turning link approval off offers a choice to leave pending link sign-ups waiting or approve them now. It does not automatically approve public applicants."
+      ],
+      "related": [
+        "signup.questions",
+        "applications",
+        "links.join"
+      ]
+    },
+    {
+      "id": "signup.questions",
+      "target": "o.signup",
+      "label": "Question",
+      "sources": [
+        "screens/_settings-people.js"
+      ],
+      "explains": "Ask Required or optional registration questions; required answers must be supplied to register.",
+      "when": "Collect details from new sign-ups.",
+      "controls": [
+        "button:Save questions",
+        "button:Add question"
+      ],
+      "effects": [
+        "Save questions applies the edited list. Location, age range and gender are separate optional profile fields."
+      ],
+      "limits": [
+        "Up to 8 questions. Question: 1–160 characters. Answer: up to 500."
+      ],
+      "keywords": [
+        "registration questions",
+        "application form"
+      ],
+      "related": [
+        "applications"
+      ]
+    },
+    {
+      "id": "applications.setting",
+      "target": "o.applications-setting",
+      "label": "Let people apply without your join link",
+      "sources": [
+        "screens/_settings-people.js",
+        "screens/_settings-admin.js"
+      ],
+      "explains": "Enable public applications separately from shared-link joining.",
+      "when": "Accept people who lack your join link.",
+      "controls": [
+        "apps-toggle"
+      ],
+      "effects": [
+        "An Apply button requires public applications on, directory listing on, and stage Open or Building. Turning applications off stops new applications; pending applications remain."
+      ],
+      "related": [
+        "directory",
+        "applications",
+        "signup"
+      ]
+    },
+    {
+      "id": "directory",
+      "target": "o.directory",
+      "label": "List this event on Find a hackathon",
+      "sources": [
+        "screens/_settings-people.js",
+        "screens/_settings-results.js",
+        "navigation-data.js"
+      ],
+      "explains": "Control public directory listing independently of joining and voting.",
+      "when": "Help people find your event or hide its listing.",
+      "controls": [
+        "res-directory-listed"
+      ],
+      "related": [
+        "applications.setting",
+        "voting"
+      ]
+    },
+    {
+      "id": "team.finding",
+      "target": "o.team-rules",
+      "label": "Team finding",
+      "sources": [
+        "screens/_settings-teams.js"
+      ],
+      "explains": "Allow participants to browse teams, request to join and invite others.",
+      "when": "Help participants find teammates.",
+      "controls": [
+        "tf-on"
+      ],
+      "effects": [
+        "Team links and codes work with Team finding off. Participant team operations require Open or Building."
+      ],
+      "related": [
+        "team.size",
+        "solo",
+        "team.lock"
+      ]
+    },
+    {
+      "id": "team.size",
+      "target": "o.team-rules",
+      "label": "Most people per team",
+      "sources": [
+        "screens/_settings-teams.js"
+      ],
+      "explains": "Set the team capacity.",
+      "when": "Set or revise team capacity.",
+      "controls": [
+        "ts-size"
+      ],
+      "effects": [
+        "Reducing capacity does not remove existing members. The editor disables this after End."
+      ],
+      "limits": [
+        "1–50 people."
+      ],
+      "related": [
+        "solo",
+        "team.members"
+      ]
+    },
+    {
+      "id": "deadline",
+      "target": "o.deadline",
+      "label": "Deadline",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "Set when entries and team website changes close in the event time zone.",
+      "when": "Choose when teams must finish.",
+      "controls": [
+        "deadline-input",
+        "button:Save deadline",
+        "button:Clear deadline"
+      ],
+      "effects": [
+        "At the effective deadline, complete drafts auto-submit. Incomplete settled drafts remain judgeable unless excluded.",
+        "Clearing or moving the general deadline into the future cannot reopen Closed, Judging or Results. Return to Building, or grant an individual extension where applicable. Ended blocks deadline changes.",
+        "Entry reminders apply only in Open, Building or Closed, to teams without submitted entries; taken-down teams and events are excluded."
+      ],
+      "keywords": [
+        "submission deadline",
+        "closing time",
+        "late entries"
+      ],
+      "related": [
+        "extensions",
+        "stage",
+        "exclusion"
+      ]
+    },
+    {
+      "id": "entry.rules",
+      "target": "o.entry-rules",
+      "label": "What teams hand in",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "Choose a preset and adjust summary and evidence requirements in Draft, Open or Building.",
+      "when": "Set hand-in rules in Draft, Open or Building.",
+      "options": [
+        {
+          "label": "Video or website",
+          "means": "Require video or a published team website, at least one. Code is Off; video is first after the summary."
+        },
+        {
+          "label": "Video, website and code link",
+          "means": "Require all three; website is first after the summary."
+        }
+      ],
+      "effects": [
+        "Presets require the summary except audience. Track is ignored without tracks. Description and screenshot are optional.",
+        "Editing lines may show Custom. Older presets are read-only.",
+        "Stricter rules keep submitted entries submitted; drafts may become blocked. Review the impact before confirming."
+      ],
+      "keywords": [
+        "preset",
+        "hand-in",
+        "submission rules",
+        "custom",
+        "requirements"
+      ],
+      "related": [
+        "entry.summary",
+        "entry.evidence",
+        "entry.first"
+      ]
+    },
+    {
+      "id": "entry.summary",
+      "target": "o.entry-rules",
+      "label": "Summary card",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "Judges see this card first. Project name is always required. Other summary rows can be Required, Optional or Off.",
+      "when": "Set summary requirements before entries close.",
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ],
+      "effects": [
+        "Track is ignored without tracks. Description is an older supported field without a current organiser row."
+      ],
+      "keywords": [
+        "project card",
+        "entry card",
+        "summary"
+      ],
+      "related": [
+        "entry.problem",
+        "entry.solution",
+        "entry.audience",
+        "entry.track",
+        "entry.tools",
+        "entry.maturity"
+      ],
+      "limits": [
+        "Project name: up to 80 characters."
+      ]
+    },
+    {
+      "id": "entry.title",
+      "target": "o.entry-rules",
+      "label": "Project name",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "The entry's name, the first row of the summary card. It is always Required: it cannot be made Optional or Off.",
+      "keywords": [
+        "title",
+        "project title",
+        "entry name"
+      ],
+      "related": [
+        "entry.summary"
+      ]
+    },
+    {
+      "id": "entry.problem",
+      "target": "o.entry-rules",
+      "label": "Problem, in one line",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "The problem the project addresses.",
+      "when": "Ask about the need before entries close.",
+      "limits": [
+        "Up to 140 characters."
+      ],
+      "keywords": [
+        "project problem"
+      ],
+      "related": [
+        "entry.summary",
+        "entry.rules"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.solution",
+      "target": "o.entry-rules",
+      "label": "Solution, in one line",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "A short explanation of the solution, also used on the team sites list.",
+      "when": "Ask about the solution before entries close.",
+      "limits": [
+        "Up to 160 characters."
+      ],
+      "keywords": [
+        "project solution"
+      ],
+      "related": [
+        "entry.summary",
+        "entry.rules"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.audience",
+      "target": "o.entry-rules",
+      "label": "Who it's for",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "The people the project aims to help.",
+      "when": "Ask who benefits before entries close.",
+      "limits": [
+        "Up to 100 characters."
+      ],
+      "keywords": [
+        "project audience"
+      ],
+      "related": [
+        "entry.summary",
+        "entry.rules"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.track",
+      "target": "o.entry-rules",
+      "label": "Track",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "The team’s challenge; required only when tracks exist and the rule requires it.",
+      "when": "Require track selection before entries close.",
+      "limits": [
+        "Choose an existing track."
+      ],
+      "keywords": [
+        "project track"
+      ],
+      "related": [
+        "entry.summary",
+        "entry.rules"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.tools",
+      "target": "o.entry-rules",
+      "label": "Tools and AI",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "Tags naming the tools used.",
+      "when": "Ask about tools before entries close.",
+      "limits": [
+        "Up to 10 distinct tools, each 1–30 characters."
+      ],
+      "keywords": [
+        "project tools"
+      ],
+      "related": [
+        "entry.summary",
+        "entry.rules"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.maturity",
+      "target": "o.entry-rules",
+      "label": "What works today",
+      "sources": [
+        "screens/_settings-entries.js",
+        "ui.js"
+      ],
+      "explains": "Describe how much of the project works.",
+      "when": "Ask what works before entries close.",
+      "options": [
+        {
+          "label": "Demo-ready",
+          "means": "A working demonstration."
+        },
+        {
+          "label": "Partly working",
+          "means": "Some parts work."
+        },
+        {
+          "label": "Concept",
+          "means": "An idea or design."
+        }
+      ],
+      "related": [
+        "entry.summary"
+      ]
+    },
+    {
+      "id": "entry.evidence",
+      "target": "o.entry-rules",
+      "label": "Show your work",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "Set requirements for video, team website, code and screenshot.",
+      "when": "Set evidence requirements before entries close.",
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "One of",
+          "means": "Supply at least one marked item."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ],
+      "effects": [
+        "All One of rows form one group; one supplied item is enough. Off does not delete saved evidence."
+      ],
+      "keywords": [
+        "evidence",
+        "demo",
+        "one of"
+      ],
+      "related": [
+        "entry.video",
+        "entry.site",
+        "entry.code",
+        "entry.screenshot",
+        "entry.first"
+      ]
+    },
+    {
+      "id": "entry.video",
+      "target": "o.entry-rules",
+      "label": "Video link",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "Demo video link; supported players embed, other links open externally.",
+      "when": "Request a demo before entries close.",
+      "limits": [
+        "Absolute HTTP or HTTPS URL, up to 500 characters."
+      ],
+      "related": [
+        "entry.evidence"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "One of",
+          "means": "Supply at least one marked item."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.site",
+      "target": "o.entry-rules",
+      "label": "Website",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "The team’s published site, rather than a URL entered in the form.",
+      "when": "Request a site before entries close.",
+      "limits": [
+        "Must be live to count as present."
+      ],
+      "related": [
+        "entry.evidence"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "One of",
+          "means": "Supply at least one marked item."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.code",
+      "target": "o.entry-rules",
+      "label": "Code link",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "A link to source code, such as a repository.",
+      "when": "Request code before entries close.",
+      "limits": [
+        "Absolute HTTP or HTTPS URL, up to 500 characters."
+      ],
+      "related": [
+        "entry.evidence"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "One of",
+          "means": "Supply at least one marked item."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.screenshot",
+      "target": "o.entry-rules",
+      "label": "Screenshot",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "An image of the project, provided by the team.",
+      "when": "Request an image before entries close.",
+      "limits": [
+        "PNG, JPEG or WebP, up to 2 MB and 8,000 pixels per side."
+      ],
+      "related": [
+        "entry.evidence"
+      ],
+      "options": [
+        {
+          "label": "Required",
+          "means": "Must be supplied."
+        },
+        {
+          "label": "One of",
+          "means": "Supply at least one marked item."
+        },
+        {
+          "label": "Optional",
+          "means": "May be supplied."
+        },
+        {
+          "label": "Off",
+          "means": "Not requested."
+        }
+      ]
+    },
+    {
+      "id": "entry.first",
+      "target": "o.entry-rules",
+      "label": "After the card, first",
+      "sources": [
+        "screens/_settings-entries.js"
+      ],
+      "explains": "Choose which evidence view opens after the summary card. The summary always comes first.",
+      "when": "Set the opening view before entries close.",
+      "options": [
+        {
+          "label": "Video",
+          "means": "Open video evidence first."
+        },
+        {
+          "label": "Website",
+          "means": "Open website evidence first."
+        }
+      ],
+      "related": [
+        "entry.rules",
+        "rubric"
+      ]
+    },
+    {
+      "id": "reminders",
+      "target": "o.reminders",
+      "label": "Reminder times",
+      "sources": [
+        "screens/_settings-entries.js",
+        "navigation-data.js"
+      ],
+      "explains": "Email teams without submitted entries before their deadline, and judges with work left before Judging closes.",
+      "when": "Arrange deadline nudges before End.",
+      "controls": [
+        "rem-n",
+        "rem-unit"
+      ],
+      "options": [
+        {
+          "label": "days before",
+          "means": "Offset in days."
+        },
+        {
+          "label": "hours before",
+          "means": "Offset in hours."
+        },
+        {
+          "label": "minutes before",
+          "means": "Offset in minutes."
+        }
+      ],
+      "effects": [
+        "The same offsets serve both audiences. Judges also need Judging closes set. An empty list disables reminders. Changes stop after End.",
+        "Entry reminders: Open/Building/Closed only; no taken-down teams/events. Judge reminders: Judging, unlocked, future Judging closes, dedicated judge membership and work left; organiser judges are excluded."
+      ],
+      "limits": [
+        "Up to 5 distinct offsets, each 15 minutes–14 days before. Defaults: 1 day and 1 hour."
+      ],
+      "keywords": [
+        "deadline email",
+        "reminder emails"
+      ],
+      "related": [
+        "deadline",
+        "judging.closes"
+      ]
+    },
+    {
+      "id": "judging.closes",
+      "target": "o.judging-closes",
+      "label": "Judging closes",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Set the reminder time and fixed schedule row for judging.",
+      "when": "Time your judge reminders.",
+      "controls": [
+        "jg-closes-input"
+      ],
+      "effects": [
+        "This time does not stop scoring or lock judging. Clear it to stop judge reminders tied to that time. Stage and judging lock control scoring.",
+        "Judge reminders require Judging, unlocked judging, a future close and dedicated judges with work left; organiser judges are excluded."
+      ],
+      "related": [
+        "reminders",
+        "lock",
+        "stage"
+      ]
+    },
+    {
+      "id": "rubric",
+      "target": "o.rubric",
+      "label": "Rubric",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Set event-wide criteria, readable by approved participants; tracks share the rubric.",
+      "when": "Set or revise criteria while judging is unlocked.",
+      "controls": [
+        "button:Add a criterion",
+        "button:Save rubric"
+      ],
+      "effects": [
+        "Criteria have Name, Description, Weight % and Max points. Defaults: Idea, Execution, Design, Demo, each 25% and 5 points. Unlock to edit, even after End; keep the fixed tie criterion."
+      ],
+      "keywords": [
+        "criteria",
+        "scoring sheet",
+        "marks",
+        "weights",
+        "maximum points"
+      ],
+      "related": [
+        "rubric.scores",
+        "rubric.final",
+        "tie",
+        "lock",
+        "rubric.name",
+        "rubric.description",
+        "rubric.weight",
+        "rubric.points"
+      ],
+      "limits": [
+        "1–10 criteria. Whole weights must total 100."
+      ]
+    },
+    {
+      "id": "rubric.scores",
+      "target": "o.rubric",
+      "label": "Save rubric",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Keep criterion identities to preserve compatible scores across renaming, reordering and reweighting.",
+      "when": "Save changes while judging is unlocked.",
+      "effects": [
+        "Removing a scored criterion, or lowering Max points below marks judges already gave, asks you to confirm first. Removal deletes that criterion’s scores; lowering deletes only marks above the new maximum. Republish to update published standings."
+      ],
+      "keywords": [
+        "score deletion",
+        "reset scores",
+        "lower max points"
+      ],
+      "related": [
+        "rubric",
+        "tie",
+        "lock",
+        "publish"
+      ]
+    },
+    {
+      "id": "rubric.final",
+      "target": "o.rubric-ready",
+      "label": "Mark as final",
+      "sources": [
+        "screens/_settings-judging.js",
+        "ui.js",
+        "checklist.js"
+      ],
+      "explains": "Mark the rubric setup item as ready for the organiser checklist. This does not replace the judging lock.",
+      "when": "Confirm your criteria are ready.",
+      "related": [
+        "rubric",
+        "lock"
+      ],
+      "effects": [
+        "The acknowledgement follows the saved rubric version. Saving a rubric in Closed automatically marks that saved version final; changes in other stages need a fresh acknowledgement."
+      ],
+      "controls": [
+        "button:text:label"
+      ]
+    },
+    {
+      "id": "tie",
+      "target": "o.tie-break",
+      "label": "First tie criterion",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Choose an existing rubric criterion to break equal totals. Pick a criterion leaves no first criterion.",
+      "when": "Choose the first tie rule before the Judging stage.",
+      "controls": [
+        "jg-tie"
+      ],
+      "effects": [
+        "While the current stage is Judging, Results or Ended, the tie criterion cannot change or leave the rubric. Returning to Closed/Building permits changes if unlocked. Equal totals use the optional criterion, then judges’ pairwise preferences; organisers order remaining ties at publication."
+      ],
+      "keywords": [
+        "tie-break",
+        "equal scores"
+      ],
+      "related": [
+        "rubric",
+        "ties"
+      ],
+      "options": [
+        {
+          "label": "Pick a criterion",
+          "means": "No first tie criterion; otherwise choose a current rubric criterion."
+        }
+      ]
+    },
+    {
+      "id": "judging.mode",
+      "target": "o.judging-mode",
+      "label": "How judges are assigned",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Control which teams judges can score. Conflicts apply in every mode.",
+      "when": "Allocate judging work while unlocked, before End.",
+      "controls": [
+        "jg-mode-open",
+        "jg-mode-automatic",
+        "jg-mode-manual",
+        "jg-mode-panel",
+        "jg-per"
+      ],
+      "options": [
+        {
+          "label": "Open",
+          "means": "Judges choose any eligible team."
+        },
+        {
+          "label": "Automatic",
+          "means": "Generate balanced pairs; judges score assigned teams only."
+        },
+        {
+          "label": "Manual",
+          "means": "Choose pairs in the grid; judges score assigned teams only."
+        },
+        {
+          "label": "Panel",
+          "means": "Choose judges per track; conflicted teams remain excluded."
+        }
+      ],
+      "effects": [
+        "In Automatic and Manual, a current judge’s scores count only for teams still assigned to them; removing a pair stops its scores counting without deleting them. Former judges use the teams counted when they left.",
+        "Generating again replaces assignments, never scores. Conflicts and entry eligibility still apply. Lock blocks access changes; End blocks mode changes."
+      ],
+      "limits": [
+        "Judges per team: 1–20."
+      ],
+      "keywords": [
+        "assignment mode",
+        "judge access"
+      ],
+      "related": [
+        "assignments",
+        "conflicts",
+        "lock"
+      ]
+    },
+    {
+      "id": "judging.access",
+      "target": "o.mode",
+      "label": "How judges are assigned",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Choose judge access; see How judges are assigned.",
+      "when": "Allocate judging work while unlocked, before End.",
+      "keywords": [
+        "assignment mode",
+        "judge access"
+      ],
+      "related": [
+        "assignments",
+        "conflicts",
+        "lock"
+      ]
+    },
+    {
+      "id": "result.ranking",
+      "target": "o.result-rules",
+      "label": "How teams are ranked",
+      "sources": [
+        "screens/_settings-results.js"
+      ],
+      "explains": "Choose the average used to rank teams. Raw criterion marks are retained.",
+      "when": "Choose how to compare scores before End.",
+      "controls": [
+        "res-score-mode"
+      ],
+      "options": [
+        {
+          "label": "Average, adjusted for strict and generous judges",
+          "means": "Calculate each judge’s weighted total, normalise those totals for strict and generous judges, then average across judges."
+        },
+        {
+          "label": "Average score",
+          "means": "Use raw weighted average scores."
+        }
+      ],
+      "effects": [
+        "A published snapshot does not recalculate itself. Publish again to replace it."
+      ],
+      "keywords": [
+        "normalised",
+        "raw",
+        "strict judges",
+        "generous judges"
+      ],
+      "related": [
+        "result.visibility",
+        "publish",
+        "ties"
+      ]
+    },
+    {
+      "id": "result.visibility",
+      "target": "o.result-rules",
+      "label": "Show on the public page",
+      "sources": [
+        "screens/_settings-results.js"
+      ],
+      "explains": "Control public result visibility separately from ranking calculations.",
+      "when": "Set public result details before End.",
+      "controls": [
+        "res-visibility",
+        "res-public-scores",
+        "res-public-ranks"
+      ],
+      "options": [
+        {
+          "label": "Full ranking",
+          "means": "Show every ranked team."
+        },
+        {
+          "label": "Winners only",
+          "means": "Show global rank-one teams and track winners, including tied winners."
+        }
+      ],
+      "effects": [
+        "Requires published results. Show scores and Show ranks are independent; teams see their own score. Full ranking lists all ranked teams, omitting unranked unscored/excluded teams.",
+        "After End the editor disables visibility/ranking settings. An AI app connected to Simple Hack can still switch between Full ranking and Winners only; the ranking settings stay closed. Republish separately."
+      ],
+      "related": [
+        "publish",
+        "result.ranking"
+      ]
+    },
+    {
+      "id": "voting",
+      "target": "o.voting",
+      "label": "People’s choice",
+      "sources": [
+        "screens/_settings-results.js",
+        "navigation-data.js"
+      ],
+      "explains": "Let signed-in visitors vote during a chosen window. Starts and Ends use the event time zone.",
+      "when": "Arrange a public vote before End.",
+      "controls": [
+        "res-vote-enabled",
+        "res-vote-opens",
+        "res-vote-closes",
+        "res-vote-eligibility",
+        "button:Save voting window"
+      ],
+      "options": [
+        {
+          "label": "Anyone signed in",
+          "means": "Any signed-in eligible visitor."
+        },
+        {
+          "label": "Approved event members",
+          "means": "Approved members, including organisers and judges."
+        },
+        {
+          "label": "Approved participants only",
+          "means": "Only approved participant members."
+        }
+      ],
+      "effects": [
+        "Gallery must be open. Voting is unavailable in Draft and Ended. People cannot vote for their own team and can change their chosen team.",
+        "Restricting eligibility asks to permanently remove newly ineligible votes. Turning voting off or changing the window does not itself delete all votes."
+      ],
+      "limits": [
+        "Both opening and closing times are required when enabled; closing must follow opening."
+      ],
+      "keywords": [
+        "public vote",
+        "audience award",
+        "eligibility"
+      ],
+      "related": [
+        "gallery",
+        "directory"
+      ]
+    },
+    {
+      "id": "details",
+      "target": "o.details",
+      "label": "Organiser details",
+      "sources": [
+        "screens/_settings-admin.js",
+        "navigation-data.js"
+      ],
+      "explains": "Edit organiser identity, contact and planning details.",
+      "when": "Set or correct organiser details.",
+      "controls": [
+        "set-name",
+        "set-org",
+        "set-email",
+        "set-purpose",
+        "set-n"
+      ],
+      "keywords": [
+        "purpose",
+        "expected participants",
+        "contact email",
+        "organisation"
+      ],
+      "related": [
+        "create",
+        "details.name",
+        "details.org",
+        "details.email",
+        "details.purpose",
+        "details.expected"
+      ]
+    },
+    {
+      "id": "organisers",
+      "target": "o.organisers",
+      "label": "Organisers",
+      "sources": [
+        "screens/_settings-people.js",
+        "navigation-data.js"
+      ],
+      "explains": "Create invitation makes a link for one co-organiser; copy and send it, then they open it and accept. Co-organisers have full event control, including deletion. The creator cannot be removed.",
+      "when": "Add or remove organising help before End.",
+      "controls": [
+        "coorg-url",
+        "button:Create invitation",
+        "button:Copy invitation",
+        "button:Revoke invitation",
+        "button:Remove co-organiser"
+      ],
+      "effects": [
+        "An invitation works for 7 days and is used up when someone accepts it. There is one invitation at a time: creating a new one replaces the old link. Existing event members cannot use it to switch roles. Revoke invitation stops an unused link working. Creator departure requires handover.",
+        "Remove co-organiser permanently deletes that organiser’s scores. Voluntary leaving instead preserves scores that remain eligible."
+      ],
+      "keywords": [
+        "invitation",
+        "co-organiser",
+        "permissions"
+      ],
+      "related": [
+        "leave",
+        "handover",
+        "delete"
+      ]
+    },
+    {
+      "id": "links",
+      "target": "o.links",
+      "label": "Links",
+      "sources": [
+        "navigation-data.js"
+      ],
+      "explains": "Manage shared participant and judge invitations. Team links are separate.",
+      "when": "Invite people before joining closes.",
+      "related": [
+        "links.join",
+        "links.judge",
+        "team.link"
+      ]
+    },
+    {
+      "id": "links.join",
+      "target": "o.links",
+      "label": "Join link",
+      "sources": [
+        "screens/_settings-links.js",
+        "screens/organiser-overview.js"
+      ],
+      "explains": "Copy the participant joining link or make a New link.",
+      "when": "Invite people or replace a link before End.",
+      "controls": [
+        "ov-join-url",
+        "button:New link"
+      ],
+      "effects": [
+        "New link invalidates the old invitation; existing members stay. Joining needs Open or Building. No rotation after End."
+      ],
+      "keywords": [
+        "invite participants",
+        "rotate link"
+      ],
+      "related": [
+        "signup",
+        "applications"
+      ]
+    },
+    {
+      "id": "links.judge",
+      "target": "o.links",
+      "label": "Judge link",
+      "sources": [
+        "screens/_settings-links.js",
+        "screens/organiser-overview.js"
+      ],
+      "explains": "Copy the judge invitation or make a New link.",
+      "when": "Invite judges or replace a link before End.",
+      "controls": [
+        "ov-judge-url"
+      ],
+      "effects": [
+        "New link invalidates the old invitation; existing judges stay. No joining in Results or Ended, role switching, or rotation after End."
+      ],
+      "related": [
+        "judges",
+        "links.join"
+      ]
+    },
+    {
+      "id": "notifications",
+      "target": "o.notifications",
+      "label": "Notifications",
+      "sources": [
+        "screens/_settings-admin.js",
+        "navigation-data.js"
+      ],
+      "explains": "Notify a webhook about event website data and uploads; participant emails and reminders are separate.",
+      "when": "Pass website activity to another service.",
+      "controls": [
+        "notify-url",
+        "notify-label",
+        "notify-storage",
+        "notify-header-name",
+        "notify-header-value",
+        "notify-ev-${i}",
+        "notify-secret-${ui.esc(s.forId)}",
+        "button:Add notification",
+        "button:Send test",
+        "button:Rotate secret",
+        "button:Dismiss"
+      ],
+      "options": [
+        {
+          "label": "A visitor saves something",
+          "means": "Notify on a new saved record."
+        },
+        {
+          "label": "A visitor changes something they saved",
+          "means": "Notify on saved record changes."
+        },
+        {
+          "label": "A visitor uploads a file",
+          "means": "Notify on file uploads."
+        }
+      ],
+      "effects": [
+        "Set the receiver URL and optional label, storage filter and authentication header. Creation depends on website notification allowances.",
+        "Deliveries shows history. Send test checks the receiver. Pause stops delivery; Resume restarts it. States include Active, Paused, Suspended after failures, Waiting for check and Expired.",
+        "Copy the one-time signing secret. Rotation keeps the previous secret valid for 24 hours. Remove stops delivery. Connected-app subscriptions offer Pause, Resume and Remove, but no Send test or Rotate secret. Organiser-website delivery stops after End; new subscriptions require the website write window."
+      ],
+      "keywords": [
+        "webhook",
+        "notification URL",
+        "signing secret",
+        "deliveries"
+      ],
+      "related": [
+        "website",
+        "reminders"
+      ]
+    },
+    {
+      "id": "leave",
+      "target": "o.leave",
+      "label": "Leave event",
+      "sources": [
+        "screens/_settings-admin.js",
+        "leave.js"
+      ],
+      "explains": "Leave organiser membership and lose management access. Other organisers can continue.",
+      "when": "Step away from organising before End.",
+      "effects": [
+        "Nobody can leave after End. The creator must hand over; a last organiser must end or delete the event to leave."
+      ],
+      "keywords": [
+        "departure",
+        "last organiser"
+      ],
+      "related": [
+        "handover",
+        "end",
+        "delete"
+      ],
+      "controls": [
+        "button:End event and leave",
+        "button:Delete event and leave"
+      ]
+    },
+    {
+      "id": "handover",
+      "target": "o.handover",
+      "label": "Hand over and leave",
+      "sources": [
+        "leave.js"
+      ],
+      "explains": "Choose another organiser as successor when the creator leaves. Handover transfers creator responsibility.",
+      "when": "Pass ownership on when leaving before End.",
+      "effects": [
+        "With no successor, the last organiser must choose End event and leave or permanent deletion."
+      ],
+      "related": [
+        "leave",
+        "end",
+        "delete"
+      ]
+    },
+    {
+      "id": "delete",
+      "target": "o.delete",
+      "label": "Delete event",
+      "sources": [
+        "screens/_settings-admin.js",
+        "leave.js"
+      ],
+      "explains": "Any organiser, including a co-organiser, can permanently delete the event and its public page. There is no undo.",
+      "when": "Erase an unused or unwanted event.",
+      "controls": [
+        "delete-confirm",
+        "lv-confirm-slug"
+      ],
+      "effects": [
+        "Removes memberships, team sites, entries, scores, votes and results. Available after End too. Type the event address name to confirm when ended or participants or judges exist."
+      ],
+      "keywords": [
+        "delete forever",
+        "remove event"
+      ],
+      "related": [
+        "end",
+        "leave"
+      ]
+    },
+    {
+      "id": "people",
+      "target": "o.people",
+      "label": "People",
+      "sources": [
+        "screens/organiser-people.js",
+        "navigation-data.js"
+      ],
+      "explains": "Review event membership and pending applications. Show filters the membership list.",
+      "when": "Check membership and waiting applicants.",
+      "controls": [
+        "role-filter"
+      ],
+      "options": [
+        {
+          "label": "Everyone",
+          "means": "Show everyone."
+        },
+        {
+          "label": "Organisers",
+          "means": "Show organisers."
+        },
+        {
+          "label": "Participants",
+          "means": "Show participants."
+        },
+        {
+          "label": "Judges",
+          "means": "Show judges."
+        },
+        {
+          "label": "Co-organisers",
+          "means": "Show co-organisers."
+        }
+      ],
+      "related": [
+        "applications",
+        "people.remove",
+        "people.key"
+      ]
+    },
+    {
+      "id": "applications",
+      "target": "o.applications",
+      "label": "Applications",
+      "sources": [
+        "screens/organiser-people.js",
+        "navigation-data.js"
+      ],
+      "explains": "Approve or reject pending applications. Only pending decisions can be changed.",
+      "when": "Review pending applicants before End.",
+      "controls": [
+        "app-filter-from",
+        "app-filter-age",
+        "app-filter-country",
+        "app-filter-sort",
+        "button:Approve",
+        "button:Reject",
+        "button:Clear filters"
+      ],
+      "options": [
+        {
+          "label": "Everyone waiting (${pending.length})",
+          "means": "All pending people."
+        },
+        {
+          "label": "Applied (${appliedCount})",
+          "means": "Public applicants."
+        },
+        {
+          "label": "Join link (${linkCount})",
+          "means": "Pending shared-link sign-ups."
+        },
+        {
+          "label": "Any",
+          "means": "Do not filter this profile field."
+        },
+        {
+          "label": "Oldest first",
+          "means": "Oldest registrations first."
+        },
+        {
+          "label": "Newest first",
+          "means": "Newest registrations first."
+        }
+      ],
+      "effects": [
+        "Decisions send app and email notices. Rejection cannot be edited; the applicant can leave and apply again while applications are open.",
+        "Age range and Country filter optional profile data."
+      ],
+      "keywords": [
+        "approve",
+        "reject",
+        "pending",
+        "application filters"
+      ],
+      "related": [
+        "applications.age",
+        "signup"
+      ]
+    },
+    {
+      "id": "applications.age",
+      "target": "o.applications",
+      "label": "Age range",
+      "sources": [
+        "screens/organiser-people.js",
+        "ui.js"
+      ],
+      "explains": "Filter pending applications by their optional reported age range.",
+      "when": "Find applicants in an age range.",
+      "options": [
+        {
+          "label": "Under 18",
+          "means": "Filter by this age range."
+        },
+        {
+          "label": "18-24",
+          "means": "Filter by this age range."
+        },
+        {
+          "label": "25-34",
+          "means": "Filter by this age range."
+        },
+        {
+          "label": "35+",
+          "means": "Filter by this age range."
+        }
+      ],
+      "related": [
+        "applications"
+      ]
+    },
+    {
+      "id": "people.remove",
+      "target": "o.people",
+      "label": "Remove from event",
+      "sources": [
+        "screens/organiser-people.js"
+      ],
+      "explains": "Remove a participant or judge; manage organisers in Organisers settings.",
+      "when": "Remove someone’s access before End.",
+      "effects": [
+        "Membership and publishing access are removed. A removed judge’s eligible scores are preserved as former-judge scores.",
+        "Rotates the old team’s code and revokes stale publishing keys. An emptied team can be deleted with its entry. A frozen empty team stays without self-leave kept-team protection and can disappear from judging/results."
+      ],
+      "keywords": [
+        "kick",
+        "remove person"
+      ],
+      "related": [
+        "people.key",
+        "team.delete",
+        "former",
+        "organisers"
+      ]
+    },
+    {
+      "id": "people.key",
+      "target": "o.people",
+      "label": "Turn off publishing key",
+      "sources": [
+        "screens/organiser-people.js"
+      ],
+      "explains": "Revoke this person’s publishing credential immediately. This does not remove their membership.",
+      "when": "Stop publishing with someone’s current key.",
+      "effects": [
+        "They must create another key themselves to publish again."
+      ],
+      "keywords": [
+        "revoke publishing key",
+        "API key"
+      ],
+      "related": [
+        "people.remove"
+      ]
+    },
+    {
+      "id": "judges",
+      "target": "o.judges",
+      "label": "Judges",
+      "sources": [
+        "screens/organiser-people.js",
+        "ui.js",
+        "navigation-data.js"
+      ],
+      "explains": "Invite dedicated judges with the judge link; organisers can also use the judge interface.",
+      "when": "Recruit people to assess entries.",
+      "keywords": [
+        "score as a judge"
+      ],
+      "related": [
+        "links.judge",
+        "assignments",
+        "conflicts"
+      ]
+    },
+    {
+      "id": "teams",
+      "target": "o.teams",
+      "label": "Teams",
+      "sources": [
+        "screens/organiser-teams.js",
+        "navigation-data.js"
+      ],
+      "explains": "Browse teams, sizes, tracks and admission status. Open one for its membership, entry, joining and management controls.",
+      "when": "Check team membership and progress.",
+      "related": [
+        "team.detail",
+        "team.members",
+        "team.lock",
+        "solo",
+        "messages"
+      ]
+    },
+    {
+      "id": "solo",
+      "target": "o.solo",
+      "label": "Not on a team",
+      "sources": [
+        "screens/organiser-teams.js",
+        "navigation-data.js"
+      ],
+      "explains": "Approved participants without a team can be placed individually or using Fill teams.",
+      "when": "Fill teams in Open or Building.",
+      "controls": [
+        "fill-size",
+        "place-pick",
+        "button:Fill teams"
+      ],
+      "effects": [
+        "Fill teams works with Team finding off, in Open or Building. It skips locked teams and previews existing and new team placements before applying."
+      ],
+      "limits": [
+        "People per team: 1–event maximum; default is the smaller of 4 and that maximum."
+      ],
+      "keywords": [
+        "auto teams",
+        "fill teams",
+        "solo participants"
+      ],
+      "related": [
+        "team.size",
+        "team.members",
+        "team.lock"
+      ]
+    },
+    {
+      "id": "team.detail",
+      "target": "o.teams",
+      "label": "Team",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Open a team to inspect Members, Messages, Joining, Entry & site and the Danger zone.",
+      "when": "Inspect or manage one team.",
+      "controls": [
+        "rename-name",
+        "button:Delete team"
+      ],
+      "effects": [
+        "Team name can be changed separately from membership and entry."
+      ],
+      "limits": [
+        "Team name: 1–80 characters."
+      ],
+      "related": [
+        "team.members",
+        "team.lock",
+        "team.link",
+        "team.delete",
+        "messages"
+      ]
+    },
+    {
+      "id": "team.members",
+      "target": "o.teams",
+      "label": "Members",
+      "sources": [
+        "screens/organiser-team-detail.js",
+        "screens/organiser-teams.js"
+      ],
+      "explains": "Add someone, move a participant, take them off the team or choose team admins.",
+      "when": "Adjust membership or admins before End.",
+      "controls": [
+        "move-target",
+        "add-pick",
+        "button:Add someone"
+      ],
+      "effects": [
+        "Placement needs approval and capacity. Organisers can bypass ordinary admission locks, but cannot refill kept empty teams.",
+        "Organiser changes stop after End; participant stage and deadline limits are separate."
+      ],
+      "keywords": [
+        "make admin",
+        "remove as admin",
+        "move to another team",
+        "take off team",
+        "put on a team"
+      ],
+      "related": [
+        "team.lock",
+        "team.size",
+        "solo"
+      ]
+    },
+    {
+      "id": "team.lock",
+      "target": "o.teams",
+      "label": "Lock team",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Stop admission through team links, codes, requests and invitations.",
+      "when": "Close or reopen team admission before End.",
+      "controls": [
+        "team-lock-toggle"
+      ],
+      "effects": [
+        "Clears outstanding requests and invitations; Fill teams skips the team. Organiser placement can override an ordinary lock subject to capacity.",
+        "This is separate from the entry deadline and does not itself freeze submission. Kept empty teams cannot be unlocked or refilled."
+      ],
+      "keywords": [
+        "unlock team",
+        "admission lock"
+      ],
+      "related": [
+        "deadline",
+        "team.members"
+      ]
+    },
+    {
+      "id": "team.link",
+      "target": "o.teams",
+      "label": "Team link",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Members of the event can join directly through a team link when eligible.",
+      "when": "Share or replace team access before End.",
+      "effects": [
+        "New link invalidates the old team link and code; current members remain. Team finding can be off, but team locks and participant stage limits still apply."
+      ],
+      "related": [
+        "team.lock",
+        "links"
+      ],
+      "controls": [
+        "button:New link"
+      ]
+    },
+    {
+      "id": "team.delete",
+      "target": "o.teams",
+      "label": "Delete this team",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Permanently remove the team, its entry and its site. Members remain in the event without a team.",
+      "when": "Erase a team and its work before End.",
+      "effects": [
+        "Deletion permanently removes scores, votes and other team-owned judging records too.",
+        "There is no undo. This differs from a kept empty team after final-member departure: that record can retain entry, site and scores.",
+        "Unavailable after End."
+      ],
+      "related": [
+        "people.remove",
+        "team.detail"
+      ]
+    },
+    {
+      "id": "messages",
+      "target": "o.teams",
+      "label": "Message team",
+      "sources": [
+        "screens/organiser-team-detail.js",
+        "screens/organiser-teams.js",
+        "screens/_team-message-dialog.js"
+      ],
+      "explains": "Send a private message to one team or Message selected teams. This is separate from a public announcement.",
+      "when": "Contact teams privately before End.",
+      "controls": [
+        "tm-text",
+        "button:Message selected"
+      ],
+      "effects": [
+        "Notifies current team recipients and keeps team message history. No sends after End."
+      ],
+      "limits": [
+        "Message: 1–1,000 characters. Select 1–25 teams. At most 50 team-message rows per event per rolling hour; each recipient team counts as one row."
+      ],
+      "keywords": [
+        "team messages",
+        "message selected",
+        "private message"
+      ],
+      "related": [
+        "announcements"
+      ]
+    },
+    {
+      "id": "entries",
+      "target": "o.entries",
+      "label": "Entries",
+      "sources": [
+        "screens/organiser-entries.js",
+        "navigation-data.js"
+      ],
+      "explains": "Review hand-ins and missing fields; submitted or settled incomplete entries are judgeable unless excluded.",
+      "when": "Check hand-ins and missing items.",
+      "controls": [
+        "button:Download entries (CSV)"
+      ],
+      "keywords": [
+        "incomplete",
+        "not submitted",
+        "entry export",
+        "usage"
+      ],
+      "related": [
+        "entry.detail",
+        "exclusion",
+        "extensions",
+        "downloads"
+      ]
+    },
+    {
+      "id": "entry.detail",
+      "target": "o.entries",
+      "label": "Entry & site",
+      "sources": [
+        "screens/organiser-team-detail.js",
+        "screens/organiser-entry-detail.js"
+      ],
+      "explains": "Inspect summary, evidence, missing items and site; missing items do not exclude settled entries.",
+      "when": "Inspect one team’s work.",
+      "related": [
+        "entry.summary",
+        "entry.evidence",
+        "exclusion",
+        "site.takedown"
+      ]
+    },
+    {
+      "id": "exclusion",
+      "target": "o.entries",
+      "label": "Exclude from judging",
+      "sources": [
+        "screens/organiser-entry-detail.js",
+        "screens/organiser-entries.js"
+      ],
+      "explains": "Exclude an entry without deleting it or taking its website down. Include in judging reverses this.",
+      "when": "Disqualify an entry or restore its eligibility.",
+      "controls": [
+        "button:Include",
+        "button:Exclude",
+        "button:Include in judging"
+      ],
+      "effects": [
+        "Entry and scores remain stored; exclusion removes judging eligibility. Restoring inclusion restores eligibility subject to the other rules.",
+        "The server allows exclusion and restoration after End; republish to update the published snapshot."
+      ],
+      "keywords": [
+        "disqualify",
+        "include",
+        "excluded"
+      ],
+      "related": [
+        "entries",
+        "site.takedown"
+      ]
+    },
+    {
+      "id": "extensions",
+      "target": "o.entries",
+      "label": "More time until",
+      "sources": [
+        "screens/organiser-entries.js"
+      ],
+      "explains": "Give one team more time, or clear its extension.",
+      "when": "Give a team extra time or clear an unused extension.",
+      "controls": [
+        "ext-team",
+        "ext-input",
+        "button:Give this team more time",
+        "button:Clear this team’s extension"
+      ],
+      "effects": [
+        "An extension extends an existing general deadline; it does not shorten it or create a standalone deadline. Clearing it restores the general deadline, which may have passed.",
+        "Judging, Results and Ended freeze writes even with a future extension. A reopened unsubmitted settled draft can be reconsidered at its later deadline.",
+        "Organisers cannot grant or clear extensions after End."
+      ],
+      "keywords": [
+        "late entry",
+        "extensions",
+        "extra time"
+      ],
+      "related": [
+        "deadline",
+        "stage"
+      ],
+      "limits": [
+        "A general deadline must exist. The extension must be later than it."
+      ]
+    },
+    {
+      "id": "site.takedown",
+      "target": "o.entries",
+      "label": "Take this site down",
+      "sources": [
+        "screens/organiser-entry-detail.js"
+      ],
+      "explains": "Replace the team website with a notice. Optionally give a reason shown to the team.",
+      "when": "Remove an unsuitable site from public view.",
+      "controls": [
+        "takedown-reason",
+        "button:Put back"
+      ],
+      "effects": [
+        "Put back reverses an organiser takedown. An organiser cannot restore a platform takedown. This is separate from excluding an entry from judging.",
+        "Taking down a site also blocks the team’s entry edits and publishing and removes it from gallery and voting choices. Taking down or putting back is unavailable after End."
+      ],
+      "limits": [
+        "Reason: up to 300 characters."
+      ],
+      "keywords": [
+        "site removal",
+        "restore site"
+      ],
+      "related": [
+        "exclusion"
+      ]
+    },
+    {
+      "id": "announcements",
+      "target": "o.announcements",
+      "label": "Announcements",
+      "sources": [
+        "screens/organiser-announcements.js",
+        "navigation-data.js",
+        "screens/_stage-announce-dialog.js"
+      ],
+      "explains": "Post Title and Message publicly and in participants’ app; optionally email them on creation.",
+      "when": "Share event news publicly before End.",
+      "controls": [
+        "ann-title",
+        "ann-body",
+        "ann-email",
+        "ea-title",
+        "ea-body",
+        "sa-title",
+        "sa-body",
+        "sa-email",
+        "button:Post"
+      ],
+      "effects": [
+        "Editing does not resend email. Deleting removes the announcement. No posting, editing or deletion after End."
+      ],
+      "limits": [
+        "Title: 1–120 characters. Message: 1–3,000."
+      ],
+      "keywords": [
+        "broadcast",
+        "participant emails"
+      ],
+      "related": [
+        "announcement.stage",
+        "messages"
+      ]
+    },
+    {
+      "id": "announcement.stage",
+      "target": "o.announcement",
+      "label": "Message",
+      "sources": [
+        "screens/_stage-announce-dialog.js",
+        "screens/organiser-announcements.js"
+      ],
+      "explains": "After a stage change, an optional announcement can tell participants what changed. The suggested title and message are editable.",
+      "when": "Explain a stage change before End.",
+      "effects": [
+        "Email is optional on creation; later editing never emails again. Skipping the announcement does not undo the stage change."
+      ],
+      "related": [
+        "stage",
+        "announcements"
+      ]
+    },
+    {
+      "id": "judging",
+      "target": "o.judging",
+      "label": "Judging",
+      "sources": [
+        "screens/organiser-judging.js",
+        "navigation-data.js"
+      ],
+      "explains": "Manage assignments, progress, conflicts, former judges and the judging lock.",
+      "when": "Check judging work and progress.",
+      "related": [
+        "assignments",
+        "progress",
+        "conflicts",
+        "former",
+        "lock",
+        "rubric"
+      ]
+    },
+    {
+      "id": "assignments",
+      "target": "o.assignments",
+      "label": "Assignments",
+      "sources": [
+        "screens/organiser-judging.js",
+        "screens/organiser-judging-assignments.js"
+      ],
+      "explains": "Generate a balanced allocation or open the Assignment grid for manual pairs and track panels.",
+      "when": "Allocate work while unlocked, before End.",
+      "controls": [
+        "jg-include-organisers",
+        "button:Generate assignments",
+        "button:Save judging access"
+      ],
+      "effects": [
+        "Automatic mode generates assignments; Include organisers who can judge adds organiser judges. Regeneration replaces pairs, never deletes scores, respects conflicts and reports teams below target.",
+        "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
+        "Manual pairs require Manual mode; track panels use Panel mode. Lock and End block changes."
+      ],
+      "keywords": [
+        "assignment grid",
+        "generate assignments",
+        "panels"
+      ],
+      "related": [
+        "judging.mode",
+        "conflicts",
+        "lock"
+      ]
+    },
+    {
+      "id": "progress",
+      "target": "o.scores",
+      "label": "Progress",
+      "sources": [
+        "screens/organiser-judging.js"
+      ],
+      "explains": "Review team and judge scoring coverage and work remaining. Only teams with a judgeable entry enter the judging pool.",
+      "when": "Check score coverage before publication.",
+      "keywords": [
+        "unfinished",
+        "every judge done",
+        "coverage"
+      ],
+      "related": [
+        "assignments",
+        "conflicts",
+        "exclusion"
+      ]
+    },
+    {
+      "id": "conflicts",
+      "target": "o.conflicts",
+      "label": "Judges who know a team",
+      "sources": [
+        "screens/organiser-judging.js"
+      ],
+      "explains": "Record a judge/team conflict to prevent that judge scoring that team in every assignment mode.",
+      "when": "Prevent biased scores while unlocked, before End.",
+      "effects": [
+        "Previous scores remain stored but are excluded from totals and coverage. Removing the conflict restores eligibility. A track-panel membership can remain while a conflicted team is excluded."
+      ],
+      "keywords": [
+        "conflict of interest",
+        "know a team"
+      ],
+      "related": [
+        "assignments",
+        "publish"
+      ]
+    },
+    {
+      "id": "former",
+      "target": "o.former-judges",
+      "label": "Former judges",
+      "sources": [
+        "screens/organiser-judging.js"
+      ],
+      "explains": "Scores from judges who leave keep counting when otherwise eligible. Delete scores is an explicit removal.",
+      "when": "Review or delete departed judges’ scores before End.",
+      "controls": [
+        "button:Delete scores"
+      ],
+      "effects": [
+        "Unlock judging before deleting. Deletion is permanent and requires confirmation. Published snapshots change only after republishing."
+      ],
+      "keywords": [
+        "departed judges",
+        "left judges"
+      ],
+      "related": [
+        "lock",
+        "publish"
+      ]
+    },
+    {
+      "id": "lock",
+      "target": "o.lock",
+      "label": "Lock judging",
+      "sources": [
+        "screens/organiser-judging.js"
+      ],
+      "explains": "Freeze scoring, rubric changes and assignments. Unlock requires a reason.",
+      "when": "Freeze judging inputs or unlock for corrections.",
+      "effects": [
+        "Scoring also requires Closed or Judging. Unlocking does not change the stage. Results locks judging; moving back to Judging keeps that lock. The server allows unlocking after End, but scoring stays closed."
+      ],
+      "limits": [
+        "Unlock reason: 1–300 characters."
+      ],
+      "keywords": [
+        "finish judging",
+        "unlock",
+        "freeze scores"
+      ],
+      "related": [
+        "stage",
+        "rubric",
+        "assignments",
+        "publish"
+      ],
+      "controls": [
+        "button:Unlock"
+      ]
+    },
+    {
+      "id": "results",
+      "target": "o.results",
+      "label": "Results",
+      "sources": [
+        "screens/organiser-results.js",
+        "navigation-data.js"
+      ],
+      "explains": "Preview current standings, resolve tied places, publish and download results. The preview can differ from the last published snapshot.",
+      "when": "Prepare or update results publication.",
+      "related": [
+        "ties",
+        "publish",
+        "downloads",
+        "result.visibility"
+      ]
+    },
+    {
+      "id": "ties",
+      "target": "o.ties",
+      "label": "Save order and publish",
+      "sources": [
+        "screens/organiser-results.js"
+      ],
+      "explains": "Resolve tied places by giving a complete order for each tied group, then publish that order.",
+      "when": "Set the final order when teams share a place.",
+      "effects": [
+        "Overrides apply to whole tied groups; they cannot move arbitrary untied teams."
+      ],
+      "keywords": [
+        "tied ranks",
+        "resolve ties",
+        "rank override"
+      ],
+      "related": [
+        "tie",
+        "publish"
+      ]
+    },
+    {
+      "id": "publish",
+      "target": "o.publish",
+      "label": "Publish results",
+      "sources": [
+        "screens/organiser-results.js"
+      ],
+      "explains": "Publish a results snapshot, replacing any previous one. There is no unpublish action.",
+      "when": "Release or update official standings.",
+      "effects": [
+        "The screen requires locked judging. Server publishing from Closed or Judging moves to Results and locks; Draft, Open and Building are rejected.",
+        "Republish after End without reopening. Score or setting changes never update a published snapshot automatically."
+      ],
+      "keywords": [
+        "republish",
+        "publish again",
+        "unpublish",
+        "snapshot"
+      ],
+      "related": [
+        "lock",
+        "ties",
+        "result.visibility",
+        "end"
+      ]
+    },
+    {
+      "id": "downloads",
+      "target": "o.downloads",
+      "label": "Downloads",
+      "sources": [
+        "screens/organiser-results.js"
+      ],
+      "explains": "Download event records and team websites.",
+      "when": "Keep records or sites, including after End.",
+      "controls": [
+        "button:Results (CSV)",
+        "button:Scores (CSV)",
+        "button:Entries (CSV)",
+        "button:Teams (CSV)",
+        "button:People (CSV)",
+        "button:All team sites (.tar.gz)"
+      ],
+      "effects": [
+        "Results CSV uses the published tie-resolved snapshot when available, otherwise current preview. Scores, Entries, Teams and People CSV provide their respective records. All team sites downloads an archive."
+      ],
+      "keywords": [
+        "exports",
+        "CSV",
+        "backup",
+        "tar.gz"
+      ],
+      "related": [
+        "publish"
+      ]
+    },
+    {
+      "id": "create",
+      "target": "o.home",
+      "label": "Create event",
+      "sources": [
+        "screens/organiser-create-event.js"
+      ],
+      "explains": "Create a Draft event with Title, Address, Starts, Ends (optional), Time zone and organiser details.",
+      "when": "Start planning a new event.",
+      "controls": [
+        "new-slug",
+        "new-organiser",
+        "new-org",
+        "new-email",
+        "new-purpose",
+        "new-n",
+        "new-title"
+      ],
+      "effects": [
+        "Address is chosen at creation, not renamed through Website. Organiser details can be edited later."
+      ],
+      "limits": [
+        "Address: 3–39 lowercase letters, digits or single hyphens, with no leading or trailing hyphen; available and not reserved.",
+        "Title: 1–120. Name: 1–100. Organisation: up to 120. Purpose: 1–1,000 characters. Expected participants: 1–100,000. Valid email required. End cannot precede start.",
+        "Creation is subject to configurable rolling daily and active-event limits per creator: defaults are 3 creations per day and 2 active events."
+      ],
+      "keywords": [
+        "new event",
+        "address",
+        "slug"
+      ],
+      "related": [
+        "basics",
+        "times",
+        "timezone",
+        "details"
+      ]
+    },
+    {
+      "id": "row.actions",
+      "target": "o.people",
+      "label": "Actions",
+      "sources": [
+        "screens/_orgA-util.js",
+        "screens/organiser-people.js"
+      ],
+      "explains": "Open the row menu for available actions. Permissions and state determine its options.",
+      "when": "Manage someone from their row.",
+      "related": [
+        "people.remove",
+        "people.key",
+        "team.members",
+        "team.delete",
+        "sponsors",
+        "faq",
+        "tracks",
+        "announcements"
+      ]
+    },
+    {
+      "id": "entry.description",
+      "target": "o.entry-rules",
+      "label": "Description",
+      "sources": [
+        "screens/_orgB-util.js",
+        "screens/organiser-entry-detail.js"
+      ],
+      "explains": "Legacy long description: optional in current presets, with no organiser rule row.",
+      "limits": [
+        "Up to 5,000 characters."
+      ],
+      "keywords": [
+        "legacy description"
+      ],
+      "related": [
+        "entry.rules",
+        "entry.summary"
+      ]
+    },
+    {
+      "id": "signup.approval",
+      "target": "o.signup",
+      "label": "Approve people who join with your link before they can join a team or publish",
+      "sources": [
+        "screens/_settings-people.js"
+      ],
+      "explains": "Require approval of link sign-ups before team joining and publishing.",
+      "when": "Review sign-ups before granting team access.",
+      "options": [
+        {
+          "label": "Leave them pending",
+          "means": "Keep existing pending link sign-ups waiting while disabling approval for new link sign-ups."
+        },
+        {
+          "label": "Approve all now",
+          "means": "Admit pending link sign-ups when turning approval off."
+        },
+        {
+          "label": "Cancel",
+          "means": "Keep the current approval setting."
+        }
+      ],
+      "related": [
+        "signup",
+        "applications"
+      ]
+    },
+    {
+      "id": "signup.required",
+      "target": "o.signup",
+      "label": "Required",
+      "sources": [
+        "screens/_settings-people.js"
+      ],
+      "explains": "A required registration question must be answered before the person can register.",
+      "keywords": [
+        "optional question",
+        "required answer"
+      ],
+      "related": [
+        "signup.questions"
+      ]
+    },
+    {
+      "id": "team.admin",
+      "target": "o.teams",
+      "label": "Make admin",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Give a team member admin authority. Remove as admin takes that authority away if another admin remains.",
+      "when": "Share or change team admin duties before End.",
+      "effects": [
+        "Team admins manage joining requests and team administration. They are not event organisers."
+      ],
+      "keywords": [
+        "remove as admin",
+        "team admin"
+      ],
+      "related": [
+        "team.members",
+        "organisers"
+      ]
+    },
+    {
+      "id": "team.move",
+      "target": "o.teams",
+      "label": "Move to another team…",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Move one approved participant to another team using its chooser.",
+      "when": "Rebalance teams or correct a placement before End.",
+      "effects": [
+        "Destination capacity applies; organiser placement can bypass an ordinary admission lock. A kept empty team cannot accept replacements.",
+        "Rotates the old team’s code and revokes stale publishing keys. An emptied team can be deleted with its entry. A frozen empty team stays without self-leave kept-team protection and can disappear from judging/results."
+      ],
+      "related": [
+        "team.members",
+        "team.lock"
+      ]
+    },
+    {
+      "id": "team.off",
+      "target": "o.teams",
+      "label": "Take off team",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Remove someone from this team while keeping their event membership.",
+      "when": "Let someone change teams before End.",
+      "related": [
+        "team.members",
+        "people.remove"
+      ],
+      "effects": [
+        "Rotates the old team’s code and revokes stale publishing keys. An emptied team can be deleted with its entry. A frozen empty team stays without self-leave kept-team protection and can disappear from judging/results."
+      ]
+    },
+    {
+      "id": "solo.place",
+      "target": "o.solo",
+      "label": "Put on a team…",
+      "sources": [
+        "screens/organiser-teams.js"
+      ],
+      "explains": "Choose a destination for a participant without a team.",
+      "when": "Place a participant without a team before End.",
+      "related": [
+        "solo",
+        "team.members"
+      ]
+    },
+    {
+      "id": "times.end",
+      "target": "o.times",
+      "label": "Ends",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Optional event end date and time. It does not end the event automatically.",
+      "limits": [
+        "Cannot precede Starts."
+      ],
+      "related": [
+        "times",
+        "stage"
+      ]
+    },
+    {
+      "id": "tracks.name",
+      "target": "o.tracks",
+      "label": "Track name",
+      "sources": [
+        "screens/_event-tracks.js"
+      ],
+      "explains": "Name a challenge teams can choose.",
+      "limits": [
+        "1–80 characters."
+      ],
+      "related": [
+        "tracks"
+      ]
+    },
+    {
+      "id": "tracks.challenge",
+      "target": "o.tracks",
+      "label": "Challenge",
+      "sources": [
+        "screens/_event-tracks.js"
+      ],
+      "explains": "Describe the task for this track.",
+      "limits": [
+        "Up to 3,000 characters."
+      ],
+      "related": [
+        "tracks"
+      ]
+    },
+    {
+      "id": "tracks.prize",
+      "target": "o.tracks",
+      "label": "Prize",
+      "sources": [
+        "screens/_event-tracks.js"
+      ],
+      "explains": "Describe this track’s prize.",
+      "limits": [
+        "Server: up to 1,000 characters; editor: 80."
+      ],
+      "related": [
+        "tracks"
+      ]
+    },
+    {
+      "id": "sponsors.logo",
+      "target": "o.sponsors",
+      "label": "Logo",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Upload or replace a sponsor logo; Remove clears it from the edited sponsor.",
+      "limits": [
+        "PNG, JPEG or WebP up to 128 KB."
+      ],
+      "related": [
+        "sponsors"
+      ],
+      "when": "Add or replace sponsor branding before End."
+    },
+    {
+      "id": "sponsors.name",
+      "target": "o.sponsors",
+      "label": "Name",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "The sponsor’s public name.",
+      "limits": [
+        "1–100 characters."
+      ],
+      "related": [
+        "sponsors"
+      ]
+    },
+    {
+      "id": "sponsors.tier",
+      "target": "o.sponsors",
+      "label": "Tier",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "An optional sponsor tier such as Gold.",
+      "limits": [
+        "Up to 60 characters."
+      ],
+      "related": [
+        "sponsors"
+      ]
+    },
+    {
+      "id": "sponsors.link",
+      "target": "o.sponsors",
+      "label": "Link",
+      "sources": [
+        "screens/organiser-event-page.js"
+      ],
+      "explains": "Optional sponsor website link.",
+      "limits": [
+        "HTTPS, no embedded credentials, up to 500 characters."
+      ],
+      "related": [
+        "sponsors"
+      ]
+    },
+    {
+      "id": "rubric.name",
+      "target": "o.rubric",
+      "label": "Name",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "The name judges see for a scoring criterion.",
+      "limits": [
+        "1–80 characters."
+      ],
+      "related": [
+        "rubric",
+        "rubric.scores"
+      ]
+    },
+    {
+      "id": "rubric.description",
+      "target": "o.rubric",
+      "label": "Description (optional)",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Explain how judges should interpret a criterion.",
+      "limits": [
+        "Up to 300 characters."
+      ],
+      "related": [
+        "rubric",
+        "rubric.scores"
+      ]
+    },
+    {
+      "id": "rubric.weight",
+      "target": "o.rubric",
+      "label": "Weight %",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "The criterion’s share of the weighted total.",
+      "limits": [
+        "Integer 0–100; all weights must total 100."
+      ],
+      "related": [
+        "rubric",
+        "rubric.scores"
+      ]
+    },
+    {
+      "id": "rubric.points",
+      "target": "o.rubric",
+      "label": "Max points",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "The highest mark a judge can award for this criterion.",
+      "limits": [
+        "Integer 1–10."
+      ],
+      "related": [
+        "rubric",
+        "rubric.scores"
+      ]
+    },
+    {
+      "id": "judging.per",
+      "target": "o.judging-mode",
+      "label": "Judges per team",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Target number of judges for allocation.",
+      "limits": [
+        "1–20."
+      ],
+      "related": [
+        "judging.mode",
+        "assignments"
+      ]
+    },
+    {
+      "id": "details.name",
+      "target": "o.details",
+      "label": "Your name",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "Name identifying the organiser on the public page.",
+      "limits": [
+        "1–100 characters."
+      ],
+      "related": [
+        "details"
+      ]
+    },
+    {
+      "id": "details.org",
+      "target": "o.details",
+      "label": "Organisation or community",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "Optional public organiser organisation.",
+      "limits": [
+        "Up to 120 characters."
+      ],
+      "related": [
+        "details"
+      ]
+    },
+    {
+      "id": "details.email",
+      "target": "o.details",
+      "label": "Contact email",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "A valid contact address for event administration.",
+      "limits": [
+        "Must be a valid email address."
+      ],
+      "related": [
+        "details"
+      ]
+    },
+    {
+      "id": "details.purpose",
+      "target": "o.details",
+      "label": "What the event is for",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "Purpose information private to organisers and Simple Hack.",
+      "limits": [
+        "1–1,000 characters."
+      ],
+      "related": [
+        "details"
+      ]
+    },
+    {
+      "id": "details.expected",
+      "target": "o.details",
+      "label": "Expected participants",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "An estimate of event attendance.",
+      "limits": [
+        "Integer 1–100,000."
+      ],
+      "related": [
+        "details"
+      ]
+    },
+    {
+      "id": "notify.url",
+      "target": "o.notifications",
+      "label": "URL",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "The webhook receiver address.",
+      "limits": [
+        "HTTPS, up to 2,048 bytes; no credentials or fragment. Receiver address must pass server checks."
+      ],
+      "related": [
+        "notifications"
+      ]
+    },
+    {
+      "id": "notify.label",
+      "target": "o.notifications",
+      "label": "Label (optional)",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "A name to identify this notification.",
+      "limits": [
+        "Editor: up to 100 characters."
+      ],
+      "related": [
+        "notifications"
+      ]
+    },
+    {
+      "id": "notify.storage",
+      "target": "o.notifications",
+      "label": "Storage (optional)",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "Filter the notification to a storage name; leave blank for all.",
+      "limits": [
+        "Must name existing storage; blank means all. Editor: up to 100 characters."
+      ],
+      "related": [
+        "notifications"
+      ]
+    },
+    {
+      "id": "notify.header",
+      "target": "o.notifications",
+      "label": "Header name (optional)",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "Optional receiver authentication header name.",
+      "limits": [
+        "Authorization, or X- plus 1–62 letters, digits or hyphens. Forwarding, client-IP and platform-reserved headers are refused."
+      ],
+      "related": [
+        "notifications"
+      ]
+    },
+    {
+      "id": "notify.value",
+      "target": "o.notifications",
+      "label": "Header value",
+      "sources": [
+        "screens/_settings-admin.js"
+      ],
+      "explains": "The value sent in the optional receiver authentication header.",
+      "limits": [
+        "Printable ASCII, up to 1,024 bytes."
+      ],
+      "related": [
+        "notify.header",
+        "notifications"
+      ]
+    },
+    {
+      "id": "site.reason",
+      "target": "o.entries",
+      "label": "Reason shown to the team (optional)",
+      "sources": [
+        "screens/organiser-entry-detail.js"
+      ],
+      "explains": "Explain why the organiser has taken a team website down.",
+      "limits": [
+        "Up to 300 characters."
+      ],
+      "related": [
+        "site.takedown"
+      ]
+    },
+    {
+      "id": "create.address",
+      "target": "o.home",
+      "label": "Address",
+      "sources": [
+        "screens/organiser-create-event.js"
+      ],
+      "explains": "Choose the event’s permanent address name when creating it.",
+      "limits": [
+        "3–39 lowercase letters, digits and single hyphens; no leading or trailing hyphen. Must be available."
+      ],
+      "related": [
+        "create"
+      ]
+    },
+    {
+      "id": "announcement.email",
+      "target": "o.announcements",
+      "label": "Email ${emailableCount} participants",
+      "sources": [
+        "screens/organiser-announcements.js",
+        "screens/_stage-announce-dialog.js"
+      ],
+      "explains": "Optionally email participants when creating an announcement. Editing later does not send another email.",
+      "when": "Email event news when posting before End.",
+      "related": [
+        "announcements"
+      ]
+    },
+    {
+      "id": "settings.danger",
+      "target": "o.leave",
+      "label": "Leave or delete",
+      "sources": [
+        "screens/organiser-settings.js",
+        "navigation-data.js"
+      ],
+      "explains": "Choose between leaving your organiser role and permanently deleting the event.",
+      "when": "Leave organising or erase the event.",
+      "related": [
+        "leave",
+        "handover",
+        "delete",
+        "end"
+      ]
+    },
+    {
+      "id": "assistant.ask",
+      "target": "o.home",
+      "label": "Ask",
+      "sources": [
+        "assistant.js"
+      ],
+      "controls": [
+        "textarea:data-assistant-input",
+        "button:New chat",
+        "button:Stop",
+        "button:Retry",
+        "button:Send"
+      ],
+      "explains": "Ask answers questions about this event with links to where to act. It never changes anything.",
+      "when": "Get help with this event.",
+      "effects": [
+        "History stays in this browser per event and is cleared on sign-out. New chat clears this conversation and stops its reply.",
+        "Send asks a question. Stop cancels the reply, keeping partial text. Retry repeats the last question, replacing its previous answer."
+      ],
+      "limits": [
+        "Daily questions reset at midnight UTC. Near the limit, questions left are shown. At the limit: You've asked [limit] questions today. The limit resets at midnight UTC.",
+        "Monthly budget message: The assistant has used this month's budget. It's back on [date]. Asking stays disabled until reset."
+      ]
+    }
+  ]
+}

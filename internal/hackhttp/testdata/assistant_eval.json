@@ -1,183 +1,1246 @@
 [
-  {
-    "question": "Is my setup done?",
-    "allow_unsure": false,
-    "expect_href_any": [
-      "/e/{slug}/manage?s=overview",
-      "/e/{slug}/manage?s=settings&tab=entries#entry-rules"
-    ]
-  },
-  {
-    "question": "What should I do next?",
-    "allow_unsure": false,
-    "expect_href_any": [
-      "/e/{slug}/manage?s=overview",
-      "/e/{slug}/manage?s=settings&tab=entries#entry-rules"
-    ]
-  },
-  {
-    "question": "What is a tie-breaker?",
-    "expect_href_any": [
-      "/e/{slug}/manage?s=settings&tab=judging#tie-break"
-    ]
-  },
-  {
-    "question": "When does judging close?",
-    "allow_unsure": false,
-    "expect_href_any": [
-      "/e/{slug}/manage?s=judging",
-      "/e/{slug}/manage?s=settings&tab=judging#closes",
-      "/e/{slug}/manage?s=settings&tab=judging"
-    ],
-    "expect_text_any": [
-      "2026-12-15",
-      "december 15",
-      "dec 15",
-      "15 december",
-      "15 dec"
-    ],
-    "forbid_any": [
-      "opens 15",
-      "opens on 15"
-    ]
-  },
-  {
-    "question": "How do I change the rubric?",
-    "allow_unsure": false,
-    "expect_href_any": [
-      "/e/{slug}/manage?s=settings&tab=judging#rubric"
-    ]
-  },
-  {
-    "question": "Where do I copy the judge link?",
-    "expect_href_any": [
-      "/e/{slug}/manage?s=people",
-      "/e/{slug}/manage?s=overview",
-      "/e/{slug}/manage?s=settings&tab=links"
-    ]
-  },
-  {
-    "question": "Where do I set what teams hand in?",
-    "allow_unsure": false,
-    "expect_href_any": [
-      "/e/{slug}/manage?s=settings&tab=entries#entry-rules"
-    ]
-  },
-  {
-    "question": "Where are tracks?",
-    "allow_unsure": false,
-    "expect_href_any": [
-      "/e/{slug}/manage?s=event-page&tab=tracks"
-    ]
-  },
-  {
-    "question": "How do I publish results?",
-    "expect_href_any": [
-      "/e/{slug}/manage?s=results#res-publish-target",
-      "/e/{slug}/manage?s=results"
-    ]
-  },
-  {
-    "question": "What stage is my event in?",
-    "allow_unsure": false,
-    "expect_text_any": [
-      "open"
-    ],
-    "forbid_any": [
-      "draft",
-      "not open",
-      "isn't open"
-    ]
-  },
-  {
-    "question": "How many teams are there?",
-    "allow_unsure": false,
-    "expect_text_any": [
-      "1 team",
-      "one team"
-    ],
-    "forbid_any": [
-      "no one",
-      "no teams",
-      "0 teams",
-      "2 teams",
-      "3 teams",
-      "none"
-    ]
-  },
-  {
-    "question": "Open sign-up for me",
-    "forbid_any": [
-      "i've opened",
-      "i have opened",
-      "i opened",
-      "i've enabled",
-      "i have enabled",
-      "opened it for you",
-      "done for you",
-      "i've done this",
-      "i did this for you"
-    ],
-    "expect_href_any": [
-      "/e/{slug}/manage?s=settings&tab=signup",
-      "/e/{slug}/manage?s=overview#ov-change-stage",
-      "/e/{slug}/manage?s=overview"
-    ]
-  },
-  {
-    "question": "Rename the event to Test",
-    "forbid_any": [
-      "i've renamed",
-      "i have renamed",
-      "i renamed",
-      "renamed it for you",
-      "done for you",
-      "i've done this",
-      "i did this for you"
-    ],
-    "expect_href_any": [
-      "/e/{slug}/manage?s=event-page&tab=basics",
-      "/e/{slug}/manage?s=event-page"
-    ]
-  },
-  {
-    "question": "Who won last year?",
-    "allow_unsure": true
-  },
-  {
-    "question": "Can participants see the rubric?",
-    "allow_unsure": true,
-    "expect_text_any": [
-      "yes"
-    ],
-    "expect_href_any": [
-      "/e/{slug}/manage?s=settings&tab=judging#rubric"
-    ],
-    "forbid_any": [
-      "can't see",
-      "cannot see",
-      "only judges"
-    ]
-  },
-  {
-    "question": "Explain judging in detail",
-    "max_lines": 15,
-    "expect_href_any": [
-      "/e/{slug}/manage?s=judging"
-    ]
-  },
-  {
-    "question": "Where do I see who applied to join?",
-    "expect_href_any": [
-      "/e/{slug}/manage?s=people&tab=applications",
-      "/e/{slug}/manage?s=people"
-    ]
-  },
-  {
-    "question": "How do I end the event?",
-    "expect_href_any": [
-      "/e/{slug}/manage?s=overview#ov-end-target",
-      "/e/{slug}/manage?s=overview"
-    ]
-  }
+ {
+  "area": "lifecycle",
+  "question": "Is my setup done?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=event-page",
+   "/e/{slug}/manage?s=settings&tab=entries",
+   "/e/{slug}/manage?s=settings&tab=signup",
+   "/e/{slug}/manage?s=settings&tab=judging",
+   "/e/{slug}/manage?s=settings&tab=teams",
+   "/e/{slug}/manage?s=settings&tab=reminders",
+   "/e/{slug}/manage?s=people",
+   "/e/{slug}/manage?s=teams"
+  ],
+  "forbid_any": [
+   "setup is complete",
+   "setup is done",
+   "nothing is left",
+   "nothing left",
+   "all set",
+   "everything is done",
+   "you're done",
+   "you are done",
+   "ready to go"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "What should I do next?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=event-page",
+   "/e/{slug}/manage?s=settings&tab=entries",
+   "/e/{slug}/manage?s=settings&tab=signup",
+   "/e/{slug}/manage?s=settings&tab=judging",
+   "/e/{slug}/manage?s=settings&tab=teams",
+   "/e/{slug}/manage?s=settings&tab=reminders",
+   "/e/{slug}/manage?s=people",
+   "/e/{slug}/manage?s=teams"
+  ],
+  "forbid_any": [
+   "setup is complete",
+   "setup is done",
+   "nothing is left",
+   "nothing left",
+   "all set",
+   "everything is done",
+   "you're done",
+   "you are done",
+   "ready to go"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "What stage is my event in?",
+  "expect_text_any": [
+   "open"
+  ],
+  "forbid_any": [
+   "is in draft",
+   "in the draft stage",
+   "is a draft",
+   "still in draft",
+   "is draft",
+   "not open",
+   "isn't open"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "How many teams are there?",
+  "expect_text_any": [
+   "1 team",
+   "one team"
+  ],
+  "forbid_any": [
+   "no one",
+   "no teams",
+   "0 teams",
+   "2 teams",
+   "3 teams"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "Open sign-up for me",
+  "fixture": "draft",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=signup",
+   "/e/{slug}/manage?s=overview"
+  ],
+  "forbid_any": [
+   "i've opened",
+   "i have opened",
+   "i opened",
+   "i've enabled",
+   "i have enabled",
+   "opened it for you",
+   "done for you",
+   "i've done this",
+   "i did this for you",
+   "i've renamed",
+   "i have renamed",
+   "i renamed",
+   "renamed it for you",
+   "i've changed",
+   "i have changed",
+   "i changed it"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "Rename the event to Test",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=basics",
+   "/e/{slug}/manage?s=event-page"
+  ],
+  "forbid_any": [
+   "i've opened",
+   "i have opened",
+   "i opened",
+   "i've enabled",
+   "i have enabled",
+   "opened it for you",
+   "done for you",
+   "i've done this",
+   "i did this for you",
+   "i've renamed",
+   "i have renamed",
+   "i renamed",
+   "renamed it for you",
+   "i've changed",
+   "i have changed",
+   "i changed it"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "Does reaching the start date open sign-up automatically?",
+  "fixture": "draft",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=event-page&tab=schedule",
+   "/e/{slug}/manage?s=event-page&tab=basics"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "lifecycle",
+  "question": "Can I schedule judging to start automatically at a set time?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=schedule",
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "lifecycle",
+  "question": "What happens when I close entries?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=settings&tab=entries",
+   "/e/{slug}/manage?s=entries"
+  ],
+  "expect_all": [
+   [
+    "deadline",
+    "submit",
+    "entries"
+   ]
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "Can I move my event back from Closed to Building?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "lifecycle",
+  "question": "Can I reopen my event now that it has ended?",
+  "fixture": "ended",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=settings&tab=danger",
+   "/e/{slug}/manage?s=results",
+   "/e/{slug}/manage?s=event-page"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "lifecycle",
+  "question": "Nobody has joined my event yet. Can I end it?",
+  "fixture": "draft",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=danger",
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_start": "no",
+  "expect_all": [
+   [
+    "delete"
+   ]
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "What happens to team sites after I end the event?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=settings&tab=danger"
+  ],
+  "expect_all": [
+   [
+    "30 days",
+    "30-day",
+    "thirty days"
+   ]
+  ],
+  "forbid_any": [
+   "you can change this",
+   "change this in",
+   "change it in",
+   "adjust this in"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "When does judging close?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=judging",
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_text_any": [
+   "2026-12-15",
+   "december 15",
+   "dec 15",
+   "15 december",
+   "15 dec"
+  ],
+  "forbid_any": [
+   "opens 15",
+   "opens on 15"
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "Where do I change the event name and tagline?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=basics",
+   "/e/{slug}/manage?s=event-page"
+  ],
+  "expect_all": [
+   [
+    "basics"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "If I change the event's time zone, does the entry deadline move to a different moment?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=basics",
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "event page",
+  "question": "Where do I add prizes?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=about",
+   "/e/{slug}/manage?s=event-page&tab=tracks"
+  ],
+  "expect_all": [
+   [
+    "prize"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "Does my own code of conduct replace the standard one?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=about"
+  ],
+  "expect_start": "no",
+  "expect_all": [
+   [
+    "add",
+    "addition",
+    "on top",
+    "alongside",
+    "as well"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "How do I change the order of my sponsors?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=sponsors"
+  ],
+  "expect_all": [
+   [
+    "drag",
+    "move up",
+    "up and down",
+    "up or down",
+    "move"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "How big can a sponsor logo be?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=sponsors"
+  ],
+  "expect_all": [
+   [
+    "128"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "What page styles can I choose for my event page?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=look"
+  ],
+  "expect_all": [
+   [
+    "poster"
+   ],
+   [
+    "terminal"
+   ],
+   [
+    "classic"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "How do I stop entries showing on the public event page?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=look",
+   "/e/{slug}/manage?s=event-page&tab=website"
+  ],
+  "expect_all": [
+   [
+    "show entries on the event page",
+    "gallery"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "If I switch back to the built-in event page, is my uploaded website deleted?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=website"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "event page",
+  "question": "What does the zip for my own website need?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=website"
+  ],
+  "expect_all": [
+   [
+    "index.html"
+   ]
+  ],
+  "forbid_any": [
+   "you can change the limit",
+   "change the limit in",
+   "raise the limit in"
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "Do I have to use tracks?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=tracks"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "event page",
+  "question": "What happens to the teams on a track if I remove that track?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=tracks"
+  ],
+  "expect_all": [
+   [
+    "clear",
+    "cleared",
+    "no track",
+    "without a track",
+    "removed",
+    "lose"
+   ]
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "How many tracks can I have?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=tracks"
+  ],
+  "expect_all": [
+   [
+    "12",
+    "twelve"
+   ]
+  ],
+  "forbid_any": [
+   "can't have 12",
+   "cannot have 12",
+   "unlimited",
+   "no limit"
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "Can each track have its own rubric?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging",
+   "/e/{slug}/manage?s=event-page&tab=tracks"
+  ],
+  "expect_start": "no",
+  "expect_all": [
+   [
+    "one rubric",
+    "single rubric",
+    "same rubric",
+    "event-wide",
+    "whole event",
+    "one shared",
+    "shared rubric",
+    "one event rubric",
+    "the event's rubric",
+    "the event rubric"
+   ]
+  ]
+ },
+ {
+  "area": "sign-up",
+  "question": "If I turn off approval, are people who apply without my link let in automatically?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=signup",
+   "/e/{slug}/manage?s=people",
+   "/e/{slug}/manage?s=people&tab=applications"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "sign-up",
+  "question": "How many sign-up questions can I add?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=signup"
+  ],
+  "expect_all": [
+   [
+    "8",
+    "eight"
+   ]
+  ]
+ },
+ {
+  "area": "sign-up",
+  "question": "Why don't people see an Apply button for my event?",
+  "fixture": "draft",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=signup",
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_all": [
+   [
+    "find a hackathon",
+    "listed",
+    "listing",
+    "directory"
+   ]
+  ]
+ },
+ {
+  "area": "sign-up",
+  "question": "Does turning off applications remove the people who are waiting?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=signup",
+   "/e/{slug}/manage?s=people",
+   "/e/{slug}/manage?s=people&tab=applications"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "sign-up",
+  "question": "Can I filter applicants by country?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=people",
+   "/e/{slug}/manage?s=people&tab=applications"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "people",
+  "question": "What does turning off someone's publishing key do?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=people"
+  ],
+  "expect_all": [
+   [
+    "publish",
+    "publishing"
+   ]
+  ],
+  "forbid_any": [
+   "removes them from the event",
+   "removed from the event",
+   "takes them out of the event"
+  ]
+ },
+ {
+  "area": "teams",
+  "question": "Do team links still work when team finding is off?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=teams",
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "teams",
+  "question": "What is the biggest team size I can set?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=teams"
+  ],
+  "expect_all": [
+   [
+    "50",
+    "fifty"
+   ]
+  ]
+ },
+ {
+  "area": "teams",
+  "question": "If I lower the team size, are people taken off teams that are now too big?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=teams"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "teams",
+  "question": "Does Fill teams need team finding turned on?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams",
+   "/e/{slug}/manage?s=teams&tab=solo",
+   "/e/{slug}/manage?s=settings&tab=teams"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "teams",
+  "question": "Does Fill teams put people on locked teams?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams",
+   "/e/{slug}/manage?s=teams&tab=solo"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "teams",
+  "question": "How do I make someone a team admin?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_all": [
+   [
+    "make admin"
+   ]
+  ]
+ },
+ {
+  "area": "teams",
+  "question": "What does deleting a team remove?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_all": [
+   [
+    "entry"
+   ],
+   [
+    "site"
+   ]
+  ],
+  "forbid_any": [
+   "removes the members from the event",
+   "removes them from the event",
+   "removed from the event",
+   "keeps its entry",
+   "keeps the entry",
+   "keeps its site",
+   "keeps the site",
+   "entry stays",
+   "site stays"
+  ]
+ },
+ {
+  "area": "teams",
+  "question": "Can I message just a few teams?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "teams",
+  "question": "Are messages to a team public?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams",
+   "/e/{slug}/manage?s=announcements"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "entries",
+  "question": "What does One of mean in what teams hand in?",
+  "screen": "organiser-settings",
+  "tab": "entries",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_all": [
+   [
+    "at least one"
+   ]
+  ]
+ },
+ {
+  "area": "entries",
+  "question": "What's the difference between the two hand-in presets?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_all": [
+   [
+    "code"
+   ]
+  ]
+ },
+ {
+  "area": "entries",
+  "question": "Can I make the project name optional?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "entries",
+  "question": "What is on the summary card?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_all": [
+   [
+    "problem"
+   ],
+   [
+    "solution"
+   ]
+  ]
+ },
+ {
+  "area": "entries",
+  "question": "What are the choices for What works today?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_all": [
+   [
+    "demo-ready",
+    "demo ready"
+   ],
+   [
+    "partly working"
+   ],
+   [
+    "concept"
+   ]
+  ]
+ },
+ {
+  "area": "entries",
+  "question": "Do judges see the video before the summary card?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "entries",
+  "question": "If I make more fields required after teams submit, are their entries unsubmitted?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "entries",
+  "question": "Can I change what teams hand in now?",
+  "fixture": "judging",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "entries",
+  "question": "What do teams hand in for my event?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_all": [
+   [
+    "code"
+   ],
+   [
+    "video"
+   ],
+   [
+    "website",
+    "site"
+   ]
+  ]
+ },
+ {
+  "area": "entries",
+  "question": "Are unfinished entries thrown out at the deadline?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=entries",
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "entries",
+  "question": "How do I give one team more time?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=entries"
+  ],
+  "expect_all": [
+   [
+    "extension",
+    "more time"
+   ]
+  ]
+ },
+ {
+  "area": "entries",
+  "question": "Can I keep an entry out of judging without deleting it?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=entries"
+  ],
+  "expect_start": "yes",
+  "expect_all": [
+   [
+    "exclude"
+   ]
+  ]
+ },
+ {
+  "area": "entries",
+  "question": "Can I put back a team site I took down?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=entries",
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "announcements",
+  "question": "If I edit an announcement, is it emailed again?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=announcements"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "reminders",
+  "question": "How many reminder times can I set?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=reminders"
+  ],
+  "expect_all": [
+   [
+    "5",
+    "five"
+   ]
+  ]
+ },
+ {
+  "area": "reminders",
+  "question": "How early can a reminder go out?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=reminders"
+  ],
+  "expect_all": [
+   [
+    "14 days",
+    "two weeks",
+    "fourteen days"
+   ]
+  ]
+ },
+ {
+  "area": "reminders",
+  "question": "Why aren't judges getting reminder emails?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging",
+   "/e/{slug}/manage?s=settings&tab=reminders"
+  ],
+  "expect_all": [
+   [
+    "judging closes"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "Does Judging closes stop judges from scoring at that time?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging",
+   "/e/{slug}/manage?s=judging"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "notifications",
+  "question": "Is the Notifications tab where I set up deadline reminder emails?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=reminders",
+   "/e/{slug}/manage?s=settings&tab=notifications"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "notifications",
+  "question": "What are notifications in Settings for?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=notifications"
+  ],
+  "expect_all": [
+   [
+    "website"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "Can participants see the rubric?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "judging",
+  "question": "If I remove a rubric criterion after judges have scored, what happens to those scores?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_all": [
+   [
+    "delete",
+    "deleted",
+    "removed",
+    "lost"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "Can the rubric weights add up to 80%?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_start": "no",
+  "expect_all": [
+   [
+    "100"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "What is the most points a criterion can have?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_all": [
+   [
+    "10",
+    "ten"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "What's the difference between Open, Automatic, Manual and Panel judging?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_all": [
+   [
+    "track"
+   ]
+  ],
+  "max_lines": 6
+ },
+ {
+  "area": "judging",
+  "question": "Does generating assignments again delete scores?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=judging",
+   "/e/{slug}/manage?s=assignments",
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "judging",
+  "question": "What happens to a judge's earlier scores for a team when I add a conflict for that team?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=judging"
+  ],
+  "expect_all": [
+   [
+    "not count",
+    "don't count",
+    "doesn't count",
+    "excluded",
+    "no longer count",
+    "stop counting",
+    "left out",
+    "not counted",
+    "aren't counted",
+    "are not counted",
+    "ignored"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "Do scores from a judge who left still count?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=judging"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "judging",
+  "question": "Why can't judges score any more?",
+  "fixture": "judging",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=judging"
+  ],
+  "expect_all": [
+   [
+    "lock",
+    "locked"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "How do I unlock judging?",
+  "fixture": "judging",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=judging"
+  ],
+  "expect_all": [
+   [
+    "unlock"
+   ],
+   [
+    "reason"
+   ]
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "What is a tie-breaker?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_all": [
+   [
+    "tie"
+   ],
+   [
+    "criterion",
+    "criteria"
+   ]
+  ],
+  "forbid_any": [
+   "coin",
+   "random",
+   "lottery"
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "How do I change the rubric?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_all": [
+   [
+    "criterion",
+    "criteria"
+   ]
+  ]
+ },
+ {
+  "area": "results",
+  "question": "Can I unpublish results?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=results"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "results",
+  "question": "Can I publish results again after the event has ended?",
+  "fixture": "ended",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=results"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "results",
+  "question": "Can I show every ranked team on the public page without showing scores?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=results"
+  ],
+  "expect_start": "yes",
+  "expect_all": [
+   [
+    "full ranking"
+   ]
+  ]
+ },
+ {
+  "area": "results",
+  "question": "If I change who can vote, what happens to votes already cast?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=results"
+  ],
+  "expect_all": [
+   [
+    "remove",
+    "removed",
+    "delete",
+    "deleted"
+   ]
+  ]
+ },
+ {
+  "area": "results",
+  "question": "Can teams vote for their own team?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=results"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "results",
+  "question": "Where can I download the scores?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=results"
+  ],
+  "expect_all": [
+   [
+    "download"
+   ]
+  ]
+ },
+ {
+  "area": "results",
+  "question": "How do I publish results?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=results"
+  ],
+  "expect_all": [
+   [
+    "publish"
+   ]
+  ],
+  "forbid_any": [
+   "automatically publish",
+   "publishes automatically"
+  ]
+ },
+ {
+  "area": "results",
+  "question": "What's the difference between the two ranking options?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=results"
+  ],
+  "expect_all": [
+   [
+    "strict",
+    "generous",
+    "adjust"
+   ]
+  ]
+ },
+ {
+  "area": "organisers",
+  "question": "Can a co-organiser delete the event?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=organisers",
+   "/e/{slug}/manage?s=settings&tab=danger"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "organisers",
+  "question": "How do I add another organiser?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=organisers"
+  ],
+  "expect_all": [
+   [
+    "invit",
+    "link"
+   ]
+  ]
+ },
+ {
+  "area": "leave and delete",
+  "question": "What's the difference between leaving and deleting the event?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=danger"
+  ],
+  "expect_all": [
+   [
+    "leave",
+    "leaving"
+   ],
+   [
+    "permanent",
+    "for good",
+    "everything",
+    "can't be undone",
+    "cannot be undone",
+    "for everyone",
+    "the event itself",
+    "whole event",
+    "deletes the event",
+    "removes the event"
+   ]
+  ],
+  "max_lines": 4
+ },
+ {
+  "area": "leave and delete",
+  "question": "I'm the only organiser. Can I just leave?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=danger"
+  ],
+  "expect_start": "no",
+  "expect_all": [
+   [
+    "end",
+    "delete"
+   ]
+  ]
+ },
+ {
+  "area": "links",
+  "question": "If I make a new join link, are people who already joined removed?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=links"
+  ],
+  "expect_start": "no"
+ },
+ {
+  "area": "links",
+  "question": "Where do I copy the judge link?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=people",
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=settings&tab=links"
+  ],
+  "expect_all": [
+   [
+    "links",
+    "home",
+    "people"
+   ]
+  ],
+  "forbid_any": [
+   "participant link"
+  ]
+ },
+ {
+  "area": "organiser details",
+  "question": "Who can see what I wrote for what the event is for?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=details"
+  ],
+  "expect_all": [
+   [
+    "private",
+    "only organisers",
+    "only you",
+    "simple hack",
+    "not public",
+    "isn't public",
+    "not shown"
+   ]
+  ]
+ },
+ {
+  "area": "unanswerable",
+  "question": "Who won last year?",
+  "expect_unsure": true
+ },
+ {
+  "area": "unanswerable",
+  "question": "What will the weather be on the day of my event?",
+  "expect_unsure": true
+ }
 ]

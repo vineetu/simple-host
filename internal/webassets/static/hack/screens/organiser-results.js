@@ -64,7 +64,7 @@ export async function render(ctx) {
   // note sits directly over the section where things actually do lock,
   // instead of over the whole page.
   main.innerHTML = `
-<div class="ph" id="res-publish-target"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
+<div class="ph" id="res-publish-target"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button data-help="publish" class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
 <div class="note" id="res-status"></div>
 <p class="note warn" id="res-lock-hint" hidden>Lock judging first, on <a href="${ui.esc(href(role, slug, 'judging'))}">Judging</a>.</p>
 <section class="card" id="res-publish-section"><h2>Publish</h2>
@@ -198,7 +198,7 @@ export async function render(ctx) {
       byRank[rank].forEach(row => {
         const id = 'res-tie-' + row.team_id
         const label = ui.el('label', { for: id, text: row.team_name || 'A team' })
-        const input = ui.el('input', { class: 'input', id, type: 'number', min: '1', step: '1', value: String(savedPlace(row, byRank[rank]) ?? row.rank) })
+        const input = ui.el('input', { 'data-help': 'ties', class: 'input', id, type: 'number', min: '1', step: '1', value: String(savedPlace(row, byRank[rank]) ?? row.rank) })
         group.append(label, input)
         inputs.push({ team_id: row.team_id, input })
       })

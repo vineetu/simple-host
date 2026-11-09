@@ -3690,24 +3690,78 @@
     }
     return s;
   }
+  var mountedKey = null;
+  var mountedState = null;
+  var mountPromises = /* @__PURE__ */ new Map();
+  var liveCtx = /* @__PURE__ */ new Map();
+  var currentScreen = { id: "", tab: "" };
+  function setCurrentScreen(screenId, tab) {
+    currentScreen = { id: screenId || "", tab: tab || "" };
+  }
+  function currentTab() {
+    try {
+      return new URLSearchParams(location.search).get("tab") || "";
+    } catch (e) {
+      return currentScreen.tab;
+    }
+  }
+  function teardownFloating() {
+    if (!mountedState) return;
+    document.removeEventListener("keydown", mountedState.onKeydown, true);
+    if (mountedState.state.panelEl) {
+      mountedState.state.panelEl.remove();
+      mountedState.state.panelEl = null;
+    }
+    mountedState.askBtn.remove();
+    mountedState = null;
+    mountedKey = null;
+  }
+  var starterRefs = { stage: "", checklist: void 0 };
   async function mountAssistant(ctx, opts) {
-    const mounted = doMount(ctx, opts);
+    const mounted = ensureMounted(ctx, opts);
     await Promise.race([mounted, new Promise((resolve3) => setTimeout(resolve3, MOUNT_RACE_MS))]);
   }
-  async function doMount(ctx, { api, anchor, container, ev, checklist }) {
-    if (!hasAssistant()) return;
+  async function ensureMounted(ctx, { api, ev, checklist, screenId, tab }) {
+    setCurrentScreen(screenId, tab);
+    const detail = ctx.event;
+    const eligible = hasAssistant() && ctx.role === "organiser" && !!detail && !!detail.can?.manage && !detail.admin_view;
+    if (!eligible) {
+      teardownFloating();
+      return;
+    }
+    starterRefs = { stage: ev.stage, checklist: checklist ?? detail.checklist };
     const slug = ev.slug;
+    const userId = (ctx.me && (ctx.me.id ?? ctx.me.username)) ?? null;
+    const key = storageKey(slug, userId);
+    liveCtx.set(key, ctx);
+    if (mountedKey === key) return;
+    teardownFloating();
+    const inFlight = mountPromises.get(key);
+    if (inFlight) {
+      await inFlight;
+      return;
+    }
+    const building = buildFloating(ctx, { api, ev, checklist, slug, key });
+    mountPromises.set(key, building);
+    try {
+      await building;
+    } finally {
+      mountPromises.delete(key);
+      liveCtx.delete(key);
+    }
+  }
+  async function buildFloating(ctx, { api, ev, checklist, slug, key }) {
     let status;
     try {
       status = await api("GET", "/v1/hack/events/" + encodeURIComponent(slug) + "/assistant");
     } catch (e) {
       return;
     }
-    if (ctx.alive && !ctx.alive()) return;
+    const askingNow = liveCtx.get(key);
+    if (!askingNow) return;
+    if (askingNow.alive && !askingNow.alive()) return;
     if (!status.ok || !status.data || status.data.enabled !== true) return;
-    if (!anchor || !anchor.isConnected) return;
-    const userId = (ctx.me && (ctx.me.id ?? ctx.me.username)) ?? null;
-    const key = storageKey(slug, userId);
+    if (mountedKey === key) return;
     const state = getChatState(key);
     if (!state.loaded) {
       state.loaded = true;
@@ -3718,8 +3772,8 @@
       if (status.data.budget_reached) state.limitMessage = monthlyBudgetLine(status.data.resets);
       else if (status.data.remaining_today === 0) state.limitMessage = dailyLimitLine(status.data.daily_limit);
     }
-    const askBtn = el("button", { class: "btn quiet sm", type: "button", "data-tour": "assistant", text: "Ask", "aria-expanded": "false", "aria-controls": "assistant-panel-" + slug });
-    anchor.insertAdjacentElement("afterend", askBtn);
+    const askBtn = el("button", { class: "btn assistant-fab", type: "button", "data-tour": "assistant", text: "Ask", "aria-expanded": "false", "aria-controls": "assistant-panel-" + slug });
+    document.body.append(askBtn);
     function apiKeyHeader() {
       try {
         return ctx.api.apiKey();
@@ -3907,7 +3961,10 @@
         res = await fetch("/v1/hack/events/" + encodeURIComponent(slug) + "/assistant", {
           method: "POST",
           headers,
-          body: JSON.stringify({ messages: state.messages.map((m) => ({ role: m.role, content: m.content })) }),
+          // screen/tab: point 5 -- read live off the module-level ref, not a
+          // value captured when this panel was built, since the panel stays
+          // open while the person navigates to a different organiser screen.
+          body: JSON.stringify({ messages: state.messages.map((m) => ({ role: m.role, content: m.content })), screen: currentScreen.id, tab: currentTab() }),
           signal: controller.signal
         });
       } catch (e) {
@@ -4041,7 +4098,7 @@
       panel.append(thread);
       if (state.messages.length === 0 && !state.streaming) {
         const chips = el("div", { class: "assistant-chips", "data-assistant-chips": "" });
-        starterChips(ev.stage, checklist).forEach((text) => {
+        starterChips(starterRefs.stage, starterRefs.checklist).forEach((text) => {
           const chip = el("button", { class: "chip", type: "button", text });
           chip.addEventListener("click", () => {
             trySend(text);
@@ -4127,10 +4184,6 @@
       return panel;
     }
     function onKeydown(e) {
-      if (ctx.alive && !ctx.alive()) {
-        document.removeEventListener("keydown", onKeydown, true);
-        return;
-      }
       if (!state.panelEl) return;
       if (document.querySelector(".scrim") || document.querySelector(".tour-card")) return;
       if (e.key === "Escape") {
@@ -4157,7 +4210,7 @@
     function openPanel() {
       if (panelIsLive()) return;
       state.panelEl = buildPanel();
-      container.append(state.panelEl);
+      document.body.append(state.panelEl);
       state.open = true;
       askBtn.setAttribute("aria-expanded", "true");
       document.addEventListener("keydown", onKeydown, true);
@@ -4181,6 +4234,8 @@
       if (panelIsLive()) closePanel();
       else openPanel();
     });
+    mountedKey = key;
+    mountedState = { askBtn, state, onKeydown };
     if (state.open) openPanel();
   }
 
@@ -4318,7 +4373,7 @@
     main.innerHTML = `
 <div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>
 <p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
-${content.button ? `<section${content.isEnd ? ' id="ov-end-target"' : ""} class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
+${content.button ? `<section${content.isEnd ? ' id="ov-end-target"' : ""} class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button data-help="checklist" class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
 ${needsLines}
 <h2 class="section-title">Snapshot</h2>
@@ -4457,7 +4512,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
         btn.disabled = false;
       }
     });
-    await mountAssistant(ctx, { api, anchor: $("ov-change-stage"), container: main, ev, checklist: data.checklist });
+    await mountAssistant(ctx, { api, ev, checklist: data.checklist, screenId: ctx.screenId, tab: params.get("tab") || "" });
     if (!ctx.alive()) return;
     if (openWalk) startTour("organiser", ctx, { force: true });
     else if (!autoTourTried) {
@@ -4751,7 +4806,7 @@ ${restBlock}
         const form = ui.el("form");
         const field = ui.el("div", { class: "field" });
         const label = ui.el("label", { text: "Reason" });
-        const textarea = ui.el("textarea", { class: "input", required: "", maxlength: "300" });
+        const textarea = ui.el("textarea", { "data-help": "lock", class: "input", required: "", maxlength: "300" });
         textarea.disabled = !!adminLockReason;
         label.appendChild(textarea);
         field.appendChild(label);
@@ -4884,9 +4939,9 @@ ${restBlock}
       if (judges.length && teams.length) {
         const form = ui.el("form");
         const row = ui.el("div", { class: "control-row" });
-        const judgeSelect = ui.el("select", { class: "select", "aria-label": "Judge" });
+        const judgeSelect = ui.el("select", { "data-help": "conflicts", class: "select", "aria-label": "Judge" });
         judges.forEach((p) => judgeSelect.appendChild(ui.el("option", { value: p.user_id, text: p.display_name || p.email || "Someone" })));
-        const teamSelect = ui.el("select", { class: "select", "aria-label": "Team" });
+        const teamSelect = ui.el("select", { "data-help": "conflicts", class: "select", "aria-label": "Team" });
         teams.forEach((t) => teamSelect.appendChild(ui.el("option", { value: t.id, text: t.name || t.slug })));
         const add = ui.el("button", { class: "btn", type: "submit", text: "Add" });
         judgeSelect.disabled = teamSelect.disabled = add.disabled = locked || !!adminLockReason;

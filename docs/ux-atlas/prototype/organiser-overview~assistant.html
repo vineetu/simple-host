@@ -5,7 +5,7 @@
 <link href="kit.css" rel="stylesheet"/><script src="nav.js"></script><script defer="" src="shell.js"></script></head>
 <body class="booting" data-nav="overview" data-role="organiser" data-stage="Building">
 <main class="page">
-<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" data-tour="change-stage" id="ov-change-stage" type="button">Change stage</button><button class="btn quiet sm" data-tour="assistant" id="ov-ask" type="button">Ask</button><a class="btn quiet sm" href="judge-home.html">Score as a judge</a></div>
+<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" data-tour="change-stage" id="ov-change-stage" type="button">Change stage</button><a class="btn quiet sm" href="judge-home.html">Score as a judge</a></div>
 <p class="ov-public-url"><a href="https://spring.simple-hack.app/" rel="noopener" target="_blank">haxec07cea244bb.<wbr/>simple-hack.<wbr/>test/</a></p>
 <section class="next"><div class="t"><p class="k">Your next step</p><h2>Close entries when building time is over</h2><p>Entries close for every team now, except teams with their own extension. Judges can start scoring.</p></div><button class="btn primary lg" data-tour="next-move" id="ov-next-move" type="button">Close entries</button></section>
 <h2 class="section-title">Snapshot</h2>
@@ -21,7 +21,7 @@
 <section class="card"><h2>Judge link</h2><div class="copy"><input aria-label="Judge link" class="input mono" id="ov-judge-url" readonly="" value="https://simple-hack.app/judge/demo"/><button class="btn" data-admin-live="" id="ov-judge-copy" type="button">Copy</button></div></section>
 </div>
 <section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div><button class="btn danger" id="ov-end" type="button">End event</button></div></section>
-<div aria-label="Ask about this event" class="assistant-panel" role="complementary">
+<div aria-label="Ask about this event" class="assistant-panel" id="assistant-panel" role="complementary">
 <div class="assistant-head"><h2>Ask about this event</h2><div class="assistant-head-acts"><button class="btn quiet sm" type="button">New chat</button><button aria-label="Close" class="icon-btn" type="button">✕</button></div></div>
 <div class="assistant-thread">
 <div class="assistant-msg user">When do entries close?</div>

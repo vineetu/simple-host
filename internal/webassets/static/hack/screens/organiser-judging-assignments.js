@@ -82,7 +82,7 @@ export async function render(ctx) {
     card.appendChild(ui.el('h2', { text: subject.name }))
     judges.forEach(judge => {
       const label = ui.el('label', { class: 'check' })
-      const input = ui.el('input', { type: 'checkbox' })
+      const input = ui.el('input', { 'data-help': 'assignments', type: 'checkbox' })
       input.setAttribute('data-subject', subject.id)
       input.setAttribute('data-judge', judge.user_id)
       const conflict = grid === 'manual' && conflicts.some(c => c.team_id === subject.id && c.judge_id === judge.user_id)

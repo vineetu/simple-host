@@ -119,7 +119,7 @@ ${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Buildi
   }
 
   function segHTML (row, opts, mode) {
-    const spans = opts.map(o => `<span role="radio" tabindex="${o.v === mode ? '0' : '-1'}" aria-checked="${o.v === mode ? 'true' : 'false'}" class="${o.v === mode ? 'on ' : ''}${o.v === 'one_of' ? 'oneof' : ''}" data-val="${o.v}">${esc(o.t)}</span>`).join('')
+    const spans = opts.map(o => `<span data-help="entry.evidence" role="radio" tabindex="${o.v === mode ? '0' : '-1'}" aria-checked="${o.v === mode ? 'true' : 'false'}" class="${o.v === mode ? 'on ' : ''}${o.v === 'one_of' ? 'oneof' : ''}" data-val="${o.v}">${esc(o.t)}</span>`).join('')
     return `<div class="rr" data-field="${esc(row.id)}"><div class="t"><b>${esc(row.label)}</b>${row.help ? `<span>${esc(row.help)}</span>` : ''}</div><span class="seg" role="radiogroup" aria-label="${esc(row.label)}">${spans}</span></div>`
   }
 
@@ -134,9 +134,9 @@ ${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Buildi
     const presetCards = Object.keys(PRESETS).map(id => {
       const p = PRESETS[id]
       const on = rules.preset === id
-      return `<label class="choice${on ? ' on' : ''}${disabled ? ' off' : ''}"><input type="radio" name="org-preset" value="${id}"${on ? ' checked' : ''}${disabled ? ' disabled' : ''}><span><b>${esc(p.label)}</b><span class="d">${esc(p.desc)}</span></span></label>`
+      return `<label class="choice${on ? ' on' : ''}${disabled ? ' off' : ''}"><input data-help="entry.rules" type="radio" name="org-preset" value="${id}"${on ? ' checked' : ''}${disabled ? ' disabled' : ''}><span><b>${esc(p.label)}</b><span class="d">${esc(p.desc)}</span></span></label>`
     }).join('')
-    const judgeFirstSeg = `<span class="seg" role="radiogroup" aria-label="After the card, first" id="org-judge-first"><span role="radio" tabindex="0" aria-checked="${rules.judge_first !== 'site'}" class="${rules.judge_first !== 'site' ? 'on' : ''}" data-val="video">Video</span><span role="radio" tabindex="-1" aria-checked="${rules.judge_first === 'site'}" class="${rules.judge_first === 'site' ? 'on' : ''}" data-val="site">Website</span></span>`
+    const judgeFirstSeg = `<span class="seg" role="radiogroup" aria-label="After the card, first" id="org-judge-first"><span data-help="entry.first" role="radio" tabindex="0" aria-checked="${rules.judge_first !== 'site'}" class="${rules.judge_first !== 'site' ? 'on' : ''}" data-val="video">Video</span><span data-help="entry.first" role="radio" tabindex="-1" aria-checked="${rules.judge_first === 'site'}" class="${rules.judge_first === 'site' ? 'on' : ''}" data-val="site">Website</span></span>`
     return `<section class="card" id="handin"><h2>What teams hand in</h2><p class="sub">Start from the kind of event, then change any line. Teams can't submit until everything Required is there.</p>
 ${rulesLockReason ? `<div class="note warn">${esc(rulesLockReason)}</div>` : ''}
 <div class="choices presets" role="radiogroup" aria-label="What teams hand in">${presetCards}</div>

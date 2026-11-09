@@ -87,7 +87,7 @@ export async function render(ctx) {
     // link and the checkbox sits in front of it -- same `.r` flex row the
     // editable lists elsewhere on this screen already use.
     const checked = selectedTeamIds.has(t.id)
-    return `<div class="r"><input type="checkbox" class="team-msg-chk" data-team-id="${esc(t.id)}" aria-label="Select ${esc(t.name)} to message"${checked ? ' checked' : ''}><a class="main" href="${esc(teamHref)}"><b>${esc(t.name)}</b><span>${esc(trackName)}${adminsLine ? ' · ' + esc(adminsLine) : ''}</span></a><span class="meta">${t.members.length} of ${teamSizeMax}${pill}</span></div>`
+    return `<div class="r"><input data-help="messages" type="checkbox" class="team-msg-chk" data-team-id="${esc(t.id)}" aria-label="Select ${esc(t.name)} to message"${checked ? ' checked' : ''}><a class="main" href="${esc(teamHref)}"><b>${esc(t.name)}</b><span>${esc(trackName)}${adminsLine ? ' · ' + esc(adminsLine) : ''}</span></a><span class="meta">${t.members.length} of ${teamSizeMax}${pill}</span></div>`
   }
 
   function soloRow(p) {

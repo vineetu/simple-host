@@ -1,11 +1,14 @@
 // SIM-394: organiser assistant chat. Built exactly to the fixed API contract
 // (GET/POST /v1/hack/events/{slug}/assistant) -- see the ticket's
-// api-contract.md. This module owns the whole feature: the Ask toggle, the
-// panel (desktop side panel / phone sheet), the safe markdown renderer, the
-// SSE stream reader and the per-browser history in localStorage. Screens
-// that want the assistant call mountAssistant() once per render; it does
-// nothing (no button at all) when the server says the assistant isn't
-// configured.
+// api-contract.md. This module owns the whole feature: the floating Ask
+// pill, the panel (desktop side panel / phone sheet), the safe markdown
+// renderer, the SSE stream reader and the per-browser history in
+// localStorage. v2: one floating button/panel per browser tab, appended
+// to document.body (not any one screen's <main>), mounted from the router
+// (app.js) for every organiser event route and reused across navigation --
+// see "the module" below. It does nothing (no button at all) when the
+// server says the assistant isn't configured, or the viewer isn't an
+// eligible organiser.
 //
 // Never changes anything: there is no write call anywhere in this file.
 //
@@ -76,6 +79,9 @@ export function clearAllAssistantHistory() {
   // Stop any reply still streaming so it can't write the old chat back.
   chatStates.forEach(st => { st.turnId++; try { st.abortController?.abort() } catch (e) {} })
   chatStates.clear()
+  // v2: the floating button/panel belong to whoever just signed out, not
+  // whoever signs in next on this browser.
+  teardownFloating()
 }
 
 // Trim oldest-first so a send never exceeds the API's own limits (1..20
@@ -265,42 +271,140 @@ function getChatState(key) {
 }
 
 // ---- the module -----------------------------------------------------------
-// mountAssistant(ctx, { api, anchor, container, ev, checklist }):
-// - `ctx` is the screen's render ctx (api/ui/me/alive()).
-// - `api` is the plain api(method, path) function (ctx.api.api).
-// - `anchor` is the element the Ask button is inserted right after.
-// - `container` is the screen's own <main> -- the panel is appended inside
-//   it (position:fixed still anchors to the viewport; see kit.css), so its
-//   DOM is torn down for free the next time this screen re-renders its
-//   innerHTML. The conversation itself does not depend on that DOM; see the
-//   module state above.
-// - `ev` is the event object (slug, stage).
-// - `checklist` is the organiser's own checklist object, or undefined.
+// v2 (floating, any organiser screen): exactly one Ask button and one panel
+// exist on the page at a time, appended straight to document.body -- not
+// inside any screen's own <main> -- so a screen re-render (and clicking an
+// in-answer link to another organiser screen) never tears them down. Both
+// the router (app.js, every navigation) and organiser-overview.js (so its
+// own tour can await the exact button it targets) call mountAssistant with
+// the same shape; whichever gets there first actually builds it, the other
+// just awaits the same in-flight promise (mountPromises below) -- so this
+// never does the status GET or builds the DOM twice for one navigation.
 //
+// mountAssistant(ctx, { api, ev, checklist, screenId, tab }):
+// - `ctx` is the screen's render ctx (api/ui/me/alive()/role/event).
+// - `api` is the plain api(method, path) function (ctx.api.api).
+// - `ev` is the event object (slug, stage), or undefined off an organiser route.
+// - `checklist` is the organiser's own checklist object, or undefined.
+// - `screenId` is the router's screen id for the current route (e.g.
+//   "organiser-settings"), `tab` its current ?tab= value (or '') -- sent
+//   with every question (point 5). Read live, at send time, off the
+//   module-level `currentScreen` below, not captured at mount time: the
+//   panel (and any in-flight reply) stays open while navigating to a
+//   different organiser screen, so the pair that belongs with a question
+//   is whatever is current the moment it's actually sent.
+//
+// Eligibility (organiser, can.manage, not an admin inspecting) is decided
+// here, from `ctx`, every call -- not by each caller -- so the router and
+// organiser-overview.js can never disagree about when the button should
+// exist. Not eligible (or hasAssistant() is false, i.e. inside an MCP App
+// frame) tears down whatever floating UI this browser tab currently has.
+let mountedKey = null // the chat-state key (storageKey) the floating UI on screen right now belongs to, or null
+let mountedState = null // { askBtn, state, onKeydown } for mountedKey, so teardown removes exactly what was built
+const mountPromises = new Map() // key -> in-flight/settled buildFloating() promise, shared by every caller asking for that key this navigation
+// key -> the most recent caller's ctx still asking for that key, refreshed
+// on every ensureMounted call (including the ones that just await an
+// already in-flight build). Review fix: buildFloating's own aliveness
+// check (after its GET resolves) used to close over whichever ctx started
+// the build -- a route that navigated away mid-GET left that ctx dead even
+// though a newer navigation to the SAME event+person was still asking for
+// it (its own ensureMounted call just awaited the same in-flight promise),
+// so the button silently never appeared. Reading the latest entry here
+// instead means "is ANYONE still asking for this key", not "is whoever
+// happened to start the fetch still around".
+const liveCtx = new Map()
+let currentScreen = { id: '', tab: '' }
+function setCurrentScreen(screenId, tab) { currentScreen = { id: screenId || '', tab: tab || '' } }
+// Some screens switch tabs in place (pushState, no re-route), so the tab is
+// read from the address bar at send time, falling back to the mounted one.
+function currentTab() {
+  try { return new URLSearchParams(location.search).get('tab') || '' } catch (e) { return currentScreen.tab }
+}
+
+// Removes this tab's floating button + panel from the page, if either
+// exists. Chat history (chatStates/localStorage) is untouched -- only the
+// visible UI goes away, so a later mountAssistant for the same key (the
+// same event, the same signed-in person) picks the conversation back up,
+// including whether the panel was left open (H2's state.open).
+function teardownFloating() {
+  if (!mountedState) return
+  document.removeEventListener('keydown', mountedState.onKeydown, true)
+  if (mountedState.state.panelEl) { mountedState.state.panelEl.remove(); mountedState.state.panelEl = null }
+  mountedState.askBtn.remove()
+  mountedState = null
+  mountedKey = null
+}
+
+// Direct, synchronous teardown for callers with no ctx to hand mountAssistant
+// (app.js's /signin and goSignIn paths, the thrown-error catch-all) and for
+// sign-out (clearAllAssistantHistory below) -- the floating UI belongs to
+// whoever just signed out, never the next person to sign in on this browser.
+export function unmountAssistant() {
+  // Also disown every build still waiting on its status GET: with no live
+  // caller left, buildFloating below refuses to draw (review round 2).
+  liveCtx.clear()
+  teardownFloating()
+}
+
+// What the starter questions are picked from: refreshed on every mount
+// call, so a panel that survives navigation (or a later New chat) suggests
+// from the event's current stage and checklist, not the first screen's.
+let starterRefs = { stage: '', checklist: undefined }
+
+export async function mountAssistant(ctx, opts) {
+  const mounted = ensureMounted(ctx, opts)
+  await Promise.race([mounted, new Promise(resolve => setTimeout(resolve, MOUNT_RACE_MS))])
+}
+
+async function ensureMounted(ctx, { api, ev, checklist, screenId, tab }) {
+  setCurrentScreen(screenId, tab)
+  const detail = ctx.event
+  const eligible = hasAssistant() && ctx.role === 'organiser' && !!detail && !!detail.can?.manage && !detail.admin_view
+  if (!eligible) { teardownFloating(); return }
+  starterRefs = { stage: ev.stage, checklist: checklist ?? detail.checklist }
+  const slug = ev.slug
+  const userId = (ctx.me && (ctx.me.id ?? ctx.me.username)) ?? null
+  const key = storageKey(slug, userId)
+  liveCtx.set(key, ctx) // whoever's asking right now, even if this call only ends up awaiting someone else's in-flight build
+  if (mountedKey === key) return // this browser tab's floating UI already belongs to this event+person
+  // A different event/person (or nothing) is floating right now -- its own
+  // chat state lives on in chatStates/localStorage regardless of whether
+  // its DOM is on screen, so tearing the DOM down here loses nothing a
+  // later visit can't pick back up.
+  teardownFloating()
+  const inFlight = mountPromises.get(key)
+  if (inFlight) { await inFlight; return }
+  const building = buildFloating(ctx, { api, ev, checklist, slug, key })
+  mountPromises.set(key, building)
+  try { await building } finally { mountPromises.delete(key); liveCtx.delete(key) }
+}
+
 // L11: the GET this makes can be slow (or never configured, in which case
 // it still has to try once). A caller that awaits this (organiser-
 // overview.js, so the tour's target exists before the tour starts
 // scanning the DOM) must not be stuck behind it -- raced against a fixed
-// timeout; the mount itself keeps going in the background and still
-// appears whenever the GET actually lands, just possibly after the tour
-// already ran (tour.js already tolerates a step target that isn't there).
-export async function mountAssistant(ctx, opts) {
-  const mounted = doMount(ctx, opts)
-  await Promise.race([mounted, new Promise(resolve => setTimeout(resolve, MOUNT_RACE_MS))])
-}
-
-async function doMount(ctx, { api, anchor, container, ev, checklist }) {
-  if (!hasAssistant()) return
-  const slug = ev.slug
+// timeout (via mountAssistant above); building itself keeps going in the
+// background and still appears whenever the GET actually lands, just
+// possibly after the tour already ran (tour.js already tolerates a step
+// target that isn't there).
+//
+// Review fix: the aliveness check below reads liveCtx (the latest caller
+// for this key), not the `ctx` this particular build happened to start
+// with -- a route that started this GET and then navigated away before it
+// resolved must not make a *later* navigation back to the same event lose
+// the button. A second navigation to this same key while the GET is still
+// in flight doesn't start a second build (ensureMounted above just awaits
+// this one and returns), so there is still only ever one GET and one DOM
+// build per key; this only changes whose liveness that one build trusts.
+async function buildFloating(ctx, { api, ev, checklist, slug, key }) {
   let status
   try { status = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/assistant') }
   catch (e) { return }
-  if (ctx.alive && !ctx.alive()) return
+  const askingNow = liveCtx.get(key)
+  if (!askingNow) return // unmounted (or superseded) while the GET was in flight
+  if (askingNow.alive && !askingNow.alive()) return
   if (!status.ok || !status.data || status.data.enabled !== true) return
-  if (!anchor || !anchor.isConnected) return
-
-  const userId = (ctx.me && (ctx.me.id ?? ctx.me.username)) ?? null
-  const key = storageKey(slug, userId)
+  if (mountedKey === key) return // built by another caller while this GET was in flight
   const state = getChatState(key)
   if (!state.loaded) {
     state.loaded = true
@@ -315,8 +419,11 @@ async function doMount(ctx, { api, anchor, container, ev, checklist }) {
     else if (status.data.remaining_today === 0) state.limitMessage = dailyLimitLine(status.data.daily_limit)
   }
 
-  const askBtn = el('button', { class: 'btn quiet sm', type: 'button', 'data-tour': 'assistant', text: 'Ask', 'aria-expanded': 'false', 'aria-controls': 'assistant-panel-' + slug })
-  anchor.insertAdjacentElement('afterend', askBtn)
+  // Fixed bottom-right pill (kit.css ".assistant-fab"), appended straight
+  // to document.body -- outside every screen's own <main>, so it and the
+  // panel below survive any screen re-render and any in-app navigation.
+  const askBtn = el('button', { class: 'btn assistant-fab', type: 'button', 'data-tour': 'assistant', text: 'Ask', 'aria-expanded': 'false', 'aria-controls': 'assistant-panel-' + slug })
+  document.body.append(askBtn)
 
 
   function apiKeyHeader() { try { return ctx.api.apiKey() } catch (e) { return '' } }
@@ -517,7 +624,10 @@ async function doMount(ctx, { api, anchor, container, ev, checklist }) {
     try {
       res = await fetch('/v1/hack/events/' + encodeURIComponent(slug) + '/assistant', {
         method: 'POST', headers,
-        body: JSON.stringify({ messages: state.messages.map(m => ({ role: m.role, content: m.content })) }),
+        // screen/tab: point 5 -- read live off the module-level ref, not a
+        // value captured when this panel was built, since the panel stays
+        // open while the person navigates to a different organiser screen.
+        body: JSON.stringify({ messages: state.messages.map(m => ({ role: m.role, content: m.content })), screen: currentScreen.id, tab: currentTab() }),
         signal: controller.signal
       })
     } catch (e) {
@@ -652,7 +762,7 @@ async function doMount(ctx, { api, anchor, container, ev, checklist }) {
     panel.append(thread)
     if (state.messages.length === 0 && !state.streaming) {
       const chips = el('div', { class: 'assistant-chips', 'data-assistant-chips': '' })
-      starterChips(ev.stage, checklist).forEach(text => {
+      starterChips(starterRefs.stage, starterRefs.checklist).forEach(text => {
         const chip = el('button', { class: 'chip', type: 'button', text })
         chip.addEventListener('click', () => { trySend(text) })
         chips.append(chip)
@@ -739,11 +849,15 @@ async function doMount(ctx, { api, anchor, container, ev, checklist }) {
   }
 
   function onKeydown(e) {
-    // This mount's own screen is gone (a re-render happened) -- just drop
-    // this stale listener. state.panelEl is shared across mounts (H2) and
-    // may already belong to a newer mount's live panel by now, so this
-    // must never null it out from here.
-    if (ctx.alive && !ctx.alive()) { document.removeEventListener('keydown', onKeydown, true); return }
+    // Review fix: this used to self-remove once this build's own ctx.alive()
+    // went false, on the v1 assumption that a route change always means the
+    // mount is stale. In v2 the floating panel outlives the route that
+    // built it (that is the whole point -- it stays open across in-app
+    // navigation), so navigating away here must NOT disable Escape/the
+    // phone focus trap for the panel that is still on screen. This
+    // listener's lifetime is tied to the panel itself now: openPanel adds
+    // it, closePanel/teardownFloating remove it -- nothing here needs to
+    // guess whether a particular route is still current.
     if (!state.panelEl) return
     // M8: a confirm dialog or the guided tour owns the keyboard while
     // open -- same guard tour.js's own onKey uses for a confirm, extended
@@ -765,16 +879,16 @@ async function doMount(ctx, { api, anchor, container, ev, checklist }) {
     }
   }
 
-  // state.panelEl can outlive the mount that built it -- a screen
-  // re-render drops the old panel from the document (main.innerHTML
-  // replaced) but nothing nulls the shared reference until a mount
-  // actually deals with it. isConnected tells a real live panel apart
-  // from a stale, detached one left over from before this mount started.
+  // state.panelEl can outlive the floating UI that built it -- teardownFloating
+  // (a different event/person taking over this browser tab's button, or
+  // leaving organiser routes/signing out) removes it from the document but
+  // nothing nulls the shared reference until something deals with it.
+  // isConnected tells a real live panel apart from a stale, detached one.
   function panelIsLive() { return !!(state.panelEl && state.panelEl.isConnected) }
   function openPanel() {
     if (panelIsLive()) return
     state.panelEl = buildPanel()
-    container.append(state.panelEl)
+    document.body.append(state.panelEl)
     state.open = true
     askBtn.setAttribute('aria-expanded', 'true')
     document.addEventListener('keydown', onKeydown, true)
@@ -798,8 +912,13 @@ async function doMount(ctx, { api, anchor, container, ev, checklist }) {
 
   askBtn.addEventListener('click', () => { if (panelIsLive()) closePanel(); else openPanel() })
 
+  mountedKey = key
+  mountedState = { askBtn, state, onKeydown }
+
   // H2: a re-render (window focus on Overview, a stage change, coming back
-  // to this screen) must reopen exactly the conversation that was already
-  // happening, including a reply still streaming in -- not a blank panel.
+  // to this screen, or just navigating to another organiser screen now
+  // that this is floating) must reopen exactly the conversation that was
+  // already happening, including a reply still streaming in -- not a
+  // blank panel.
   if (state.open) openPanel()
 }

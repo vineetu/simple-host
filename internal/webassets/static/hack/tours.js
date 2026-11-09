@@ -47,7 +47,7 @@ export const tours = {
       // already skip any step whose target isn't on screen, so this step
       // simply doesn't show for that organiser rather than needing its own
       // check here.
-      { target: '[data-tour="assistant"]', title: 'Ask about your event', body: 'Want to know more about a setting? Ask here. It answers in a line or two and links to the place to change it.' },
+      { target: '[data-tour="assistant"]', title: 'Ask about your event', body: 'Want to know more about a setting? Ask here, from any screen. It answers in a line or two and links to the place to change it.' },
       { target: '[data-tour="change-stage"]', title: 'Move the event on', body: 'To move to any other stage, or back, use Change stage. Each change says what will happen before you confirm.' },
       { target: '[data-tour="share"]', title: 'Invite people', body: 'Send the join link to participants and the judge link to judges. Make a new link in Settings → Links if a link leaked.' },
       // Atlas 2026-10-30: Event page is now sub-pages (Basics, About,

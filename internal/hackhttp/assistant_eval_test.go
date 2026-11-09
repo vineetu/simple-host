@@ -6,40 +6,65 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/llm"
 	"github.com/vsriram/simple-host/internal/webassets"
 )
 
-// assistantEvalCase is one row of testdata/assistant_eval.json.
+// assistantEvalCase is one row of testdata/assistant_eval.json (organiser
+// assistant v2, 2026-11-09: every organiser settings area, four fixture
+// events at different stages).
+//
+//   - fixture: which event the question is asked about ("open" when
+//     empty, or "draft", "judging" (locked), "ended").
+//   - screen/tab: sent with the question, as the browser does.
+//   - expect_start: "yes" or "no" -- the answer's first word must be it
+//     (the prompt asks for Yes/No first on yes-or-no questions); an
+//     answer that opens with the other one is a wrong answer.
+//   - expect_all: groups of acceptable phrases; every group must match.
+//   - expect_text_any: one whole-word fact (event data questions).
+//   - expect_href_any: one of these links must be in the answer.
+//   - forbid_any: contradictions; any one is a wrong answer.
+//   - expect_unsure: a deliberately unanswerable question; the answer
+//     must say it is not sure.
 type assistantEvalCase struct {
-	Question      string   `json:"question"`
-	ExpectHrefAny []string `json:"expect_href_any,omitempty"`
-	ExpectTextAny []string `json:"expect_text_any,omitempty"`
-	AllowUnsure   *bool    `json:"allow_unsure,omitempty"`
-	ForbidAny     []string `json:"forbid_any,omitempty"`
-	MaxLines      int      `json:"max_lines,omitempty"`
+	Area          string     `json:"area"`
+	Question      string     `json:"question"`
+	Fixture       string     `json:"fixture,omitempty"`
+	Screen        string     `json:"screen,omitempty"`
+	Tab           string     `json:"tab,omitempty"`
+	ExpectStart   string     `json:"expect_start,omitempty"`
+	ExpectAll     [][]string `json:"expect_all,omitempty"`
+	ExpectHrefAny []string   `json:"expect_href_any,omitempty"`
+	ExpectTextAny []string   `json:"expect_text_any,omitempty"`
+	ForbidAny     []string   `json:"forbid_any,omitempty"`
+	ExpectUnsure  bool       `json:"expect_unsure,omitempty"`
+	MaxLines      int        `json:"max_lines,omitempty"`
 }
 
-func (c assistantEvalCase) allowUnsure() bool {
-	if c.AllowUnsure == nil {
-		return true
+func (c assistantEvalCase) fixture() string {
+	if c.Fixture == "" {
+		return "open"
 	}
-	return *c.AllowUnsure
+	return c.Fixture
 }
 
 func (c assistantEvalCase) maxLines() int {
 	if c.MaxLines <= 0 {
-		return 3
+		return 4
 	}
 	return c.MaxLines
 }
 
-func loadAssistantEvalCases(t *testing.T, slug string) []assistantEvalCase {
+func loadAssistantEvalCases(t *testing.T) []assistantEvalCase {
 	t.Helper()
 	raw, err := os.ReadFile("testdata/assistant_eval.json")
 	if err != nil {
@@ -49,12 +74,17 @@ func loadAssistantEvalCases(t *testing.T, slug string) []assistantEvalCase {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse assistant_eval.json: %v", err)
 	}
-	for i := range cases {
-		for j, h := range cases[i].ExpectHrefAny {
-			cases[i].ExpectHrefAny[j] = strings.ReplaceAll(h, "{slug}", slug)
-		}
-	}
 	return cases
+}
+
+// withSlug fills {slug} into a case's expected links for one fixture.
+func (c assistantEvalCase) withSlug(slug string) assistantEvalCase {
+	out := c
+	out.ExpectHrefAny = make([]string, len(c.ExpectHrefAny))
+	for i, h := range c.ExpectHrefAny {
+		out.ExpectHrefAny[i] = strings.ReplaceAll(h, "{slug}", slug)
+	}
+	return out
 }
 
 // assistantValidHrefs is every href the model is allowed to use for this
@@ -170,12 +200,13 @@ func containsAnyFold(haystack string, needles []string) bool {
 }
 
 // containsAny reports whether any answer href is one of the expected ones;
-// an anchor on the same screen counts (/e/x/manage?s=judging#jg-lockzone
-// matches an expected /e/x/manage?s=judging).
+// an anchor or a more specific tab on the same screen counts
+// (/e/x/manage?s=judging#jg-lockzone and /e/x/manage?s=teams&tab=solo
+// match an expected /e/x/manage?s=judging and /e/x/manage?s=teams).
 func containsAny(haystack []string, needles []string) bool {
 	for _, h := range haystack {
 		for _, n := range needles {
-			if h == n || (!strings.Contains(n, "#") && strings.HasPrefix(h, n+"#")) {
+			if h == n || (!strings.Contains(n, "#") && (strings.HasPrefix(h, n+"#") || strings.HasPrefix(h, n+"&"))) {
 				return true
 			}
 		}
@@ -198,19 +229,61 @@ func containsWholeWordAny(haystack string, needles []string) bool {
 	return false
 }
 
-// gradeAssistantAnswer is the deterministic grader (owner requirement: a
-// wrong answer fails the build, "I'm not sure + link" is a pass). It never
-// calls a model; it only judges a given answer text. Kept separate from
-// TestAssistantEval so it has its own fast, network-free unit test.
-func gradeAssistantAnswer(c assistantEvalCase, answer string, validHrefs map[string]bool) (pass bool, reason string) {
+// isUnsureAnswer: the assistant fell back to "I'm not sure" -- it opens
+// with it, the way the prompt asks it to abstain. A confident claim with a
+// hedge tacked on ("you can have 99 tracks, but I'm not sure") is graded
+// as the claim it is.
+func isUnsureAnswer(answer string) bool {
+	lead := strings.ToLower(normaliseApostrophes(strings.TrimLeft(answer, " \t\n*_>#-`\"'")))
+	for _, p := range []string{"i'm not sure", "i am not sure", "not sure", "i'm unsure", "i am unsure", "i don't know", "i do not know", "sorry, i'm not sure", "sorry, i don't know"} {
+		if strings.HasPrefix(lead, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstWord is the answer's first word, lower-cased, markdown and
+// punctuation stripped ("**No,** you can't" -> "no").
+func firstWord(answer string) string {
+	s := strings.TrimLeft(answer, " \t\n*_>#-`\"'")
+	end := strings.IndexFunc(s, func(r rune) bool { return !unicode.IsLetter(r) })
+	if end < 0 {
+		end = len(s)
+	}
+	return strings.ToLower(s[:end])
+}
+
+// matchesPhrase: a number matches whole-word ("8" not inside "18"); other
+// phrases match as a case-insensitive substring ("invit" matches "invite").
+func matchesPhrase(lowerAnswer, phrase string) bool {
+	p := strings.ToLower(phrase)
+	if regexp.MustCompile(`^[0-9]+$`).MatchString(p) {
+		return regexp.MustCompile(`\b` + p + `\b`).MatchString(lowerAnswer)
+	}
+	return strings.Contains(lowerAnswer, p)
+}
+
+// gradeAssistantAnswer is the deterministic grader. It returns pass, the
+// reason, and whether the answer fell back to "not sure". A wrong answer
+// (a contradiction, the opposite yes/no, a made-up link, a missing fact or
+// link) fails. "I'm not sure" with a link on a question the knowledge
+// answers passes the case but is counted (assistantEvalRunOK caps the
+// rate); on a deliberately unanswerable question it is the only pass.
+func gradeAssistantAnswer(c assistantEvalCase, answer string, validHrefs map[string]bool) (pass bool, reason string, unsure bool) {
 	answer = normaliseApostrophes(answer)
+	lower := strings.ToLower(answer)
+	unsure = isUnsureAnswer(answer)
+	if strings.TrimSpace(answer) == "" {
+		return false, "empty answer", false
+	}
 	if containsAnyFold(answer, c.ForbidAny) {
-		return false, "contains a forbidden phrase"
+		return false, "contains a forbidden phrase", unsure
 	}
 	hrefs := answerHrefs(answer)
 	for _, h := range hrefs {
 		if !validHrefs[h] {
-			return false, fmt.Sprintf("used a made-up link: %s", h)
+			return false, fmt.Sprintf("used a made-up link: %s", h), unsure
 		}
 	}
 	lines := 0
@@ -220,83 +293,110 @@ func gradeAssistantAnswer(c assistantEvalCase, answer string, validHrefs map[str
 		}
 	}
 	if lines > c.maxLines() {
-		return false, fmt.Sprintf("%d lines, max %d", lines, c.maxLines())
+		return false, fmt.Sprintf("%d lines, max %d", lines, c.maxLines()), unsure
 	}
-
-	if c.allowUnsure() && containsAnyFold(answer, []string{"not sure", "don't know", "do not know", "unsure"}) && len(hrefs) > 0 {
-		return true, "unsure + link"
+	if !c.ExpectUnsure && len(hrefs) == 0 {
+		return false, "no link (every answer ends with a link to the place to act)", unsure
 	}
-	hasHrefReq := len(c.ExpectHrefAny) > 0
-	hasTextReq := len(c.ExpectTextAny) > 0
-	if !hasHrefReq && !hasTextReq {
-		return false, "no expectation configured and the answer did not say \"not sure\" with a link"
+	if c.ExpectUnsure {
+		if unsure {
+			return true, "unsure, as it should be", true
+		}
+		return false, "answered a question it has no facts for", false
 	}
-	if hasHrefReq && !containsAny(hrefs, c.ExpectHrefAny) {
-		return false, fmt.Sprintf("missing an expected href (one of %v)", c.ExpectHrefAny)
+	if c.ExpectStart != "" {
+		if fw := firstWord(answer); fw == "yes" || fw == "no" {
+			if fw != c.ExpectStart {
+				return false, fmt.Sprintf("answered %q, want %q", fw, c.ExpectStart), unsure
+			}
+		}
 	}
-	if hasTextReq && !containsWholeWordAny(answer, c.ExpectTextAny) {
-		return false, fmt.Sprintf("missing an expected fact (one of %v)", c.ExpectTextAny)
+	if unsure && len(hrefs) > 0 {
+		return true, "unsure + link", true
 	}
-	return true, "matched expectation"
+	if c.ExpectStart != "" && firstWord(answer) != c.ExpectStart {
+		return false, fmt.Sprintf("does not start with %q", c.ExpectStart), unsure
+	}
+	if len(c.ExpectHrefAny) > 0 && !containsAny(hrefs, c.ExpectHrefAny) {
+		return false, fmt.Sprintf("missing an expected href (one of %v)", c.ExpectHrefAny), unsure
+	}
+	for _, group := range c.ExpectAll {
+		ok := false
+		for _, p := range group {
+			if matchesPhrase(lower, p) {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return false, fmt.Sprintf("missing an expected fact (one of %v)", group), unsure
+		}
+	}
+	if len(c.ExpectTextAny) > 0 && !containsWholeWordAny(answer, c.ExpectTextAny) {
+		return false, fmt.Sprintf("missing an expected fact (one of %v)", c.ExpectTextAny), unsure
+	}
+	if len(c.ExpectHrefAny) == 0 && len(c.ExpectAll) == 0 && len(c.ExpectTextAny) == 0 && c.ExpectStart == "" {
+		return false, "no expectation configured", unsure
+	}
+	return true, "matched expectation", unsure
 }
 
-// assistantEvalRunOK is the whole-run honesty gate (SIM-394 H3): every
-// case must grade true, AND at most assistantEvalMaxUnsure of them may pass via the "unsure +
-// link" path. Without the second half, a model that answers "I'm not
-// sure" to everything -- including questions the event data already
-// answers -- would pass every case that allows the unsure path, which
-// defeats the eval's purpose.
-// assistantEvalMaxUnsure: the questions whose facts are in the event set
-// allow_unsure false, so this cap only bounds the rest (18 cases, 2026-11-09).
-const assistantEvalMaxUnsure = 5
+// assistantEvalMaxUnsureRate caps how many answerable questions may fall
+// back to "I'm not sure" in a run (owner, 2026-11-09: with full coverage it
+// should be rare). Deliberately unanswerable questions don't count.
+const assistantEvalMaxUnsureRate = 0.05
 
-func assistantEvalRunOK(perCasePass []bool, unsureCount int) bool {
-	if unsureCount > assistantEvalMaxUnsure {
-		return false
-	}
+// assistantEvalRunOK: every case passed, and "not sure" on answerable
+// questions stayed under the cap.
+func assistantEvalRunOK(perCasePass []bool, answerable, unsureAnswerable int) bool {
 	for _, pass := range perCasePass {
 		if !pass {
 			return false
 		}
 	}
-	return true
+	return answerable == 0 || float64(unsureAnswerable) <= assistantEvalMaxUnsureRate*float64(answerable)
 }
 
-// TestGradeAssistantAnswer is a fast, network-free unit test of the grader
-// above (always runs; no DB_DSN, no ASSISTANT_EVAL needed).
+// TestGradeAssistantAnswer is a fast, network-free unit test of the grader.
 func TestGradeAssistantAnswer(t *testing.T) {
-	valid := map[string]bool{"/e/demo/manage?s=overview": true, "/docs/start/": true}
+	valid := map[string]bool{"/e/demo/manage?s=overview": true, "/docs/start/": true, "/e/demo/manage?s=teams&tab=solo": true, "/e/demo/manage?s=teams": true}
+	home := []string{"/e/demo/manage?s=overview"}
 	cases := []struct {
 		name   string
 		c      assistantEvalCase
 		answer string
 		want   bool
 	}{
-		{"matches expected href", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=overview"}}, "See [Home](/e/demo/manage?s=overview).", true},
-		{"made-up link fails", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=overview"}}, "See [Home](/e/demo/made-up).", false},
-		{"unsure with link passes", assistantEvalCase{}, "I'm not sure. See [docs](/docs/start/).", true},
-		{"unsure without any link fails", assistantEvalCase{}, "I'm not sure.", false},
-		{"no expectation, confident answer fails", assistantEvalCase{}, "Yes, definitely.", false},
-		{"forbidden phrase fails", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=overview"}, ForbidAny: []string{"i've opened"}}, "I've opened it. See [Home](/e/demo/manage?s=overview).", false},
-		{"too many lines fails", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=overview"}}, "a\nb\nc\nd\n[Home](/e/demo/manage?s=overview)", false},
-		{"expected text present", assistantEvalCase{ExpectTextAny: []string{"open"}}, "Your event is in the Open stage.", true},
-		{"expected text missing", assistantEvalCase{ExpectTextAny: []string{"open"}}, "Your event is in the Draft stage.", false},
-		{"max_lines override", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=overview"}, MaxLines: 15}, strings.Repeat("line\n", 10) + "[Home](/e/demo/manage?s=overview)", true},
-		// SIM-394 H3: whole-word/number matching for expect_text_any --
-		// "10 teams" must not satisfy a case expecting the literal count 1.
-		{"10 teams fails the team-count case", assistantEvalCase{ExpectTextAny: []string{"1", "one"}}, "There are 10 teams.", false},
-		{"1 team passes the team-count case", assistantEvalCase{ExpectTextAny: []string{"1", "one"}}, "There is 1 team.", true},
-		{"\"one\" must not match inside \"none\"", assistantEvalCase{ExpectTextAny: []string{"one"}}, "There are none yet.", false},
-		// SIM-394 H3: a curly apostrophe in the model's answer still trips
-		// a forbid_any phrase written with a plain apostrophe.
-		{"curly apostrophe forbidden phrase fails", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=overview"}, ForbidAny: []string{"can't see"}}, "Teams can’t see it. [Home](/e/demo/manage?s=overview)", false},
-		// SIM-394 H3: a markdown link title is cut off before the href is
-		// checked against validHrefs.
-		{"link title is stripped before matching", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=overview"}}, `See [Home](/e/demo/manage?s=overview "Home page").`, true},
+		{"matches expected href", assistantEvalCase{ExpectHrefAny: home}, "See [Home](/e/demo/manage?s=overview).", true},
+		{"made-up link fails", assistantEvalCase{ExpectHrefAny: home}, "See [Home](/e/demo/made-up).", false},
+		{"unsure with link passes an answerable case (counted)", assistantEvalCase{ExpectHrefAny: home}, "I'm not sure. See [docs](/docs/start/).", true},
+		{"unsure without any link fails", assistantEvalCase{ExpectHrefAny: home}, "I'm not sure.", false},
+		{"unanswerable answered fails", assistantEvalCase{ExpectUnsure: true}, "Team Rocket won.", false},
+		{"unanswerable unsure passes", assistantEvalCase{ExpectUnsure: true}, "I'm not sure.", true},
+		{"no expectation fails", assistantEvalCase{}, "Yes, definitely.", false},
+		{"forbidden phrase fails", assistantEvalCase{ExpectHrefAny: home, ForbidAny: []string{"i've opened"}}, "I've opened it. See [Home](/e/demo/manage?s=overview).", false},
+		{"too many lines fails", assistantEvalCase{ExpectHrefAny: home}, "a\nb\nc\nd\ne\n[Home](/e/demo/manage?s=overview)", false},
+		{"expected text present", assistantEvalCase{ExpectTextAny: []string{"open"}}, "Your event is in the Open stage. [Home](/e/demo/manage?s=overview)", true},
+		{"an answerable case without a link fails", assistantEvalCase{ExpectTextAny: []string{"open"}}, "Your event is in the Open stage.", false},
+		{"a hedge after a confident claim is not an abstention", assistantEvalCase{ExpectAll: [][]string{{"12"}}}, "You can have 99 tracks, but I'm not sure. [Home](/e/demo/manage?s=overview)", false},
+		{"10 teams fails the team-count case", assistantEvalCase{ExpectTextAny: []string{"1", "one"}}, "There are 10 teams. [Home](/e/demo/manage?s=overview)", false},
+		{"\"one\" must not match inside \"none\"", assistantEvalCase{ExpectTextAny: []string{"one"}}, "There are none yet. [Home](/e/demo/manage?s=overview)", false},
+		{"curly apostrophe forbidden phrase fails", assistantEvalCase{ExpectHrefAny: home, ForbidAny: []string{"can't see"}}, "Teams can’t see it. [Home](/e/demo/manage?s=overview)", false},
+		{"link title is stripped", assistantEvalCase{ExpectHrefAny: home}, `See [Home](/e/demo/manage?s=overview "Home page").`, true},
+		{"yes when no expected fails", assistantEvalCase{ExpectStart: "no", ExpectHrefAny: home}, "Yes, you can. [Home](/e/demo/manage?s=overview)", false},
+		{"bold No passes", assistantEvalCase{ExpectStart: "no", ExpectHrefAny: home}, "**No,** it stays. [Home](/e/demo/manage?s=overview)", true},
+		{"hedged opener fails a yes/no case", assistantEvalCase{ExpectStart: "no", ExpectHrefAny: home}, "It depends. [Home](/e/demo/manage?s=overview)", false},
+		{"unsure cannot hide an opposite yes/no", assistantEvalCase{ExpectStart: "no", ExpectHrefAny: home}, "Yes, but I'm not sure. [Home](/e/demo/manage?s=overview)", false},
+		{"all groups must match", assistantEvalCase{ExpectAll: [][]string{{"entry"}, {"site"}}}, "It removes the entry. [Home](/e/demo/manage?s=overview)", false},
+		{"all groups matched", assistantEvalCase{ExpectAll: [][]string{{"entry"}, {"site"}}}, "It removes the entry and the site. [Home](/e/demo/manage?s=overview)", true},
+		{"number matches whole word only", assistantEvalCase{ExpectAll: [][]string{{"8"}}}, "Up to 18 questions. [Home](/e/demo/manage?s=overview)", false},
+		{"a more specific tab of the expected screen counts", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=teams"}}, "[Not on a team](/e/demo/manage?s=teams&tab=solo)", true},
+		{"a different screen sharing a prefix does not count", assistantEvalCase{ExpectHrefAny: []string{"/e/demo/manage?s=team"}}, "[Teams](/e/demo/manage?s=teams)", false},
+		{"substring phrase", assistantEvalCase{ExpectAll: [][]string{{"invit"}}}, "Create an invitation. [Home](/e/demo/manage?s=overview)", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, reason := gradeAssistantAnswer(tc.c, tc.answer, valid)
+			got, reason, _ := gradeAssistantAnswer(tc.c, tc.answer, valid)
 			if got != tc.want {
 				t.Fatalf("got pass=%v (%s), want %v", got, reason, tc.want)
 			}
@@ -304,36 +404,23 @@ func TestGradeAssistantAnswer(t *testing.T) {
 	}
 }
 
-// TestAssistantEvalRunFailsOnTooManyUnsure: a model that answers "I'm not
-// sure" to every question -- even ones the event data already answers --
-// must fail the whole eval run, not pass case-by-case (SIM-394 H3). This
-// is the pure, network-free run-level counterpart to TestGradeAssistantAnswer
-// above; TestAssistantEval itself exercises assistantEvalRunOK for real
-// against the configured model.
-func TestAssistantEvalRunFailsOnTooManyUnsure(t *testing.T) {
-	valid := map[string]bool{"/docs/start/": true}
-	answer := "I'm not sure. See [docs](/docs/start/)."
-	run := func(n int, last string) bool {
-		var perCasePass []bool
-		unsureCount := 0
-		for i := 0; i < n; i++ {
-			c, a := assistantEvalCase{Question: fmt.Sprint(i)}, answer
-			if i == n-1 && last != "" {
-				c, a = assistantEvalCase{Question: "last", ExpectTextAny: []string{"four"}}, last
-			}
-			pass, reason := gradeAssistantAnswer(c, a, valid)
-			perCasePass = append(perCasePass, pass)
-			if pass && reason == "unsure + link" {
-				unsureCount++
-			}
-		}
-		return assistantEvalRunOK(perCasePass, unsureCount)
+// TestAssistantEvalRunCapsUnsure: a model that answers "I'm not sure" to
+// answerable questions fails the run past the cap, even though each such
+// case passes on its own.
+func TestAssistantEvalRunCapsUnsure(t *testing.T) {
+	pass := make([]bool, 40)
+	for i := range pass {
+		pass[i] = true
 	}
-	if run(assistantEvalMaxUnsure+1, "") {
-		t.Fatalf("expected the run to fail: %d cases passed via the unsure path", assistantEvalMaxUnsure+1)
+	if !assistantEvalRunOK(pass, 40, 2) {
+		t.Fatal("2 of 40 unsure should pass")
 	}
-	if !run(assistantEvalMaxUnsure+1, "It is four.") {
-		t.Fatalf("expected the run to pass: only %d cases passed via the unsure path", assistantEvalMaxUnsure)
+	if assistantEvalRunOK(pass, 40, 3) {
+		t.Fatal("3 of 40 unsure should fail")
+	}
+	pass[3] = false
+	if assistantEvalRunOK(pass, 40, 0) {
+		t.Fatal("a failed case should fail the run")
 	}
 }
 
@@ -346,12 +433,106 @@ func evalDocsText() string {
 	return AssistantDocsText(webassets.DocsTree(true))
 }
 
-// TestAssistantEval: the owner's requirement for an eval set of real
-// organiser questions with known right answers, run against the real
-// configured model (never a fake) -- skipped unless ASSISTANT_EVAL=1, and
-// again if the provider isn't actually configured. The lead runs this with
-// the real key (scripts/check-hack-assistant-eval.sh); this session never
-// sets ASSISTANT_EVAL=1 itself.
+// assistantEvalFixture is one event the eval asks questions about.
+type assistantEvalFixture struct {
+	slug  string
+	org   person
+	valid map[string]bool
+}
+
+// buildAssistantEvalFixtures makes the four events: "open" (the original
+// fixture: Open, a track, one team, judging closes 15 December, the
+// "Video, website and code link" preset), "draft" (just created),
+// "judging" (two teams with entries, one judge, judging locked) and
+// "ended" (a participant, then ended). Each has its own organiser.
+func buildAssistantEvalFixtures(t *testing.T, a *hackApp) map[string]assistantEvalFixture {
+	t.Helper()
+	canJudge := events.AbilitiesForRole("organiser").Judge
+	fx := map[string]assistantEvalFixture{}
+	mk := func(name string, org person, slug string) {
+		fx[name] = assistantEvalFixture{slug: slug, org: org, valid: assistantValidHrefs(t, slug, canJudge)}
+	}
+
+	// open
+	org := a.newPerson(t, "ev")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != http.StatusCreated {
+		t.Fatalf("create event: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/entry-rules", map[string]any{"preset": "video_website_code"}, a.key(org)); r.status != 200 {
+		t.Fatalf("set entry rules: %d %s", r.status, r.body)
+	}
+	a.openEvent(t, org, slug)
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"judging_ends_at": "2026-12-15"}, a.key(org)); r.status != 200 {
+		t.Fatalf("set judging_ends_at: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/tracks", map[string]any{
+		"tracks": []map[string]string{{"name": "AI track", "slug": "ai"}},
+	}, a.key(org)); r.status != 200 {
+		t.Fatalf("set tracks: %d %s", r.status, r.body)
+	}
+	part := a.newPerson(t, "pt")
+	if r := a.at(t, "POST", "/v1/hack/join/"+eventJoinCode(t, a, org, slug), map[string]any{"accept_coc": true, "display_name": "Pat"}, a.key(part)); r.status != 200 {
+		t.Fatalf("join: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Team A"}, a.key(part)); r.status != http.StatusCreated {
+		t.Fatalf("create team: %d %s", r.status, r.body)
+	}
+	mk("open", org, slug)
+
+	// draft
+	org = a.newPerson(t, "ed")
+	slug = uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != http.StatusCreated {
+		t.Fatalf("create draft event: %d %s", r.status, r.body)
+	}
+	mk("draft", org, slug)
+
+	// judging, locked
+	w := newJudgingWorldApp(t, a, 2, 1)
+	w.setStage(t, "judging")
+	if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != 200 {
+		t.Fatalf("lock judging: %d %s", r.status, r.body)
+	}
+	mk("judging", w.org, w.slug)
+
+	// ended
+	org = a.newPerson(t, "ee")
+	slug = uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != http.StatusCreated {
+		t.Fatalf("create ended event: %d %s", r.status, r.body)
+	}
+	a.openEvent(t, org, slug)
+	part = a.newPerson(t, "pe")
+	if r := a.at(t, "POST", "/v1/hack/join/"+eventJoinCode(t, a, org, slug), map[string]any{"accept_coc": true, "display_name": "Sam"}, a.key(part)); r.status != 200 {
+		t.Fatalf("join ended: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, a.key(org)); r.status != 200 {
+		t.Fatalf("end event: %d %s", r.status, r.body)
+	}
+	mk("ended", org, slug)
+	return fx
+}
+
+// assistantEvalOutcome is one case's result over its tries.
+type assistantEvalOutcome struct {
+	c       assistantEvalCase
+	pass    bool
+	notRun  bool
+	reason  string
+	answers []string
+	tries   int
+	unsure  int // tries that fell back to "not sure"
+}
+
+// TestAssistantEval: the owner's eval set of real organiser questions,
+// run against the real configured model (never a fake) -- skipped unless
+// ASSISTANT_EVAL=1. Every graded answer counts: one wrong answer fails its
+// case and the build (owner, 2026-11-09). Only a provider error, an empty
+// stream or an HTTP error is retried, and never graded; a case that never
+// got an answer is "not run", which fails the run too but is reported apart
+// from wrong answers. ASSISTANT_EVAL_ONLY=<substring> runs only matching
+// questions.
 func TestAssistantEval(t *testing.T) {
 	if os.Getenv("ASSISTANT_EVAL") != "1" {
 		t.Skip("set ASSISTANT_EVAL=1 to run the real organiser-assistant eval set (scripts/check-hack-assistant-eval.sh)")
@@ -363,37 +544,7 @@ func TestAssistantEval(t *testing.T) {
 	}
 
 	a := newHackApp(t)
-	org := a.newPerson(t, "ev")
-	slug := uniqueSlug()
-	if r := a.createEvent(t, org, slug, nil); r.status != http.StatusCreated {
-		t.Fatalf("create event: %d %s", r.status, r.body)
-	}
-	a.openEvent(t, org, slug) // stage: open
-
-	// A known judging-close date (fact for "when does judging close?").
-	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"judging_ends_at": "2026-12-15"}, a.key(org)); r.status != 200 {
-		t.Fatalf("set judging_ends_at: %d %s", r.status, r.body)
-	}
-	// A known track (fact for "where are tracks?").
-	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/tracks", map[string]any{
-		"tracks": []map[string]string{{"name": "AI track", "slug": "ai"}},
-	}, a.key(org)); r.status != 200 {
-		t.Fatalf("set tracks: %d %s", r.status, r.body)
-	}
-	// createEvent already seeds the default rubric (Idea/Execution/Design/
-	// Demo, weights summing to 100) -- a real rubric for "how do I change
-	// the rubric?" and "can participants see the rubric?" without needing
-	// a separate PUT.
-
-	// A known team count (fact for "how many teams are there?").
-	part := a.newPerson(t, "pt")
-	if r := a.at(t, "POST", "/v1/hack/join/"+eventJoinCode(t, a, org, slug), map[string]any{"accept_coc": true, "display_name": "Pat"}, a.key(part)); r.status != 200 {
-		t.Fatalf("join: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Team A"}, a.key(part)); r.status != http.StatusCreated {
-		t.Fatalf("create team: %d %s", r.status, r.body)
-	}
-
+	fixtures := buildAssistantEvalFixtures(t, a)
 	llmClient := llm.New(llm.Config{
 		BaseURL:         baseURL,
 		Model:           model,
@@ -406,27 +557,98 @@ func TestAssistantEval(t *testing.T) {
 		Model:                 model,
 		APIKey:                os.Getenv("ASSISTANT_API_KEY"),
 		ReasoningEffort:       os.Getenv("ASSISTANT_REASONING_EFFORT"),
-		MonthlyBudgetUSD:      1000, // generous: this run's own cost accounting is not what is under test
-		DailyQuestions:        1000,
+		MonthlyBudgetUSD:      1000, // this run's own cost accounting is not under test
+		DailyQuestions:        100000,
 		PriceInputPerMTokUSD:  0.5,
 		PriceOutputPerMTokUSD: 2.0,
 	}, evalDocsText))
+	// The per-account abuse limiter (burst 40) is not under test either.
+	a.hack.assistantWrites = httpx.NewRateLimiter(1e6, 1e6)
 
-	// org's membership role is "organiser" (createEvent made it so), and
-	// canJudge here must use the exact same rule buildSystemPrompt's
-	// PLACES section gates judge targets on -- events.AbilitiesForRole
-	// mirrors events.MembershipAbilities(member).Judge for a joined
-	// member, which is what hack_assistant.go actually passes to Ask.
-	canJudge := events.AbilitiesForRole("organiser").Judge
-	validHrefs := assistantValidHrefs(t, slug, canJudge)
-	cases := loadAssistantEvalCases(t, slug)
+	only := os.Getenv("ASSISTANT_EVAL_ONLY")
+	var cases []assistantEvalCase
+	for _, c := range loadAssistantEvalCases(t) {
+		if only == "" || strings.Contains(strings.ToLower(c.Question), strings.ToLower(only)) {
+			if _, ok := fixtures[c.fixture()]; !ok {
+				t.Fatalf("case %q: unknown fixture %q", c.Question, c.fixture())
+			}
+			cases = append(cases, c)
+		}
+	}
 
-	// ASSISTANT_EVAL_REPORT: a side-channel file for the per-case lines.
-	// go test -json (scripts/test-integration.sh's own summarizer) only
-	// ever prints a FAILING test's captured stdout, so on a fully passing
-	// run the per-case question/answer/pass lines below would otherwise
-	// never reach anyone; scripts/check-hack-assistant-eval.sh sets this
-	// and cats it regardless of the exit code.
+	if len(cases) == 0 {
+		t.Fatalf("no eval cases selected (ASSISTANT_EVAL_ONLY=%q)", only)
+	}
+
+	// ask returns the answer, or ok=false for a transport/provider problem.
+	ask := func(t *testing.T, fx assistantEvalFixture, c assistantEvalCase) (string, bool, string) {
+		r := a.at(t, "POST", "/v1/hack/events/"+fx.slug+"/assistant", map[string]any{
+			"messages": []map[string]string{{"role": "user", "content": c.Question}},
+			"screen":   c.Screen,
+			"tab":      c.Tab,
+		}, a.key(fx.org))
+		if r.status != 200 {
+			return "", false, fmt.Sprintf("HTTP %d", r.status)
+		}
+		var answer strings.Builder
+		for _, ev := range readSSE(t, r.body) {
+			if d, ok := ev["delta"].(string); ok {
+				answer.WriteString(d)
+			}
+			if code, ok := ev["error"].(string); ok {
+				return "", false, "provider " + code
+			}
+		}
+		if strings.TrimSpace(answer.String()) == "" {
+			return "", false, "empty answer"
+		}
+		return answer.String(), true, ""
+	}
+
+	outcomes := make([]assistantEvalOutcome, len(cases))
+	var mu sync.Mutex
+	t.Run("cases", func(t *testing.T) {
+		for i, c := range cases {
+			i, c := i, c
+			t.Run(fmt.Sprintf("%02d", i), func(t *testing.T) {
+				t.Parallel()
+				fx := fixtures[c.fixture()]
+				cc := c.withSlug(fx.slug)
+				out := assistantEvalOutcome{c: cc}
+				graded := []bool{}
+				transport := 0
+				for len(graded) < 1 && transport < 5 {
+					answer, ok, why := ask(t, fx, cc)
+					if !ok {
+						transport++
+						out.reason = why
+						time.Sleep(time.Duration(transport) * 2 * time.Second)
+						continue
+					}
+					pass, reason, unsure := gradeAssistantAnswer(cc, answer, fx.valid)
+					out.tries++
+					if unsure {
+						out.unsure++
+					}
+					out.answers = append(out.answers, answer)
+					graded = append(graded, pass)
+					if !pass || len(graded) == 1 {
+						out.reason = reason
+					}
+				}
+				switch {
+				case len(graded) == 0:
+					out.notRun = true
+				case graded[0]:
+					out.pass = true
+				}
+				mu.Lock()
+				outcomes[i] = out
+				mu.Unlock()
+			})
+		}
+	})
+
 	var report *os.File
 	if path := os.Getenv("ASSISTANT_EVAL_REPORT"); path != "" {
 		f, err := os.Create(path)
@@ -436,54 +658,73 @@ func TestAssistantEval(t *testing.T) {
 		defer f.Close()
 		report = f
 	}
+	write := func(s string) {
+		fmt.Print(s)
+		if report != nil {
+			_, _ = report.WriteString(s)
+		}
+	}
 
-	failures := 0
-	unsureCount := 0
+	type areaStat struct{ cases, wrong, notRun, unsureCases int }
+	areas := map[string]*areaStat{}
 	var perCasePass []bool
-	for _, c := range cases {
-		r := a.at(t, "POST", "/v1/hack/events/"+slug+"/assistant", map[string]any{
-			"messages": []map[string]string{{"role": "user", "content": c.Question}},
-		}, a.key(org))
-		var answer strings.Builder
-		for _, ev := range readSSE(t, r.body) {
-			if d, ok := ev["delta"].(string); ok {
-				answer.WriteString(d)
-			}
-			if errCode, ok := ev["error"].(string); ok {
-				t.Logf("case %q: provider error mid-stream: %s", c.Question, errCode)
-			}
+	wrong, notRun, answerable, unsureAnswerable, tries, unsureTries := 0, 0, 0, 0, 0, 0
+	for _, o := range outcomes {
+		st := areas[o.c.Area]
+		if st == nil {
+			st = &areaStat{}
+			areas[o.c.Area] = st
 		}
-		pass, reason := gradeAssistantAnswer(c, answer.String(), validHrefs)
-		perCasePass = append(perCasePass, pass)
-		if pass && reason == "unsure + link" {
-			unsureCount++
-		}
+		st.cases++
 		status := "PASS"
-		if !pass {
-			status = "FAIL"
-			failures++
+		switch {
+		case o.notRun:
+			status, notRun = "NOT RUN", notRun+1
+			st.notRun++
+		case !o.pass:
+			status, wrong = "FAIL", wrong+1
+			st.wrong++
 		}
-		line := fmt.Sprintf("[%s] %q\n  answer: %s\n  reason: %s\n", status, c.Question, oneLine(answer.String()), reason)
-		fmt.Print(line)
-		if report != nil {
-			_, _ = report.WriteString(line)
+		perCasePass = append(perCasePass, o.pass)
+		tries += o.tries
+		unsureTries += o.unsure
+		// A case counts as "not sure" when any of its graded answers was,
+		// so a retry can't launder a fallback into a pass.
+		if !o.c.ExpectUnsure {
+			answerable++
+			if o.unsure > 0 {
+				unsureAnswerable++
+				st.unsureCases++
+			}
 		}
-	}
-	// SIM-394 H3: more than 3 cases passing only via "I'm not sure + link"
-	// fails the whole run, even if every individual case otherwise graded
-	// true -- the assistant must not dodge mostly-answerable questions.
-	if unsureCount > assistantEvalMaxUnsure {
-		line := fmt.Sprintf("\n%d cases passed via the unsure path (max %d allowed) -- failing the run\n", unsureCount, assistantEvalMaxUnsure)
-		fmt.Print(line)
-		if report != nil {
-			_, _ = report.WriteString(line)
+		last := ""
+		if len(o.answers) > 0 {
+			last = o.answers[len(o.answers)-1]
 		}
+		write(fmt.Sprintf("[%s] (%s/%s) %q\n  answer: %s\n  reason: %s (tries %d)\n", status, o.c.Area, o.c.fixture(), o.c.Question, oneLine(last), o.reason, o.tries))
 	}
-	if report != nil {
-		_, _ = report.WriteString(fmt.Sprintf("\n%d of %d cases failed\n", failures, len(cases)))
+	names := make([]string, 0, len(areas))
+	for n := range areas {
+		names = append(names, n)
 	}
-	if !assistantEvalRunOK(perCasePass, unsureCount) {
-		t.Fatalf("%d of %d eval cases failed, %d passed via the unsure path (max %d) -- see output above, or $ASSISTANT_EVAL_REPORT", failures, len(cases), unsureCount, assistantEvalMaxUnsure)
+	sort.Strings(names)
+	write("\n== by area: cases / wrong / not run / not sure ==\n")
+	for _, n := range names {
+		st := areas[n]
+		write(fmt.Sprintf("%-18s %3d %3d %3d %3d\n", n, st.cases, st.wrong, st.notRun, st.unsureCases))
+	}
+	rate := 0.0
+	if answerable > 0 {
+		rate = float64(unsureAnswerable) / float64(answerable)
+	}
+	triesRate := 0.0
+	if tries > 0 {
+		triesRate = float64(unsureTries) / float64(tries)
+	}
+	write(fmt.Sprintf("\nSUMMARY cases=%d wrong=%d not_run=%d not_sure_answerable=%d/%d (%.1f%%) not_sure_all_tries=%d/%d (%.1f%%)\n",
+		len(outcomes), wrong, notRun, unsureAnswerable, answerable, 100*rate, unsureTries, tries, 100*triesRate))
+	if !assistantEvalRunOK(perCasePass, answerable, unsureAnswerable) {
+		t.Fatalf("%d wrong, %d not run, not sure on %d of %d answerable questions (cap %.0f%%) -- see the report", wrong, notRun, unsureAnswerable, answerable, 100*assistantEvalMaxUnsureRate)
 	}
 }
 

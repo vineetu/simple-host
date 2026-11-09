@@ -182,9 +182,9 @@ export function rowMenuHTML(label, items) {
   const body = items.map(it => {
     const hr = (it.danger || it.sep) && !sawSep ? '<hr>' : ''
     if (it.danger || it.sep) sawSep = true
-    return hr + `<button type="button" role="menuitem"${it.disabled ? ' disabled' : ''}${it.danger ? ' class="danger"' : ''} data-act="${esc(it.act)}">${esc(it.label)}</button>`
+    return hr + `<button data-help="row.actions" type="button" role="menuitem"${it.disabled ? ' disabled' : ''}${it.danger ? ' class="danger"' : ''} data-act="${esc(it.act)}">${esc(it.label)}</button>`
   }).join('')
-  return `<button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for ${esc(label)}"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden>${body}</div>`
+  return `<button data-help="row.actions" class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for ${esc(label)}"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden>${body}</div>`
 }
 
 // wireRowMenus binds the open/close/Escape behaviour for every .row-menu

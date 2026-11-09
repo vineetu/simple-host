@@ -4,7 +4,7 @@ import { mount } from './shell.js'
 import { resolveRoute, isAppRoute, href, normalizeURL } from './nav.js'
 import { endTour } from './tour.js'
 import { openLeave } from './leave.js'
-import { clearAllAssistantHistory } from './assistant.js'
+import { clearAllAssistantHistory, mountAssistant, unmountAssistant } from './assistant.js'
 // Attribution carry-over (arrival.js) is only present on chromed pages.
 const arrival = u => (window.SHArrival ? window.SHArrival.url(u) : u)
 // Same as partials/dialog.html shStartSSO: bind this browser's apex SSO session to the key.
@@ -412,12 +412,13 @@ async function route() {
   const turn = ++generation
   const path = location.pathname.replace(/\/+$/, '') || '/'
   if (path === '/signin') {
+    unmountAssistant()
     document.getElementById('app').innerHTML = `<main class="pub"><div class="hero"><h1>Simple Hack</h1></div><div id="signin-slot"></div><h2 id="signin-bare" hidden>Sign in</h2><p id="link-elsewhere" class="note" hidden>Open this link on the device where you asked for it, or type the 6-digit code from the email.</p><p id="verifying" class="note" hidden>Signing in…</p></main>`
     document.body.classList.remove('booting')
     return routeSignIn()
   }
   const invite = joinPathKind(path)
-  if (!apiKey() && !invite) { goSignIn(); return }
+  if (!apiKey() && !invite) { unmountAssistant(); goSignIn(); return }
   try {
     if (apiKey() && !initialData) initialData = Promise.all([api.me(), api.listEvents()]).then(([m, e]) => {
       if (!m.ok || !e.ok) throw new Error(m.data.error || e.data.error || 'Could not load your events')
@@ -459,6 +460,7 @@ async function route() {
             notFoundMain.innerHTML = `<section class="locked"><h2>Event not found</h2><p>It may have been deleted, or the link is wrong.</p><p><a class="btn primary" href="/events">Home</a> <a class="btn" href="/directory">Find a hackathon</a></p></section>`
             document.title = 'Event not found · Simple Hack'
           }
+          unmountAssistant()
           document.body.classList.remove('booting')
           return
         }
@@ -484,11 +486,24 @@ async function route() {
     const ctx = { ...data, api, ui, event, role, params: new URLSearchParams(location.search), go,
       alive: () => turn === generation,
       refresh: async () => { initialData = null; return route() } }
+    ctx.screenId = match.id
     if (match.id.startsWith('public-')) {
       // Invite links stand alone: no sidebar or event switcher until the person has joined.
       document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><a class="wordmark" href="/">simple<b>·</b>hack</a><span class="grow"></span>${apiKey() ? '<a href="/events">Home</a>' : ''}</div><main></main></div>`
       ctx.main = document.querySelector('#app main')
-    } else ctx.main = mount(ctx, match.section, match.id)
+      unmountAssistant()
+    } else {
+      ctx.main = mount(ctx, match.section, match.id)
+      // Floating Ask (SIM-394 v2): mounted from the router for every
+      // organiser event route, not just Home, so it exists on every
+      // screen without each screen module having to ask for it itself.
+      // mountAssistant decides eligibility (organiser, can.manage, not an
+      // admin inspecting) itself from ctx -- not awaited here, since only
+      // Home's own tour needs to wait for it (organiser-overview.js makes
+      // its own call to the same effect, awaited, and the two share one
+      // in-flight build rather than racing each other).
+      mountAssistant(ctx, { api: api.api, ev: event?.event, checklist: event?.checklist, screenId: match.id, tab: ctx.params.get('tab') || '' })
+    }
     activeContext = ctx
     document.body.classList.remove('booting')
     if (event?.me?.approval_status && event.me.approval_status !== 'approved' && role === 'participant') {
@@ -534,6 +549,7 @@ async function route() {
     await screen.render(ctx)
   } catch (e) {
     if (api.isSignedOut(e) || turn !== generation) return
+    unmountAssistant()
     document.body.classList.remove('booting')
     document.getElementById('app').innerHTML = `<main class="page"><div class="note bad" role="alert">${ui.esc(e.message)}</div><a href="/events">Home</a></main>`
   }
@@ -561,10 +577,19 @@ window.addEventListener('focus', () => {
   if (['organiser-overview', 'judge-home', 'participant-home'].includes(match?.id)) activeContext?.refresh()
 })
 api.onEventsChanged(() => { initialData = null; refreshEventList() })
-document.getElementById('app').addEventListener('click', e => {
+// SIM-394 v2: attached to the whole page, not just #app, because the
+// floating assistant panel (assistant.js) is appended straight to
+// document.body on purpose, so it survives #app's own innerHTML
+// replacement on every navigation (shell.js's mount()) -- a link inside a
+// reply needs the same in-app routing interception every other app link
+// already gets here. Narrowed back to '#app, .assistant-panel' (review
+// fix) so nothing else that might ever be appended to document.body
+// (a ui.js dialog scrim, the guided tour card) changes behaviour: those
+// never needed this interception before and still don't.
+document.body.addEventListener('click', e => {
   const a = e.target.closest('a[href]')
   if (a?.matches('[data-menu],[aria-disabled="true"]')) { e.preventDefault(); return }
-  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
+  if (!a || !a.closest('#app, .assistant-panel') || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
   const u = new URL(a.href)
   if (u.origin !== location.origin || u.searchParams.has('ui') || !isAppRoute(u.pathname)) return
   // A same-document "jump to section" link (e.g. #schedule on the page

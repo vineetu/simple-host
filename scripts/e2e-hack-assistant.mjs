@@ -6,6 +6,18 @@
 // **/v1/hack/events/*/assistant is mocked here with page.route -- the
 // contract (api-contract.md) is what is being built to, not a live model.
 //
+// v2 (floating, any organiser screen): the Ask button/panel are mounted
+// from the router, outside every screen's own <main>, so they show on
+// every organiser screen of an event (not just Home) and survive in-app
+// navigation, including clicking a link inside a reply. Covered below:
+// the button/panel on every organiser section plus a team detail and the
+// assignment grid, at 1280 and 390px; history carrying across screens;
+// the panel staying open (with its content) across an in-answer
+// navigation; the POST body carrying the current screen/tab, read live at
+// send time even after navigating with the panel still open; the button
+// never showing for a participant or judge; and, at 390px, the button not
+// overlapping a phone sticky save bar.
+//
 //   HACK_NAVIGATION_FIXTURE=/tmp/sim394-assistant-fixture.json TEST_PKGS=./internal/hackhttp \
 //     bash scripts/test-integration.sh -run TestServeHackNavigationBrowser   # separate shell, stays up
 //   node scripts/e2e-hack-assistant.mjs /tmp/sim394-assistant-fixture.json
@@ -21,12 +33,24 @@ const browser = await chromium.launch({ executablePath: '/usr/local/bin/chromium
 const pageErrors = []
 const base = '/v1/hack/events/' + info.slug
 
+// A real team slug off the fixture event, for the team-detail screen
+// (?s=team&team=<slug>) -- the fixture JSON itself only carries event
+// slugs, so this asks the real API, as the organiser, the same way the
+// Teams screen would.
+const teamsRes = await fetch(info.url + base + '/teams', { headers: { 'X-API-Key': info.keys.organiser } })
+const teamsList = await teamsRes.json()
+const teamSlug = (Array.isArray(teamsList) ? teamsList : teamsList.teams || [])[0]?.slug
+assert.ok(teamSlug, 'fixture event has at least one team for the team-detail screen check')
+
 function sse(events) { return events.map(e => 'data: ' + JSON.stringify(e) + '\n\n').join('') }
 const GET_OK = { enabled: true, daily_limit: 30, used_today: 3, remaining_today: 27, budget_reached: false, resets: '2026-12-01' }
 
 // `getData` and `postHandler` are swapped between steps; one route per
 // context dispatches on method so tests can reassign behaviour freely.
-function state() { return { getData: { ...GET_OK }, postHandler: null } }
+// `getDelayMs` (default 0) holds the GET response back -- used to prove a
+// navigation that happens while the status GET is still in flight doesn't
+// leave the button permanently missing (review fix 1).
+function state() { return { getData: { ...GET_OK }, postHandler: null, getDelayMs: 0 } }
 
 async function person(role, width, { walkthroughDone = true, markTourSeen = jsonVal => {} } = {}) {
   const st = state()
@@ -45,7 +69,11 @@ async function person(role, width, { walkthroughDone = true, markTourSeen = json
     return route.fulfill({ json: { organiser_walkthrough_done: walkthroughDone, judge_walkthrough_done: true, participant_walkthrough_done: true } })
   })
   await page.route('**' + base + '/assistant', async route => {
-    if (route.request().method() === 'GET') { await route.fulfill({ json: st.getData }); return }
+    if (route.request().method() === 'GET') {
+      if (st.getDelayMs) await new Promise(r => setTimeout(r, st.getDelayMs))
+      await route.fulfill({ json: st.getData })
+      return
+    }
     if (st.postHandler) { await st.postHandler(route); return }
     await route.fulfill({ status: 500, json: { error: 'no handler set for this test' } })
   })
@@ -164,10 +192,16 @@ try {
   assert.ok(clip.includes('Bold') && clip.includes('**'), 'Copy uses the raw reply text, not the rendered HTML')
   console.log('ok: Copy writes the reply to the clipboard')
 
-  // 7) Clicking the allowed /e/ link navigates (same tab, client router).
+  // 7) Clicking the allowed /e/ link navigates (same tab, client router) --
+  // and, v2: the panel lives outside <main> now, so this in-app navigation
+  // never tears it down. The same panel, with the same content, is still
+  // open on the screen the link just opened.
+  const replyTextBeforeNav = await reply.innerText()
   await reply.locator('a').first().click()
   await page.waitForURL(u => u.pathname === `/e/${info.slug}/manage` && u.search.includes('s=teams'))
-  console.log('ok: clicking an /e/ link navigates')
+  assert.equal(await page.locator('.assistant-panel').count(), 1, 'the panel stays open across an in-answer navigation')
+  assert.equal(await page.locator('.assistant-msg.assistant').last().locator('.assistant-bubble').innerText(), replyTextBeforeNav, 'the panel keeps its content across the navigation')
+  console.log('ok: clicking an /e/ link navigates and the panel stays open with its content')
   await openOverview(page) // back to Overview for the rest
 
   // 8) Starter chip click sends it; remaining-hint appears at <=5; singular wording at 1.
@@ -313,7 +347,7 @@ try {
       await p6.page.waitForTimeout(80)
     }
     assert.ok(found, 'walkthrough reaches the Ask step')
-    assert.match(await p6.page.locator('.tour-body').innerText(), /It answers in a line or two and links to the place to change it\./)
+    assert.match(await p6.page.locator('.tour-body').innerText(), /Ask here, from any screen\. It answers in a line or two and links to the place to change it\./)
     assert.ok(await p6.page.locator('[data-tour="assistant"]').evaluate(el => el.classList.contains('tour-ring')), 'the Ask button is ringed')
     await p6.context.close()
     console.log('ok: walkthrough step targets the Ask button')
@@ -494,6 +528,258 @@ try {
       console.log('skip: no danger-zone End button on this fixture event to open a scrim with (M8 guard still present in code)')
     }
     await p13.context.close()
+  }
+
+  // ---- v2: floating, any organiser screen ----------------------------------
+
+  // 25) The button shows and opens the panel on every organiser screen of
+  // this event -- not just Home -- at both 1280 and 390px, including a
+  // team detail and the assignment grid.
+  const sections = ['overview', 'event-page', 'settings', 'people', 'teams', 'entries', 'announcements', 'judging', 'results']
+  for (const width of [1280, 390]) {
+    const pw = await person('organiser', width)
+    for (const section of sections) {
+      await pw.page.goto(info.url + `/e/${info.slug}/manage?s=${section}`)
+      await pw.page.locator('[data-tour="assistant"]').waitFor()
+      await pw.page.locator('[data-tour="assistant"]').click()
+      await pw.page.locator('.assistant-panel').waitFor()
+    }
+    await pw.page.goto(info.url + `/e/${info.slug}/manage?s=team&team=${teamSlug}`)
+    await pw.page.locator('[data-tour="assistant"]').waitFor()
+    await pw.page.locator('[data-tour="assistant"]').click()
+    await pw.page.locator('.assistant-panel').waitFor()
+    await pw.page.goto(info.url + `/e/${info.slug}/manage?s=assignments`)
+    await pw.page.locator('[data-tour="assistant"]').waitFor()
+    await pw.page.locator('[data-tour="assistant"]').click()
+    await pw.page.locator('.assistant-panel').waitFor()
+    await pw.context.close()
+    console.log(`ok: floating Ask shows and opens the panel on every organiser screen, incl. team detail and assignments, at ${width}px`)
+  }
+
+  // 26) History carries across screens, and the panel never closes on its
+  // own during in-app navigation: ask on Home, follow a sidebar link to
+  // Settings, the earlier question is still in the (still-open) thread.
+  {
+    const p15 = await person('organiser', 1280)
+    await openOverview(p15.page)
+    await openPanel(p15.page)
+    p15.st.postHandler = async route => route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([{ delta: 'Answered on Home.' }, { done: true, remaining_today: 20 }]) })
+    await sendText(p15.page, 'a question asked on home')
+    await p15.page.waitForFunction(() => document.querySelector('.assistant-msg.assistant')?.innerText.includes('Answered on Home'))
+    await p15.page.locator('.nav a[href*="s=settings"]').first().click()
+    // waitForURL only proves history.pushState ran -- go() fires route()
+    // without awaiting it, so the URL can change before routing (and the
+    // mountAssistant call that updates screen/tab) actually finishes.
+    // document.title flips only once screen.render() has completed.
+    await p15.page.waitForFunction(() => document.title.startsWith('Settings'))
+    assert.equal(await p15.page.locator('.assistant-panel').count(), 1, 'the panel is still open after navigating to Settings')
+    assert.equal(await p15.page.locator('.assistant-msg.user').last().innerText(), 'a question asked on home', "Home's question is still in the thread on Settings")
+    await p15.context.close()
+    console.log('ok: history carries across screens; the panel never closes on in-app navigation (point 1/3)')
+  }
+
+  // 27) The POST body carries the current screen/tab -- read live at send
+  // time, so navigating with the panel open (not reopening it) changes
+  // what the next question sends.
+  {
+    const p16 = await person('organiser', 1280)
+    let captured = null
+    p16.st.postHandler = async route => {
+      captured = route.request().postDataJSON()
+      await route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([{ delta: 'ok' }, { done: true, remaining_today: 20 }]) })
+    }
+    await p16.page.goto(info.url + `/e/${info.slug}/manage?s=settings&tab=teams`)
+    await p16.page.locator('[data-tour="assistant"]').waitFor()
+    await openPanel(p16.page)
+    await sendText(p16.page, 'what does this setting do')
+    await p16.page.waitForFunction(() => document.querySelector('.assistant-msg.assistant')?.innerText.includes('ok'))
+    assert.ok(captured, 'the POST body was captured')
+    assert.equal(captured.screen, 'organiser-settings', 'POST body carries the router screen id')
+    assert.equal(captured.tab, 'teams', 'POST body carries the current ?tab=')
+    assert.ok(Array.isArray(captured.messages), 'POST body still carries messages')
+    // Navigate in-app (panel stays open) to a screen with no tab -- the
+    // next question sends the now-current pair, not what was true when
+    // the panel was built.
+    await p16.page.locator('.nav a[href*="s=people"]').first().click()
+    // Same reasoning as above: wait for the People screen to actually
+    // finish rendering (and mountAssistant's screen/tab update with it),
+    // not just for the URL to have changed.
+    await p16.page.waitForFunction(() => document.title.startsWith('People'))
+    assert.equal(await p16.page.locator('.assistant-panel').count(), 1, 'panel still open after navigating to People')
+    assert.equal(await p16.page.locator('[data-tour="assistant"]').count(), 1, 'exactly one floating Ask button after in-app navigation, no duplicates')
+    await sendText(p16.page, 'and this one')
+    await p16.page.waitForFunction(() => document.querySelectorAll('.assistant-msg.assistant').length >= 2)
+    assert.equal(captured.screen, 'organiser-people', "POST body's screen follows navigation while the panel stays open")
+    assert.equal(captured.tab, '', 'POST body has no tab on a screen with none')
+    await p16.context.close()
+    console.log('ok: POST body carries screen/tab, read live at send time (point 5)')
+  }
+
+  // 28) The button never shows for a participant or a judge.
+  {
+    const partp = await person('participant', 1280)
+    await partp.page.goto(info.url + `/e/${info.slug}/team`)
+    await partp.page.locator('.app').waitFor()
+    await partp.page.waitForTimeout(300)
+    assert.equal(await partp.page.locator('[data-tour="assistant"]').count(), 0, 'never shows for a participant')
+    await partp.context.close()
+    const judgep = await person('judge', 1280)
+    await judgep.page.goto(info.url + `/e/${info.slug}/judge`)
+    await judgep.page.locator('.app').waitFor()
+    await judgep.page.waitForTimeout(300)
+    assert.equal(await judgep.page.locator('[data-tour="assistant"]').count(), 0, 'never shows for a judge')
+    await judgep.context.close()
+    console.log('ok: floating Ask never shows for a participant or a judge (point 2)')
+  }
+
+  // 29) At 390px, the button does not cover a phone sticky save bar.
+  // The organiser screen with one (kit.css ".card-foot.sticky", fixed at
+  // this width) is Event page -> About; Settings itself has no sticky
+  // bar on this fixture/build, so this is the real one on an organiser
+  // route, not a Settings tab specifically.
+  {
+    const stb = await person('organiser', 390)
+    await stb.page.goto(info.url + `/e/${info.slug}/manage?s=event-page&tab=about`)
+    await stb.page.locator('.card-foot.sticky').waitFor()
+    await stb.page.locator('[data-tour="assistant"]').waitFor()
+    const barBox = await stb.page.locator('.card-foot.sticky').boundingBox()
+    const btnBox = await stb.page.locator('[data-tour="assistant"]').boundingBox()
+    const overlap = !(btnBox.y + btnBox.height <= barBox.y || btnBox.y >= barBox.y + barBox.height)
+    assert.ok(!overlap, `Ask button overlaps the sticky save bar: btn=${JSON.stringify(btnBox)} bar=${JSON.stringify(barBox)}`)
+    await stb.page.screenshot({ path: `${shots}/phone-sticky-bar.png` })
+    await stb.context.close()
+    console.log('ok: at 390px the floating button does not overlap the phone sticky save bar (point 6)')
+  }
+
+  // ---- review fixes (round 2) -----------------------------------------------
+
+  // 30) Review fix 1: a navigation that happens while the status GET is
+  // still in flight must not leave the button permanently missing on the
+  // screen it lands on. Before the fix, buildFloating's aliveness check
+  // closed over whichever route started the GET -- navigating away before
+  // it resolved made that route's ctx.alive() false, so the build bailed
+  // and nothing ever mounted, even though the new route was asking for the
+  // exact same event+person the whole time.
+  {
+    const p17 = await person('organiser', 1280)
+    p17.st.getDelayMs = 1500
+    await p17.page.goto(info.url + `/e/${info.slug}/manage?s=overview`)
+    // Leave for another organiser screen on the same event before the
+    // slow GET resolves -- the router's mountAssistant call for Settings
+    // just awaits Overview's already in-flight build (same key), it does
+    // not start a second GET.
+    await p17.page.waitForTimeout(250)
+    assert.equal(await p17.page.locator('[data-tour="assistant"]').count(), 0, 'not mounted yet -- the GET is still artificially delayed')
+    await p17.page.locator('.nav a[href*="s=settings"]').first().click()
+    await p17.page.waitForFunction(() => document.title.startsWith('Settings'))
+    await p17.page.locator('[data-tour="assistant"]').waitFor({ timeout: 5000 })
+    assert.equal(await p17.page.locator('[data-tour="assistant"]').count(), 1, 'the button appears on the screen navigated to, even though the status GET started on the screen just left')
+    await p17.context.close()
+    console.log('ok: navigating away mid status-GET still mounts the button once it resolves (review fix 1)')
+  }
+
+  // 31) Review fix 2: the panel survives navigation (point 3), and Escape
+  // (plus the focus-return-to-Ask it does) must still work on whichever
+  // screen it ends up open on, not just the one it was opened from. Before
+  // the fix, the document keydown listener self-removed the moment the
+  // route that originally opened the panel went stale -- the very next
+  // keypress after navigating away disabled Escape/the phone focus trap.
+  {
+    const p18 = await person('organiser', 1280)
+    await openOverview(p18.page)
+    await openPanel(p18.page)
+    await p18.page.locator('.nav a[href*="s=settings"]').first().click()
+    await p18.page.waitForFunction(() => document.title.startsWith('Settings'))
+    assert.equal(await p18.page.locator('.assistant-panel').count(), 1, 'panel still open on Settings')
+    await p18.page.keyboard.press('Escape')
+    await p18.page.locator('.assistant-panel').waitFor({ state: 'detached' })
+    assert.ok(await p18.page.locator('[data-tour="assistant"]').evaluate(el => el === document.activeElement), 'Esc after navigating still returns focus to Ask')
+    await p18.context.close()
+    console.log('ok: Esc still closes the panel (and returns focus) after in-app navigation (review fix 2)')
+  }
+
+  // ---- review fixes (round 3) -----------------------------------------------
+
+  // 32) (a) At 390px, while the walkthrough is ringing the floating Ask
+  // button (itself position:fixed at the bottom), the card must dock
+  // above it, not over it -- tour.js's place() used to dock the phone
+  // card independent of the target's own position, which could land it
+  // right on top of a fixed target instead of a mid-page one.
+  {
+    const p19 = await person('organiser', 390, { walkthroughDone: false })
+    await p19.page.goto(info.url + `/e/${info.slug}/manage?s=overview&walkthrough=1`)
+    await p19.page.locator('.tour-card').waitFor()
+    let found = false
+    for (let i = 0; i < 10; i++) {
+      const title = await p19.page.locator('.tour-title').innerText()
+      if (title === 'Ask about your event') { found = true; break }
+      const nextBtn = p19.page.locator('[data-tour-next]')
+      if ((await nextBtn.innerText()) === 'Done') break
+      await nextBtn.click()
+      await p19.page.waitForTimeout(80)
+    }
+    assert.ok(found, 'walkthrough reaches the Ask step at 390px')
+    const cardBox = await p19.page.locator('.tour-card').boundingBox()
+    const btnBox = await p19.page.locator('[data-tour="assistant"]').boundingBox()
+    const overlap = !(cardBox.y + cardBox.height <= btnBox.y || cardBox.y >= btnBox.y + btnBox.height ||
+      cardBox.x + cardBox.width <= btnBox.x || cardBox.x >= btnBox.x + btnBox.width)
+    assert.ok(!overlap, `tour card overlaps the Ask button: card=${JSON.stringify(cardBox)} btn=${JSON.stringify(btnBox)}`)
+    const centreIsButton = await p19.page.evaluate(([cx, cy]) => {
+      const el = document.elementFromPoint(cx, cy)
+      return el === document.querySelector('[data-tour="assistant"]')
+    }, [btnBox.x + btnBox.width / 2, btnBox.y + btnBox.height / 2])
+    assert.ok(centreIsButton, 'the element at the Ask button centre is the button itself, not the tour card drawn over it')
+    await p19.page.screenshot({ path: `${shots}/phone-tour-assistant-step.png` })
+    await p19.context.close()
+    console.log('ok: at 390px the tour card docks above the floating Ask button, never over it (review round 3, a)')
+  }
+
+  // 33) (b) Event page's own tab switch is in-place -- history.pushState +
+  // a re-render of just the right column (organiser-event-page.js's own
+  // subnav click handler), never app.js's route()/mountAssistant. The
+  // panel is opened on Basics first (so currentScreen.tab, set only at
+  // mount time, would say "basics" if that were what the POST body used),
+  // then the tab is switched with the panel left open; the POST body's
+  // tab must still follow, read live off location.search at send time
+  // (assistant.js's currentTab()).
+  {
+    const p20 = await person('organiser', 1280)
+    let captured = null
+    p20.st.postHandler = async route => {
+      captured = route.request().postDataJSON()
+      await route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([{ delta: 'ok' }, { done: true, remaining_today: 20 }]) })
+    }
+    await p20.page.goto(info.url + `/e/${info.slug}/manage?s=event-page&tab=basics`)
+    await openPanel(p20.page)
+    await p20.page.locator('.subnav a[href*="tab=website"]').click()
+    await p20.page.waitForFunction(() => document.title.startsWith('Website'))
+    assert.equal(await p20.page.locator('.assistant-panel').count(), 1, 'panel stayed open through the in-place tab switch')
+    await sendText(p20.page, 'what does this do')
+    await p20.page.waitForFunction(() => document.querySelector('.assistant-msg.assistant')?.innerText.includes('ok'))
+    assert.ok(captured, 'the POST body was captured')
+    assert.equal(captured.screen, 'organiser-event-page', 'screen id is unaffected by the in-place tab switch (one screen, several tabs)')
+    assert.equal(captured.tab, 'website', 'POST body tab follows the in-place subnav switch, read live from location.search')
+    await p20.context.close()
+    console.log('ok: Event page in-place tab switch still reaches the POST body (review round 3, b)')
+  }
+
+  // 34) (c) Unmount race: navigating away from an organiser screen to an
+  // ineligible route (no event -- /events here, same as "a participant
+  // route of another event" for this purpose: ctx.role !== 'organiser' or
+  // ctx.event is null either way) before the status GET resolves must
+  // mean the button never appears once that stale GET does resolve.
+  {
+    const p21 = await person('organiser', 1280)
+    p21.st.getDelayMs = 1500
+    await p21.page.goto(info.url + `/e/${info.slug}/manage?s=overview`)
+    await p21.page.waitForTimeout(250)
+    assert.equal(await p21.page.locator('[data-tour="assistant"]').count(), 0, 'not mounted yet -- the GET is still artificially delayed')
+    await p21.page.goto(info.url + '/events')
+    await p21.page.locator('main h1').waitFor()
+    await p21.page.waitForTimeout(2200) // outlast the delayed GET (started before the navigation, resolves ~1500ms in)
+    assert.equal(await p21.page.locator('[data-tour="assistant"]').count(), 0, 'no stray button once the superseded GET resolves')
+    await p21.context.close()
+    console.log('ok: unmount race -- navigating to an ineligible route mid status-GET leaves no stray button (review round 3, c)')
   }
 
   // Desktop screenshot of the open panel with a short exchange, for a visual check.

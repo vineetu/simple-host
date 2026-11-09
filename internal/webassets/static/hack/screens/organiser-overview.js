@@ -221,7 +221,7 @@ export async function render(ctx) {
 ${content.button
     ? `<section${content.isEnd ? ' id="ov-end-target"' : ''} class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div>${content.navHref
       ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>`
-      : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button>`}</section>`
+      : `<button data-help="checklist" class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button>`}</section>`
     : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
 ${needsLines}
@@ -372,15 +372,18 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
     } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
   })
 
-  // SIM-394: the Ask button appears only when the server says the
-  // assistant is configured -- mountAssistant renders nothing at all
-  // otherwise. Every other control on this screen is already wired by the
-  // time this starts, so its own GET never delays them. Awaited before the
-  // tour starts: the tour's own walkthrough step targets this button, and
-  // tour.js decides which steps can show by querying the DOM once,
-  // synchronously, right as it starts -- a fire-and-forget mount would
-  // almost always lose that race and the step would silently never show.
-  await mountAssistant(ctx, { api, anchor: $('ov-change-stage'), container: main, ev, checklist: data.checklist })
+  // SIM-394 v2: the floating Ask button/panel is mounted from the router
+  // (app.js) for every organiser screen, not just this one -- the call
+  // here is Home's own, so its tour can await the exact same thing (the
+  // two calls share one in-flight build; see assistant.js's mountPromises)
+  // rather than racing the router's fire-and-forget call. Every other
+  // control on this screen is already wired by the time this starts, so
+  // its own GET never delays them. Awaited before the tour starts: the
+  // tour's own walkthrough step targets this button, and tour.js decides
+  // which steps can show by querying the DOM once, synchronously, right as
+  // it starts -- a fire-and-forget mount would almost always lose that
+  // race and the step would silently never show.
+  await mountAssistant(ctx, { api, ev, checklist: data.checklist, screenId: ctx.screenId, tab: params.get('tab') || '' })
   if (!ctx.alive()) return
 
   if (openWalk) startTour('organiser', ctx, { force: true })

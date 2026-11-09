@@ -80,6 +80,7 @@ var (
 	PresetSettable = hackentries.PresetSettable
 	RulesEditable  = hackentries.RulesEditable
 	RulesSummary   = hackentries.RulesSummary
+	RuleFields     = hackentries.RuleFields
 	ValidateRubric = hackentries.ValidateRubric
 	WholeInRange   = hackentries.WholeInRange
 )

@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -249,37 +250,69 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max])
 }
 
-// buildSystemPrompt assembles the whole system prompt: the rules, then
-// PLACES (the navigation map, organiser targets plus judge targets when
-// canJudge), then EVENT (the caller's already-sanitised event view JSON,
-// capped), then DOCS (capped), then the current time.
-func (s *AssistantService) buildSystemPrompt(slug string, canJudge bool, eventView json.RawMessage, now time.Time) string {
+// AskContext is everything about the asking organiser's event and screen
+// that the prompt is built from (organiser assistant v2, 2026-11-09).
+// EventView is the already-sanitised, size-capped event-view JSON;
+// Settings is the CURRENT SETTINGS block (plain lines, built by the HTTP
+// layer from an allow-list). Screen and Tab are the browser's hint of where
+// the organiser is asking from; unknown values are ignored.
+type AskContext struct {
+	Slug      string
+	CanJudge  bool
+	EventView json.RawMessage
+	Settings  string
+	Screen    string
+	Tab       string
+}
+
+// buildSystemPrompt assembles the whole system prompt: the rules, the
+// current screen, PLACES (every organiser link, plus judge links when
+// canJudge; labels and links only -- what each place does lives in
+// KNOWLEDGE), KNOWLEDGE (every record of the navigation map's explanation
+// layer, navigation-help.json, with its link), CURRENT SETTINGS, EVENT
+// (capped), DOCS (capped) and the current time.
+func (s *AssistantService) buildSystemPrompt(in AskContext, now time.Time) string {
 	var b strings.Builder
 	b.WriteString(assistantPromptRules)
 
+	nav := rules.Navigation()
+	if screen := assistantScreenLabel(nav, in.Screen, in.Tab); screen != "" {
+		b.WriteString("\n\nCURRENT SCREEN: ")
+		b.WriteString(screen)
+		b.WriteString("\n")
+	}
+
 	b.WriteString("\n\nPLACES:\n")
 	seen := make(map[string]bool)
-	for _, t := range rules.Navigation().Targets {
-		if t.Role != "organiser" && !(canJudge && t.Role == "judge") {
+	for _, t := range nav.Targets {
+		if t.Role != "organiser" && !(in.CanJudge && t.Role == "judge") {
 			continue
 		}
-		href := strings.ReplaceAll(t.HrefPattern, "{slug}", url.PathEscape(slug))
+		href := strings.ReplaceAll(t.HrefPattern, "{slug}", url.PathEscape(in.Slug))
 		if href == "" || strings.Contains(href, "{") {
 			continue
 		}
-		// Several navigation targets share the same label+href (e.g. two
-		// settings rows that both land on the rubric tab): list each
-		// distinct link once rather than repeating it with a different
-		// stage rule line.
+		// Several navigation targets share the same label+href: list each
+		// distinct link once.
 		key := t.Label + "\x00" + href
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		fmt.Fprintf(&b, "- [%s](%s): %s\n", t.Label, href, t.StageRule)
+		fmt.Fprintf(&b, "- [%s](%s)\n", t.Label, href)
 	}
 
-	eventJSON := string(eventView)
+	b.WriteString("\nKNOWLEDGE:\n")
+	b.WriteString(assistantKnowledge(in.Slug))
+
+	b.WriteString("\nCURRENT SETTINGS:\n")
+	if strings.TrimSpace(in.Settings) == "" {
+		b.WriteString("(unavailable)\n")
+	} else {
+		b.WriteString(in.Settings)
+	}
+
+	eventJSON := string(in.EventView)
 	if len(eventJSON) > assistantEventViewCapBytes {
 		eventJSON = eventJSON[:assistantEventViewCapBytes] + "...(truncated)"
 	}
@@ -300,11 +333,89 @@ func (s *AssistantService) buildSystemPrompt(slug string, canJudge bool, eventVi
 	return b.String()
 }
 
-const assistantPromptRules = `You answer an organiser's questions about this one event in Simple Hack.
-Reply in one or two short lines unless they ask for more detail, and always end with a link to the most relevant place.
-Use only the facts below. If the facts don't answer the question, or you are not sure, say "I'm not sure" and link the closest place or docs page. Never guess.
+// assistantKnowledge renders every explanation record with its link. The
+// whole layer goes in on every question (about 50 KB, 2026-11-09; the
+// prompt-size guard in hack_assistant_test.go fails if a small event's
+// whole prompt passes 72 KB): no per-question selection, so a question
+// never misses the record it needs. Records stay whole. Rendered once with a sentinel slug, then the real
+// (path-escaped) slug is swapped in per question.
+func assistantKnowledge(slug string) string {
+	assistantKnowledgeOnce.Do(func() {
+		var b strings.Builder
+		for _, r := range rules.NavigationHelp().Records {
+			href := ""
+			if link, err := rules.Resolve(r.Target, assistantSlugSentinel, nil); err == nil && !strings.Contains(link.Href, "{") {
+				href = link.Href
+			}
+			b.WriteString(r.HelpText(href))
+			b.WriteString("\n")
+		}
+		assistantKnowledgeText = b.String()
+	})
+	return strings.ReplaceAll(assistantKnowledgeText, assistantSlugSentinel, url.PathEscape(slug))
+}
+
+const assistantSlugSentinel = "zzassistantslugzz"
+
+var (
+	assistantKnowledgeOnce sync.Once
+	assistantKnowledgeText string
+)
+
+// assistantScreenLabel names the organiser screen (and tab) the question
+// was asked from, from the navigation map; "" for anything it doesn't know.
+func assistantScreenLabel(nav rules.NavigationMap, screen, tab string) string {
+	screen = strings.TrimSpace(screen)
+	if screen == "" {
+		return ""
+	}
+	label := ""
+	for _, t := range nav.Targets {
+		if t.Role == "organiser" && t.Kind == "screen" && t.Screen == screen {
+			label = t.Label
+			break
+		}
+	}
+	if label == "" {
+		for _, sc := range nav.Screens {
+			if sc.Role == "organiser" && sc.ID == screen {
+				label = sc.Section
+				break
+			}
+		}
+	}
+	if label == "" {
+		return ""
+	}
+	tab = strings.TrimSpace(tab)
+	if tab == "" {
+		return label
+	}
+	if screen == "organiser-settings" {
+		for _, st := range nav.Resolution.SettingsTabs {
+			if st.ID == tab {
+				return label + " > " + st.Label
+			}
+		}
+		return label
+	}
+	for _, r := range []rune(tab) {
+		if !(r == '-' || r == '_' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
+			return label
+		}
+	}
+	if len(tab) > 40 {
+		return label
+	}
+	return label + " (tab " + tab + ")"
+}
+
+const assistantPromptRules = `You help an organiser run this one event in Simple Hack. Answer questions about what any organiser setting, option or action means and does, where it is, how to do something, and what happens if they do it.
+Answer in one to three short lines unless they ask for more detail, and always end with a link to the most relevant place.
+Use only the facts below. KNOWLEDGE explains every organiser screen, setting, option and action; CURRENT SETTINGS and EVENT are this event's own values; CURRENT SCREEN is where the organiser is asking from. For a yes-or-no question, start your answer with "Yes" or "No".
+If the facts don't answer the question, say "I'm not sure" and link the closest place or docs page. Never guess, and never fill a gap with what other apps usually do.
 You cannot change anything in Simple Hack, so never say you changed or will change something; to act, link where the organiser does it themselves.
-Links: copy a whole markdown link exactly as it appears in PLACES or DOCS. The href always starts with /e/ or /docs/; never add a domain, a space or a second slash.
+Links: copy a whole markdown link exactly as it appears in PLACES, KNOWLEDGE or DOCS. The href always starts with /e/ or /docs/; never add a domain, a space or a second slash.
 Do not use headings.`
 
 // estimateTokens is the contract's worst-case reservation heuristic:
@@ -314,12 +425,12 @@ func estimateTokens(byteLen int) int {
 }
 
 // assistantTypicalPromptBytes is a fixed stand-in for a whole system
-// prompt (rules + PLACES + EVENT + DOCS) plus a short question, used only
-// by minReserveMicro below -- not the per-request estimate Ask itself
-// reserves against (that one measures the real prompt and messages for
-// the question actually being asked). 20 KB is comfortably inside the
-// PLACES/EVENT/DOCS caps (24 KB + 16 KB) ever built, headroom included.
-const assistantTypicalPromptBytes = 20 * 1024
+// prompt (rules + PLACES + KNOWLEDGE + CURRENT SETTINGS + EVENT + DOCS)
+// plus a short question, used only by minReserveMicro below -- not the
+// per-request estimate Ask itself reserves against (that one measures the
+// real prompt and messages). Measured 2026-11-09 (organiser assistant v2):
+// about 63 KB for a small event with its settings, event view and docs.
+const assistantTypicalPromptBytes = 64 * 1024
 
 // minReserveMicro is the smallest reservation a real question could need:
 // a 0-byte user message plus the typical-size prompt above, priced the
@@ -339,8 +450,8 @@ func (s *AssistantService) minReserveMicro() int64 {
 // Ask validates the request, reserves the worst-case cost against the
 // daily and monthly limits, streams the answer through onDelta, and
 // settles (or, on a provider failure before any delta, refunds) the
-// reservation. slug and canJudge build PLACES; eventView is the
-// already-sanitised, size-capped event-view JSON the HTTP layer built.
+// reservation. in carries the event, the asker's screen and the
+// already-sanitised event view and settings the HTTP layer built.
 //
 // Every returned error is an *AssistantRefusal except a genuine
 // infrastructure failure (a database error), which the transport maps to
@@ -349,7 +460,7 @@ func (s *AssistantService) minReserveMicro() int64 {
 // response bytes may still turn an *AssistantRefusal into a plain JSON
 // response; once onDelta has been called at least once, any further error
 // is always Code "provider_error" and belongs in a final SSE event instead.
-func (s *AssistantService) Ask(ctx context.Context, userID, slug string, canJudge bool, eventView json.RawMessage, messages []ChatMessage, onDelta func(string)) (AskResult, error) {
+func (s *AssistantService) Ask(ctx context.Context, userID string, in AskContext, messages []ChatMessage, onDelta func(string)) (AskResult, error) {
 	if !s.enabled {
 		return AskResult{}, &AssistantRefusal{Code: "assistant_off", Message: "The assistant is not set up on this server."}
 	}
@@ -361,7 +472,7 @@ func (s *AssistantService) Ask(ctx context.Context, userID, slug string, canJudg
 	day := assistantDay(now)
 	month := assistantMonth(now)
 
-	systemPrompt := s.buildSystemPrompt(slug, canJudge, eventView, now)
+	systemPrompt := s.buildSystemPrompt(in, now)
 	inputBytes := len(systemPrompt)
 	for _, m := range messages {
 		inputBytes += len(m.Content)

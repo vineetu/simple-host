@@ -2862,7 +2862,7 @@
 </table>
 <h2 id="post-v1hackeventsslugassistant">POST /v1/hack/events/{slug}/assistant</h2>
 <div data-operation="POST /v1/hack/events/{slug}/assistant"></div>
-<p>Read-only. The server answers from the navigation map, the organiser’s event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.</p>
+<p>Read-only. The server answers from the navigation map and its explanation of every organiser setting, option and action, the event’s current settings, the organiser’s event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -2901,6 +2901,18 @@
 <td>array of object</td>
 <td>yes</td>
 <td>The chat so far; the last message is the user’s question. Each content is at most 2000 characters, 12000 in total.</td>
+</tr>
+<tr>
+<td>screen</td>
+<td>string</td>
+<td></td>
+<td>Optional. The organiser screen the question is asked from, as a navigation screen id (for example organiser-settings). Unknown values, and values over 64 characters, are ignored.</td>
+</tr>
+<tr>
+<td>tab</td>
+<td>string</td>
+<td></td>
+<td>Optional. The tab of that screen (for example judging); over 64 characters is ignored.</td>
 </tr>
 </tbody>
 </table>

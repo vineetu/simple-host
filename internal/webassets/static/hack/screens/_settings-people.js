@@ -68,7 +68,7 @@ export async function render(ctx, section) {
     return p.display_name + (you ? ' (you)' : '')
   }
   function questionRow(q, i) {
-    return `<div class="control-row" data-q-row="${i}"><input class="input" data-q-prompt="${i}" type="text" maxlength="160" value="${ui.esc(q.prompt || '')}" placeholder="Question" aria-label="Question ${i + 1}"><label class="check"><input type="checkbox" data-q-required="${i}"${q.required ? ' checked' : ''}><span>Required</span></label><button class="btn danger sm" type="button" data-q-rm="${i}">Remove</button></div>`
+    return `<div class="control-row" data-q-row="${i}"><input data-help="signup.questions" class="input" data-q-prompt="${i}" type="text" maxlength="160" value="${ui.esc(q.prompt || '')}" placeholder="Question" aria-label="Question ${i + 1}"><label class="check"><input data-help="signup.questions" type="checkbox" data-q-required="${i}"${q.required ? ' checked' : ''}><span>Required</span></label><button class="btn danger sm" type="button" data-q-rm="${i}">Remove</button></div>`
   }
 
   function paint() {

@@ -26,3 +26,7 @@ func AbilitiesForRole(role string) Abilities {
 }
 
 func Navigation() json.RawMessage { return hackevents.NavigationJSON() }
+
+// NavigationHelp is the explanation layer of the navigation map (organiser
+// assistant v2), typed.
+func NavigationHelp() hackevents.NavigationHelpMap { return hackevents.NavigationHelp() }

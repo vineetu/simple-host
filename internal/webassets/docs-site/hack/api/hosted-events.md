@@ -528,7 +528,7 @@ Read whether the organiser assistant is on and today's remaining questions
 
 <div data-operation="POST /v1/hack/events/{slug}/assistant"></div>
 
-Read-only. The server answers from the navigation map, the organiser's event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.
+Read-only. The server answers from the navigation map and its explanation of every organiser setting, option and action, the event's current settings, the organiser's event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -543,6 +543,8 @@ Read-only. The server answers from the navigation map, the organiser's event vie
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | messages | array of object | yes | The chat so far; the last message is the user's question. Each content is at most 2000 characters, 12000 in total. |
+| screen | string |  | Optional. The organiser screen the question is asked from, as a navigation screen id (for example organiser-settings). Unknown values, and values over 64 characters, are ignored. |
+| tab | string |  | Optional. The tab of that screen (for example judging); over 64 characters is ignored. |
 
 **Responses:**
 

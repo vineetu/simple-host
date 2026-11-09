@@ -1,6 +1,6 @@
 {
  "version": 2,
- "updated": "2026-11-08",
+ "updated": "2026-11-09",
  "universal_properties": [
   "A form with unsaved edits asks Leave without saving? (Stay / Leave) before navigation or Back, and uses the browser prompt when closing or reloading the tab; a clean or just-saved form never asks."
  ],
@@ -83,7 +83,8 @@
     "decision": "Persistent events and role labels on every signed-in pane; Home per membership, five-row cap, Past toggle, All events, rail and 390px behaviour as above.",
     "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
    }
-  ]
+  ],
+  "assistant": "Organisers only (2026-11-09): every organiser screen of an event (Home, Event page, Settings, People, Teams, Team, Entries, Entry, Announcements, Judging, Assignment grid, Results) shows a floating Ask pill bottom-right, outside the screen, above any phone sticky save bar. It opens the same chat panel with the same per-event history; a link in an answer navigates without closing it. Hidden for participants, judges, platform admins viewing, inside AI-app frames, and when the server has no assistant. The walkthrough step points at it."
  },
  "walkthroughs": {
   "organiser": [
@@ -104,7 +105,7 @@
    {
     "target": "[data-tour=\"assistant\"]",
     "title": "Ask about your event",
-    "body": "Want to know more about a setting? Ask here. It answers in a line or two and links to the place to change it."
+    "body": "Want to know more about a setting? Ask here, from any screen. It answers in a line or two and links to the place to change it."
    },
    {
     "target": "[data-tour=\"change-stage\"]",
@@ -720,7 +721,7 @@
     {
      "name": "Ask (assistant)",
      "contents": [
-      "Ask button in the header, next to Change stage, shown only when GET .../assistant says enabled:true (hidden entirely otherwise).",
+      "Floating Ask pill bottom-right on every organiser screen of the event (drawn by the shell, not this header; see shell.assistant), shown only when GET .../assistant says enabled:true (hidden entirely otherwise). Same chat and history on every screen.",
       "Opens a chat panel: desktop a ~400px fixed right-side panel (shadow like a dialog, no scrim, the rest of the page stays usable); phone a full-screen sheet.",
       "Empty thread: 'Short answers, with a link to where to act. It can't change anything.' plus three starter chips (stage-based, the checklist's next item, and a fixed join/judge-links question).",
       "Textarea (Enter sends, Shift+Enter newline), Send becomes Stop while streaming. An assistant reply shows Thinking... then streams in; Stop keeps the partial text.",
@@ -737,7 +738,8 @@
        "kind": "secondary",
        "confirm": null
       }
-     ]
+     ],
+     "items": []
     }
    ],
    "states": [
@@ -1656,7 +1658,8 @@
     "schedule-fixed-rows",
     "schedule-row-prompt",
     "add-tracks-and-challenges",
-    "remove-track"
+    "remove-track",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -1850,7 +1853,8 @@
     "post-announcement",
     "edit-announcement",
     "delete-announcement",
-    "email-participants-toggle"
+    "email-participants-toggle",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -2026,7 +2030,8 @@
     "remove-person",
     "turn-off-persons-key",
     "view-applicant-details",
-    "filter-applications"
+    "filter-applications",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -2145,7 +2150,8 @@
     "fill-teams-apply",
     "view-team-finding-board-organiser",
     "move-member-to-team",
-    "message-team"
+    "message-team",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -2411,7 +2417,8 @@
     "set-team-admin",
     "new-team-link",
     "message-team",
-    "view-team-messages"
+    "view-team-messages",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -2608,7 +2615,8 @@
     "clear-team-deadline-override",
     "view-entries-progress",
     "download-entries-csv",
-    "view-storage-usage"
+    "view-storage-usage",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -2704,7 +2712,8 @@
     "get-own-entry",
     "take-team-site-down",
     "restore-team-site",
-    "view-entries-progress"
+    "view-entries-progress",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -2888,7 +2897,8 @@
     "view-judging-dashboard",
     "delete-former-judge-scores",
     "warn-teams-without-track",
-    "organiser-judge-access"
+    "organiser-judge-access",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -2986,7 +2996,8 @@
    ],
    "features": [
     "manual-assignment-grid",
-    "panel-assignment-grid"
+    "panel-assignment-grid",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -3143,7 +3154,8 @@
     "download-all-team-sites-archive",
     "download-participants-csv",
     "download-teams-csv",
-    "export-applicant-fields"
+    "export-applicant-fields",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {
@@ -3382,7 +3394,8 @@
     "regenerate-join-link",
     "regenerate-judge-link",
     "shared-hack-navigation-map",
-    "acknowledge-checklist-item"
+    "acknowledge-checklist-item",
+    "organiser-assistant"
    ],
    "prototype_states": [
     {

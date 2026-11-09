@@ -117,7 +117,13 @@ function place(card, target, step) {
   let top, left
   if (isPhone()) {
     // Docked along the bottom, independent of the target's position, so
-    // the card never ends up over a button or checklist mid-page.
+    // the card never ends up over a button or checklist mid-page. A target
+    // that is itself fixed at the bottom (the floating Ask button) gets the
+    // card docked above it instead of on top of it.
+    if (target && getComputedStyle(target).position === 'fixed') {
+      const t = target.getBoundingClientRect()
+      if (t.height && t.top < vh) vh = Math.min(vh, t.top)
+    }
     top = vh - c.height - pad - gap
     left = (vw - c.width) / 2
   } else if (target) {

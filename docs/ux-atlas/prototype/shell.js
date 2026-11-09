@@ -175,6 +175,26 @@
   app.querySelector('.content').appendChild(main);
   b.insertBefore(app, b.firstChild);
 
+  // SIM-394 v2: the organiser assistant is a single floating Ask pill on
+  // every organiser screen, not an inline button on one -- drawn here, by
+  // the shell, same as the real app (assistant.js/app.js) mounts it from
+  // the router rather than any one screen. Appended straight to <body>, a
+  // sibling of .app, the same place the real one lives (outside <main>).
+  // A screen that wants to show the panel open (organiser-overview~
+  // assistant.html) just keeps its own .assistant-panel markup in <main>
+  // as before; aria-expanded here follows whether one is present.
+  if (role === 'organiser') {
+    var hasOpenPanel = !!main.querySelector('.assistant-panel');
+    var fab = document.createElement('button');
+    fab.className = 'btn assistant-fab';
+    fab.type = 'button';
+    fab.setAttribute('data-tour', 'assistant');
+    fab.setAttribute('aria-expanded', hasOpenPanel ? 'true' : 'false');
+    if (hasOpenPanel) fab.setAttribute('aria-controls', 'assistant-panel');
+    fab.textContent = 'Ask';
+    b.appendChild(fab);
+  }
+
   function toggle(btn){
     var p = document.getElementById('evpop'); var open = !p.classList.contains('open');
     // In the rail the event list opens beside the switcher instead of under it.

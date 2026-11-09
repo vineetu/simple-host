@@ -89,6 +89,17 @@ func sanitizeAssistantEventView(v any) any {
 // field name can hide behind a concrete Go type.
 func (h *HackHandler) sanitizedAssistantEventView(ctx context.Context, ev model.Event, member model.EventMember) (json.RawMessage, error) {
 	view := h.eventView(ctx, ev, member, true)
+	// entry_required is the legacy six-field list (kept one release for
+	// old clients): it cannot say "One of" and has no website, so next to
+	// CURRENT SETTINGS it would give the model a second, wrong answer to
+	// "what do teams hand in?". Dropped from the assistant's copy only.
+	// results_visibility is the legacy column; the published results row's
+	// full_ranking is what the public page and Settings > Results use, and
+	// CURRENT SETTINGS carries that.
+	if inner, ok := view["event"].(map[string]any); ok {
+		delete(inner, "entry_required")
+		delete(inner, "results_visibility")
+	}
 	return sanitizeAssistantEventViewJSON(view)
 }
 
@@ -172,16 +183,31 @@ func (h *HackHandler) getAssistant(w http.ResponseWriter, r *http.Request) {
 
 // decodeAssistantMessages decodes {"messages":[...]}; a malformed or
 // oversized body is the contract's 400 bad_request shape.
-func decodeAssistantMessages(w http.ResponseWriter, r *http.Request) ([]events.ChatMessage, bool) {
-	var req struct {
-		Messages []events.ChatMessage `json:"messages"`
-	}
+//
+// Organiser assistant v2: optional "screen" (navigation screen id) and
+// "tab" say where the organiser is asking from. They only word a line of
+// the prompt; anything the navigation map doesn't know is ignored, and
+// each is capped so a client can't stuff the prompt through them.
+type assistantRequest struct {
+	Messages []events.ChatMessage `json:"messages"`
+	Screen   string               `json:"screen"`
+	Tab      string               `json:"tab"`
+}
+
+func decodeAssistantMessages(w http.ResponseWriter, r *http.Request) (assistantRequest, bool) {
+	var req assistantRequest
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, hackMaxBody))
 	if err := dec.Decode(&req); err != nil {
 		httpx.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "bad_request", "message": "invalid JSON body"})
-		return nil, false
+		return assistantRequest{}, false
 	}
-	return req.Messages, true
+	if len(req.Screen) > 64 {
+		req.Screen = ""
+	}
+	if len(req.Tab) > 64 {
+		req.Tab = ""
+	}
+	return req, true
 }
 
 // assistantRefusalStatus maps an *events.AssistantRefusal's Code to the
@@ -228,7 +254,7 @@ func (h *HackHandler) postAssistant(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusTooManyRequests, map[string]any{"error": "rate_limited", "message": "Too many questions at once. Wait a minute and try again."})
 		return
 	}
-	messages, ok := decodeAssistantMessages(w, r)
+	req, ok := decodeAssistantMessages(w, r)
 	if !ok {
 		return
 	}
@@ -269,7 +295,15 @@ func (h *HackHandler) postAssistant(w http.ResponseWriter, r *http.Request) {
 		_ = rc.Flush()
 	}
 
-	result, askErr := h.assistant.Ask(r.Context(), a.user.ID, a.event.Slug, canJudge, eventView, messages, func(delta string) {
+	in := events.AskContext{
+		Slug:      a.event.Slug,
+		CanJudge:  canJudge,
+		EventView: eventView,
+		Settings:  h.assistantCurrentSettings(r.Context(), a.event),
+		Screen:    req.Screen,
+		Tab:       req.Tab,
+	}
+	result, askErr := h.assistant.Ask(r.Context(), a.user.ID, in, req.Messages, func(delta string) {
 		sendHeaders()
 		writeSSE(map[string]any{"delta": delta})
 	})

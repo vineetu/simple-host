@@ -22164,7 +22164,7 @@
         ],
         "operationId": "askHackAssistant",
         "summary": "Ask the organiser assistant a question; the answer streams back",
-        "description": "Read-only. The server answers from the navigation map, the organiser's event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.",
+        "description": "Read-only. The server answers from the navigation map and its explanation of every organiser setting, option and action, the event's current settings, the organiser's event view and checklist, and the docs, through the configured endpoint. It never changes the event. Each accepted request counts as one question.",
         "security": [
           {
             "apiKey": []
@@ -22214,6 +22214,14 @@
                         }
                       }
                     }
+                  },
+                  "screen": {
+                    "type": "string",
+                    "description": "Optional. The organiser screen the question is asked from, as a navigation screen id (for example organiser-settings). Unknown values, and values over 64 characters, are ignored."
+                  },
+                  "tab": {
+                    "type": "string",
+                    "description": "Optional. The tab of that screen (for example judging); over 64 characters is ignored."
                   }
                 }
               }
