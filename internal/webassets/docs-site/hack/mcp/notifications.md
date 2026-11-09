@@ -4,8 +4,6 @@
 
 <div data-tool="list_notifications"></div>
 
-**List notifications**
-
 List your visitor-save subscriptions for a selected team site or an organiser website. Omit both to list your subscriptions.
 
 **Parameters:**
@@ -18,8 +16,6 @@ List your visitor-save subscriptions for a selected team site or an organiser we
 ## remove_notification
 
 <div data-tool="remove_notification"></div>
-
-**Remove notification**
 
 Remove a webhook subscription from a site and stop its deliveries. Use the ID from list_notifications.
 

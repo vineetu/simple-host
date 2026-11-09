@@ -112,7 +112,7 @@ No authentication required.
 
 <div data-operation="GET /v1/sites"></div>
 
-Returns the authenticated account's own sites, newest edited first (updated_at desc, then created_at desc). all=1 widens an admin's list to every account's sites; refused (403) for a non-admin. errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
+Returns the authenticated account's own sites, newest edited first (updated_at desc, then created_at desc). all=1 widens an admin's list to every account's sites; refused (403) for a non-admin.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -125,10 +125,10 @@ Returns the authenticated account's own sites, newest edited first (updated_at d
 | created_before | query | string |  | Created on or before RFC3339 or YYYY-MM-DD (UTC whole day). |
 | updated_after | query | string |  | Updated on or after RFC3339 or YYYY-MM-DD (UTC midnight). |
 | updated_before | query | string |  | Updated on or before RFC3339 or YYYY-MM-DD (UTC whole day). |
-| order | query | string |  | Sort key; default updated (last edited first). |
+| order | query | string, one of `updated`, `created`, `name` |  | Sort key; default updated (last edited first). |
 | limit | query | integer |  | Maximum results, clamped to 500; default 200 when any filter or paging parameter is present. |
 | offset | query | integer |  | Skip this many matching sites. |
-| all | query | string |  | Admin only: every account's sites instead of just this one. 403 for a non-admin. |
+| all | query | string, one of `1` |  | Admin only: every account's sites instead of just this one. 403 for a non-admin. |
 
 **Responses:**
 
@@ -197,7 +197,7 @@ Takes the site offline at once, with every version, its saved state and collecti
 
 <div data-operation="GET /v1/sites/{sitename}/access"></div>
 
-Owner only (the owner's key or connector token; a deploy-only key is refused). `access` is `anyone` (anyone with the address, or with the passcode when the site has one) or `specific` (only the owner and the named viewers, each signed in with visitor sign-in on the site's own address). `viewers` lists the named viewers by the email they sign in with. Never cached (Cache-Control: no-store). Hosted Simple Host and small boxes only;
+Owner only (the owner's key or connector token; a deploy-only key is refused). `access` is `anyone` (anyone with the address, or with the passcode when the site has one) or `specific` (only the owner and the named viewers, each signed in with visitor sign-in on the site's own address). `viewers` lists the named viewers by the email they sign in with. Never cached (Cache-Control: no-store). Hosted Simple Host and small boxes only.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -234,7 +234,7 @@ Owner only. `{"access": "specific"}`: every address of the site (its own address
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| access | string | yes |  |
+| access | string, one of `anyone`, `specific` | yes |  |
 
 **Responses:**
 
@@ -563,7 +563,7 @@ An unlisted site is hidden from the showcase, and from search engines unless the
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| visibility | string | yes |  |
+| visibility | string, one of `public`, `unlisted` | yes |  |
 
 **Responses:**
 

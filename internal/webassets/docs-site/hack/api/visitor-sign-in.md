@@ -86,7 +86,7 @@ No authentication required.
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
-| X-SH-CSRF | header | string |  | Required on cookie-authenticated writes |
+| X-SH-CSRF | header | string, one of `1` |  | Required on cookie-authenticated writes |
 
 **Request body:**
 
@@ -326,7 +326,7 @@ No authentication required.
 | --- | --- | --- | --- | --- |
 | handle | path | string | yes |  |
 | sitename | path | string | yes |  |
-| X-SH-CSRF | header | string |  | Required on cookie-authenticated writes |
+| X-SH-CSRF | header | string, one of `1` |  | Required on cookie-authenticated writes |
 
 **Request body:**
 
@@ -377,7 +377,7 @@ For a hop session, deletes its parent dashboard key, apex pass, and all linked s
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
-| X-SH-CSRF | header | string |  |  |
+| X-SH-CSRF | header | string, one of `1` |  |  |
 
 **Responses:**
 
@@ -398,7 +398,7 @@ Visitor sign-in start, served on the site's own address (its `<site>.<handle>` h
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
-| provider | path | string | yes |  |
+| provider | path | string, one of `google`, `github`, `oidc` | yes |  |
 | return_to | query | string | yes | Absolute URL of a page on this host to return to after sign-in |
 
 **Responses:**

@@ -141,12 +141,12 @@ Edit page text and settings (organiser) (EVENTS=hosted only)
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | about | string |  |  |
-| accent_color | string |  | Empty selects the stable slug crayon; otherwise choose a palette name. |
+| accent_color | string, one of ``, `red`, `teal`, `indigo`, `orange`, `yellow`, `grass`, `blush` |  | Empty selects the stable slug crayon; otherwise choose a palette name. |
 | applications_open | boolean |  | Whether people without the join link can apply. On by default; off stops new applications and keeps waiting ones. |
 | coc_text | string |  |  |
 | contact_email | string |  |  |
 | ends_at | string |  |  |
-| entry_required | array of string |  | Deprecated: use PUT .../entry-rules instead, which replaced this for the fuller rules model (presets, optional/off/one_of, judge_first). Sending this still works: it sets required for exactly the listed fields (everything else optional) and demotes the stored preset to custom. Anything else is 400 invalid_entry_field. |
+| entry_required | array of string, one of `title`, `tagline`, `description`, `video_url`, `code_url`, `screenshot` |  | Deprecated: use PUT .../entry-rules instead, which replaced this for the fuller rules model (presets, optional/off/one_of, judge_first). Sending this still works: it sets required for exactly the listed fields (everything else optional) and demotes the stored preset to custom. Anything else is 400 invalid_entry_field. |
 | expected_participants | integer |  |  |
 | gallery_open | boolean |  | Opens the project gallery on the event page. |
 | judging_ends_at | string |  | When judging closes, same parsing as submission_deadline. An empty string clears it. Judges with unscored teams are reminded before this time, from the event's reminder offsets (GET/PUT .../reminders); with no judging_ends_at they get no reminder. Not inferred from the schedule. A value that is not a time is 400 invalid_judging_ends_at. |
@@ -353,7 +353,7 @@ Only pending applications can be decided. Approval permits team, entry and team-
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| decision | string | yes |  |
+| decision | string, one of `approved`, `rejected` | yes |  |
 
 **Responses:**
 
@@ -402,12 +402,12 @@ D1: every application is pending until an organiser decides it, whatever approva
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | accept_coc | boolean | yes |  |
-| age_range | string |  | Optional. |
+| age_range | string, one of ``, `under_18`, `18_24`, `25_34`, `35_plus` |  | Optional. |
 | answers | object |  |  |
 | city | string |  | Optional, up to 80 characters. |
 | country | string |  | Optional. ISO 3166-1 alpha-2 country code, e.g. ID, GB, US. |
 | display_name | string |  | Only used when your account has no name yet; it then becomes your account name. Otherwise ignored. |
-| gender | string |  | Optional. |
+| gender | string, one of ``, `woman`, `man`, `non_binary`, `another`, `prefer_not_to_say` |  | Optional. |
 
 **Responses:**
 
@@ -513,7 +513,7 @@ Read a role checklist and its next action
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
-| role | query | string |  | Defaults to actual membership. Organisers may also request judge; synthetic admin inspection is read-only organiser. |
+| role | query | string, one of `organiser`, `judge`, `participant` |  | Defaults to actual membership. Organisers may also request judge; synthetic admin inspection is read-only organiser. |
 
 **Responses:**
 
@@ -623,7 +623,7 @@ Regenerate the join or judge code (organiser) (EVENTS=hosted only)
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
-| kind | path | string | yes |  |
+| kind | path | string, one of `join`, `judge` | yes |  |
 
 **Responses:**
 
@@ -648,7 +648,7 @@ The organiser sees every declared conflict by default. With mine=1, organisers a
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
-| mine | query | integer |  | Restrict to the caller, including an organiser in the judge area. |
+| mine | query | integer, one of `1` |  | Restrict to the caller, including an organiser in the judge area. |
 
 **Responses:**
 
@@ -865,7 +865,7 @@ Updates any of the fields supplied and returns the entry. title is one line, 0-8
 | audience | string |  | Who it's for |
 | code_url | string |  | Same rules as video_url. |
 | description | string |  | 0-5000 characters. |
-| maturity | string |  | How far along it is, or empty to clear. Anything else is 400 invalid_maturity. |
+| maturity | string, one of ``, `working`, `partial`, `concept` |  | How far along it is, or empty to clear. Anything else is 400 invalid_maturity. |
 | problem | string |  | The problem it solves |
 | tagline | string |  | One line, 0-160 characters: the one-line solution. |
 | title | string |  | One line |
@@ -929,8 +929,8 @@ Choose a preset (video_or_website, the default -- at least one of a video or a w
 | --- | --- | --- | --- |
 | dry_run | boolean |  | true previews impact and the resulting rules in the response, without saving anything. |
 | fields | object |  | Field name to required, optional, off or one_of (one_of only on video_url, site, code_url, screenshot; otherwise 400 invalid_entry_field_mode). Setting any field that differs from the active preset's own table demotes the stored preset to custom. |
-| judge_first | string |  | Which evidence judges see first. Anything else is 400 invalid_judge_first. |
-| preset | string |  | Expands to that preset's own field table first; any fields below are then applied on top. video_or_website (the default): video and site one_of, code off. video_website_code: video, site and code all required. An older preset (build, code, ideas, custom) is refused with 400 invalid_preset naming these two -- an event already on one keeps it until a current preset is set here. |
+| judge_first | string, one of `video`, `site` |  | Which evidence judges see first. Anything else is 400 invalid_judge_first. |
+| preset | string, one of `video_or_website`, `video_website_code` |  | Expands to that preset's own field table first; any fields below are then applied on top. video_or_website (the default): video and site one_of, code off. video_website_code: video, site and code all required. An older preset (build, code, ideas, custom) is refused with 400 invalid_preset naming these two -- an event already on one keeps it until a current preset is set here. |
 
 **Responses:**
 
@@ -1580,11 +1580,11 @@ Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team 
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| assignment_mode | string |  |  |
+| assignment_mode | string, one of `open`, `automatic`, `manual`, `panel` |  |  |
 | judges_per_team | integer |  |  |
 | public_ranks | boolean |  |  |
 | public_scores | boolean |  |  |
-| score_mode | string |  |  |
+| score_mode | string, one of `raw`, `normalised` |  |  |
 | tie_criterion_id | string |  | An event rubric criterion id; empty string clears it before judging |
 
 **Responses:**
@@ -1740,7 +1740,7 @@ One route, self only; the server decides the case under a lock on the event row,
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| close | string |  | The only organiser only |
+| close | string, one of `end`, `delete` |  | The only organiser only |
 | confirm | string | yes | Exact event address name (slug) |
 | successor_user_id | string |  | Creator only: another organiser of this event, from the preview |
 
@@ -2170,7 +2170,7 @@ action is accept or decline. Any member handles incoming requests; only the invi
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
 | id | path | string | yes |  |
-| action | path | string | yes |  |
+| action | path | string, one of `accept`, `decline` | yes |  |
 
 **Responses:**
 
@@ -2354,7 +2354,7 @@ Uses the existing archive checks, versions, deadline and take-down rules. No tea
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
-| create | query | integer |  |  |
+| create | query | integer, one of `0`, `1` |  |  |
 
 **Request body:** application/gzip
 
@@ -2388,7 +2388,7 @@ closed ("Submissions closed") is accepted. Setting it makes the deadline now whe
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| stage | string | yes | closed makes the deadline now when it is unset or still later. Moving from closed back to open or building clears a passed deadline and passed team extensions. Judging and results keep submissions closed; archived ends the event permanently. |
+| stage | string, one of `draft`, `open`, `building`, `closed`, `judging`, `results`, `archived` | yes | closed makes the deadline now when it is unset or still later. Moving from closed back to open or building clears a passed deadline and passed team extensions. Judging and results keep submissions closed; archived ends the event permanently. |
 
 **Responses:**
 
@@ -3464,7 +3464,7 @@ Organiser only. A live gallery, opening and closing times, and eligibility are r
 | --- | --- | --- | --- |
 | closes_at | string | yes | RFC3339 or local date/time in event time zone; empty when disabled |
 | confirm_vote_removal | boolean |  | Confirm removal of votes that no longer qualify |
-| eligibility | string | yes |  |
+| eligibility | string, one of `all_signed_in`, `event_members`, `participants` | yes |  |
 | enabled | boolean | yes |  |
 | opens_at | string | yes | RFC3339 or local date/time in event time zone; empty when disabled |
 
@@ -3511,7 +3511,7 @@ Uses the same validated, versioned deployment path as team websites. Add ?create
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
-| create | query | integer |  |  |
+| create | query | integer, one of `0`, `1` |  |  |
 
 **Request body:** application/gzip
 
@@ -3542,7 +3542,7 @@ Switch between built-in and already-published custom event website
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| mode | string | yes |  |
+| mode | string, one of `builtin`, `custom` | yes |  |
 
 **Responses:**
 
@@ -3566,7 +3566,7 @@ Uses the same files format and validation as PUT /v1/sites/{sitename}/files; add
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
-| create | query | integer |  |  |
+| create | query | integer, one of `0`, `1` |  |  |
 
 **Request body:**
 
@@ -3789,7 +3789,7 @@ Signed-in personal account and code of conduct required. Joins with the existing
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| accept_coc | boolean | yes |  |
+| accept_coc | boolean, one of `True` | yes |  |
 | display_name | string |  | Only used when your account has no name yet; it then becomes your account name. Otherwise ignored. |
 
 **Responses:**
@@ -3833,7 +3833,7 @@ Save theme or walkthrough completion across devices
 | email_updates | boolean |  |  |
 | judge_walkthrough_done | boolean |  |  |
 | organiser_walkthrough_done | boolean |  |  |
-| theme | string |  |  |
+| theme | string, one of `system`, `light`, `dark` |  |  |
 
 **Responses:**
 

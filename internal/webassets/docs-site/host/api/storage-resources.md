@@ -254,7 +254,7 @@ On Simple Host each resource carries preset (public, inbox, wall, comments, reco
 
 <div data-operation="PUT /v1/sites/{sitename}/storage/resources/{name}"></div>
 
-Kind is immutable. Simple Host: set preset (public, inbox, wall, comments, records, personal, board, private; default private) with optional single-action overrides read, add, edit, delete, or preset custom with all four. Each action takes nobody, owner, own, signed-in or anyone; add also takes checked (anyone who passes the Cloudflare Turnstile spam check: the comments preset, read anyone / add checked / edit owner / delete owner). The server refuses (400 invalid_access, with rule) edit or delete anyone (anonymous_change), add own (add_own), own anywhere with add anyone or checked (own_needs_sign_in), checked on read, edit or delete (checked_add_only), and edit or delete wider than read (change_wider_than_read). checked is refused on files resources, and with 400 spam_check_unavailable on a server without TURNSTILE_SITE_KEY and a secret . approve_first (SQLite, needs a checked add) holds posts added through the check: the server adds approved_at TEXT to those tables (rows already there count as approved), visitors see and reach only rows with approved_at set, and the owner approves with UPDATE ... SET approved_at = datetime('now'). Omit approve_first to keep it. SQLite: the preset is the database default; tables sets a preset per table (omit to keep the current table presets, {} to clear). Tables whose preset uses own or lets visitors add get the server-owned visitor_id TEXT column and index. The older read, write and write_mode are still accepted and translated (write anyone with full is refused as anonymous_change; omitting write_mode on update keeps the mode); do not mix them with preset fields. Switching a legacy SQLite database pages wrote with SQL to a preset that uses own needs empty tables (visitor_id_required). Owner here means the owner's tools and the owner signed in on the site's own address through visitor sign-in; nobody means the owner's tools only.
+Kind is immutable. Simple Host: set preset (public, inbox, wall, comments, records, personal, board, private; default private) with optional single-action overrides read, add, edit, delete, or preset custom with all four. Each action takes nobody, owner, own, signed-in or anyone; add also takes checked (anyone who passes the Cloudflare Turnstile spam check: the comments preset, read anyone / add checked / edit owner / delete owner). The server refuses (400 invalid_access, with rule) edit or delete anyone (anonymous_change), add own (add_own), own anywhere with add anyone or checked (own_needs_sign_in), checked on read, edit or delete (checked_add_only), and edit or delete wider than read (change_wider_than_read). checked is refused on files resources, and with 400 spam_check_unavailable on a server without TURNSTILE_SITE_KEY and a secret. approve_first (SQLite, needs a checked add) holds posts added through the check: the server adds approved_at TEXT to those tables (rows already there count as approved), visitors see and reach only rows with approved_at set, and the owner approves with UPDATE ... SET approved_at = datetime('now'). Omit approve_first to keep it. SQLite: the preset is the database default; tables sets a preset per table (omit to keep the current table presets, {} to clear). Tables whose preset uses own or lets visitors add get the server-owned visitor_id TEXT column and index. The older read, write and write_mode are still accepted and translated (write anyone with full is refused as anonymous_change; omitting write_mode on update keeps the mode); do not mix them with preset fields. Switching a legacy SQLite database pages wrote with SQL to a preset that uses own needs empty tables (visitor_id_required). Owner here means the owner's tools and the owner signed in on the site's own address through visitor sign-in; nobody means the owner's tools only.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -269,17 +269,17 @@ Kind is immutable. Simple Host: set preset (public, inbox, wall, comments, recor
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| add | string |  |  |
+| add | string, one of `nobody`, `owner`, `signed-in`, `checked`, `anyone` |  |  |
 | approve_first | boolean |  |  |
-| delete | string |  |  |
-| edit | string |  |  |
-| kind | string | yes |  |
-| preset | string |  |  |
-| read | string |  |  |
-| site_passcode | string |  |  |
+| delete | string, one of `nobody`, `owner`, `own`, `signed-in` |  |  |
+| edit | string, one of `nobody`, `owner`, `own`, `signed-in` |  |  |
+| kind | string, one of `kv`, `sqlite`, `files` | yes |  |
+| preset | string, one of `public`, `inbox`, `wall`, `comments`, `records`, `personal`, `board`, `private`, `custom` |  |  |
+| read | string, one of `nobody`, `owner`, `own`, `signed-in`, `anyone` |  |  |
+| site_passcode | string, one of `inherit`, `False` |  |  |
 | tables | object |  |  |
-| write | string |  | older field |
-| write_mode | string |  | older field |
+| write | string, one of `anyone`, `signed-in`, `owner` |  | older field |
+| write_mode | string, one of `full`, `add` |  | older field |
 
 **Responses:**
 
@@ -415,7 +415,7 @@ Checked against the table's read value (its own preset, or the database's). Equa
 | name | path | string | yes |  |
 | table | path | string | yes |  |
 | order | query | string |  |  |
-| desc | query | integer |  |  |
+| desc | query | integer, one of `0`, `1` |  |  |
 | limit | query | integer |  |  |
 | after | query | string |  |  |
 | where | query | object |  | where.{column}=value, equality, at most three |
@@ -463,7 +463,7 @@ Checked against the table's add value. One JSON object of real column names and 
 
 <div data-operation="GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}"></div>
 
-Checked against the table's read value; own reads add visitor_id = caller, so another person's row is 404 like a missing one. Simple Host only .
+Checked against the table's read value; own reads add visitor_id = caller, so another person's row is 404 like a missing one. Simple Host only.
 
 **Parameters:**
 

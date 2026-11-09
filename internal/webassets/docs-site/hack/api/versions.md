@@ -43,7 +43,7 @@ The versions this instance still holds, newest first. An instance may be configu
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
-| pending | query | string |  | 1 lists only the versions stored with publish=false that have never been live (status ready, not the live one) |
+| pending | query | string, one of `1`, `true`, `yes` |  | 1 lists only the versions stored with publish=false that have never been live (status ready, not the live one) |
 
 **Responses:**
 

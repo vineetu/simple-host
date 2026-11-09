@@ -4,8 +4,6 @@
 
 <div data-tool="create_import_link"></div>
 
-**Move a WordPress site**
-
 Move a WordPress site here from the export the person downloads from WordPress themselves (WordPress.com: Tools &gt; Export). Each call makes a new link. Returns a one-time page link (30 minutes, this site only) for them to open in their browser and drop the files on. The import creates the site, or publishes a new version of it, at its public address, so it can replace what is live (the previous version is kept for rollback_site). When they say it finished, call get_import_report. Never paste the link into a web page.
 
 **Parameters:**
@@ -19,8 +17,6 @@ Move a WordPress site here from the export the person downloads from WordPress t
 
 <div data-tool="get_import_report"></div>
 
-**Read the WordPress import report**
-
 Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages.
 
 **Parameters:**
@@ -32,8 +28,6 @@ Read your import's progress, report and exact setup calls for its dynamic featur
 ## create_upload_link
 
 <div data-tool="create_upload_link"></div>
-
-**Photo picker: add the person's own photos**
 
 Opens a photo picker in the chat (apps that show MCP Apps); elsewhere returns photos_url to give the person. Call it as soon as a page needs the person's own photos (menu dishes, a listing, portfolio, team) and the site exists (publish the page first), even before they mention photos, instead of building an upload page or asking them to attach, convert, resize, or host photos. They pick any format on phone or computer; each is shrunk into images/, keeping other files. When they say done, get_site and place them. Photos visitors share are the gallery recipe instead. archive: true gives shell agents a whole-site replacement upload. Each call makes a new link.
 

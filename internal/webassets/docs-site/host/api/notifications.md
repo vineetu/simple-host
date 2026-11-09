@@ -6,7 +6,7 @@ Signed HTTPS notifications for visitor storage writes on Simple Host.
 
 <div data-operation="GET /v1/notifications"></div>
 
-Owner credentials required on Host. subscriptions belong to the person, not the holding account.
+Owner credentials required on Host.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -36,7 +36,7 @@ Unauthenticated, host-agnostic, and never gated by WEB_PUSH_ACCOUNTS (there is n
 
 <div data-operation="GET /v1/sites/{sitename}/notifications"></div>
 
-Owner credentials required on Host. subscriptions belong to the person, not the holding account.
+Owner credentials required on Host.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -51,7 +51,7 @@ Owner credentials required on Host. subscriptions belong to the person, not the 
 
 | Status | Description |
 | --- | --- |
-| 200 | List notifications for a site; |
+| 200 | List notifications for a site. |
 | 401 | Missing or invalid owner credentials. |
 | 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
@@ -60,7 +60,7 @@ Owner credentials required on Host. subscriptions belong to the person, not the 
 
 <div data-operation="POST /v1/sites/{sitename}/notifications"></div>
 
-The owner-entered URL is accepted without an MCP verification challenge. Generates a secret unless one is supplied; the response shows it once. Optional custom header and svix-* aliases are sent only for owner-made subscriptions. MCP and REST share the site subscription cap. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+The owner-entered URL is accepted without an MCP verification challenge. Generates a secret unless one is supplied; the response shows it once. Optional custom header and svix-* aliases are sent only for owner-made subscriptions. MCP and REST share the site subscription cap. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -77,7 +77,7 @@ The owner-entered URL is accepted without an MCP verification challenge. Generat
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | auth_header | object |  |  |
-| events | array of string | yes |  |
+| events | array of string, one of `record.added`, `record.changed`, `file.uploaded`, `site.deployed`, `domain.status_changed`, `viewer.access_requested`, `visitor.signed_up` | yes |  |
 | label | string |  |  |
 | secret | string |  |  |
 | storage | string |  | Existing site storage resource; empty means all resources. |
@@ -98,7 +98,7 @@ The owner-entered URL is accepted without an MCP verification challenge. Generat
 
 <div data-operation="PATCH /v1/sites/{sitename}/notifications/{id}"></div>
 
-false also resumes suspension and makes held deliveries due now. Owner credentials required. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+false also resumes suspension and makes held deliveries due now. Owner credentials required. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -129,7 +129,7 @@ false also resumes suspension and makes held deliveries due now. Owner credentia
 
 <div data-operation="DELETE /v1/sites/{sitename}/notifications/{id}"></div>
 
-Owner credentials required on Host. subscriptions belong to the person, not the holding account.
+Owner credentials required on Host.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -154,7 +154,7 @@ Owner credentials required on Host. subscriptions belong to the person, not the 
 
 <div data-operation="GET /v1/sites/{sitename}/notifications/{id}/deliveries"></div>
 
-Newest first, at most 200 within the configured history window (default 7 days). Pending deliveries are held while suspended. Five attempts by default; HTTP 410/413 and refused addresses are not retried. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+Newest first, at most 200 within the configured history window (default 7 days). Pending deliveries are held while suspended. Five attempts by default; HTTP 410/413 and refused addresses are not retried. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -179,7 +179,7 @@ Newest first, at most 200 within the configured history window (default 7 days).
 
 <div data-operation="POST /v1/sites/{sitename}/notifications/{id}/rotate-secret"></div>
 
-Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours, until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret instead. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours, until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret instead. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -205,7 +205,7 @@ Shows the new secret once. Deliveries carry signatures for both secrets for 24 h
 
 <div data-operation="POST /v1/sites/{sitename}/notifications/{id}/test"></div>
 
-Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id starts with evt_test_. The response reports the HTTP status and result category, never the receiver body. Test sends require an unexpired owner-made subscription and do not appear in delivery history. Challenge and test sends share limits of 10/minute per owner, host, and resolved IP, with at most 10 running at once. deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id starts with evt_test_. The response reports the HTTP status and result category, never the receiver body. Test sends require an unexpired owner-made subscription and do not appear in delivery history. Challenge and test sends share limits of 10/minute per owner, host, and resolved IP, with at most 10 running at once. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -366,7 +366,7 @@ Owner-only. The owner's recipients choice narrows (never widens) the hard bounda
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | body_column | string |  |  |
-| recipients | string |  |  |
+| recipients | string, one of `owner`, `row_owner`, `both`, `none` |  |  |
 | resource | string |  |  |
 | title | string |  |  |
 

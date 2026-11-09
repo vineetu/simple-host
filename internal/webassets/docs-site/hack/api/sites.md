@@ -41,10 +41,10 @@ Returns the authenticated account's own sites, newest edited first (updated_at d
 | created_before | query | string |  | Created on or before RFC3339 or YYYY-MM-DD (UTC whole day). |
 | updated_after | query | string |  | Updated on or after RFC3339 or YYYY-MM-DD (UTC midnight). |
 | updated_before | query | string |  | Updated on or before RFC3339 or YYYY-MM-DD (UTC whole day). |
-| order | query | string |  | Sort key; default updated (last edited first). |
+| order | query | string, one of `updated`, `created`, `name` |  | Sort key; default updated (last edited first). |
 | limit | query | integer |  | Maximum results, clamped to 500; default 200 when any filter or paging parameter is present. |
 | offset | query | integer |  | Skip this many matching sites. |
-| all | query | string |  | Admin only: every account's sites instead of just this one. 403 for a non-admin. |
+| all | query | string, one of `1` |  | Admin only: every account's sites instead of just this one. 403 for a non-admin. |
 
 **Responses:**
 

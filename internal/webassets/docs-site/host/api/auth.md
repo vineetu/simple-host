@@ -60,7 +60,7 @@ Account sign-in starts only on the app's own address. On any other host (a site'
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
-| provider | path | string | yes |  |
+| provider | path | string, one of `google`, `github`, `oidc` | yes |  |
 | return_to | query | string | yes | Absolute URL of the page to return to after sign-in |
 
 **Responses:**
@@ -84,7 +84,7 @@ Answers only on the app's own address (403 account_auth_unavailable elsewhere). 
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
-| provider | path | string | yes |  |
+| provider | path | string, one of `google`, `github`, `oidc` | yes |  |
 | code | query | string |  |  |
 | state | query | string |  |  |
 | error | query | string |  |  |

@@ -45,7 +45,7 @@ Manage your own subscriptions for this custom event website through your current
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | auth_header | object |  |  |
-| events | array of string | yes |  |
+| events | array of string, one of `record.added`, `record.changed`, `file.uploaded`, `site.deployed`, `domain.status_changed`, `viewer.access_requested`, `visitor.signed_up` | yes |  |
 | label | string |  |  |
 | secret | string |  |  |
 | storage | string |  | Existing site storage resource; empty means all resources. |
@@ -253,7 +253,7 @@ The owner-entered URL is accepted without an MCP verification challenge. Generat
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | auth_header | object |  |  |
-| events | array of string | yes |  |
+| events | array of string, one of `record.added`, `record.changed`, `file.uploaded`, `site.deployed`, `domain.status_changed`, `viewer.access_requested`, `visitor.signed_up` | yes |  |
 | label | string |  |  |
 | secret | string |  |  |
 | storage | string |  | Existing site storage resource; empty means all resources. |

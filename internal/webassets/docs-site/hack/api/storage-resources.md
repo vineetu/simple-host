@@ -358,17 +358,17 @@ Kind is immutable. Simple Host: set preset (public, inbox, wall, comments, recor
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| add | string |  |  |
+| add | string, one of `nobody`, `owner`, `signed-in`, `checked`, `anyone` |  |  |
 | approve_first | boolean |  |  |
-| delete | string |  |  |
-| edit | string |  |  |
-| kind | string | yes |  |
-| preset | string |  |  |
-| read | string |  |  |
-| site_passcode | string |  |  |
+| delete | string, one of `nobody`, `owner`, `own`, `signed-in` |  |  |
+| edit | string, one of `nobody`, `owner`, `own`, `signed-in` |  |  |
+| kind | string, one of `kv`, `sqlite`, `files` | yes |  |
+| preset | string, one of `public`, `inbox`, `wall`, `comments`, `records`, `personal`, `board`, `private`, `custom` |  |  |
+| read | string, one of `nobody`, `owner`, `own`, `signed-in`, `anyone` |  |  |
+| site_passcode | string, one of `inherit`, `False` |  |  |
 | tables | object |  |  |
-| write | string |  | older field |
-| write_mode | string |  | older field |
+| write | string, one of `anyone`, `signed-in`, `owner` |  | older field |
+| write_mode | string, one of `full`, `add` |  | older field |
 
 **Responses:**
 
@@ -504,7 +504,7 @@ Checked against the table's read value (its own preset, or the database's). Equa
 | name | path | string | yes |  |
 | table | path | string | yes |  |
 | order | query | string |  |  |
-| desc | query | integer |  |  |
+| desc | query | integer, one of `0`, `1` |  |  |
 | limit | query | integer |  |  |
 | after | query | string |  |  |
 | where | query | object |  | where.{column}=value, equality, at most three |

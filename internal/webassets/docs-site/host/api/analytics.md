@@ -17,7 +17,7 @@ Not under `/v1/sites/...` because that would collide with a site named "analytic
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | days | query | integer |  | Number of UTC days to include (default 30, clamp 1..365) |
-| all | query | string |  | Admins only — include every site on the instance. |
+| all | query | string, one of `1` |  | Admins only — include every site on the instance. |
 
 **Responses:**
 

@@ -38,7 +38,7 @@ A verified family that fails its checks (the TXT record gone, the wildcard moved
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | canonical | boolean |  | A family address is the site's main address (unless the site has a domain of its own); false keeps the site's own address as the main one. |
-| cert_mode | string |  | wildcard: the operator's wildcard certificate. per_host is not available yet (400 cert_mode_unavailable). |
+| cert_mode | string, one of `wildcard`, `per_host` |  | wildcard: the operator's wildcard certificate. per_host is not available yet (400 cert_mode_unavailable). |
 | family | string |  | Same as suffix |
 | rank | integer |  | Tie-break between families with the same site_prefix: the lowest rank is the main address. |
 | site_prefix | string |  | Sites named &lt;site_prefix&gt;&lt;label&gt; answer at &lt;label&gt;.&lt;suffix&gt;. Lowercase letters, digits and hyphens, not at the start, up to 40 characters. Default none. |
@@ -50,7 +50,7 @@ A verified family that fails its checks (the TXT record gone, the wildcard moved
 | --- | --- |
 | 200 | The account already has this family; it is returned unchanged |
 | 201 | Connected; pending until both DNS records are seen |
-| 400 | invalid_domain , invalid_site_prefix (lowercase letters, digits and hyphens, not at the start, up to 40 characters), invalid_rank (0 to 1000), cert_mode_unavailable (per_host), invalid_cert_mode. |
+| 400 | invalid_domain, invalid_site_prefix (lowercase letters, digits and hyphens, not at the start, up to 40 characters), invalid_rank (0 to 1000), cert_mode_unavailable (per_host), invalid_cert_mode. |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | account_suspended |
 | 409 | domain_taken (the name, or one over or under it, is connected to another account), address_family_limit (ADDRESS_FAMILIES_PER_ACCOUNT reached), address_families_unavailable (this server does not offer address families). |
@@ -68,7 +68,7 @@ The family, with its DNS records, status and certificate. `?sites=1` adds `sites
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | suffix | path | string | yes | The family: trips.example.com or *.trips.example.com (URL-escaped) |
-| sites | query | string |  | 1: list every matching site and its address |
+| sites | query | string, one of `1` |  | 1: list every matching site and its address |
 
 **Responses:**
 

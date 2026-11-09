@@ -6,7 +6,7 @@ Inspect retained deployments, preview and roll back.
 
 <div data-operation="PUT /v1/sites/{sitename}/active-version"></div>
 
-Re-point the live site at an existing version number: an earlier one, or one stored with publish=false (which then counts as live). errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
+Re-point the live site at an existing version number: an earlier one, or one stored with publish=false (which then counts as live).
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -43,7 +43,7 @@ The versions this instance still holds, newest first. An instance may be configu
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
-| pending | query | string |  | 1 lists only the versions stored with publish=false that have never been live (status ready, not the live one) |
+| pending | query | string, one of `1`, `true`, `yes` |  | 1 lists only the versions stored with publish=false that have never been live (status ready, not the live one) |
 
 **Responses:**
 

@@ -4,6 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 required_node=22.23.4
 actual_node=$(node --version 2>/dev/null || true)
+# The shared box keeps the pinned Node beside the system one.
+pinned="$HOME/.local/node/node-v$required_node-linux-$(uname -m | sed 's/aarch64/arm64/;s/x86_64/x64/')/bin"
+if [[ "$actual_node" != "v$required_node" && -x "$pinned/node" ]]; then
+  export PATH="$pinned:$PATH"
+  actual_node=$(node --version)
+fi
 if [[ "$actual_node" != "v$required_node" ]]; then
   echo "Docs build requires Node $required_node (found ${actual_node:-none})." >&2
   exit 1

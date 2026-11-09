@@ -4,8 +4,6 @@
 
 <div data-tool="list_sites"></div>
 
-**List my sites**
-
 List this account's own sites (admins: pass all_accounts for every account's), newest edited first. Call this before changing a site to get its exact name. Optionally filter with query, dates, order, and limit/offset for paging.
 
 **Parameters:**
@@ -17,7 +15,7 @@ List this account's own sites (admins: pass all_accounts for every account's), n
 | created_before | string |  | Created on or before RFC3339 or YYYY-MM-DD (whole UTC day). |
 | limit | integer |  | Maximum results; default 200 with filters, capped at 500. |
 | offset | integer |  | Results to skip; default 0. |
-| order | string |  | Sort key; default updated (last edited first). |
+| order | string, one of `updated`, `created`, `name` |  | Sort key; default updated (last edited first). |
 | query | string |  | Words to find in the site's name, domain, title, description, headings or text; every word must match. |
 | updated_after | string |  | Updated on or after RFC3339 or YYYY-MM-DD (UTC). |
 | updated_before | string |  | Updated on or before RFC3339 or YYYY-MM-DD (whole UTC day). |
@@ -25,8 +23,6 @@ List this account's own sites (admins: pass all_accounts for every account's), n
 ## get_site
 
 <div data-tool="get_site"></div>
-
-**Get one site and its files**
 
 Show one site: its live address, active version, custom domain, and the list of files in the live version with their sizes. Call this before editing an existing site, then read_site_file for each file you will change. It names only the live version; list_versions shows every kept version.
 
@@ -39,8 +35,6 @@ Show one site: its live address, active version, custom domain, and the list of 
 ## read_site_file
 
 <div data-tool="read_site_file"></div>
-
-**Read files from a site**
 
 Return the contents of one file of a site (path), or of up to 10 at once (paths), from the live version unless `version` is given. Read only the files you will change; for a small change you can skip reading and use update_site's edits. Text files come back as text; binary files (images, fonts) are only described. Use update_site with keep_other_files: true to keep files you are not changing.
 
@@ -57,8 +51,6 @@ Return the contents of one file of a site (path), or of up to 10 at once (paths)
 
 <div data-tool="create_site"></div>
 
-**Publish a new site**
-
 Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. When the person says "my site", "our site", or "my salon site", call list_sites first: if they already have that site, add to it with update_site instead of making a new one. `index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because a site can be served under a path as well as at a root. The site is public to anyone with the returned URL as soon as this returns. A form visitors send (contact, quote, booking, sign-up, order) must save to storage: call get_page_recipe first; never use a mailto: link or an outside form service. Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. For the person's own photos, give them create_upload_link's photos_url (it shrinks them); never ask them to resize or attach photos. Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need.
 
 **Parameters:**
@@ -72,8 +64,6 @@ Publish a NEW website from files given inline, at a public address. Fails if thi
 ## update_site
 
 <div data-tool="update_site"></div>
-
-**Publish a new version of a site**
 
 Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. For a small change (hours, a price, a line of text), send edits instead: each {path, find, replace} replaces text that occurs exactly once in the live file; if a find is missing or repeated, nothing is published. `index.html` is required unless keeping other files; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). A form visitors send (contact, quote, booking, sign-up, order) must save to storage: call get_page_recipe first; never use a mailto: link or an outside form service. Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. For the person's own photos, give them create_upload_link's photos_url (it shrinks them); never ask them to resize or attach photos. Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need. With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for one hour) to look at it first; make it live with rollback_site when the person is happy. `author` names who made the version in list_versions.
 
@@ -94,8 +84,6 @@ Replace the live files of an EXISTING site with a new version, at its public add
 
 <div data-tool="set_keep_versions"></div>
 
-**Set versions kept**
-
 Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.
 
 **Parameters:**
@@ -108,8 +96,6 @@ Set a site's version count; older versions are removed for good. Only accounts e
 ## list_versions
 
 <div data-tool="list_versions"></div>
-
-**List a site's versions**
 
 List the versions kept for a site, newest first, with which one is live. Call this before rollback_site. Each version in the text may name its author (whoever the deployer stated); a version marked not_yet_live can be made live with rollback_site, or removed with discard_version where that tool is offered. `pending: true` lists only those not-yet-live versions.
 
@@ -124,8 +110,6 @@ List the versions kept for a site, newest first, with which one is live. Call th
 
 <div data-tool="rollback_site"></div>
 
-**Make an earlier version live**
-
 Make one of a site's kept versions live (visitors see it immediately): an earlier one, or one stored with update_site `publish: false` after the person has looked at its preview. Nothing is deleted; the current version stays available and can be restored the same way. Confirm the version with the person first.
 
 **Parameters:**
@@ -138,8 +122,6 @@ Make one of a site's kept versions live (visitors see it immediately): an earlie
 ## preview_version
 
 <div data-tool="preview_version"></div>
-
-**Preview a version before it is live**
 
 Make a preview link for one of a site's kept versions (from list_versions): the person opens it in their browser to see that version exactly as visitors would, before making it live with rollback_site. The link works for anyone who has it, for one hour and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.
 
@@ -154,8 +136,6 @@ Make a preview link for one of a site's kept versions (from list_versions): the 
 
 <div data-tool="discard_version"></div>
 
-**Discard a version that was never live**
-
 DESTRUCTIVE: removes, for good, a version stored with update_site `publish: false` that has never been live. The live version and versions that have been live cannot be discarded (retention prunes those). Confirm with the person first, naming the version number from list_versions.
 
 **Parameters:**
@@ -168,8 +148,6 @@ DESTRUCTIVE: removes, for good, a version stored with update_site `publish: fals
 ## delete_site
 
 <div data-tool="delete_site"></div>
-
-**Delete a site**
 
 DESTRUCTIVE: takes the site offline at once, with every version and all of its saved data (storage resources included). It stays in Recently deleted for 7 days, where restore_site brings it back exactly as it was; after that it is gone for good. Its name stays taken until then. Only call this after the person has explicitly confirmed, in this conversation, that they want this specific site deleted. Pass the site name twice: as `site` and as `confirm_name`.
 
@@ -184,15 +162,11 @@ DESTRUCTIVE: takes the site offline at once, with every version and all of its s
 
 <div data-tool="list_deleted_sites"></div>
 
-**List recently deleted sites**
-
 List the account's sites in Recently deleted: each was deleted within the last 7 days and can be brought back with restore_site until its purge_at time, when it is removed for good.
 
 ## restore_site
 
 <div data-tool="restore_site"></div>
-
-**Restore a deleted site**
 
 Bring back a site from Recently deleted (see list_deleted_sites): same name, same address, every version, saved data and connected address, live again at once.
 
@@ -205,8 +179,6 @@ Bring back a site from Recently deleted (see list_deleted_sites): same name, sam
 ## rename_site
 
 <div data-tool="rename_site"></div>
-
-**Rename a site**
 
 Give a site a new name, which changes its address. Links to the old address keep working: they redirect to the new one until a new site is created with the old name. A connected custom domain stays attached. Not for "a shorter link" or "an address without my username": that is connect_domain with a free &lt;name&gt;.simple-host.app.
 
@@ -221,8 +193,6 @@ Give a site a new name, which changes its address. Links to the old address keep
 
 <div data-tool="set_home_page"></div>
 
-**Choose my home page**
-
 Make one of the person's sites their home page, served at their personal address https://&lt;handle&gt;.simple-host.app/ instead of the showcase (the list of their sites); site null brings the showcase back. The site's own address keeps working too. If that site goes offline or is deleted, the showcase shows again.
 
 **Parameters:**
@@ -235,8 +205,6 @@ Make one of the person's sites their home page, served at their personal address
 
 <div data-tool="set_visibility"></div>
 
-**Show or hide a site on my public page**
-
 Choose whether a site is listed on the account's public page (https://&lt;handle&gt;.simple-host.app/). An unlisted site is also kept out of search engines unless it has its own domain or claimed name (noindex on every address; its own robots.txt, if it ships one, is kept). This is NOT privacy: an unlisted site is still public to anyone with its address; never describe unlisted as private. To ask visitors for a passcode on the whole site, use set_site_passcode.
 
 **Parameters:**
@@ -244,13 +212,11 @@ Choose whether a site is listed on the account's public page (https://&lt;handle
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
-| visibility | string | yes | `public` lists it on the public page; `unlisted` leaves it off, and out of search engines unless the site has its own domain or name (still reachable by its address). |
+| visibility | string, one of `public`, `unlisted` | yes | `public` lists it on the public page; `unlisted` leaves it off, and out of search engines unless the site has its own domain or name (still reachable by its address). |
 
 ## set_site_offline
 
 <div data-tool="set_site_offline"></div>
-
-**Take a site offline or back online**
 
 Take a site offline (`offline: true`): every address of it shows a plain "This site is offline" page and visitors can no longer save anything (RSVPs, votes, sign-ups, private lists), read its saved data or lists, or sign in, for example when an event is over or a form must stop taking entries. Nothing is deleted: files, versions, saved data and lists are kept, and you can still update, read and export it. `offline: false` puts it back online at every address. Confirm with the person before taking a site offline.
 
@@ -265,8 +231,6 @@ Take a site offline (`offline: true`): every address of it shows a plain "This s
 
 <div data-tool="keep_site"></div>
 
-**Keep a site up for good**
-
 Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for 90 days and moves it to Recently deleted 30 days later unless it is kept; a site marked Keep is never flagged. Sites with their own domain or claimed name are never flagged either.
 
 **Parameters:**
@@ -280,8 +244,6 @@ Mark a site Keep (or clear the mark). Simple Host emails the owner about a site 
 
 <div data-tool="site_analytics"></div>
 
-**How many people visited**
-
 Visits to a site over the last N days, split into people (not counting the owner's own visits), bots and monitoring, with the most viewed pages and the domains visitors came from (people only). When asked how many people visited, report the `person` numbers only.
 
 **Parameters:**
@@ -294,8 +256,6 @@ Visits to a site over the last N days, split into people (not counting the owner
 ## export_site
 
 <div data-tool="export_site"></div>
-
-**Download a copy of a site**
 
 Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files and its saved data (storage resources with their KV values, SQLite databases, and files, plus any older state and collections). The link works for 10 minutes and only for that site; give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.
 

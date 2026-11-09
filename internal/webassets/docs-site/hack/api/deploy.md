@@ -44,7 +44,7 @@ Upload a new version of an existing site you own. Creates a new version and acti
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
 | publish | query | boolean |  | false stores the new version without making it live (updates only; a new site's first version always goes live: 400) |
-| create | query | string |  | 1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists |
+| create | query | string, one of `1`, `0`, `true`, `false` |  | 1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists |
 | author | query | string |  | Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions. |
 
 **Request body:** application/gzip
@@ -106,9 +106,9 @@ Same as POST, but for an existing site you own. Creates a new version and activa
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
 | publish | query | boolean |  | false stores the new version without making it live (updates only; a new site's first version always goes live: 400) |
-| create | query | string |  | 1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists |
+| create | query | string, one of `1`, `0`, `true`, `false` |  | 1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists |
 | author | query | string |  | Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions. |
-| keep | query | integer |  | Keep unchanged files from the live version; merged files use ordinary unpacked-file caps |
+| keep | query | integer, one of `1` |  | Keep unchanged files from the live version; merged files use ordinary unpacked-file caps |
 
 **Request body:**
 

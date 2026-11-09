@@ -332,7 +332,7 @@ Create an account key for a trusted CI client or another machine. A deploy-only 
 | --- | --- | --- | --- |
 | expires_in_days | integer |  | Optional fixed expiry, in days from now |
 | name | string | yes | Any label except the names Simple Host gives its own keys (dashboard sign-in, agent sign-in, event account, reviewer sign-in, replacement key; 400) |
-| scope | string |  | deploy: create, update, roll back and list sites and make preview links, nothing else |
+| scope | string, one of `full`, `deploy` |  | deploy: create, update, roll back and list sites and make preview links, nothing else |
 
 **Responses:**
 

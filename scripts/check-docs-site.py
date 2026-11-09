@@ -193,7 +193,7 @@ def problems_links():
         for doc in per_brand_docs.get(brand, []):
             if not doc.is_file():
                 continue
-            for href in re.findall(r'(?:href=["\']|\(|(?<![\w/]))((?:https?://[^\s"\'()<>]+)|/docs/[^\s"\'()<>]*)', doc.read_text()):
+            for href in re.findall(r'(?:href=["\']|\(|(?<![\w/]))((?:https?://[^\s"\'()<>\[\]`]+)|/docs/[^\s"\'()<>\[\]`]*)', doc.read_text()):
                 href = href.rstrip('.,;:')
                 rel = docs_relative(href, brand)
                 if rel is None:
