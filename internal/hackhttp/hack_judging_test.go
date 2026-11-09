@@ -1715,6 +1715,43 @@ func TestHackJudgingSetupLocksAtJudging(t *testing.T) {
 	}
 }
 
+// Locks follow the stage: moving back before Judging clears the judging
+// lock set by "Lock judging" or by Results.
+func TestHackStageBackClearsJudgingLock(t *testing.T) {
+	for _, via := range []string{"lock", "results"} {
+		t.Run(via, func(t *testing.T) {
+			w := newJudgingWorld(t, 1, 2)
+			if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
+				t.Fatalf("start judging: %d %s", r.status, r.body)
+			}
+			if via == "lock" {
+				if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != 200 {
+					t.Fatalf("lock: %d %s", r.status, r.body)
+				}
+			} else if r := w.call(t, "POST", "/stage", map[string]any{"stage": "results"}, w.org); r.status != 200 {
+				t.Fatalf("to results: %d %s", r.status, r.body)
+			}
+			var locked bool
+			if err := w.a.database.QueryRow(`SELECT judging_locked_at IS NOT NULL FROM events WHERE slug=$1`, w.slug).Scan(&locked); err != nil || !locked {
+				t.Fatalf("not locked: %v %v", locked, err)
+			}
+			if r := w.call(t, "POST", "/stage", map[string]any{"stage": "closed"}, w.org); r.status != 200 {
+				t.Fatalf("back to closed: %d %s", r.status, r.body)
+			}
+			if err := w.a.database.QueryRow(`SELECT judging_locked_at IS NOT NULL FROM events WHERE slug=$1`, w.slug).Scan(&locked); err != nil || locked {
+				t.Fatalf("still locked after moving back: %v %v", locked, err)
+			}
+			decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "manual", "judges_per_team": 2}, w.org))
+			if r := w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org); r.status != 200 {
+				t.Fatalf("rubric: %d %s", r.status, r.body)
+			}
+			if r := w.call(t, "PUT", "/assignments", map[string]any{"assignments": []any{}}, w.org); r.status != 200 {
+				t.Fatalf("assignments: %d %s", r.status, r.body)
+			}
+		})
+	}
+}
+
 func TestHackAutomaticAssignmentsAtStageMove(t *testing.T) {
 	w := newJudgingWorld(t, 2, 2)
 	decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic", "judges_per_team": 2}, w.org))

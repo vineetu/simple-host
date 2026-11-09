@@ -252,6 +252,16 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 				return model.Event{}, "", err
 			}
 		}
+		// Locks follow the stage (SIM-416): moving back before Judging
+		// clears the judging lock, so the judging setup is editable again.
+		switch stage {
+		case "draft", "open", "building", "closed":
+			if updated.JudgingLockedAt.Valid {
+				if updated, err = eventrepo.SetJudgingLock(ctx, tx, event.ID, false, "stage moved back"); err != nil {
+					return model.Event{}, "", err
+				}
+			}
+		}
 	}
 	return updated, current, nil
 }
