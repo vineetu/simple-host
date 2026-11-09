@@ -217,6 +217,7 @@ function formHTML (ctx, ev, data, rules, hasTracks, missing, status) {
     const max = MAXLEN[f]
     const help = FIELD_HELP[f] ? '<p class="help">' + esc(FIELD_HELP[f]) + '</p>' : ''
     return '<div class="field"><div class="lab-row"><label for="en-' + f + '">' + esc(LABEL[f]) + '</label>' +
+      (m(f) === 'optional' && SUMMARY_FIELDS.includes(f) ? '<span class="opt">(optional)</span>' : '') +
       (max ? '<span class="counter" id="en-' + f + '-ctr">' + raw.length + ' / ' + max + '</span>' : '') + '</div>' +
       '<input class="input" id="en-' + f + '"' + (type ? ' type="' + type + '"' : '') + (max ? ' maxlength="' + max + '"' : '') + ' value="' + val + '">' +
       help + '<p class="err" id="en-' + f + '-err"></p></div>'

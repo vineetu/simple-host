@@ -256,7 +256,9 @@ func (s *Service) EntryProgress(ctx context.Context, ev model.Event, team model.
 		if f == "track" && !hasTracks {
 			continue
 		}
-		if fields[f] == "off" {
+		if fields[f] != "required" {
+			// Off and Optional lines are not part of the count (SIM-395):
+			// an optional line left blank never holds the summary step open.
 			continue
 		}
 		// The project name always counts (full-test fix, 2026-11-02): it

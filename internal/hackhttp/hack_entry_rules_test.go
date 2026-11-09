@@ -686,7 +686,7 @@ func TestHackEntrySaveRulesOnRetiredPreset(t *testing.T) {
 
 	// Simulate an event that already existed on the "build" preset before
 	// SIM-382 (a new event today starts on video_or_website instead).
-	buildRules := `{"v":1,"fields":{"title":"required","problem":"required","tagline":"required","audience":"required","track":"required","tools":"required","maturity":"required","description":"optional","video_url":"one_of","site":"one_of","code_url":"off","screenshot":"optional"}}`
+	buildRules := `{"v":1,"fields":{"title":"required","problem":"required","tagline":"required","audience":"optional","track":"required","tools":"required","maturity":"required","description":"optional","video_url":"one_of","site":"one_of","code_url":"off","screenshot":"optional"}}`
 	if _, err := a.database.Exec(`UPDATE events SET entry_preset = 'build', entry_rules = $2::jsonb, judge_first = 'video' WHERE slug = $1`, w.slug, buildRules); err != nil {
 		t.Fatal(err)
 	}
@@ -796,5 +796,32 @@ func TestHackEntriesCSVNeutralisesFormulas(t *testing.T) {
 	got := rows[1][idx]
 	if !strings.HasPrefix(got, "'") || strings.HasPrefix(got, "=") {
 		t.Fatalf("problem cell not neutralised: %q", got)
+	}
+}
+
+// TestHackEntryProgressAudienceOptional: SIM-395. On the default preset a
+// card complete except for Who it's for is a done summary step: the blank
+// optional line is neither counted nor named as missing, and the entry is
+// ready to submit.
+func TestHackEntryProgressAudienceOptional(t *testing.T) {
+	w := newRulesWorld(t, 1)
+	a, p := w.a, w.teams[0].person
+	fields := buildCompleteFields()
+	delete(fields, "audience")
+	if r := a.at(t, "PUT", w.entryPath(), fields, a.key(p)); r.status != 200 {
+		t.Fatalf("entry: %d %s", r.status, r.body)
+	}
+	progress := a.at(t, "GET", "/v1/hack/events/"+w.slug, nil, a.key(p)).json(t)["progress"].(map[string]any)
+	var summary map[string]any
+	for _, s := range progress["steps"].([]any) {
+		if step := s.(map[string]any); step["id"] == "summary" {
+			summary = step
+		}
+	}
+	if summary == nil || summary["done"] != true || summary["filled"] != summary["of"] || len(jsonStrings(t, summary["missing"])) != 0 {
+		t.Fatalf("summary step with audience blank: %#v", summary)
+	}
+	if progress["next"] != "submit" {
+		t.Fatalf("next = %#v, want submit", progress["next"])
 	}
 }

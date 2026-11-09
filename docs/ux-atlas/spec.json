@@ -2496,7 +2496,7 @@
     },
     {
      "q": "What do the presets set?",
-     "decision": "SIM-382 (owner, 2026-11-05/06), replacing the original three: Video or website (the default): everything on the card Required, Video and Website One of, Code Off, Screenshot Optional, Video first. Video, website and code link: everything on the card Required, Video, Website and Code link all Required (not One of), Screenshot Optional, Website first. Title is always Required; Track is ignored when the event has no tracks. The three retired presets (AI build, Coding, Ideas and design) and Custom keep their old tables for an event already on one -- they're simply no longer offered to pick. SIM-395 (owner, 2026-11-06): Who it's for is Optional in every preset; events still on a preset moved with it, Custom rules stay as set.",
+     "decision": "SIM-382 (owner, 2026-11-05/06), replacing the original three: Video or website (the default): everything on the card Required, Video and Website One of, Code Off, Screenshot Optional, Video first. Video, website and code link: everything on the card Required, Video, Website and Code link all Required (not One of), Screenshot Optional, Website first. Title is always Required; Track is ignored when the event has no tracks. The three retired presets (AI build, Coding, Ideas and design) and Custom keep their old tables (except Who it's for, below) for an event already on one -- they're simply no longer offered to pick. SIM-395 (owner, 2026-11-06): Who it's for is Optional in every preset; events still on a preset moved with it, Custom rules stay as set.",
      "why": "Owner: the real choice organisers care about is what evidence teams must show, not the three original event-kind labels; two clear options beat three overlapping ones plus an implicit fourth (Custom)."
     },
     {
@@ -3580,7 +3580,7 @@
      "contents": [
       "1 d 6 h 12 m left · Your team closes Sun 8 Nov, 20:00 WIB, 2 hours after everyone else",
       "1 Join or start a team -- On SheBuilds with Ayu and Dian. (ticked)",
-      "2 Fill in the summary card -- All 7 lines filled. / 5 of 7 filled: add who it's for and tools and AI. (The project name always counts, so the total never changes mid-edit; full-test fix 2026-11-02.)",
+      "2 Fill in the summary card -- All 6 lines filled. / 4 of 6 filled: add tools and AI and what works today. (The project name always counts, so the total never changes mid-edit; full-test fix 2026-11-02.)",
       "3 Add a video or publish your website -- sentence from the event's rule (the Video, website and code link preset: 'Add a video, your website, and your code link').",
       "4 Submit before the deadline -- Then the judges can see it. You can still change it after."
      ],
@@ -3675,7 +3675,7 @@
     {
      "name": "on a team, summary incomplete",
      "when": "team yes, summary card has unfilled Required lines",
-     "shows": "Next step 'Finish your summary card: add Who it's for and Tools and AI.' with Finish your entry (to Entry, focus on the first missing line)."
+     "shows": "Next step 'Finish your summary card: add Tools and AI and What works today.' with Finish your entry (to Entry, focus on the first missing line)."
     },
     {
      "name": "on a team, work not shown yet",
@@ -4686,7 +4686,7 @@
      "name": "Status",
      "contents": [
       "Draft · not submitted yet -- Judges only see submitted entries. Submit by Sun 18:00 WIB.",
-      "Summary card · 6 of 7 · Missing: Who it's for · Video or website",
+      "Summary card · 5 of 6 · Missing: Tools and AI · Video or website",
       "Submitted · Sat 14:02 WIB by Siti -- you can still change it until Sun 18:00 WIB; it stays submitted."
      ],
      "actions": [
@@ -4788,7 +4788,7 @@
     {
      "name": "draft, something missing",
      "when": "draft with Required lines or the One-of rule unmet",
-     "shows": "Status lists the open items with hollow dots (Summary card · 6 of 7 · Missing: Who it's for, then Video or website), naming fields as the form labels them. Submit stays enabled: pressing it is how a team learns precisely what's missing."
+     "shows": "Status lists the open items with hollow dots (Summary card · 5 of 6 · Missing: Tools and AI, then Video or website), naming fields as the form labels them. Submit stays enabled: pressing it is how a team learns precisely what's missing."
     },
     {
      "name": "submit refused",
