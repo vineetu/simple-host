@@ -320,7 +320,7 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
 .tour-skip{color:var(--line-faint)}
 
 /* confirm dialog (static mock) */
-.dialog{max-width:440px;background:var(--surface);border:1px solid var(--rule-hi);border-radius:12px;box-shadow:0 16px 40px rgba(43,41,37,.18);padding:18px 20px}
+.dialog{max-height:calc(100dvh - 32px);overflow-y:auto;max-width:440px;background:var(--surface);border:1px solid var(--rule-hi);border-radius:12px;box-shadow:0 16px 40px rgba(43,41,37,.18);padding:18px 20px}
 /* Finding #9 (prod full test, round 7): the "same 12px as a card heading"
    rule below only ever matched when a dialog's body was literally a
    .field/.field-row/etc. as ui.dialog()'s next DOM sibling after <h2> --
@@ -1336,3 +1336,7 @@ textarea.input.assistant-textarea{resize:none;min-height:var(--control-h);max-he
      conditional markup -- no resize/mutation listener needed. */
   body:has(.sticky-foot,.card-foot.sticky) .assistant-fab{bottom:calc(112px + env(safe-area-inset-bottom))}
 }
+
+.dialog:has([data-judging-setup]),.dialog:has(#stage-setup){display:flex;flex-direction:column}
+.dialog > [data-judging-setup],.dialog > #stage-setup{min-height:0;overflow-y:auto}
+.dialog > .acts{flex-shrink:0}
