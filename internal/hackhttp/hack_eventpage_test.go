@@ -397,8 +397,8 @@ func TestHackEventPageResultsWinnersOnly(t *testing.T) {
 	if !strings.Contains(body, `href="https://alpha.example.com/"`) {
 		t.Error("winner site link missing")
 	}
-	if !strings.Contains(body, `<span class="av accent">1</span>`) || !strings.Contains(body, `<span class="pill accent">Winner</span>`) {
-		t.Error("winner avatar/pill missing")
+	if !strings.Contains(body, `<span class="rank">#1</span>`) || !strings.Contains(body, `<span class="pill accent">Winner</span>`) {
+		t.Error("winner rank/pill missing")
 	}
 	if strings.Contains(body, `<h2 class="section-title">Results</h2>`) {
 		t.Error("full-ranking heading shown for winners-only")
@@ -408,7 +408,7 @@ func TestHackEventPageResultsWinnersOnly(t *testing.T) {
 // TestHackEventPageResultsWinnersOnlyTrackWinnerIsAlsoOverall (review
 // 2026-10-30 item 1): markTrackWinners makes the rank-1 team the winner of
 // its own track too, so a winners-only row can carry both the "Winner" pill
-// (avatar "1") and a "<Track> winner" pill at once — it must not lose the
+// and a "<Track> winner" pill at once — it must not lose the
 // Winner pill just because it is also a track winner.
 func TestHackEventPageResultsWinnersOnlyTrackWinnerIsAlsoOverall(t *testing.T) {
 	p := testHackEvent()
@@ -420,8 +420,8 @@ func TestHackEventPageResultsWinnersOnlyTrackWinnerIsAlsoOverall(t *testing.T) {
 		},
 	}
 	body := renderHackEvent(t, p).Body.String()
-	if !strings.Contains(body, `<span class="av accent">1</span>`) || !strings.Contains(body, `<span class="pill accent">Winner</span>`) {
-		t.Error("overall-winner-and-track-winner row lost its Winner pill/avatar")
+	if !strings.Contains(body, `<span class="rank">#1</span>`) || !strings.Contains(body, `<span class="pill accent">Winner</span>`) {
+		t.Error("overall-winner-and-track-winner row lost its Winner pill/rank")
 	}
 	if !strings.Contains(body, `<span class="pill">AI winner</span>`) {
 		t.Error("overall-winner-and-track-winner row lost its track pill")
@@ -771,10 +771,8 @@ func TestHackEventPageNoCountdownOutsideOpenAndBuilding(t *testing.T) {
 	}
 }
 
-// TestHackEventPageScheduleAndRulesCollapseOnlyAfterResults: Schedule and
-// Rules are a plain <section> everywhere except once results/archived has
-// them collapsed into a <details> (review 2026-10-30 item 7).
-func TestHackEventPageScheduleAndRulesCollapseOnlyAfterResults(t *testing.T) {
+// Schedule stays open at every stage; Rules collapses only at results/archived.
+func TestHackEventPageScheduleOpenAndRulesCollapseAfterResults(t *testing.T) {
 	for _, c := range []struct {
 		stage     string
 		collapsed bool
@@ -792,7 +790,6 @@ func TestHackEventPageScheduleAndRulesCollapseOnlyAfterResults(t *testing.T) {
 		wantSchedule := `<section class="card" id="schedule">`
 		wantRules := `<section class="card" id="rules">`
 		if c.collapsed {
-			wantSchedule = `<section class="card collapsed" id="schedule">`
 			wantRules = `<section class="card collapsed" id="rules">`
 		}
 		if !strings.Contains(body, wantSchedule) {
@@ -1211,7 +1208,7 @@ func TestHackEventPageHeaderFooterLandmarksOutsideMain(t *testing.T) {
 }
 
 // TestHackEventPageCollapsedHeadingOutsideSummary (review 2026-10-30 item
-// 14): Schedule/Rules once collapsed still expose an <h2> for heading
+// 14): Rules once collapsed still expose an <h2> for heading
 // navigation, and it is not nested inside <summary> (which many screen
 // readers flatten to a plain button).
 func TestHackEventPageCollapsedHeadingOutsideSummary(t *testing.T) {
@@ -1221,7 +1218,7 @@ func TestHackEventPageCollapsedHeadingOutsideSummary(t *testing.T) {
 		{Title: "Opening", StartAt: "2027-03-12T10:00:00Z", EndAt: "2027-03-12T11:00:00Z"},
 	}
 	body := renderHackEvent(t, p).Body.String()
-	for _, id := range []string{"rules", "schedule"} {
+	for _, id := range []string{"rules"} {
 		open := `<section class="card collapsed" id="` + id + `">`
 		at := strings.Index(body, open)
 		if at < 0 {
@@ -1452,5 +1449,32 @@ func TestHackEventBoundaryTimes(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestHackEventPageWinnerThumbnailsAndRanks(t *testing.T) {
+	for _, cards := range []bool{false, true} {
+		p := testHackEvent()
+		rows := []hackResultsRow{
+			{Rank: 1, Overall: true, TeamName: "Alpha Team", Shot: "/alpha-shot.png", URL: "https://alpha.example.com/"},
+			{Rank: 2, TrackWinner: true, TeamName: "Beta Team"},
+			{Rank: 3, TrackWinner: true, TeamName: "Gamma Team", Shot: "/gamma-shot.png"},
+			{TrackWinner: true, TeamName: "Delta Team"},
+		}
+		if cards {
+			for i := range rows {
+				rows[i].Card = &hackResultCard{Title: "Different project title"}
+			}
+		}
+		p.Results = &hackResultsView{Rows: rows}
+		body := renderHackEvent(t, p).Body.String()
+		for _, want := range []string{`src="/alpha-shot.png"`, `src="/gamma-shot.png"`, `>#1</span>`, `>#2</span>`, `>#3</span>`, `>BT</span>`, `>DT</span>`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("cards=%v missing %s", cards, want)
+			}
+		}
+		if strings.Contains(body, ">#4</span>") || strings.Contains(body, `class="av accent">1</span>`) || strings.Contains(body, `class="site-frame letter">1</span>`) {
+			t.Errorf("cards=%v invented rank or special winner thumbnail", cards)
+		}
 	}
 }

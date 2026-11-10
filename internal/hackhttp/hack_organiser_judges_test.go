@@ -262,7 +262,7 @@ func TestGenerateAliasRespectsSetupLock(t *testing.T) {
 	w = newJudgingWorld(t, 1, 0)
 	w.setStage(t, "results")
 	items, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
-	if items["o.judges"]["actionable"] != false || items["o.judges"]["blocked_reason"] == nil {
-		t.Fatal("Results without judges must be blocked", items["o.judges"])
+	if item, ok := items["o.judges"]; ok && (item["actionable"] != false || item["blocked_reason"] == nil) {
+		t.Fatal("Results without judges must hide or block the judges item", item)
 	}
 }

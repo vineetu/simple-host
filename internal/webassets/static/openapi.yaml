@@ -10943,6 +10943,7 @@ paths:
                         team_id: { type: string }
                         team_name: { type: string }
                         judges_scored: { type: integer }
+                        judges_eligible: { type: integer, description: Number of assigned judges who can count for this team after conflicts. }
                         flagged: { type: boolean }
                   judges:
                     type: array

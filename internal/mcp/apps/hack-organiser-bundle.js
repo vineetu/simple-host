@@ -3467,14 +3467,14 @@
       sel.focus();
     });
   }
-  async function formDialog(ui, { title: title4, body, saveLabel = "Save", cancelLabel = "Cancel", focus = "first-field" }, onSave) {
+  async function formDialog(ui, { title: title4, body, saveLabel = "Save", cancelLabel = "Cancel", focus = "first-field", primary = "save" }, onSave) {
     for (; ; ) {
       const action = await ui.dialog({
         title: title4,
         body,
         buttons: [
-          { label: cancelLabel, value: "cancel", attrs: { "data-cancel": "" } },
-          { label: saveLabel, value: "save", className: "btn primary" }
+          { label: cancelLabel, value: "cancel", className: primary === "cancel" ? "btn primary" : "btn", attrs: { "data-cancel": "" } },
+          { label: saveLabel, value: "save", className: primary === "save" ? "btn primary" : "btn" }
         ],
         escapeValue: "cancel",
         focus
@@ -3571,7 +3571,7 @@
 
   // internal/handler/static/hack/screens/_stage-announce-dialog.js
   async function offerStageAnnouncement(ctx, { move, back, emailableCount, setLive }) {
-    if (ctx.noAnnounce) return;
+    if (back || ctx.noAnnounce) return;
     const ui = ctx.ui;
     const api = ctx.api.api;
     const ev = ctx.event.event;
@@ -3584,7 +3584,7 @@
 <div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
 <label class="check"><input type="checkbox" id="sa-email"${emailableCount ? "" : " disabled"}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? "Editing it later never sends another email." : "No participant has an email address yet."}</span></span></label>`;
     const q = (sel) => body.querySelector(sel);
-    await formDialog(ui, { title: "Tell participants?", body, saveLabel: "Send", cancelLabel: "Don't send", focus: "first-field" }, async () => {
+    await formDialog(ui, { title: "Tell participants?", body, saveLabel: "Send", cancelLabel: "Don't send", primary: "cancel", focus: 0 }, async () => {
       body.querySelectorAll(".err").forEach((n) => n.remove());
       const t = q("#sa-title").value.trim(), b = q("#sa-body").value.trim();
       if (!t) {
@@ -4517,7 +4517,7 @@
     }
     switch (step.stage) {
       case "open":
-        return { h2: "Open sign-up when your page is ready", sentence: "People can join with your link and apply, and judges can use their invite link.", button: step.label };
+        return { h2: "Open sign-up when your page is ready", sentence: "People can join with your link, and judges can use their invite link.", button: step.label };
       case "building":
         return { h2: "Start building when people are in", sentence: "Entries open. Teams can edit their entry and website until you close entries.", button: step.label };
       case "closed":
@@ -5177,7 +5177,10 @@ ${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href("org
         mainEl.appendChild(ui.el("b", { text: t.team_name || "A team" }));
         row.appendChild(mainEl);
         const text = t.judges_scored === 0 ? "No scores yet" : t.judges_scored + " judge" + (t.judges_scored === 1 ? "" : "s") + " scored";
+        const target = settings.assignment_mode !== "open" ? settings.judges_per_team : 0;
+        const short = target > 0 && t.judges_eligible < target;
         row.appendChild(ui.el("span", { class: "meta", text }));
+        if (short) row.appendChild(ui.el("span", { class: "pill warn", text: t.judges_eligible + " of " + target + " judges" }));
         tlist.appendChild(row);
       });
       card.appendChild(tlist);

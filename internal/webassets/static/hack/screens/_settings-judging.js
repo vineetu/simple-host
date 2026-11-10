@@ -57,8 +57,9 @@ export async function render(ctx) {
   }
 
   const setupInner = `
+${ev.stage === 'judging' ? '<div class="note">Locked while judging. Move the event back to Entries closed to change.</div>' : ''}
 <section class="card" id="rubric"><h2>Rubric</h2><div id="jg-rubric"></div><div class="form-actions"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="hint" id="jg-weight"></span><button class="btn" type="button" id="jg-rubric-save">Save rubric</button></div></section>
-<section class="card" id="tie-break"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label><p class="help">You can change this until judging starts.</p></div><div class="form-actions"><button class="btn" type="button" id="jg-tie-save">Save</button></div></section>
+<section class="card" id="tie-break"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label>${!tieClosed() ? '<p class="help">You can change this until judging starts.</p>' : ''}</div><div class="form-actions"><button class="btn" type="button" id="jg-tie-save">Save</button></div></section>
 ${closesHTML()}
 <section class="card" id="mode"><h2>How judges are assigned</h2>
 <label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><span><b>Open</b><span>Judges pick any team from the full list.</span></span></label>

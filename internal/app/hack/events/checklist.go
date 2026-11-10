@@ -131,8 +131,8 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			queueOpen := ev.Stage == "judging" && !closed
 			facts["j.invite"] = rules.ChecklistFact{Done: !member.JoinedAt.IsZero(), BlockedReason: "informational"}
 			facts["j.coc"] = rules.ChecklistFact{Done: member.CocAcceptedAt.Valid, BlockedReason: "conduct_record_only"}
-			facts["j.rubric"] = rules.ChecklistFact{Done: version != "" && acks["j.rubric"] == version, Version: version}
-			if version == "" {
+			facts["j.rubric"] = rules.ChecklistFact{Done: (version != "" && acks["j.rubric"] == version) || (judging.OwnTotal > 0 && judging.OwnDone == judging.OwnTotal), Version: version}
+			if version == "" && !facts["j.rubric"].Done {
 				facts["j.rubric"] = rules.ChecklistFact{Detail: "The organiser hasn't added a rubric yet", BlockedReason: "no_rubric"}
 			}
 			_, conflictAck := acks["j.conflicts"]
@@ -287,6 +287,11 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	}
 	set("o.tie-break", good)
 	set("o.judging-closes", ev.JudgingEndsAt.Valid)
+	if ev.Stage == "results" || ev.Stage == "archived" {
+		v := f["o.judging-closes"]
+		v.BlockedReason = "judging_over"
+		f["o.judging-closes"] = v
+	}
 	good = false
 	for _, offset := range ev.ReminderOffsets {
 		if offset >= ReminderOffsetMin && offset <= ReminderOffsetMax {
@@ -310,6 +315,7 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 		v.BlockedReason = "judging_setup_locked"
 		f["o.judges"] = v
 	}
+	f["o.judges-short"] = rules.ChecklistFact{Count: intPointer(j.TeamsShort)}
 	f["o.scores"] = rules.ChecklistFact{Done: j.Judgeable > 0 && j.JudgesRequired > 0 && j.JudgesDone == j.JudgesRequired, Detail: fmt.Sprintf("%d of %d %s done", j.JudgesDone, j.JudgesRequired, checklistPlural(j.JudgesRequired, "judge")), Count: intPointer(j.JudgesDone), Total: intPointer(j.JudgesRequired)}
 	if j.JudgesRequired == 0 {
 		v := f["o.scores"]

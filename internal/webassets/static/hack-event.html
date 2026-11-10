@@ -34,6 +34,7 @@
      kit-next.css merge, unused until now); these few rules are the page-
      local bits that only this template needs, kept here rather than in the
      shared kit so this slice touches kit.css not at all. */
+  .results .winner-thumb{width:48px;height:30px;flex:none;font-size:12px}
   .result-entry{scroll-margin-top:12px}
   .result-entry .re-head .sub{display:block;margin-top:2px}
   .result-entry .ec-links{padding:0 16px 14px}
@@ -163,7 +164,7 @@
   {{range .Results.Rows}}
   {{if or .Overall .TrackWinner}}<article class="result-entry{{if .Overall}} winner{{end}}" id="result-{{.TeamID}}">
     <div class="re-head">
-      {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{end}}
+      {{if .Rank}}<span class="rank">{{if not $full}}#{{end}}{{.Rank}}</span>{{end}}
       <span class="main"><b>{{if .Card.Title}}{{.Card.Title}}{{else}}{{.TeamName}}{{end}}</b><span class="sub">{{.TeamName}}{{if .TrackName}} · {{.TrackName}} track{{end}}</span></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
       {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
@@ -187,7 +188,7 @@
     </div>{{end}}
   </article>{{else}}<details class="result-entry" id="result-{{.TeamID}}">
     <summary class="re-head">
-      {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{end}}
+      {{if .Rank}}<span class="rank">{{if not $full}}#{{end}}{{.Rank}}</span>{{end}}
       <span class="main"><b>{{if .Card.Title}}{{.Card.Title}}{{else}}{{.TeamName}}{{end}}</b><span class="sub">{{.TeamName}}{{if .TrackName}} · {{.TrackName}} track{{end}}</span></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
       {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
@@ -217,14 +218,14 @@
     {{range .Results.Rows}}
     {{/* Same row twice so every branch opens and closes its own tag (scripts/check-html.sh). */}}
     {{if .URL}}<a class="r" href="{{.URL}}">
-      {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{else}}<span class="av{{if .WinnerPill}} accent{{end}}">{{.Avatar}}</span>{{end}}
+      {{if .Rank}}<span class="rank">{{if not $full}}#{{end}}{{.Rank}}</span>{{end}}{{if not $full}}{{if .Shot}}<span class="site-frame winner-thumb"><img src="{{.Shot}}" alt="" width="240" height="150" loading="lazy"></span>{{else}}<span class="site-frame letter winner-thumb">{{.Avatar}}</span>{{end}}{{end}}
       <span class="main"><b>{{.TeamName}}</b></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
       {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
       {{if .TrackPill}}<span class="pill">{{.TrackPill}}</span>{{end}}
       {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
     </a>{{else}}<div class="r">
-      {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{else}}<span class="av{{if .WinnerPill}} accent{{end}}">{{.Avatar}}</span>{{end}}
+      {{if .Rank}}<span class="rank">{{if not $full}}#{{end}}{{.Rank}}</span>{{end}}{{if not $full}}{{if .Shot}}<span class="site-frame winner-thumb"><img src="{{.Shot}}" alt="" width="240" height="150" loading="lazy"></span>{{else}}<span class="site-frame letter winner-thumb">{{.Avatar}}</span>{{end}}{{end}}
       <span class="main"><b>{{.TeamName}}</b></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
       {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
@@ -475,24 +476,12 @@
 {{end}}
 
 {{define "sec-schedule"}}
-{{if .ScheduleCollapsed}}
-<section class="card collapsed" id="schedule">
-  <h2 class="sr-only">Schedule</h2>
-  <details>
-  <summary>Schedule</summary>
-  <ul class="sched" style="margin-top:10px">
-    {{range .Schedule}}<li><span class="what"><b>{{.Title}}{{if .Status}} <span class="pill{{if eq .Status "Now"}} stage{{end}}">{{.Status}}</span>{{end}}</b>{{if .Description}}<span>{{.Description}}</span>{{end}}</span><span class="when">{{.When}}</span></li>{{end}}
-  </ul>
-</details>
-</section>
-{{else}}
 <section class="card" id="schedule">
   <h2>Schedule</h2>
   <ul class="sched">
     {{range .Schedule}}<li><span class="what"><b>{{.Title}}{{if .Status}} <span class="pill{{if eq .Status "Now"}} stage{{end}}">{{.Status}}</span>{{end}}</b>{{if .Description}}<span>{{.Description}}</span>{{end}}</span><span class="when">{{.When}}</span></li>{{end}}
   </ul>
 </section>
-{{end}}
 {{end}}
 
 {{define "sec-faq"}}

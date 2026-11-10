@@ -514,10 +514,11 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		teamRows = append(teamRows, map[string]any{
-			"team_id":       team.ID,
-			"team_name":     team.Name,
-			"judges_scored": scored,
-			"flagged":       scored < teamTarget,
+			"team_id":         team.ID,
+			"team_name":       team.Name,
+			"judges_scored":   scored,
+			"judges_eligible": eligibleByTeam[team.ID],
+			"flagged":         scored < teamTarget,
 		})
 	}
 	judgeRows := make([]map[string]any, 0, len(judges))

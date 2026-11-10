@@ -6,6 +6,7 @@
 // backward target the stage picker can land on.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { offerStageAnnouncement } from '../../internal/webassets/static/hack/screens/_stage-announce-dialog.js'
 import { suggestedAnnouncement } from '../../internal/webassets/static/hack/stage-announce.js'
 
 // The announcements endpoint's real limits -- internal/hackhttp/
@@ -74,4 +75,36 @@ test('back to closed never promises scoring reopens, regardless of lock state', 
 
 test('suggestions work with no opts at all', () => {
   check('open', undefined)
+})
+
+
+test('backward stage moves do not offer an announcement dialog', async () => {
+  // No UI or API is needed because the backward path must return first.
+  for (const move of ['draft', 'open', 'building', 'closed', 'judging']) {
+    await offerStageAnnouncement({}, { move, back: true })
+  }
+})
+
+test('forward moves and publishing default to Don’t send with editable text', async () => {
+  const previous = globalThis.document
+  globalThis.document = { createElement: () => ({ innerHTML: '' }) }
+  try {
+    for (const move of ['open', 'building', 'closed', 'judging', 'results', 'publish_results']) {
+      let dialog
+      const ctx = {
+        event: { event: { slug: 'demo', title: 'Demo' } },
+        api: { api: () => assert.fail('default must not send') },
+        ui: { esc: s => s, dialog: async opts => { dialog = opts; return 'cancel' } }
+      }
+      await offerStageAnnouncement(ctx, { move, back: false, emailableCount: 2 })
+      assert.equal(dialog.focus, 0)
+      assert.equal(dialog.buttons[0].label, "Don't send")
+      assert.equal(dialog.buttons[0].className, 'btn primary')
+      assert.equal(dialog.buttons[1].label, 'Send')
+      assert.equal(dialog.buttons[1].className, 'btn')
+      assert.match(dialog.body.innerHTML, /<input[^>]*id="sa-title"/)
+      assert.match(dialog.body.innerHTML, /<textarea[^>]*id="sa-body"/)
+      assert.doesNotMatch(dialog.body.innerHTML, /readonly/)
+    }
+  } finally { globalThis.document = previous }
 })

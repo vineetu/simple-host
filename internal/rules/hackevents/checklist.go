@@ -84,6 +84,7 @@ func ChecklistCatalogue() []ChecklistDefinition {
 		{"o.judges", "Have judges ready", "o.judges", "closed", false},
 		{"o.rubric-ready", "Rubric final", "o.rubric-ready", "closed", false},
 		{"o.assignments", "Assign judges", "o.assignments", "closed", false},
+		{"o.judges-short", "Teams have fewer judges than the target", "o.scores", "judging", true},
 		{"o.scores", "Every judge done", "o.judging", "judging", false},
 		{"o.lock", "Finish judging", "o.lock", "judging", false},
 		{"o.ties", "Resolve tied places", "o.ties", "results", false},
@@ -167,6 +168,15 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 			d.Target = "o.judges"
 		}
 		f := in.Facts[d.ID]
+		if d.ID == "o.judges-short" {
+			if in.Stage != "judging" || f.Count == nil || *f.Count == 0 {
+				continue
+			}
+			d.Label = fmt.Sprintf("%d teams have fewer judges than the target", *f.Count)
+			if *f.Count == 1 {
+				d.Label = "1 team has fewer judges than the target"
+			}
+		}
 		target := d.Target
 		if f.TargetID != "" {
 			target = f.TargetID
@@ -187,6 +197,9 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 			continue
 		}
 		isCurrent := d.Stage == in.Stage || (in.Stage == "building" && d.Stage == "open") || (in.Stage == "results" && (d.ID == "o.scores" || d.ID == "o.lock"))
+		if in.Stage != "archived" && !isCurrent && stageIndex(d.Stage) < stageIndex(in.Stage) && !f.Done && f.BlockedReason != "" {
+			continue
+		}
 		if in.Stage == "archived" {
 			item.Actionable = false
 			item.CanDismiss = false
@@ -216,7 +229,7 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		return out
 	}
 	for _, it := range out.Items {
-		if it.Optional || it.State != "todo" || !it.Actionable {
+		if it.Optional || it.State != "todo" || !it.Actionable || (it.ID == "o.deadline" && in.Forward != nil && in.Forward.Stage == "building") {
 			continue
 		}
 		if in.Role == "participant" && it.ID != "p."+in.ParticipantNext {
@@ -289,5 +302,5 @@ func RubricFingerprint(criteria []model.RubricCriterion) string {
 // ChecklistBasicsReady shares patchEvent's local-date end boundary, including equality.
 func ChecklistBasicsReady(ev model.Event) bool {
 	_, err := time.LoadLocation(ev.TimeZone)
-	return strings.TrimSpace(ev.Title) != "" && strings.TrimSpace(ev.Tagline) != "" && ev.StartsAt.Valid && ev.EndsAt.Valid && (ev.TimeZone == "" || err == nil) && !EventOver(ev.EndsAt.Time, ev.TimeZone).Before(ev.StartsAt.Time)
+	return strings.TrimSpace(ev.Title) != "" && ev.StartsAt.Valid && ev.EndsAt.Valid && (ev.TimeZone == "" || err == nil) && !EventOver(ev.EndsAt.Time, ev.TimeZone).Before(ev.StartsAt.Time)
 }

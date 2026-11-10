@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	model "github.com/vsriram/simple-host/internal/model"
@@ -42,7 +43,11 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		return model.Event{}, model.EventMember{}, err
 	}
 	if active >= maxActive {
-		return model.Event{}, model.EventMember{}, &Error{"too_many_active_events", "you already have as many active events as this instance allows"}
+		noun := "active events"
+		if maxActive == 1 {
+			noun = "active event"
+		}
+		return model.Event{}, model.EventMember{}, &Error{"too_many_active_events", fmt.Sprintf("You already have %d %s, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings.", maxActive, noun)}
 	}
 
 	eventID, err := eventrepo.NewUUID(ctx, tx)
@@ -238,7 +243,7 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 		// anything but results -- after settle, so a judge's first
 		// reminder/queue read already sees the settled entries.
 		if stage == "judging" && current != "judging" && current != "results" {
-			if err := eventrepo.NotifyJudges(ctx, tx, event.ID, eventrepo.NoticeJudgingOpen); err != nil {
+			if err := eventrepo.NotifyJudgingOpen(ctx, tx, event.ID); err != nil {
 				return model.Event{}, "", err
 			}
 		}
@@ -257,6 +262,11 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 					return model.Event{}, "", err
 				}
 			}
+		}
+	}
+	if current != stage && stage != "archived" {
+		if err := eventrepo.DismissTeamMessages(ctx, tx, event.ID); err != nil {
+			return model.Event{}, "", err
 		}
 	}
 	return updated, current, nil
@@ -321,6 +331,11 @@ func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, curre
 	// Section 7: an event ending always freezes every remaining draft.
 	if err := settle(ctx, tx, eventID); err != nil {
 		return model.Event{}, err
+	}
+	if current != "archived" {
+		if err := eventrepo.DismissTeamMessages(ctx, tx, eventID); err != nil {
+			return model.Event{}, err
+		}
 	}
 	return updated, nil
 }

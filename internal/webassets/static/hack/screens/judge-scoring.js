@@ -105,12 +105,12 @@ export async function render(ctx) {
   }
 
   // A bookmarked/direct link can land here outside the window the queue
-  // page itself already guards (judge-queue.js's "Not open yet" check):
+  // page itself already guards (judge-queue.js's "Scoring not open" check):
   // before scoring opens, read-only eligibility must come from the same
   // signals, not just whether judging has been explicitly locked.
   const resultsOut = !!ev.results_published && !ev.scoring_open
   if (!ev.scoring_open && !ev.judging_locked_at && !resultsOut) {
-    main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></section></div>`
+    main.innerHTML = `<div class="page"><section class="locked"><h2>Scoring not open</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></section></div>`
     return
   }
   const locked = !!ev.judging_locked_at || resultsOut || !ev.scoring_open

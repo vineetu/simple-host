@@ -244,7 +244,7 @@ function publishCardHTML (ui, esc, doc, state, conn, email, promptText, publishe
   // origin -- the same test get-started.html's own hosted/self markers
   // encode server-side. See hack-connect-steps.json's _about.
   const hosted = location.origin === 'https://simple-hack.app'
-  const fill = t => String(t || '').split('{app}').join(esc(app.label)).split('{email}').join('<b>' + esc(email || 'your email') + '</b>')
+  const fill = t => String(t || '').split('{app}').join(esc(app.label)).split('{email}').join('<b>' + esc(email || 'your email') + '</b>').split('{username}').join('<b>' + esc(email) + '</b>')
   const connect = (hosted && app.connect_hosted) || app.connect || []
   let lis = ''
   connect.forEach((step, n) => {
@@ -253,7 +253,8 @@ function publishCardHTML (ui, esc, doc, state, conn, email, promptText, publishe
     if (step.copy) extra += '<div class="copy"><input class="input mono" aria-label="' + esc(step.copy.label) + '" value="' + esc(step.copy.value) + '" readonly></div>'
     if (n === connect.length - 1) {
       if (hosted && app.fallback) extra += '<p class="help">' + app.fallback + '</p>' + addressRow()
-      if (doc.signin_hint) extra += '<p class="help">' + fill(doc.signin_hint) + '</p>'
+      const signinHint = email && !String(email).includes('@') ? doc.signin_hint_username : doc.signin_hint
+      if (signinHint) extra += '<p class="help">' + fill(signinHint) + '</p>'
     }
     lis += stepLI(step.html + (step.after || ''), appConnected, extra)
   })

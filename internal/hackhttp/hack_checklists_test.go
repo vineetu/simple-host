@@ -248,10 +248,21 @@ func TestChecklistJudgingCompletionAndTies(t *testing.T) {
 	if got := personal["j.scores"]; got["count"] != float64(1) || got["total"] != float64(2) || got["state"] != "todo" {
 		t.Fatalf("partial personal: %v", got)
 	}
+	if personal["j.rubric"]["state"] != "todo" {
+		t.Fatal("partially scored queue must still require rubric acknowledgement")
+	}
 	score(w.teams[0].id, true)
 	personal, _ = checklistItems(t, w.call(t, "GET", "/checklist", nil, w.judges[0].person))
 	if got := personal["j.scores"]; got["count"] != float64(2) || got["state"] != "done" {
 		t.Fatalf("complete personal: %v", got)
+	}
+	if personal["j.rubric"]["state"] != "done" {
+		t.Fatal("fully scored queue must complete rubric without acknowledgement")
+	}
+	checklistItems(t, w.call(t, "POST", "/checklist/acknowledgements/j.conflicts", map[string]any{}, w.judges[0].person))
+	_, personalChecklist := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.judges[0].person))
+	if next := personalChecklist["next"].(map[string]any); next["item_id"] != "j.scores" {
+		t.Fatalf("completed judge must reach review scores hero: %v", next)
 	}
 	if got := items()["o.scores"]; got["state"] != "done" || got["total"] != float64(1) {
 		t.Fatalf("unscored open organiser counted: %v", got)
@@ -816,5 +827,160 @@ func TestChecklistPublicPageURL(t *testing.T) {
 		if !ok || link.Href != w.a.hack.EventURL(w.slug) {
 			t.Fatalf("public URL: %v", link)
 		}
+	}
+}
+
+func TestChecklistCreatedEventBasicsWithoutTagline(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "basics")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, map[string]any{"starts_at": "2026-11-11", "ends_at": "2026-11-12", "time_zone": "UTC"}); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	items, _ := checklistItems(t, a.at(t, "GET", "/v1/hack/events/"+slug+"/checklist", nil, a.key(org)))
+	if items["o.basics"]["state"] != "done" {
+		t.Fatalf("optional tagline blocked basics: %v", items["o.basics"])
+	}
+	if items["o.times"]["state"] != "optional" {
+		t.Fatalf("date-only times rule changed: %v", items["o.times"])
+	}
+}
+
+func TestChecklistJudgingClosesHiddenAfterJudging(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	for _, stage := range []string{"results", "archived"} {
+		w.setStage(t, stage)
+		items, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
+		if _, ok := items["o.judging-closes"]; ok != (stage == "archived") {
+			t.Fatalf("%s: judging closes visibility must preserve archived history", stage)
+		}
+	}
+}
+
+func TestJudgingOpenNoticeOnceWhileUndismissed(t *testing.T) {
+	w := newJudgingWorld(t, 1, 2)
+	// Key-only judges reproduce email_state=none, while the other judge
+	// covers notices whose email has already been delivered.
+	if _, err := w.a.database.Exec(`UPDATE users SET username='key-only-' || id::text WHERE id=$1`, w.judges[0].id); err != nil {
+		t.Fatal(err)
+	}
+	for _, stage := range []string{"judging", "closed", "judging"} {
+		r := w.call(t, "POST", "/stage", map[string]any{"stage": stage}, w.org)
+		if r.status != 200 {
+			t.Fatalf("stage %s: %d %s", stage, r.status, r.body)
+		}
+		if stage == "closed" {
+			if _, err := w.a.database.Exec(`UPDATE event_notices SET email_state='sent' WHERE user_id=$1 AND kind='judging_open'`, w.judges[1].id); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, j := range w.judges {
+		var n int
+		if err := w.a.database.QueryRow(`SELECT count(*) FROM event_notices n JOIN events e ON e.id=n.event_id WHERE e.slug=$1 AND n.user_id=$2 AND n.kind='judging_open' AND n.seen_at IS NULL`, w.slug, j.id).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("undismissed notices: %d, %v", n, err)
+		}
+	}
+}
+
+func TestStageChangeDismissesOnlyTeamMessages(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	other := newJudgingWorldApp(t, w.a, 1, 1)
+	insert := func(slug, kind string, seen bool) string {
+		t.Helper()
+		var id string
+		err := w.a.database.QueryRow(`INSERT INTO event_notices(event_id,user_id,kind,seen_at) SELECT id,$2,$3,CASE WHEN $4 THEN now()-interval '1 day' END FROM events WHERE slug=$1 RETURNING id`, slug, w.part.id, kind, seen).Scan(&id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	message := insert(w.slug, "team_message", false)
+	dismissed := insert(w.slug, "team_message", true)
+	unrelated := insert(w.slug, "deadline_changed", false)
+	otherMessage := insert(other.slug, "team_message", false)
+	seen := func(id string) sql.NullTime {
+		t.Helper()
+		var at sql.NullTime
+		if err := w.a.database.QueryRow(`SELECT seen_at FROM event_notices WHERE id=$1`, id).Scan(&at); err != nil {
+			t.Fatal(err)
+		}
+		return at
+	}
+	before := seen(dismissed)
+	move := func(stage string) {
+		t.Helper()
+		r := w.call(t, "POST", "/stage", map[string]any{"stage": stage}, w.org)
+		if r.status != 200 {
+			t.Fatalf("stage: %d %s", r.status, r.body)
+		}
+	}
+	move("closed")
+	if seen(message).Valid {
+		t.Fatal("same stage dismissed message")
+	}
+	move("judging")
+	if !seen(message).Valid || seen(unrelated).Valid || seen(otherMessage).Valid || seen(dismissed) != before {
+		t.Fatal("wrong notices dismissed")
+	}
+}
+
+func TestChecklistJudgesShortUsesEligibleJudges(t *testing.T) {
+	for _, mode := range []string{"automatic", "manual", "panel", "open"} {
+		t.Run(mode, func(t *testing.T) {
+			w := newJudgingWorld(t, 1, 2)
+			exec := func(query string, args ...any) {
+				t.Helper()
+				if _, err := w.a.database.Exec(query, args...); err != nil {
+					t.Fatal(err)
+				}
+			}
+			exec(`UPDATE events SET judge_assignment_mode=$2,judges_per_team=2 WHERE slug=$1`, w.slug, mode)
+			if mode == "panel" {
+				exec(`INSERT INTO event_tracks(event_id,slug,name) SELECT id,'ideas','Ideas' FROM events WHERE slug=$1`, w.slug)
+				exec(`UPDATE event_teams SET track_id=(SELECT id FROM event_tracks WHERE event_id=(SELECT id FROM events WHERE slug=$1)) WHERE id=$2`, w.slug, w.teams[0].id)
+				for _, j := range w.judges {
+					exec(`INSERT INTO event_track_panels(event_id,track_id,judge_id) SELECT event_id,id,$2 FROM event_tracks WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug, j.id)
+				}
+			} else if mode == "automatic" || mode == "manual" {
+				for _, j := range w.judges {
+					exec(`INSERT INTO event_assignments(event_id,judge_id,team_id) SELECT id,$2,$3 FROM events WHERE slug=$1`, w.slug, j.id, w.teams[0].id)
+				}
+			}
+			decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Idea", "", 100, 5)), w.org))
+			w.setStage(t, "judging")
+			read := func() map[string]any {
+				t.Helper()
+				items, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
+				return items["o.judges-short"]
+			}
+			checkDashboard := func(eligible int) {
+				t.Helper()
+				r := w.call(t, "GET", "/judging/dashboard", nil, w.org)
+				wantTS(t, "dashboard", r, 200, "")
+				rows := r.json(t)["teams"].([]any)
+				if len(rows) != 1 {
+					t.Fatalf("dashboard teams: %v", rows)
+				}
+				row := rows[0].(map[string]any)
+				if row["judges_eligible"] != float64(eligible) || row["judges_scored"] != float64(0) || row["flagged"] != true {
+					t.Fatalf("dashboard coverage: %v", row)
+				}
+			}
+			if row := read(); row != nil {
+				t.Fatal("fully eligible team with no scores is short", row)
+			}
+			checkDashboard(2)
+			decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": w.teams[0].id}, w.judges[0].person))
+			checkDashboard(1)
+			row := read()
+			if mode == "open" {
+				if row != nil {
+					t.Fatal("open mode has no target warning", row)
+				}
+			} else if row["count"] != float64(1) || row["optional"] != true {
+				t.Fatal("conflict must make the team short", row)
+			}
+		})
 	}
 }

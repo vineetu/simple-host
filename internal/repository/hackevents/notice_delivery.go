@@ -148,9 +148,15 @@ func ListJudgeMemberIDs(ctx context.Context, q sqlkit.Querier, eventID string) (
 	return userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND role = 'judge'`, eventID)
 }
 
-// NotifyJudges queues kind (judging_open) for every judge of the event.
-func NotifyJudges(ctx context.Context, q sqlkit.Querier, eventID, kind string) error {
-	ids, err := ListJudgeMemberIDs(ctx, q, eventID)
+// NotifyJudgingOpen keeps one undismissed opening notice when judging reopens.
+// The stage transaction holds the event lock while checking and creating it.
+func NotifyJudgingOpen(ctx context.Context, q sqlkit.Querier, eventID string) error {
+	kind := NoticeJudgingOpen
+	ids, err := userIDs(ctx, q, `SELECT m.user_id FROM event_members m
+		WHERE m.event_id = $1 AND m.role = 'judge'
+		AND NOT EXISTS (SELECT 1 FROM event_notices n
+			WHERE n.event_id = m.event_id AND n.user_id = m.user_id
+			AND n.kind = $2 AND n.seen_at IS NULL)`, eventID, kind)
 	if err != nil {
 		return err
 	}
@@ -435,4 +441,10 @@ func PruneNoticesCount(ctx context.Context, q sqlkit.Querier) (int64, error) {
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+// DismissTeamMessages clears stage-specific organiser messages when the stage changes.
+func DismissTeamMessages(ctx context.Context, q sqlkit.Querier, eventID string) error {
+	_, err := q.ExecContext(ctx, `UPDATE event_notices SET seen_at=now() WHERE event_id=$1 AND kind='team_message' AND seen_at IS NULL`, eventID)
+	return err
 }

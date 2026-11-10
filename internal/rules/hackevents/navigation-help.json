@@ -160,7 +160,7 @@
         }
       ],
       "effects": [
-        "Entering Open/Building from outside those stages clears passed deadlines and reopens settled drafts; submitted entries stay submitted. Moving between Open and Building does neither.",
+        "Entering Sign-up open/Building from outside those stages clears passed deadlines and reopens unsubmitted drafts closed when entries closed or their deadline passed; submitted entries stay submitted. Moving between Sign-up open and Building does neither.",
         "Returning from Results to Judging reopens scoring. Publish again from Home afterwards."
       ],
       "keywords": [
@@ -188,7 +188,7 @@
       "when": "Finish an event people have joined.",
       "effects": [
         "At least one approved participant must exist; delete an unused event instead.",
-        "The public record and results remain. Team sites are removed after the number of days in CURRENT SETTINGS (30 by default); events can be exempted by the platform. Entries and scoring freeze; nobody can leave an Ended event.",
+        "The public record and results remain. Team sites are removed after the number of days in CURRENT SETTINGS (30 by default); events can be exempted by the platform. Entry edits and scoring stop; nobody can leave an Ended event.",
         "After End, title, tagline, About, Rules, Prizes, conduct, time zone, dates, page style, colour, organiser details, gallery and directory listing remain editable. An AI app connected to Simple Hack can still change team finding, team size and Judging closes, even though the screens disable them. Entry exclusion remains possible; scoring stays closed. Results can be republished from Home."
       ],
       "keywords": [
@@ -752,7 +752,7 @@
         "apps-toggle"
       ],
       "effects": [
-        "An Apply button requires public applications on, directory listing on, and stage Open or Building. Turning applications off stops new applications; pending applications remain."
+        "An Apply button requires public applications on, directory listing on, and stage Sign-up open or Building. Turning applications off stops new applications; pending applications remain."
       ],
       "related": [
         "directory",
@@ -792,7 +792,7 @@
         "tf-on"
       ],
       "effects": [
-        "Team links and codes work with Team finding off. Participant team operations require Open or Building."
+        "Team links and codes work with Team finding off. Participant team operations require Sign-up open or Building."
       ],
       "related": [
         "team.size",
@@ -838,9 +838,9 @@
         "button:Clear deadline"
       ],
       "effects": [
-        "At the effective deadline, complete drafts auto-submit. Incomplete settled drafts remain judgeable unless excluded.",
-        "Clearing or moving the general deadline into the future cannot reopen Closed, Judging or Results. Return to Building, or grant an individual extension where applicable. Ended blocks deadline changes.",
-        "Entry reminders apply only in Open, Building or Closed, to teams without submitted entries; taken-down teams and events are excluded."
+        "At the effective deadline, complete drafts auto-submit. Incomplete entries become available for judging once entries close or their deadline passes, unless excluded.",
+        "Clearing or moving the general deadline into the future cannot reopen Entries closed, Judging or Results. Return to Building, or grant an individual extension where applicable. Ended blocks deadline changes.",
+        "Entry reminders apply only in Sign-up open, Building or Entries closed, to teams without submitted entries; taken-down teams and events are excluded."
       ],
       "keywords": [
         "submission deadline",
@@ -860,7 +860,7 @@
       "sources": [
         "screens/_settings-entries.js"
       ],
-      "explains": "Choose a preset and adjust summary and evidence requirements in Draft, Open or Building.",
+      "explains": "Choose a preset and adjust summary and evidence requirements in Not open yet, Sign-up open or Building.",
       "when": "Set hand-in rules in Draft, Open or Building.",
       "options": [
         {
@@ -1381,7 +1381,7 @@
       ],
       "effects": [
         "The same offsets serve both audiences. Judges also need Judging closes set. An empty list disables reminders. Changes stop after End.",
-        "Entry reminders: Open/Building/Closed only; no taken-down teams/events. Judge reminders: Judging, unlocked, future Judging closes, dedicated judge membership and work left; organiser judges are excluded."
+        "Entry reminders: Sign-up open/Building/Entries closed only; no taken-down teams/events. Judge reminders: Judging, unlocked, future Judging closes, dedicated judge membership and work left; organiser judges are excluded."
       ],
       "limits": [
         "Up to 5 distinct offsets, each 15 minutes–14 days before. Defaults: 1 day and 1 hour."
@@ -1490,7 +1490,7 @@
         "rubric"
       ],
       "effects": [
-        "The acknowledgement follows the saved rubric version. Saving a rubric in Closed automatically marks that saved version final; changes in other stages need a fresh acknowledgement."
+        "The acknowledgement follows the saved rubric version. Saving a rubric in Entries closed automatically marks that saved version final; changes in other stages need a fresh acknowledgement."
       ],
       "controls": [
         "button:text:label"
@@ -1561,7 +1561,7 @@
         }
       ],
       "effects": [
-        "In Automatic and Manual, a current judge’s scores count only for teams still assigned to them; removing a pair stops its scores counting without deleting them. Former judges use the teams counted when they left.",
+        "In Automatic and Manual, a current judge’s scores count only for teams still assigned to them; removing an assignment stops its scores counting without deleting them. Former judges use the teams counted when they left.",
         "Generating again replaces assignments, never scores. Conflicts and entry eligibility still apply. Lock blocks access changes; End blocks mode changes."
       ],
       "limits": [
@@ -1696,7 +1696,7 @@
         }
       ],
       "effects": [
-        "Gallery must be open. Voting is unavailable in Draft and Ended. People cannot vote for their own team and can change their chosen team.",
+        "Gallery must be open. Voting is unavailable in Not open yet and Ended. People cannot vote for their own team and can change their chosen team.",
         "Restricting eligibility asks to permanently remove newly ineligible votes. Turning voting off or changing the window does not itself delete all votes."
       ],
       "limits": [
@@ -1806,7 +1806,7 @@
         "button:New link"
       ],
       "effects": [
-        "New link invalidates the old invitation; existing members stay. Joining needs Open or Building. No rotation after End."
+        "New link invalidates the old invitation; existing members stay. Joining needs Sign-up open or Building. No rotation after End."
       ],
       "keywords": [
         "invite participants",
@@ -1878,7 +1878,7 @@
       "effects": [
         "Set the receiver URL and optional label, storage filter and authentication header. Creation depends on website notification allowances.",
         "Deliveries shows history. Send test checks the receiver. Pause stops delivery; Resume restarts it. States include Active, Paused, Suspended after failures, Waiting for check and Expired.",
-        "Copy the one-time signing secret. Rotation keeps the previous secret valid for 24 hours. Remove stops delivery. Connected-app subscriptions offer Pause, Resume and Remove, but no Send test or Rotate secret. Organiser-website delivery stops after End; new subscriptions require the website write window."
+        "Copy the one-time signing secret. Rotation keeps the previous secret valid for 24 hours. Remove stops delivery. Connected-app subscriptions offer Pause, Resume and Remove, but no Send test or Rotate secret. Organiser-website delivery stops after End; new subscriptions require the website to be open for edits."
       ],
       "keywords": [
         "webhook",
@@ -2193,7 +2193,7 @@
         "button:Fill teams"
       ],
       "effects": [
-        "Fill teams works with Team finding off, in Open or Building. It skips locked teams and previews existing and new team placements before applying."
+        "Fill teams works with Team finding off, in Sign-up open or Building. It skips locked teams and previews existing and new team placements before applying."
       ],
       "limits": [
         "People per team: 1–event maximum; default is the smaller of 4 and that maximum."
@@ -2370,7 +2370,7 @@
         "screens/organiser-entries.js",
         "navigation-data.js"
       ],
-      "explains": "Review hand-ins and missing fields; submitted or settled incomplete entries are judgeable unless excluded.",
+      "explains": "Review hand-ins and missing fields; submitted entries, and incomplete entries once entries close or their deadline passes, are available for judging unless excluded.",
       "when": "Check hand-ins and missing items.",
       "controls": [
         "button:Download entries (CSV)"
@@ -2396,7 +2396,7 @@
         "screens/organiser-team-detail.js",
         "screens/organiser-entry-detail.js"
       ],
-      "explains": "Inspect summary, evidence, missing items and site; missing items do not exclude settled entries.",
+      "explains": "Inspect summary, evidence, missing items and site; missing items do not exclude entries once entries close or their deadline passes.",
       "when": "Inspect one team’s work.",
       "related": [
         "entry.summary",
@@ -2451,7 +2451,7 @@
       ],
       "effects": [
         "An extension extends an existing general deadline; it does not shorten it or create a standalone deadline. Clearing it restores the general deadline, which may have passed.",
-        "Judging, Results and Ended freeze writes even with a future extension. A reopened unsubmitted settled draft can be reconsidered at its later deadline.",
+        "Judging, Results and Ended stop entry edits even with a future extension. An unsubmitted draft reopened after entries closed or its deadline passed can be checked again at its later deadline.",
         "Organisers cannot grant or clear extensions after End."
       ],
       "keywords": [
@@ -2540,7 +2540,7 @@
         "screens/_stage-announce-dialog.js",
         "screens/organiser-announcements.js"
       ],
-      "explains": "After a stage change, an optional announcement can tell participants what changed. The suggested title and message are editable.",
+      "explains": "After a forward stage change or publishing results, an optional announcement can tell participants what changed. Don’t send is the primary and initially focused button; Send is secondary. The suggested title and message are editable. Moving back does not offer an announcement.",
       "when": "Explain a stage change before End.",
       "effects": [
         "Email is optional on creation; later editing never emails again. Skipping the announcement does not undo the stage change."
@@ -2582,9 +2582,9 @@
         "button:Save judging access"
       ],
       "effects": [
-        "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces pairs, never deletes scores and respects conflicts.",
-        "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
-        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Results and End block changes; the grid is read-only then."
+        "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces assignments, never deletes scores and respects conflicts.",
+        "In Automatic and Manual, a current judge’s scores for a team stop counting when their assignment is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
+        "Manual assignments require Manual mode; track panels use Panel mode. Judging, Results and End block changes; the grid is read-only then."
       ],
       "keywords": [
         "assignment grid",
@@ -2603,7 +2603,7 @@
       "sources": [
         "screens/organiser-judging.js"
       ],
-      "explains": "Review team and judge scoring coverage and work remaining. Only teams with a judgeable entry enter the judging pool.",
+      "explains": "Review team and judge scoring coverage and work remaining. Only teams with a judgeable entry enter the judging pool. In Automatic, Manual and Panel modes, teams below the judges-per-team target show N of M judges. Home at Judging shows an optional count linking here; it never blocks Finish judging.",
       "when": "Check score coverage before publication.",
       "keywords": [
         "unfinished",
@@ -2714,7 +2714,7 @@
       "explains": "Publish a results snapshot, replacing any previous one. There is no unpublish action.",
       "when": "Release or update official standings.",
       "effects": [
-        "Publish from Home, including tie ordering and preview. Publishing from Closed or Judging moves to Results and locks judging; Draft, Open and Building are rejected.",
+        "Publish from Home, including tie ordering and preview. Publishing from Entries closed or Judging moves to Results and locks judging; Not open yet, Sign-up open and Building are rejected.",
         "Republish from Home after End without reopening. Score or setting changes never update a published snapshot automatically."
       ],
       "keywords": [
@@ -2769,7 +2769,7 @@
       "sources": [
         "screens/organiser-create-event.js"
       ],
-      "explains": "Create a Draft event with Title, Address, Starts, Ends (optional), Time zone and organiser details.",
+      "explains": "Create an event at Not open yet with Title, Address, Starts, Ends (optional), Time zone and organiser details.",
       "when": "Start planning a new event.",
       "controls": [
         "new-slug",
@@ -3424,9 +3424,9 @@
         "button:Save judging access"
       ],
       "effects": [
-        "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces pairs, never deletes scores and respects conflicts.",
-        "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
-        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Results and End block changes; the grid is read-only then."
+        "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces assignments, never deletes scores and respects conflicts.",
+        "In Automatic and Manual, a current judge’s scores for a team stop counting when their assignment is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
+        "Manual assignments require Manual mode; track panels use Panel mode. Judging, Results and End block changes; the grid is read-only then."
       ],
       "keywords": [
         "assignment grid",

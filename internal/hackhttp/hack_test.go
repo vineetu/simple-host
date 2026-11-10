@@ -644,6 +644,9 @@ func TestHackCreateNameTakenHandlePeerBudgetLimits(t *testing.T) {
 	if r.status != http.StatusConflict || r.json(t)["code"] != "too_many_active_events" {
 		t.Fatalf("active: %d %s", r.status, r.body)
 	}
+	if got := r.json(t)["error"]; got != "You already have 1 active event, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings." {
+		t.Fatalf("active limit explanation: %v", got)
+	}
 }
 
 func TestHackNamesCheck(t *testing.T) {

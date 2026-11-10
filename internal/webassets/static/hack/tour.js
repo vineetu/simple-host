@@ -37,7 +37,7 @@ function resolveTarget(step) {
   return visible(el) ? el : null
 }
 // C4: a step whose target isn't on the screen yet (e.g. the judge tour
-// before scoring opens, when Home shows only "Not open yet") is skipped
+// before scoring opens, when Home shows only "Scoring not open") is skipped
 // rather than shown pointing at nothing -- a step with no target at all is
 // that way by design (a centred welcome/explainer card) and always shows.
 // A step can also carry `when(ctx)`: a stage check for a step whose target
@@ -138,7 +138,7 @@ function place(card, target, step) {
     // C4 (round 2): an untargeted step (a centred welcome/explainer card, by
     // design -- see canShow) used to land just under the page header, which
     // is also where a screen's own first card sits right under it (e.g.
-    // judge-home's "Not open yet" before scoring opens) -- the tour card
+    // judge-home's "Scoring not open" before scoring opens) -- the tour card
     // still covered it, just one header-height lower. Bottom-right of the
     // content area never overlaps that first card, whatever its height.
     const box = contentBox()

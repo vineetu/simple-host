@@ -54,7 +54,7 @@ function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
   }
   switch (step.stage) {
     case 'open':
-      return { h2: 'Open sign-up when your page is ready', sentence: 'People can join with your link and apply, and judges can use their invite link.', button: step.label }
+      return { h2: 'Open sign-up when your page is ready', sentence: 'People can join with your link, and judges can use their invite link.', button: step.label }
     case 'building':
       return { h2: 'Start building when people are in', sentence: 'Entries open. Teams can edit their entry and website until you close entries.', button: step.label }
     case 'closed':

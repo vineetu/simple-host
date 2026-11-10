@@ -28,6 +28,7 @@ func TestEveryChecklistActionHasItsFix(t *testing.T) {
 		"o.judges":         {{"organiser-settings", "organiser-judges", "judging"}},
 		"o.rubric-ready":   {{"organiser-settings", "rubric", "judging"}},
 		"o.assignments":    {{"organiser-settings", "organiser-judges", "judging"}, {"organiser-judging-assignments", "jg-grid-rows", ""}, {"organiser-team-detail", "team-track", ""}},
+		"o.judges-short":   {{"organiser-judging", "jg-progress-card", ""}},
 		"o.lock":           {{"organiser-overview", "ov-next-move", ""}},
 		"o.ties":           {{"organiser-overview", "ov-next-move", ""}},
 		"o.publish":        {{"organiser-overview", "ov-next-move", ""}},
@@ -51,7 +52,7 @@ func TestEveryChecklistActionHasItsFix(t *testing.T) {
 						facts := map[string]ChecklistFact{}
 						marks := map[string]bool{}
 						for _, d := range ChecklistCatalogue() {
-							f := ChecklistFact{Done: state == "done"}
+							f := ChecklistFact{Done: state == "done", Count: intTestPointer(1)}
 							if state == "blocked" {
 								f.BlockedReason = "unavailable"
 							}

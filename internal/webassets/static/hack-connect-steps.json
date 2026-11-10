@@ -3,6 +3,7 @@
   "_about": "One source for the per-app connect steps: /get-started renders each app's list from here (hack_connect_steps.go), and the Website screen (participant-website.js) and the Account screen (account.js) show the tab apps with the publish/connect steps below. html is our own trusted markup. The address-by-URL method (\"connect\") works on every instance, hosted or self-hosted. An app that also has a hosted-only directory/browse path (Claude's connector directory) carries it separately as \"connect_hosted\", shown instead of \"connect\" only on the canonical hosted instance (location.origin === 'https://simple-hack.app'; get-started.html picks the same way, server-side, via its own <!--sh:hosted-->/<!--sh:self--> markers), with \"fallback\" appended after it as the by-URL escape hatch. A step with \"command\" is a copy box built from a command template, {address} replaced with mcp_address (or, client-side, the viewer's own origin + mcp_path).",
   "mcp_path": "/mcp",
   "mcp_address": "https://simple-hack.app/mcp",
+  "signin_hint_username": "Sign in with {username}, your username here, so {app} can see your team.",
   "signin_hint": "Sign in with {email}, the email you use here, so {app} can see your team.",
   "publish": [
     {

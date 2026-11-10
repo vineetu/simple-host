@@ -198,13 +198,13 @@ export function stagePicker(current, offered, opts = {}) {
 // on any button click, so a retry re-opens it with the same body node.
 // Resolves true if onSave eventually returned true, false if the person
 // cancelled or pressed Escape.
-export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLabel = 'Cancel', focus = 'first-field' }, onSave) {
+export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLabel = 'Cancel', focus = 'first-field', primary = 'save' }, onSave) {
   for (;;) {
     const action = await ui.dialog({
       title, body,
       buttons: [
-        { label: cancelLabel, value: 'cancel', attrs: { 'data-cancel': '' } },
-        { label: saveLabel, value: 'save', className: 'btn primary' }
+        { label: cancelLabel, value: 'cancel', className: primary === 'cancel' ? 'btn primary' : 'btn', attrs: { 'data-cancel': '' } },
+        { label: saveLabel, value: 'save', className: primary === 'save' ? 'btn primary' : 'btn' }
       ],
       escapeValue: 'cancel',
       focus

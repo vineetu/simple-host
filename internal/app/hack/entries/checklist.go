@@ -15,6 +15,7 @@ import (
 
 // ChecklistJudgingFacts shares batched eligibility, scores and standings for checklist guidance.
 type ChecklistJudgingFacts struct {
+	TeamsShort                                                int
 	Coverage                                                  SetupCoverage
 	Judges, Organisers, Judgeable, JudgesDone, JudgesRequired int
 	AssignmentsReady                                          bool
@@ -92,6 +93,7 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 	if err != nil {
 		return f, err
 	}
+	eligibleByTeam := map[string]int{}
 	for _, j := range judges {
 		if j.Role == "judge" {
 			f.Judges++
@@ -101,6 +103,7 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 		eligible := eligibility[j.ID]
 		done := true
 		for id := range eligible {
+			eligibleByTeam[id]++
 			ok := len(rubric) > 0 && completions[j.ID][id] >= len(rubric)
 			if !ok {
 				done = false
@@ -117,6 +120,13 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 	setup, err := s.JudgingSetupCoverage(ctx, ev)
 	if err != nil {
 		return f, err
+	}
+	if ev.Stage == "judging" && (ev.JudgeAssignmentMode == "automatic" || ev.JudgeAssignmentMode == "manual" || ev.JudgeAssignmentMode == "panel") && ev.JudgesPerTeam > 0 {
+		for id := range present {
+			if eligibleByTeam[id] < ev.JudgesPerTeam {
+				f.TeamsShort++
+			}
+		}
 	}
 	f.Coverage = setup
 	f.AssignmentsReady = len(setup.Short) == 0

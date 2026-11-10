@@ -967,6 +967,15 @@
           "q": "Who judges and what does starting Judging confirm?",
           "decision": "Joined judges plus organisers ticked in Settings → Judging (#organiser-judges). Both start confirmations link mode, judges per team, judge names and coverage to their controls. Every checklist item is actionable or has no button.",
           "why": "Owner, SIM-419: one judge definition and every checklist action reaches its fix."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "Open sign-up explains: \"People can join with your link, and judges can use their invite link.\" The confirmation uses the same sentence."
+        },
+        {
+          "q": "SIM-426 owner-approved corrections",
+          "decision": "At Sign-up open, the entry deadline stays listed but does not gate Start building. Forward announcements, including publishing results, default to Don’t send (primary and initial focus); Send is secondary and the text stays editable. At Judging, an optional, non-blocking “N teams have fewer judges than the target” item links to Judging progress. Archived history retains blocked earlier items.",
+          "why": "Owner approved, 2026-11-10."
         }
       ],
       "features": [
@@ -1668,6 +1677,10 @@
           "q": "What does Look change? (SIM-353)",
           "decision": "Page style now sets a whole-page theme for the public page -- background, type, cards and buttons -- from six choices: Classic (today's look, unchanged) plus five whole-page themes, Poster, Confetti, Boardroom, Garden and Terminal. Colour stays a separate single choice and keeps driving buttons, links and each theme's own highlights, exactly as it does today.",
           "why": "Owner wanted a few ready-made whole-page looks beyond the single accent colour, without building a template or layout editor. Keeping Page style and Colour as two single-choice rows, each saving the moment it is picked, matches the pattern Colour already established and needs no new save model."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "Website says: \"Made from Basics, About, Schedule, Tracks, Prizes, Rules, Sponsors and FAQ. It updates as you edit.\""
         }
       ],
       "features": [
@@ -2908,6 +2921,11 @@
           "q": "Who judges and what does starting Judging confirm?",
           "decision": "Joined judges plus organisers ticked in Settings → Judging (#organiser-judges). Both start confirmations link mode, judges per team, judge names and coverage to their controls. Every checklist item is actionable or has no button.",
           "why": "Owner, SIM-419: one judge definition and every checklist action reaches its fix."
+        },
+        {
+          "q": "SIM-426 owner-approved corrections",
+          "decision": "Progress shows “N of M judges” as a warning on teams below the judges-per-team target in Automatic, Manual and Panel modes.",
+          "why": "Owner approved, 2026-11-10."
         }
       ],
       "features": [
@@ -3343,6 +3361,10 @@
           "q": "Who judges and what does starting Judging confirm?",
           "decision": "Joined judges plus organisers ticked in Settings → Judging (#organiser-judges). Both start confirmations link mode, judges per team, judge names and coverage to their controls. Every checklist item is actionable or has no button.",
           "why": "Owner, SIM-419: one judge definition and every checklist action reaches its fix."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "Sign-up links to Applications on this tab with \"change it under Applications below\". During Judging, setup shows \"Locked while judging. Move the event back to Entries closed to change.\" The tie-break help only shows while it can change."
         }
       ],
       "features": [
@@ -3627,7 +3649,12 @@
           "next": null
         }
       ],
-      "decisions": []
+      "decisions": [
+        {
+          "date": "2026-11-10",
+          "decision": "Organisation is labelled \"Organisation (optional)\". The active-event limit error names the limit and says to end an event from Home or delete it in Settings."
+        }
+      ]
     },
     {
       "id": "participant-home",
@@ -4599,6 +4626,15 @@
           "q": "Where do organiser messages show on Team? (notices contract, 2026-11-05)",
           "decision": "A Messages from the organisers card on Members (the default tab), right under the sp-head and above the Team link card -- hidden entirely (no card at all) when the team has never been messaged.",
           "why": "Members is what everyone already lands on; a message from the organisers is exactly the kind of thing that should be seen without hunting through Settings. Hidden rather than an empty state because most teams will never get one and an always-there 'nothing here' card is just noise."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "The join-code example is \"k7m2p9qa\", eight lowercase characters with no hyphen."
+        },
+        {
+          "q": "SIM-426 owner-approved corrections",
+          "decision": "Every member has Leave team in the menu on their own Members row. Team messages keep their whole message on the title line and are dismissed when the event changes stage.",
+          "why": "Owner approved, 2026-11-10."
         }
       ],
       "features": [
@@ -5365,7 +5401,7 @@
         {
           "name": "before judging opens",
           "when": "stage is before Closed",
-          "shows": "'Not open yet -- Scoring opens when the organiser starts judging' in place of Open/Locked; Score next replaced with a disabled note; Rubric & brief stays open if already saved"
+          "shows": "'Scoring not open -- Scoring opens when the organiser starts judging' in place of Open/Locked; Score next replaced with a disabled note; Rubric & brief stays open if already saved"
         },
         {
           "name": "locked, fully done",
@@ -5410,7 +5446,7 @@
         {
           "name": "before Judging",
           "when": "stage is Closed or earlier",
-          "shows": "Not open yet. Scoring opens when the organiser starts judging."
+          "shows": "Scoring not open. Scoring opens when the organiser starts judging."
         }
       ],
       "replaces": [
@@ -5420,7 +5456,7 @@
         "'No sense of when judging will open or what to do meanwhile' -- shows the exact opening time and a live link into the rubric if it exists.",
         "Critique missing state: 'locked, before results' no longer claims 'your scores are in' for a judge who didn't finish -- the two situations now read differently, as they should.",
         "Critique missing state: 'all conflicted' is now distinct from 'nothing assigned' -- one is 'wait', the other is 'you're done, by design.'",
-        "Retest (Grok SIM-346, round 2): an untargeted walkthrough card (the centred welcome/explainer step) used to land just under the page header, which is also where this screen's own 'Not open yet' card sits -- covering it. It now sits bottom-right of the content area on desktop, never over that first card, and stays bottom-centred above the phone tab bar / sticky save bar on phone (unchanged there)."
+        "Retest (Grok SIM-346, round 2): an untargeted walkthrough card (the centred welcome/explainer step) used to land just under the page header, which is also where this screen's own 'Scoring not open' card sits -- covering it. It now sits bottom-right of the content area on desktop, never over that first card, and stays bottom-centred above the phone tab bar / sticky save bar on phone (unchanged there)."
       ],
       "decisions": [
         {
@@ -5488,6 +5524,10 @@
           "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
           "decision": "Shared checklist; organiser judge area omits invite and CoC, retains Organiser membership label and Manage event link; actor-scoped conflict reads.",
           "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "The pre-scoring heading is \"Scoring not open\"."
         }
       ],
       "features": [
@@ -5624,7 +5664,7 @@
         {
           "name": "before Judging",
           "when": "stage is Closed or earlier",
-          "shows": "Not open yet. Scoring opens when the organiser starts judging."
+          "shows": "Scoring not open. Scoring opens when the organiser starts judging."
         }
       ],
       "replaces": [
@@ -5691,6 +5731,10 @@
           "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
           "decision": "Real conflicts review panel lists pre-conflict candidates, honours tab/hash; own conflicts only, plus unversioned no-known-teams action.",
           "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "The pre-scoring heading is \"Scoring not open\"."
         }
       ]
     },
@@ -5828,7 +5872,7 @@
         {
           "name": "before Judging",
           "when": "stage is Closed or earlier",
-          "shows": "Not open yet. Scoring opens when the organiser starts judging."
+          "shows": "Scoring not open. Scoring opens when the organiser starts judging."
         },
         {
           "name": "Scoring reopened after publication",
@@ -5908,6 +5952,10 @@
           "q": "Are team members' names on the judge's card?",
           "decision": "No. The card names the team only, as slice 1 shipped it; the prototype's member names are not sent to judges.",
           "why": "Judges have never been sent member names (queue and MCP alike); adding them is a privacy change, left for the owner to decide."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "The pre-scoring heading is \"Scoring not open\"."
         }
       ],
       "features": [
@@ -7236,6 +7284,15 @@
           "q": "Do Look's page themes (SIM-353) change this page's markup?",
           "decision": "No new structure. A theme adds one data-theme attribute on .pub-event and one extra stylesheet link (hack/themes.css); Classic (events.theme = '') omits both and the page renders byte-identical to today. Every section, state and layout decision on this page -- stage order, countdown, the Apply card, results, the team gallery -- holds exactly as spec'd above whichever theme is chosen. The organiser's own colour keeps driving buttons, links and the icon fallback in every theme.",
           "why": "Themes are presentation only: CSS custom properties and a handful of rules scoped to .pub-event[data-theme]. Keeping the server-rendered structure untouched means none of this screen's existing fixes or decisions need re-deciding per theme."
+        },
+        {
+          "date": "2026-11-10",
+          "decision": "Every winner card uses its website screenshot when available, otherwise team initials. Every available rank appears as #1, #2, #3, with no invented ranks."
+        },
+        {
+          "q": "SIM-426 owner-approved corrections",
+          "decision": "Schedule starts open at every stage. Rules still collapses at Results and Ended.",
+          "why": "Owner approved, 2026-11-10."
         }
       ],
       "features": [

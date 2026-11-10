@@ -14,7 +14,7 @@ func TestChecklistCatalogueStates(t *testing.T) {
 			role := map[byte]string{'o': "organiser", 'j': "judge", 'p': "participant"}[d.ID[0]]
 			for _, done := range []bool{false, true} {
 				for _, mark := range []bool{false, true} {
-					out := BuildChecklist(ChecklistInput{Role: role, Stage: d.Stage, MembershipRole: role, AssignmentMode: "manual", Facts: map[string]ChecklistFact{d.ID: {Done: done}}, Marks: map[string]bool{d.ID: mark}}, time.Time{})
+					out := BuildChecklist(ChecklistInput{Role: role, Stage: d.Stage, MembershipRole: role, AssignmentMode: "manual", Facts: map[string]ChecklistFact{d.ID: {Done: done, Count: intTestPointer(1)}}, Marks: map[string]bool{d.ID: mark}}, time.Time{})
 					found := false
 					for _, it := range out.Items {
 						if it.ID != d.ID {
@@ -78,8 +78,8 @@ func TestChecklistCarryPriorityAndHistory(t *testing.T) {
 		t.Fatal(out.Next)
 	}
 	for _, it := range out.Items {
-		if it.ID == "o.entry-rules" && it.Group != "earlier_optional" {
-			t.Fatal("blocked earlier required row must be folded", it)
+		if it.ID == "o.entry-rules" {
+			t.Fatal("blocked earlier required row must be hidden", it)
 		}
 		if it.Group == "earlier_required" && (!it.Actionable || it.State == "done") {
 			t.Fatal("only actionable unfinished rows belong above current", it)
@@ -121,7 +121,7 @@ func TestChecklistFingerprint(t *testing.T) {
 func TestChecklistBasicsDateBoundaries(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	start := time.Date(2026, 11, 7, 0, 0, 0, 0, loc)
-	base := model.Event{Title: "Demo", Tagline: "Build", TimeZone: "Asia/Jakarta"}
+	base := model.Event{Title: "Demo", TimeZone: "Asia/Jakarta"}
 	for _, tt := range []struct {
 		name       string
 		start, end time.Time
@@ -221,5 +221,84 @@ func TestChecklistAssignmentsFollowMode(t *testing.T) {
 				t.Fatal("missing assignments")
 			}
 		})
+	}
+}
+
+func TestChecklistBlockedEarlierOrganiserItems(t *testing.T) {
+	for _, stage := range []string{"judging", "results", "archived"} {
+		for _, done := range []bool{false, true} {
+			out := BuildChecklist(ChecklistInput{Role: "organiser", Stage: stage, Facts: map[string]ChecklistFact{"o.tie-break": {Done: done, BlockedReason: "tie_rule_closed"}}}, time.Time{})
+			found := false
+			for _, item := range out.Items {
+				found = found || item.ID == "o.tie-break"
+			}
+			// Completed earlier optional tasks remain visible; unfinished
+			// blocked tasks have nothing left for the organiser to do.
+			if found != (done || stage == "archived") {
+				t.Fatalf("stage=%s done=%v found=%v", stage, done, found)
+			}
+		}
+	}
+	out := BuildChecklist(ChecklistInput{Role: "judge", Stage: "judging", Facts: map[string]ChecklistFact{"j.rubric": {BlockedReason: "no_rubric"}}}, time.Time{})
+	for _, item := range out.Items {
+		if item.ID == "j.rubric" {
+			return
+		}
+	}
+	t.Fatal("judge's blocked rubric was hidden")
+}
+
+func intTestPointer(n int) *int { return &n }
+
+func TestChecklistDeadlineDoesNotGateBuilding(t *testing.T) {
+	facts := map[string]ChecklistFact{}
+	for _, d := range ChecklistCatalogue() {
+		facts[d.ID] = ChecklistFact{Done: true}
+	}
+	facts["o.deadline"] = ChecklistFact{}
+	forward := &ChecklistNext{Kind: "stage", Stage: "building", Label: "Start building"}
+	out := BuildChecklist(ChecklistInput{Role: "organiser", Stage: "open", Facts: facts, Forward: forward}, time.Time{})
+	if out.Next != forward {
+		t.Fatalf("next: %+v", out.Next)
+	}
+	for _, it := range out.Items {
+		if it.ID == "o.deadline" {
+			if it.State != "todo" || !it.Actionable {
+				t.Fatal(it)
+			}
+			return
+		}
+	}
+	t.Fatal("missing deadline")
+}
+
+func TestChecklistJudgesShortOptional(t *testing.T) {
+	for _, n := range []int{0, 1, 3} {
+		facts := map[string]ChecklistFact{}
+		for _, d := range ChecklistCatalogue() {
+			facts[d.ID] = ChecklistFact{Done: true}
+		}
+		facts["o.judges-short"] = ChecklistFact{Count: &n}
+		facts["o.lock"] = ChecklistFact{}
+		out := BuildChecklist(ChecklistInput{Role: "organiser", Stage: "judging", Facts: facts}, time.Time{})
+		if out.Next == nil || out.Next.ItemID != "o.lock" {
+			t.Fatal(out.Next)
+		}
+		found := false
+		for _, it := range out.Items {
+			if it.ID == "o.judges-short" {
+				found = true
+				want := "3 teams have fewer judges than the target"
+				if n == 1 {
+					want = "1 team has fewer judges than the target"
+				}
+				if !it.Optional || it.TargetID != "o.scores" || it.Label != want {
+					t.Fatal(it)
+				}
+			}
+		}
+		if found != (n > 0) {
+			t.Fatalf("count=%d found=%v", n, found)
+		}
 	}
 }

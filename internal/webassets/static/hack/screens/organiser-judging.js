@@ -181,7 +181,10 @@ ${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href('org
       mainEl.appendChild(ui.el('b', { text: t.team_name || 'A team' }))
       row.appendChild(mainEl)
       const text = t.judges_scored === 0 ? 'No scores yet' : t.judges_scored + ' judge' + (t.judges_scored === 1 ? '' : 's') + ' scored'
+      const target = settings.assignment_mode !== 'open' ? settings.judges_per_team : 0
+      const short = target > 0 && t.judges_eligible < target
       row.appendChild(ui.el('span', { class: 'meta', text }))
+      if (short) row.appendChild(ui.el('span', { class: 'pill warn', text: t.judges_eligible + ' of ' + target + ' judges' }))
       tlist.appendChild(row)
     })
     card.appendChild(tlist)

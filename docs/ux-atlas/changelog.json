@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-10",
+    "what": "SIM-426: Clearer event limits, sign-up and judging setup copy, scoring headings, team codes and consistent winner thumbnails and ranks. Start building without a deadline; forward announcements default to Don’t send; stage moves dismiss team messages; judging coverage warnings, member Leave menus and always-open Schedule."
+  },
+  {
+    "date": "2026-11-10",
     "what": "SIM-415: Signed-in layouts reflow by content width with the sidebar open; list actions wrap as a group and choice cards fit their own width. Judge My teams shows the team name beneath an entry title."
   },
   {

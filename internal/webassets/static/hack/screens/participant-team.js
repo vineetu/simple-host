@@ -176,7 +176,7 @@ export async function render(ctx) {
   function codePanelHTML() {
     // location.host, not a literal "simple-hack.app": this example must
     // name this install's own address, not ours.
-    return `<section class="card"><h2>Join with a link or code</h2><div class="field"><label for="join-code">Team link or code</label><input class="input" id="join-code" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="${esc(location.host)}/team/… or k7m2-p9qa"${canJoinByCode ? '' : ' disabled'}><p class="help">Paste the whole link or type the 8-character code. Ask a teammate to send it from their Team page.</p><p class="err" id="join-code-err" hidden></p></div><div class="card-foot"><button class="btn primary" type="button" id="join-go"${canJoinByCode ? '' : ' disabled'}>Join team</button></div></section>`
+    return `<section class="card"><h2>Join with a link or code</h2><div class="field"><label for="join-code">Team link or code</label><input class="input" id="join-code" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="${esc(location.host)}/team/… or k7m2p9qa"${canJoinByCode ? '' : ' disabled'}><p class="help">Paste the whole link or type the 8-character code. Ask a teammate to send it from their Team page.</p><p class="err" id="join-code-err" hidden></p></div><div class="card-foot"><button class="btn primary" type="button" id="join-go"${canJoinByCode ? '' : ' disabled'}>Join team</button></div></section>`
   }
 
   function startPanelHTML() {
@@ -266,6 +266,9 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
         const items = [m.admin ? { label: 'Remove as admin', act: 'unadmin' } : { label: 'Make admin', act: 'admin' }, { label: 'Remove from team', act: 'remove', danger: true }]
         acts = `<div class="row-acts">${rowMenuHTML(esc, m.display_name || 'this person', items)}</div>`
       }
+    }
+    if (!isAdmin && canAct && m.you) {
+      acts = `<div class="row-acts">${rowMenuHTML(esc, 'yourself', [{ label: 'Leave team', act: 'leave', danger: true }])}</div>`
     }
     return `<div class="r" data-member="${esc(m.user_id || '')}" data-name="${esc(m.display_name || 'this person')}"><div class="main"><b>${esc(m.display_name || 'Someone')}</b><span>${m.you ? 'You' : ''}</span></div>${adminPill}${acts}</div>`
   }

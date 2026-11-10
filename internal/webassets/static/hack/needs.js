@@ -20,6 +20,7 @@ export function needHref(role, slug, item) {
 const OPEN = { team: 'Open Team', website: 'Open Website', entry: 'Open Entry', people: 'Review applications', home: '', queue: 'Open queue' }
 export function splitNeed(item) {
   const text = String(item.text || '')
+  if (item.kind === 'team_message') return [text, OPEN[item.section] || '']
   const i = text.indexOf('. ')
   if (i > 0) return [text.slice(0, i + 1), text.slice(i + 2)]
   return [text, OPEN[item.section] || '']

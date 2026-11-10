@@ -267,7 +267,7 @@ type hackResultsBlockView struct {
 
 type hackResultsRowView struct {
 	hackResultsRow
-	Avatar     string // winners-only: "1" for the overall winner, else initials
+	Avatar     string // team initials when no screenshot is available
 	WinnerPill bool
 	TrackPill  string
 	// Score shadows hackResultsRow.Score (same name, outer field wins over
@@ -280,11 +280,7 @@ type hackResultsRowView struct {
 	// ShotLetter and MaturityLabel are template-only strings the Go
 	// template itself cannot compute (hackEventTmpl registers no custom
 	// funcs, so every bit of formatting happens here first, same as Score
-	// above). Set only for a row with a Card. ShotLetter is the fallback
-	// initials shown in the shot box when there is no Shot image -- Avatar
-	// already carries this for a winners-only row, but a full-ranking row's
-	// Avatar is only ever set for a track winner (buildHackResultsBlock), so
-	// a plain ranked row with a card still needs its own fallback letter.
+	// above). ShotLetter is the team-initials fallback when Shot is empty.
 	ShotLetter    string
 	MaturityLabel string
 }
@@ -532,8 +528,8 @@ func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, erro
 	}
 
 	v.Schedule = hackScheduleViews(p.Content.Schedule, p.Fixed, loc, zoneFallback)
-	v.ScheduleCollapsed = effStage == "results" || effStage == "archived"
-	v.RulesCollapsed = v.ScheduleCollapsed
+	v.ScheduleCollapsed = false
+	v.RulesCollapsed = effStage == "results" || effStage == "archived"
 
 	for i, a := range p.Announcements {
 		view := hackAnnouncementLine{Title: a.Title, Body: a.Body, When: a.CreatedAt.In(loc).Format("2 Jan 2006")}
@@ -819,7 +815,7 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 		out.Heading = "Results"
 	}
 	for _, row := range res.Rows {
-		rv := hackResultsRowView{hackResultsRow: row, Score: trimScoreZeros(row.Score)}
+		rv := hackResultsRowView{hackResultsRow: row, Score: trimScoreZeros(row.Score), Avatar: hackInitials(row.TeamName), ShotLetter: hackInitials(row.TeamName)}
 		if row.Rank > 0 {
 			out.AnyRanked = true
 		}
@@ -851,10 +847,7 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 			// (review 2026-10-30 item 1; Overall is set from the snapshot
 			// rank, not from publicRanks, so this holds with ranks hidden).
 			if row.Overall {
-				rv.Avatar = "1"
 				rv.WinnerPill = true
-			} else if row.TrackWinner {
-				rv.Avatar = hackInitials(row.TeamName)
 			}
 			if row.TrackWinner {
 				rv.TrackPill = trackPill
@@ -863,8 +856,7 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 			rv.TrackPill = trackPill
 		}
 		if row.Card != nil {
-			rv.ShotLetter = rv.Avatar
-			if rv.ShotLetter == "" {
+			if res.FullRanking && !row.Overall && !row.TrackWinner {
 				name := row.Card.Title
 				if name == "" {
 					name = row.TeamName

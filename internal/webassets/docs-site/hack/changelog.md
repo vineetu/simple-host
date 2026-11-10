@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 10:** Simple Hack clarifies event limits, sign-up and judging guidance, hides obsolete checklist tasks, avoids repeat judging notices, shows consistent winner thumbnails and ranks, starts building without a deadline, defaults announcements to Don’t send, clears stage messages, flags short judging coverage, adds member Leave menus, and keeps Schedule open.
+
 - **Nov 10:** Simple Hack lists, cards and choice groups fit the available space with the sidebar open; row actions wrap together, and judges see team names beneath entry titles.
 
 - **Nov 10:** Custom Simple Hack event websites built from the event recipe update themselves at every stage, including announcements and results.

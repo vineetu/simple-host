@@ -100,7 +100,7 @@ export async function render(ctx) {
   if (resultsOut) {
     top = `<div class="note ok"><p><b>Results are out.</b></p><p><a href="${ui.esc('/e/' + encodeURIComponent(slug))}">See results on the event page</a></p></div>`
   } else if (!ev.scoring_open && !locked) {
-    top = `<section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p class="muted">Scoring will be available here when judging opens.</p></section>`
+    top = `<section class="locked"><h2>Scoring not open</h2><p>Scoring opens when the organiser starts judging.</p><p class="muted">Scoring will be available here when judging opens.</p></section>`
   } else if (total === 0 && !(queueRes.data.candidates?.length > 0)) {
     top = `<div class="note"><p>Nothing assigned to you yet. Check back once the organiser assigns judges.</p></div>`
   } else if (total === 0 && queueRes.data.candidates?.length > 0) {
