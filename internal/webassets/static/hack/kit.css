@@ -53,6 +53,7 @@ p{margin:0 0 10px}
 .switcher .chev{margin-left:auto;color:var(--line-faint);width:14px;height:14px;flex:none}
 .menu-pop{position:fixed;z-index:40;left:8px;right:8px;top:50px;width:auto;background:var(--surface);border:1px solid var(--rule-hi);border-radius:10px;box-shadow:0 10px 30px rgba(43,41,37,.14);padding:6px;display:none}
 @media(max-width:760px){.menu-pop.open{display:block}}
+
 .menu-pop .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--line-faint);padding:6px 8px 4px}
 .menu-pop a{display:flex;gap:9px;align-items:center;padding:6px 8px;border-radius:7px;color:inherit;text-decoration:none}
 .menu-pop a:hover{background:var(--paper)}
@@ -91,6 +92,10 @@ p{margin:0 0 10px}
 .status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 24px;border-bottom:1px solid var(--rule);background:var(--paper-hi);font-size:13.5px;min-height:46px}
 .status .grow{flex:1}
 .content{overflow-y:auto;flex:1}
+/* SIM-415: content layout follows the space it has, not the window. The
+   scroll area (and inside it a sub-page column, .sp) is the container; body
+   is the fallback for frames that have no .content (the MCP app views). */
+body,.content{container:page / inline-size}
 .page{max-width:1040px;padding:22px 28px 64px}
 .page.wide{max-width:none}
 .page.narrow{max-width:760px}
@@ -118,7 +123,8 @@ p{margin:0 0 10px}
 .card dl{display:grid;grid-template-columns:140px minmax(0,1fr);gap:8px 16px;margin:4px 0 12px}
 .card dt{color:var(--line-soft);font-size:13.5px}
 .card dd{margin:0;overflow-wrap:anywhere}
-@media (max-width:760px){.card dl{grid-template-columns:1fr;gap:2px}.card dd{margin-bottom:8px}}
+@container page (max-width:760px){.card dl{grid-template-columns:1fr;gap:2px}.card dd{margin-bottom:8px}}
+
 .card.flush{padding:0;overflow:hidden}
 .card.flush > h2{padding:14px 18px 0}
 .pub-event .card.collapsed summary{font-size:15px;font-weight:650;margin:0 0 4px;cursor:pointer}
@@ -137,7 +143,7 @@ p{margin:0 0 10px}
 .row-flex{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .row-flex .grow{flex:1}
 .muted{color:var(--line-soft)} .faint{color:var(--line-faint)} .small{font-size:13px}
-.mono{font-family:var(--mono);font-size:13px}
+.mono{font-family:var(--mono);font-size:13px;overflow-wrap:break-word}
 hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
 
 /* disclosure triangles (A6): a plain <details> has no kit styling at all
@@ -223,9 +229,12 @@ details.card[open]>summary{margin-bottom:6px}
 .list{background:var(--surface);border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:0 0 14px}
 .list .lh{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--paper-hi);border-bottom:1px solid var(--rule);font-size:12.5px;font-weight:600;color:var(--line-soft)}
 .list .r{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--rule);color:inherit;text-decoration:none}
+.list:not(.results) .r{flex-wrap:wrap;row-gap:8px}
+.list:not(.results) .r > .main{flex:1 1 var(--row-min,12rem);min-width:0}
 .list .lh + .r,.list .r:first-child{border-top:0}
 .list a.r:hover{background:var(--paper-hi)}
 .list .r .main{flex:1;min-width:0}
+.r-end{display:flex;flex-wrap:wrap;align-items:inherit;column-gap:12px;row-gap:8px;flex:0 1 auto;min-width:0}
 .list .r .main b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .list .r .main .msg-text{white-space:pre-wrap;overflow:visible;overflow-wrap:anywhere}
 .list .r .main span{font-size:13px;color:var(--line-soft)}
@@ -380,41 +389,44 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
      way on phone to reach Account (sign out) or Help. Bring it back. */
   .locked-shell .phone-top .menu-btn{display:inline-flex}
   .page{padding:16px 16px 96px}
+}
+@container page (max-width:760px){
   .ph{flex-direction:column;gap:10px}
   .ph .btn{width:100%}
   .grid2,.grid3,.split{grid-template-columns:1fr}
   .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
   /* A17/Cosmetic #6: .btn.sm and the phone menu's own nav rows were under
      the touch target -- row actions (Move, Remove, Refresh, New link, ...)
      are .btn.sm throughout the organiser screens, so both sizes need the
      full ~44px floor, not just the plain .btn one. */
   .btn{min-height:44px}
   .btn.sm{min-height:44px;padding:8px 11px}
-  /* Grok retest 3, Broken #1: a plain (non-editable) .list .r row -- judge
-     My teams, People, team members, website notifications -- had no phone
-     wrap at all, unlike .list.editable's own .r.ann/.r.sched-row rules
-     below. The title and meta got squeezed onto the title's one line and
-     .list's own overflow:hidden cropped whatever didn't fit (a trailing
-     score pill, buttons). Title and details go on their own full-width
-     line first, everything else (buttons, pills) wraps under it.
-     :not(.results) (Codex review): .list.results (the public event page's
-     rank/avatar + team-name rows, hack-event.html) already has its own
-     phone layout below (.list.results .main keeps the team name beside the
-     rank/avatar, not stacked under it) -- a :not(.editable) selector alone
-     is MORE specific than .list.results's own rules (four class-level
-     selectors against three), so it won overrode them regardless of
-     source order and put the team name on its own line, separated from
-     its rank and avatar. */
-  .list:not(.editable):not(.results) .r{flex-wrap:wrap;row-gap:8px}
-  .list:not(.editable):not(.results) .r .main{flex:1 1 100%}
+}
+@container page (max-width:760px){
+  /* The shared row in a narrow space: title and meta take the first line,
+     pills and actions wrap below as a group. */
+  .list:not(.editable):not(.results) .r > .main{flex-basis:100%}
   .list:not(.editable):not(.results) .r .main b{white-space:normal}
+}
+@media (max-width:760px){
   .app.menu-open .nav a,.app.menu-open .top-nav a,.app.menu-open .side-foot a,.app.menu-open .side-foot summary{padding:11px 12px;font-size:15px}
+}
+@container page (max-width:760px){
   .list details>summary{padding:10px 8px}
   .focus{display:block;height:auto}
   .focus .left,.focus .right{border:0;overflow:visible;padding:16px}
+}
+@media (max-width:760px){
   .focus .right{padding-bottom:100px}
+}
+@container page (max-width:760px){
   .scale{flex-wrap:wrap;gap:6px}
-  .scale span{flex:0 0 calc((100% - 30px)/6);min-height:44px;display:grid;place-items:center;font-size:15px}
+  .scale span{flex:0 0 calc((100% - 30px)/6);display:grid;place-items:center;font-size:15px}
+}
+@media (max-width:760px){
+  .scale span{min-height:44px}
   .sticky-foot{position:fixed;left:0;right:0;bottom:0;background:var(--paper-hi);padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:35;border-top:1px solid var(--rule)}
   .has-tabs .sticky-foot{bottom:58px}
   .tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper-hi);border-top:1px solid var(--rule);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
@@ -423,7 +435,11 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
   .tabbar .ico{width:20px;height:20px}
   .tabbar .count{position:absolute;top:1px;left:calc(50% + 6px);font-size:10px;padding:0 5px;border-radius:99px;background:var(--accent);color:#fff}
   .hero h1{font-size:27px}
+}
+@container page (max-width:760px){
   table.t{font-size:13.5px}
+}
+@media (max-width:760px){
   .tour-card{padding:14px 16px}
   .tour-title{font-size:15px}
 }
@@ -524,8 +540,9 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
 .item:first-child{border-top:0;padding-top:4px}
 .crit-row{display:grid;grid-template-columns:2fr 90px 90px 3fr auto;gap:10px;align-items:end}
 .shot img{display:block;width:100%;height:auto;border-radius:8px;border:1px solid var(--rule)}
-@media (min-width:761px){#jsc-goscore{display:none}}
-@media (max-width:760px){
+@container page (min-width:761px){#jsc-goscore{display:none}}
+
+@container page (max-width:760px){
   .toc-split{display:block}
   .toc{position:static;flex-direction:row;overflow-x:auto;gap:6px;margin:0 0 12px}
   .toc a{flex:none;background:#ece5d3;border-radius:99px;padding:8px 14px;font-weight:600}
@@ -568,6 +585,9 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
 .subnav .n{margin-left:auto;font-size:12px;color:var(--line-faint);font-variant-numeric:tabular-nums;font-weight:500}
 .subnav a:focus-visible,.icon-btn:focus-visible,.grip:focus-visible,.side-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .sp{min-width:0}
+/* Beside the sub-page nav the column is its own container (SIM-415); on a
+   phone it is the full width, so .content already answers for it. */
+@media (min-width:761px){.sp{container:page / inline-size}}
 .sp-head{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:16px;align-items:end;margin:0 0 16px}
 .sp-head h2{grid-column:1;font-size:17px;font-weight:650}
 .sp-head p{grid-column:1;color:var(--line-soft);font-size:13.5px;margin:4px 0 0;max-width:640px}
@@ -658,7 +678,7 @@ label.btn:focus-within{outline:2px solid var(--accent);outline-offset:1px}
 .saved svg{width:14px;height:14px}
 
 /* choice cards (radio) */
-.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.choices{--choice-cols:2;display:grid;grid-template-columns:repeat(auto-fill,minmax(max(11rem,(100% - (var(--choice-cols) - 1) * 10px) / var(--choice-cols)),1fr));gap:10px}
 .choice{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--rule-hi);border-radius:10px;background:#fff;cursor:pointer}
 .choice input{margin:3px 0 0;accent-color:var(--teal);flex:none}
 .choice b{display:block;font-weight:600}
@@ -742,6 +762,8 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
      toggle used to render inside the phone drawer too, where pressing it
      flipped the stored sh_side with no visible effect at this width. */
   .side-toggle{display:none}
+}
+@container page (max-width:760px){
   .subnav-split{display:block}
   .subnav{position:static;flex-direction:row;overflow-x:auto;gap:2px;margin:-4px -16px 16px;padding:0 12px;border-bottom:1px solid var(--rule);scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .subnav::-webkit-scrollbar{display:none}
@@ -764,11 +786,17 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
     background-repeat:no-repeat;
     background-attachment:local,local,scroll,scroll;
   }
-  .subnav a{flex:none;border-radius:0;padding:0 10px;min-height:44px;border-bottom:2px solid transparent;margin-bottom:-1px;background:none!important}
+}
+@media (max-width:760px){
+  .subnav a{min-height:44px}
+  .sp-head .btn{min-height:40px}
+}
+@container page (max-width:760px){
+  .subnav a{flex:none;border-radius:0;padding:0 10px;border-bottom:2px solid transparent;margin-bottom:-1px;background:none!important}
   .subnav a[aria-current=page]{border-color:var(--accent)}
   .subnav .n{display:none}
   .sp-head{align-items:center}
-  .sp-head .btn{grid-row:1;align-self:center;min-height:40px}
+  .sp-head .btn{grid-row:1;align-self:center}
   .sp-head p{grid-column:1 / -1}
   .ph .ph-link{display:none}
   .card-foot{flex-wrap:wrap}
@@ -783,7 +811,11 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .list.editable .r.ann .meta{order:3;flex:1 0 100%;flex-direction:row;align-items:center;gap:8px}
   .preview-head .ev-icon{width:44px;height:44px}
   .preview-head h3{font-size:16px}
+}
+@media (max-width:760px){
   .card-foot.sticky{position:fixed;left:0;right:0;bottom:0;margin:0;border-radius:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:35}
+}
+@container page (max-width:760px){
   .dt-pair{max-width:none;grid-template-columns:minmax(0,1fr) 128px}
   .r-when{width:auto;font-size:13px}
   .list.editable .r.sched-row{flex-wrap:wrap;align-items:flex-start;row-gap:2px}
@@ -793,8 +825,11 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .grip{display:none}
   .list.editable .r.has-grip{padding-left:12px}
   .row-acts .btn.quiet{display:none}
+}
+@media (max-width:760px){
   .icon-btn{width:44px;height:44px}
-  .choices{grid-template-columns:1fr}
+}
+@container page (max-width:760px){
   .setting.wraps{flex-wrap:wrap}
   .setting.wraps .ctl{width:100%}
   .file-pick{align-items:flex-start;flex-wrap:wrap}
@@ -802,12 +837,20 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .file-pick .pick-acts .btn{flex:1}
   .swatches{gap:12px 0}
   .swatch{width:25%}
+}
+@media (max-width:760px){
   .scrim.sheet{place-items:end stretch;padding:0}
   .scrim.sheet .dialog.form{max-width:none;width:100%;border-radius:14px 14px 0 0;max-height:92vh}
   .scrim.sheet .dialog.form .acts{border-radius:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
   .scrim.sheet .dialog.form .acts .btn{flex:1}
+}
+@container page (max-width:760px){
   .row-menu{right:4px}
+}
+@media (max-width:760px){
   .row-menu button{min-height:44px}
+}
+@container page (max-width:760px){
   /* SIM-340: a danger-zone .setting squeezed its text into a narrow column
      next to the button on phone (participant-home~pending-390-full.png,
      and today's Settings "Turn off" already clipped the same way) --
@@ -860,7 +903,7 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .suggest button:hover{border-style:solid;color:var(--line)}
 
 /* --- radio choice row for "what works today" (3 compact cards) ---------- */
-.choices.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.choices.three{--choice-cols:3}
 
 /* --- status line at the top of Entry: Draft / Submitted ---------------- */
 .entry-status{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 18px;margin:0 0 14px}
@@ -956,7 +999,7 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .prompt{background:var(--paper-hi);border:1px solid var(--rule);border-radius:var(--r-sm);padding:10px 12px;font-size:14px;line-height:1.5;white-space:pre-wrap}
 .site-row{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:16px;align-items:start}
 .site-row .site-frame{width:100%}
-@media (max-width: 560px){.site-row{grid-template-columns:1fr}}
+@container page (max-width:560px){.site-row{grid-template-columns:1fr}}
 
 /* --- organiser: what teams hand in ------------------------------------ */
 .rules{margin-top:16px}
@@ -998,7 +1041,7 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
    addition, not in the original kit-next.css.) */
 .seg span.oneof.on{background:var(--accent);border-color:var(--accent)}
 
-@media (max-width:760px){
+@container page (max-width:760px){
   .media .mbar .host{display:none}
   .jump{display:block;margin:-6px 0 12px}
   .kbd-hint{display:none}
@@ -1006,14 +1049,18 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .ec-rows dt{padding-top:6px}
   .entry-card{padding:12px 14px 14px}
   .entry-card .shot-row{grid-template-columns:1fr}
-  .choices.three{grid-template-columns:1fr}
   .site-preview{height:440px}
   .conn{flex-direction:column}
   .conn > div{border-left:0;border-top:1px solid var(--rule)}
   .conn > div:first-child{border-top:0}
   .rules .rr{flex-wrap:wrap}
   .rules .rr .seg{width:100%}
-  .rules .rr .seg span{flex:1;text-align:center;min-height:44px;display:grid;place-items:center}
+}
+@media (max-width:760px){
+  .rules .rr .seg span{min-height:44px}
+}
+@container page (max-width:760px){
+  .rules .rr .seg span{flex:1;text-align:center;display:grid;place-items:center}
   .result-entry .re-body{grid-template-columns:1fr}
   /* A winner's re-head can carry a team name, a track pill, a Winner pill
      and a score all at once; .re-head has no wrap and every pill is
@@ -1027,6 +1074,8 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .steps .act{align-self:flex-start}
   .steps li{flex-wrap:wrap}
   .steps li .act{margin-left:31px}
+}
+@media (max-width:760px){
   /* 44px tap targets (phone convention): the tag chip's own remove button
      and the fixed tool/AI suggestion buttons are both well under that floor
      at their desktop size. */
@@ -1035,21 +1084,27 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .suggest button{min-height:44px}
   .choice{min-height:44px}
 }
+
 .result-entry .re-head .meta{font-variant-numeric:tabular-nums;color:var(--line-soft);font-size:13.5px;white-space:nowrap}
 .result-entry .re-head .pill{flex:none}
-@media (min-width:1001px){.split > aside{position:sticky;top:16px}}
+@container page (min-width:761px){.split > aside{position:sticky;top:16px}}
+
 .suggest .k{min-width:40px}
 .deadline-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:2px 0 6px}
 .deadline-line small{font-size:13.5px;color:var(--line-soft)}
-@media (max-width:760px){.steps li .what{flex:1 1 calc(100% - 40px)}}
-@media (max-width:760px){
+@container page (max-width:760px){.steps li .what{flex:1 1 calc(100% - 40px)}}
+
+@container page (max-width:760px){
   .entry-card.compact .ec-rows{grid-template-columns:1fr;gap:1px}
+}
+@media (max-width:760px){
   .sticky-foot .hint-wide{display:none}
 }
+
 .focus .right > .next-guard{margin:auto 0 8px}
 .focus .right > .next-guard + .sticky-foot{margin-top:0}
-.choices.presets{grid-template-columns:repeat(3,minmax(0,1fr))}
-@media (max-width:760px){.choices.presets{grid-template-columns:1fr}}
+.choices.presets{--choice-cols:3}
+
 /* ======================================================================= */
 
 /* ======================================================================
@@ -1209,7 +1264,7 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
 .card > .section-title:first-child{margin-top:0}
 .empty-state p:last-child{margin-bottom:0}
 
-@media (max-width:760px){
+@container page (max-width:760px){
   .field.inline{grid-template-columns:minmax(0,1fr)}
   .field.inline > *{grid-column:1}
   .field-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--field-gap) 10px}
@@ -1219,6 +1274,7 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
   .form-actions .btn.primary{flex:1 1 auto}
   .crit-row > .row-flex{grid-column:1 / -1}
 }
+
 /* Inside a field the grid gap does the spacing, even for the blocks above
    that carry their own outer margin. */
 .field > :is(.field-row,.control-row,.form-actions,.check,.help,.note){margin:0}
@@ -1228,14 +1284,15 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
 /* .choices.stack: one column at every width (Team's "How do you want to
    team up?" always stacks, unlike the Entry-form .choices' 2-col desktop
    default). */
-.choices.stack{grid-template-columns:1fr}
-@media (max-width:760px){
+.choices.stack{--choice-cols:1}
+@container page (max-width:760px){
   /* .ph.keep-row: the header stays a row on phone, the button auto width --
      Overview's Change stage sits beside the h1, never a full-width bar
      above the next-step card. */
   .ph.keep-row{flex-direction:row;align-items:flex-start;gap:10px}
   .ph.keep-row .btn{width:auto;flex:none}
 }
+
 /* ======================================================================= */
 
 /* Headings that receive focus for screen readers (tab switches) show no box to mouse users. */
@@ -1266,7 +1323,8 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
  .side-collapsed .past-events summary{font-size:0}
  .side-collapsed .past-events summary::after{content:'…';font-size:16px}
 }
-@media(max-width:760px){
+
+@container page (max-width:760px){
  .settings-select{display:block}
  .settings-layout>.subnav{display:none}
 }
@@ -1274,11 +1332,11 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
 .step-actions{display:flex;align-items:center;gap:4px;flex-wrap:nowrap}
 .steps .step-actions .btn{white-space:nowrap;padding:4px 8px;min-height:28px}
 .steps .step-actions [data-dismiss]{font-size:12px;padding:4px}
-@media(max-width:760px){.steps .step-actions{grid-column:2 / -1;justify-self:start}}
+@container page (max-width:760px){.steps .step-actions{grid-column:2 / -1;justify-self:start}}
 
 .ov-public-url{margin:-8px 0 20px;font-size:14px;overflow-wrap:anywhere}
 
-@media(max-width:760px){
+@container page (max-width:760px){
  .organiser-home-head{flex-direction:row;flex-wrap:wrap;gap:8px}
  .organiser-home-head .t{flex-basis:100%}
  .organiser-home-head .btn{width:auto}
@@ -1340,3 +1398,5 @@ textarea.input.assistant-textarea{resize:none;min-height:var(--control-h);max-he
 .dialog:has([data-judging-setup]),.dialog:has(#stage-setup){display:flex;flex-direction:column}
 .dialog > [data-judging-setup],.dialog > #stage-setup{min-height:0;overflow-y:auto}
 .dialog > .acts{flex-shrink:0}
+
+@container page (max-width:760px){.choices,.choices.three,.choices.presets{--choice-cols:1}}

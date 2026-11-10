@@ -86,7 +86,7 @@ export async function render(ctx) {
     const mainLink = `<a class="main" href="${ui.esc(href(e.role,e.slug,section))}">${label}</a>`
     const meta = `<span class="meta">${ui.esc(nextAction(e))}</span>`
     const menu = rowMenuHTML(e.title, menuItems(e))
-    return `<div class="r" data-slug="${ui.esc(e.slug)}">${mark}${mainLink}${meta}<div class="row-acts">${menu}</div></div>`
+    return `<div class="r" data-slug="${ui.esc(e.slug)}">${mark}${mainLink}<span class="r-end">${meta}<div class="row-acts">${menu}</div></span></div>`
   }
   // Finding #4 (prod full test, round 7): this used to mark every
   // non-archived organiser event as "Needs attention", including one that

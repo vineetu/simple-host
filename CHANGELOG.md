@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-10: Simple Hack lists, cards and choice groups fit the available space with the sidebar open; row actions wrap together, and judges see team names beneath entry titles.
+
 2026-11-10: Custom Simple Hack event websites built from the event recipe update themselves at every stage, including announcements and results (SIM-420).
 
 2026-11-09: Simple Hack: judging locks follow the stage; stage changes and publishing, including tie order and republishing, live on Home.

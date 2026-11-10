@@ -88,7 +88,8 @@ export async function render(ctx) {
     // settled incomplete at the deadline has none, and says so instead.
     const submitted = row.incomplete ? 'Not complete at the deadline' : (row.submitted_at || row.updated_at) ? 'Submitted ' + ui.dateTime(row.submitted_at || row.updated_at, ev) : ''
     const tagline = String(row.tagline || '').trim()
-    return [submitted, tagline].filter(Boolean).join(' · ')
+    const teamName = row.title && row.title !== row.team.name ? row.team.name : ''
+    return [teamName, submitted, tagline].filter(Boolean).join(' · ')
   }
   function rowFor(row, mode, isFirst) {
     const title = row.title || row.team.name || 'Entry'
@@ -113,7 +114,7 @@ export async function render(ctx) {
     const mat = ui.MATURITY[row.maturity]
     const pills = (row.track && row.track.name ? `<span class="pill stage">${ui.esc(row.track.name)} track</span>` : '') +
       (mat ? `<span class="pill ${ui.esc(mat.cls)}">${ui.esc(mat.label)}</span>` : '')
-    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${pills}${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`
+    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span><span class="r-end">${pills}${flag}${openBtn}${shotBtn}${action}</span></div>${shotFrame}`
   }
 
   // Full-test fix (2026-11-02): an empty list only means "done" when this

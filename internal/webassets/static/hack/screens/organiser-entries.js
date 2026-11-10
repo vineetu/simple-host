@@ -95,7 +95,7 @@ export async function render (ctx) {
     if (e.excluded) act = `<button class="btn sm" type="button" data-include="${esc(e.team.slug)}"${lock ? ' disabled' : ''}>Include</button>`
     else if (e.incomplete) act = `<button class="btn danger sm" type="button" data-exclude="${esc(e.team.slug)}" data-name="${esc(e.team.name)}"${lock ? ' disabled' : ''}>Exclude</button>`
     if (!act) return `<a class="r" href="${esc(detail)}"><span class="main"><b>${esc(e.team.name)}</b><span>${esc(bits.join(' · '))}</span></span>${statusPill(e)}</a>`
-    return `<div class="r"><a class="main" href="${esc(detail)}"><b>${esc(e.team.name)}</b><span>${esc(bits.join(' · '))}</span></a>${statusPill(e)}${act}</div>`
+    return `<div class="r"><a class="main" href="${esc(detail)}"><b>${esc(e.team.name)}</b><span>${esc(bits.join(' · '))}</span></a><span class="r-end">${statusPill(e)}${act}</span></div>`
   }
 
   function extensionRow (t, locked, archived) {

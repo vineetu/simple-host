@@ -461,13 +461,13 @@ function renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setL
   function fixedRowHTML(item) {
     const where = setInLink(item.set_in, ev.slug, item.key)
     const setIn = where ? `<span>Set in <a href="${ui.esc(where.href)}">${ui.esc(where.label)}</a></span>` : ''
-    return `<div class="r sched-row fixed"><span class="r-when">${whenHTML(item)}</span><span class="main"><b>${ui.esc(item.title)}</b>${item.description ? `<span>${ui.esc(item.description)}</span>` : ''}${setIn}${promptLine(item)}</span>${pillHTML(item)}<span class="pill" title="Comes from the event's settings">${LOCK_ICON}Fixed</span></div>`
+    return `<div class="r sched-row fixed"><span class="r-when">${whenHTML(item)}</span><span class="main"><b>${ui.esc(item.title)}</b>${item.description ? `<span>${ui.esc(item.description)}</span>` : ''}${setIn}${promptLine(item)}</span><span class="r-end">${pillHTML(item)}<span class="pill" title="Comes from the event's settings">${LOCK_ICON}Fixed</span></span></div>`
   }
   function rowHTML(item, i) {
     if (item.fixed) return fixedRowHTML(item)
     const details = item.description ? `<span>${ui.esc(item.description)}</span>` : '<span class="faint">No details</span>'
     const acts = readOnly ? '' : `<div class="row-acts"><button class="btn quiet sm" type="button" data-act="edit" data-idx="${i}" aria-label="Edit ${ui.esc(item.title)}">Edit</button>${rowMenuHTML(item.title, [{ label: 'Edit', act: 'edit' }, { label: 'Remove', act: 'remove', danger: true }])}</div>`
-    return `<div class="r sched-row"${readOnly ? '' : ` data-idx="${i}"`}><span class="r-when">${whenHTML(item)}</span>${readOnly ? `<span class="main"><b>${ui.esc(item.title)}</b>${details}${promptLine(item)}</span>` : `<a class="main" href="#" data-act="edit" data-idx="${i}"><b>${ui.esc(item.title)}</b>${details}${promptLine(item)}</a>`}${pillHTML(item)}${acts}</div>`
+    return `<div class="r sched-row"${readOnly ? '' : ` data-idx="${i}"`}><span class="r-when">${whenHTML(item)}</span>${readOnly ? `<span class="main"><b>${ui.esc(item.title)}</b>${details}${promptLine(item)}</span>` : `<a class="main" href="#" data-act="edit" data-idx="${i}"><b>${ui.esc(item.title)}</b>${details}${promptLine(item)}</a>`}<span class="r-end">${pillHTML(item)}${acts}</span></div>`
   }
   function listHTML() {
     let html = '', lastDay = null

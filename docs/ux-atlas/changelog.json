@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-10",
+    "what": "SIM-415: Signed-in layouts reflow by content width with the sidebar open; list actions wrap as a group and choice cards fit their own width. Judge My teams shows the team name beneath an entry title."
+  },
+  {
+    "date": "2026-11-10",
     "what": "SIM-420: Website explains that the event page recipe keeps custom websites live at every stage, including results, and how to update an earlier website."
   },
   {

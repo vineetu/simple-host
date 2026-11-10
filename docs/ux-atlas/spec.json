@@ -3,7 +3,8 @@
   "updated": "2026-11-09",
   "universal_properties": [
     "A form with unsaved edits asks Leave without saving? (Stay / Leave) before navigation or Back, and uses the browser prompt when closing or reloading the tab; a clean or just-saved form never asks.",
-    "Every checklist item is actionable: a not-done action reaches the enabled control that fixes it, or performs it; informational rows have no button."
+    "Every checklist item is actionable: a not-done action reaches the enabled control that fixes it, or performs it; informational rows have no button.",
+    "Lists, cards and choice groups reflow at any width; text never wraps one word per line; actions wrap as a group."
   ],
   "summary": [
     "Your events stays visible in the signed-in pane; the current event expands with its role sections. Five current rows, a Past events toggle and All events keep the list short.",

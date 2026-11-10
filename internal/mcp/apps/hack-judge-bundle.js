@@ -1114,7 +1114,8 @@
     function subLine(row) {
       const submitted = row.incomplete ? "Not complete at the deadline" : row.submitted_at || row.updated_at ? "Submitted " + ui.dateTime(row.submitted_at || row.updated_at, ev) : "";
       const tagline = String(row.tagline || "").trim();
-      return [submitted, tagline].filter(Boolean).join(" \xB7 ");
+      const teamName = row.title && row.title !== row.team.name ? row.team.name : "";
+      return [teamName, submitted, tagline].filter(Boolean).join(" \xB7 ");
     }
     function rowFor(row, mode2, isFirst) {
       const title5 = row.title || row.team.name || "Entry";
@@ -1134,7 +1135,7 @@
       const flag = row.incomplete ? '<span class="pill warn">Incomplete</span>' : "";
       const mat = ui.MATURITY[row.maturity];
       const pills = (row.track && row.track.name ? `<span class="pill stage">${ui.esc(row.track.name)} track</span>` : "") + (mat ? `<span class="pill ${ui.esc(mat.cls)}">${ui.esc(mat.label)}</span>` : "");
-      return `<div class="r"><span class="main"><b>${ui.esc(title5)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ""}</span>${pills}${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`;
+      return `<div class="r"><span class="main"><b>${ui.esc(title5)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ""}</span><span class="r-end">${pills}${flag}${openBtn}${shotBtn}${action}</span></div>${shotFrame}`;
     }
     function emptyToScore() {
       if (scored.length) return "Nothing left \u2014 you\u2019ve scored everyone assigned to you.";

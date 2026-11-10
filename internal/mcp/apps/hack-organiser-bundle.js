@@ -5205,14 +5205,16 @@ ${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href("org
         mainEl.appendChild(ui.el("span", { class: "pill", text: "Left the event" }));
         row.appendChild(mainEl);
         const formerMeta = f.assigned_count >= f.counted_teams && f.assigned_count > 0 ? `Scored ${f.counted_teams} of ${f.assigned_count}, still counted` : `${f.counted_teams} team${f.counted_teams === 1 ? "" : "s"} scored, still counted`;
-        row.appendChild(ui.el("span", { class: "meta", text: formerMeta }));
+        const end = ui.el("span", { class: "r-end" });
+        row.appendChild(end);
+        end.appendChild(ui.el("span", { class: "meta", text: formerMeta }));
         const del = ui.el("button", { class: "btn quiet sm", type: "button", text: "Delete scores" });
         if (locked || adminLockReason) {
           del.disabled = true;
           if (locked && !adminLockReason) del.title = "Move the event back to Judging to change scores.";
         }
         del.addEventListener("click", () => deleteFormerJudge(f, del));
-        row.appendChild(del);
+        end.appendChild(del);
         jlist.appendChild(row);
       });
       card.appendChild(jlist);

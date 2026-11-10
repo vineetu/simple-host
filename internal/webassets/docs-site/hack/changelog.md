@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 10:** Simple Hack lists, cards and choice groups fit the available space with the sidebar open; row actions wrap together, and judges see team names beneath entry titles.
+
 - **Nov 10:** Custom Simple Hack event websites built from the event recipe update themselves at every stage, including announcements and results.
 
 - **Nov 9:** Simple Hack: judging locks follow the stage; stage changes and publishing, including tie order and republishing, live on Home.
