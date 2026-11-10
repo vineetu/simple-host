@@ -26,6 +26,8 @@ async function person(role, width = 1280) {
   })
   // Tours are unrelated to destination assertions; their real source remains bundled.
   await page.route('**/v1/hack/preferences', route => route.fulfill({ json: { organiser_walkthrough_done: true, judge_walkthrough_done: true } }))
+  // The fixture has no assistant configured; report it enabled so the walkthrough's assistant step has its real target (SIM-417).
+  await page.route('**/v1/hack/events/*/assistant', route => route.request().method() === 'GET' ? route.fulfill({ json: { enabled: true, remaining_today: 20 } }) : route.continue())
   return { context, page }
 }
 async function open(page, path, control = 'main h1') {
@@ -170,7 +172,8 @@ try {
  await editor.page.locator('input[name="org-preset"][value="video_website_code"]').check()
  await editor.page.locator('#rules-save').click()
  await editor.page.waitForFunction(() => document.querySelector('.live')?.textContent?.includes('Saved') || document.querySelector('[role="status"]')?.textContent?.includes('Saved'))
- await open(editor.page, settings + 'judging', '#jg-rubric-save')
+ // Wait for the rubric to load; the save button renders before its rows.
+ await open(editor.page, settings + 'judging', '#jg-rubric .crit-row')
  const rubricSave = editor.page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith('/rubric'))
  await editor.page.locator('#jg-rubric-save').click()
  assert.equal((await rubricSave).status(), 200, 'rubric save failed')

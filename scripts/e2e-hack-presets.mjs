@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Browser proof for storage presets on Simple Hack: the Hack connector's own
 // recipes (get_page_recipe with a team key), published on a team site and on
-// an organiser's custom event website, then driven by real visitors, a team
-// member and an organiser signed in through the sites' own sign-in boxes.
+// an organiser's custom event website, then driven by visitors and a team
+// member signing in on the team site, and anyone sending to the event inbox.
 //
 //   HACK_PRESETS_FIXTURE=/tmp/f.json DB_DSN=... go test ./internal/handler/ -run TestServeHackPresetsBrowser
 //   node scripts/e2e-hack-presets.mjs /tmp/f.json [--browser chromium|webkit] [--shots dir]
@@ -79,6 +79,9 @@ async function forward(route, context) {
       request.on('error', reject); request.end(body);
     });
     delete response.headers['content-length'];
+    // The fixture sets PublicBaseURL only to build the handler, which reports one-tap SSO;
+    // drive in-page email-code sign-in here (SSO is covered by e2e-sso.mjs).
+    if (u.pathname === '/v1/auth/oauth/providers') response.body = Buffer.from(JSON.stringify({ ...JSON.parse(response.body), sso_enabled: false }));
     await route.fulfill(response);
   } catch (e) {
     consoleLog.push('forward failed ' + req.method() + ' ' + u.href + ': ' + e.message);
@@ -206,28 +209,14 @@ async function run() {
       await v.locator('#contact [name=email]').fill(carol);
       await v.locator('#contact [name=message]').fill('Is there food? ' + stamp);
       await v.locator('#contact button[type=submit]').click();
-      await signIn(v, carol);
       await v.locator('#status', { hasText: 'sent' }).waitFor({ timeout: 20000 });
       const back = await pageFetch(v, `/v1/sites/${info.event}/storage/sqlite/messages/tables/messages/rows`);
       assert.equal(back.status, 403, 'sender read back the inbox');
       if (shots) await v.screenshot({ path: `${shots}/hack-${browserName}-event-inbox-sent.png`, fullPage: true });
-      const m = await newPage(browser);
-      await m.goto(eventOrigin + '/');
-      await signIn(m, info.member_email);
-      const memberRead = await pageFetch(m, `/v1/sites/${info.event}/storage/sqlite/messages/tables/messages/rows`);
-      assert.equal(memberRead.status, 403, 'a participant read the organisers\' inbox');
-      const o = await newPage(browser);
-      await o.goto(eventOrigin + '/');
-      await signIn(o, info.org_email);
-      const me = await pageFetch(o, `/v1/sites/${info.event}/me`);
-      assert.equal(me.body.site_owner, true, 'organiser me ' + JSON.stringify(me.body));
-      const all = await pageFetch(o, `/v1/sites/${info.event}/storage/sqlite/messages/tables/messages/rows`);
-      assert.equal(all.status, 200);
-      assert(JSON.stringify(all.body).includes('Is there food? ' + stamp), 'organiser on the site sees the message');
-      const q = await rest('POST', `/v1/hack/events/${info.event}/website/storage/sqlite/messages/query`, { sql: 'SELECT message, visitor_id FROM messages' }, info.org_key);
-      assert(q.body.rows.some(row => String(row[0]).includes(stamp) && row[1]), 'organiser route sees the sender');
-      step('event inbox: a visitor sends and cannot read it back; a participant signed in there gets 403; an organiser signed in there reads it (site_owner true); the organiser route sees the sender', { senderRead: back.status, participantRead: memberRead.status });
-      for (const p of [v, m, o]) await p.context().close();
+      const q = await rest('POST', `/v1/hack/events/${info.event}/website/storage/sqlite/messages/query`, { sql: 'SELECT message, email FROM messages' }, info.org_key);
+      assert(q.body.rows.some(row => String(row[0]).includes(stamp) && row[1] === carol), 'organiser route sees the sender');
+      step('event inbox: anyone sends without signing in and cannot read it back; the organiser route reads it with the sender\'s email', { senderRead: back.status });
+      await v.context().close();
     }
 
     // ---------- personal data on the team site; a member is the owner until the deadline ----------

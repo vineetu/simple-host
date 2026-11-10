@@ -30,7 +30,7 @@ async function person(role, width) {
   const file = 'internal/webassets/static' + path
   if (!fs.existsSync(file)) return route.continue()
   const pinned = file.endsWith('/screens/participant-home.js') || file.endsWith('/kit.css')
-  const body = before && pinned ? execFileSync('git', ['show', '07edf8f8:' + file]) : fs.readFileSync(file)
+  const body = before && pinned ? execFileSync('git', ['show', '3ef2a7e5:' + file]) : fs.readFileSync(file)
   await route.fulfill({ body, contentType: path.endsWith('.css') ? 'text/css' : 'text/javascript' })
  })
  await page.route('**/v1/hack/preferences', route => route.fulfill({ json: { organiser_walkthrough_done: true, judge_walkthrough_done: true, participant_walkthrough_done: true } }))
@@ -72,6 +72,8 @@ try {
  // Both judges and organiser see the judge projection, never mixed organiser rows.
  await api('organiser', 'POST', base + '/stage', {stage:'closed'})
  await api('organiser','PATCH',base+'/judging/settings',{include_organisers:true})
+ // Navigation leaves results published, which closes judging.
+ assert.equal((await fetch(info.url+'/_fixture/clear-results',{method:'POST'})).status,204)
  const rubric = (await api('judge', 'GET', base + '/rubric')).criteria
  const conflicts = (await api('judge','GET',base+'/conflicts?mine=1')).conflicts || []
  for (const c of conflicts) await api('judge','DELETE',base+'/conflicts/'+c.team_id)
@@ -92,11 +94,12 @@ try {
  await judge.page.getByRole('button',{name:"I've read it",exact:true}).click()
  await judge.page.getByRole('button',{name:'Done',exact:true}).waitFor()
  await home(judge.page,'judge'); await state(judge.page,'j.rubric',true)
+ await api('organiser', 'POST', base + '/stage', {stage:'judging'})
+ // Judge conflicts open at Judging (SIM-416).
  await judge.page.goto(info.url+`/e/${info.slug}/judge?s=queue&tab=conflicts#conflicts`)
  await judge.page.getByRole('button',{name:"I don't know any of these teams",exact:true}).click()
  await judge.page.getByRole('button',{name:'Done',exact:true}).waitFor()
  await home(judge.page,'judge'); await state(judge.page,'j.conflicts',true)
- await api('organiser', 'POST', base + '/stage', {stage:'judging'})
  const queue = (await api('judge','GET',base+'/judge/queue')).queue
  assert.ok(queue.length >= 2)
  await api('judge','PUT',base+'/judge/scores/'+queue[0].team_id,{ scores:rubric.map(c=>({criterion_id:c.id,points:1})),comment:'' })
@@ -134,7 +137,8 @@ try {
  const faq = org.page.locator('[data-checklist-id="o.faq"]')
  await faq.getByRole('button',{name:'Not needed',exact:true}).click()
  await org.page.locator('[data-checklist-id="o.faq"]').getByRole('button',{name:'Use this item',exact:true}).waitFor()
- assert.equal(await org.page.evaluate(()=>document.activeElement.textContent),'Use this item')
+ // The row re-renders with the new control first, then focus moves to it.
+ await org.page.waitForFunction(()=>document.activeElement?.textContent==='Use this item')
  await org.page.locator('[data-checklist-id="o.faq"]').getByRole('button',{name:'Use this item',exact:true}).click()
  await org.page.locator('[data-checklist-id="o.faq"]').getByRole('button',{name:'Not needed',exact:true}).waitFor()
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=event-page&tab=faq`)
@@ -176,7 +180,10 @@ try {
  for (const who of ['organiser','judge']) for (const team of (await api(who,'GET',base+'/judge/queue')).queue) await api(who,'PUT',base+'/judge/scores/'+team.team_id,{scores:tieRubric.map(c=>({criterion_id:c.id,points:3})),comment:''})
  await api('organiser','POST',base+'/stage',{stage:'results'})
  await home(org.page,'organiser'); await state(org.page,'o.ties',false)
+ // The same-page hash link remounts Home (SIM-425); click the new button.
+ const stale = await org.page.locator('#ov-next-move').elementHandle()
  await org.page.locator('[data-checklist-id="o.ties"] a').click()
+ await org.page.waitForFunction(el => !el.isConnected, stale)
  await org.page.locator('#ov-next-move').click()
  await org.page.locator('.tie-group input').first().waitFor()
  const tieInputs=await org.page.locator('.tie-group input').all()
@@ -216,7 +223,8 @@ try {
    await api('organiser','POST',base+'/stage',{stage:'building'})
    await api('organiser','PATCH',base,{submission_deadline:new Date(Date.now()-3600000).toISOString()})
    const ev=await api('participant','GET',base)
-   await api('organiser','PUT',base+'/teams/'+ev.me.team.slug+'/deadline',{deadline:new Date(Date.now()+7200000).toISOString()})
+   // 50 s past the hour, so the minute countdown cannot tick between a before/after pair.
+   await api('organiser','PUT',base+'/teams/'+ev.me.team.slug+'/deadline',{deadline:new Date(Date.now()+7250000).toISOString()})
   }
   if (variant === 'backwards-published') {
    await api('organiser','POST',base+'/stage',{stage:'results'})
@@ -273,7 +281,9 @@ try {
    await rowPresentation(org.page,width)
    if (width === 390) {
     const title = await org.page.locator('main h1').boundingBox()
+    // "Score as a judge" shows from Judging on, for an opted-in organiser (SIM-419).
     for (const control of ['#ov-change-stage', 'main .ph a']) {
+     if (control !== '#ov-change-stage' && !await org.page.locator(control).count()) continue
      const box = await org.page.locator(control).first().boundingBox()
      assert.ok(box.y >= title.y + title.height, 'Home actions must follow title')
     }
