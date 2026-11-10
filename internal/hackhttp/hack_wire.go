@@ -153,7 +153,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			if res, rerr := entries.New(database, nil).EventResults(r.Context(), ev.ID); rerr != nil {
 				log.Printf("event page %s: results: %v", ev.Slug, rerr)
 			} else if res.Published {
-				p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks)
+				p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks, ev.OverallPrizes)
 				if p.Results != nil {
 					galleryPublic := hackGalleryPublic(ev, ready)
 					cards, err := events.New(database).GalleryCards(r.Context(), ev.ID, ev.AccountID)
@@ -201,10 +201,10 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 }
 
 // hackResultsFromSnapshot is the public page's view of a published snapshot:
-// winners-only shows every team at rank 1 (there can be more than one if the
-// organiser never resolved a top-of-the-board tie); a full ranking shows
-// every ranked team. Public score and rank visibility are applied here.
-func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRanks bool) *hackResultsView {
+// Winners-only shows rank 1, places with an overall prize, and track winners;
+// a full ranking shows every ranked team. Public score and rank visibility
+// are applied here. Prize labels use the snapshot rank even when it is hidden.
+func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRanks bool, prizes []string) *hackResultsView {
 	var rows []map[string]any
 	if err := json.Unmarshal(res.Snapshot, &rows); err != nil {
 		log.Printf("event page: results snapshot: %v", err)
@@ -217,13 +217,13 @@ func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRa
 			continue // unscored team (total is null): never shown publicly
 		}
 		trackWinner, _ := row["track_winner"].(bool)
-		if !res.FullRanking && rank != 1 && !trackWinner {
+		if !res.FullRanking && !shownInWinnersOnly(int(rank), trackWinner, prizes) {
 			continue
 		}
 		name, _ := row["team_name"].(string)
 		tied, _ := row["tied"].(bool)
 		teamID, _ := row["team_id"].(string)
-		view := hackResultsRow{TeamID: teamID, TeamName: name, TrackWinner: trackWinner, Overall: rank == 1}
+		view := hackResultsRow{TeamID: teamID, TeamName: name, TrackWinner: trackWinner, Overall: rank == 1, OverallPrize: overallPrizeLabel(int(rank), prizes)}
 		if publicRanks {
 			view.Rank = int(rank)
 			view.Tied = tied
@@ -380,4 +380,14 @@ func writeHackScreenshot(w http.ResponseWriter, r *http.Request, data []byte, co
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(data)
 	}
+}
+
+func overallPrizeLabel(rank int, prizes []string) string {
+	if rank < 1 || rank > 3 || rank > len(prizes) || prizes[rank-1] == "" {
+		return ""
+	}
+	return []string{"1st", "2nd", "3rd"}[rank-1] + " · " + prizes[rank-1]
+}
+func shownInWinnersOnly(rank int, trackWinner bool, prizes []string) bool {
+	return rank > 0 && (rank == 1 || trackWinner || overallPrizeLabel(rank, prizes) != "")
 }

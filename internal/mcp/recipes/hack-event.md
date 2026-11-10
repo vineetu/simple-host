@@ -102,7 +102,7 @@ function draw(event) {
   if (resultsOut) {
     const rows = event.results || [];
     for (const [title, winners] of (event.full_ranking ? [['Ranking', rows]] : [
-      ['Overall winners', rows.filter(row => row.overall)],
+      ['Overall winners', rows.filter(row => row.overall || row.overall_prize)],
       ['Track winners', rows.filter(row => row.track_winner)]
     ])) {
       if (!winners.length) continue;
@@ -110,6 +110,7 @@ function draw(event) {
       for (const row of winners) {
         const item = add(area, 'article');
         add(item, 'h3', row.team_name);
+        if (row.overall_prize) add(item, 'span', row.overall_prize);
         if (row.track_name && (event.full_ranking || title === 'Track winners')) add(item, 'p', row.track_name);
         if (event.full_ranking && (row.overall || row.track_winner)) add(item, 'p', 'Winner');
         if (row.rank != null) add(item, 'p', 'Rank: ' + row.rank);

@@ -1,9 +1,12 @@
 package hackhttp
 
 import (
+	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -1243,7 +1246,7 @@ func TestHackResultsFromSnapshotOverallWithRanksHidden(t *testing.T) {
 		{"rank":2,"team_id":"b","team_name":"Beta","track_winner":true,"track":{"name":"Education"},"total":8},
 		{"rank":3,"team_id":"c","team_name":"Gamma","total":7}
 	]`)
-	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, Snapshot: snap}, false, false)
+	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, Snapshot: snap}, false, false, nil)
 	if v == nil || len(v.Rows) != 2 {
 		t.Fatalf("winners-only rows: %+v", v)
 	}
@@ -1294,7 +1297,7 @@ func TestHackScoreTextDropsTrailingZero(t *testing.T) {
 // hundredth apart must not collapse into the same JSON score string either.
 func TestHackResultsFromSnapshotScoreFormatting(t *testing.T) {
 	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5},{"rank":3,"team_id":"c","team_name":"Gamma","total":81.25}]`)
-	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
+	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true, nil)
 	if v == nil || len(v.Rows) != 3 {
 		t.Fatalf("rows: %+v", v)
 	}
@@ -1316,7 +1319,7 @@ func TestHackResultsFromSnapshotScoreFormatting(t *testing.T) {
 // away 81.25's real second decimal.
 func TestBuildHackResultsBlockTrimsScoreForDisplay(t *testing.T) {
 	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5},{"rank":3,"team_id":"c","team_name":"Gamma","total":81.25}]`)
-	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
+	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true, nil)
 	if v == nil || len(v.Rows) != 3 {
 		t.Fatalf("rows: %+v", v)
 	}
@@ -1475,6 +1478,95 @@ func TestHackEventPageWinnerThumbnailsAndRanks(t *testing.T) {
 		}
 		if strings.Contains(body, ">#4</span>") || strings.Contains(body, `class="av accent">1</span>`) || strings.Contains(body, `class="site-frame letter">1</span>`) {
 			t.Errorf("cards=%v invented rank or special winner thumbnail", cards)
+		}
+	}
+}
+
+func TestOverallPrizesValidation(t *testing.T) {
+	for _, tc := range []struct {
+		in, want []string
+		invalid  bool
+	}{
+		{nil, []string{}, false}, {[]string{}, []string{}, false},
+		{[]string{" $300 ", "", " "}, []string{"$300"}, false},
+		{[]string{"", "$200"}, []string{"", "$200"}, false},
+		{[]string{strings.Repeat("賞", 60)}, []string{strings.Repeat("賞", 60)}, false},
+		{[]string{"a", "b", "c", ""}, nil, true},
+		{[]string{"a\nb"}, nil, true}, {[]string{"a\rb"}, nil, true},
+		{[]string{strings.Repeat("賞", 61)}, nil, true},
+	} {
+		got, err := checkOverallPrizesValue(tc.in)
+		if tc.invalid {
+			var coded *events.Error
+			if !errors.As(err, &coded) || coded.Code != "invalid_overall_prizes" {
+				t.Errorf("%q: error = %v", tc.in, err)
+			}
+		} else if err != nil || !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%q: got %q, %v; want %q", tc.in, got, err, tc.want)
+		}
+	}
+}
+
+func TestOverallPrizesWinners(t *testing.T) {
+	prizes := []string{"", "$200", "$100"}
+	for _, tc := range []struct {
+		rank  int
+		label string
+	}{{0, ""}, {1, ""}, {2, "2nd · $200"}, {3, "3rd · $100"}, {4, ""}} {
+		if got := overallPrizeLabel(tc.rank, prizes); got != tc.label {
+			t.Errorf("rank %d: %q", tc.rank, got)
+		}
+	}
+	for rank := 1; rank <= 4; rank++ {
+		for _, track := range []bool{false, true} {
+			if got := shownInWinnersOnly(rank, track, nil); got != (rank == 1 || track) {
+				t.Errorf("no prizes changed rank %d track %v", rank, track)
+			}
+		}
+	}
+	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","entry":{}},{"rank":2,"team_id":"b","team_name":"Beta","tied":true,"entry":{"title":"Beta entry"}},{"rank":2,"team_id":"c","team_name":"Gamma","tied":true,"entry":{}},{"rank":4,"team_name":"Delta","entry":{}},{"team_name":"Unranked","track_winner":true}]`)
+	for _, full := range []bool{false, true} {
+		for _, ranks := range []bool{false, true} {
+			v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, FullRanking: full, Snapshot: snap}, false, ranks, prizes)
+			want := 3
+			if full {
+				want = 4
+			}
+			if len(v.Rows) != want {
+				t.Fatalf("rows: %+v", v.Rows)
+			}
+			count := 0
+			for _, row := range v.Rows {
+				if row.TeamID == "b" || row.TeamID == "c" {
+					count++
+					if row.OverallPrize != "2nd · $200" {
+						t.Errorf("tied prize row: %+v", row)
+					}
+					if !ranks && row.Rank != 0 {
+						t.Errorf("rank leaked: %+v", row)
+					}
+				}
+			}
+			if count != 2 {
+				t.Errorf("tie rows = %d", count)
+			}
+			p := testHackEvent()
+			p.Stage = "results"
+			p.Results = v
+			body := renderHackEvent(t, p).Body.String()
+			if strings.Count(body, `<span class="pill accent">2nd · $200</span>`) != 2 {
+				t.Errorf("prize pills missing (full=%v, ranks=%v)", full, ranks)
+			}
+			if !strings.Contains(body, `<article class="result-entry" id="result-b">`) {
+				t.Error("prize card must open")
+			}
+			for i := range v.Rows {
+				v.Rows[i].Card = nil
+			}
+			body = renderHackEvent(t, p).Body.String()
+			if strings.Count(body, `<span class="pill accent">2nd · $200</span>`) != 2 {
+				t.Errorf("prize pills missing without cards (full=%v, ranks=%v)", full, ranks)
+			}
 		}
 	}
 }

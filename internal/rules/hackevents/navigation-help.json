@@ -304,13 +304,14 @@
       "sources": [
         "screens/organiser-event-page.js"
       ],
-      "explains": "Describe prizes on the public page.",
+      "explains": "Describe prizes on the public page. In Event page → About → Prizes, set Prize for 1st / 2nd / 3rd to show place and prize on winner cards; a place with a prize appears in winners-only results even when ranks are hidden.",
       "when": "Tell teams what they can win.",
       "controls": [
-        "f-prizes"
+        "f-prizes",
+        "f-prize-1", "f-prize-2", "f-prize-3"
       ],
       "limits": [
-        "Up to 5,000 characters."
+        "Free-text Prizes: up to 5,000 characters. Each of the three optional rank prizes: one line, up to 60 characters."
       ]
     },
     {
@@ -1652,7 +1653,7 @@
         },
         {
           "label": "Winners only",
-          "means": "Show global rank-one teams and track winners, including tied winners."
+          "means": "Show global rank-one teams, places with an overall prize, and track winners, including tied winners."
         }
       ],
       "effects": [

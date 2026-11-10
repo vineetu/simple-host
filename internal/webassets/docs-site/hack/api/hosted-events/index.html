@@ -1883,6 +1883,12 @@
 <td></td>
 </tr>
 <tr>
+<td>overall_prizes</td>
+<td>array of string</td>
+<td></td>
+<td>Prizes by index: 0 = 1st, 1 = 2nd, 2 = 3rd. Trimmed single lines; empty skips a place, trailing empty strings are trimmed, [] clears. Always an array on reads. Invalid values return invalid_overall_prizes.</td>
+</tr>
+<tr>
 <td>prizes</td>
 <td>string</td>
 <td></td>
@@ -7066,7 +7072,7 @@
 </table>
 <h2 id="get-v1hackeventsslugresults">GET /v1/hack/events/{slug}/results</h2>
 <div data-operation="GET /v1/hack/events/{slug}/results"></div>
-<p>No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges’ comments remain private. Before publication returns 200 with published false. Returns 404 for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser’s own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch — <code>{"results":[{"team_id","team_name","total","rank","tied","judges_scored"}],"full_ranking"}</code> — the same shape <code>results/publish</code> returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public <code>{"winners":[...]}</code> / <code>{"ranking":[...]}</code> view. Each shown row carries entry, the team’s public summary card (HackResultCard), when the results were published with cards; a team that is not shown never has a card here. site_url is the team site only while it is live now.</p>
+<p>No sign-in required. Winners only (rank-1 teams, places with an overall prize, and track winners) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges’ comments remain private. Before publication returns 200 with published false. Returns 404 for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser’s own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch — <code>{"results":[{"team_id","team_name","total","rank","tied","judges_scored"}],"full_ranking"}</code> — the same shape <code>results/publish</code> returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public <code>{"winners":[...]}</code> / <code>{"ranking":[...]}</code> view. Each shown row carries entry, the team’s public summary card (HackResultCard), when the results were published with cards; a team that is not shown never has a card here. site_url is the team site only while it is live now.</p>
 <p>No authentication required.</p>
 <p><strong>Parameters:</strong></p>
 <table>

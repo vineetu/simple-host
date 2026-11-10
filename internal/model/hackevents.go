@@ -29,6 +29,7 @@ type Event struct {
 	About              string
 	Rules              string
 	Prizes             string
+	OverallPrizes      []string
 	CocText            string
 	TimeZone           string
 	StartsAt           sql.NullTime

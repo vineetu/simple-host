@@ -178,7 +178,7 @@ try {
  browser = await chromium.launch({executablePath:'/usr/local/bin/chromium',args:['--no-sandbox']})
  await api('organiser','POST','/v1/hack/events',{slug,title:'Small ideas, useful futures',organiser_name:'Reflow organiser',organisation:'Open Workshop Collective',contact_email:'workshop@example.com',purpose:'Build practical tools for communities',expected_participants:30,time_zone:'UTC',starts_at:'2099-01-01',ends_at:'2099-01-03'})
  seeded = true
- await api('organiser','PATCH',base,{tagline:'A weekend for useful tools and a healthier planet',about:'Build something that helps a neighbour, a colleague or your local community. Share your progress, learn from other teams and show what your idea can do.',submission_deadline:'2099-01-03T12:00:00Z'})
+ await api('organiser','PATCH',base,{tagline:'A weekend for useful tools and a healthier planet',about:'Build something that helps a neighbour, a colleague or your local community. Share your progress, learn from other teams and show what your idea can do.',submission_deadline:'2099-01-03T12:00:00Z',overall_prizes:['$300','$200','$100']})
  await api('organiser','PUT',base+'/registration',{questions:[],approval_required:false,admit_pending:true})
  await api('organiser','PUT',base+'/tracks',{tracks:[{slug:'developer-tools',name:'Developer tools'},{slug:'climate',name:'Climate'}]})
  const fields = Object.fromEntries('title problem tagline audience track tools maturity description video_url site code_url screenshot'.split(' ').map(k => [k,k === 'title' ? 'required' : 'optional']))

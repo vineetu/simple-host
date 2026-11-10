@@ -162,12 +162,12 @@
        text, so a literal angle-bracket tag name must never appear inside a
        template comment either). */}}
   {{range .Results.Rows}}
-  {{if or .Overall .TrackWinner}}<article class="result-entry{{if .Overall}} winner{{end}}" id="result-{{.TeamID}}">
+  {{if or .Overall .TrackWinner .OverallPrize}}<article class="result-entry{{if .Overall}} winner{{end}}" id="result-{{.TeamID}}">
     <div class="re-head">
       {{if .Rank}}<span class="rank">{{if not $full}}#{{end}}{{.Rank}}</span>{{end}}
       <span class="main"><b>{{if .Card.Title}}{{.Card.Title}}{{else}}{{.TeamName}}{{end}}</b><span class="sub">{{.TeamName}}{{if .TrackName}} · {{.TrackName}} track{{end}}</span></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
-      {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
+      {{if .OverallPrize}}<span class="pill accent">{{.OverallPrize}}</span>{{else if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
       {{if .TrackPill}}<span class="pill">{{.TrackPill}}</span>{{end}}
       {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
     </div>
@@ -221,14 +221,14 @@
       {{if .Rank}}<span class="rank">{{if not $full}}#{{end}}{{.Rank}}</span>{{end}}{{if not $full}}{{if .Shot}}<span class="site-frame winner-thumb"><img src="{{.Shot}}" alt="" width="240" height="150" loading="lazy"></span>{{else}}<span class="site-frame letter winner-thumb">{{.Avatar}}</span>{{end}}{{end}}
       <span class="main"><b>{{.TeamName}}</b></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
-      {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
+      {{if .OverallPrize}}<span class="pill accent">{{.OverallPrize}}</span>{{else if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
       {{if .TrackPill}}<span class="pill">{{.TrackPill}}</span>{{end}}
       {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
     </a>{{else}}<div class="r">
       {{if .Rank}}<span class="rank">{{if not $full}}#{{end}}{{.Rank}}</span>{{end}}{{if not $full}}{{if .Shot}}<span class="site-frame winner-thumb"><img src="{{.Shot}}" alt="" width="240" height="150" loading="lazy"></span>{{else}}<span class="site-frame letter winner-thumb">{{.Avatar}}</span>{{end}}{{end}}
       <span class="main"><b>{{.TeamName}}</b></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
-      {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
+      {{if .OverallPrize}}<span class="pill accent">{{.OverallPrize}}</span>{{else if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
       {{if .TrackPill}}<span class="pill">{{.TrackPill}}</span>{{end}}
       {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
     </div>{{end}}

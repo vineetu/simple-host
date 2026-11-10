@@ -44,7 +44,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	out := map[string]any{
 		"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
-		"about": ev.About, "rules": ev.Rules, "prizes": ev.Prizes,
+		"about": ev.About, "rules": ev.Rules, "prizes": ev.Prizes, "overall_prizes": append([]string{}, ev.OverallPrizes...),
 		"organiser_name": ev.OrganiserName, "organisation": ev.Organisation,
 		"stage": ev.Stage, "time_zone": ev.TimeZone,
 		"starts_at": rfc3339UTC(ev.StartsAt), "ends_at": rfc3339UTC(ev.EndsAt),
@@ -130,11 +130,11 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if res.Published {
-		if view := hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks); view != nil {
+		if view := hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks, ev.OverallPrizes); view != nil {
 			live := h.liveResultSites(r.Context(), ev)
 			rr := make([]any, 0, len(view.Rows))
 			for _, row := range view.Rows {
-				item := map[string]any{"team_name": row.TeamName, "track_name": row.TrackName, "track_prize": row.TrackPrize, "track_winner": row.TrackWinner, "overall": row.Overall}
+				item := map[string]any{"team_name": row.TeamName, "track_name": row.TrackName, "track_prize": row.TrackPrize, "track_winner": row.TrackWinner, "overall": row.Overall, "overall_prize": row.OverallPrize}
 				if ev.PublicRanks {
 					item["rank"], item["tied"] = row.Rank, row.Tied
 				}

@@ -22723,6 +22723,15 @@
                   "prizes": {
                     "type": "string"
                   },
+                  "overall_prizes": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    "description": "Prizes by index: 0 = 1st, 1 = 2nd, 2 = 3rd. Trimmed single lines; empty skips a place, trailing empty strings are trimmed, [] clears. Always an array on reads. Invalid values return invalid_overall_prizes."
+                  },
                   "coc_text": {
                     "type": "string"
                   },
@@ -28663,7 +28672,7 @@
         ],
         "operationId": "getHackPublicResults",
         "summary": "Public results (EVENTS=hosted only)",
-        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. Before publication returns 200 with published false. Returns 404 for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view. Each shown row carries entry, the team's public summary card (HackResultCard), when the results were published with cards; a team that is not shown never has a card here. site_url is the team site only while it is live now.",
+        "description": "No sign-in required. Winners only (rank-1 teams, places with an overall prize, and track winners) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. Before publication returns 200 with published false. Returns 404 for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view. Each shown row carries entry, the team's public summary card (HackResultCard), when the results were published with cards; a team that is not shown never has a card here. site_url is the team site only while it is live now.",
         "security": [],
         "parameters": [
           {
@@ -28690,13 +28699,31 @@
                     "winners": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "type": "object",
+                        "properties": {
+                          "overall_prize": {
+                            "type": "string",
+                            "description": "Place and prize, such as 1st \u00b7 $300; empty when unset."
+                          }
+                        },
+                        "required": [
+                          "overall_prize"
+                        ]
                       }
                     },
                     "ranking": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "type": "object",
+                        "properties": {
+                          "overall_prize": {
+                            "type": "string",
+                            "description": "Place and prize, such as 1st \u00b7 $300; empty when unset."
+                          }
+                        },
+                        "required": [
+                          "overall_prize"
+                        ]
                       }
                     }
                   }
@@ -31195,17 +31222,30 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "overall_prizes": {
+                      "type": "array",
+                      "maxItems": 3,
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Prizes for 1st, 2nd, 3rd by index; always an array."
+                    },
                     "results": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "required": [
-                          "overall"
+                          "overall",
+                          "overall_prize"
                         ],
                         "properties": {
                           "overall": {
                             "type": "boolean",
-                            "description": "True for an overall winner; false for a track-only winner."
+                            "description": "True for an overall winner; false otherwise."
+                          },
+                          "overall_prize": {
+                            "type": "string",
+                            "description": "Place and prize, such as 1st \u00b7 $300; empty when unset, including when ranks are hidden."
                           }
                         }
                       }
@@ -40009,6 +40049,15 @@
           },
           "prizes": {
             "type": "string"
+          },
+          "overall_prizes": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "description": "Prizes by index: 0 = 1st, 1 = 2nd, 2 = 3rd. Trimmed single lines; empty skips a place, trailing empty strings are trimmed, [] clears. Always an array on reads. Invalid values return invalid_overall_prizes."
           },
           "coc_text": {
             "type": "string"

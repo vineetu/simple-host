@@ -3232,5 +3232,19 @@
     "frequency": "occasional",
     "risk": "reversible",
     "feature": "organiser-assistant"
+  },
+  {
+    "id": "overall-prizes",
+    "role": "organiser",
+    "area": "website",
+    "name": "Overall prizes per rank",
+    "what": "Sets optional prizes for 1st, 2nd and 3rd in About; prize places appear on public winner cards.",
+    "stages": "any (text stays editable after the event ends)",
+    "today_location": "Manage > Event page form",
+    "api": "PATCH /v1/hack/events/{slug}",
+    "mcp": "hack_update_event",
+    "frequency": "occasional",
+    "risk": "reversible",
+    "feature": "results-show-what-each-team-built"
   }
 ]

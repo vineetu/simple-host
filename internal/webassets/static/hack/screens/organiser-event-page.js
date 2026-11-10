@@ -373,13 +373,13 @@ ${dateTimeField(ui, 'f-end', 'Ends', snapshot.ends, snapshot.endTime, { dateID: 
 // ------------------------------------------------------------------ About
 function renderAbout({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   const $ = id => sp.querySelector('#' + id)
-  const snapshot = { about: ev.about || '', prizes: ev.prizes || '', rules: ev.rules || '', coc: ev.coc_text || '' }
+  const snapshot = { overall_prizes: [0, 1, 2].map(i => (ev.overall_prizes || [])[i] || ''), about: ev.about || '', prizes: ev.prizes || '', rules: ev.rules || '', coc: ev.coc_text || '' }
 
   // R4/decision 2026-10-31: About stays editable after End, same as Basics.
   if (locked) {
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">About</h2><p>The longer text on your page. A blank line starts a new paragraph.</p></div>
 ${customSiteNote(true)}
-<div class="card"><dl><dt>About</dt><dd>${ui.esc(ev.about || '—')}</dd><dt>Prizes</dt><dd>${ui.esc(ev.prizes || '—')}</dd><dt>Rules</dt><dd>${ui.esc(ev.rules || '—')}</dd><dt>Code of conduct additions</dt><dd>${ui.esc(ev.coc_text || '—')}</dd></dl></div>`
+<div class="card"><dl><dt>About</dt><dd>${ui.esc(ev.about || '—')}</dd><dt>Prizes</dt><dd>${ui.esc(ev.prizes || '—')}</dd><dt>Prize for 1st / 2nd / 3rd</dt><dd>${snapshot.overall_prizes.map(p => ui.esc(p || '—')).join(' / ')}</dd><dt>Rules</dt><dd>${ui.esc(ev.rules || '—')}</dd><dt>Code of conduct additions</dt><dd>${ui.esc(ev.coc_text || '—')}</dd></dl></div>`
     return
   }
 
@@ -389,6 +389,7 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 <form class="card" aria-labelledby="sp-h">
 <div class="field"><div class="lab-row"><label for="f-about">About</label><span class="counter" id="f-about-ct">${snapshot.about.length} / 10000</span></div><textarea class="input" id="f-about" rows="7" maxlength="10000">${ui.esc(snapshot.about)}</textarea></div>
 <div class="field" id="prizes"><div class="lab-row"><label for="f-prizes">Prizes</label><span class="opt">Optional</span></div><textarea class="input" id="f-prizes" rows="3" maxlength="5000">${ui.esc(snapshot.prizes)}</textarea></div>
+<div class="field"><div class="lab-row"><label for="f-prize-1">Prize for 1st / 2nd / 3rd</label><span class="opt">Optional</span></div><div class="row-flex"><input class="input grow" id="f-prize-1" aria-label="Prize for 1st" maxlength="60" placeholder="$300" value="${ui.esc(snapshot.overall_prizes[0])}"><input class="input grow" id="f-prize-2" aria-label="Prize for 2nd" maxlength="60" value="${ui.esc(snapshot.overall_prizes[1])}"><input class="input grow" id="f-prize-3" aria-label="Prize for 3rd" maxlength="60" value="${ui.esc(snapshot.overall_prizes[2])}"></div></div>
 <div class="field" id="rules"><div class="lab-row"><label for="f-rules">Rules</label><span class="opt">Optional</span></div><textarea class="input" id="f-rules" rows="3" maxlength="10000">${ui.esc(snapshot.rules)}</textarea></div>
 <div class="field-group"><h3>Code of conduct</h3>
 <details><summary class="small muted">Read the standard code, which every event shows first</summary><p class="help">${ui.esc(ev.coc_default || '')}</p></details>
@@ -398,7 +399,7 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 </form>`
 
   function isDirty() {
-    return $('f-about').value !== snapshot.about || $('f-prizes').value !== snapshot.prizes || $('f-rules').value !== snapshot.rules || $('f-coc').value !== snapshot.coc
+    return snapshot.overall_prizes.some((p, i) => $('f-prize-' + (i + 1)).value !== p) || $('f-about').value !== snapshot.about || $('f-prizes').value !== snapshot.prizes || $('f-rules').value !== snapshot.rules || $('f-coc').value !== snapshot.coc
   }
   function paintDirty() {
     const dirty = isDirty()
@@ -407,9 +408,10 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
     $('f-discard').hidden = !dirty
     $('f-save').disabled = !dirty
   }
-  ;['f-about', 'f-prizes', 'f-rules', 'f-coc'].forEach(id => $(id).addEventListener('input', paintDirty))
+  ;['f-prize-1', 'f-prize-2', 'f-prize-3', 'f-about', 'f-prizes', 'f-rules', 'f-coc'].forEach(id => $(id).addEventListener('input', paintDirty))
   $('f-about').addEventListener('input', () => { $('f-about-ct').textContent = $('f-about').value.length + ' / 10000' })
   $('f-discard').addEventListener('click', () => {
+    snapshot.overall_prizes.forEach((p, i) => { $('f-prize-' + (i + 1)).value = p })
     $('f-about').value = snapshot.about; $('f-prizes').value = snapshot.prizes; $('f-rules').value = snapshot.rules; $('f-coc').value = snapshot.coc
     $('f-about-ct').textContent = snapshot.about.length + ' / 10000'
     paintDirty()
@@ -417,7 +419,7 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
   $('f-save').addEventListener('click', async () => {
     const btn = $('f-save'); btn.disabled = true
     try {
-      const r = await api('PATCH', path, { about: $('f-about').value, prizes: $('f-prizes').value, rules: $('f-rules').value, coc_text: $('f-coc').value })
+      const r = await api('PATCH', path, { overall_prizes: [1, 2, 3].map(i => $('f-prize-' + i).value), about: $('f-about').value, prizes: $('f-prizes').value, rules: $('f-rules').value, coc_text: $('f-coc').value })
       if (!r.ok) { setLive(ui.errText(r), 'err', btn); paintDirty(); return }
       await ctx.refresh()
       ui.toast('Saved', null)

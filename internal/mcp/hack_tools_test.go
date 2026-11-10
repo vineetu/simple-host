@@ -523,3 +523,17 @@ func TestHackJudgingLockToolsRemoved(t *testing.T) {
 		}
 	}
 }
+
+func TestHackOverallPrizesPatch(t *testing.T) {
+	for _, prizes := range [][]any{{}, {"", "$200"}} {
+		body, err := hackPatchBody(map[string]any{"overall_prizes": prizes})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, _ := json.Marshal(body["overall_prizes"])
+		want, _ := json.Marshal(prizes)
+		if string(got) != string(want) {
+			t.Errorf("prizes = %s, want %s", got, want)
+		}
+	}
+}

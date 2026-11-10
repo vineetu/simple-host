@@ -1024,6 +1024,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member mode
 			"about":             ev.About,
 			"rules":             ev.Rules,
 			"prizes":            ev.Prizes,
+			"overall_prizes":    append([]string{}, ev.OverallPrizes...),
 			"coc_text":          cocText,
 			"coc_default":       HackDefaultCoC,
 			"stage":             ev.Stage,
@@ -1321,6 +1322,7 @@ type patchEventReq struct {
 	// M2
 	SubmissionDeadline *string   `json:"submission_deadline"`
 	EntryRequired      *[]string `json:"entry_required"`
+	OverallPrizes      *[]string `json:"overall_prizes"`
 	GalleryOpen        *bool     `json:"gallery_open"`
 	// 0003-hack-notices-judges-messages.sql: when judging closes. Same
 	// parsing as submission_deadline; "" or null clears it.
@@ -1377,6 +1379,13 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 				return false, false, validationErr
 			}
 			ev.Rules = s
+		}
+		if req.OverallPrizes != nil {
+			prizes, err := checkOverallPrizesValue(*req.OverallPrizes)
+			if err != nil {
+				return false, false, err
+			}
+			ev.OverallPrizes = prizes
 		}
 		if req.Prizes != nil {
 			s, validationErr := checkHackTextValue(*req.Prizes, "prizes", 0, 5000)
@@ -2077,4 +2086,25 @@ func checkHackLineValue(s, field string, min, max int) (string, error) {
 		return "", &events.Error{Code: e.Code, Message: e.Message}
 	}
 	return value, nil
+}
+
+func checkOverallPrizesValue(in []string) ([]string, error) {
+	out := make([]string, 0, len(in))
+	invalid := func() ([]string, error) {
+		return nil, &events.Error{Code: "invalid_overall_prizes", Message: "overall_prizes takes at most three single-line prizes of up to 60 characters"}
+	}
+	if len(in) > 3 {
+		return invalid()
+	}
+	for _, prize := range in {
+		prize = strings.TrimSpace(prize)
+		if strings.ContainsAny(prize, "\r\n") || len([]rune(prize)) > 60 {
+			return invalid()
+		}
+		out = append(out, prize)
+	}
+	for len(out) > 0 && out[len(out)-1] == "" {
+		out = out[:len(out)-1]
+	}
+	return out, nil
 }

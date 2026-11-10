@@ -1,5 +1,11 @@
 [
  {
+  "area": "event page",
+  "question": "Where do I set prizes for 1st, 2nd and 3rd on winner cards?",
+  "expect_href_any": ["/e/{slug}/manage?s=event-page&tab=about"],
+  "expect_all": [["prize"], ["1st", "first"], ["2nd", "second"], ["3rd", "third"]]
+ },
+ {
   "area": "lifecycle",
   "question": "Is my setup done?",
   "expect_href_any": [

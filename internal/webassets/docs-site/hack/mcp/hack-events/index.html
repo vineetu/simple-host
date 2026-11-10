@@ -1264,7 +1264,7 @@
 </table>
 <h2 id="hack_get_event">hack_get_event</h2>
 <div data-tool="hack_get_event"></div>
-<p>Read one event: its page, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. “Kickoff is now. Open sign-up?”): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.</p>
+<p>Read one event: its page, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. “Kickoff is now. Open sign-up?”): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1286,7 +1286,7 @@
 </table>
 <h2 id="hack_update_event">hack_update_event</h2>
 <div data-tool="hack_update_event"></div>
-<p>Change an event’s page text and settings. Sends only the fields you set, so omit anything that should stay as it is. Does not change the stage; use hack_set_event_stage for that. Ask the person before overwriting page text. Organiser only.</p>
+<p>Change an event’s page text and settings, including overall_prizes for 1st/2nd/3rd. Sends only the fields you set, so omit anything that should stay as it is. Does not change the stage; use hack_set_event_stage for that. Ask the person before overwriting page text. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1363,6 +1363,12 @@
 <td>string</td>
 <td></td>
 <td>Public event organiser name. Membership uses the account name; if empty, this fills it once.</td>
+</tr>
+<tr>
+<td>overall_prizes</td>
+<td>array of string</td>
+<td></td>
+<td>Up to three prizes by place: index 0 = 1st, 1 = 2nd, 2 = 3rd. Each is one trimmed line, up to 60 characters. Empty skips a place; trailing empty strings are trimmed. [] clears.</td>
 </tr>
 <tr>
 <td>prizes</td>
@@ -3659,7 +3665,7 @@
 </table>
 <h2 id="hack_get_public_event">hack_get_public_event</h2>
 <div data-tool="hack_get_public_event"></div>
-<p>Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.</p>
+<p>Read the credentialless public event feed, including overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>

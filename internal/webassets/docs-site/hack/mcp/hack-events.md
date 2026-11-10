@@ -49,7 +49,7 @@ Create a draft event for this person, who becomes its organiser. Ask them first.
 
 <div data-tool="hack_get_event"></div>
 
-Read one event: its page, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. "Kickoff is now. Open sign-up?"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.
+Read one event: its page, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. "Kickoff is now. Open sign-up?"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.
 
 **Parameters:**
 
@@ -61,7 +61,7 @@ Read one event: its page, stage, settings and membership checklist. Use checklis
 
 <div data-tool="hack_update_event"></div>
 
-Change an event's page text and settings. Sends only the fields you set, so omit anything that should stay as it is. Does not change the stage; use hack_set_event_stage for that. Ask the person before overwriting page text. Organiser only.
+Change an event's page text and settings, including overall_prizes for 1st/2nd/3rd. Sends only the fields you set, so omit anything that should stay as it is. Does not change the stage; use hack_set_event_stage for that. Ask the person before overwriting page text. Organiser only.
 
 **Parameters:**
 
@@ -78,6 +78,7 @@ Change an event's page text and settings. Sends only the fields you set, so omit
 | judging_ends_at | string |  | When judging closes, in the event time zone. Empty clears it. Judges with unscored teams are reminded before this time, once set; with no judging_ends_at they get no reminder. |
 | organisation | string |  | The organiser's company, college or community, if they have one. Empty clears it; leave this out rather than sending a placeholder. |
 | organiser_name | string |  | Public event organiser name. Membership uses the account name; if empty, this fills it once. |
+| overall_prizes | array of string |  | Up to three prizes by place: index 0 = 1st, 1 = 2nd, 2 = 3rd. Each is one trimmed line, up to 60 characters. Empty skips a place; trailing empty strings are trimmed. [] clears. |
 | prizes | string |  | Prizes text. Empty clears it. |
 | purpose | string |  | What the event is for. |
 | rules | string |  | Rules text. Empty clears it. |
@@ -1148,7 +1149,7 @@ Remove the uploaded event icon and restore its generated initial icon. Ask the o
 
 <div data-tool="hack_get_public_event"></div>
 
-Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.
+Read the credentialless public event feed, including overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.
 
 **Parameters:**
 

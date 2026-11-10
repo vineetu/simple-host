@@ -1098,9 +1098,9 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 	if !res.FullRanking {
 		winners := make([]map[string]any, 0, 1)
 		for _, row := range rows {
-			_, global := row["rank"].(float64)
-			if (global && row["rank"].(float64) == 1) || row["track_winner"] == true {
-				item := map[string]any{"team_id": row["team_id"], "team_name": row["team_name"], "track": row["track"], "track_winner": row["track_winner"], "deciding_mode": row["deciding_mode"]}
+			rank, _ := row["rank"].(float64)
+			if shownInWinnersOnly(int(rank), row["track_winner"] == true, ev.OverallPrizes) {
+				item := map[string]any{"team_id": row["team_id"], "team_name": row["team_name"], "track": row["track"], "track_winner": row["track_winner"], "deciding_mode": row["deciding_mode"], "overall_prize": overallPrizeLabel(int(rank), ev.OverallPrizes)}
 				if ev.PublicScores {
 					item["total"] = row["total"]
 					item["raw_total"] = row["raw_total"]
@@ -1129,6 +1129,8 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 			"team_id": row["team_id"], "team_name": row["team_name"],
 			"track": row["track"], "track_winner": row["track_winner"], "deciding_mode": row["deciding_mode"],
 		}
+		rank, _ := row["rank"].(float64)
+		item["overall_prize"] = overallPrizeLabel(int(rank), ev.OverallPrizes)
 		if ev.PublicRanks {
 			item["rank"] = row["rank"]
 			item["track_rank"] = row["track_rank"]
@@ -1203,7 +1205,7 @@ func (h *HackHandler) getMyResults(w http.ResponseWriter, r *http.Request) {
 	// shownPublicly and entry (build-plan §9 point 5, participant-results.js
 	// "Your entry as the public sees it"): the same visibility the public
 	// page and /results already apply -- full ranking shows every ranked
-	// row, winners-only shows only rank 1 or a track winner, and an
+	// row, winners-only shows rank 1, places with a prize, or a track winner, and an
 	// unranked (unscored or excluded) team is never shown either way. The
 	// team always sees its own rank/score above regardless; this flag is
 	// only about what a STRANGER sees, so the screen can say so plainly.
@@ -1211,7 +1213,7 @@ func (h *HackHandler) getMyResults(w http.ResponseWriter, r *http.Request) {
 	if mine != nil && mine["rank"] != nil {
 		rank, _ := mine["rank"].(float64)
 		trackWinner, _ := mine["track_winner"].(bool)
-		shownPublicly = res.FullRanking || rank == 1 || trackWinner
+		shownPublicly = res.FullRanking || shownInWinnersOnly(int(rank), trackWinner, a.event.OverallPrizes)
 	}
 	out["shown_publicly"] = shownPublicly
 	if shownPublicly && mine != nil {

@@ -81,14 +81,15 @@ type hackTrackView struct{ Name, Challenge, Prize string }
 // hackResultsRow is one row the public page shows: winners-only has just the
 // rank-1 team(s), a full ranking has every ranked team.
 type hackResultsRow struct {
-	TeamID      string
-	URL         string
-	Rank        int
-	TeamName    string
-	Tied        bool
-	TrackName   string
-	TrackPrize  string
-	TrackWinner bool
+	TeamID       string
+	URL          string
+	Rank         int
+	TeamName     string
+	Tied         bool
+	TrackName    string
+	TrackPrize   string
+	TrackWinner  bool
+	OverallPrize string
 	// Overall is true for the rank-1 team(s), independent of whether ranks
 	// are shown publicly (publicRanks zeroes Rank, not this). A row can be
 	// both Overall and a TrackWinner: markTrackWinners makes the top-of-the-

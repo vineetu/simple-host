@@ -1184,7 +1184,8 @@
           "label": "About",
           "url": "?s=event-page&tab=about",
           "holds": [
-            "edit-event-page-text (about, prizes, rules, code-of-conduct additions)"
+            "edit-event-page-text (about, prizes, rules, code-of-conduct additions)",
+            "overall-prizes"
           ],
           "save": "form: one Save, sticky foot",
           "empty": "fields simply empty; the help under About says it is the first thing visitors read"
@@ -1288,7 +1289,7 @@
         {
           "name": "About",
           "contents": [
-            "About (up to 10000, counter), Prizes (optional, 5000), Rules (optional, 10000)",
+            "About (up to 10000, counter), Prizes (optional, 5000), then Prize for 1st / 2nd / 3rd (three optional short inputs, 60 characters each), Rules (optional, 10000)",
             "Code of conduct group: a fold 'Read the standard code, which every event shows first', then 'Your additions' (optional, 10000) -- help: 'Shown after the standard code on the join page.'",
             "The foot is sticky (.card-foot.sticky) so Save stays in reach in a long form; on a phone it is pinned to the bottom of the screen"
           ],
@@ -1685,6 +1686,7 @@
         }
       ],
       "features": [
+        "overall-prizes",
         "edit-event-page-text",
         "set-event-dates-and-timezone",
         "set-event-theme",
@@ -7140,12 +7142,12 @@
         {
           "name": "results, winners only",
           "when": "results published, winners only",
-          "shows": "A 'Winners' section replaces the stage card: each winner (overall and track winners) is a result card -- avatar, team name, team and track, its pill -- with the screenshot or letter mark beside the summary card lines (problem, solution, for, tools and AI, works today) and Open website / Watch video · <host> (and Code · <host> when the event asks for code). Team names link to their sites."
+          "shows": "A 'Winners' section replaces the stage card: each winner (rank 1, places with an overall prize, and track winners) is a result card -- avatar, team name, team and track, its pill -- with the screenshot or letter mark beside the summary card lines (problem, solution, for, tools and AI, works today) and Open website / Watch video · <host> (and Code · <host> when the event asks for code). Team names link to their sites."
         },
         {
           "name": "results, full ranking",
           "when": "results published, full ranking",
-          "shows": "A 'Results' list replaces the stage card: every ranked team in order with Tied and track-winner pills and scores when public. Winners show their result card open; every other team is a closed row that opens to the same card. Unscored and unsubmitted teams never appear."
+          "shows": "A 'Results' list replaces the stage card: every ranked team in order with Tied and track-winner pills and scores when public. An overall prize appears as an accent place and prize pill (1st · $300), even with ranks hidden. Winners and places with prizes show their result card open; every other team is a closed row that opens to the same card. Unscored and unsubmitted teams never appear."
         },
         {
           "name": "ended",

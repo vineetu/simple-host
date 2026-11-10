@@ -19,3 +19,5 @@ Choose **Organisers who also judge** in Settings → Judging and save with the a
 Account → **Connected AI apps** lists your connections and lets you disconnect each one. Open **Connect another app** for setup steps, including **Other AI apps**. With no connections, **Connect an AI app** opens automatically.
 
 Home offers **Close entries** even without an entry deadline.
+
+In **Event page → About → Prizes**, set optional **Prize for 1st / 2nd / 3rd** values to show the place and prize on winner cards. Places with prizes appear in winners-only results, including when ranks are hidden.

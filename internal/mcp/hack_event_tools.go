@@ -91,7 +91,7 @@ func hackBaseEventTools() []Tool {
 			OutputSchema: schemas.event,
 			Name:         "hack_get_event",
 			Title:        "Get an event",
-			Description:  "Read one event: its page, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
+			Description:  "Read one event: its page, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
 			InputSchema:  object(map[string]any{"slug": str("The event name.")}, "slug"),
 			Annotations:  writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -111,7 +111,7 @@ func hackBaseEventTools() []Tool {
 			OutputSchema: schemas.event,
 			Name:         "hack_update_event",
 			Title:        "Update an event",
-			Description: "Change an event's page text and settings. Sends only the fields you set, so omit anything that should stay as it is. " +
+			Description: "Change an event's page text and settings, including overall_prizes for 1st/2nd/3rd. Sends only the fields you set, so omit anything that should stay as it is. " +
 				"Does not change the stage; use hack_set_event_stage for that. Ask the person before overwriting page text. Organiser only.",
 			InputSchema: object(map[string]any{
 				"slug":                str("The event name."),
@@ -120,6 +120,7 @@ func hackBaseEventTools() []Tool {
 				"about":               str("About text. Empty clears it."),
 				"rules":               str("Rules text. Empty clears it."),
 				"prizes":              str("Prizes text. Empty clears it."),
+				"overall_prizes":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Up to three prizes by place: index 0 = 1st, 1 = 2nd, 2 = 3rd. Each is one trimmed line, up to 60 characters. Empty skips a place; trailing empty strings are trimmed. [] clears."},
 				"coc_text":            str("The organiser's own code of conduct, added to the default. Empty clears it."),
 				"time_zone":           str("IANA time zone. Empty means UTC."),
 				"starts_at":           str("New start. A date means midnight in the event's time zone."),
@@ -274,6 +275,9 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 			body[key] = n
 		}
 	}
+	if raw, present := args["overall_prizes"]; present {
+		body["overall_prizes"] = raw
+	}
 	if raw, present := args["entry_required"]; present {
 		list, ok := raw.([]any)
 		if !ok {
@@ -322,6 +326,7 @@ type hackEventView struct {
 		About         string   `json:"about"`
 		Rules         string   `json:"rules"`
 		Prizes        string   `json:"prizes"`
+		OverallPrizes []string `json:"overall_prizes"`
 		CocText       string   `json:"coc_text"`
 		Theme         string   `json:"theme"`
 		Stage         string   `json:"stage"`
@@ -385,6 +390,7 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 		"about":           view.Event.About,
 		"rules":           view.Event.Rules,
 		"prizes":          view.Event.Prizes,
+		"overall_prizes":  append([]string{}, view.Event.OverallPrizes...),
 		"coc_text":        view.Event.CocText,
 		"theme":           view.Event.Theme,
 		"stage":           view.Event.Stage,
@@ -598,7 +604,7 @@ func hackWebEventTools() []Tool {
 		},
 		{
 			Name: "hack_get_public_event", Title: "Read public event data",
-			Description: "Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.",
+			Description: "Read the credentialless public event feed, including overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.",
 			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: hackPublicReadOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/public")
@@ -664,6 +670,7 @@ func hackEventSchemas() hackEventSchemaSet {
 		"about":           outString("About text. Empty when unset."),
 		"rules":           outString("Rules text. Empty when unset."),
 		"prizes":          outString("Prizes text. Empty when unset."),
+		"overall_prizes":  map[string]any{"type": "array", "items": outString("Prize for this place."), "description": "Prizes for 1st, 2nd, 3rd by index. Always an array."},
 		"coc_text":        outString("The organiser's own code of conduct. Empty when unset."),
 		"theme":           outString("Page style for the public event page: poster, confetti, boardroom, garden, terminal, or empty for the classic look. The organiser's accent_color still drives buttons and links under every style."),
 		"stage":           outString("draft, open, building, closed, judging, results or archived."),
@@ -712,7 +719,7 @@ func hackEventSchemas() hackEventSchemaSet {
 				"on_no_team":   outInteger("Participants who have not joined a team."),
 			}, "participants", "teams", "judges", "on_no_team"),
 		}, "organiser_name", "organisation", "contact_email", "purpose", "expected_participants", "join_code", "join_url", "judge_code", "judge_url", "counts"), "Present only when this person is the organiser."),
-	}, "slug", "title", "tagline", "about", "rules", "prizes", "coc_text", "theme", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
+	}, "slug", "title", "tagline", "about", "rules", "prizes", "overall_prizes", "coc_text", "theme", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
 	listItem := outObject(map[string]any{
 		"slug":       outString("The event name."),
 		"title":      outString("The event title."),
