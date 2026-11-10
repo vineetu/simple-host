@@ -93,9 +93,11 @@ p{margin:0 0 10px}
 .status .grow{flex:1}
 .content{overflow-y:auto;flex:1}
 /* SIM-415: content layout follows the space it has, not the window. The
-   scroll area (and inside it a sub-page column, .sp) is the container; body
-   is the fallback for frames that have no .content (the MCP app views). */
-body,.content{container:page / inline-size}
+   app's scroll area (and inside it a sub-page column, .sp) is the container;
+   public pages (.pub), dialogs (.scrim) and the MCP app frames (main.page
+   straight under body) are their own. Never body or html: a container there
+   stops the page background reaching the canvas. */
+.content,.pub,.scrim,body > main.page{container:page / inline-size}
 .page{max-width:1040px;padding:22px 28px 64px}
 .page.wide{max-width:none}
 .page.narrow{max-width:760px}
@@ -235,6 +237,7 @@ details.card[open]>summary{margin-bottom:6px}
 .list a.r:hover{background:var(--paper-hi)}
 .list .r .main{flex:1;min-width:0}
 .r-end{display:flex;flex-wrap:wrap;align-items:inherit;column-gap:12px;row-gap:8px;flex:0 1 auto;min-width:0}
+.r-end > .btn{max-width:100%;white-space:normal;overflow-wrap:break-word}
 .list .r .main b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .list .r .main .msg-text{white-space:pre-wrap;overflow:visible;overflow-wrap:anywhere}
 .list .r .main span{font-size:13px;color:var(--line-soft)}

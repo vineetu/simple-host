@@ -92,6 +92,8 @@ func TestServeHackNavigationBrowser(t *testing.T) {
 		w.Write([]byte(`{"providers":[],"email_enabled":false}`))
 	})
 	RegisterHackUI(a.mux, navigationBrowserPages{}, "simple-hack.test")
+	// The public event page, for scripts/e2e-hack-reflow.mjs (SIM-415). No team sites here.
+	RegisterHackPublic(a.mux, a.database, a.srv.URL, func(string, string) string { return "" }, func(string) bool { return false }, testHackPages)
 	assets, _ := fs.Sub(webassets.Static, "static")
 	a.mux.Handle("GET /", http.FileServer(http.FS(assets)))
 	stop := make(chan struct{})

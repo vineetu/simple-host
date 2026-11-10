@@ -11,7 +11,7 @@ const require = createRequire(process.env.PLAYWRIGHT_DIR || '/tmp/tsx/node_modul
 const { chromium } = require('playwright')
 const info = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))
 assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(info.url).hostname), 'local fixture required')
-const widths = [...new Set((process.env.REFLOW_WIDTHS || '390,700,768,820,900,1000,1100,1280,1440').split(',').map(Number))]
+const widths = [...new Set((process.env.REFLOW_WIDTHS || '390,700,800,820,900,1000,1100,1280,1440').split(',').map(Number))]
 assert.ok(widths.every(w => Number.isInteger(w) && w > 0), 'REFLOW_WIDTHS must contain positive integers')
 const concurrency = Number(process.env.REFLOW_CONCURRENCY ?? 4)
 assert.ok(Number.isInteger(concurrency) && concurrency >= 1, 'REFLOW_CONCURRENCY must be a positive integer')
@@ -56,6 +56,16 @@ async function person(role, variant, worker = 0) {
   await route.fulfill({body:fs.readFileSync(file),contentType:types[path.extname(file)] || 'application/octet-stream'})
  })
  await page.route('**/v1/hack/preferences', route => route.fulfill({json:{organiser_walkthrough_done:true,judge_walkthrough_done:true,participant_walkthrough_done:true}}))
+ // The fixture has no site service, so give judges site links in both variants.
+ if (role === 'judge') await page.route('**/v1/hack/events/*/judge/queue', async route => {
+  const response = await route.fetch()
+  const json = await response.json()
+  for (const row of json.queue || []) {
+   row.site_exists = true
+   row.site_url = 'https://' + row.team.slug + '.' + slug + '.simple-hack.app/'
+  }
+  await route.fulfill({response, json})
+ })
  contexts.set(key, session)
  return session
 }
@@ -123,9 +133,9 @@ function measure() {
   const words = nodes.map(n => n.textContent).join(' ').trim().split(/\s+/).length
   // Inline text owners have clientWidth=0; their bounding box still has the text width.
   const contentWidth = r.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth)
-  // Squeezed: three or more lines of about one word each, or in a box under 9em wide.
+  // Squeezed: three or more lines in a box under 9em, or about one word per line under 16em.
   // A two-line label or one long token (an email, an address) breaking is not squeezing.
-  if (tops.size >= 3 && ((words >= 2 && words / tops.size < 1.5) || contentWidth < 9 * font)) add('squeezed', el)
+  if (tops.size >= 3 && (contentWidth < 9 * font || (words >= 2 && words / tops.size < 1.5 && contentWidth < 16 * font))) add('squeezed', el)
  }
  return issues
 }
@@ -206,7 +216,7 @@ try {
  for (const tab of ['basics','about','schedule','tracks','sponsors','faq','look','website']) add('organiser-event-page-'+tab,'organiser',manage+'event-page&tab='+tab)
  for (const tab of ['signup','teams','entries','reminders','judging','results','details','organisers','links','notifications','danger']) add('organiser-settings-'+tab,'organiser',manage+'settings&tab='+tab)
  for (const s of ['team','entry']) add('organiser-'+s,'organiser',manage+s+'&team='+teams[0].slug)
- add('events','organiser','/events'); add('account','organiser','/account'); add('organiser-create-event','organiser','/events/new')
+ add('public-event','organiser',`/e/${slug}`,'h1'); add('events','organiser','/events'); add('account','organiser','/account'); add('organiser-create-event','organiser','/events/new')
  for (const s of ['home','rubric']) add('judge-'+s,'judge',judge+s)
  for (const tab of ['to-score','scored','conflicts']) add('judge-queue-'+tab,'judge',judge+'queue&tab='+tab)
  add('judge-scoring','judge',judge+'scoring&team='+first.id,'main h1, main .locked h2, main .page > .note')

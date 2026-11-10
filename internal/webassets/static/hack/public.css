@@ -17,11 +17,9 @@
 }
 .site-card .site-frame{aspect-ratio:16/9}
 
-/* "On this page" chips ran off the right edge on desktop instead of
-   wrapping (audit item 3). */
-@media (min-width:761px){
-  .chips{flex-wrap:wrap;overflow:visible}
-}
+/* "On this page" chips wrap at every width; on a phone they used to run off
+   the right edge with no sign of more (audit item 3, SIM-415). */
+.chips{flex-wrap:wrap;overflow:visible}
 
 /* People's choice CTA: kit.css's .btn-block is full width everywhere, which
    reads as an oversized bar once it is not inside the stage card's own
