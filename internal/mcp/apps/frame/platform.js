@@ -32,7 +32,7 @@ export function judgeJoined(slug) {
   window.__hackJudgeJoined(slug)
 }
 
-// public-judge.js's accept form and organiser-judging.js's unlock/conflict
+// public-judge.js's accept form and organiser-judging.js's conflict
 // forms: a sandboxed frame with no allow-forms blocks native form
 // submission before it ever reaches a listener -- confirmed live, not by
 // reasoning about the sandbox spec, when "accept the invite" hung with

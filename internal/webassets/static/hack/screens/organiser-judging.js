@@ -7,7 +7,7 @@ export function title() { return 'Judging' }
 // Features on this screen: define-rubric, confirm-score-deletion-on-rubric-change,
 // reorder-rubric-criteria, choose-tie-criterion, choose-judge-assignment-mode,
 // set-judges-per-team, declare-conflict-organiser,
-// remove-conflict-organiser, lock-judging, unlock-judging, view-judging-dashboard.
+// remove-conflict-organiser, view-judging-dashboard.
 export async function render(ctx) {
   const { main, ui } = ctx
   const client = ctx.api
@@ -18,7 +18,7 @@ export async function render(ctx) {
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
 
-  let locked = !!ev.judging_locked_at
+  const locked = !!ev.judging_locked_at
   // A platform-admin inspection, a taken-down event or an ended event blocks
   // every write here too, on top of (never instead of) the judging-lock and
   // stage rules below — the same ui.writeLockReason() every other screen
@@ -28,15 +28,6 @@ export async function render(ctx) {
   const archived = ev.stage === 'archived'
   const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)
   const beforeClosed = () => !['closed', 'judging', 'results', 'archived'].includes(ev.stage)
-  // Layout: before judging starts, the rubric is still being written, so
-  // setup comes first (organiser-judging~setup.html); its own Save rubric
-  // button lives under the rubric card, not repeated in the header. Once
-  // judging opens or is locked, progress/conflicts lead and setup collapses
-  // out of the way (organiser-judging.html / ~locked.html). Decided once
-  // per page load — the stage doesn't change on this screen, only `locked`
-  // does.
-  const setupFirst = ['draft', 'open', 'building', 'closed'].includes(ev.stage) && !locked
-
   let rubric = []
   let settings = { assignment_mode: 'open', judges_per_team: 2, score_mode: 'raw', tie_criterion_id: '', public_scores: false, public_ranks: false }
   let conflicts = []
@@ -66,100 +57,17 @@ export async function render(ctx) {
   const restBlock = `
 <section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading…</p></section>
 <section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading…</p></section>
-${archived ? '' : '<section class="card" id="jg-lockzone"></section>'}`
+`
 
   const canJudge = canScoreAsJudge(ctx.event)
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
-<span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc('/e/' + encodeURIComponent(slug) + '/judge?s=home')}">Score as a judge</a>` : ''}</div>
+${canJudge ? `<a class="btn" href="${ui.esc('/e/' + encodeURIComponent(slug) + '/judge?s=home')}">Score as a judge</a>` : ''}</div>
 ${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : ''}
 <p><a href="${ui.esc(href('organiser', slug, 'settings') + '&tab=judging')}">Judging settings</a></p>
 <section class="card"><h2>Assignments</h2><div class="form-actions"><a class="btn" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div></section>
 ${restBlock}
-<p id="jg-results-link" hidden><a href="${ui.esc(href('organiser', slug, 'results'))}">Review and publish on Results</a></p>`
-
-  function paintTopAction() {
-    const slot = $('jg-top-action')
-    slot.textContent = ''
-    $('jg-results-link').hidden = !locked
-    if (locked) {
-      const a = ui.el('a', { class: archived ? 'btn' : 'btn primary', href: href('organiser', slug, 'results'), text: 'Go to Results' })
-      slot.appendChild(a)
-    } else if (adminLockReason) {
-      // Nothing writable to offer here while admin-viewing or on a
-      // taken-down/ended event — the rubric/lock cards below explain why.
-    } else if (setupFirst) {
-      // Finding #9 (prod full test, round 7): this used to repeat the
-      // rubric card's own "Save rubric" button up here too -- two buttons
-      // with the same label on one screen, different sizes. The card's
-      // button (right under the fields it saves) is the one that stays.
-    } else {
-      const b = ui.el('button', { class: 'btn primary', type: 'button', text: 'Lock judging' })
-      b.addEventListener('click', doLock)
-      slot.appendChild(b)
-    }
-  }
-
-  function paintLockZone() {
-    const zone = $('jg-lockzone')
-    if (!zone) return
-    zone.textContent = ''
-    if (!locked) {
-      zone.appendChild(ui.el('h2', { text: 'Lock judging' }))
-      zone.appendChild(ui.el('p', { class: 'sub', text: 'Locking stops every rubric, assignment or score change until you unlock.' }))
-    } else {
-      zone.appendChild(ui.el('h2', { text: 'Judging is locked' }))
-      zone.appendChild(ui.el('p', { class: 'sub', text: 'Unlocking is logged against your account. Why does scoring need to reopen?' }))
-      const form = ui.el('form')
-      const field = ui.el('div', { class: 'field' })
-      const label = ui.el('label', { text: 'Reason' })
-      const textarea = ui.el('textarea', { 'data-help': 'lock', class: 'input', required: '', maxlength: '300' })
-      textarea.disabled = !!adminLockReason
-      label.appendChild(textarea)
-      field.appendChild(label)
-      form.appendChild(field)
-      const go = ui.el('button', { class: 'btn', type: 'submit', text: 'Unlock' })
-      go.disabled = !!adminLockReason
-      const actions = ui.el('div', { class: 'form-actions' })
-      actions.appendChild(go)
-      form.appendChild(actions)
-      onSubmit(form, go, e => { e.preventDefault(); doUnlock(textarea.value, go) })
-      zone.appendChild(form)
-      ui.trackForm(ctx, form)
-    }
-  }
-
-  async function doLock() {
-    const ok = await ui.confirm({ title: 'Lock judging now?', body: "No judge can change a score, and you can't change the rubric or assignments, until you unlock.", confirmLabel: 'Lock judging', danger: true })
-    if (!ok) return
-    let r
-    try { r = await api('POST', base + '/judging/lock', {}) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err'); return }
-    if (!r.ok) { setLive(ui.errText(r), 'err'); return }
-    locked = true
-    ev.judging_locked_at = (r.data && r.data.locked_at) || new Date().toISOString()
-    paintTopAction(); paintLockZone(); paintConflicts()
-    // Repaint Progress too: a former judge's Delete scores button (and any
-    // real judge's own row) needs to show as locked right away, not only
-    // after the next unrelated reload.
-    await reloadDashboard()
-    setLive('Judging locked', 'ok')
-  }
-
-  async function doUnlock(reason, btn) {
-    reason = String(reason || '').trim()
-    if (!reason) { setLive('Enter a reason.', 'err', btn); return }
-    btn.disabled = true
-    let r
-    try { r = await api('POST', base + '/judging/unlock', { reason }) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
-    if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
-    locked = false
-    ev.judging_locked_at = null
-    paintTopAction(); paintLockZone(); paintConflicts()
-    await reloadDashboard()
-    setLive('Judging unlocked', 'ok')
-  }
+${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href('organiser', slug, 'home'))}">Home</a> when ready.</p>` : ''}`
 
   function paintConflicts() {
     const card = $('jg-conflicts-card')
@@ -315,7 +223,7 @@ ${restBlock}
       const del = ui.el('button', { class: 'btn quiet sm', type: 'button', text: 'Delete scores' })
       if (locked || adminLockReason) {
         del.disabled = true
-        if (locked && !adminLockReason) del.title = 'Unlock judging to change scores.'
+        if (locked && !adminLockReason) del.title = 'Move the event back to Judging to change scores.'
       }
       del.addEventListener('click', () => deleteFormerJudge(f, del))
       row.appendChild(del)
@@ -368,8 +276,6 @@ ${restBlock}
 
 
   // --- initial load ---------------------------------------------------
-  paintTopAction()
-  paintLockZone()
 
   let rubricR, settingsR, conflictsR, peopleR, teamsR, assignR
   try {

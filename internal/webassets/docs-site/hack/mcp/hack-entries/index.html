@@ -670,12 +670,6 @@
 		<a href="#hack_delete_former_judge_scores" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_delete_former_judge_scores</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#hack_lock_judging" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_lock_judging</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#hack_unlock_judging" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_unlock_judging</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#hack_publish_results" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_publish_results</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -828,12 +822,6 @@
 		<a href="#hack_delete_former_judge_scores" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_delete_former_judge_scores</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#hack_lock_judging" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_lock_judging</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#hack_unlock_judging" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_unlock_judging</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#hack_publish_results" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">hack_publish_results</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -894,7 +882,7 @@
 </table>
 <h2 id="hack_set_rubric">hack_set_rubric</h2>
 <div data-tool="hack_set_rubric"></div>
-<p>Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
+<p>Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused at Results; move back to Judging to reopen scoring. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1922,7 +1910,7 @@
 </table>
 <h2 id="hack_delete_former_judge_scores">hack_delete_former_judge_scores</h2>
 <div data-tool="hack_delete_former_judge_scores"></div>
-<p>Delete the scores and comments of a judge who left the event, so they stop counting. user_id from former_judges in hack_get_judging_dashboard. confirm is the event’s address name, sent only after the person agreed. Refused while judging is locked. Published results change only when results are published again. Ask first. Organiser only.</p>
+<p>Delete the scores and comments of a judge who left the event, so they stop counting. user_id from former_judges in hack_get_judging_dashboard. confirm is the event’s address name, sent only after the person agreed. Refused at Results; move back to Judging to reopen scoring. Published results change only when results are published again. Ask first. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1951,56 +1939,6 @@
 <td>string</td>
 <td>yes</td>
 <td>REST path parameter: user_id.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="hack_lock_judging">hack_lock_judging</h2>
-<div data-tool="hack_lock_judging"></div>
-<p>Freeze scores and comments. Ask first. Organiser only.</p>
-<p><strong>Parameters:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Type</th>
-<th>Required</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>slug</td>
-<td>string</td>
-<td>yes</td>
-<td>REST path parameter: slug.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="hack_unlock_judging">hack_unlock_judging</h2>
-<div data-tool="hack_unlock_judging"></div>
-<p>Reopen scoring with body.reason. Ask first. Organiser only.</p>
-<p><strong>Parameters:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Type</th>
-<th>Required</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>body</td>
-<td>object</td>
-<td>yes</td>
-<td>reason explaining why scoring is reopened. The REST route validates each field and returns its own errors.</td>
-</tr>
-<tr>
-<td>slug</td>
-<td>string</td>
-<td>yes</td>
-<td>REST path parameter: slug.</td>
 </tr>
 </tbody>
 </table>

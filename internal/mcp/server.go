@@ -882,6 +882,13 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		intent = inner
 	}
 	if !known {
+		if params.Name == "hack_lock_judging" || params.Name == "hack_unlock_judging" {
+			message := "Judging locks when you finish judging (move to Results) and unlocks when you move the event back. [judging_lock_removed]"
+			if wrapped {
+				record(codedError("judging_lock_removed", message))
+			}
+			return toolResult(req.ID, message, nil, true, modern)
+		}
 		if s.fixed == nil && retiredSavedDataTool(params.Name) {
 			message := params.Name + " is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code)."
 			if wrapped {

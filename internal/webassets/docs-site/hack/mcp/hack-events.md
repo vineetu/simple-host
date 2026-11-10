@@ -95,7 +95,7 @@ Change an event's page text and settings. Sends only the fields you set, so omit
 
 <div data-tool="hack_set_event_stage"></div>
 
-Set an event's stage: draft, open, building, closed, judging, results or archived. Moving to Judging locks the judging setup and, in Automatic mode, assigns judges. Ask the person first. closed, judging and results close entries. results also locks judging. archived ends the event and cannot be undone. Organiser only. After a successful change, offer a short announcement through hack_post_announcement describing the move, which the person can edit or skip entirely, and only email participants if they ask for that. For archived, offer and post it before you archive, not after: an ended event takes no announcements.
+Set an event's stage: draft, open, building, closed, judging, results or archived. Moving to Judging locks the judging setup and, in Automatic mode, assigns judges. Ask the person first. closed, judging and results close entries. results locks judging; moving back to judging reopens scoring. archived ends the event and cannot be undone. Organiser only. After a successful change, offer a short announcement through hack_post_announcement describing the move, which the person can edit or skip entirely, and only email participants if they ask for that. For archived, offer and post it before you archive, not after: an ended event takes no announcements.
 
 **Parameters:**
 

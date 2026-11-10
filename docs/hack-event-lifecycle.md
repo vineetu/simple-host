@@ -59,7 +59,7 @@ the slug confirmed, their other choice. Nobody can leave once the event has ende
 
 Moving the event's stage to `results` also locks judging in the same transaction, when it is
 not locked already, so a stage move is enough to make Results ready to publish. Moving back to
-`judging` leaves the lock on. The organiser Overview shows one button for the forward move the
+`judging` reopens scoring. Website stage changes and publishing, including final tie order, happen only from Home. The organiser Overview shows one button for the forward move the
 current stage offers (`next_step` on the organiser event view), and Change stage stays
 available in the header for moving back a stage. Participants and judges see the same stage
 pill and words as organisers, and the same stage track on their own home screen, with judges

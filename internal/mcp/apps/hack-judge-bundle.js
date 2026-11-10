@@ -1086,7 +1086,7 @@
     const queue = queueRes.data.queue || [];
     const conflicts = confRes.data.conflicts || [];
     const locked = !!ev.judging_locked_at;
-    const resultsOut = !!ev.results_published;
+    const resultsOut = !!ev.results_published && !ev.scoring_open;
     if (!ev.scoring_open && !locked && !resultsOut) {
       main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href("judge", slug, "home"))}">Back to Overview</a></p></section>`;
       return;
@@ -1299,7 +1299,7 @@
       main.innerHTML = `<div class="page"><div class="note">The organiser has not set a rubric yet.</div><p><a href="${ui.esc(href("judge", slug, "queue"))}">Back to My teams</a></p></div>`;
       return;
     }
-    const resultsOut = !!ev.results_published;
+    const resultsOut = !!ev.results_published && !ev.scoring_open;
     if (!ev.scoring_open && !ev.judging_locked_at && !resultsOut) {
       main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href("judge", slug, "queue"))}">Back to My teams</a></p></section></div>`;
       return;

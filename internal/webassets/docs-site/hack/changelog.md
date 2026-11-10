@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 9:** Simple Hack: judging locks follow the stage; stage changes and publishing, including tie order and republishing, live on Home.
+
 - **Nov 9:** Simple Hack organisers opt in to judging under Settings → Judging. One judge list drives assignments, scoring and counts; existing scored organisers stay selected. Checklist buttons reach their fixes, information has no button, and starting Judging confirms mode, target, judge names and coverage with links.
 
 - **Nov 9:** Simple Hack scoring opens at Judging, which locks judging setup and assigns judges in Automatic mode; returning to Entries closed pauses scoring and unlocks setup.

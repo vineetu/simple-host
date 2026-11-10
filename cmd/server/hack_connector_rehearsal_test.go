@@ -76,7 +76,7 @@ func TestHackConnectorWholeEvent(t *testing.T) {
 	criterionID := rubric["criteria"].([]any)[0].(map[string]any)["id"].(string)
 	call("judge", "hack_score_team", map[string]any{"slug": slug, "team_id": teamID, "scores": []any{map[string]any{"criterion_id": criterionID, "points": 4}}, "comment": "Strong build"})
 	call("org", "hack_get_judging_dashboard", map[string]any{"slug": slug})
-	call("org", "hack_lock_judging", map[string]any{"slug": slug})
+	call("org", "hack_set_event_stage", map[string]any{"slug": slug, "stage": "results"})
 	if text, _, bad := toolResultOf(t, a.rpc(t, tokens["judge"], "tools/call", map[string]any{"name": "hack_score_team", "arguments": map[string]any{"slug": slug, "team_id": teamID, "scores": []any{map[string]any{"criterion_id": criterionID, "points": 5}}}})); !bad || !strings.Contains(text, "scores_locked") {
 		t.Fatalf("score after lock: %s", text)
 	}

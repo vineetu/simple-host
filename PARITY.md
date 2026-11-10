@@ -392,3 +392,5 @@ SSO Claude review and SIM-348, 2026-10-30: hosted `authorizeStateOrigin` trusted
 SIM-393 (2026-11-07): Hack role/stage checklist server, optional-item marks and rubric/conflict acknowledgements are in this repository (REST and MCP). Enterprise has no Hack product surface; not applicable there.
 
 2026-11-09 (SIM-419): Simple Hack organiser judging opt-in, canonical judge membership, actionable checklists and linked start-Judging setup confirmation are hosted-only. Enterprise has no hackathon platform; no port needed.
+
+2026-11-09: Hosted Hack judging locks follow stage; Home owns website stage changes and publishing, including ties and republishing. Hack-only; Enterprise has no hosted Hack workflow.

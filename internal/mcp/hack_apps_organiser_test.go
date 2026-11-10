@@ -563,8 +563,6 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		{"POST", "/v1/hack/events/{slug}/assignments/generate"},
 		{"GET", "/v1/hack/events/{slug}/judging/dashboard"},
 		{"DELETE", "/v1/hack/events/{slug}/judging/former-judges/{user_id}"},
-		{"POST", "/v1/hack/events/{slug}/judging/lock"},
-		{"POST", "/v1/hack/events/{slug}/judging/unlock"},
 	} {
 		record(p.method, p.pattern)
 	}
@@ -607,8 +605,6 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		{"hack_generate_assignments", map[string]any{"slug": "mockjam", "body": map[string]any{"include_organisers": false}}},
 		{"hack_get_judging_dashboard", map[string]any{"slug": "mockjam"}},
 		{"hack_delete_former_judge_scores", map[string]any{"slug": "mockjam", "user_id": "u1", "body": map[string]any{"confirm": "mockjam"}}},
-		{"hack_lock_judging", map[string]any{"slug": "mockjam"}},
-		{"hack_unlock_judging", map[string]any{"slug": "mockjam", "body": map[string]any{"reason": "testing"}}},
 		{"hack_update_event", map[string]any{"slug": "mockjam", "judging_ends_at": "2026-01-01T00:00:00Z"}},
 	}
 	wantPaths := []string{
@@ -623,8 +619,8 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		"POST /v1/hack/events/mockjam/conflicts", "DELETE /v1/hack/events/mockjam/conflicts/t1",
 		"GET /v1/hack/events/mockjam/teams", "GET /v1/hack/events/mockjam/assignments",
 		"POST /v1/hack/events/mockjam/assignments/generate", "GET /v1/hack/events/mockjam/judging/dashboard",
-		"DELETE /v1/hack/events/mockjam/judging/former-judges/u1", "POST /v1/hack/events/mockjam/judging/lock",
-		"POST /v1/hack/events/mockjam/judging/unlock", "PATCH /v1/hack/events/mockjam",
+		"DELETE /v1/hack/events/mockjam/judging/former-judges/u1",
+		"PATCH /v1/hack/events/mockjam",
 	}
 	for i, call := range calls {
 		c.policy = s.hackByName[call.tool].policy
@@ -678,7 +674,6 @@ func TestHackOrganiserViewRouteBodyKeysMatchToolSchema(t *testing.T) {
 	wrappedBodyTools := []string{
 		"hack_set_registration", "hack_decide_application", "hack_set_judging_settings",
 		"hack_set_judge_conflict", "hack_generate_assignments", "hack_delete_former_judge_scores",
-		"hack_unlock_judging",
 	}
 	for _, tool := range wrappedBodyTools {
 		schema, ok := s.hackByName[tool]

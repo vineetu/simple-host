@@ -1722,34 +1722,6 @@
     "feature": "judging-choices"
   },
   {
-    "id": "lock-judging",
-    "role": "organiser",
-    "area": "judging",
-    "name": "Lock judging",
-    "what": "Freezes the rubric, assignments, conflicts and every judge's scores; no further change without unlocking.",
-    "stages": "judging (or whenever organiser chooses)",
-    "today_location": "Manage > Judging > Lock",
-    "api": "POST /v1/hack/events/{slug}/judging/lock",
-    "mcp": "hack_lock_judging",
-    "frequency": "once",
-    "risk": "destructive",
-    "feature": "judging-choices"
-  },
-  {
-    "id": "unlock-judging",
-    "role": "organiser",
-    "area": "judging",
-    "name": "Unlock judging",
-    "what": "Reopens scoring; requires typing a reason, which is logged against the organiser's account.",
-    "stages": "any",
-    "today_location": "Manage > Judging > Lock (reason field)",
-    "api": "POST /v1/hack/events/{slug}/judging/unlock",
-    "mcp": "hack_unlock_judging",
-    "frequency": "rare",
-    "risk": "reversible",
-    "feature": "judging-choices"
-  },
-  {
     "id": "view-judging-dashboard",
     "role": "organiser",
     "area": "judging",

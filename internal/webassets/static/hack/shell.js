@@ -211,7 +211,7 @@ export function mount(ctx, section, screenId) {
   // Team (review #7: only while this person still has no team to find --
   // with a team, Team's own tour has nothing to point at), Home's own tour
   // everywhere else (organiser only ever has the one, on Overview).
-  const judgeScoringOpen = !!(event && event.scoring_open && !event.judging_locked_at && !event.results_published)
+  const judgeScoringOpen = !!(event && event.scoring_open && !event.judging_locked_at)
   const walkthroughSection = role === 'organiser' ? 'overview'
     : role === 'judge' ? (section === 'scoring' && judgeScoringOpen ? 'scoring' : 'home')
     : role === 'participant' ? (section === 'team' && !detail?.me?.team ? 'team' : 'home')

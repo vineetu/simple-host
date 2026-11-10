@@ -20,7 +20,7 @@
 // tour (judgeScoring) that opens on the scoring page itself. Same review
 // applied to the new participant tours.
 function judgeEvent(ctx) { return (ctx.event && ctx.event.event) || {} }
-function scoringOpen(ctx) { const ev = judgeEvent(ctx); return !!ev.scoring_open && !ev.judging_locked_at && !ev.results_published }
+function scoringOpen(ctx) { const ev = judgeEvent(ctx); return !!ev.scoring_open && !ev.judging_locked_at }
 function scoringNotYetOpen(ctx) { const ev = judgeEvent(ctx); return !ev.scoring_open && !ev.judging_locked_at && !ev.results_published }
 // Review #4: "Start here" rings judge-home's one hero button, which is
 // either "Score next" (more teams to score) or "Review my scores" (every
@@ -62,8 +62,8 @@ export const tours = {
       { target: '.nav a[href*="s=people"]', phone: '[data-menu]', title: 'People', body: 'Review applications and manage the people who signed up.' },
       { target: '.nav a[href*="s=teams"]', phone: '[data-menu]', title: 'Teams', body: 'Watch teams form and place people who are not on a team yet.' },
       { target: '.nav a[href*="s=entries"]', phone: '[data-menu]', title: 'Entries', body: 'Review entries and give one team more time.' },
-      { target: '.nav a[href*="s=judging"]', phone: '[data-menu]', title: 'Judging', body: 'Assign judges, watch progress, and lock judging when every score is in.' },
-      { target: '.nav a[href*="s=results"]', phone: '[data-menu]', title: 'Results', body: 'Preview the standings, resolve tied places, publish results and download exports.' },
+      { target: '.nav a[href*="s=judging"]', phone: '[data-menu]', title: 'Judging', body: 'Assign judges, watch progress, and finish judging from Home when every score is in.' },
+      { target: '.nav a[href*="s=results"]', phone: '[data-menu]', title: 'Results', body: 'Preview the standings, choose what the public page shows and download exports. Publish results from Home.' },
       { target: '[data-tour="help"]', phone: '[data-menu]', title: 'Any time', body: 'Open this walkthrough again from Help.' }
     ]
   },
@@ -85,7 +85,7 @@ export const tours = {
       // show once judging is locked or results are out -- at that point
       // the stage banner on Home already says so, and this tour has
       // nothing to add about scoring.
-      { target: '.status', when: scoringOpen, title: 'Is scoring open?', body: 'This tells you whether you can score. It stays open until the organiser locks judging.' },
+      { target: '.status', when: scoringOpen, title: 'Is scoring open?', body: 'This tells you whether you can score. It stays open until the organiser finishes judging.' },
       { target: '.status', when: scoringNotYetOpen, title: 'Is scoring open?', body: 'It opens when the organiser starts judging. This bar shows it.' },
       { target: '[data-tour="next"]', when: judgeHasNextTeam, title: 'Start here', body: 'Score next opens the next team you haven’t scored.' },
       { target: '[data-tour="next"]', when: judgeAllScored, title: 'Start here', body: 'Review my scores opens My teams, where you can change any score.' },

@@ -40,8 +40,8 @@ func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.Handler
 	mux.Handle("DELETE /v1/hack/events/{slug}/conflicts/{team_id}", wrap(h.deleteConflict))
 	mux.Handle("GET /v1/hack/events/{slug}/judging/dashboard", wrap(h.judgingDashboard))
 	mux.Handle("DELETE /v1/hack/events/{slug}/judging/former-judges/{user_id}", wrap(h.deleteFormerJudgeScores))
-	mux.Handle("POST /v1/hack/events/{slug}/judging/lock", wrap(h.lockJudging))
-	mux.Handle("POST /v1/hack/events/{slug}/judging/unlock", wrap(h.unlockJudging))
+	mux.Handle("POST /v1/hack/events/{slug}/judging/lock", wrap(h.judgingLockRemoved))
+	mux.Handle("POST /v1/hack/events/{slug}/judging/unlock", wrap(h.judgingLockRemoved))
 	mux.Handle("GET /v1/hack/events/{slug}/judge/queue", wrap(h.judgeQueue))
 	mux.Handle("GET /v1/hack/events/{slug}/judge/scores/{team}", wrap(h.getJudgeScores))
 	mux.Handle("PUT /v1/hack/events/{slug}/judge/scores/{team}", wrap(h.putJudgeScores))
@@ -64,7 +64,7 @@ func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.Handler
 // true (having already written the response) when locked.
 func writeIfJudgingLocked(w http.ResponseWriter, ev model.Event) bool {
 	if ev.JudgingLockedAt.Valid {
-		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first.")
+		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked because the event is at Results. Move the event back to Judging to change it.")
 		return true
 	}
 	return false
@@ -112,9 +112,9 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Locked wins over a body that would also fail validation: the organiser's
-	// next step is to unlock, not to repair the rubric.
+	// next step is to move back from Results, not to repair the rubric.
 	if a.event.JudgingLockedAt.Valid {
-		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first to change the rubric.")
+		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked because the event is at Results. Move the event back to Entries closed to change the rubric.")
 		return
 	}
 	var req struct {
@@ -622,53 +622,11 @@ func (h *HackHandler) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 
 // --- M3 pass 2: scoring, lock/unlock, publish, results, exports ----------
 
-func judgingLockJSON(ev model.Event, locked bool) map[string]any {
-	out := map[string]any{"locked": locked}
-	if locked && ev.JudgingLockedAt.Valid {
-		out["locked_at"] = rfc3339Time(ev.JudgingLockedAt.Time)
-	} else {
-		out["locked_at"] = nil
-	}
-	return out
-}
-
-func (h *HackHandler) lockJudging(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
-	if !ok {
+func (h *HackHandler) judgingLockRemoved(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser"); !ok {
 		return
 	}
-	ev, err := h.entries.SetJudgingLock(r.Context(), a.event.ID, true, "")
-	if err != nil {
-		log.Printf("hack: judging lock %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, judgingLockJSON(ev, true))
-}
-
-func (h *HackHandler) unlockJudging(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
-	if !ok {
-		return
-	}
-	var req struct {
-		Reason string `json:"reason"`
-	}
-	if !decodeHackJSON(w, r, &req) {
-		return
-	}
-	reason, ok := checkHackLine(w, req.Reason, "reason", 1, 300)
-	if !ok {
-		return
-	}
-	ev, err := h.entries.SetJudgingLock(r.Context(), a.event.ID, false, reason)
-	if err != nil {
-		log.Printf("hack: judging unlock %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	log.Printf("hack: judging unlock %s by=%s reason=%q", a.event.Slug, a.user.ID, reason)
-	httpx.WriteJSON(w, http.StatusOK, judgingLockJSON(ev, false))
+	httpx.WriteError(w, http.StatusGone, "judging_lock_removed", "Judging locks when you finish judging (move to Results) and unlocks when you move the event back.")
 }
 
 func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {

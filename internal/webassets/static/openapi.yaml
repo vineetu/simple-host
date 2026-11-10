@@ -10546,7 +10546,7 @@ paths:
         criteria; each name 1-80 characters, one line; each description 0-300
         characters; each weight a whole number 0-100, all weights summing to
         exactly 100; each max_points a whole number 1-10. Refused while judging
-        is locked (409 scores_locked): unlock it first. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced
+        is locked (409 scores_locked): move the event back to Entries closed to change the rubric. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced
         max_points are deleted. Returns 409 score_deletion_confirmation with counts
         until confirm_score_deletion is true. Comments on retained scores are preserved.
         During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
@@ -11014,18 +11014,18 @@ paths:
       tags: ["Hosted events"]
       operationId: postHackJudgingLock
       summary: Lock judging (organiser) (EVENTS=hosted only)
-      description: >-
-        Refuses every further rubric or score write (409 scores_locked).
-        Idempotent: locking an already-locked event is still 200.
+      deprecated: true
+      description: "Judging locks when you finish judging (move to Results) and unlocks when you move the event back."
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:
-        '200':
-          description: The lock state
+        '410':
+          description: "judging_lock_removed — Judging locks when you finish judging (move to Results) and unlocks when you move the event back."
           content:
             application/json:
-              schema: { type: object, properties: { locked: { type: boolean }, locked_at: { type: string, nullable: true } } }
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { error: "Judging locks when you finish judging (move to Results) and unlocks when you move the event back.", code: judging_lock_removed }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -11036,22 +11036,18 @@ paths:
       tags: ["Hosted events"]
       operationId: postHackJudgingUnlock
       summary: Unlock judging (organiser) (EVENTS=hosted only)
-      description: Requires a reason (1-300 characters, one line); the reason is logged.
+      deprecated: true
+      description: "Judging locks when you finish judging (move to Results) and unlocks when you move the event back."
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, required: [reason], properties: { reason: { type: string } } }
       responses:
-        '200':
-          description: The lock state
+        '410':
+          description: "judging_lock_removed — Judging locks when you finish judging (move to Results) and unlocks when you move the event back."
           content:
             application/json:
-              schema: { type: object, properties: { locked: { type: boolean }, locked_at: { type: string, nullable: true } } }
-        '400': { description: "invalid_reason", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { error: "Judging locks when you finish judging (move to Results) and unlocks when you move the event back.", code: judging_lock_removed }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }

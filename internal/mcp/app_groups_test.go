@@ -4,6 +4,7 @@ package mcp
 var (
 	hackAppOnlyJudgeNames     = []string{"hack_app_get_judge_queue", "hack_app_get_judge_scores", "hack_app_get_my_conflicts"}
 	hackAppOnlyOrganiserNames = []string{
+		"hack_app_preview_results", "hack_app_get_results", "hack_app_publish_results",
 		"hack_app_get_people", "hack_app_get_applications", "hack_app_get_registration",
 		"hack_app_get_judging_settings", "hack_app_get_conflicts", "hack_app_get_teams",
 		"hack_app_get_assignments", "hack_app_get_judging_dashboard", "hack_app_set_event_stage",

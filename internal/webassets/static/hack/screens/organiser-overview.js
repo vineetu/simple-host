@@ -4,6 +4,7 @@ import { adminLock, canScoreAsJudge, stagePicker, judgingSetupSummary, FORWARD_E
 import { startTour } from '../tour.js'
 import { cueHeading } from '../schedule.js'
 import { offerStageAnnouncement } from './_stage-announce-dialog.js'
+import { loadStandings, scoresChangedSincePublish, publishResults } from './_publish-results.js'
 import { mountAssistant } from '../assistant.js'
 
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
@@ -48,7 +49,6 @@ function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
       h2: 'Publish results',
       sentenceHTML: `Teams see their results straight away. Your event page shows them the way you set on <a href="${resultsHref}">Results</a>.`,
       confirmBody: 'Teams see their results straight away. Your event page shows them the way you set on Results.',
-      headsUp: 'To set a final order for ties, use Results first.',
       button: step.label
     }
   }
@@ -111,11 +111,23 @@ export async function render(ctx) {
   const entriesHandInHref = resolve('o.entry-rules', ev.slug).href
 
   const guidance = data.checklist?.next
-  const step = data.checklist ? (guidance || { kind: 'none' }) : (data.next_step || { kind: 'none' })
+  let step = data.checklist ? (guidance || { kind: 'none' }) : (data.next_step || { kind: 'none' })
   if (step.blocked_reason) step.blocked = step.blocked_reason
+  // Republishing takes precedence over End, including after the event ended.
+  if (!admin && !ev.taken_down && ['results', 'archived'].includes(ev.stage) && ev.results_published) {
+    try {
+      const state = await loadStandings(ctx)
+      if (!ctx.alive()) return
+      if (scoresChangedSincePublish(state.results, state.rows, state.preview.ok)) step = { kind: 'publish_results', label: 'Publish again' }
+    } catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err') }
+  }
+  if (['o.publish', 'o.ties'].includes(step.item_id) && step.target_id !== 'o.lock') step = { ...step, kind: 'publish_results', label: 'Publish results' }
+  // Home is the only place to publish: at Results, an unfinished earlier
+  // item (e.g. Describe the event) must not hide the publish step.
+  if (!admin && !ev.taken_down && ev.stage === 'results' && !ev.results_published && step.kind !== 'publish_results') step = { kind: 'publish_results', label: 'Publish results' }
+  if (step.kind === 'link' && step.target_id === 'o.lock') step = { ...step, kind: 'stage', stage: 'results' }
   const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref)
   if (step.kind === 'link' && step.link) Object.assign(content, { h2: step.label, sentence: '', button: checklistActionLabel(step), navHref: step.link.href })
-  if (data.checklist && step.kind === 'publish_results') Object.assign(content, { navHref: resultsHref, button: 'Preview' })
   // A schedule that acts (owner, 2026-11-02): when a schedule row lining up
   // with this move has come (next_step.cue, computed by the server), the
   // heading asks, e.g. "Kickoff is now. Open sign-up?". It only asks. The
@@ -249,19 +261,11 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
   // never before, so a refused move never dangles a half-asked
   // announcement. `move` is a target stage id or 'publish_results';
   // `back` is true only for a backward Change-stage move. The dialog
-  // itself (markup, suggestion wording, email-checkbox gating,
-  // live-region messages) now lives in _stage-announce-dialog.js, shared
-  // with organiser-results.js's own Publish offer, so the two screens
-  // never say something different for the same kind of change.
-  // `judgingLocked` defaults to the event's own current lock -- only the
-  // Change-stage handler below overrides it with the stage call's own
-  // fresher response, for the one move (back to judging) whose wording
-  // depends on it.
+  // The announcement offer follows the successful stage move.
   const emailableCount = counts.emailable_participants ?? 0
-  async function offerAnnouncement(move, back, judgingLocked) {
+  async function offerAnnouncement(move, back) {
     await offerStageAnnouncement(ctx, {
       move, back,
-      judgingLocked: judgingLocked ?? !!ev.judging_locked_at,
       emailableCount, setLive
     })
   }
@@ -304,6 +308,7 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
       // End event, offered as the one next step (results already
       // published): the exact same danger confirm as the danger-zone
       // button, never the generic heads-up confirm.
+      if (step.kind === 'publish_results') { await publishResults(ctx, { setLive, button: nextMoveBtn, confirmText: content.confirmBody }); return }
       if (content.isEnd) { await runEndFromNext(); return }
       const bodyNodes = [ui.el('p', { text: content.confirmBody || content.sentence || '' })]
       if (atStartJudging && judgingEntries) bodyNodes.push(ui.el('p', { text: judgingPoolLine(judgingEntries) }))
@@ -317,10 +322,8 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
       if (!ok) return
       nextMoveBtn.disabled = true
       try {
-        const move = step.kind === 'publish_results' ? 'publish_results' : step.stage
-        const r = step.kind === 'publish_results'
-          ? await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/results/publish', {})
-          : await callStage(step.stage)
+        const move = step.stage
+        const r = await callStage(step.stage)
         if (!r.ok) { setLive(ui.errText(r), 'err'); nextMoveBtn.disabled = false; await ctx.refresh(); return }
         await offerAnnouncement(move, false)
         await ctx.refresh()
@@ -343,7 +346,7 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
   }
 
   $('ov-change-stage').addEventListener('click', async () => {
-    const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER, { judgingLocked: !!ev.judging_locked_at, ctx })
+    const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER, { ctx })
     if (!target) return
     const btn = $('ov-change-stage')
     btn.disabled = true
@@ -355,15 +358,7 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
       // the server-refuses-on-archived ordering issue runEnd/
       // runEndFromNext handle doesn't apply to this path).
       const back = STAGE_ORDER.indexOf(target) < STAGE_ORDER.indexOf(ev.stage)
-      // SIM-341 wording fix: the response from the stage call itself is
-      // fresher than ev (which still reflects the stage before this
-      // move), so a back-to-judging offer right after Results locks
-      // judging in the very same call must see that lock -- falling back
-      // to ev's own flag only if the response is missing it somehow.
-      const judgingLocked = (r.data && r.data.event && r.data.event.judging_locked_at != null)
-        ? !!r.data.event.judging_locked_at
-        : !!ev.judging_locked_at
-      await offerAnnouncement(target, back, judgingLocked)
+      await offerAnnouncement(target, back)
       await ctx.refresh()
     } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
   })

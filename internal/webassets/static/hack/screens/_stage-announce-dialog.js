@@ -1,5 +1,5 @@
 // Shared "Tell participants?" dialog (SIM-341), extracted out of
-// organiser-overview.js so organiser-results.js's Publish results can
+// organiser-overview.js so _publish-results.js's Publish results can
 // offer the exact same dialog -- same markup, suggestion wording,
 // email-checkbox gating and live-region messages -- rather than growing
 // its own near-copy that drifts from the original over time.
@@ -12,13 +12,11 @@ import { suggestedAnnouncement } from '../stage-announce.js'
 // `ctx` is the screen's own render(ctx) context (main, api, ui, event,
 // noAnnounce). `move` is a target stage id or the synthetic
 // 'publish_results'; `back` is true only for a backward Change-stage
-// move; `judgingLocked` says whether judging stays locked on a backward
-// move to judging (SIM-341: the back-to-judging wording must not promise
-// scoring reopens when it doesn't) -- unused for every other move.
+// move. Moving back to Judging reopens scoring.
 // `emailableCount` and `setLive` are the caller's own
 // organiser.counts.emailable_participants and ui.live(main), so this
 // helper makes no assumption about how either screen builds its page.
-export async function offerStageAnnouncement(ctx, { move, back, judgingLocked, emailableCount, setLive }) {
+export async function offerStageAnnouncement(ctx, { move, back, emailableCount, setLive }) {
   // The organiser MCP App has no announcements route (its api() answers
   // "not available here"), so inside a chat the AI app makes this offer
   // itself, per hack_set_event_stage's description.
@@ -26,7 +24,7 @@ export async function offerStageAnnouncement(ctx, { move, back, judgingLocked, e
   const ui = ctx.ui
   const api = ctx.api.api
   const ev = ctx.event.event
-  const suggestion = suggestedAnnouncement(move, { back, judgingLocked, eventTitle: ev.title })
+  const suggestion = suggestedAnnouncement(move, { back, eventTitle: ev.title })
   if (!suggestion) return
   const announcePath = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/announcements'
   const body = document.createElement('div')

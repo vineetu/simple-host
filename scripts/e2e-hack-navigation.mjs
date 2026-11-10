@@ -95,7 +95,7 @@ try {
   'o.publish': 'Publication controls appear after judging is locked or results are available',
   'o.former-judges': 'No former judges in this event',
   'o.ties': 'No scored tied standings before judging',
-  'o.lock': 'The Lock control (#jg-top-action) appears at Judging (SIM-419)',
+  'o.lock': 'Finish judging runs from Home (#ov-next-move) at Judging',
   'o.panel-assignments': 'The panel grid shows in Panel mode only; e2e-hack-checklist-actions covers it (SIM-419)',
   'p.evidence-video': 'Entry evidence inputs depend on the entry rules; e2e-hack-checklist-actions covers each (SIM-419)',
   'p.evidence-code': 'Entry evidence inputs depend on the entry rules; e2e-hack-checklist-actions covers each (SIM-419)',
@@ -266,7 +266,6 @@ try {
   const data=await response.json();assert.ok(response.ok,JSON.stringify(data));return data
  }
  await api('POST','/stage',{stage:'judging'})
- await api('POST','/judging/unlock',{reason:'Anchor verification'})
  const criteria=(await api('GET','/rubric')).criteria
  const queue=(await api('GET','/judge/queue')).queue
  for (const combination of ['no-ties','ties','published']) {
@@ -280,10 +279,10 @@ try {
    await anchorOrg.page.locator('#'+target.anchor).waitFor({state:'visible'})
   }
   await anchorOrg.context.close()
-  if(combination==='no-ties') {await api('POST','/stage',{stage:'judging'});await api('POST','/judging/unlock',{reason:'Anchor verification'})}
+  if(combination==='no-ties') {await api('POST','/stage',{stage:'judging'})}
  }
  await api('POST','/stage',{stage:'closed'})
- await api('POST','/judging/unlock',{reason:'Checklist fixture'})
+ await api('POST','/stage',{stage:'judging'})
  assert.deepEqual(errors, [])
  console.log('ok responsive select; 14 screenshots;', errors.length, 'browser errors')
  if (!process.env.KEEP_NAVIGATION_FIXTURE) await fetch(info.url + '/_fixture/stop', { method: 'POST' })

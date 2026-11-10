@@ -79,7 +79,7 @@ export async function render(ctx) {
 
   const total = queue.length
   const scored = queue.filter(r => r.done).length
-  const resultsOut = !!ev.results_published
+  const resultsOut = !!ev.results_published && !ev.scoring_open
   const locked = !!ev.judging_locked_at
   // S7/#11: one noun ("team") across the judge screens, pluralised on the
   // total being scored against (so "1 of 1 team scored", not "entries").

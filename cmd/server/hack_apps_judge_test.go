@@ -153,7 +153,7 @@ func TestHackJudgeAppShowToolReflectsLockMidSession(t *testing.T) {
 		t.Fatalf("judging already locked before the test locked it: %#v", beforeEvent["judging_locked_at"])
 	}
 
-	wantTS(t, "lock judging", a.api(t, "POST", "/v1/hack/events/"+f.event+"/judging/lock", nil, f.organiserKey), 200, "")
+	wantTS(t, "lock judging", a.api(t, "POST", "/v1/hack/events/"+f.event+"/stage", map[string]any{"stage": "results"}, f.organiserKey), 200, "")
 
 	_, after, bad := toolResultOf(t, a.rpc(t, f.judgeAccess, "tools/call", map[string]any{"name": "hack_show_judge", "arguments": map[string]any{"view": "score", "slug": f.event}}))
 	if bad {

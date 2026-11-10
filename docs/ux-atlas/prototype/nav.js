@@ -115,7 +115,7 @@ window.PROTO = {
     "icon": "rubric",
     "phone_tab": false,
     "badge": null,
-    "stage_rule": "Always shown. Progress, assignments, conflicts and lock; configuration links to Settings \u2192 Judging.",
+    "stage_rule": "Always shown. Progress, assignments and conflicts; configuration links to Settings \u2192 Judging.",
     "order": 80,
     "group": "Run",
     "target_id": "o.judging"
@@ -126,7 +126,7 @@ window.PROTO = {
     "icon": "chart",
     "phone_tab": false,
     "badge": null,
-    "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked.",
+    "stage_rule": "Always shown. Preview standings, choose what the public page shows and download exports. Publishing happens from Home.",
     "order": 90,
     "group": "Wrap up",
     "target_id": "o.results"

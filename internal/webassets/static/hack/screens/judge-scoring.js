@@ -108,7 +108,7 @@ export async function render(ctx) {
   // page itself already guards (judge-queue.js's "Not open yet" check):
   // before scoring opens, read-only eligibility must come from the same
   // signals, not just whether judging has been explicitly locked.
-  const resultsOut = !!ev.results_published
+  const resultsOut = !!ev.results_published && !ev.scoring_open
   if (!ev.scoring_open && !ev.judging_locked_at && !resultsOut) {
     main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Scoring opens when the organiser starts judging.</p><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></section></div>`
     return

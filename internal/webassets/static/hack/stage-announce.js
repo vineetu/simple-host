@@ -14,14 +14,7 @@
 // the stage picker never offers archived as a target (internal/
 // webassets/static/hack/screens/_orgA-util.js stagePicker), and nothing
 // sits after results except archived, so results is never a backward
-// target either. `opts.judgingLocked` matters only for a backward move
-// to judging: Results locks judging on the way forward (same
-// transaction as the stage change), so a move back from Results leaves
-// the lock on, and the announcement must not promise scoring reopens by
-// itself when it doesn't (owner decision 2026-10-31, same reasoning as
-// _orgA-util.js's backwardEffect). `opts.eventTitle` is accepted for a
-// future personalised line but unused today -- the owner-approved
-// wording below is fixed, plain text.
+// target either. Moving back to Judging reopens scoring.
 //
 // Every string here must fit the announcements endpoint's real limits:
 // title 1-120 chars, body 1-3000 chars (internal/hackhttp/hack_content.go
@@ -42,9 +35,7 @@ export function suggestedAnnouncement(move, opts) {
       case 'closed':
         return { title: 'Entries are closed', body: 'Entries are closed. Teams with extra time can still edit.' }
       case 'judging':
-        return (opts && opts.judgingLocked)
-          ? { title: 'Results are on hold', body: 'Results are on hold while we take another look. Entries stay as they are.' }
-          : { title: 'Judging has reopened', body: 'Judging has reopened. Entries stay as they are.' }
+        return { title: 'Judging has reopened', body: 'Judging has reopened. Entries stay as they are.' }
     }
     return null
   }

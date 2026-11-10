@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-09",
+    "what": "Judging locks follow stage. Home alone moves stages and publishes, with preview, tie order and republishing after End. Removed manual judging locks and Results publish controls."
+  },
+  {
+    "date": "2026-11-09",
     "what": "SIM-419: Organisers opt in under Judging. One judge list drives assignments, counts and scoring. Both start confirmations show linked setup and coverage. Every checklist item is actionable; information has no button."
   },
   {

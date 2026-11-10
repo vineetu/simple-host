@@ -16,7 +16,7 @@ Read an event's judging rubric: each criterion's name, description, weight and m
 
 <div data-tool="hack_set_rubric"></div>
 
-Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
+Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. 1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused at Results; move back to Judging to reopen scoring. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 
@@ -504,7 +504,7 @@ Read judging coverage and totals, plus former_judges (people who left after scor
 
 <div data-tool="hack_delete_former_judge_scores"></div>
 
-Delete the scores and comments of a judge who left the event, so they stop counting. user_id from former_judges in hack_get_judging_dashboard. confirm is the event's address name, sent only after the person agreed. Refused while judging is locked. Published results change only when results are published again. Ask first. Organiser only.
+Delete the scores and comments of a judge who left the event, so they stop counting. user_id from former_judges in hack_get_judging_dashboard. confirm is the event's address name, sent only after the person agreed. Refused at Results; move back to Judging to reopen scoring. Published results change only when results are published again. Ask first. Organiser only.
 
 **Parameters:**
 
@@ -513,31 +513,6 @@ Delete the scores and comments of a judge who left the event, so they stop count
 | body | object | yes | confirm: the exact event address name (slug), supplied only after the person confirms deletion. The REST route validates each field and returns its own errors. |
 | slug | string | yes | REST path parameter: slug. |
 | user_id | string | yes | REST path parameter: user_id. |
-
-## hack_lock_judging
-
-<div data-tool="hack_lock_judging"></div>
-
-Freeze scores and comments. Ask first. Organiser only.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| slug | string | yes | REST path parameter: slug. |
-
-## hack_unlock_judging
-
-<div data-tool="hack_unlock_judging"></div>
-
-Reopen scoring with body.reason. Ask first. Organiser only.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| body | object | yes | reason explaining why scoring is reopened. The REST route validates each field and returns its own errors. |
-| slug | string | yes | REST path parameter: slug. |
 
 ## hack_publish_results
 

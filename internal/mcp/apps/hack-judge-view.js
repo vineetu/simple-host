@@ -26,7 +26,7 @@
   // all. What this narrows is code that DOES already run inside this
   // bundle: a bug in this file, or a future edit to a reused screen,
   // reaching a tool this connection's role might otherwise be allowed to
-  // call (hack_lock_judging, hack_publish_results, anything from the
+  // call (hack_set_event_stage, hack_publish_results, anything from the
   // organiser or participant surfaces) (Grok security review finding 3,
   // SIM-344 phase 2, correcting this comment's earlier overstatement). The
   // server is the real backstop regardless (every REST call is

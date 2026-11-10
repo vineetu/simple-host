@@ -129,6 +129,10 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-09 (owner). Judging locks follow the stage.** Remove the separate Lock judging and Unlock controls: Judging opens scoring, Finish judging (Results) locks it, and moving back to Judging or earlier clears the lock. Archived retains its lock. Supersedes the 2026-10-31 rule that Results → Judging kept the lock. Reason: a separate lock confuses organisers.
+- **2026-11-09 (owner). Move stages and publish only from Home on the website.** Home contains preview, final tie order, confirmation and the announcement offer, including republishing after End. Judging and Results keep their operational views. REST and MCP stage/publish tools stay available. Reason: moving an event forward from scattered screens is confusing.
+
+
 - **2026-11-09. Organisers judge only when ticked (owner, SIM-419).** Judges are joined judges plus organisers selected in Settings → Judging. Existing organisers with any scores start selected. Reason: one judge definition must drive assignments, scoring access, counts and checklists; organisers opt in. Starting Judging confirms mode, target, people and coverage, with links to fix each.
 
 - **2026-11-09. Scoring opens at Judging (owner, SIM-416).** Entries closed is the setup time: mode, judges per team, rubric and assignments; judges can't score yet. Moving to Judging locks that setup and Automatic mode assigns judges then. Going back to Entries closed pauses scoring and unlocks setup. Reverses 'judges score from Closed on' (2026-11-02). Reason: on the practice event, scores given at Entries closed silently stopped counting when the mode changed.

@@ -28,6 +28,16 @@ var appOnlyMarkers = []string{
 
 func appOnlyUpstream() *http.ServeMux {
 	mux := http.NewServeMux()
+	const resultRow = `{"team_id":"t1","team_name":"MARKER-TEAM-NAME","total":85,"rank":1,"tied":false,"judges_scored":2,"raw_total":85,"normalised_total":85,"deciding_mode":"raw","tie_decider":"score","track":null,"track_rank":null,"track_winner":false}`
+	mux.HandleFunc("GET /v1/hack/events/mockjam/judging/preview", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[` + resultRow + `],"deciding_mode":"raw"}`))
+	})
+	mux.HandleFunc("GET /v1/hack/events/mockjam/results", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[` + resultRow + `],"full_ranking":true}`))
+	})
+	mux.HandleFunc("POST /v1/hack/events/mockjam/results/publish", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[` + resultRow + `],"full_ranking":true}`))
+	})
 	mux.HandleFunc("GET /v1/hack/events/mockjam/people", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[{"user_id":"u1","email":"MARKER-EMAIL-1","display_name":"MARKER-TEAM-NAME","role":"participant"}]`))
 	})
@@ -146,6 +156,9 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 		args       map[string]any
 		wantInMeta []string
 	}{
+		{"hack_app_preview_results", map[string]any{"slug": "mockjam"}, []string{"MARKER-TEAM-NAME"}},
+		{"hack_app_get_results", map[string]any{"slug": "mockjam"}, []string{"MARKER-TEAM-NAME"}},
+		{"hack_app_publish_results", map[string]any{"slug": "mockjam", "body": map[string]any{"rank_overrides": []any{map[string]any{"team_id": "t1", "rank": 1}}}}, []string{"MARKER-TEAM-NAME"}},
 		{"hack_app_get_people", map[string]any{"slug": "mockjam"}, []string{"MARKER-EMAIL-1", "MARKER-TEAM-NAME"}},
 		{"hack_app_get_applications", map[string]any{"slug": "mockjam"}, []string{"MARKER-EMAIL-2", "MARKER-JUDGE-NAME", "MARKER-CITY", "MARKER-QUESTION", "MARKER-ANSWER"}},
 		{"hack_app_get_registration", map[string]any{"slug": "mockjam"}, []string{"MARKER-QUESTION"}},
@@ -319,6 +332,7 @@ func TestHackAppOnlyTwinsListingGating(t *testing.T) {
 
 func appOnlyTwinNames() []string {
 	return []string{
+		"hack_app_preview_results", "hack_app_get_results", "hack_app_publish_results",
 		"hack_app_get_people", "hack_app_get_applications", "hack_app_get_registration",
 		"hack_app_get_rubric", "hack_app_get_judging_settings", "hack_app_get_conflicts",
 		"hack_app_get_teams", "hack_app_get_assignments", "hack_app_get_judging_dashboard",

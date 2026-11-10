@@ -1529,11 +1529,13 @@ phase, since the earlier single-flag `allowed` bool passed into
 for any account with `MCP_APP_HACK_JUDGE` off, even with its own flag on;
 `TestHackJudgeAndOrganiserFlagsAreIndependent` pins this). Every organiser
 action keeps its own plain tool (`hack_get_people`, `hack_get_applications`,
-`hack_decide_application`, `hack_get_judging_dashboard`, `hack_lock_judging`,
+`hack_decide_application`, `hack_get_judging_dashboard`,
 ...) unmodified; `hack_show_organiser` refuses outright for anyone whose
 role on that event is not `organiser` (a platform admin inspecting without
 real membership passes too, since `loadMember` already sets that role for
 them), with no event data in the refusal.
+
+Home previews, orders ties and publishes through `hack_app_preview_results`, `hack_app_get_results` and `hack_app_publish_results`; these app-only companions keep standings in the view and send only counts to chat.
 
 The view is built the same way as the judge app, by `internal/mcp/apps/
 bundlegen` (`GenerateOrganiserJS`/`internal/mcp/apps/gentool`), from
@@ -1552,8 +1554,7 @@ through `href()`'s own return value — could never actually open that
 section) become `platform.wantsSection('signup')`, which here reads
 `window.__hackOrgSignupOpen`, set by the glue script's click handler only
 for that one link and cleared once the one `render()` it triggers finishes;
-and `organiser-judging.js`'s two `form.addEventListener('submit', ...)`
-handlers (the Unlock-reason form and the add-a-conflict form) go through
+and `organiser-judging.js`'s add-a-conflict form goes through
 `platform.onSubmit`, which wires the submit button's own `click` listener
 here, the same sandboxed-frame-has-no-`allow-forms` fix the judge app's
 invite-accept form already carries. Two more Codex-review fixes (SIM-344
@@ -1615,8 +1616,7 @@ tool: a flat-schema tool (`hack_set_event_stage`, `hack_set_rubric`) gets
 its REST body fields as individual top-level arguments, while a generic
 `hackRouteTool`-backed one (`hack_set_registration`, `hack_decide_application`,
 `hack_set_judging_settings`, `hack_set_judge_conflict`,
-`hack_generate_assignments`, `hack_delete_former_judge_scores`,
-`hack_unlock_judging`) gets them nested under a single `body` argument,
+`hack_generate_assignments`, `hack_delete_former_judge_scores`) gets them nested under a single `body` argument,
 matching each tool's own `InputSchema` shape
 (`TestHackOrganiserViewRouteBodyKeysMatchToolSchema`, the organiser
 equivalent of the judge app's `hack_join_judge`/`answers` regression test).
@@ -1673,10 +1673,9 @@ through the real tool calls, and confirms the Back control returns from
 Judging to Overview.
 
 Known gap (Grok security review finding 4, SIM-344 phase 2): the view's own
-confirm dialogs (Reject, End event, Lock judging, ...) ask the person
+confirm dialogs (Reject, End event, Finish judging, ...) ask the person
 sitting at the frame, but they do not bind the chat path -- `hack_set_
-event_stage`, `hack_decide_application`, `hack_remove_person`, `hack_lock_
-judging` and `hack_unlock_judging` stay model-visible, plain-tool-callable
+event_stage`, `hack_decide_application`, `hack_remove_person` and `hack_publish_results` stay model-visible, plain-tool-callable
 with no dialog at all, the same as every other write this app fronts.
 Server-side confirm tokens for an irreversible model-initiated call (the
 former-judge score delete already has one: `confirm` must equal the
@@ -2189,8 +2188,7 @@ across every judge who scored it, excluding any conflicted judge. The phone scor
 shows each criterion’s weight and points range, its points as a selector (aria-pressed, underlined when chosen; Save & next is the only filled button, 2026-10-13), and opens the frozen team site using its team
 slug, independently of the team’s display name. The organiser watches coverage
 and progress on `GET .../judging/dashboard`, locks scoring when judging is done
-(`POST .../judging/lock`; every further score or rubric write is refused with 409 `scores_locked`
-until `POST .../judging/unlock`, which requires and logs a reason), then publishes
+(Finish judging from Home moves to Results and refuses further score or rubric writes with 409 `scores_locked`; moving back clears the lock), then publishes
 (`POST .../results/publish`): the computed ranking is snapshotted, ties are flagged, and the
 organiser may resolve a tie by giving its teams distinct ranks (`rank_overrides`); publishing again
 later recomputes from the current scores. Full ranks and overall scores are public by default;
@@ -2282,7 +2280,7 @@ New participant routes, own team, admin only: `PATCH /v1/hack/events/{slug}/team
 Routes: `/v1/hack/events/{slug}/teams`.
 MCP: `hack_leave_team`.
 
-**Organiser Overview: one forward move, and Results locks judging (2026-10-31).** The organiser event view and `hack_get_event` add `next_step`: the one forward action the website's Overview button now offers for the event's stage, computed server-side so the website and AI apps agree. Its shape: `{"kind":"stage"|"publish_results"|"none","stage":...,"label":...,"deadline_passed":...,"blocked":null|"archive_needs_participants"}`. `POST /v1/hack/events/{slug}/stage` with `{"stage":"results"}` now also sets `judging_locked_at` in the same transaction when it is not already locked, closing the previous dead end where Results refused to publish an unlocked event. Moving back to Judging leaves the lock on. Danger-zone End still exists for ending early, and is hidden only once the Overview's own button already reads End. The stage pill, its words and the stage track on the role's home screen are now the same for organisers, participants and judges alike, with judges keeping a second scoring pill beside it. Every stage change on the website (the Overview button, Change stage, End event) and Publish results then offers "Tell participants?" (SIM-341, 2026-11-05): a short suggested title and message for that move (`static/hack/stage-announce.js`), editable, with the Announcements screen's "Email N participants" box (off by default), and **Send** or **Don't send**. Send posts through `POST /v1/hack/events/{slug}/announcements`; for End event it posts before the event is archived, since an ended event takes no announcements. In AI apps, `hack_set_event_stage` tells the app to offer the same through `hack_post_announcement`; the organiser MCP App skips the dialog. <a id="hack-next-step"></a>
+**Organiser Overview: one forward move, and Results locks judging (2026-10-31).** The organiser event view and `hack_get_event` add `next_step`: the one forward action the website's Overview button now offers for the event's stage, computed server-side so the website and AI apps agree. Its shape: `{"kind":"stage"|"publish_results"|"none","stage":...,"label":...,"deadline_passed":...,"blocked":null|"archive_needs_participants"}`. `POST /v1/hack/events/{slug}/stage` with `{"stage":"results"}` now also sets `judging_locked_at` in the same transaction when it is not already locked, closing the previous dead end where Results refused to publish an unlocked event. Moving back to Judging reopens scoring. Website stage changes and publishing live only on Home, including standings preview, final tie order, confirmation and the announcement offer; Home also offers Publish again for changed standings at Results and after End. The retired lock/unlock routes return 410 `judging_lock_removed`, and their tools are no longer listed. Danger-zone End still exists for ending early, and is hidden only once the Overview's own button already reads End. The stage pill, its words and the stage track on the role's home screen are now the same for organisers, participants and judges alike, with judges keeping a second scoring pill beside it. Every stage change on the website (the Overview button, Change stage, End event) and Publish results then offers "Tell participants?" (SIM-341, 2026-11-05): a short suggested title and message for that move (`static/hack/stage-announce.js`), editable, with the Announcements screen's "Email N participants" box (off by default), and **Send** or **Don't send**. Send posts through `POST /v1/hack/events/{slug}/announcements`; for End event it posts before the event is archived, since an ended event takes no announcements. In AI apps, `hack_set_event_stage` tells the app to offer the same through `hack_post_announcement`; the organiser MCP App skips the dialog. <a id="hack-next-step"></a>
 
 **Publishing results always finishes judging too (SIM-271, 2026-11-05).** `POST /v1/hack/events/{slug}/results/publish` (and `hack_publish_results`) had no stage check: called from the organiser Results screen, REST or MCP before the Overview's "Finish judging" button, it could publish while the event stage stayed Judging (or earlier), leaving the Overview pill and the public page's "Judging is under way" kicker disagreeing with winners already being out. Publishing before entries close (Draft, Open, Building) is refused with 409 `judging_not_started`. From Closed or Judging, publishing now runs the same Judging → Results transition as "Finish judging" first (moving the stage and locking judging) in the same transaction as the snapshot, so a refused or failed publish leaves the stage as it was whenever the event hasn't reached Results yet, then publishes; it never reopens an Archived event, and republishing (e.g. to fix a disqualified team) still works at Results or Archived with no further stage move. No migration. <a id="hack-publish-finishes-judging"></a>
 
@@ -2779,7 +2777,7 @@ personal connection.
 | Teams and entries | `hack_get_teams`, `hack_get_entries`, `hack_get_team_screenshot`, `hack_move_member`, `hack_remove_team_member`, `hack_rename_team`, `hack_delete_team`, `hack_set_team_deadline`, `hack_take_down_team_site`, `hack_restore_team_site`, `hack_lock_team`, `hack_set_team_admin`, `hack_new_team_link`, `hack_fill_teams` | `/teams`, `/entries`, `/teams/{team}/screenshot`, member and team administration routes, and the organiser lock/admin/link/fill routes (teams redesign, 2026-10-31) |
 | Co-organisers | `hack_create_organiser_invite`, `hack_revoke_organiser_invite`, `hack_preview_organiser_invite`, `hack_accept_organiser_invite`, `hack_remove_organiser` | `/organiser-invite`, `/v1/hack/organiser/{code}`, `/organisers/{user_id}` |
 | Judging configuration | `hack_get_judging_settings`, `hack_set_judging_settings`, `hack_generate_assignments`, `hack_get_assignments`, `hack_set_assignments`, `hack_get_panels`, `hack_set_panels`, `hack_preview_judging_assignments` | `/judging/settings`, `/assignments`, `/assignments/generate`, `/judging/panels`, `/judging/preview` |
-| Judging and results | `hack_get_conflicts`, `hack_set_judge_conflict`, `hack_remove_judge_conflict`, `hack_get_judging_dashboard`, `hack_delete_former_judge_scores`, `hack_lock_judging`, `hack_unlock_judging`, `hack_publish_results`, `hack_set_results_view`, `hack_get_public_results` | `/conflicts`, `/judging/dashboard`, `/judging/former-judges/{user_id}` (SIM-340), `/judging/lock`, `/judging/unlock`, `/results/publish`, `/results` |
+| Judging and results | `hack_get_conflicts`, `hack_set_judge_conflict`, `hack_remove_judge_conflict`, `hack_get_judging_dashboard`, `hack_delete_former_judge_scores`, `hack_publish_results`, `hack_set_results_view`, `hack_get_public_results` | `/conflicts`, `/judging/dashboard`, `/judging/former-judges/{user_id}` (SIM-340), `/judging/lock`, `/judging/unlock`, `/results/publish`, `/results` |
 | Exports, usage and keys | `hack_export_participants`, `hack_export_teams`, `hack_export_entries`, `hack_export_projects_archive`, `hack_export_own_team_archive`, `hack_get_usage`, `hack_get_team_key`, `hack_create_team_key`, `hack_revoke_team_key` | CSV exports return full text; archive tools return short-lived private download links (`/export/projects-link`, `/export/own-team-link`, `/v1/hack/archive`), with live membership and team checks. `EXPORT_LINK_TTL_MINUTES` sets lifetime (default 10); `/usage`, `/key` |
 
 Website tools (`internal/mcp/tools.go`, `storage_tools.go` and `recipes.go`; the saved-data

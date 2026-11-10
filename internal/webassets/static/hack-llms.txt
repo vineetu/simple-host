@@ -73,3 +73,5 @@ teams/fill {apply, size}. Organiser equivalents: PUT teams/{team}/lock, PUT
 teams/{team}/members/{user_id}/admin, POST teams/{team}/link.
 GET /v1/hack/team-links/{code} is public and never joins. Lists never appear on the public
 event page. A locked or full team refuses every way in.
+
+Judging opens scoring. Finish judging (Results) locks it; moving back reopens it. On the website, stage changes and publishing (including tie order) happen only from organiser Home. The former judging lock/unlock routes return 410 judging_lock_removed.

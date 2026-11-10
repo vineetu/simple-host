@@ -294,7 +294,7 @@ var codeHints = map[string]string{
 	"invalid_stage":                  "stage must be one of draft, open, building, closed, judging, results or archived.",
 	"stage_not_available":            "That stage is not available. Read stages_offered from hack_get_event and choose one of those.",
 	"invalid_rubric":                 "The rubric was refused. Use 1 to 10 criteria, weights as whole numbers from 0 to 100 that add up to 100, and max_points from 1 to 10. Fix it and call again.",
-	"scores_locked":                  "Judging is locked, so the rubric cannot be replaced. Tell the person; do not retry until they unlock it.",
+	"scores_locked":                  "Judging is locked at Results. Move the event back to Judging for scores, or Entries closed for setup changes.",
 	"archive_needs_participants":     "Nobody has joined, so the event cannot be ended. Invite people first, or delete it from the event page.",
 	"event_taken_down":               "The operator has taken this event down. Tell the person; do not retry.",
 	"no_personal_sites":              "This connection manages events. It cannot publish a personal site or a team site. A team site needs a connection that chose that team.",

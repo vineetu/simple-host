@@ -72,18 +72,11 @@ export function adminLock(main, admin, ev) {
 // focuses one of its buttons, and "Continue" has to resolve with whatever
 // stage is currently selected, not a fixed per-button value.
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
-// `judgingLocked`: Results now locks judging on the way forward (the same
-// transaction as the stage change, hack.go setStage), so a backward move
-// from Results to Judging leaves the lock on -- the picker says so instead
-// of promising scoring reopens by itself (owner decision 2026-10-31,
-// organiser-overview "How do Judging, the lock and Results fit into one
-// button?"). Unlocking stays a deliberate act on the Judging screen.
-function backwardEffect(next, judgingLocked) {
+function backwardEffect(next) {
   if (next === 'draft') return 'People who joined stay, but the join link stops working until you open it again.'
   if (next === 'open' || next === 'building') return 'Entries open again. People who joined stay.'
   if (next === 'closed') return 'Entries reopen for teams with extra time. Other entries stay closed. People who joined stay. Scoring pauses and judging setup unlocks.'
-  if (next === 'judging' && judgingLocked) return 'Judging stays locked. Unlock it on Judging to let judges score again.'
-  return 'Judging opens again. Entries stay frozen and people who joined stay.'
+  return 'Judging opens again. Scores can change; publish again from Home afterwards.'
 }
 // What a forward (or lateral, since the picker offers every other stage, not
 // only the next one) move to each stage means for participants and judges.
@@ -151,7 +144,7 @@ export function stagePicker(current, offered, opts = {}) {
       const target = sel.value
       const back = order.indexOf(target) < curIdx
       warn.hidden = false
-      warn.textContent = back ? backwardEffect(target, opts.judgingLocked) : (FORWARD_EFFECT[target] || '')
+      warn.textContent = back ? backwardEffect(target) : (FORWARD_EFFECT[target] || '')
       const token = ++painting
       const setup = scrim.querySelector('#stage-setup')
       const confirm = scrim.querySelector('[data-confirm]')

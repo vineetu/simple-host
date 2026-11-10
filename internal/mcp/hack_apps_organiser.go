@@ -22,7 +22,7 @@ import (
 // same gating machinery (hackAppsGate, now shared rather than
 // judge-specific -- see that file's comment), and the same show-tool
 // design (a tool that exists only to open a view; every organiser action
-// it fronts -- hack_get_people, hack_decide_application, hack_lock_judging,
+// it fronts -- hack_get_people, hack_decide_application, hack_set_event_stage,
 // ... -- keeps its own full-text result for a host or model with no UI).
 //
 // apps/hack-organiser-bundle.js and apps/hack-organiser-kit.css are
@@ -48,7 +48,7 @@ func hackShowOrganiserTool() Tool {
 		Name:   "hack_show_organiser",
 		Title:  "Show the organiser view",
 		Description: "Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (assignments, progress and former judges; rubric in website Settings). " +
-			"Only offered to a connection whose app can render it; every organiser action also has a plain tool (hack_get_event, hack_set_event_stage, hack_get_applications, hack_decide_application, hack_get_judging_dashboard, hack_lock_judging, ...) that works the same everywhere.",
+			"Only offered to a connection whose app can render it; every organiser action also has a plain tool (hack_get_event, hack_set_event_stage, hack_get_applications, hack_decide_application, hack_get_judging_dashboard, hack_set_event_stage, ...) that works the same everywhere.",
 		InputSchema: object(map[string]any{
 			"slug": str("Event name."),
 			"view": map[string]any{"type": "string", "enum": []string{"overview", "people", "judging"}, "description": "Which organiser view to open."},

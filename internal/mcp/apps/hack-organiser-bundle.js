@@ -445,7 +445,7 @@
         "icon": "rubric",
         "phone_tab": false,
         "badge": null,
-        "stage_rule": "Always shown. Progress, assignments, conflicts and lock; configuration links to Settings \u2192 Judging.",
+        "stage_rule": "Always shown. Progress, assignments and conflicts; configuration links to Settings \u2192 Judging.",
         "order": 80,
         "group": "Run",
         "action_label": "Edit"
@@ -464,7 +464,7 @@
         "icon": "chart",
         "phone_tab": false,
         "badge": null,
-        "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked.",
+        "stage_rule": "Always shown. Preview standings, choose what the public page shows and download exports. Publishing happens from Home.",
         "order": 90,
         "group": "Wrap up",
         "action_label": "Edit"
@@ -1404,11 +1404,11 @@
         "kind": "action",
         "label": "Finish judging",
         "role": "organiser",
-        "screen": "organiser-judging",
-        "section": "judging",
+        "screen": "organiser-overview",
+        "section": "overview",
         "tab": null,
-        "anchor": "jg-top-action",
-        "href_pattern": "/e/{slug}/manage?s=judging#jg-top-action",
+        "anchor": "ov-next-move",
+        "href_pattern": "/e/{slug}/manage?s=overview#ov-next-move",
         "nav": false,
         "order": 680,
         "group": "Run",
@@ -1434,11 +1434,11 @@
         "kind": "action",
         "label": "Resolve tied places",
         "role": "organiser",
-        "screen": "organiser-results",
-        "section": "results",
+        "screen": "organiser-overview",
+        "section": "overview",
         "tab": null,
-        "anchor": "res-override",
-        "href_pattern": "/e/{slug}/manage?s=results#res-override",
+        "anchor": "ov-next-move",
+        "href_pattern": "/e/{slug}/manage?s=overview#ov-next-move",
         "nav": false,
         "order": 700,
         "group": "Wrap up",
@@ -1449,11 +1449,11 @@
         "kind": "action",
         "label": "Publish results",
         "role": "organiser",
-        "screen": "organiser-results",
-        "section": "results",
+        "screen": "organiser-overview",
+        "section": "overview",
         "tab": null,
-        "anchor": "res-publish-target",
-        "href_pattern": "/e/{slug}/manage?s=results#res-publish-target",
+        "anchor": "ov-next-move",
+        "href_pattern": "/e/{slug}/manage?s=overview#ov-next-move",
         "nav": false,
         "order": 710,
         "group": "Wrap up",
@@ -1838,7 +1838,7 @@
             "icon": "rubric",
             "phone_tab": false,
             "badge": null,
-            "stage_rule": "Always shown. Progress, assignments, conflicts and lock; configuration links to Settings \u2192 Judging.",
+            "stage_rule": "Always shown. Progress, assignments and conflicts; configuration links to Settings \u2192 Judging.",
             "order": 80,
             "group": "Run",
             "target_id": "o.judging"
@@ -1849,7 +1849,7 @@
             "icon": "chart",
             "phone_tab": false,
             "badge": null,
-            "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked.",
+            "stage_rule": "Always shown. Preview standings, choose what the public page shows and download exports. Publishing happens from Home.",
             "order": 90,
             "group": "Wrap up",
             "target_id": "o.results"
@@ -3352,12 +3352,11 @@
     });
   }
   var STAGE_ORDER = ["draft", "open", "building", "closed", "judging", "results", "archived"];
-  function backwardEffect(next, judgingLocked) {
+  function backwardEffect(next) {
     if (next === "draft") return "People who joined stay, but the join link stops working until you open it again.";
     if (next === "open" || next === "building") return "Entries open again. People who joined stay.";
     if (next === "closed") return "Entries reopen for teams with extra time. Other entries stay closed. People who joined stay. Scoring pauses and judging setup unlocks.";
-    if (next === "judging" && judgingLocked) return "Judging stays locked. Unlock it on Judging to let judges score again.";
-    return "Judging opens again. Entries stay frozen and people who joined stay.";
+    return "Judging opens again. Scores can change; publish again from Home afterwards.";
   }
   var FORWARD_EFFECT = {
     open: "Sign-up opens. Participants can join and apply, and judges can use their invite link.",
@@ -3417,7 +3416,7 @@
         const target = sel.value;
         const back = order.indexOf(target) < curIdx;
         warn.hidden = false;
-        warn.textContent = back ? backwardEffect(target, opts.judgingLocked) : FORWARD_EFFECT[target] || "";
+        warn.textContent = back ? backwardEffect(target) : FORWARD_EFFECT[target] || "";
         const token = ++painting;
         const setup = scrim.querySelector("#stage-setup");
         const confirm = scrim.querySelector("[data-confirm]");
@@ -3549,7 +3548,7 @@
         case "closed":
           return { title: "Entries are closed", body: "Entries are closed. Teams with extra time can still edit." };
         case "judging":
-          return opts && opts.judgingLocked ? { title: "Results are on hold", body: "Results are on hold while we take another look. Entries stay as they are." } : { title: "Judging has reopened", body: "Judging has reopened. Entries stay as they are." };
+          return { title: "Judging has reopened", body: "Judging has reopened. Entries stay as they are." };
       }
       return null;
     }
@@ -3571,12 +3570,12 @@
   }
 
   // internal/handler/static/hack/screens/_stage-announce-dialog.js
-  async function offerStageAnnouncement(ctx, { move, back, judgingLocked, emailableCount, setLive }) {
+  async function offerStageAnnouncement(ctx, { move, back, emailableCount, setLive }) {
     if (ctx.noAnnounce) return;
     const ui = ctx.ui;
     const api = ctx.api.api;
     const ev = ctx.event.event;
-    const suggestion = suggestedAnnouncement(move, { back, judgingLocked, eventTitle: ev.title });
+    const suggestion = suggestedAnnouncement(move, { back, eventTitle: ev.title });
     if (!suggestion) return;
     const announcePath = "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/announcements";
     const body = document.createElement("div");
@@ -3620,6 +3619,102 @@
         return false;
       }
     });
+  }
+
+  // internal/handler/static/hack/screens/_publish-results.js
+  function scoresChangedSincePublish(results, preview, previewOk = true) {
+    if (!results || !previewOk) return false;
+    const totals = (rows) => new Map((rows || []).map((row) => [row.team_id, row.total]));
+    const pub = totals(results), cur = totals(preview);
+    return [.../* @__PURE__ */ new Set([...pub.keys(), ...cur.keys()])].some((id) => pub.get(id) !== cur.get(id));
+  }
+  async function loadStandings(ctx) {
+    const base = "/v1/hack/events/" + encodeURIComponent(ctx.event.event.slug);
+    const [published, preview] = await Promise.all([
+      ctx.api.api("GET", base + "/results"),
+      ctx.api.api("GET", base + "/judging/preview")
+    ]);
+    return {
+      published,
+      preview,
+      results: published.ok ? published.data?.results || (Array.isArray(published.data) ? published.data : []) : null,
+      rows: preview.ok ? preview.data?.results || [] : []
+    };
+  }
+  function savedPlace(row, group, results) {
+    const saved2 = (results || []).find((r) => r.team_id === row.team_id);
+    if (!saved2 || saved2.tie_decider !== "organiser" || saved2.total !== row.total) return null;
+    const first = Number(row.rank);
+    if (saved2.rank < first || saved2.rank >= first + group.length) return null;
+    if (!group.every((r) => (results || []).some((old) => old.team_id === r.team_id && old.total === r.total && old.rank >= first && old.rank < first + group.length))) return null;
+    return saved2.rank;
+  }
+  async function publishResults(ctx, { setLive, button, confirmText }) {
+    const { ui } = ctx;
+    const ev = ctx.event.event;
+    button.disabled = true;
+    try {
+      const state = await loadStandings(ctx);
+      if (!ctx.alive()) return;
+      for (const r2 of [state.published, state.preview]) {
+        if (!r2.ok) {
+          setLive(ui.errText(r2), "err");
+          return;
+        }
+      }
+      const published = !!ev.results_published || !!state.results?.length;
+      const label = published ? "Publish again" : "Publish results";
+      const body = [ui.el("p", { text: confirmText || "This replaces the public snapshot with the standings right now. Continue?" })];
+      const table = ui.el("table", { class: "t" });
+      table.innerHTML = "<thead><tr><th>Rank</th><th>Team</th><th>Score</th></tr></thead>";
+      const tbody = ui.el("tbody");
+      const byRank = {};
+      state.rows.forEach((row) => {
+        var _a;
+        const tr = ui.el("tr");
+        tr.append(
+          ui.el("td", { text: row.rank == null ? "Not scored" : "#" + row.rank }),
+          ui.el("td", { text: row.team_name || "A team" }),
+          ui.el("td", { text: row.total == null ? "No score" : String(row.total) })
+        );
+        tbody.appendChild(tr);
+        if (row.tied && row.rank != null) (byRank[_a = row.rank] || (byRank[_a] = [])).push(row);
+      });
+      table.appendChild(tbody);
+      body.push(table);
+      const inputs = [];
+      if (Object.keys(byRank).length) body.push(ui.el("p", { text: "Some teams tie. Give each one a final place:" }));
+      for (const [rank, rows] of Object.entries(byRank)) {
+        body.push(ui.el("p", { class: "small muted", text: "Tied for #" + rank + ":" }));
+        const group = ui.el("div", { class: "tie-group" });
+        rows.forEach((row) => {
+          const id = "pub-tie-" + row.team_id;
+          const input = ui.el("input", { "data-help": "ties", class: "input", id, type: "number", min: "1", step: "1", value: String(savedPlace(row, rows, state.results) ?? row.rank) });
+          group.append(ui.el("label", { for: id, text: row.team_name || "A team" }), input);
+          inputs.push({ team_id: row.team_id, input });
+        });
+        body.push(group);
+      }
+      if (!await ui.confirm({ title: label + "?", body, confirmLabel: label })) return;
+      const r = await ctx.api.api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/results/publish", {
+        rank_overrides: inputs.map(({ team_id, input }) => ({ team_id, rank: Number(input.value) }))
+      });
+      if (!r.ok) {
+        setLive(ui.errText(r), "err");
+        return;
+      }
+      if (ev.stage !== "archived") await offerStageAnnouncement(ctx, {
+        move: "publish_results",
+        back: false,
+        emailableCount: ctx.event.organiser?.counts?.emailable_participants || 0,
+        setLive
+      });
+      await ctx.refresh();
+    } catch (e) {
+      if (!ctx.api.isSignedOut(e)) setLive("Cannot reach the server.", "err");
+    } finally {
+      button.disabled = false;
+    }
   }
 
   // internal/mcp/apps/frame/platform.js
@@ -3790,7 +3885,7 @@
   function stageChip(stage) {
     if (stage === "draft" || stage === "open") return "Is my setup done?";
     if (stage === "building") return "What happens when I close entries?";
-    if (stage === "closed" || stage === "judging") return "How do I lock judging?";
+    if (stage === "closed" || stage === "judging") return "How do I finish judging?";
     if (stage === "results") return "How do I publish results?";
     if (stage === "archived" || stage === "ended") return "Where do I download the results?";
     return "Is my setup done?";
@@ -4417,7 +4512,6 @@
         h2: "Publish results",
         sentenceHTML: `Teams see their results straight away. Your event page shows them the way you set on <a href="${resultsHref}">Results</a>.`,
         confirmBody: "Teams see their results straight away. Your event page shows them the way you set on Results.",
-        headsUp: "To set a final order for ties, use Results first.",
         button: step.label
       };
     }
@@ -4471,11 +4565,22 @@
     const settingsHref = href("organiser", ev.slug, "settings");
     const entriesHandInHref = resolve2("o.entry-rules", ev.slug).href;
     const guidance = data.checklist?.next;
-    const step = data.checklist ? guidance || { kind: "none" } : data.next_step || { kind: "none" };
+    let step = data.checklist ? guidance || { kind: "none" } : data.next_step || { kind: "none" };
     if (step.blocked_reason) step.blocked = step.blocked_reason;
+    if (!admin && !ev.taken_down && ["results", "archived"].includes(ev.stage) && ev.results_published) {
+      try {
+        const state = await loadStandings(ctx);
+        if (!ctx.alive()) return;
+        if (scoresChangedSincePublish(state.results, state.rows, state.preview.ok)) step = { kind: "publish_results", label: "Publish again" };
+      } catch (e) {
+        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err");
+      }
+    }
+    if (["o.publish", "o.ties"].includes(step.item_id) && step.target_id !== "o.lock") step = { ...step, kind: "publish_results", label: "Publish results" };
+    if (!admin && !ev.taken_down && ev.stage === "results" && !ev.results_published && step.kind !== "publish_results") step = { kind: "publish_results", label: "Publish results" };
+    if (step.kind === "link" && step.target_id === "o.lock") step = { ...step, kind: "stage", stage: "results" };
     const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref);
     if (step.kind === "link" && step.link) Object.assign(content, { h2: step.label, sentence: "", button: checklistActionLabel(step), navHref: step.link.href });
-    if (data.checklist && step.kind === "publish_results") Object.assign(content, { navHref: resultsHref, button: "Preview" });
     const cue = content.button && !content.blocked ? cueHeading(ui, ev, step) : "";
     if (cue) {
       if (step.kind === "link") content.cueNote = cueHeading(ui, ev, data.next_step);
@@ -4560,11 +4665,10 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
       return api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/stage", { stage: target });
     }
     const emailableCount = counts.emailable_participants ?? 0;
-    async function offerAnnouncement(move, back, judgingLocked) {
+    async function offerAnnouncement(move, back) {
       await offerStageAnnouncement(ctx, {
         move,
         back,
-        judgingLocked: judgingLocked ?? !!ev.judging_locked_at,
         emailableCount,
         setLive
       });
@@ -4605,6 +4709,10 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
     const nextMoveBtn = $("ov-next-move");
     if (nextMoveBtn && !content.blocked && !content.navHref) {
       nextMoveBtn.addEventListener("click", async () => {
+        if (step.kind === "publish_results") {
+          await publishResults(ctx, { setLive, button: nextMoveBtn, confirmText: content.confirmBody });
+          return;
+        }
         if (content.isEnd) {
           await runEndFromNext();
           return;
@@ -4627,8 +4735,8 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
         if (!ok) return;
         nextMoveBtn.disabled = true;
         try {
-          const move = step.kind === "publish_results" ? "publish_results" : step.stage;
-          const r = step.kind === "publish_results" ? await api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/results/publish", {}) : await callStage(step.stage);
+          const move = step.stage;
+          const r = await callStage(step.stage);
           if (!r.ok) {
             setLive(ui.errText(r), "err");
             nextMoveBtn.disabled = false;
@@ -4663,7 +4771,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
       }
     }
     $("ov-change-stage").addEventListener("click", async () => {
-      const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER2, { judgingLocked: !!ev.judging_locked_at, ctx });
+      const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER2, { ctx });
       if (!target) return;
       const btn = $("ov-change-stage");
       btn.disabled = true;
@@ -4675,8 +4783,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
           return;
         }
         const back = STAGE_ORDER2.indexOf(target) < STAGE_ORDER2.indexOf(ev.stage);
-        const judgingLocked = r.data && r.data.event && r.data.event.judging_locked_at != null ? !!r.data.event.judging_locked_at : !!ev.judging_locked_at;
-        await offerAnnouncement(target, back, judgingLocked);
+        await offerAnnouncement(target, back);
         await ctx.refresh();
       } catch (e) {
         setLive("Cannot reach the server.", "err");
@@ -4921,12 +5028,11 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
     const base = "/v1/hack/events/" + encodeURIComponent(slug);
     const $ = (id) => main.querySelector("#" + id);
     const setLive = ui.live(main);
-    let locked = !!ev.judging_locked_at;
+    const locked = !!ev.judging_locked_at;
     const adminLockReason = ui.writeLockReason(ev, ctx.event.admin_view);
     const archived = ev.stage === "archived";
     const tieClosed = () => locked || !!adminLockReason || ["judging", "results", "archived"].includes(ev.stage);
     const beforeClosed = () => !["closed", "judging", "results", "archived"].includes(ev.stage);
-    const setupFirst = ["draft", "open", "building", "closed"].includes(ev.stage) && !locked;
     let rubric = [];
     let settings = { assignment_mode: "open", judges_per_team: 2, score_mode: "raw", tie_criterion_id: "", public_scores: false, public_ranks: false };
     let conflicts = [];
@@ -4939,112 +5045,16 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
     const restBlock = `
 <section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading\u2026</p></section>
 <section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading\u2026</p></section>
-${archived ? "" : '<section class="card" id="jg-lockzone"></section>'}`;
+`;
     const canJudge = canScoreAsJudge(ctx.event);
     main.innerHTML = `
 <div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
-<span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc("/e/" + encodeURIComponent(slug) + "/judge?s=home")}">Score as a judge</a>` : ""}</div>
+${canJudge ? `<a class="btn" href="${ui.esc("/e/" + encodeURIComponent(slug) + "/judge?s=home")}">Score as a judge</a>` : ""}</div>
 ${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : ""}
 <p><a href="${ui.esc(href("organiser", slug, "settings") + "&tab=judging")}">Judging settings</a></p>
 <section class="card"><h2>Assignments</h2><div class="form-actions"><a class="btn" href="${ui.esc(href("organiser", slug, "assignments"))}">Open the assignment grid</a></div></section>
 ${restBlock}
-<p id="jg-results-link" hidden><a href="${ui.esc(href("organiser", slug, "results"))}">Review and publish on Results</a></p>`;
-    function paintTopAction() {
-      const slot = $("jg-top-action");
-      slot.textContent = "";
-      $("jg-results-link").hidden = !locked;
-      if (locked) {
-        const a = ui.el("a", { class: archived ? "btn" : "btn primary", href: href("organiser", slug, "results"), text: "Go to Results" });
-        slot.appendChild(a);
-      } else if (adminLockReason) {
-      } else if (setupFirst) {
-      } else {
-        const b = ui.el("button", { class: "btn primary", type: "button", text: "Lock judging" });
-        b.addEventListener("click", doLock);
-        slot.appendChild(b);
-      }
-    }
-    function paintLockZone() {
-      const zone = $("jg-lockzone");
-      if (!zone) return;
-      zone.textContent = "";
-      if (!locked) {
-        zone.appendChild(ui.el("h2", { text: "Lock judging" }));
-        zone.appendChild(ui.el("p", { class: "sub", text: "Locking stops every rubric, assignment or score change until you unlock." }));
-      } else {
-        zone.appendChild(ui.el("h2", { text: "Judging is locked" }));
-        zone.appendChild(ui.el("p", { class: "sub", text: "Unlocking is logged against your account. Why does scoring need to reopen?" }));
-        const form = ui.el("form");
-        const field = ui.el("div", { class: "field" });
-        const label = ui.el("label", { text: "Reason" });
-        const textarea = ui.el("textarea", { "data-help": "lock", class: "input", required: "", maxlength: "300" });
-        textarea.disabled = !!adminLockReason;
-        label.appendChild(textarea);
-        field.appendChild(label);
-        form.appendChild(field);
-        const go = ui.el("button", { class: "btn", type: "submit", text: "Unlock" });
-        go.disabled = !!adminLockReason;
-        const actions = ui.el("div", { class: "form-actions" });
-        actions.appendChild(go);
-        form.appendChild(actions);
-        onSubmit(form, go, (e) => {
-          e.preventDefault();
-          doUnlock(textarea.value, go);
-        });
-        zone.appendChild(form);
-        ui.trackForm(ctx, form);
-      }
-    }
-    async function doLock() {
-      const ok = await ui.confirm({ title: "Lock judging now?", body: "No judge can change a score, and you can't change the rubric or assignments, until you unlock.", confirmLabel: "Lock judging", danger: true });
-      if (!ok) return;
-      let r;
-      try {
-        r = await api("POST", base + "/judging/lock", {});
-      } catch (e) {
-        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err");
-        return;
-      }
-      if (!r.ok) {
-        setLive(ui.errText(r), "err");
-        return;
-      }
-      locked = true;
-      ev.judging_locked_at = r.data && r.data.locked_at || (/* @__PURE__ */ new Date()).toISOString();
-      paintTopAction();
-      paintLockZone();
-      paintConflicts();
-      await reloadDashboard();
-      setLive("Judging locked", "ok");
-    }
-    async function doUnlock(reason, btn) {
-      reason = String(reason || "").trim();
-      if (!reason) {
-        setLive("Enter a reason.", "err", btn);
-        return;
-      }
-      btn.disabled = true;
-      let r;
-      try {
-        r = await api("POST", base + "/judging/unlock", { reason });
-      } catch (e) {
-        if (!client.isSignedOut(e)) setLive("Cannot reach the server.", "err", btn);
-        btn.disabled = false;
-        return;
-      }
-      if (!r.ok) {
-        setLive(ui.errText(r), "err", btn);
-        btn.disabled = false;
-        return;
-      }
-      locked = false;
-      ev.judging_locked_at = null;
-      paintTopAction();
-      paintLockZone();
-      paintConflicts();
-      await reloadDashboard();
-      setLive("Judging unlocked", "ok");
-    }
+${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href("organiser", slug, "home"))}">Home</a> when ready.</p>` : ""}`;
     function paintConflicts() {
       const card = $("jg-conflicts-card");
       card.textContent = "";
@@ -5199,7 +5209,7 @@ ${restBlock}
         const del = ui.el("button", { class: "btn quiet sm", type: "button", text: "Delete scores" });
         if (locked || adminLockReason) {
           del.disabled = true;
-          if (locked && !adminLockReason) del.title = "Unlock judging to change scores.";
+          if (locked && !adminLockReason) del.title = "Move the event back to Judging to change scores.";
         }
         del.addEventListener("click", () => deleteFormerJudge(f, del));
         row.appendChild(del);
@@ -5253,8 +5263,6 @@ ${restBlock}
       setLive("Scores deleted", "ok");
       await reloadDashboard();
     }
-    paintTopAction();
-    paintLockZone();
     let rubricR, settingsR, conflictsR, peopleR, teamsR, assignR;
     try {
       ;

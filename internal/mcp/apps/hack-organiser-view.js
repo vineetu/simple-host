@@ -53,6 +53,7 @@
   // request, through the model's own tool list -- this view never calls
   // them.
   var ORGANISER_TOOLS = {
+    hack_app_preview_results: 1, hack_app_get_results: 1, hack_app_publish_results: 1,
     hack_get_checklist: 1, hack_set_checklist_not_needed: 1,
     hack_show_organiser: 1, hack_app_get_people: 1, hack_app_get_applications: 1,
     hack_app_regenerate_code: 1, hack_app_set_event_stage: 1, hack_app_get_registration: 1,
@@ -62,17 +63,18 @@
     hack_app_get_judging_settings: 1, hack_set_judging_settings: 1, hack_app_get_conflicts: 1,
     hack_set_judge_conflict: 1, hack_remove_judge_conflict: 1, hack_app_get_teams: 1,
     hack_app_get_assignments: 1, hack_generate_assignments: 1, hack_app_get_judging_dashboard: 1,
-    hack_delete_former_judge_scores: 1, hack_lock_judging: 1, hack_unlock_judging: 1,
+    hack_delete_former_judge_scores: 1,
     hack_app_set_judging_ends_at: 1
   };
   var WRITE_TOOLS = {
+    hack_app_publish_results: 1,
     hack_set_checklist_not_needed: 1,
     hack_app_regenerate_code: 1, hack_app_set_event_stage: 1, hack_decide_application: 1,
     hack_remove_person: 1, hack_revoke_person_key: 1, hack_remove_organiser: 1,
     hack_app_create_organiser_invite: 1, hack_revoke_organiser_invite: 1, hack_set_registration: 1,
     hack_set_rubric: 1, hack_set_judging_settings: 1, hack_set_judge_conflict: 1,
     hack_remove_judge_conflict: 1, hack_generate_assignments: 1, hack_delete_former_judge_scores: 1,
-    hack_lock_judging: 1, hack_unlock_judging: 1, hack_app_set_judging_ends_at: 1
+    hack_app_set_judging_ends_at: 1
   };
   var MAX_CONCURRENT = 4;
   var inFlight = 0;
@@ -174,6 +176,9 @@
   }
   var SEG = '([^/]+)';
   var routes = [
+    route('GET', '/v1/hack/events/' + SEG + '/judging/preview', 'hack_app_preview_results', ['slug'], { unwrap: true, appOnly: true }),
+    route('GET', '/v1/hack/events/' + SEG + '/results', 'hack_app_get_results', ['slug'], { unwrap: true, appOnly: true }),
+    route('POST', '/v1/hack/events/' + SEG + '/results/publish', 'hack_app_publish_results', ['slug'], { wrap: true, unwrap: true, appOnly: true, body: ['rank_overrides'] }),
     route('GET', '/v1/hack/events/' + SEG + '/checklist', 'hack_get_checklist', ['slug']),
     route('POST', '/v1/hack/events/' + SEG + '/checklist/not-needed/' + SEG, 'hack_set_checklist_not_needed', ['slug', 'item_id']),
     route('DELETE', '/v1/hack/events/' + SEG + '/checklist/not-needed/' + SEG, 'hack_set_checklist_not_needed', ['slug', 'item_id']),
@@ -201,8 +206,6 @@
     route('POST', '/v1/hack/events/' + SEG + '/assignments/generate', 'hack_generate_assignments', ['slug'], { wrap: true, unwrap: true, body: ['include_organisers'] }),
     route('GET', '/v1/hack/events/' + SEG + '/judging/dashboard', 'hack_app_get_judging_dashboard', ['slug'], { unwrap: true, appOnly: true }),
     route('DELETE', '/v1/hack/events/' + SEG + '/judging/former-judges/' + SEG, 'hack_delete_former_judge_scores', ['slug', 'user_id'], { wrap: true, unwrap: true, body: ['confirm'] }),
-    route('POST', '/v1/hack/events/' + SEG + '/judging/lock', 'hack_lock_judging', ['slug'], { unwrap: true }),
-    route('POST', '/v1/hack/events/' + SEG + '/judging/unlock', 'hack_unlock_judging', ['slug'], { wrap: true, unwrap: true, body: ['reason'] }),
     // organiser-judging.js's "Judging closes" card (onSaveCloses/onClearCloses,
     // notices contract 2026-11-05): the app-only twin (0003-hack-notices-
     // judges-messages.sql round 2, Codex review), not hack_update_event
@@ -271,8 +274,6 @@
     hack_remove_judge_conflict: function () { return 'Removed a judge conflict.'; },
     hack_generate_assignments: function () { return 'Generated judge assignments.'; },
     hack_delete_former_judge_scores: function () { return "Deleted a departed judge's scores."; },
-    hack_lock_judging: function () { return 'Locked judging.'; },
-    hack_unlock_judging: function () { return 'Unlocked judging.'; },
     // This route only ever sends judging_ends_at (the route table's own
     // body: ['judging_ends_at']), so the summary can be specific.
     hack_app_set_judging_ends_at: function (args) { return args.judging_ends_at ? 'Set when judging closes.' : 'Cleared when judging closes.'; }

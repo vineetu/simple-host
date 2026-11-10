@@ -5191,6 +5191,12 @@
       "feature_id": "simple-hack-organiser-app"
     },
     {
+      "name": "hack_app_get_results",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "simple-hack-organiser-app"
+    },
+    {
       "name": "hack_app_get_rubric",
       "family": "hack-app-only",
       "edition": "hack",
@@ -5198,6 +5204,18 @@
     },
     {
       "name": "hack_app_get_teams",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "simple-hack-organiser-app"
+    },
+    {
+      "name": "hack_app_preview_results",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "simple-hack-organiser-app"
+    },
+    {
+      "name": "hack_app_publish_results",
       "family": "hack-app-only",
       "edition": "hack",
       "feature_id": "simple-hack-organiser-app"
@@ -5785,12 +5803,6 @@
       "feature_id": "team-finding"
     },
     {
-      "name": "hack_lock_judging",
-      "family": "hack-entries",
-      "edition": "hack",
-      "feature_id": "simple-hack-organiser-app"
-    },
-    {
       "name": "hack_lock_my_team",
       "family": "hack-events",
       "edition": "hack",
@@ -5884,7 +5896,7 @@
       "name": "hack_publish_results",
       "family": "hack-entries",
       "edition": "hack",
-      "feature_id": "results-show-what-each-team-built"
+      "feature_id": "simple-hack-organiser-app"
     },
     {
       "name": "hack_regenerate_code",
@@ -6143,12 +6155,6 @@
       "family": "hack-events",
       "edition": "hack",
       "feature_id": "entry-summary-card-rules-and-submit"
-    },
-    {
-      "name": "hack_unlock_judging",
-      "family": "hack-entries",
-      "edition": "hack",
-      "feature_id": "simple-hack-organiser-app"
     },
     {
       "name": "hack_unsubmit_entry",

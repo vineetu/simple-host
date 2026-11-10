@@ -34,7 +34,7 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 		return model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && ev.JudgingLockedAt.Valid {
-		return model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
+		return model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
 	}
 	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && (ev.Stage == "judging" || ev.Stage == "results") {
 		return model.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
@@ -90,11 +90,6 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 		return model.Event{}, err
 	}
 	return ev, nil
-}
-
-// SetJudgingLock sets or clears the event's judging lock.
-func (s *Service) SetJudgingLock(ctx context.Context, eventID string, locked bool, reason string) (model.Event, error) {
-	return eventrepo.SetJudgingLock(ctx, s.db, eventID, locked, reason)
 }
 
 func updateOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string, selection *[]string, alias *bool) error {

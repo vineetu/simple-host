@@ -671,7 +671,7 @@ func TestHackListOpenTeamsLockedAndFull(t *testing.T) {
 	}
 }
 
-// --- 12: results locks judging ---------------------------------------------
+// --- 12: results locks judging, back to judging unlocks ---------------------
 
 func TestHackResultsStageLocksJudging(t *testing.T) {
 	a := newHackApp(t)
@@ -693,8 +693,8 @@ func TestHackResultsStageLocksJudging(t *testing.T) {
 		t.Fatalf("not locked after results: %v %v", locked, err)
 	}
 	wantCode(t, "back to judging", a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "judging"}, a.key(org)), 200, "")
-	if err := a.database.QueryRow(`SELECT judging_locked_at IS NOT NULL FROM events WHERE id=$1`, eventID).Scan(&locked); err != nil || !locked {
-		t.Fatalf("lock not kept going back to judging: %v %v", locked, err)
+	if err := a.database.QueryRow(`SELECT judging_locked_at IS NOT NULL FROM events WHERE id=$1`, eventID).Scan(&locked); err != nil || locked {
+		t.Fatalf("lock not cleared going back to judging: %v %v", locked, err)
 	}
 	wantCode(t, "to results again", a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "results"}, a.key(org)), 200, "")
 	wantCode(t, "publish at results", a.at(t, "POST", "/v1/hack/events/"+slug+"/results/publish", map[string]any{}, a.key(org)), 200, "")

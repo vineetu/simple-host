@@ -1509,7 +1509,9 @@ Deletes the scores and comments of a judge (or judging organiser) who left the e
 
 <div data-operation="POST /v1/hack/events/{slug}/judging/lock"></div>
 
-Refuses every further rubric or score write (409 scores_locked). Idempotent: locking an already-locked event is still 200.
+**Deprecated.**
+
+Judging locks when you finish judging (move to Results) and unlocks when you move the event back.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1523,10 +1525,10 @@ Refuses every further rubric or score write (409 scores_locked). Idempotent: loc
 
 | Status | Description |
 | --- | --- |
-| 200 | The lock state |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | event_taken_down |
 | 404 | event_not_found |
+| 410 | judging_lock_removed — Judging locks when you finish judging (move to Results) and unlocks when you move the event back. |
 
 ## GET /v1/hack/events/{slug}/judging/panels
 
@@ -1662,7 +1664,9 @@ Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team 
 
 <div data-operation="POST /v1/hack/events/{slug}/judging/unlock"></div>
 
-Requires a reason (1-300 characters, one line); the reason is logged.
+**Deprecated.**
+
+Judging locks when you finish judging (move to Results) and unlocks when you move the event back.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1672,21 +1676,14 @@ Requires a reason (1-300 characters, one line); the reason is logged.
 | --- | --- | --- | --- | --- |
 | slug | path | string | yes |  |
 
-**Request body:**
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| reason | string | yes |  |
-
 **Responses:**
 
 | Status | Description |
 | --- | --- |
-| 200 | The lock state |
-| 400 | invalid_reason |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | event_taken_down |
 | 404 | event_not_found |
+| 410 | judging_lock_removed — Judging locks when you finish judging (move to Results) and unlocks when you move the event back. |
 
 ## GET /v1/hack/events/{slug}/key
 
@@ -2351,7 +2348,7 @@ The event's scoring criteria in order. New events start with Idea, Execution, De
 
 <div data-operation="PUT /v1/hack/events/{slug}/rubric"></div>
 
-Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): unlock it first. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced max_points are deleted. Returns 409 score_deletion_confirmation with counts until confirm_score_deletion is true. Comments on retained scores are preserved. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
+Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): move the event back to Entries closed to change the rubric. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced max_points are deleted. Returns 409 score_deletion_confirmation with counts until confirm_score_deletion is true. Comments on retained scores are preserved. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 

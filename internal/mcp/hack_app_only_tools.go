@@ -191,6 +191,20 @@ func hackAppOnlyTools(base []Tool) []Tool {
 		twins = append(twins, hackAppOnlyTwin(find(baseName), name, title, outSchema, allowed, summarize))
 	}
 
+	// Home's publish dialog reads standings and publishes through app-only twins.
+	for _, spec := range []struct{ base, name, title string }{
+		{"hack_preview_judging_assignments", "hack_app_preview_results", "App: preview results"},
+		{"hack_get_public_results", "hack_app_get_results", "App: load published results"},
+		{"hack_publish_results", "hack_app_publish_results", "App: publish results"},
+	} {
+		title := spec.title
+		twin(spec.base, spec.name, title, countSchema("count"), hackAppOnlyOrganiserAllowed,
+			func(out output) (string, map[string]any) {
+				n := hackAppOnlyArrayField(hackAppOnlyRouteBody(out), "results")
+				return title + ".", map[string]any{"count": n}
+			})
+	}
+
 	// --- organiser reads --------------------------------------------------
 	twin("hack_get_people", "hack_app_get_people", "App: load people",
 		countSchema("count"),

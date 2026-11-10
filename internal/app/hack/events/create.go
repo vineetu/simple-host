@@ -242,20 +242,16 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 				return model.Event{}, "", err
 			}
 		}
-		// Moving to results locks judging in the same transaction, when it
-		// is not locked already: Results already stops scoring
-		// (scoringStage), and locking here removes the dead end where the
-		// Results screen refused to publish an unlocked event. Moving back
-		// to judging leaves the lock on; the stage picker says so.
+		// Results stops scoring and locks judging in the stage transaction.
 		if stage == "results" && current != "results" {
 			if updated, err = eventrepo.SetJudgingLock(ctx, tx, event.ID, true, ""); err != nil {
 				return model.Event{}, "", err
 			}
 		}
-		// Locks follow the stage (SIM-416): moving back before Judging
-		// clears the judging lock, so the judging setup is editable again.
+		// Locks follow the stage (SIM-416): moving back to Judging or earlier
+		// clears the judging lock. Setup still requires a stage before Judging.
 		switch stage {
-		case "draft", "open", "building", "closed":
+		case "draft", "open", "building", "closed", "judging":
 			if updated.JudgingLockedAt.Valid {
 				if updated, err = eventrepo.SetJudgingLock(ctx, tx, event.ID, false, "stage moved back"); err != nil {
 					return model.Event{}, "", err

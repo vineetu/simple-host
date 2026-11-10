@@ -30,7 +30,7 @@ export function judgeJoined(slug) {
   location.assign('/e/' + encodeURIComponent(slug) + '/judge')
 }
 
-// public-judge.js's accept form and organiser-judging.js's unlock/conflict
+// public-judge.js's accept form and organiser-judging.js's conflict
 // forms: the website has a real <form>, so wiring the native submit event
 // keeps Enter-to-submit working exactly as before. `button` is unused here
 // (the frame implementation needs it instead of a submit event); `handler`

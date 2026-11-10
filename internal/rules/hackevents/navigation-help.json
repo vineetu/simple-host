@@ -148,7 +148,7 @@
         },
         {
           "label": "Judging",
-          "means": "All teams stop editing, including extended teams. Judges can score if unlocked. Mode, judges per team, rubric and assignments lock; Automatic assigns judges now. Back to Entries closed pauses scoring and unlocks setup."
+          "means": "All teams stop editing, including extended teams. Judges can score. Mode, judges per team, rubric and assignments lock; Automatic assigns judges now. Back to Entries closed pauses scoring and unlocks setup."
         },
         {
           "label": "Results",
@@ -161,7 +161,7 @@
       ],
       "effects": [
         "Entering Open/Building from outside those stages clears passed deadlines and reopens settled drafts; submitted entries stay submitted. Moving between Open and Building does neither.",
-        "Returning from Results to Judging keeps the lock; unlock separately with a reason."
+        "Returning from Results to Judging reopens scoring. Publish again from Home afterwards."
       ],
       "keywords": [
         "reopen",
@@ -173,7 +173,6 @@
       "related": [
         "end",
         "deadline",
-        "lock",
         "publish"
       ]
     },
@@ -190,7 +189,7 @@
       "effects": [
         "At least one approved participant must exist; delete an unused event instead.",
         "The public record and results remain. Team sites are removed after the number of days in CURRENT SETTINGS (30 by default); events can be exempted by the platform. Entries and scoring freeze; nobody can leave an Ended event.",
-        "After End, title, tagline, About, Rules, Prizes, conduct, time zone, dates, page style, colour, organiser details, gallery and directory listing remain editable. An AI app connected to Simple Hack can still change team finding, team size and Judging closes, even though the screens disable them. Unlocking, rubric edits and entry exclusion remain possible; scoring stays closed. Results can be republished."
+        "After End, title, tagline, About, Rules, Prizes, conduct, time zone, dates, page style, colour, organiser details, gallery and directory listing remain editable. An AI app connected to Simple Hack can still change team finding, team size and Judging closes, even though the screens disable them. Entry exclusion remains possible; scoring stays closed. Results can be republished from Home."
       ],
       "keywords": [
         "archive",
@@ -1409,12 +1408,11 @@
         "jg-closes-input"
       ],
       "effects": [
-        "This time does not stop scoring or lock judging. Clear it to stop judge reminders tied to that time. Stage and judging lock control scoring.",
+        "This time does not stop scoring or lock judging. Clear it to stop judge reminders tied to that time. Judging opens scoring; Results stops scoring and locks judging.",
         "Judge reminders require Judging, unlocked judging, a future close and dedicated judges with work left; organiser judges are excluded."
       ],
       "related": [
         "reminders",
-        "lock",
         "stage"
       ]
     },
@@ -1426,13 +1424,13 @@
         "screens/_settings-judging.js"
       ],
       "explains": "Set event-wide criteria, readable by approved participants; tracks share the rubric.",
-      "when": "Set or revise criteria while judging is unlocked.",
+      "when": "Set or revise criteria before Judging starts.",
       "controls": [
         "button:Add a criterion",
         "button:Save rubric"
       ],
       "effects": [
-        "Criteria have Name, Description, Weight % and Max points. Defaults: Idea, Execution, Design, Demo, each 25% and 5 points. Unlock to edit, even after End; keep the fixed tie criterion."
+        "Criteria have Name, Description, Weight % and Max points. Defaults: Idea, Execution, Design, Demo, each 25% and 5 points. Move back to Entries closed to edit; keep the fixed tie criterion."
       ],
       "keywords": [
         "criteria",
@@ -1445,7 +1443,6 @@
         "rubric.scores",
         "rubric.final",
         "tie",
-        "lock",
         "rubric.name",
         "rubric.description",
         "rubric.weight",
@@ -1463,7 +1460,7 @@
         "screens/_settings-judging.js"
       ],
       "explains": "Keep criterion identities to preserve compatible scores across renaming, reordering and reweighting.",
-      "when": "Save changes while judging is unlocked.",
+      "when": "Save changes before Judging starts.",
       "effects": [
         "Removing a scored criterion, or lowering Max points below marks judges already gave, asks you to confirm first. Removal deletes that criterion’s scores; lowering deletes only marks above the new maximum. Republish to update published standings."
       ],
@@ -1475,7 +1472,6 @@
       "related": [
         "rubric",
         "tie",
-        "lock",
         "publish"
       ]
     },
@@ -1491,8 +1487,7 @@
       "explains": "Mark the rubric setup item as ready for the organiser checklist. This does not replace the judging lock.",
       "when": "Confirm your criteria are ready.",
       "related": [
-        "rubric",
-        "lock"
+        "rubric"
       ],
       "effects": [
         "The acknowledgement follows the saved rubric version. Saving a rubric in Closed automatically marks that saved version final; changes in other stages need a fresh acknowledgement."
@@ -1514,7 +1509,7 @@
         "jg-tie"
       ],
       "effects": [
-        "While the current stage is Judging, Results or Ended, the tie criterion cannot change or leave the rubric. Returning to Closed/Building permits changes if unlocked. Equal totals use the optional criterion, then judges’ pairwise preferences; organisers order remaining ties at publication."
+        "While the current stage is Judging, Results or Ended, the tie criterion cannot change or leave the rubric. Returning to Entries closed or Building permits changes. Equal totals use the optional criterion, then judges’ pairwise preferences; organisers order remaining ties at publication."
       ],
       "keywords": [
         "tie-break",
@@ -1539,7 +1534,7 @@
         "screens/_settings-judging.js"
       ],
       "explains": "Control which teams judges can score. Conflicts apply in every mode.",
-      "when": "Allocate judging work while unlocked, before End.",
+      "when": "Allocate judging work before Judging starts.",
       "controls": [
         "jg-mode-open",
         "jg-mode-automatic",
@@ -1578,8 +1573,7 @@
       ],
       "related": [
         "assignments",
-        "conflicts",
-        "lock"
+        "conflicts"
       ]
     },
     {
@@ -1590,15 +1584,14 @@
         "screens/_settings-judging.js"
       ],
       "explains": "Choose judge access; see How judges are assigned.",
-      "when": "Allocate judging work while unlocked, before End.",
+      "when": "Allocate judging work before Judging starts.",
       "keywords": [
         "assignment mode",
         "judge access"
       ],
       "related": [
         "assignments",
-        "conflicts",
-        "lock"
+        "conflicts"
       ]
     },
     {
@@ -2565,14 +2558,13 @@
         "screens/organiser-judging.js",
         "navigation-data.js"
       ],
-      "explains": "Manage assignments, progress, conflicts, former judges and the judging lock.",
+      "explains": "Manage assignments, progress, conflicts and former judges. Finish judging from Home to stop scoring.",
       "when": "Check judging work and progress.",
       "related": [
         "assignments",
         "progress",
         "conflicts",
         "former",
-        "lock",
         "rubric"
       ]
     },
@@ -2592,7 +2584,7 @@
       "effects": [
         "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces pairs, never deletes scores and respects conflicts.",
         "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
-        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Lock and End block changes; the grid is read-only then."
+        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Results and End block changes; the grid is read-only then."
       ],
       "keywords": [
         "assignment grid",
@@ -2601,8 +2593,7 @@
       ],
       "related": [
         "judging.mode",
-        "conflicts",
-        "lock"
+        "conflicts"
       ]
     },
     {
@@ -2633,7 +2624,7 @@
         "screens/organiser-judging.js"
       ],
       "explains": "Record a judge/team conflict to prevent that judge scoring that team in every assignment mode.",
-      "when": "Prevent biased scores while unlocked, before End.",
+      "when": "Prevent biased scores before Results.",
       "effects": [
         "Previous scores remain stored but are excluded from totals and coverage. Removing the conflict restores eligibility. A track-panel membership can remain while a conflicted team is excluded."
       ],
@@ -2659,45 +2650,14 @@
         "button:Delete scores"
       ],
       "effects": [
-        "Unlock judging before deleting. Deletion is permanent and requires confirmation. Published snapshots change only after republishing."
+        "Move the event back to Judging before deleting. Deletion is permanent and requires confirmation. Published snapshots change only after republishing."
       ],
       "keywords": [
         "departed judges",
         "left judges"
       ],
       "related": [
-        "lock",
         "publish"
-      ]
-    },
-    {
-      "id": "lock",
-      "target": "o.lock",
-      "label": "Lock judging",
-      "sources": [
-        "screens/organiser-judging.js"
-      ],
-      "explains": "Freeze scoring, rubric changes and assignments. Unlock requires a reason.",
-      "when": "Freeze judging inputs or unlock for corrections.",
-      "effects": [
-        "Scoring also requires Closed or Judging. Unlocking does not change the stage. Results locks judging; moving back to Judging keeps that lock. The server allows unlocking after End, but scoring stays closed."
-      ],
-      "limits": [
-        "Unlock reason: 1–300 characters."
-      ],
-      "keywords": [
-        "finish judging",
-        "unlock",
-        "freeze scores"
-      ],
-      "related": [
-        "stage",
-        "rubric",
-        "assignments",
-        "publish"
-      ],
-      "controls": [
-        "button:Unlock"
       ]
     },
     {
@@ -2708,7 +2668,7 @@
         "screens/organiser-results.js",
         "navigation-data.js"
       ],
-      "explains": "Preview current standings, resolve tied places, publish and download results. The preview can differ from the last published snapshot.",
+      "explains": "Preview current standings and download results. Resolve tied places and publish from Home. The preview can differ from the last published snapshot.",
       "when": "Prepare or update results publication.",
       "related": [
         "ties",
@@ -2720,9 +2680,10 @@
     {
       "id": "ties",
       "target": "o.ties",
-      "label": "Save order and publish",
+      "label": "Some teams tie. Give each one a final place:",
       "sources": [
-        "screens/organiser-results.js"
+        "screens/organiser-overview.js",
+        "screens/_publish-results.js"
       ],
       "explains": "Resolve tied places by giving a complete order for each tied group, then publish that order.",
       "when": "Set the final order when teams share a place.",
@@ -2737,6 +2698,9 @@
       "related": [
         "tie",
         "publish"
+      ],
+      "controls": [
+        "button:Publish results"
       ]
     },
     {
@@ -2744,13 +2708,14 @@
       "target": "o.publish",
       "label": "Publish results",
       "sources": [
-        "screens/organiser-results.js"
+        "screens/organiser-overview.js",
+        "screens/_publish-results.js"
       ],
       "explains": "Publish a results snapshot, replacing any previous one. There is no unpublish action.",
       "when": "Release or update official standings.",
       "effects": [
-        "The screen requires locked judging. Server publishing from Closed or Judging moves to Results and locks; Draft, Open and Building are rejected.",
-        "Republish after End without reopening. Score or setting changes never update a published snapshot automatically."
+        "Publish from Home, including tie ordering and preview. Publishing from Closed or Judging moves to Results and locks judging; Draft, Open and Building are rejected.",
+        "Republish from Home after End without reopening. Score or setting changes never update a published snapshot automatically."
       ],
       "keywords": [
         "republish",
@@ -2759,10 +2724,12 @@
         "snapshot"
       ],
       "related": [
-        "lock",
         "ties",
         "result.visibility",
         "end"
+      ],
+      "controls": [
+        "button:Publish results"
       ]
     },
     {
@@ -3459,7 +3426,7 @@
       "effects": [
         "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces pairs, never deletes scores and respects conflicts.",
         "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
-        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Lock and End block changes; the grid is read-only then."
+        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Results and End block changes; the grid is read-only then."
       ],
       "keywords": [
         "assignment grid",
@@ -3468,8 +3435,7 @@
       ],
       "related": [
         "judging.mode",
-        "conflicts",
-        "lock"
+        "conflicts"
       ]
     },
     {
@@ -3489,6 +3455,19 @@
           "label": "No track",
           "means": "The team has no track and receives no track panel in Panel mode."
         }
+      ]
+    },
+    {
+      "id": "finish-judging",
+      "target": "o.lock",
+      "label": "Finish judging when every judge is done",
+      "sources": [
+        "screens/organiser-overview.js"
+      ],
+      "explains": "Finish judging from Home moves to Results and stops scoring. Moving back to Judging reopens scoring.",
+      "when": "Every judge is done.",
+      "related": [
+        "publish"
       ]
     }
   ]

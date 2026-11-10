@@ -216,7 +216,7 @@ func TestHackAuditAnnotationTuples(t *testing.T) {
 	for _, name := range []string{"hack_update_event", "hack_edit_announcement", "hack_delete_announcement", "hack_post_announcement", "hack_set_tracks", "hack_rename_team", "hack_update_entry", "hack_set_entry_screenshot", "hack_delete_entry_screenshot", "hack_vote", "hack_set_results_view", "hack_set_event_website_mode", "hack_restore_team_site", "hack_leave_event"} {
 		want[name] = [3]bool{false, true, true}
 	}
-	for _, name := range []string{"hack_create_organiser_invite", "hack_accept_organiser_invite", "hack_lock_judging", "hack_unlock_judging", "hack_set_preferences", "hack_select_team", "hack_delete_former_judge_scores"} {
+	for _, name := range []string{"hack_create_organiser_invite", "hack_accept_organiser_invite", "hack_set_preferences", "hack_select_team", "hack_delete_former_judge_scores"} {
 		want[name] = [3]bool{false, true, false}
 	}
 	// Deadline pins fill previously unset state, without replacing existing pins.

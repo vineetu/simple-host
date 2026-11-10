@@ -205,7 +205,7 @@ async function readSSE(response, onEvent) {
 function stageChip(stage) {
   if (stage === 'draft' || stage === 'open') return 'Is my setup done?'
   if (stage === 'building') return 'What happens when I close entries?'
-  if (stage === 'closed' || stage === 'judging') return 'How do I lock judging?'
+  if (stage === 'closed' || stage === 'judging') return 'How do I finish judging?'
   if (stage === 'results') return 'How do I publish results?'
   if (stage === 'archived' || stage === 'ended') return 'Where do I download the results?'
   return 'Is my setup done?'

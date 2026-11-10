@@ -27,7 +27,7 @@ func (s *Service) DeleteFormerJudgeScores(ctx context.Context, eventID, callerID
 		return &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if ev.JudgingLockedAt.Valid {
-		return &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
+		return &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
 	}
 	// Re-check membership under the event lock: a concurrent organiser removal
 	// may have committed while this request waited for that lock.

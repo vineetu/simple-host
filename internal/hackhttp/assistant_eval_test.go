@@ -491,7 +491,7 @@ func buildAssistantEvalFixtures(t *testing.T, a *hackApp) map[string]assistantEv
 	// judging, locked
 	w := newJudgingWorldApp(t, a, 2, 1)
 	w.setStage(t, "judging")
-	if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != 200 {
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "results"}, w.org); r.status != 200 {
 		t.Fatalf("lock judging: %d %s", r.status, r.body)
 	}
 	mk("judging", w.org, w.slug)

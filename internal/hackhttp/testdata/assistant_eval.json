@@ -972,7 +972,7 @@
   "question": "Why can't judges score any more?",
   "fixture": "judging",
   "expect_href_any": [
-   "/e/{slug}/manage?s=judging"
+   "/e/{slug}/manage?s=overview"
   ],
   "expect_all": [
    [
@@ -986,14 +986,14 @@
   "question": "How do I unlock judging?",
   "fixture": "judging",
   "expect_href_any": [
-   "/e/{slug}/manage?s=judging"
+   "/e/{slug}/manage?s=overview"
   ],
   "expect_all": [
    [
-    "unlock"
+    "stage"
    ],
    [
-    "reason"
+    "Judging"
    ]
   ]
  },
@@ -1035,7 +1035,7 @@
   "area": "results",
   "question": "Can I unpublish results?",
   "expect_href_any": [
-   "/e/{slug}/manage?s=results"
+   "/e/{slug}/manage?s=overview"
   ],
   "expect_start": "no"
  },
@@ -1044,7 +1044,7 @@
   "question": "Can I publish results again after the event has ended?",
   "fixture": "ended",
   "expect_href_any": [
-   "/e/{slug}/manage?s=results"
+   "/e/{slug}/manage?s=overview"
   ],
   "expect_start": "yes"
  },
@@ -1100,7 +1100,7 @@
   "area": "results",
   "question": "How do I publish results?",
   "expect_href_any": [
-   "/e/{slug}/manage?s=results"
+   "/e/{slug}/manage?s=overview"
   ],
   "expect_all": [
    [

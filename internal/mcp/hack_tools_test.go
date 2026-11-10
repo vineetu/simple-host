@@ -506,3 +506,20 @@ func TestHackTeamFindingPatch(t *testing.T) {
 		t.Fatal("accepted non-boolean team_finding")
 	}
 }
+
+func TestHackJudgingLockToolsRemoved(t *testing.T) {
+	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
+	for _, name := range []string{"hack_lock_judging", "hack_unlock_judging"} {
+		for _, tool := range HackTools() {
+			if tool.Name == name {
+				t.Fatalf("retired tool listed: %s", name)
+			}
+		}
+		body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + name + `","arguments":{"slug":"mockjam"}}}`
+		rec := sendMode(t, s, body, "hack")
+		result, ok := decode(t, rec)["result"].(map[string]any)
+		if !ok || result["isError"] != true || !strings.Contains(rec.Body.String(), "judging_lock_removed") || !strings.Contains(rec.Body.String(), "Judging locks when you finish judging (move to Results) and unlocks when you move the event back.") {
+			t.Fatalf("%s: %s", name, rec.Body.String())
+		}
+	}
+}

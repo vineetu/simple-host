@@ -39,7 +39,7 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 		return nil, nil, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if ev.JudgingLockedAt.Valid {
-		return nil, nil, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
+		return nil, nil, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
 	}
 	if ev.Stage == "judging" && (!atStageMove || includeOrganisers != nil) || ev.Stage == "results" && includeOrganisers != nil {
 		return nil, nil, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
@@ -212,7 +212,7 @@ func (s *Service) optionsTx(ctx context.Context, eventID string, setup bool) (*s
 	}
 	if ev.JudgingLockedAt.Valid {
 		tx.Rollback()
-		return nil, model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
+		return nil, model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
 	}
 	if setup && ev.Stage == "judging" {
 		tx.Rollback()

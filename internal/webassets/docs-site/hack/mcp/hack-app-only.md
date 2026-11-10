@@ -1,5 +1,42 @@
 # App screens
 
+## hack_app_preview_results
+
+<div data-tool="hack_app_preview_results"></div>
+
+App-only companion of hack_preview_judging_assignments (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_preview_judging_assignments instead for an explicit chat request.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| slug | string | yes | REST path parameter: slug. |
+
+## hack_app_get_results
+
+<div data-tool="hack_app_get_results"></div>
+
+App-only companion of hack_get_public_results (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_get_public_results instead for an explicit chat request.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| slug | string | yes | REST path parameter: slug. |
+
+## hack_app_publish_results
+
+<div data-tool="hack_app_publish_results"></div>
+
+App-only companion of hack_publish_results (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use hack_publish_results instead for an explicit chat request.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| body | object | yes | rank_overrides [{team_id,rank}], or an empty list for computed ranks. The REST route validates each field and returns its own errors. |
+| slug | string | yes | REST path parameter: slug. |
+
 ## hack_app_get_people
 
 <div data-tool="hack_app_get_people"></div>
@@ -216,7 +253,7 @@ Open the judge app view in chat: invite (accept a judge invite, needs code), que
 
 <div data-tool="hack_show_organiser"></div>
 
-Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (assignments, progress and former judges; rubric in website Settings). Only offered to a connection whose app can render it; every organiser action also has a plain tool (hack_get_event, hack_set_event_stage, hack_get_applications, hack_decide_application, hack_get_judging_dashboard, hack_lock_judging, ...) that works the same everywhere.
+Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (assignments, progress and former judges; rubric in website Settings). Only offered to a connection whose app can render it; every organiser action also has a plain tool (hack_get_event, hack_set_event_stage, hack_get_applications, hack_decide_application, hack_get_judging_dashboard, hack_set_event_stage, ...) that works the same everywhere.
 
 **Parameters:**
 

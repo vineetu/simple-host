@@ -455,7 +455,7 @@ func TestHackJudgingRubric(t *testing.T) {
 	if _, err := w.a.database.Exec(`UPDATE events SET judging_locked_at = now() WHERE slug = $1`, w.slug); err != nil {
 		t.Fatal(err)
 	}
-	lockedMsg := "Judging is locked; unlock it first to change the rubric."
+	lockedMsg := "Judging is locked because the event is at Results. Move the event back to Entries closed to change the rubric."
 	r := w.call(t, "PUT", "/rubric", rubricBody(criterion("Other", "", 100, 5)), w.org)
 	wantHackErr(t, "locked", r, http.StatusConflict, "scores_locked", lockedMsg)
 	// The lock wins over a body that would also fail validation.
@@ -875,33 +875,11 @@ func TestHackJudgingDashboard(t *testing.T) {
 
 // --- M3 pass 2: scoring, lock/unlock, publish, results, exports ----------
 
-func TestHackJudgingLockUnlock(t *testing.T) {
+func TestHackJudgingLockRemoved(t *testing.T) {
 	w := newJudgingWorld(t, 1, 1)
-	r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org)
-	if r.status != http.StatusOK || r.json(t)["locked"] != true {
-		t.Fatalf("lock: %d %s", r.status, r.body)
-	}
-	// Idempotent: locking again is still 200.
-	r = w.call(t, "POST", "/judging/lock", map[string]any{}, w.org)
-	if r.status != http.StatusOK || r.json(t)["locked"] != true {
-		t.Fatalf("lock again: %d %s", r.status, r.body)
-	}
-	// Rubric writes refused while locked.
-	r = w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)
-	wantHackErr(t, "rubric while locked", r, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first to change the rubric.")
-	// Unlock requires a reason.
-	r = w.call(t, "POST", "/judging/unlock", map[string]any{"reason": ""}, w.org)
-	if r.status != http.StatusBadRequest || r.json(t)["code"] != "invalid_reason" {
-		t.Fatalf("unlock no reason: %d %s", r.status, r.body)
-	}
-	r = w.call(t, "POST", "/judging/unlock", map[string]any{"reason": "Found a mistake"}, w.org)
-	if r.status != http.StatusOK || r.json(t)["locked"] != false {
-		t.Fatalf("unlock: %d %s", r.status, r.body)
-	}
-	// Now the rubric write succeeds.
-	r = w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)
-	if r.status != http.StatusOK {
-		t.Fatalf("rubric after unlock: %d %s", r.status, r.body)
+	for _, path := range []string{"/judging/lock", "/judging/unlock"} {
+		r := w.call(t, "POST", path, map[string]any{}, w.org)
+		wantHackErr(t, path, r, http.StatusGone, "judging_lock_removed", "Judging locks when you finish judging (move to Results) and unlocks when you move the event back.")
 	}
 }
 
@@ -911,7 +889,7 @@ func TestHackJudgingLockUnlock(t *testing.T) {
 // "score" write ever happening — defeating the point of locking.
 func TestHackJudgingLockCoversConflictsAndAssignments(t *testing.T) {
 	w := newJudgingWorld(t, 2, 1)
-	if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != http.StatusOK {
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "results"}, w.org); r.status != http.StatusOK {
 		t.Fatalf("lock: %d %s", r.status, r.body)
 	}
 	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic"}, w.org); r.status != http.StatusConflict || r.json(t)["code"] != "scores_locked" {
@@ -924,13 +902,13 @@ func TestHackJudgingLockCoversConflictsAndAssignments(t *testing.T) {
 		t.Fatalf("declare conflict while locked: %d %s", r.status, r.body)
 	}
 	// Unlock, then declaring a conflict works; locking again, removing it is refused.
-	if r := w.call(t, "POST", "/judging/unlock", map[string]any{"reason": "testing"}, w.org); r.status != http.StatusOK {
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != http.StatusOK {
 		t.Fatalf("unlock: %d %s", r.status, r.body)
 	}
 	if r := w.call(t, "POST", "/conflicts", map[string]any{"team_id": w.teams[0].id}, w.judges[0].person); r.status != http.StatusOK {
 		t.Fatalf("declare conflict unlocked: %d %s", r.status, r.body)
 	}
-	if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != http.StatusOK {
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "results"}, w.org); r.status != http.StatusOK {
 		t.Fatalf("relock: %d %s", r.status, r.body)
 	}
 	if r := w.call(t, "DELETE", "/conflicts/"+w.teams[0].id+"?judge_user_id="+w.judges[0].id, nil, w.judges[0].person); r.status != http.StatusConflict || r.json(t)["code"] != "scores_locked" {
@@ -1076,7 +1054,7 @@ func TestHackJudgingScoresUpsertAndRetrySafety(t *testing.T) {
 	}
 
 	// Locked judging refuses a score write.
-	w.call(t, "POST", "/judging/lock", map[string]any{}, w.org)
+	w.call(t, "POST", "/stage", map[string]any{"stage": "results"}, w.org)
 	r = w.scoreTeam(t, judge, team, map[string]int{c1: 5}, nil)
 	wantHackErr(t, "score while locked", r, http.StatusConflict, "scores_locked", "Judging is locked.")
 }
@@ -1713,38 +1691,40 @@ func TestHackJudgingSetupLocksAtJudging(t *testing.T) {
 	}
 }
 
-// Locks follow the stage: moving back before Judging clears the judging
-// lock set by "Lock judging" or by Results.
+// Moving back from Results clears the lock and restores the relevant writes.
 func TestHackStageBackClearsJudgingLock(t *testing.T) {
-	for _, via := range []string{"lock", "results"} {
-		t.Run(via, func(t *testing.T) {
+	for _, target := range []string{"judging", "closed"} {
+		t.Run(target, func(t *testing.T) {
 			w := newJudgingWorld(t, 1, 2)
-			if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
-				t.Fatalf("start judging: %d %s", r.status, r.body)
-			}
-			if via == "lock" {
-				if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != 200 {
-					t.Fatalf("lock: %d %s", r.status, r.body)
+			for _, stage := range []string{"judging", "results"} {
+				r := w.call(t, "POST", "/stage", map[string]any{"stage": stage}, w.org)
+				if r.status != 200 {
+					t.Fatalf("%s: %d %s", stage, r.status, r.body)
 				}
-			} else if r := w.call(t, "POST", "/stage", map[string]any{"stage": "results"}, w.org); r.status != 200 {
-				t.Fatalf("to results: %d %s", r.status, r.body)
 			}
 			var locked bool
 			if err := w.a.database.QueryRow(`SELECT judging_locked_at IS NOT NULL FROM events WHERE slug=$1`, w.slug).Scan(&locked); err != nil || !locked {
 				t.Fatalf("not locked: %v %v", locked, err)
 			}
-			if r := w.call(t, "POST", "/stage", map[string]any{"stage": "closed"}, w.org); r.status != 200 {
-				t.Fatalf("back to closed: %d %s", r.status, r.body)
+			r := w.call(t, "POST", "/stage", map[string]any{"stage": target}, w.org)
+			if r.status != 200 {
+				t.Fatalf("back: %d %s", r.status, r.body)
 			}
 			if err := w.a.database.QueryRow(`SELECT judging_locked_at IS NOT NULL FROM events WHERE slug=$1`, w.slug).Scan(&locked); err != nil || locked {
-				t.Fatalf("still locked after moving back: %v %v", locked, err)
+				t.Fatalf("still locked: %v %v", locked, err)
 			}
-			decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "manual", "judges_per_team": 2}, w.org))
-			if r := w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org); r.status != 200 {
-				t.Fatalf("rubric: %d %s", r.status, r.body)
+			if target == "closed" {
+				decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "manual", "judges_per_team": 2}, w.org))
+				r = w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)
+				if r.status != 200 {
+					t.Fatalf("rubric after moving back: %d %s", r.status, r.body)
+				}
+				r = w.call(t, "PUT", "/assignments", map[string]any{"assignments": []any{}}, w.org)
+			} else {
+				r = w.scoreTeam(t, w.judges[0], w.teams[0].id, map[string]int{decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0].ID: 4}, nil)
 			}
-			if r := w.call(t, "PUT", "/assignments", map[string]any{"assignments": []any{}}, w.org); r.status != 200 {
-				t.Fatalf("assignments: %d %s", r.status, r.body)
+			if r.status != 200 {
+				t.Fatalf("write after moving back: %d %s", r.status, r.body)
 			}
 		})
 	}

@@ -100,7 +100,7 @@ func TestHackOrganiserConnectorParity(t *testing.T) {
 		{"hack_get_judging_settings", "GET", "/judging/settings", nil},
 		{"hack_generate_assignments", "POST", "/assignments/generate", nil},
 		{"hack_get_judging_dashboard", "GET", "/judging/dashboard", nil},
-		{"hack_lock_judging", "POST", "/judging/lock", nil},
+
 		{"hack_publish_results", "POST", "/results/publish", map[string]any{"body": map[string]any{}}},
 		{"hack_export_participants", "GET", "/export/participants.csv", nil},
 		{"hack_export_teams", "GET", "/export/teams.csv", nil},

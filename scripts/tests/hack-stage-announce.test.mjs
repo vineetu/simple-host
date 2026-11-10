@@ -58,10 +58,10 @@ test('back to judging, not locked: "Judging has reopened", never promising a hol
   assert.ok(!/on hold/i.test(s.body), 'unlocked suggestion must not say "on hold"')
 })
 
-test('back to judging, locked (moving back from Results): "Results are on hold", never "reopened"', () => {
+test('back to judging, locked (moving back from Results): "Judging has reopened"', () => {
   const s = check('judging', { back: true, judgingLocked: true, eventTitle: 'Generation Girl 2026' })
-  assert.equal(s.title, 'Results are on hold')
-  assert.ok(!/reopened/i.test(s.title) && !/reopened/i.test(s.body), 'locked suggestion must never promise scoring reopens')
+  assert.equal(s.title, 'Judging has reopened')
+  assert.match(s.body, /reopened/i)
 })
 
 test('back to closed never promises scoring reopens, regardless of lock state', () => {
