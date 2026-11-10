@@ -95,9 +95,10 @@ p{margin:0 0 10px}
 .content{overflow-y:auto;flex:1}
 /* SIM-415: content layout follows the space it has, not the window. The
    app's scroll area (and inside it a sub-page column, .sp) is the container;
-   public pages (.pub), dialogs (.scrim) and the MCP app frames (main.page
-   straight under body) are their own. Never body or html: a container there
-   stops the page background reaching the canvas. */
+   public pages (.pub) and the MCP app frames (main.page straight under body)
+   are their own. .scrim is viewport-sized, so dialogs keep their old
+   window-width behaviour. Never body or html: a container there stops the
+   page background reaching the canvas. */
 .content,.pub,.scrim,body > main.page{container:page / inline-size}
 .page{max-width:1040px;padding:22px 28px 64px}
 .page.wide{max-width:none}
