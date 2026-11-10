@@ -573,11 +573,6 @@ func TestHackJudgingAssignments(t *testing.T) {
 		t.Fatalf("settings %+v", got)
 	}
 	js, ts := sortedJudges(w.judges), sortedTeams(w.teams)
-	// Keep this spread fixture on its three named judges. Organiser assignment
-	// is covered separately; these conflicts leave its historical plan intact.
-	for _, team := range ts {
-		decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": team.id}, w.org))
-	}
 	// Three teams, three judges, two each. Least-loaded first, id breaks
 	// ties, teams in id order:
 	//   T0 takes J0 J1; T1 takes J2 J0; T2 takes J1 J2.
@@ -650,6 +645,7 @@ func TestHackJudgingTooFew(t *testing.T) {
 
 func TestHackJudgingConflicts(t *testing.T) {
 	w := newJudgingWorld(t, 2, 2)
+	w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org)
 	j0, j1 := w.judges[0], w.judges[1]
 	t0, t1 := w.teams[0], w.teams[1]
 
@@ -745,6 +741,7 @@ func TestHackJudgingConflicts(t *testing.T) {
 
 func TestHackJudgingDashboard(t *testing.T) {
 	w := newJudgingWorld(t, 2, 2)
+	w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org)
 	orgID := w.a.userID(t, w.org)
 	var orgName string
 	if err := w.a.database.QueryRow(`SELECT u.display_name FROM event_members m JOIN users u ON u.id=m.user_id WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, w.slug, orgID).Scan(&orgName); err != nil {
@@ -1312,6 +1309,7 @@ func TestHackOrganisersCanJudgeAndRemovedOrganiserScoresStopCounting(t *testing.
 	if joined.status != http.StatusOK || joined.json(t)["role"] != "organiser" {
 		t.Fatalf("co-organiser join: %d %s", joined.status, joined.body)
 	}
+	w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org)
 	for _, who := range []person{w.org, co} {
 		queue := w.call(t, "GET", "/judge/queue", nil, who)
 		if queue.status != http.StatusOK || len(queue.json(t)["queue"].([]any)) != 1 {

@@ -95,6 +95,12 @@ try {
   'o.publish': 'Publication controls appear after judging is locked or results are available',
   'o.former-judges': 'No former judges in this event',
   'o.ties': 'No scored tied standings before judging',
+  'o.lock': 'The Lock control (#jg-top-action) appears at Judging (SIM-419)',
+  'o.panel-assignments': 'The panel grid shows in Panel mode only; e2e-hack-checklist-actions covers it (SIM-419)',
+  'p.evidence-video': 'Entry evidence inputs depend on the entry rules; e2e-hack-checklist-actions covers each (SIM-419)',
+  'p.evidence-code': 'Entry evidence inputs depend on the entry rules; e2e-hack-checklist-actions covers each (SIM-419)',
+  'p.evidence-screenshot': 'Entry evidence inputs depend on the entry rules; e2e-hack-checklist-actions covers each (SIM-419)',
+  'o.team-track': 'The team Track control shows only with tracks in Panel mode or a missing track; e2e-hack-checklist-actions covers it (SIM-419)',
   'j.conflicts': 'The judge queue opens at Judging (SIM-416); checked below after the move'
  }
  for (const target of map.targets.filter(t => t.anchor)) {
@@ -103,7 +109,7 @@ try {
   console.log('anchor', target.id)
   await open(anchorPage, target.href_pattern.replace('{slug}', info.slug))
   await anchorPage.locator('#' + target.anchor).waitFor({ state: 'visible' })
-  if (target.id === 'o.judges') assert.equal(await page.locator('#role-filter').inputValue(), 'Judges')
+  // SIM-419: o.judges opens Settings -> Judging, Organisers who also judge (the anchor waited for above).
  }
  await judgeAnchors.context.close()
  console.log('ok every anchored target; explicit stage absences:', absent)
@@ -123,6 +129,8 @@ try {
 
  await open(page, manage + '?s=settings&tab=judging#set-name', '#jg-rubric-save')
  assert.equal(new URL(page.url()).searchParams.get('tab'), 'judging')
+ // SIM-419: organisers judge only when ticked under Organisers who also judge.
+ assert.ok((await fetch(info.url+'/v1/hack/events/'+info.slug+'/judging/settings',{method:'PATCH',headers:{'X-API-Key':info.keys.organiser,'Content-Type':'application/json'},body:JSON.stringify({include_organisers:true})})).ok)
  // SIM-416: judges score (and review conflicts in the queue) from Judging on.
  assert.ok((await fetch(info.url+'/v1/hack/events/'+info.slug+'/stage',{method:'POST',headers:{'X-API-Key':info.keys.organiser,'Content-Type':'application/json'},body:JSON.stringify({stage:'judging'})})).ok)
  await open(page, manage + '?s=overview', '#ov-change-stage')

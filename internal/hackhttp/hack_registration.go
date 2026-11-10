@@ -131,30 +131,41 @@ func (h *HackHandler) putTracks(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, out)
 }
 func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
-	if !ok {
-		return
-	}
-	if err := h.membersSvc().ValidateTrackStage(a.event.Stage); err != nil {
-		writeMemberError(w, err)
-		return
-	}
-	team, ok := h.participantTeam(w, r, a)
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {
 		return
 	}
 	var req struct {
 		Track string `json:"track"`
+		Team  string `json:"team"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
+	}
+	var team model.EventTeam
+	if a.member.Role == "organiser" {
+		var err error
+		team, err = h.teamsSvc().TeamBySlug(r.Context(), a.event.ID, req.Team)
+		if err != nil {
+			httpx.WriteError(w, 404, "team_not_found", "team not found")
+			return
+		}
+	} else {
+		if err := h.membersSvc().ValidateTrackStage(a.event.Stage); err != nil {
+			writeMemberError(w, err)
+			return
+		}
+		team, ok = h.participantTeam(w, r, a)
+		if !ok {
+			return
+		}
 	}
 	slug, err := h.membersSvc().ValidateTrackChoice(req.Track)
 	if err != nil {
 		writeMemberError(w, err)
 		return
 	}
-	track, err := h.membersSvc().ChooseTrack(r.Context(), a.event.ID, team.ID, slug)
+	track, err := h.membersSvc().ChooseTrack(r.Context(), a.event.ID, team.ID, slug, a.member.Role == "organiser")
 	if err != nil {
 		writeMemberError(w, err)
 		return

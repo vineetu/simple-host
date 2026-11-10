@@ -321,6 +321,7 @@ func TestHackRemoveCoOrganiserDeletesScoresAndCleansMail(t *testing.T) {
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
 	a.giveSubmittedEntry(t, slug, teamID)
+	wantTS(t, "select organiser judges", a.at(t, "PATCH", base+"/judging/settings", map[string]any{"include_organisers": true}, a.key(creator)), 200, "")
 	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}

@@ -68,7 +68,7 @@ func ChecklistCatalogue() []ChecklistDefinition {
 	return []ChecklistDefinition{
 		{"o.entry-rules", "Choose what teams hand in", "o.entry-rules", "draft", false},
 		{"o.basics", "Add event basics", "o.basics", "draft", false},
-		{"o.times", "Add start and end times", "o.basics", "draft", true},
+		{"o.times", "Add start and end times", "o.times", "draft", true},
 		{"o.about", "Describe the event", "o.about", "draft", false},
 		{"o.schedule", "Add a schedule", "o.schedule", "draft", true},
 		{"o.faq", "Add common questions", "o.faq", "draft", true},
@@ -82,7 +82,7 @@ func ChecklistCatalogue() []ChecklistDefinition {
 		{"o.announcement", "Send an announcement", "o.announcements", "open", true},
 		{"o.deadline", "Set the entry deadline", "o.deadline", "open", false},
 		{"o.judges", "Have judges ready", "o.judges", "closed", false},
-		{"o.rubric-ready", "Rubric final", "o.rubric", "closed", false},
+		{"o.rubric-ready", "Rubric final", "o.rubric-ready", "closed", false},
 		{"o.assignments", "Assign judges", "o.assignments", "closed", false},
 		{"o.scores", "Every judge done", "o.judging", "judging", false},
 		{"o.lock", "Finish judging", "o.lock", "judging", false},
@@ -171,7 +171,13 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		if f.TargetID != "" {
 			target = f.TargetID
 		}
-		item := ChecklistItem{ID: d.ID, Label: d.Label, State: ChecklistState(f.Done, in.Marks[d.ID] && d.Optional && in.Role == "organiser", d.Optional), Optional: d.Optional, CanDismiss: !f.Done && d.Optional && in.Role == "organiser" && !in.ReadOnly && in.Stage != "archived", OriginStage: d.Stage, Group: "current", Actionable: !in.ReadOnly && in.Stage != "archived" && f.BlockedReason == "", TargetID: target, Detail: f.Detail, Count: f.Count, Total: f.Total, Settled: f.Settled, Version: f.Version}
+		item := ChecklistItem{ID: d.ID, Label: d.Label, State: ChecklistState(f.Done, in.Marks[d.ID] && d.Optional && in.Role == "organiser", d.Optional), Optional: d.Optional, CanDismiss: !f.Done && d.Optional && in.Role == "organiser" && !in.ReadOnly && in.Stage != "archived", OriginStage: d.Stage, Group: "current", Actionable: (f.Done || !in.Marks[d.ID]) && !in.ReadOnly && in.Stage != "archived" && f.BlockedReason == "", TargetID: target, Detail: f.Detail, Count: f.Count, Total: f.Total, Settled: f.Settled, Version: f.Version}
+		if f.Done && (d.ID == "o.rubric-ready" || d.ID == "o.lock" || d.ID == "o.ties" || d.ID == "j.rubric" || d.ID == "p.submit") {
+			item.Actionable = false
+		}
+		if d.ID == "o.scores" || d.ID == "j.invite" || d.ID == "j.coc" || d.ID == "j.closes" {
+			item.Actionable = false
+		}
 		if f.BlockedReason != "" {
 			reason := f.BlockedReason
 			item.BlockedReason = &reason
@@ -232,6 +238,11 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 				n.BlockedReason = in.Forward.BlockedReason
 			}
 		case "o.publish":
+			if it.TargetID == "o.lock" {
+				n.Kind = "link"
+				n.Label = "Finish judging"
+				break
+			}
 			n.Kind = "publish_results"
 			n.ConfirmationRequired = true
 		case "p.submit":

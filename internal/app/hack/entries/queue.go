@@ -41,6 +41,13 @@ func (s *Service) JudgeCandidates(ctx context.Context, ev model.Event, judgeID s
 }
 
 func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error, candidates bool) ([]QueueRow, error) {
+	judge, err := entryrepo.EventJudgeInEvent(ctx, s.db, ev.ID, judgeID)
+	if err != nil {
+		return nil, err
+	}
+	if !judge {
+		return nil, &Error{Code: "judge_not_found", Message: "You are not a judge of this event."}
+	}
 	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err

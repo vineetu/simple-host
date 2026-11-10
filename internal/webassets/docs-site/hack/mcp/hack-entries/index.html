@@ -1616,7 +1616,7 @@
 </table>
 <h2 id="hack_get_judging_settings">hack_get_judging_settings</h2>
 <div data-tool="hack_get_judging_settings"></div>
-<p>Read assignment and scoring settings. Organiser only.</p>
+<p>Read assignment and scoring settings, organiser_judges (selected organiser user IDs) and the canonical judges list. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1638,7 +1638,7 @@
 </table>
 <h2 id="hack_set_judging_settings">hack_set_judging_settings</h2>
 <div data-tool="hack_set_judging_settings"></div>
-<p>Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only. Mode and judges per team are refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
+<p>Change assignment_mode, judges_per_team, organiser_judges, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only. Mode and judges per team are refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1654,7 +1654,7 @@
 <td>body</td>
 <td>object</td>
 <td>yes</td>
-<td>Any changed field: assignment_mode, judges_per_team, score_mode, tie_criterion_id, public_scores, public_ranks. The REST route validates each field and returns its own errors.</td>
+<td>Any changed field: assignment_mode, judges_per_team, organiser_judges (array of current organiser user IDs; [] clears; omission preserves), score_mode, tie_criterion_id, public_scores, public_ranks. Legacy include_organisers: true selects all organisers, false clears, omitted preserves; organiser_judges wins. The REST route validates each field and returns its own errors.</td>
 </tr>
 <tr>
 <td>slug</td>
@@ -1666,7 +1666,7 @@
 </table>
 <h2 id="hack_generate_assignments">hack_generate_assignments</h2>
 <div data-tool="hack_generate_assignments"></div>
-<p>Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
+<p>Generate assignments from current settings. Uses joined judges plus saved organiser_judges. Legacy include_organisers updates that saved selection before generating. Replaces previous automatic assignments; ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1682,7 +1682,7 @@
 <td>body</td>
 <td>object</td>
 <td>yes</td>
-<td>Optional include_organisers boolean, default false. The REST route validates each field and returns its own errors.</td>
+<td>Optional legacy include_organisers: true selects all current organisers, false clears the saved selection, omitted leaves it unchanged. The REST route validates each field and returns its own errors.</td>
 </tr>
 <tr>
 <td>slug</td>

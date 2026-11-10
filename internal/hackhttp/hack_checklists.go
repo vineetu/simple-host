@@ -66,7 +66,7 @@ func (h *HackHandler) getChecklist(w http.ResponseWriter, r *http.Request) {
 		writeChecklistError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": events.MembershipAbilities(a.member), "checklist": list})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})
 }
 func writeChecklistError(w http.ResponseWriter, err error) {
 	if e, ok := err.(*events.Error); ok {
@@ -120,7 +120,7 @@ func (h *HackHandler) writeChecklist(w http.ResponseWriter, r *http.Request, ver
 		writeChecklistError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": events.MembershipAbilities(a.member), "checklist": list})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})
 }
 
 type checklistTargets struct{ h *HackHandler }

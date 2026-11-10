@@ -9,6 +9,10 @@ import { esc, stageLabel } from '../ui.js'
 
 // fileAsDataURL reads a File into a data: URL (sponsor/FAQ logos travel as
 // JSON, unlike the icon and website zip which go through apiBytes).
+export function canScoreAsJudge(data) {
+  return !!data.can?.judge && ['judging', 'results', 'archived'].includes(data.event.stage)
+}
+
 export function fileAsDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -98,6 +102,38 @@ export const FORWARD_EFFECT = {
   judging: 'Teams can no longer edit their entry, team or website. Judges can score. Locked until you go back to Entries closed: judging mode, judges per team, rubric and who judges which teams. In Automatic mode, judges are assigned now.',
   results: 'Scoring and sign-up stop. Publish results when you are ready.'
 }
+// Both stage-change entry points use this read-only setup summary.
+export async function judgingSetupSummary(ctx) {
+  const base = '/v1/hack/events/' + encodeURIComponent(ctx.event.event.slug)
+  const [settings, dashboard] = await Promise.all([
+    ctx.api.api('GET', base + '/judging/settings'), ctx.api.api('GET', base + '/judging/dashboard')
+  ])
+  if (!settings.ok || !dashboard.ok) throw new Error('Could not load judging setup.')
+  const data = settings.data, coverage = dashboard.data.coverage
+  const root = '/e/' + encodeURIComponent(ctx.event.event.slug) + '/manage?s='
+  const setup = root + 'settings&tab=judging#'
+  const grid = root + 'assignments&grid=' + (data.assignment_mode === 'panel' ? 'panel' : 'manual') + '#jg-grid-rows'
+  const selection = setup + 'organiser-judges'
+  const automatic = data.assignment_mode === 'automatic'
+  const restricted = ['manual', 'panel'].includes(data.assignment_mode)
+  const range = coverage.min === coverage.max ? String(coverage.min) : coverage.min + '–' + coverage.max
+  const perTeam = automatic ? 'Judges per team: ' + data.judges_per_team
+    : restricted ? range + ' per team'
+    : 'Every team can be scored by ' + range + (coverage.max === 1 ? ' judge' : ' judges')
+  const lines = [
+    ['Mode: ' + ({ open: 'Open', automatic: 'Automatic', manual: 'Manual', panel: 'Panel' }[data.assignment_mode] || data.assignment_mode), setup + 'mode'],
+    [perTeam, restricted ? grid : setup + (automatic ? 'jg-per' : 'organiser-judges')],
+    ['Who judges: ' + (data.judges.map(j => j.name + (j.organiser ? ' (organiser)' : '')).join(', ') || 'No judges'), selection],
+    [coverage.short.length ? 'Short: ' + coverage.short.map(t => t.name + ' (' + t.have + ' of ' + coverage.target + ')').join(', ') : 'Every team has at least ' + coverage.min + (coverage.min === 1 ? ' judge' : ' judges'), coverage.fix_href]
+  ]
+  const node = document.createElement('div')
+  node.addEventListener('click', e => { if (e.target.closest('a[href]')) node.closest('.dialog')?.querySelector('[data-cancel]')?.click() })
+  node.dataset.judgingSetup = ''
+  node.short = coverage.short.length > 0 || !data.judges.length
+  node.innerHTML = lines.map(([label, link]) => `<p><a href="${esc(link)}">${esc(label)}</a></p>`).join('')
+  return node
+}
+
 export function stagePicker(current, offered, opts = {}) {
   return new Promise(resolve => {
     const order = STAGE_ORDER.filter(s => offered.includes(s) && s !== 'archived')
@@ -107,14 +143,29 @@ export function stagePicker(current, offered, opts = {}) {
     const nextIdx = curIdx >= 0 && curIdx < order.length - 1 ? curIdx + 1 : choices.length - 1
     const scrim = document.createElement('div')
     scrim.className = 'scrim'
-    scrim.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="stage-title"><h2 id="stage-title">Change stage</h2><div class="field"><label>New stage<select class="select" id="stage-pick">${choices.map(s => `<option value="${esc(s)}"${s === order[nextIdx] ? ' selected' : ''}>${esc(stageLabel(s))}</option>`).join('')}</select></label></div><p class="note warn" id="stage-warn" hidden></p><div class="acts"><button class="btn" data-cancel type="button">Cancel</button><button class="btn primary" data-confirm type="button">Continue</button></div></div>`
+    scrim.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="stage-title"><h2 id="stage-title">Change stage</h2><div class="field"><label>New stage<select class="select" id="stage-pick">${choices.map(s => `<option value="${esc(s)}"${s === order[nextIdx] ? ' selected' : ''}>${esc(stageLabel(s))}</option>`).join('')}</select></label></div><p class="note warn" id="stage-warn" hidden></p><div id="stage-setup"></div><div class="acts"><button class="btn" data-cancel type="button">Cancel</button><button class="btn primary" data-confirm type="button">Continue</button></div></div>`
     const sel = scrim.querySelector('#stage-pick')
     const warn = scrim.querySelector('#stage-warn')
-    function paint() {
+    let painting = 0
+    async function paint() {
       const target = sel.value
       const back = order.indexOf(target) < curIdx
       warn.hidden = false
       warn.textContent = back ? backwardEffect(target, opts.judgingLocked) : (FORWARD_EFFECT[target] || '')
+      const token = ++painting
+      const setup = scrim.querySelector('#stage-setup')
+      const confirm = scrim.querySelector('[data-confirm]')
+      setup.replaceChildren()
+      confirm.textContent = target === 'judging' ? 'Start anyway' : 'Continue'
+      confirm.disabled = target === 'judging'
+      if (target === 'judging') {
+        try {
+          const node = await judgingSetupSummary(opts.ctx)
+          if (token !== painting) return
+          setup.append(node); confirm.disabled = false
+          confirm.textContent = node.short ? 'Start anyway' : 'Start judging'
+        } catch (e) { if (token === painting) warn.textContent = e.message }
+      }
     }
     sel.addEventListener('change', paint)
     paint()
@@ -124,7 +175,7 @@ export function stagePicker(current, offered, opts = {}) {
       if (e.key === 'Escape') { e.preventDefault(); done(''); return }
       if (e.key === 'Tab') {
         // Keep focus inside the dialog, like every other dialog in the app.
-        const items = [...scrim.querySelectorAll('select,button')].filter(el => !el.disabled)
+        const items = [...scrim.querySelectorAll('select,button,a[href]')].filter(el => !el.disabled)
         const i = items.indexOf(document.activeElement)
         e.preventDefault()
         items[(i + (e.shiftKey ? items.length - 1 : 1) + items.length) % items.length].focus()

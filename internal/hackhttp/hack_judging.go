@@ -159,6 +159,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 func judgingSettingsJSON(ev model.Event) map[string]any {
 	return map[string]any{
 		"assignment_mode":  ev.JudgeAssignmentMode,
+		"organiser_judges": ev.OrganiserJudges,
 		"judges_per_team":  ev.JudgesPerTeam,
 		"score_mode":       ev.ScoreMode,
 		"tie_criterion_id": nullableString(ev.TieCriterionID),
@@ -172,7 +173,7 @@ func (h *HackHandler) getJudgingSettings(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, judgingSettingsJSON(a.event))
+	h.writeJudgingSettings(w, r, a.event)
 }
 
 func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Request) {
@@ -181,12 +182,14 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var req struct {
-		AssignmentMode *string  `json:"assignment_mode"`
-		JudgesPerTeam  *float64 `json:"judges_per_team"`
-		ScoreMode      *string  `json:"score_mode"`
-		TieCriterionID *string  `json:"tie_criterion_id"`
-		PublicScores   *bool    `json:"public_scores"`
-		PublicRanks    *bool    `json:"public_ranks"`
+		OrganiserJudges   *[]string `json:"organiser_judges"`
+		IncludeOrganisers *bool     `json:"include_organisers"`
+		AssignmentMode    *string   `json:"assignment_mode"`
+		JudgesPerTeam     *float64  `json:"judges_per_team"`
+		ScoreMode         *string   `json:"score_mode"`
+		TieCriterionID    *string   `json:"tie_criterion_id"`
+		PublicScores      *bool     `json:"public_scores"`
+		PublicRanks       *bool     `json:"public_ranks"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -216,7 +219,7 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 		httpx.WriteError(w, 400, "invalid_tie_criterion", "use a criterion in this event")
 		return
 	}
-	ev, err := h.entries.UpdateJudgingSettings(r.Context(), a.event.ID, entryapp.JudgingSettings{Mode: mode, PerTeam: perTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
+	ev, err := h.entries.UpdateJudgingSettings(r.Context(), a.event.ID, entryapp.JudgingSettings{OrganiserJudges: req.OrganiserJudges, IncludeOrganisers: req.IncludeOrganisers, Mode: mode, PerTeam: perTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
 	if err != nil {
 		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
@@ -229,7 +232,7 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, judgingSettingsJSON(ev))
+	h.writeJudgingSettings(w, r, ev)
 }
 
 // judgingPool sorts the event's teams (ListTeamsWithMembers) by whether they
@@ -265,7 +268,7 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
-		IncludeOrganisers bool `json:"include_organisers"`
+		IncludeOrganisers *bool `json:"include_organisers"`
 	}
 	if r.Body != nil && r.ContentLength != 0 {
 		if !decodeHackJSON(w, r, &req) {
@@ -549,8 +552,14 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 			"assigned_count": assignedCount,
 		})
 	}
+	setupCoverage, err := h.entries.JudgingSetupCoverage(ctx, a.event)
+	if err != nil {
+		httpx.WriteInternal(w)
+		return
+	}
 	// Tied totals need scores. The next pass fills this once totals exist.
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"coverage":      setupCoverage,
 		"teams":         teamRows,
 		"judges":        judgeRows,
 		"former_judges": formerRows,
@@ -679,6 +688,10 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
+		if e, ok := err.(*entryapp.Error); ok {
+			httpx.WriteError(w, http.StatusForbidden, e.Code, e.Message)
+			return
+		}
 		if e, ok := err.(*entryapp.QueueTeamError); ok {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, e.TeamID, e.Err)
 		} else {
@@ -1480,4 +1493,19 @@ func publicResultEntry(entry any, teamID any, live map[string]string) any {
 	id, _ := teamID.(string)
 	out["site_url"] = live[id]
 	return out
+}
+
+func (h *HackHandler) writeJudgingSettings(w http.ResponseWriter, r *http.Request, ev model.Event) {
+	judges, err := h.entries.EventJudges(r.Context(), ev.ID)
+	if err != nil {
+		httpx.WriteInternal(w)
+		return
+	}
+	rows := make([]map[string]any, 0, len(judges))
+	for _, j := range judges {
+		rows = append(rows, map[string]any{"user_id": j.ID, "name": j.Name, "organiser": j.Role == "organiser"})
+	}
+	out := judgingSettingsJSON(ev)
+	out["judges"] = rows
+	httpx.WriteJSON(w, http.StatusOK, out)
 }

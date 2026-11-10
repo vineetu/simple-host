@@ -217,6 +217,18 @@ func (h *HackHandler) assistantCurrentSettings(ctx context.Context, ev model.Eve
 		line("First tie criterion: not chosen")
 	}
 	line("How judges are assigned: %s; judges per team: %d", labelOr(assistantAssignmentModeLabels, ev.JudgeAssignmentMode), ev.JudgesPerTeam)
+	if judges, err := h.entries.EventJudges(ctx, ev.ID); err == nil {
+		names := []string{}
+		for _, j := range judges {
+			name := j.Name
+			if j.Role == "organiser" {
+				name += " (organiser)"
+			}
+			names = append(names, name)
+		}
+		line("Who judges (joined judges plus selected organisers): %s", strings.Join(names, ", "))
+	}
+
 	if ev.JudgingLockedAt.Valid {
 		line("Judging locked: yes, since %s", assistantTime(ev, ev.JudgingLockedAt.Time))
 	} else {

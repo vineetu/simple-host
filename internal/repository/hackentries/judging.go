@@ -98,8 +98,8 @@ func ReplaceRubric(ctx context.Context, q sqlkit.Querier, eventID string, items 
 // ListEventJudges is every member eligible to judge the event, by user id.
 func ListEventJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]NamedJudge, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT user_id, COALESCE(u.display_name,''), role FROM event_members m JOIN users u ON u.id=m.user_id
-		 WHERE event_id = $1 AND role IN ('judge', 'organiser')
+		SELECT user_id, COALESCE(u.display_name,''), role FROM event_members m JOIN users u ON u.id=m.user_id JOIN events e ON e.id=m.event_id
+		 WHERE m.event_id = $1 AND `+judgeMemberSQL("m", "e")+`
 		 ORDER BY user_id`, eventID)
 	if err != nil {
 		return nil, err
@@ -166,8 +166,8 @@ func EventTeamInEvent(ctx context.Context, q sqlkit.Querier, eventID, teamID str
 func EventJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (NamedJudge, error) {
 	var j NamedJudge
 	err := q.QueryRowContext(ctx, `
-		SELECT user_id, COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id
-		 WHERE event_id = $1 AND user_id = $2 AND role IN ('judge', 'organiser')`, eventID, userID).Scan(&j.ID, &j.Name)
+		SELECT user_id, COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id JOIN events e ON e.id=m.event_id
+		 WHERE m.event_id = $1 AND m.user_id = $2 AND `+judgeMemberSQL("m", "e")+``, eventID, userID).Scan(&j.ID, &j.Name)
 	return j, err
 }
 
@@ -307,8 +307,8 @@ func ScoreCoverage(ctx context.Context, q sqlkit.Querier, eventID string) (byTea
 // without it, "AND (member branch) OR (former branch)" lets the former
 // branch through unfiltered by that AND, leaking a former judge's rows
 // across events and teams.
-const scoreEligiblePredicate = `(((
-  EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND m.role IN ('judge', 'organiser'))
+var scoreEligiblePredicate = `(((
+  EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND ` + judgeMemberSQL("m", "e") + `)
   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
   AND (e.judge_assignment_mode='open'
   OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=s.event_id AND a.judge_id=s.judge_id AND a.team_id=s.team_id))

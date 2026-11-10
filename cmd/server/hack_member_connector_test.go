@@ -157,6 +157,7 @@ func TestHackMemberConnectorParity(t *testing.T) {
 		t.Fatalf("rubric lacks criterion ID needed to score: %v", rubric)
 	}
 	// Scoring opens when judging starts.
+	wantTS(t, "select organiser judges", a.api(t, "PATCH", base+"/judging/settings", map[string]any{"include_organisers": true}, org.key), 200, "")
 	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}

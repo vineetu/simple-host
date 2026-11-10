@@ -153,6 +153,9 @@ func LeaveMembership(ctx context.Context, q sqlkit.Querier, eventID, userID stri
 	if err := DeletePersonalChecklistAcknowledgements(ctx, q, eventID, userID); err != nil {
 		return "", err
 	}
+	if _, err := q.ExecContext(ctx, `UPDATE events SET organiser_judges=array_remove(organiser_judges,$2::uuid) WHERE id=$1`, eventID, userID); err != nil {
+		return "", err
+	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
 		return "", err
 	}

@@ -725,8 +725,8 @@
         "screen": "organiser-event-page",
         "section": "event-page",
         "tab": "basics",
-        "anchor": null,
-        "href_pattern": "/e/{slug}/manage?s=event-page&tab=basics",
+        "anchor": "f-start-time",
+        "href_pattern": "/e/{slug}/manage?s=event-page&tab=basics#f-start-time",
         "nav": false,
         "order": 240,
         "group": "Set up",
@@ -1039,7 +1039,7 @@
         "order": 440,
         "group": "Set up",
         "settings_group": "rules",
-        "action_label": "Review"
+        "action_label": "Mark final"
       },
       {
         "id": "o.judging-mode",
@@ -1314,15 +1314,15 @@
         "kind": "section",
         "label": "Have judges ready",
         "role": "organiser",
-        "screen": "organiser-people",
-        "section": "people",
-        "tab": "people",
-        "anchor": "judges",
-        "href_pattern": "/e/{slug}/manage?s=people&tab=people#judges",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "organiser-judges",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#organiser-judges",
         "nav": false,
         "order": 620,
         "group": "Run",
-        "action_label": "Review"
+        "action_label": "Choose judges"
       },
       {
         "id": "o.solo",
@@ -1407,12 +1407,12 @@
         "screen": "organiser-judging",
         "section": "judging",
         "tab": null,
-        "anchor": "jg-lockzone",
-        "href_pattern": "/e/{slug}/manage?s=judging#jg-lockzone",
+        "anchor": "jg-top-action",
+        "href_pattern": "/e/{slug}/manage?s=judging#jg-top-action",
         "nav": false,
         "order": 680,
         "group": "Run",
-        "action_label": "Review"
+        "action_label": "Finish judging"
       },
       {
         "id": "o.scores",
@@ -1442,7 +1442,7 @@
         "nav": false,
         "order": 700,
         "group": "Wrap up",
-        "action_label": "Review"
+        "action_label": "Set final places"
       },
       {
         "id": "o.publish",
@@ -1457,7 +1457,7 @@
         "nav": false,
         "order": 710,
         "group": "Wrap up",
-        "action_label": "Review"
+        "action_label": "Publish"
       },
       {
         "id": "o.downloads",
@@ -1482,8 +1482,8 @@
         "screen": "organiser-judging-assignments",
         "section": "assignments",
         "tab": null,
-        "anchor": null,
-        "href_pattern": "/e/{slug}/manage?s=assignments",
+        "anchor": "jg-grid-rows",
+        "href_pattern": "/e/{slug}/manage?s=assignments&grid=manual#jg-grid-rows",
         "nav": false,
         "order": 730,
         "group": "Run",
@@ -1643,6 +1643,111 @@
         "nav": false,
         "order": 840,
         "group": null
+      },
+      {
+        "id": "o.organiser-judges",
+        "kind": "setting",
+        "label": "Organisers who also judge",
+        "role": "organiser",
+        "screen": "organiser-settings",
+        "section": "settings",
+        "tab": "judging",
+        "anchor": "organiser-judges",
+        "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#organiser-judges",
+        "nav": false,
+        "order": 621,
+        "group": "Run",
+        "action_label": "Choose judges"
+      },
+      {
+        "id": "o.panel-assignments",
+        "kind": "section",
+        "label": "Assign track panels",
+        "role": "organiser",
+        "screen": "organiser-judging-assignments",
+        "section": "assignments",
+        "tab": null,
+        "anchor": "jg-grid-rows",
+        "href_pattern": "/e/{slug}/manage?s=assignments&grid=panel#jg-grid-rows",
+        "nav": false,
+        "order": 731,
+        "group": "Run",
+        "action_label": "Assign"
+      },
+      {
+        "id": "o.team-track",
+        "kind": "section",
+        "label": "Choose team track",
+        "role": "organiser",
+        "screen": "organiser-team-detail",
+        "section": "team",
+        "tab": null,
+        "anchor": "team-track",
+        "href_pattern": "/e/{slug}/manage?s=team&team={team}#team-track",
+        "nav": false,
+        "order": 732,
+        "group": "Run",
+        "action_label": "Choose track"
+      },
+      {
+        "id": "p.evidence-video",
+        "kind": "screen",
+        "label": "Entry",
+        "role": "participant",
+        "screen": "participant-entry",
+        "section": "entry",
+        "tab": null,
+        "anchor": "en-video_url",
+        "href_pattern": "/e/{slug}/team?s=entry#en-video_url",
+        "nav": true,
+        "icon": "file",
+        "short": "Entry",
+        "phone_tab": true,
+        "badge": null,
+        "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on.",
+        "order": 987,
+        "group": null,
+        "action_label": "Add video"
+      },
+      {
+        "id": "p.evidence-code",
+        "kind": "screen",
+        "label": "Entry",
+        "role": "participant",
+        "screen": "participant-entry",
+        "section": "entry",
+        "tab": null,
+        "anchor": "en-code_url",
+        "href_pattern": "/e/{slug}/team?s=entry#en-code_url",
+        "nav": true,
+        "icon": "file",
+        "short": "Entry",
+        "phone_tab": true,
+        "badge": null,
+        "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on.",
+        "order": 988,
+        "group": null,
+        "action_label": "Add code"
+      },
+      {
+        "id": "p.evidence-screenshot",
+        "kind": "screen",
+        "label": "Entry",
+        "role": "participant",
+        "screen": "participant-entry",
+        "section": "entry",
+        "tab": null,
+        "anchor": "en-shot",
+        "href_pattern": "/e/{slug}/team?s=entry#en-shot",
+        "nav": true,
+        "icon": "file",
+        "short": "Entry",
+        "phone_tab": true,
+        "badge": null,
+        "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on.",
+        "order": 989,
+        "group": null,
+        "action_label": "Add screenshot"
       }
     ],
     "roles": [
@@ -3143,11 +3248,13 @@
     event_taken_down: "This event has been taken down.",
     entry_rules_closed: "Entry rules are closed.",
     tie_rule_closed: "Tie-break is closed.",
+    judging_setup_locked: "Move back to Entries closed to change this.",
     scores_locked: "Scoring is locked.",
     judging_closed: "Scoring is closed.",
     judging_not_open: "Judging is not open yet.",
     nothing_assigned: "No teams assigned yet.",
     join_team_first: "Join a team first.",
+    entry_not_ready: "Finish the steps above first.",
     teams_locked: "Teams are closed.",
     entry_unavailable: "Entries are closed.",
     conduct_record_only: "No acceptance recorded."
@@ -3169,7 +3276,7 @@
         const detail = [item.optional && !done && !opted && item.id !== "j.closes" ? "Optional" : "", opted ? "Not needed" : item.detail || !done && blockedText[item.blocked_reason] || ""].filter(Boolean).join(" \xB7 ");
         li.innerHTML = tick + `<span class="what"><b>${ui.esc(item.label)}</b><span class="sub">${ui.esc(detail)}</span></span>`;
         const actions = item.can_dismiss && !done ? ui.el("span", { class: "step-actions act" }) : li;
-        if (!done && !opted) {
+        if (!done && !opted && item.actionable) {
           const custom = renderAction?.(item);
           if (typeof custom === "string") li.insertAdjacentHTML("beforeend", custom);
           else if (custom) li.append(custom);
@@ -3228,6 +3335,9 @@
   }
 
   // internal/handler/static/hack/screens/_orgA-util.js
+  function canScoreAsJudge(data) {
+    return !!data.can?.judge && ["judging", "results", "archived"].includes(data.event.stage);
+  }
   function adminLock(main, admin, ev) {
     const archived = !admin && ev && ev.stage === "archived";
     if (!admin && !archived) return;
@@ -3256,6 +3366,37 @@
     judging: "Teams can no longer edit their entry, team or website. Judges can score. Locked until you go back to Entries closed: judging mode, judges per team, rubric and who judges which teams. In Automatic mode, judges are assigned now.",
     results: "Scoring and sign-up stop. Publish results when you are ready."
   };
+  async function judgingSetupSummary(ctx) {
+    const base = "/v1/hack/events/" + encodeURIComponent(ctx.event.event.slug);
+    const [settings, dashboard] = await Promise.all([
+      ctx.api.api("GET", base + "/judging/settings"),
+      ctx.api.api("GET", base + "/judging/dashboard")
+    ]);
+    if (!settings.ok || !dashboard.ok) throw new Error("Could not load judging setup.");
+    const data = settings.data, coverage = dashboard.data.coverage;
+    const root = "/e/" + encodeURIComponent(ctx.event.event.slug) + "/manage?s=";
+    const setup = root + "settings&tab=judging#";
+    const grid = root + "assignments&grid=" + (data.assignment_mode === "panel" ? "panel" : "manual") + "#jg-grid-rows";
+    const selection = setup + "organiser-judges";
+    const automatic = data.assignment_mode === "automatic";
+    const restricted = ["manual", "panel"].includes(data.assignment_mode);
+    const range = coverage.min === coverage.max ? String(coverage.min) : coverage.min + "\u2013" + coverage.max;
+    const perTeam = automatic ? "Judges per team: " + data.judges_per_team : restricted ? range + " per team" : "Every team can be scored by " + range + (coverage.max === 1 ? " judge" : " judges");
+    const lines = [
+      ["Mode: " + ({ open: "Open", automatic: "Automatic", manual: "Manual", panel: "Panel" }[data.assignment_mode] || data.assignment_mode), setup + "mode"],
+      [perTeam, restricted ? grid : setup + (automatic ? "jg-per" : "organiser-judges")],
+      ["Who judges: " + (data.judges.map((j) => j.name + (j.organiser ? " (organiser)" : "")).join(", ") || "No judges"), selection],
+      [coverage.short.length ? "Short: " + coverage.short.map((t) => t.name + " (" + t.have + " of " + coverage.target + ")").join(", ") : "Every team has at least " + coverage.min + (coverage.min === 1 ? " judge" : " judges"), coverage.fix_href]
+    ];
+    const node = document.createElement("div");
+    node.addEventListener("click", (e) => {
+      if (e.target.closest("a[href]")) node.closest(".dialog")?.querySelector("[data-cancel]")?.click();
+    });
+    node.dataset.judgingSetup = "";
+    node.short = coverage.short.length > 0 || !data.judges.length;
+    node.innerHTML = lines.map(([label, link]) => `<p><a href="${esc(link)}">${esc(label)}</a></p>`).join("");
+    return node;
+  }
   function stagePicker(current, offered, opts = {}) {
     return new Promise((resolve3) => {
       const order = STAGE_ORDER.filter((s) => offered.includes(s) && s !== "archived");
@@ -3268,14 +3409,32 @@
       const nextIdx = curIdx >= 0 && curIdx < order.length - 1 ? curIdx + 1 : choices.length - 1;
       const scrim = document.createElement("div");
       scrim.className = "scrim";
-      scrim.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="stage-title"><h2 id="stage-title">Change stage</h2><div class="field"><label>New stage<select class="select" id="stage-pick">${choices.map((s) => `<option value="${esc(s)}"${s === order[nextIdx] ? " selected" : ""}>${esc(stageLabel(s))}</option>`).join("")}</select></label></div><p class="note warn" id="stage-warn" hidden></p><div class="acts"><button class="btn" data-cancel type="button">Cancel</button><button class="btn primary" data-confirm type="button">Continue</button></div></div>`;
+      scrim.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="stage-title"><h2 id="stage-title">Change stage</h2><div class="field"><label>New stage<select class="select" id="stage-pick">${choices.map((s) => `<option value="${esc(s)}"${s === order[nextIdx] ? " selected" : ""}>${esc(stageLabel(s))}</option>`).join("")}</select></label></div><p class="note warn" id="stage-warn" hidden></p><div id="stage-setup"></div><div class="acts"><button class="btn" data-cancel type="button">Cancel</button><button class="btn primary" data-confirm type="button">Continue</button></div></div>`;
       const sel = scrim.querySelector("#stage-pick");
       const warn = scrim.querySelector("#stage-warn");
-      function paint() {
+      let painting = 0;
+      async function paint() {
         const target = sel.value;
         const back = order.indexOf(target) < curIdx;
         warn.hidden = false;
         warn.textContent = back ? backwardEffect(target, opts.judgingLocked) : FORWARD_EFFECT[target] || "";
+        const token = ++painting;
+        const setup = scrim.querySelector("#stage-setup");
+        const confirm = scrim.querySelector("[data-confirm]");
+        setup.replaceChildren();
+        confirm.textContent = target === "judging" ? "Start anyway" : "Continue";
+        confirm.disabled = target === "judging";
+        if (target === "judging") {
+          try {
+            const node = await judgingSetupSummary(opts.ctx);
+            if (token !== painting) return;
+            setup.append(node);
+            confirm.disabled = false;
+            confirm.textContent = node.short ? "Start anyway" : "Start judging";
+          } catch (e) {
+            if (token === painting) warn.textContent = e.message;
+          }
+        }
       }
       sel.addEventListener("change", paint);
       paint();
@@ -3293,7 +3452,7 @@
           return;
         }
         if (e.key === "Tab") {
-          const items = [...scrim.querySelectorAll("select,button")].filter((el2) => !el2.disabled);
+          const items = [...scrim.querySelectorAll("select,button,a[href]")].filter((el2) => !el2.disabled);
           const i = items.indexOf(document.activeElement);
           e.preventDefault();
           items[(i + (e.shiftKey ? items.length - 1 : 1) + items.length) % items.length].focus();
@@ -4332,12 +4491,12 @@
     const atStartJudging = step.kind === "stage" && step.stage === "judging";
     try {
       const base = "/v1/hack/events/" + encodeURIComponent(ev.slug);
-      const calls = [api("GET", base + "/people")];
+      const calls = [api("GET", base + "/judging/settings")];
       if (step.kind === "stage" && step.stage === "building") calls.push(api("GET", base + "/applications"));
       if (atStartJudging) calls.push(api("GET", base + "/judging/settings"), api("GET", base + "/teams"), api("GET", base + "/judging/dashboard"));
       const results = await Promise.all(calls);
       const p = results[0];
-      if (p.ok && Array.isArray(p.data)) judgesOnly = p.data.filter((x) => x.role === "judge").length;
+      if (p.ok) judgesOnly = p.data.judges.length;
       if (step.kind === "stage" && step.stage === "building") {
         const a = results[1];
         if (a && a.ok && Array.isArray(a.data)) pendingCount = a.data.filter((x) => x.status === "pending").length;
@@ -4372,7 +4531,7 @@
     const needsLines = (data.needs_you || []).map((n) => `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href("organiser", ev.slug, n.section === "home" ? void 0 : n.section))}">${n.kind === "application_new" ? "Review applications" : "Open"}</a></div>`).join("");
     const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, "")).split(".").join(".<wbr>");
     main.innerHTML = `
-<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>
+<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${canScoreAsJudge(data) ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>
 <p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
 ${content.button ? `<section${content.isEnd ? ' id="ov-end-target"' : ""} class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button data-help="checklist" class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
@@ -4453,7 +4612,18 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
         const bodyNodes = [ui.el("p", { text: content.confirmBody || content.sentence || "" })];
         if (atStartJudging && judgingEntries) bodyNodes.push(ui.el("p", { text: judgingPoolLine(judgingEntries) }));
         if (headsUp) bodyNodes.push(ui.el("p", { class: "note warn", text: headsUp }));
-        const ok = await ui.confirm({ title: content.button + "?", body: bodyNodes, confirmLabel: content.button });
+        let short = false;
+        if (atStartJudging) {
+          try {
+            const summary = await judgingSetupSummary(ctx);
+            short = summary.short;
+            bodyNodes.push(summary);
+          } catch (e) {
+            setLive(e.message, "err");
+            return;
+          }
+        }
+        const ok = await ui.confirm({ title: content.button + "?", body: bodyNodes, confirmLabel: short ? "Start anyway" : content.button });
         if (!ok) return;
         nextMoveBtn.disabled = true;
         try {
@@ -4493,7 +4663,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
       }
     }
     $("ov-change-stage").addEventListener("click", async () => {
-      const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER2, { judgingLocked: !!ev.judging_locked_at });
+      const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER2, { judgingLocked: !!ev.judging_locked_at, ctx });
       if (!target) return;
       const btn = $("ov-change-stage");
       btn.disabled = true;
@@ -4770,7 +4940,7 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
 <section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading\u2026</p></section>
 <section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading\u2026</p></section>
 ${archived ? "" : '<section class="card" id="jg-lockzone"></section>'}`;
-    const canJudge = !!ctx.event.can?.judge;
+    const canJudge = canScoreAsJudge(ctx.event);
     main.innerHTML = `
 <div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
 <span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc("/e/" + encodeURIComponent(slug) + "/judge?s=home")}">Score as a judge</a>` : ""}</div>
@@ -4879,7 +5049,7 @@ ${restBlock}
       const card = $("jg-conflicts-card");
       card.textContent = "";
       card.appendChild(ui.el("h2", { text: "Judges who know a team" }));
-      const judges = people.filter((p) => p.role === "judge" || p.role === "organiser");
+      const judges = (settings.judges || []).map((j) => ({ ...j, display_name: j.name }));
       if (!conflicts.length) card.appendChild(ui.el("p", { class: "muted", text: "None yet." }));
       conflicts.forEach((c) => {
         const setting = ui.el("div", { class: "setting" });
@@ -4962,12 +5132,6 @@ ${restBlock}
       paintConflicts();
       await reloadDashboard();
     }
-    function isCountedJudge(judgeId, doneCount, assignedCount) {
-      const person = people.find((p) => p.user_id === judgeId);
-      if (!person || person.role !== "organiser") return true;
-      if (settings.assignment_mode === "open") return doneCount > 0;
-      return doneCount > 0 || assignedCount > 0;
-    }
     function paintProgress(teamsRows, judgeRows) {
       const card = $("jg-progress-card");
       card.textContent = "";
@@ -5009,7 +5173,7 @@ ${restBlock}
       card.appendChild(tlist);
       card.appendChild(ui.el("p", { class: "section-title", text: "Judges" }));
       const jlist = ui.el("div", { class: "list" });
-      const visibleJudges = judgeRows.filter((j) => isCountedJudge(j.judge_id, j.done_count, j.assigned_count));
+      const visibleJudges = judgeRows;
       if (!visibleJudges.length && !formerJudges.length) jlist.appendChild(ui.el("div", { class: "empty", text: "No judges yet." }));
       visibleJudges.forEach((j) => {
         const row = ui.el("div", { class: "r" });

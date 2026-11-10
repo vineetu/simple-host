@@ -340,19 +340,15 @@ func runHackShowJudge(c *call, args map[string]any) (output, error) {
 		var body struct {
 			Event map[string]any `json:"event"`
 			Role  string         `json:"role"`
+			Can   struct {
+				Judge bool `json:"judge"`
+			} `json:"can"`
 		}
 		if err := json.Unmarshal(res.body, &body); err != nil {
 			return output{}, errors.New("hack_show_judge: server returned invalid JSON")
 		}
-		// REST already scopes what a non-member sees of an event, but this
-		// tool's whole job is opening a JUDGING view, so it refuses
-		// outright for anyone who isn't a judge or organiser of this
-		// event -- the same two roles hack_get_judge_queue's own REST
-		// route allows -- rather than opening a view with nothing useful
-		// in it. No event data in the error (Grok security review,
-		// SIM-344): a refusal carries no structuredContent at all, same
-		// as every other tool's (TestErrorResultsCarryNoStructuredContent).
-		if body.Role != "judge" && body.Role != "organiser" {
+		// Personal judging views use the same canonical capability as the website.
+		if !body.Can.Judge {
 			return output{}, errors.New("hack_show_judge is for a judge of this event")
 		}
 		structured := map[string]any{"view": view, "slug": slug, "event": hackShowJudgeEventFields(body.Event)}

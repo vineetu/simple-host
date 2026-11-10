@@ -35,14 +35,16 @@ export async function render(ctx) {
 
   wireRowMenus()
 
+  let assignmentMode = ''
   let teams = [], team = null, members = [], entryItem = null, required = [], onNoTeam = [], messages = []
 
   async function load() {
-    const [tr, pr, er, mr] = await Promise.all([
+    const [tr, pr, er, mr, jr] = await Promise.all([
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams'),
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/people'),
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/entries'),
-      api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/messages')
+      api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/messages'),
+      ev.tracks?.length ? api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/judging/settings') : Promise.resolve(null)
     ])
     if (!tr.ok) { setLive(tr.data.error || 'Could not load the team', true); return false }
     teams = tr.data.teams || []
@@ -58,6 +60,7 @@ export async function render(ctx) {
       required = er.data.required || []
       entryItem = (er.data.entries || []).find(e => e.team.slug === teamSlug) || null
     }
+    assignmentMode = jr?.ok ? jr.data.assignment_mode : ''
     messages = mr.ok ? (mr.data.messages || []) : []
     return true
   }
@@ -117,6 +120,7 @@ ${lockReason ? `<div class="note warn">${esc(lockReason)}</div>` : ''}
 ${team.kept ? `<div class="note" role="status">Everyone left after the deadline. ${esc(team.name)} keeps its entry, site and scores, and can’t take new members.</div>` : ''}
 ${membersBlock}
 <section class="card"><h2>Team</h2><form id="rename-form"><div class="field"><label for="rename-name">Team name</label><div class="control-row"><input class="input" id="rename-name" type="text" maxlength="80" value="${esc(team.name)}"${lockReason ? ' disabled' : ''}><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Save</button></div></div></form></section>
+${ev.tracks?.length && (assignmentMode === 'panel' || !team.track) ? `<section class="card" id="team-track"><h2>Track</h2><div class="field"><label>Track<select data-help="team.track" class="select" id="team-track-select"${lockReason || ev.judging_locked_at || ['judging','results','archived'].includes(ev.stage) ? ' disabled' : ''}><option value="">No track</option>${(ev.tracks || []).map(t => `<option value="${esc(t.slug)}"${team.track?.slug === t.slug ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label></div><button data-help="team.track" class="btn" type="button" id="team-track-save"${lockReason || ev.judging_locked_at || ['judging','results','archived'].includes(ev.stage) ? ' disabled' : ''}>Save</button></section>` : ''}
 <section class="card" id="messages"><h2>Messages</h2>${messages.length ? messageRowsHTML(ui, ev, messages, { withSender: true }) : '<p class="muted">No messages sent to this team yet.</p>'}${ev.stage === 'archived' ? '' : `<div class="form-actions"><button class="btn" type="button" id="msg-team-btn">Message team</button></div>`}</section>
 ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
 <div class="setting"><div class="t"><b>Lock team</b><span>No more people can join by link, code, request or invite, and Fill teams skips it. You can still place people here.</span></div><div class="ctl"><button class="toggle${team.locked ? ' on' : ''}" type="button" role="switch" aria-checked="${team.locked ? 'true' : 'false'}" aria-label="Lock team" id="team-lock-toggle"${lockReason ? ' disabled' : ''}></button></div></div>
@@ -128,6 +132,12 @@ ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
   }
 
   function wire() {
+    if ($('team-track')) ui.trackForm(ctx, $('team-track'))
+    $('team-track-save')?.addEventListener('click', async () => {
+      const r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/team/track', { team:teamSlug, track: $('team-track-select').value })
+      if (!r.ok) { setLive(ui.errText(r), 'err'); return }
+      if (await load()) paint()
+    })
     const addBtn = $('add-someone')
     if (addBtn) addBtn.addEventListener('click', onAddSomeone)
     ui.trackForm(ctx, $('rename-form'))

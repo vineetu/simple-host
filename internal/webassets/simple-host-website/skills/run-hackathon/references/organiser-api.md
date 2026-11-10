@@ -102,7 +102,7 @@ Before changing a public stage, result, listing, website or invitation link; ema
 
 Leaving the event is destructive too. Preview it with `hack_preview_leave_event`, tell the organiser what happens, and ask before calling `hack_leave_event`. The creator sends `successor_user_id` from the preview, and the only organiser sends `close: "end"` or `close: "delete"`, chosen by the person.
 
-Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
+Judges are joined judges plus organisers ticked in Settings → Judging. Set organiser_judges (current organiser user IDs) with hack_set_judging_settings; [] clears, omitted preserves. Legacy include_organisers persists all/none selection; omission preserves. Judges can save scores only at Judging.
 
 Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body`. Editing does not send a new email. `DELETE` on the same path removes it. MCP: `hack_edit_announcement` and `hack_delete_announcement`, with `slug`, `announcement`, and a `body` object for edits. Ask before deleting.
 

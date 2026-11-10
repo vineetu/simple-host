@@ -15,6 +15,7 @@ import (
 
 // ChecklistJudgingFacts shares batched eligibility, scores and standings for checklist guidance.
 type ChecklistJudgingFacts struct {
+	Coverage                                                  SetupCoverage
 	Judges, Organisers, Judgeable, JudgesDone, JudgesRequired int
 	AssignmentsReady                                          bool
 	AssignmentDetail                                          string
@@ -76,34 +77,13 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 			return f, err
 		}
 	}
-	scored := map[string]bool{}
 	for _, row := range rawScores {
-		scored[row.JudgeID] = true
 		if completions[row.JudgeID] == nil {
 			completions[row.JudgeID] = map[string]int{}
 		}
 		completions[row.JudgeID][row.TeamID]++
 	}
 
-	assignments, err := entryrepo.ListEventAssignments(ctx, q, ev.ID)
-	if err != nil {
-		return f, err
-	}
-	assigned := map[string]bool{}
-	for _, a := range assignments {
-		if ev.JudgeAssignmentMode == "automatic" || ev.JudgeAssignmentMode == "manual" {
-			assigned[a.JudgeID] = true
-		}
-	}
-	panels, err := entryrepo.ListTrackPanels(ctx, q, ev.ID)
-	if err != nil {
-		return f, err
-	}
-	for _, p := range panels {
-		if ev.JudgeAssignmentMode == "panel" {
-			assigned[p.JudgeID] = true
-		}
-	}
 	eligibility, err := entryrepo.EventJudgeEligibility(ctx, q, ev.ID)
 	if err != nil {
 		return f, err
@@ -112,7 +92,6 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 	if err != nil {
 		return f, err
 	}
-	coverage := map[string]int{}
 	for _, j := range judges {
 		if j.Role == "judge" {
 			f.Judges++
@@ -122,13 +101,12 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 		eligible := eligibility[j.ID]
 		done := true
 		for id := range eligible {
-			coverage[id]++
 			ok := len(rubric) > 0 && completions[j.ID][id] >= len(rubric)
 			if !ok {
 				done = false
 			}
 		}
-		required := j.Role == "judge" && len(eligible) > 0 || j.Role == "organiser" && (scored[j.ID] || ev.JudgeAssignmentMode != "open" && assigned[j.ID])
+		required := len(eligible) > 0
 		if required {
 			f.JudgesRequired++
 			if done {
@@ -136,22 +114,13 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 			}
 		}
 	}
-	f.AssignmentsReady = f.Judgeable > 0
-	under := 0
-	for id := range present {
-		n := coverage[id]
-		if n == 0 {
-			f.AssignmentsReady = false
-		}
-		target := ev.JudgesPerTeam
-		if (ev.JudgeAssignmentMode == "manual" || ev.JudgeAssignmentMode == "panel") && n > 0 && n < target {
-			target = n
-		}
-		if n < target {
-			under++
-		}
+	setup, err := s.JudgingSetupCoverage(ctx, ev)
+	if err != nil {
+		return f, err
 	}
-	f.AssignmentDetail = fmt.Sprintf("%d judgeable %s; %d needing more eligible judges after conflicts", f.Judgeable, checklistNoun(f.Judgeable, "team"), under)
+	f.Coverage = setup
+	f.AssignmentsReady = len(setup.Short) == 0
+	f.AssignmentDetail = setup.Detail()
 
 	if ev.JudgeAssignmentMode == "panel" {
 		missingTracks := 0

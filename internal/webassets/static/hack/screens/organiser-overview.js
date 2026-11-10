@@ -1,6 +1,6 @@
 import { renderChecklist, bindChecklist, checklistActionLabel } from '../checklist.js'
 import { href, resolve } from '../nav.js'
-import { adminLock, stagePicker, FORWARD_EFFECT } from './_orgA-util.js'
+import { adminLock, canScoreAsJudge, stagePicker, judgingSetupSummary, FORWARD_EFFECT } from './_orgA-util.js'
 import { startTour } from '../tour.js'
 import { cueHeading } from '../schedule.js'
 import { offerStageAnnouncement } from './_stage-announce-dialog.js'
@@ -126,15 +126,6 @@ export async function render(ctx) {
     else { content.h2 = cue; content.cueNote = 'From your schedule. Nothing changes until you press ' + content.button + '.' }
   }
 
-  // C7 (owner decision 2026-10-30): the server's judges count includes
-  // organisers who can judge (db.CountEligibleJudges, by design). The
-  // snapshot tile should count judges only, so ask /people (the same
-  // organiser-only endpoint organiser-people.js uses) and count
-  // role === 'judge' ourselves. Falls back to the server's own count if
-  // that call fails. The pending-approvals heads-up (Start building) and
-  // the zero-judges heads-up (Start judging) only matter for those two
-  // specific next steps, so their own fetches are conditional on the step
-  // actually being offered.
   let judgesOnly = counts.judges ?? 0
   let pendingCount = 0
   // Audit item 2 (2026-11-02): in panel mode, a team with no track matches
@@ -149,12 +140,12 @@ export async function render(ctx) {
   const atStartJudging = step.kind === 'stage' && step.stage === 'judging'
   try {
     const base = '/v1/hack/events/' + encodeURIComponent(ev.slug)
-    const calls = [api('GET', base + '/people')]
+    const calls = [api('GET', base + '/judging/settings')]
     if (step.kind === 'stage' && step.stage === 'building') calls.push(api('GET', base + '/applications'))
     if (atStartJudging) calls.push(api('GET', base + '/judging/settings'), api('GET', base + '/teams'), api('GET', base + '/judging/dashboard'))
     const results = await Promise.all(calls)
     const p = results[0]
-    if (p.ok && Array.isArray(p.data)) judgesOnly = p.data.filter(x => x.role === 'judge').length
+    if (p.ok) judgesOnly = p.data.judges.length
     if (step.kind === 'stage' && step.stage === 'building') {
       const a = results[1]
       if (a && a.ok && Array.isArray(a.data)) pendingCount = a.data.filter(x => x.status === 'pending').length
@@ -216,7 +207,7 @@ export async function render(ctx) {
   // point, same word either side.
   const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, '')).split('.').join('.<wbr>')
   main.innerHTML = `
-<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button>${data.can?.judge ? `<a class="btn quiet sm" href="${ui.esc(href('judge', ev.slug, 'home'))}">Score as a judge</a>` : ''}</div>
+<div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button>${canScoreAsJudge(data) ? `<a class="btn quiet sm" href="${ui.esc(href('judge', ev.slug, 'home'))}">Score as a judge</a>` : ''}</div>
 <p class="ov-public-url"><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p>
 ${content.button
     ? `<section${content.isEnd ? ' id="ov-end-target"' : ''} class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div>${content.navHref
@@ -317,7 +308,12 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
       const bodyNodes = [ui.el('p', { text: content.confirmBody || content.sentence || '' })]
       if (atStartJudging && judgingEntries) bodyNodes.push(ui.el('p', { text: judgingPoolLine(judgingEntries) }))
       if (headsUp) bodyNodes.push(ui.el('p', { class: 'note warn', text: headsUp }))
-      const ok = await ui.confirm({ title: content.button + '?', body: bodyNodes, confirmLabel: content.button })
+      let short = false
+      if (atStartJudging) {
+        try { const summary = await judgingSetupSummary(ctx); short = summary.short; bodyNodes.push(summary) }
+        catch (e) { setLive(e.message, 'err'); return }
+      }
+      const ok = await ui.confirm({ title: content.button + '?', body: bodyNodes, confirmLabel: short ? 'Start anyway' : content.button })
       if (!ok) return
       nextMoveBtn.disabled = true
       try {
@@ -347,7 +343,7 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
   }
 
   $('ov-change-stage').addEventListener('click', async () => {
-    const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER, { judgingLocked: !!ev.judging_locked_at })
+    const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER, { judgingLocked: !!ev.judging_locked_at, ctx })
     if (!target) return
     const btn = $('ov-change-stage')
     btn.disabled = true

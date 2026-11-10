@@ -306,6 +306,7 @@ func TestHackPlatformAdminJoinsAsOrganiser(t *testing.T) {
 	}
 	wantTS(t, "admin edits", a.at(t, "PATCH", base, map[string]any{"tagline": "Edited by the admin"}, a.adminH()), 200, "")
 	wantTS(t, "admin invites", a.at(t, "POST", base+"/organiser-invite", nil, a.adminH()), 201, "")
+	wantTS(t, "select organiser judges", a.at(t, "PATCH", base+"/judging/settings", map[string]any{"include_organisers": true}, a.adminH()), 200, "")
 	wantTS(t, "admin judge queue", a.at(t, "GET", base+"/judge/queue", nil, a.adminH()), 200, "")
 	// Nothing leaks to an event the admin is not in.
 	fview := a.at(t, "GET", fbase, nil, a.adminH())

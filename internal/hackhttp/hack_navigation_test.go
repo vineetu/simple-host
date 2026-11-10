@@ -30,7 +30,7 @@ func TestNavigationAndActorConflicts(t *testing.T) {
 	for _, tc := range []struct {
 		who                     person
 		manage, judge, takePart bool
-	}{{w.org, true, true, false}, {w.judge, false, true, false}, {w.teams[0].person, false, false, true}} {
+	}{{w.org, true, false, false}, {w.judge, false, true, false}, {w.teams[0].person, false, false, true}} {
 		r := a.at(t, "GET", base, nil, a.key(tc.who))
 		can := r.json(t)["can"].(map[string]any)
 		if can["manage"] != tc.manage || can["judge"] != tc.judge || can["take_part"] != tc.takePart {

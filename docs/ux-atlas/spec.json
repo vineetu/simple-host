@@ -2,7 +2,8 @@
  "version": 2,
  "updated": "2026-11-09",
  "universal_properties": [
-  "A form with unsaved edits asks Leave without saving? (Stay / Leave) before navigation or Back, and uses the browser prompt when closing or reloading the tab; a clean or just-saved form never asks."
+  "A form with unsaved edits asks Leave without saving? (Stay / Leave) before navigation or Back, and uses the browser prompt when closing or reloading the tab; a clean or just-saved form never asks.",
+  "Every checklist item is actionable: a not-done action reaches the enabled control that fixes it, or performs it; informational rows have no button."
  ],
  "summary": [
   "Your events stays visible in the signed-in pane; the current event expands with its role sections. Five current rows, a Past events toggle and All events keep the list short.",
@@ -950,6 +951,11 @@
      "q": "Side panel or a dialog?",
      "decision": "Desktop: a fixed right-side panel (role complementary), no scrim, so the rest of Overview stays usable while asking. Phone: a full-screen sheet (role dialog, aria-modal, focus trapped), since there is no room beside the content.",
      "why": "The owner's 'light UI, nothing dark-only' rule plus 'never changes the event' means a blocking modal would overstate what this does -- it is a reference panel, not a workflow."
+    },
+    {
+     "q": "Who judges and what does starting Judging confirm?",
+     "decision": "Joined judges plus organisers ticked in Settings → Judging (#organiser-judges). Both start confirmations link mode, judges per team, judge names and coverage to their controls. Every checklist item is actionable or has no button.",
+     "why": "Owner, SIM-419: one judge definition and every checklist action reaches its fix."
     }
    ],
    "features": [
@@ -2896,6 +2902,11 @@
      "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
      "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions. The desktop event list is the switcher, including clickable marks when collapsed; phone keeps the header switcher. Inspection shows separate read-only organiser navigation. Completed checklist rows have no optional controls, and phone row actions are compact below labels.",
      "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
+    },
+    {
+     "q": "Who judges and what does starting Judging confirm?",
+     "decision": "Joined judges plus organisers ticked in Settings → Judging (#organiser-judges). Both start confirmations link mode, judges per team, judge names and coverage to their controls. Every checklist item is actionable or has no button.",
+     "why": "Owner, SIM-419: one judge definition and every checklist action reaches its fix."
     }
    ],
    "features": [
@@ -3230,7 +3241,8 @@
     {
      "name": "Judging",
      "contents": [
-      "Rubric (#rubric), Rubric final / Mark as final (#rubric-final), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)"
+      "Rubric (#rubric), Rubric final / Mark as final (#rubric-final), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)",
+      "Organisers who also judge (#organiser-judges): checkbox per organiser, default unticked, saved with mode; setup locks at Judging. Existing judge-link copy control."
      ]
     },
     {
@@ -3372,6 +3384,11 @@
      "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
      "decision": "Use reviewed shared-map destinations and sections above; retain existing saves, stage locks, exports and operational actions. The desktop event list is the switcher, including clickable marks when collapsed; phone keeps the header switcher. Inspection shows separate read-only organiser navigation. Completed checklist rows have no optional controls, and phone row actions are compact below labels.",
      "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
+    },
+    {
+     "q": "Who judges and what does starting Judging confirm?",
+     "decision": "Joined judges plus organisers ticked in Settings → Judging (#organiser-judges). Both start confirmations link mode, judges per team, judge names and coverage to their controls. Every checklist item is actionable or has no button.",
+     "why": "Owner, SIM-419: one judge definition and every checklist action reaches its fix."
     }
    ],
    "features": [

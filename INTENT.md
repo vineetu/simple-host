@@ -129,6 +129,8 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-09. Organisers judge only when ticked (owner, SIM-419).** Judges are joined judges plus organisers selected in Settings → Judging. Existing organisers with any scores start selected. Reason: one judge definition must drive assignments, scoring access, counts and checklists; organisers opt in. Starting Judging confirms mode, target, people and coverage, with links to fix each.
+
 - **2026-11-09. Scoring opens at Judging (owner, SIM-416).** Entries closed is the setup time: mode, judges per team, rubric and assignments; judges can't score yet. Moving to Judging locks that setup and Automatic mode assigns judges then. Going back to Entries closed pauses scoring and unlocks setup. Reverses 'judges score from Closed on' (2026-11-02). Reason: on the practice event, scores given at Entries closed silently stopped counting when the mode changed.
 - **2026-11-09 (owner). Organiser assistant v2: on every organiser screen, explains every setting.**
   The SIM-394 chat was only on Home and could not answer most settings questions ("a chatbot

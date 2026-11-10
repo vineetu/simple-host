@@ -65,6 +65,15 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 	if role != "organiser" && role != "judge" && role != "participant" {
 		return Checklist{}, &Error{"checklist_role_forbidden", "unknown checklist role"}
 	}
+	if role == "judge" {
+		judge, err := entryrepo.EventJudgeInEvent(ctx, s.db, eventID, actorID)
+		if err != nil {
+			return Checklist{}, err
+		}
+		if !judge {
+			return Checklist{}, &Error{"checklist_role_forbidden", "only judges can read this checklist"}
+		}
+	}
 	subject := actorID
 	if readOnly {
 		subject = ""
@@ -100,14 +109,27 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			if err = s.organiserFacts(ctx, ev, rubric, judging, facts); err != nil {
 				return Checklist{}, err
 			}
+			if facts["o.assignments"].TargetID == "o.team-track" {
+				for _, t := range judging.Coverage.Short {
+					if t.MissingTrack {
+						params["team"] = t.Slug
+						break
+					}
+				}
+			}
 			rubricFact := facts["o.rubric"]
 			rubricFact.Version = version
 			facts["o.rubric"] = rubricFact
-			facts["o.rubric-ready"] = rules.ChecklistFact{Done: version != "" && acks["o.rubric-ready"] == version, Version: version}
+			facts["o.rubric-ready"] = rules.ChecklistFact{Done: version != "" && acks["o.rubric-ready"] == version, Version: version, TargetID: "o.rubric-ready"}
+			if version == "" {
+				f := facts["o.rubric"]
+				f.TargetID = "o.rubric"
+				facts["o.rubric-ready"] = f
+			}
 		} else {
 			closed := ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "results" || ev.Stage == "archived"
 			queueOpen := ev.Stage == "judging" && !closed
-			facts["j.invite"] = rules.ChecklistFact{Done: !member.JoinedAt.IsZero()}
+			facts["j.invite"] = rules.ChecklistFact{Done: !member.JoinedAt.IsZero(), BlockedReason: "informational"}
 			facts["j.coc"] = rules.ChecklistFact{Done: member.CocAcceptedAt.Valid, BlockedReason: "conduct_record_only"}
 			facts["j.rubric"] = rules.ChecklistFact{Done: version != "" && acks["j.rubric"] == version, Version: version}
 			if version == "" {
@@ -278,11 +300,15 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	}
 	f["o.announcement"] = rules.ChecklistFact{Done: len(announcements) > 0, Detail: fmt.Sprintf("%d posted", len(announcements)), Count: intPointer(len(announcements))}
 	set("o.deadline", ev.SubmissionDeadline.Valid)
-	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: judgeReadyDetail(j.Judges, j.Organisers)}
-	if mode == "automatic" {
-		f["o.assignments"] = rules.ChecklistFact{Done: j.Judges >= ev.JudgesPerTeam, Detail: fmt.Sprintf("%d of %d judges", j.Judges, ev.JudgesPerTeam)}
-	} else {
-		f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail}
+	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: judgeSelectionDetail(j.Judges + j.Organisers)}
+	f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail}
+	assignment := f["o.assignments"]
+	assignment.TargetID = j.Coverage.FixTarget
+	f["o.assignments"] = assignment
+	if ev.Stage == "results" || ev.Stage == "archived" || ev.JudgingLockedAt.Valid {
+		v := f["o.judges"]
+		v.BlockedReason = "judging_setup_locked"
+		f["o.judges"] = v
 	}
 	f["o.scores"] = rules.ChecklistFact{Done: j.Judgeable > 0 && j.JudgesRequired > 0 && j.JudgesDone == j.JudgesRequired, Detail: fmt.Sprintf("%d of %d %s done", j.JudgesDone, j.JudgesRequired, checklistPlural(j.JudgesRequired, "judge")), Count: intPointer(j.JudgesDone), Total: intPointer(j.JudgesRequired)}
 	if j.JudgesRequired == 0 {
@@ -293,10 +319,39 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	set("o.lock", ev.JudgingLockedAt.Valid)
 	set("o.ties", j.TiesDone)
 	if !j.HasStandings {
-		f["o.ties"] = rules.ChecklistFact{Detail: "No standings yet"}
+		f["o.ties"] = rules.ChecklistFact{Detail: "No standings yet", BlockedReason: "informational"}
 	}
 	set("o.publish", j.Published)
+	if !ev.JudgingLockedAt.Valid {
+		v := f["o.publish"]
+		v.TargetID = "o.lock"
+		f["o.publish"] = v
+	}
 	set("o.end", ev.Stage == "archived")
+	participants, _, _, err := eventrepo.CountEventMembers(ctx, s.db, ev.ID)
+	if err != nil {
+		return err
+	}
+	if participants == 0 {
+		v := f["o.end"]
+		v.BlockedReason = "informational"
+		f["o.end"] = v
+	}
+	v := f["o.scores"]
+	v.BlockedReason = "informational"
+	f["o.scores"] = v
+	if ev.Stage == "judging" || ev.Stage == "results" {
+		for _, id := range []string{"o.rubric", "o.mode", "o.tie-break", "o.assignments"} {
+			v := f[id]
+			v.BlockedReason = "judging_setup_locked"
+			f[id] = v
+		}
+	}
+	if len(rubric) == 0 && ev.Stage != "judging" && ev.Stage != "results" {
+		v := f["o.tie-break"]
+		v.TargetID = "o.rubric"
+		f["o.tie-break"] = v
+	}
 	if !hackentries.RulesEditable(ev.Stage) {
 		v := f["o.entry-rules"]
 		v.BlockedReason = "entry_rules_closed"
@@ -326,9 +381,14 @@ func (s *ChecklistService) participantFacts(ctx context.Context, ev model.Event,
 		}
 		f["p.team"] = rules.ChecklistFact{Done: true, Detail: p.TeamLine}
 		f["p.summary"] = rules.ChecklistFact{Done: p.Filled >= p.Of, Count: intPointer(p.Filled), Total: intPointer(p.Of), Detail: hackentries.MissingMessage(p.SummaryMissing, hackentries.LoadRules(ev.EntryRules))}
-		f["p.evidence"] = rules.ChecklistFact{Done: p.EvidenceDone, Detail: p.Summary, TargetID: "p.website"}
+		f["p.evidence"] = rules.ChecklistFact{Done: p.EvidenceDone, Detail: p.Summary, TargetID: evidenceTarget(p.EvidenceMissing, hackentries.LoadRules(ev.EntryRules))}
 		f["p.submit"] = rules.ChecklistFact{Done: p.Entry.Status() == "submitted", Settled: p.Entry.Status() == "not_submitted", Detail: p.Entry.Status()}
 		next = p.Next
+		if sub := f["p.submit"]; !sub.Done && !sub.Settled && p.Next != "submit" {
+			// Submit has nothing to do until the steps above are done; they carry the actions.
+			sub.BlockedReason = "entry_not_ready"
+			f["p.submit"] = sub
+		}
 		if st.WriteRefusal() != "" {
 			for _, id := range []string{"p.summary", "p.evidence", "p.submit"} {
 				v := f[id]
@@ -408,7 +468,9 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 			}
 			subject = "event"
 		case "j.rubric", "j.conflicts":
-			if m.Role != "organiser" && m.Role != "judge" {
+			if judge, err := entryrepo.EventJudgeInEvent(ctx, tx, eventID, actorID); err != nil {
+				return err
+			} else if !judge {
 				return &Error{"checklist_role_forbidden", "only judges can acknowledge this item"}
 			}
 		default:
@@ -447,4 +509,35 @@ func checklistPlural(n int, word string) string {
 		return word
 	}
 	return word + "s"
+}
+
+func evidenceTarget(missing []string, fields map[string]string) string {
+	for _, field := range missing {
+		switch field {
+		case "video_url":
+			return "p.evidence-video"
+		case "code_url":
+			return "p.evidence-code"
+		case "screenshot":
+			return "p.evidence-screenshot"
+		case "one_of":
+			if fields["video_url"] == "one_of" {
+				return "p.evidence-video"
+			}
+			if fields["code_url"] == "one_of" {
+				return "p.evidence-code"
+			}
+			if fields["screenshot"] == "one_of" {
+				return "p.evidence-screenshot"
+			}
+		}
+	}
+	return "p.website"
+}
+
+func judgeSelectionDetail(n int) string {
+	if n > 0 {
+		return fmt.Sprintf("%d %s ready", n, checklistPlural(n, "judge"))
+	}
+	return "Share the judge link, or tick organisers who judge."
 }

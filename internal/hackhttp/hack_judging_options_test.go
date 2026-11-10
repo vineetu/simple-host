@@ -104,6 +104,7 @@ func TestHackManualAndPanelJudgingAccess(t *testing.T) {
 
 func TestHackOrganiserManualAndPanelJudging(t *testing.T) {
 	w := newJudgingWorld(t, 1, 0)
+	w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org)
 	orgID := w.a.userID(t, w.org)
 	teamID := w.teams[0].id
 	criterionID := decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0].ID

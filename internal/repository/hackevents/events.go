@@ -8,6 +8,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
@@ -31,7 +32,7 @@ const EventColumns = `
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
 	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed,
-	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at, entry_rules_chosen, theme`
+	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at, entry_rules_chosen, theme, organiser_judges`
 
 // ScanEventFields returns destinations in EventColumns order.
 func ScanEventFields(e *Event) []any {
@@ -45,7 +46,7 @@ func ScanEventFields(e *Event) []any {
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
 		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen, &e.DirectoryListed,
-		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt, &e.EntryRulesChosen, &e.Theme,
+		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt, &e.EntryRulesChosen, &e.Theme, pq.Array(&e.OrganiserJudges),
 	}
 }
 
@@ -156,15 +157,15 @@ func CountEventMembers(ctx context.Context, q sqlkit.Querier, eventID string) (p
 		SELECT
 			(SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role = 'participant' AND approval_status = 'approved'),
 			(SELECT COUNT(*) FROM event_teams WHERE event_id = $1),
-			(SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role = 'judge')`,
+			(SELECT COUNT(*) FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id = $1 AND `+entryrepo.JudgeMemberSQL("m", "e")+`)`,
 		eventID).Scan(&participants, &teams, &judges)
 	return
 }
 
-// CountEligibleJudges includes organisers, who may judge while keeping their role.
+// CountEligibleJudges counts joined judges and selected organiser judges.
 func CountEligibleJudges(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
 	var n int
-	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role IN ('judge', 'organiser')`, eventID).Scan(&n)
+	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id = $1 AND `+entryrepo.JudgeMemberSQL("m", "e")+``, eventID).Scan(&n)
 	return n, err
 }
 
@@ -425,7 +426,7 @@ func ListAdminEvents(ctx context.Context, q sqlkit.Querier) ([]AdminEvent, error
 		       COALESCE(u.username, ''),
 		       (SELECT COUNT(*) FROM event_members m WHERE m.event_id = e.id AND m.role = 'participant'),
 		       (SELECT COUNT(*) FROM event_teams t WHERE t.event_id = e.id),
-		       (SELECT COUNT(*) FROM event_members m WHERE m.event_id = e.id AND m.role = 'judge')
+		       (SELECT COUNT(*) FROM event_members m WHERE m.event_id = e.id AND `+entryrepo.JudgeMemberSQL("m", "e")+`)
 		  FROM events e
 		  LEFT JOIN users u ON u.id = e.created_by
 		 ORDER BY e.created_at DESC`)

@@ -745,6 +745,10 @@ async function seedAndCallHack(hack, calls, namer, exact, usedNames) {
     apiKey: organiser,
     body: { stage: 'closed' },
   });
+  await at('judging-settings-select-organisers', 'PATCH', `/v1/hack/events/${slug}/judging/settings`, { apiKey: organiser, body: { include_organisers: true } });
+  await at('judging-settings-preserve-organisers', 'PATCH', `/v1/hack/events/${slug}/judging/settings`, { apiKey: organiser, body: {} });
+  await at('judging-settings-selected-get', 'GET', `/v1/hack/events/${slug}/judging/settings`, { apiKey: organiser });
+  await at('judging-settings-clear-organisers', 'PATCH', `/v1/hack/events/${slug}/judging/settings`, { apiKey: organiser, body: { organiser_judges: [], include_organisers: true } });
   await at('event-stage-judging', 'POST', `/v1/hack/events/${slug}/stage`, {
     apiKey: organiser,
     body: { stage: 'judging' },

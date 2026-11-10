@@ -47,7 +47,7 @@ func ReplaceTrackPanels(ctx context.Context, q sqlkit.Querier, eventID string, p
 // ListEventAssignments provides the corresponding track or judging data.
 func ListEventAssignments(ctx context.Context, q sqlkit.Querier, eventID string) ([]JudgeAssignment, error) {
 	rows, err := queryContext(ctx, q, `SELECT a.judge_id,COALESCE(u.display_name,''),a.team_id,t.name
-		FROM event_assignments a JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND j.role IN ('judge', 'organiser')
+		FROM event_assignments a JOIN events e ON e.id=a.event_id JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND `+judgeMemberSQL("j", "e")+`
 		JOIN users u ON u.id=j.user_id JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
 		WHERE a.event_id=$1 ORDER BY t.name,COALESCE(u.display_name,'')`, eventID)
 	if err != nil {
@@ -82,7 +82,7 @@ func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 	out := map[string]bool{}
 	if isMember {
 		rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-			JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
+			JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND `+judgeMemberSQL("m", "e")+`
 			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=$2 AND c.team_id=t.id)
 			AND `+EntryJudgeableSQL+`
 			AND (EXISTS (SELECT 1 FROM event_members tm WHERE tm.team_id=t.id) OR t.kept_after_leave)
@@ -144,7 +144,7 @@ func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q sqlkit.Querier, 
 		return out, nil
 	}
 	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-		JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
+		JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND `+judgeMemberSQL("m", "e")+`
 		WHERE e.id=$1
 		AND (e.judge_assignment_mode='open'
 		OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
@@ -179,7 +179,7 @@ func EventTrackInEvent(ctx context.Context, q sqlkit.Querier, eventID, trackID s
 // EventJudgeInEvent provides the corresponding track or judging data.
 func EventJudgeInEvent(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (bool, error) {
 	var ok bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2 AND role IN ('judge', 'organiser'))`, eventID, judgeID).Scan(&ok)
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id=$1 AND m.user_id=$2 AND `+judgeMemberSQL("m", "e")+`)`, eventID, judgeID).Scan(&ok)
 	return ok, err
 }
 
@@ -209,7 +209,7 @@ func TrackForTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID string)
 // EventJudgeEligibility loads current and former judging eligibility in one query.
 func EventJudgeEligibility(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]map[string]bool, error) {
 	rows, err := queryContext(ctx, q, `SELECT m.user_id,t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-			JOIN event_members m ON m.event_id=e.id AND m.role IN ('judge', 'organiser')
+			JOIN event_members m ON m.event_id=e.id AND `+judgeMemberSQL("m", "e")+`
 			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=m.user_id AND c.team_id=t.id)
 			AND `+EntryJudgeableSQL+`
 			AND (EXISTS (SELECT 1 FROM event_members tm WHERE tm.team_id=t.id) OR t.kept_after_leave)
@@ -218,7 +218,7 @@ func EventJudgeEligibility(ctx context.Context, q sqlkit.Querier, eventID string
 			OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=m.user_id))) UNION SELECT f.user_id,t.id FROM event_former_judges f
  JOIN event_teams t ON t.event_id=f.event_id AND t.id=ANY(f.counted_team_ids)
  WHERE f.event_id=$1
- AND NOT EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=f.event_id AND m.user_id=f.user_id AND m.role IN ('judge','organiser'))
+ AND NOT EXISTS (SELECT 1 FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id=f.event_id AND m.user_id=f.user_id AND `+judgeMemberSQL("m", "e")+`)
  AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=f.event_id AND c.judge_id=f.user_id AND c.team_id=t.id)
  AND `+EntryJudgeableSQL+``, eventID)
 	if err != nil {

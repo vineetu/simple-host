@@ -2155,7 +2155,7 @@
         "ui.js",
         "navigation-data.js"
       ],
-      "explains": "Invite dedicated judges with the judge link; organisers can also use the judge interface.",
+      "explains": "Share the judge link or tick organisers under Judging. The shared set supplies counts, assignments and scoring access.",
       "when": "Recruit people to assess entries.",
       "keywords": [
         "score as a judge"
@@ -2584,13 +2584,13 @@
         "screens/organiser-judging.js",
         "screens/organiser-judging-assignments.js"
       ],
-      "explains": "Open the Assignment grid for manual pairs and track panels. Automatic mode assigns judges by itself when Judging starts.",
+      "explains": "Assign the shared judge list to teams in Manual mode. Automatic coverage accounts for conflicts. Panel mode assigns judges by track; teams need a track.",
       "when": "Set up during Entries closed; locked during Judging.",
       "controls": [
         "button:Save judging access"
       ],
       "effects": [
-        "Automatic mode generates assignments at the move to Judging (judges only, not organisers). It replaces pairs, never deletes scores and respects conflicts.",
+        "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces pairs, never deletes scores and respects conflicts.",
         "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
         "Manual pairs require Manual mode; track panels use Panel mode. Judging, Lock and End block changes; the grid is read-only then."
       ],
@@ -3425,6 +3425,70 @@
       "limits": [
         "Daily questions reset at midnight UTC. Near the limit, questions left are shown. At the limit: You've asked [limit] questions today. The limit resets at midnight UTC.",
         "Monthly budget message: The assistant has used this month's budget. It's back on [date]. Asking stays disabled until reset."
+      ]
+    },
+    {
+      "id": "judging.organiser-judges",
+      "target": "o.organiser-judges",
+      "label": "Organisers who also judge",
+      "sources": [
+        "screens/_settings-judging.js"
+      ],
+      "explains": "Judges are people who joined as judges plus ticked organisers. Unticked organisers do not judge. Existing organisers with scores start ticked. Save with the mode settings; selection locks when Judging starts.",
+      "when": "Choose organisers before starting Judging.",
+      "controls": [
+        "button:Copy judge link"
+      ],
+      "related": [
+        "links.judge"
+      ]
+    },
+    {
+      "id": "assignments.panel",
+      "target": "o.panel-assignments",
+      "label": "Assignments",
+      "sources": [
+        "screens/organiser-judging.js",
+        "screens/organiser-judging-assignments.js"
+      ],
+      "explains": "Assign the shared judge list to teams in Manual mode. Automatic coverage accounts for conflicts. Panel mode assigns judges by track; teams need a track.",
+      "when": "Set up during Entries closed; locked during Judging.",
+      "controls": [
+        "button:Save judging access"
+      ],
+      "effects": [
+        "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces pairs, never deletes scores and respects conflicts.",
+        "In Automatic and Manual, a current judge’s scores for a team stop counting when their pair is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
+        "Manual pairs require Manual mode; track panels use Panel mode. Judging, Lock and End block changes; the grid is read-only then."
+      ],
+      "keywords": [
+        "assignment grid",
+        "generate assignments",
+        "panels"
+      ],
+      "related": [
+        "judging.mode",
+        "conflicts",
+        "lock"
+      ]
+    },
+    {
+      "id": "team.track",
+      "target": "o.teams",
+      "label": "Track",
+      "sources": [
+        "screens/organiser-team-detail.js"
+      ],
+      "explains": "Choose the team track before Judging starts. Panel mode uses its track to choose its judges.",
+      "when": "A panel team has no track.",
+      "controls": [
+        "button:Save"
+      ],
+      "options": [
+        {
+          "label": "No track",
+          "means": "The team has no track and receives no track panel in Panel mode."
+        }
       ]
     }
   ]

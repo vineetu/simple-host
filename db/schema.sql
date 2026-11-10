@@ -1247,6 +1247,7 @@ ON CONFLICT DO NOTHING;
 -- Weights sum to 100 in Go, not here. A conflict removes that judge from
 -- totals even when score rows remain. event_results.snapshot is the ranking
 -- at publish time; full_ranking only changes what the public results route shows.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS organiser_judges uuid[] NOT NULL DEFAULT '{}'::uuid[];
 ALTER TABLE events ADD COLUMN IF NOT EXISTS judge_assignment_mode TEXT NOT NULL DEFAULT 'open';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS judges_per_team INTEGER NOT NULL DEFAULT 2;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_locked_at TIMESTAMPTZ;

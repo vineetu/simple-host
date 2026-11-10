@@ -1,3 +1,4 @@
+import { canScoreAsJudge } from './_orgA-util.js'
 import { href } from '../nav.js'
 import { onSubmit } from '../platform.js'
 
@@ -67,11 +68,7 @@ export async function render(ctx) {
 <section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading…</p></section>
 ${archived ? '' : '<section class="card" id="jg-lockzone"></section>'}`
 
-  // Every organiser can also judge (the API accepts "judge" or "organiser"
-  // on every /judge/* route) — only a platform-admin inspection cannot, so
-  // the entry point to the organiser's own scoring queue follows that, not
-  // whether assignments happen to have been generated yet.
-  const canJudge = !!ctx.event.can?.judge
+  const canJudge = canScoreAsJudge(ctx.event)
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
 <span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc('/e/' + encodeURIComponent(slug) + '/judge?s=home')}">Score as a judge</a>` : ''}</div>
@@ -168,7 +165,7 @@ ${restBlock}
     const card = $('jg-conflicts-card')
     card.textContent = ''
     card.appendChild(ui.el('h2', { text: 'Judges who know a team' }))
-    const judges = people.filter(p => p.role === 'judge' || p.role === 'organiser')
+    const judges = (settings.judges || []).map(j => ({...j, display_name:j.name}))
     if (!conflicts.length) card.appendChild(ui.el('p', { class: 'muted', text: 'None yet.' }))
     conflicts.forEach(c => {
       const setting = ui.el('div', { class: 'setting' })
@@ -235,20 +232,6 @@ ${restBlock}
     await reloadDashboard()
   }
 
-  // Count organisers only when they have scores or saved assignments.
-  function isCountedJudge(judgeId, doneCount, assignedCount) {
-    const person = people.find(p => p.user_id === judgeId)
-    if (!person || person.role !== 'organiser') return true
-    // C7 leftover: in Open mode, judgingDashboard's assigned_count is every
-    // team the judge is *eligible* for (Open has no real per-judge
-    // assignment, see hack_judging.go) -- never zero even for an organiser
-    // nobody has actually used as a judge. Only a real score counts them
-    // while the saved mode is Open; Automatic/Manual/Panel keep the
-    // assigned_count > 0 check, since there an assignment is a real one.
-    if (settings.assignment_mode === 'open') return doneCount > 0
-    return doneCount > 0 || assignedCount > 0
-  }
-
   function paintProgress(teamsRows, judgeRows) {
     const card = $('jg-progress-card')
     card.textContent = ''
@@ -296,7 +279,7 @@ ${restBlock}
     card.appendChild(tlist)
     card.appendChild(ui.el('p', { class: 'section-title', text: 'Judges' }))
     const jlist = ui.el('div', { class: 'list' })
-    const visibleJudges = judgeRows.filter(j => isCountedJudge(j.judge_id, j.done_count, j.assigned_count))
+    const visibleJudges = judgeRows
     if (!visibleJudges.length && !formerJudges.length) jlist.appendChild(ui.el('div', { class: 'empty', text: 'No judges yet.' }))
     visibleJudges.forEach(j => {
       const row = ui.el('div', { class: 'r' })

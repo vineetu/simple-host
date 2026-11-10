@@ -140,7 +140,7 @@ var hackColumns = map[string][]string{
 		// hack2-team-sites.sql
 		"entry_required", "gallery_open",
 		// hack3-judging.sql
-		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason", "score_mode", "tie_criterion_id", "public_scores", "public_ranks",
+		"organiser_judges", "judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason", "score_mode", "tie_criterion_id", "public_scores", "public_ranks",
 		"team_finding", "voting_enabled", "voting_opens_at", "voting_closes_at", "voting_eligibility", "directory_listed",
 		// zp-hack-applications.sql
 		"applications_open",

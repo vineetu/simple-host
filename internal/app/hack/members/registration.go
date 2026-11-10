@@ -108,14 +108,19 @@ func (s *Service) SetTracks(ctx context.Context, eventID string, tracks []model.
 }
 
 // ChooseTrack updates a team's selected track.
-func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string) (*model.EventTrack, error) {
+func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string, organiser ...bool) (*model.EventTrack, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-	if _, err = eventrepo.LockEventShared(ctx, tx, eventID); err != nil {
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
+	if err != nil {
 		return nil, err
+	}
+	managing := len(organiser) > 0 && organiser[0]
+	if managing && (ev.JudgingLockedAt.Valid || ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived") {
+		return nil, &Error{"judging_setup_locked", "Move back to Entries closed to change this."}
 	}
 	if _, err = eventrepo.LockTeam(ctx, tx, teamID); err != nil {
 		return nil, err
@@ -124,7 +129,7 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string)
 	if err != nil {
 		return nil, err
 	}
-	if st.WriteRefusal() != "" {
+	if !managing && st.WriteRefusal() != "" {
 		return nil, &Error{"team_choice_closed", "team choices are closed"}
 	}
 	if _, err = eventrepo.SetTeamTrack(ctx, tx, eventID, teamID, slug); errors.Is(err, sql.ErrNoRows) {

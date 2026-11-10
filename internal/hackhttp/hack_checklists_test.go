@@ -55,7 +55,7 @@ func TestChecklistMarksAuthorityAndFacts(t *testing.T) {
 	for _, tc := range []struct {
 		p                       person
 		manage, judge, takePart bool
-	}{{w.org, true, true, false}, {w.judges[0].person, false, true, false}, {w.part.person, false, false, true}} {
+	}{{w.org, true, false, false}, {w.judges[0].person, false, true, false}, {w.part.person, false, false, true}} {
 		can := w.call(t, "GET", "/checklist", nil, tc.p).json(t)["can"].(map[string]any)
 		if can["manage"] != tc.manage || can["judge"] != tc.judge || can["take_part"] != tc.takePart {
 			t.Fatalf("membership abilities: %v", can)
@@ -399,8 +399,8 @@ func TestChecklistAssignmentModesAndOwnConflicts(t *testing.T) {
 			exec(`UPDATE events SET judge_assignment_mode=$2 WHERE slug=$1`, w.slug, mode)
 			if mode == "automatic" {
 				item := read(w.org, "organiser")["o.assignments"]
-				if item["state"] != "done" || item["detail"] != "2 of 2 judges" {
-					t.Fatal("automatic readiness follows judge count", item)
+				if item["state"] != "done" || item["detail"] != "Every team has at least 2 judges" {
+					t.Fatal("automatic readiness follows prospective coverage", item)
 				}
 				return
 			}
@@ -409,13 +409,17 @@ func TestChecklistAssignmentModesAndOwnConflicts(t *testing.T) {
 			}
 			if mode == "panel" {
 				exec(`INSERT INTO event_tracks(event_id,slug,name) SELECT id,'ideas','Ideas' FROM events WHERE slug=$1`, w.slug)
-				exec(`INSERT INTO event_track_panels(event_id,track_id,judge_id) SELECT event_id,id,$2 FROM event_tracks WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug, w.judges[0].id)
+				for _, j := range w.judges {
+					exec(`INSERT INTO event_track_panels(event_id,track_id,judge_id) SELECT event_id,id,$2 FROM event_tracks WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug, j.id)
+				}
 				if read(w.org, "organiser")["o.assignments"]["state"] != "todo" {
 					t.Fatal("missing team track ready")
 				}
 				exec(`UPDATE event_teams SET track_id=(SELECT id FROM event_tracks WHERE event_id=(SELECT id FROM events WHERE slug=$1)) WHERE id=$2`, w.slug, w.teams[0].id)
 			} else {
-				exec(`INSERT INTO event_assignments(event_id,judge_id,team_id) SELECT id,$2,$3 FROM events WHERE slug=$1 ON CONFLICT DO NOTHING`, w.slug, w.judges[0].id, w.teams[0].id)
+				for _, j := range w.judges {
+					exec(`INSERT INTO event_assignments(event_id,judge_id,team_id) SELECT id,$2,$3 FROM events WHERE slug=$1 ON CONFLICT DO NOTHING`, w.slug, j.id, w.teams[0].id)
+				}
 			}
 			if read(w.org, "organiser")["o.assignments"]["state"] != "done" {
 				t.Fatal("covered team not ready")
@@ -440,6 +444,10 @@ func TestChecklistPersonalRemovalPaths(t *testing.T) {
 				if _, err := w.a.database.Exec(`UPDATE event_members SET role='organiser' WHERE user_id=$1`, id); err != nil {
 					t.Fatal(err)
 				}
+			}
+			if co {
+				w.setStage(t, "closed")
+				wantTS(t, "select organiser judges", w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org), 200, "")
 			}
 			r := w.call(t, "POST", "/checklist/acknowledgements/j.conflicts", map[string]any{}, p)
 			checklistItems(t, r)
@@ -646,6 +654,7 @@ func TestChecklistRemovedJudgesExcludedEntriesAndScores(t *testing.T) {
 
 func TestChecklistOrganiserObligationUsesCurrentAssignmentMode(t *testing.T) {
 	w := newJudgingWorld(t, 1, 1)
+	w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org)
 	w.setStage(t, "judging")
 	orgID := w.a.userID(t, w.org)
 	exec := func(q string, args ...any) {
@@ -682,15 +691,15 @@ func TestChecklistOrganiserObligationUsesCurrentAssignmentMode(t *testing.T) {
 		t.Fatal("stale panel membership counted in manual mode")
 	}
 	exec(`UPDATE events SET judge_assignment_mode='open' WHERE slug=$1`, w.slug)
-	if total() != 1 {
-		t.Fatal("unscored Open-mode organiser required")
+	if total() != 2 {
+		t.Fatal("selected Open-mode organiser missing")
 	}
 	// Any stored score creates an organiser obligation, even if that score
 	// currently does not count (for example, its entry was excluded).
 	exec(`INSERT INTO event_scores(event_id,judge_id,team_id,criterion_id,points) SELECT event_id,$2,$3,id,3 FROM rubric_criteria WHERE event_id=(SELECT id FROM events WHERE slug=$1) LIMIT 1`, w.slug, orgID, w.teams[0].id)
 	exec(`UPDATE event_entries SET excluded_at=now() WHERE team_id=$1`, w.teams[0].id)
-	if total() != 1 {
-		t.Fatal("organiser with a stored excluded score omitted")
+	if total() != 0 {
+		t.Fatal("judges with no eligible teams counted")
 	}
 	exec(`UPDATE event_entries SET excluded_at=NULL WHERE team_id=$1`, w.teams[0].id)
 	if total() != 2 {

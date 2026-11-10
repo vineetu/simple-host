@@ -8,9 +8,9 @@ export function checklistActionLabel(item) {
 
 const blockedText = {
   event_taken_down: 'This event has been taken down.', entry_rules_closed: 'Entry rules are closed.', tie_rule_closed: 'Tie-break is closed.',
-  scores_locked: 'Scoring is locked.', judging_closed: 'Scoring is closed.',
+  judging_setup_locked: 'Move back to Entries closed to change this.', scores_locked: 'Scoring is locked.', judging_closed: 'Scoring is closed.',
   judging_not_open: 'Judging is not open yet.', nothing_assigned: 'No teams assigned yet.',
-  join_team_first: 'Join a team first.', teams_locked: 'Teams are closed.',
+  join_team_first: 'Join a team first.', entry_not_ready: 'Finish the steps above first.', teams_locked: 'Teams are closed.',
   entry_unavailable: 'Entries are closed.', conduct_record_only: 'No acceptance recorded.'
 }
 
@@ -32,7 +32,7 @@ export function renderChecklist({ ui, checklist, title = 'Checklist', renderActi
       const detail = [item.optional && !done && !opted && item.id !== 'j.closes' ? 'Optional' : '', opted ? 'Not needed' : (item.detail || (!done && blockedText[item.blocked_reason]) || '')].filter(Boolean).join(' · ')
       li.innerHTML = tick + `<span class="what"><b>${ui.esc(item.label)}</b><span class="sub">${ui.esc(detail)}</span></span>`
       const actions = item.can_dismiss && !done ? ui.el('span', { class: 'step-actions act' }) : li
-      if (!done && !opted) {
+      if (!done && !opted && item.actionable) {
         const custom = renderAction?.(item)
         if (typeof custom === 'string') li.insertAdjacentHTML('beforeend', custom)
         else if (custom) li.append(custom)

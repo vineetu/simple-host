@@ -71,6 +71,7 @@ const org = await person('organiser', 1280)
 try {
  // Both judges and organiser see the judge projection, never mixed organiser rows.
  await api('organiser', 'POST', base + '/stage', {stage:'closed'})
+ await api('organiser','PATCH',base+'/judging/settings',{include_organisers:true})
  const rubric = (await api('judge', 'GET', base + '/rubric')).criteria
  const conflicts = (await api('judge','GET',base+'/conflicts?mine=1')).conflicts || []
  for (const c of conflicts) await api('judge','DELETE',base+'/conflicts/'+c.team_id)

@@ -25,7 +25,7 @@ func (e *BeginAssignmentsError) Error() string { return e.Err.Error() }
 func (e *BeginAssignmentsError) Unwrap() error { return e.Err }
 
 // GenerateAssignments plans and replaces assignments in one transaction.
-func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers bool, pool map[string]bool, atStageMove bool) ([]model.JudgeAssignment, []string, error) {
+func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers *bool, pool map[string]bool, atStageMove bool) ([]model.JudgeAssignment, []string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, nil, &BeginAssignmentsError{Err: err}
@@ -41,7 +41,7 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 	if ev.JudgingLockedAt.Valid {
 		return nil, nil, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
 	}
-	if ev.Stage == "judging" && !atStageMove {
+	if ev.Stage == "judging" && (!atStageMove || includeOrganisers != nil) || ev.Stage == "results" && includeOrganisers != nil {
 		return nil, nil, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
 	}
 	// 409, not 400: the route exists, the event is just not in that mode.
@@ -49,18 +49,12 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 	if ev.JudgeAssignmentMode != "automatic" {
 		return nil, nil, &Error{Code: "invalid_request", Message: "Switch to automatic assignment first."}
 	}
+	if err := updateOrganiserJudges(ctx, tx, eventID, nil, includeOrganisers); err != nil {
+		return nil, nil, err
+	}
 	judges, err := entryrepo.ListEventJudges(ctx, tx, eventID)
 	if err != nil {
 		return nil, nil, err
-	}
-	if !includeOrganisers {
-		only := []model.NamedJudge{}
-		for _, j := range judges {
-			if j.Role == "judge" {
-				only = append(only, j)
-			}
-		}
-		judges = only
 	}
 	teams, err := entryrepo.ListTeamsWithMembers(ctx, tx, eventID)
 	if err != nil {

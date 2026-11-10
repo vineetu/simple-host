@@ -54,6 +54,7 @@ type Event struct {
 	GalleryOpen   bool
 	// M3 (hack3-judging.sql): how judges are spread, and the score lock.
 	// JudgingLockReason is cleared on unlock; the reason itself is logged.
+	OrganiserJudges     []string
 	JudgeAssignmentMode string
 	JudgesPerTeam       int
 	JudgingLockedAt     sql.NullTime

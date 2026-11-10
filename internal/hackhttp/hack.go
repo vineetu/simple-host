@@ -975,7 +975,7 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"title":        ev.Title,
 			"stage":        ev.Stage,
 			"role":         roles[i],
-			"can":          events.AbilitiesForRole(roles[i]),
+			"can":          h.eventsSvc().MemberAbilities(r.Context(), ev.ID, model.EventMember{UserID: user.ID, Role: roles[i], JoinedAt: ev.CreatedAt}),
 			"ended_at":     rfc3339UTC(ev.ClosedAt),
 			"url":          h.EventURL(ev.Slug),
 			"icon_url":     h.iconURL(ev),
@@ -1056,7 +1056,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member mode
 			"tracks":               tracks,
 		},
 		"role": member.Role,
-		"can":  events.MembershipAbilities(member),
+		"can":  h.eventsSvc().MemberAbilities(ctx, ev.ID, member),
 		"me":   h.meView(ctx, ev, member),
 		// What waits on this person here (hack_notices.go): the sidebar
 		// badges, Overview's Needs you card and hack_get_team_status.
@@ -1616,7 +1616,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 			pool, poolErr := h.judgingPoolFor(r.Context(), updated, allTeams)
 			assignErr = poolErr
 			if assignErr == nil {
-				_, _, assignErr = h.entries.GenerateAssignments(r.Context(), updated.ID, false, pool.In, true)
+				_, _, assignErr = h.entries.GenerateAssignments(r.Context(), updated.ID, nil, pool.In, true)
 			}
 		}
 		if assignErr != nil {

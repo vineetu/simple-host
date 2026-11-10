@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-09",
+    "what": "SIM-419: Organisers opt in under Judging. One judge list drives assignments, counts and scoring. Both start confirmations show linked setup and coverage. Every checklist item is actionable; information has no button."
+  },
+  {
+    "date": "2026-11-09",
     "what": "SIM-416: Scoring opens at Judging; Entries closed is setup time. Judging locks setup and Automatic assigns at the move. Returning to Entries closed pauses scoring and unlocks setup. Assignment grids are read-only outside their saved mode or during Judging."
   },
   {

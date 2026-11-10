@@ -264,7 +264,7 @@ func (h *HackHandler) postAssistant(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	canJudge := events.MembershipAbilities(a.member).Judge
+	canJudge := h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member).Judge
 
 	// http.NewResponseController, not a w.(http.Flusher) type assertion:
 	// in production w is never the bare ResponseWriter the server handed

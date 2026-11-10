@@ -398,13 +398,14 @@ Leave the current team. Confirm first: the team's access and membership change.
 
 <div data-tool="hack_choose_track"></div>
 
-Choose a listed track for the current team; an empty track clears the choice. Confirm with the team first.
+Choose a listed track for the current team; an empty track clears the choice. An organiser can supply team (team slug) before Judging to fix a missing panel track. Confirm first.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | slug | string | yes | Event name. |
+| team | string |  | Organiser only: team slug to update before Judging. |
 | track | string | yes | Track slug, or empty to clear. |
 
 ## hack_get_team_status

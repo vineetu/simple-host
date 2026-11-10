@@ -62,7 +62,18 @@ func (s *Service) PutJudgeScores(ctx context.Context, eventID, judgeID, teamID s
 		return nil, "", false, err
 	}
 	if !member {
-		return nil, "", false, &Error{Code: "forbidden", Message: "You are no longer a judge or organiser of this event."}
+		message := "You are no longer a judge or organiser of this event."
+		ids, err := eventrepo.OrganiserIDs(ctx, tx, eventID)
+		if err != nil {
+			return nil, "", false, err
+		}
+		for _, id := range ids {
+			if id == judgeID {
+				message = "You are not a judge of this event."
+				break
+			}
+		}
+		return nil, "", false, &Error{Code: "forbidden", Message: message}
 	}
 	crit, err := entryrepo.CriterionIDsForEvent(ctx, tx, eventID)
 	if err != nil {

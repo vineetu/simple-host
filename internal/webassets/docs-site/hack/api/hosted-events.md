@@ -446,7 +446,7 @@ Event judge-team assignments (organiser)
 
 <div data-operation="PUT /v1/hack/events/{slug}/assignments"></div>
 
-Requires assignment_mode manual. All judge and team ids must belong to this event; organisers are eligible judges too. Conflicted pairs are refused. Locked or archived events refuse changes. Unlisted assignments are removed. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
+Requires assignment_mode manual. All judge and team ids must belong to this event; only ticked organisers are eligible judges. Conflicted pairs are refused. Locked or archived events refuse changes. Unlisted assignments are removed. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -474,7 +474,7 @@ Requires assignment_mode manual. All judge and team ids must belong to this even
 
 <div data-operation="POST /v1/hack/events/{slug}/assignments/generate"></div>
 
-Only when assignment_mode is "automatic" (409 invalid_request otherwise: switch to automatic first). Spreads judges across every team with members, up to judges_per_team each, skipping any declared conflict; deterministic given the same input. Include organisers only with include_organisers true. Replaces any existing assignment. teams_under_target lists teams that got fewer than judges_per_team because not enough non-conflicted judges were available. 400 too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no team has a member yet. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
+Only when assignment_mode is "automatic" (409 invalid_request otherwise: switch to automatic first). Spreads judges across every team with members, up to judges_per_team each, skipping any declared conflict; deterministic given the same input. Uses joined judges plus saved organiser_judges. Legacy include_organisers updates the saved selection: true selects all current organisers, false clears, omission preserves. Replaces any existing assignment. teams_under_target lists teams that got fewer than judges_per_team because not enough non-conflicted judges were available. 400 too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no team has a member yet. During Judging, setup changes return 409 judging_setup_locked ("Judging has started. Move the event back to Entries closed to change this.").
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -488,7 +488,7 @@ Only when assignment_mode is "automatic" (409 invalid_request otherwise: switch 
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| include_organisers | boolean |  |  |
+| include_organisers | boolean |  | Persists organiser selection: true selects all current organisers; false clears; omitted preserves. |
 
 **Responses:**
 
@@ -1456,7 +1456,7 @@ Scoring opens when judging starts; otherwise 409 scoring_not_open ("Scoring open
 
 <div data-operation="GET /v1/hack/events/{slug}/judging/dashboard"></div>
 
-Per-team score coverage (flagged when short of the target — judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed). former_judges (SIM-340) lists people who left after scoring: counted_teams is how many of their scores still count (frozen at the moment they left), assigned_count is how many of today's teams they would be assigned under the current mode. They are never in judges. teams lists only the teams that will be judged: an entry not excluded by hand, or a live team site (moving to judging starts an entry for it); a team with neither has no entry and is left out, as it is from automatic assignment and every judge's queue. entries counts the same split (judged, no_entry, excluded) for the Start judging confirm.
+Per-team score coverage (flagged when short of the target — judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed). former_judges (SIM-340) lists people who left after scoring: counted_teams is how many of their scores still count (frozen at the moment they left), assigned_count is how many of today's teams they would be assigned under the current mode. They are never in judges. teams lists only the teams that will be judged: an entry not excluded by hand, or a live team site (moving to judging starts an entry for it); a team with neither has no entry and is left out, as it is from automatic assignment and every judge's queue. entries counts the same split (judged, no_entry, excluded) for the Start judging confirm. coverage (SIM-419) is a read-only preview of who would judge each team, from the saved judge set (joined judges plus ticked organisers), conflicts and the current mode; automatic mode runs the planner without saving. It is what the Start judging confirm and the checklist read.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1602,7 +1602,7 @@ Preview only; nothing is published. Returns selected, raw and normalised team to
 
 <div data-operation="GET /v1/hack/events/{slug}/judging/settings"></div>
 
-Assignment mode, result score mode, preselected tie criterion and public score visibility.
+Assignment mode, organiser_judges, the canonical judges list, result score mode, preselected tie criterion and public score visibility.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1639,7 +1639,9 @@ Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | assignment_mode | string, one of `open`, `automatic`, `manual`, `panel` |  |  |
+| include_organisers | boolean |  | Alias: true selects all current organisers; false clears; omitted preserves. |
 | judges_per_team | integer |  |  |
+| organiser_judges | array of string |  | Current organiser user IDs. Omitted preserves; [] clears. Wins over include_organisers. Locked with mode/target. |
 | public_ranks | boolean |  |  |
 | public_scores | boolean |  |  |
 | score_mode | string, one of `raw`, `normalised` |  |  |
@@ -2752,7 +2754,7 @@ Up to 100 messages sent to the caller's current team, newest first; an empty lis
 
 <div data-operation="PUT /v1/hack/events/{slug}/team/track"></div>
 
-Available before the team's deadline while team changes are open. An empty track clears the choice.
+Available to participants before the team's deadline while team changes are open. Organisers may send team (team slug) before Judging to fix a missing panel track. An empty track clears the choice.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -2766,6 +2768,7 @@ Available before the team's deadline while team changes are open. An empty track
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| team | string |  | Organiser only: team slug to update before Judging. |
 | track | string | yes | Stable track slug or empty string |
 
 **Responses:**

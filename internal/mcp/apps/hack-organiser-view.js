@@ -192,7 +192,7 @@
     route('GET', '/v1/hack/events/' + SEG + '/rubric', 'hack_app_get_rubric', ['slug'], { appOnly: true }),
     route('PUT', '/v1/hack/events/' + SEG + '/rubric', 'hack_set_rubric', ['slug'], { body: ['criteria', 'confirm_score_deletion'] }),
     route('GET', '/v1/hack/events/' + SEG + '/judging/settings', 'hack_app_get_judging_settings', ['slug'], { unwrap: true, appOnly: true }),
-    route('PATCH', '/v1/hack/events/' + SEG + '/judging/settings', 'hack_set_judging_settings', ['slug'], { wrap: true, unwrap: true, body: ['assignment_mode', 'judges_per_team', 'tie_criterion_id'] }),
+    route('PATCH', '/v1/hack/events/' + SEG + '/judging/settings', 'hack_set_judging_settings', ['slug'], { wrap: true, unwrap: true, body: ['assignment_mode', 'judges_per_team', 'organiser_judges', 'include_organisers', 'tie_criterion_id'] }),
     route('GET', '/v1/hack/events/' + SEG + '/conflicts', 'hack_app_get_conflicts', ['slug'], { unwrap: true, appOnly: true }),
     route('POST', '/v1/hack/events/' + SEG + '/conflicts', 'hack_set_judge_conflict', ['slug'], { wrap: true, unwrap: true, body: ['team_id', 'judge_user_id'] }),
     route('DELETE', '/v1/hack/events/' + SEG + '/conflicts/' + SEG, 'hack_remove_judge_conflict', ['slug', 'team_id'], { query: ['judge_user_id'], unwrap: true, status: 204 }),

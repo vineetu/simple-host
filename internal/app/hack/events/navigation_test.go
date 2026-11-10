@@ -12,7 +12,7 @@ func TestMembershipAbilities(t *testing.T) {
 		member     bool
 		want       Abilities
 	}{
-		{"organiser", "organiser", true, Abilities{Manage: true, Judge: true}},
+		{"organiser", "organiser", true, Abilities{Manage: true}},
 		{"judge", "judge", true, Abilities{Judge: true}},
 		{"participant approved", "participant", true, Abilities{TakePart: true}},
 		{"participant pending", "participant", true, Abilities{TakePart: true}},

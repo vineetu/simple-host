@@ -11,7 +11,7 @@ export async function render(ctx) {
   const setLive = ui.live(main)
 
   let locked = !!ev.judging_locked_at
-  const setupLocked = locked || ev.stage === 'judging'
+  const setupLocked = locked || ['judging', 'results', 'archived'].includes(ev.stage)
   // A platform-admin inspection, a taken-down event or an ended event blocks
   // every write here too, on top of (never instead of) the judging-lock and
   // stage rules below — the same ui.writeLockReason() every other screen
@@ -30,6 +30,7 @@ export async function render(ctx) {
   // does.
   let rubric = []
   let rubricVersion = ''
+  let organiserSelectionLoaded = false
   let settings = { assignment_mode: 'open', judges_per_team: 2, score_mode: 'raw', tie_criterion_id: '', public_scores: false, public_ranks: false }
   let conflicts = []
   let people = []
@@ -68,6 +69,7 @@ ${closesHTML()}
 <div class="note info" id="jg-before-closed-note" hidden>You can set this before entries close, but teams may still be forming.</div>
 <p class="note" id="jg-assign-note" hidden></p>
 
+<section id="organiser-judges"><h2>Organisers who also judge</h2><div id="jg-organisers"></div><div id="jg-judge-link"></div></section>
 <div class="form-actions"><button class="btn" type="button" id="jg-mode-save">Save</button></div>
 </section>`
 
@@ -217,7 +219,7 @@ ${closesHTML()}
     btn.disabled = true
     let r
     const sent = modeForm.snapshot()
-    try { r = await api('PATCH', base + '/judging/settings', { assignment_mode: mode, judges_per_team: perTeam }) }
+    try { r = await api('PATCH', base + '/judging/settings', { assignment_mode: mode, judges_per_team: perTeam, ...(organiserSelectionLoaded ? { organiser_judges: [...main.querySelectorAll('[data-organiser-judge]:checked')].map(n => n.value) } : {}) }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
     if (!r.ok) { paintMode(); setLive(ui.errText(r), 'err', btn); return }
     const editedDuring = modeForm.snapshot() !== sent
@@ -273,10 +275,14 @@ ${closesHTML()}
   }
 
 
-  const [rubricR, settingsR] = await Promise.all([api('GET', base + '/rubric'), api('GET', base + '/judging/settings')])
+  const [rubricR, settingsR, peopleR] = await Promise.all([api('GET', base + '/rubric'), api('GET', base + '/judging/settings'), api('GET', base + '/people')])
   if (!ctx.alive()) return
   if (rubricR.ok) { rubric = rubricR.data.criteria || []; rubricVersion = rubricR.data.version }
+  organiserSelectionLoaded = settingsR.ok && peopleR.ok
   if (settingsR.ok) settings = settingsR.data
+  $('jg-organisers').innerHTML = (organiserSelectionLoaded ? peopleR.data : []).filter(p => p.role === 'organiser').map(p => `<label class="check"><input data-help="judging.organiser-judges" data-organiser-judge type="checkbox" value="${ui.esc(p.user_id)}"${(settings.organiser_judges || []).includes(p.user_id) ? ' checked' : ''}${setupLocked || adminLockReason ? ' disabled' : ''}><span>${ui.esc(p.display_name || p.email)}</span></label>`).join('')
+  const judgeLink = ctx.event.organiser?.judge_url || ''
+  $('jg-judge-link').append(ui.copyButton(judgeLink, 'Copy judge link'))
   draftMode = settings.assignment_mode
   draftPerTeam = settings.judges_per_team
   paintRubric(); paintTie(); paintMode()

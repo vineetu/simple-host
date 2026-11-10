@@ -21,7 +21,7 @@ func judgeUpstream() *http.ServeMux {
 		// about/rules/prizes carry distinctive marker text (not empty
 		// strings) specifically so a test can tell "never present" apart
 		// from "present but happens to be empty".
-		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"judging","scoring_open":true,"judging_locked_at":null,"results_published":false,"submission_deadline":null,"time_zone":"UTC","about":"ORGANISER-PROSE-ABOUT","rules":"ORGANISER-PROSE-RULES","prizes":"ORGANISER-PROSE-PRIZES"},"role":"judge"}`))
+		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"judging","scoring_open":true,"judging_locked_at":null,"results_published":false,"submission_deadline":null,"time_zone":"UTC","about":"ORGANISER-PROSE-ABOUT","rules":"ORGANISER-PROSE-RULES","prizes":"ORGANISER-PROSE-PRIZES"},"role":"judge","can":{"judge":true}}`))
 	})
 	return mux
 }
@@ -557,7 +557,7 @@ func TestHackJudgeRouteMapCoversCalls(t *testing.T) {
 	mux.HandleFunc("GET /v1/hack/events/{slug}", func(w http.ResponseWriter, r *http.Request) {
 		seen[r.Method+" "+r.URL.Path] = true
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"closed"},"role":"judge"}`))
+		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"closed"},"role":"judge","can":{"judge":true}}`))
 	})
 	s := newTestServer(mux)
 	c := &call{server: s, caller: judgeCaller("alice", ""), orig: httptest.NewRequest("POST", "/mcp", nil)}

@@ -6,10 +6,13 @@ import (
 	model "github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
 // JudgingSettings contains the optional settings to change.
 type JudgingSettings struct {
+	OrganiserJudges           *[]string
+	IncludeOrganisers         *bool
 	Mode                      *string
 	PerTeam                   *int
 	ScoreMode, TieCriterionID *string
@@ -30,11 +33,14 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 	if ev.Stage == "archived" {
 		return model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
-	if (req.Mode != nil || req.PerTeam != nil) && ev.JudgingLockedAt.Valid {
+	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && ev.JudgingLockedAt.Valid {
 		return model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
 	}
-	if (req.Mode != nil || req.PerTeam != nil) && ev.Stage == "judging" {
+	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && (ev.Stage == "judging" || ev.Stage == "results") {
 		return model.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
+	}
+	if err := updateOrganiserJudges(ctx, tx, ev.ID, req.OrganiserJudges, req.IncludeOrganisers); err != nil {
+		return model.Event{}, err
 	}
 	if req.TieCriterionID != nil {
 		if ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived" {
@@ -89,4 +95,33 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 // SetJudgingLock sets or clears the event's judging lock.
 func (s *Service) SetJudgingLock(ctx context.Context, eventID string, locked bool, reason string) (model.Event, error) {
 	return eventrepo.SetJudgingLock(ctx, s.db, eventID, locked, reason)
+}
+
+func updateOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string, selection *[]string, alias *bool) error {
+	if selection == nil && alias == nil {
+		return nil
+	}
+	ids := []string{}
+	if selection != nil {
+		ids = *selection
+	} else if *alias {
+		var err error
+		ids, err = eventrepo.OrganiserIDs(ctx, q, eventID)
+		if err != nil {
+			return err
+		}
+	}
+	for _, id := range ids {
+		if !model.ValidUUID(id) {
+			return &Error{Code: "invalid_organiser_judges", Message: "Choose current organisers of this event."}
+		}
+	}
+	valid, err := eventrepo.SetOrganiserJudges(ctx, q, eventID, ids)
+	if err != nil {
+		return err
+	}
+	if !valid {
+		return &Error{Code: "invalid_organiser_judges", Message: "Choose current organisers of this event."}
+	}
+	return nil
 }

@@ -20,14 +20,14 @@ export async function render(ctx) {
   const tracks = ev.tracks || []
   try {
     const [peopleR, teamsR, conflictsR, assignR, panelsR, settingsR] = await Promise.all([
-      api('GET', base + '/people'),
+      api('GET', base + '/judging/settings'),
       api('GET', base + '/teams'),
       api('GET', base + '/conflicts'),
       api('GET', base + '/assignments'),
       api('GET', base + '/judging/panels'),
       api('GET', base + '/judging/settings'),
     ])
-    if (peopleR.ok) people = peopleR.data || []
+    if (peopleR.ok) people = (peopleR.data.judges || []).map(j => ({...j, display_name:j.name}))
     if (teamsR.ok) teams = (teamsR.data && teamsR.data.teams) || []
     if (conflictsR.ok) conflicts = (conflictsR.data && conflictsR.data.conflicts) || []
     if (assignR.ok) assignments = (assignR.data && assignR.data.assignments) || []
@@ -53,7 +53,7 @@ export async function render(ctx) {
     ? "Judges who know a team are greyed out for that team."
     : "Conflicts are per team. In Panel mode a judge can still sit on a track's panel even if they know someone on one team in it. That team just won't be in their list."
 
-  const judges = people.filter(p => p.role === 'judge' || p.role === 'organiser')
+  const judges = people
   const subjects = grid === 'manual'
     ? teams.map(t => ({ id: t.id, name: t.name || t.slug }))
     : tracks.map(t => ({ id: t.id, name: t.name }))

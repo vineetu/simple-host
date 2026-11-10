@@ -353,7 +353,7 @@ Read one team's entry screenshot as base64 image bytes. Organiser or judge.
 
 <div data-tool="hack_get_judging_settings"></div>
 
-Read assignment and scoring settings. Organiser only.
+Read assignment and scoring settings, organiser_judges (selected organiser user IDs) and the canonical judges list. Organiser only.
 
 **Parameters:**
 
@@ -365,26 +365,26 @@ Read assignment and scoring settings. Organiser only.
 
 <div data-tool="hack_set_judging_settings"></div>
 
-Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only. Mode and judges per team are refused during Judging (judging_setup_locked); move back to Entries closed to change.
+Change assignment_mode, judges_per_team, organiser_judges, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only. Mode and judges per team are refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| body | object | yes | Any changed field: assignment_mode, judges_per_team, score_mode, tie_criterion_id, public_scores, public_ranks. The REST route validates each field and returns its own errors. |
+| body | object | yes | Any changed field: assignment_mode, judges_per_team, organiser_judges (array of current organiser user IDs; [] clears; omission preserves), score_mode, tie_criterion_id, public_scores, public_ranks. Legacy include_organisers: true selects all organisers, false clears, omitted preserves; organiser_judges wins. The REST route validates each field and returns its own errors. |
 | slug | string | yes | REST path parameter: slug. |
 
 ## hack_generate_assignments
 
 <div data-tool="hack_generate_assignments"></div>
 
-Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
+Generate assignments from current settings. Uses joined judges plus saved organiser_judges. Legacy include_organisers updates that saved selection before generating. Replaces previous automatic assignments; ask first. Organiser only. Refused during Judging (judging_setup_locked); move back to Entries closed to change.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| body | object | yes | Optional include_organisers boolean, default false. The REST route validates each field and returns its own errors. |
+| body | object | yes | Optional legacy include_organisers: true selects all current organisers, false clears the saved selection, omitted leaves it unchanged. The REST route validates each field and returns its own errors. |
 | slug | string | yes | REST path parameter: slug. |
 
 ## hack_get_assignments

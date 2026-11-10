@@ -390,3 +390,5 @@ SSO red-team parity, 2026-10-30: checked all F1-F14 against Enterprise. Company 
 SSO Claude review and SIM-348, 2026-10-30: hosted `authorizeStateOrigin` trusted the shared content host's origin on every site host; now only on the content host and apex. Enterprise checked the same day: `checkSiteAPIOrigin` compares against the addressed host's own origin and has no shared content host, so not affected. The other fixes (dashboard sign-out of the cookie family, hop navigation checks before the limiter and on HEAD, AgentCat secret values) are hosted-only paths; Enterprise sign-out revokes its company session and it has no AgentCat analytics.
 
 SIM-393 (2026-11-07): Hack role/stage checklist server, optional-item marks and rubric/conflict acknowledgements are in this repository (REST and MCP). Enterprise has no Hack product surface; not applicable there.
+
+2026-11-09 (SIM-419): Simple Hack organiser judging opt-in, canonical judge membership, actionable checklists and linked start-Judging setup confirmation are hosted-only. Enterprise has no hackathon platform; no port needed.

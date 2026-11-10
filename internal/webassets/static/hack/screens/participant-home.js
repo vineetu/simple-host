@@ -71,7 +71,7 @@ function entrySectionHTML (ctx, ev, progress) {
 
   const evidenceTitle = evidence.summary ? ('Add ' + evidence.summary) : 'Show your work'
   const evidenceSub = !team.done ? 'A video or your website, as the event asks.' : evidence.done ? 'Done.' : (evidence.summary && evidence.summary.indexOf(' or ') >= 0 && evidence.summary.indexOf(', and ') < 0 ? 'Nothing yet. One of these is enough.' : 'Nothing yet.')
-  const evidenceAction = (!evidence.done && summary.done) ? ('<a class="btn sm act" href="' + esc(websiteHref) + '">Publish website</a>') : ''
+  const evidenceAction = (!evidence.done && team.done) ? ('<a class="btn sm act" href="' + esc(ctx.event.checklist?.items.find(i => i.id === 'p.evidence')?.link?.href || entryHref) + '">' + (ctx.event.checklist?.items.find(i => i.id === 'p.evidence')?.target_id === 'p.website' ? 'Publish website' : 'Add evidence') + '</a>') : ''
   const r3 = row(evidence, 3, evidenceTitle, evidenceSub, evidenceAction)
 
   let submitSub, submitAction = ''
