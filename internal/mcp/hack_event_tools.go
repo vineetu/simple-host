@@ -598,7 +598,7 @@ func hackWebEventTools() []Tool {
 		},
 		{
 			Name: "hack_get_public_event", Title: "Read public event data",
-			Description: "Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned.",
+			Description: "Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.",
 			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: hackPublicReadOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/public")

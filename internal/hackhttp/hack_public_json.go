@@ -134,7 +134,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 			live := h.liveResultSites(r.Context(), ev)
 			rr := make([]any, 0, len(view.Rows))
 			for _, row := range view.Rows {
-				item := map[string]any{"team_name": row.TeamName, "track_name": row.TrackName, "track_prize": row.TrackPrize, "track_winner": row.TrackWinner}
+				item := map[string]any{"team_name": row.TeamName, "track_name": row.TrackName, "track_prize": row.TrackPrize, "track_winner": row.TrackWinner, "overall": row.Overall}
 				if ev.PublicRanks {
 					item["rank"], item["tied"] = row.Rank, row.Tied
 				}

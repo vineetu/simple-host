@@ -16,7 +16,7 @@ Read whether the built-in or custom event website is live and list published ver
 
 <div data-tool="hack_publish_event_website"></div>
 
-Publish a complete event website from inline files (include index.html, with optional files_base64 for assets) or one archive_base64 tar.gz. This replaces the custom site's files, keeps version history, and switches the event host to custom. Ask the organiser before publishing. Organiser only.
+Publish a complete event website from inline files (include index.html, with optional files_base64 for assets) or one archive_base64 tar.gz. This replaces the custom site's files, keeps version history, and switches the event host to custom. Ask the organiser before publishing. Organiser only. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.
 
 **Parameters:**
 

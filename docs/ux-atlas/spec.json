@@ -1442,7 +1442,8 @@
             "Your own website card: 'A .zip with index.html at the top, up to 25 MB.' then what an upload does now: no uploads yet -> 'Your first upload goes live at your address right away.'; any uploads exist -> 'Each upload goes live at your address right away. Earlier uploads stay listed.' The server's upload_limits line follows. Switching back to a specific earlier version isn't offered -- the API has no such call, only switching the whole address back to the built-in page.",
             "Drop zone with Choose zip (primary). Choosing or dropping a file uploads it at once; the zone shows the file name and progress, then 'Version 4 is up'. Archive errors show under the zone in plain words (missing_index: 'Put index.html at the top of the zip, not inside a folder.'; invalid_archive: 'That file isn't a valid .zip.')",
             "Uploads: Version n and its date, newest first; 'Live' pill on the version being served when your own website is on, 'Newest' otherwise",
-            "Quiet line: 'An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).' (event-website-storage stays API/AI-app only)"
+            "Quiet line: 'An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).' (event-website-storage stays API/AI-app only)",
+            "Help line immediately after: Your own website updates itself at each stage, results included, when it is built from the “event” page recipe. Made yours earlier? Ask your AI app to add the live event feed from that recipe."
           ],
           "actions": [
             {

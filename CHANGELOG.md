@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-10: Custom Simple Hack event websites built from the event recipe update themselves at every stage, including announcements and results (SIM-420).
+
 2026-11-09: Simple Hack: judging locks follow the stage; stage changes and publishing, including tie order and republishing, live on Home.
 
 2026-11-09: Simple Hack organisers opt in to judging under Settings → Judging. One judge list drives assignments, scoring and counts; existing scored organisers stay selected. Checklist buttons reach their fixes, information has no button, and starting Judging confirms mode, target, judge names and coverage with links.

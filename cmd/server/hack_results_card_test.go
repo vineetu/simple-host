@@ -305,6 +305,19 @@ func TestHackResultsCardsFullRankingTogglePicksUpWithoutRepublish(t *testing.T) 
 // publish, and the rendered page must stop offering it.
 func TestHackResultsCardsTakenDownSiteAndRepublish(t *testing.T) {
 	w := newCardWorld(t)
+	// Beta wins its own track but is not an overall winner. Hide ranks to
+	// prove the feed's marker does not depend on public rank visibility.
+	var trackID string
+	if err := w.a.database.QueryRow(`INSERT INTO event_tracks (event_id, slug, name) VALUES ($1, 'climate', 'Climate') RETURNING id`, w.eventID).Scan(&trackID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.a.database.Exec(`UPDATE event_teams SET track_id=$1 WHERE id=$2`, trackID, w.betaID); err != nil {
+		t.Fatal(err)
+	}
+	if r := w.a.api(t, "PATCH", "/v1/hack/events/"+w.slug+"/judging/settings", map[string]any{"public_ranks": false}, w.org.key); r.status != 200 {
+		t.Fatalf("hide ranks: %d %s", r.status, r.body)
+	}
+
 	if r := w.publish(t); r.status != http.StatusOK {
 		t.Fatalf("first publish: %d %s", r.status, r.body)
 	}
@@ -323,6 +336,24 @@ func TestHackResultsCardsTakenDownSiteAndRepublish(t *testing.T) {
 		t.Fatalf("/results still links a taken-down site before republish: %v", c)
 	}
 	pub := w.a.api(t, "GET", "/v1/hack/events/"+w.slug+"/public", nil, "")
+	publicRows := pub.json(t)["results"].([]any)
+	if len(publicRows) != 2 {
+		t.Fatalf("want overall and track winners: %v", publicRows)
+	}
+	for _, raw := range publicRows {
+		row := raw.(map[string]any)
+		want := row["team_name"] == "Alpha"
+		if value, ok := row["overall"].(bool); !ok || value != want {
+			t.Fatalf("overall marker: %v", row)
+		}
+		if !want && row["track_winner"] != true {
+			t.Fatalf("Beta must be a track-only winner: %v", row)
+		}
+		if _, ok := row["rank"]; ok {
+			t.Fatalf("hidden rank leaked: %v", row)
+		}
+	}
+
 	for _, it := range pub.json(t)["results"].([]any) {
 		if c, _ := it.(map[string]any)["entry"].(map[string]any); c != nil && c["site_url"] != "" {
 			t.Fatalf("/public still links a taken-down site before republish: %v", c)

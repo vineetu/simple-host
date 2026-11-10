@@ -5650,7 +5650,7 @@
       "name": "hack_get_page_recipe",
       "family": "storage",
       "edition": "hack",
-      "feature_id": "storage-presets"
+      "feature_id": "hack-voting"
     },
     {
       "name": "hack_get_panels",

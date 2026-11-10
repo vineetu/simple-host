@@ -1148,7 +1148,7 @@ Remove the uploaded event icon and restore its generated initial icon. Ask the o
 
 <div data-tool="hack_get_public_event"></div>
 
-Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned.
+Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.
 
 **Parameters:**
 

@@ -1131,6 +1131,7 @@ ${readOnly ? '' : '<div class="drop" id="drop-zone"><svg class="ico" viewBox="0 
 <p class="section-title">Uploads</p>
 <div class="list" id="site-versions">${(w.versions || []).slice().reverse().map(v => `<div class="r"><div class="main"><b>Version ${v.version_number}</b><span>${ui.esc(ui.dateTime(v.created_at, ev))}</span></div>${customLive && v.version_number === w.active_version ? '<span class="pill ok">Live</span>' : !customLive && v === (w.versions || [])[w.versions.length - 1] ? '<span class="pill">Newest</span>' : ''}</div>`).join('') || '<div class="empty">No uploads yet.</div>'}</div>
 <p class="help">An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).</p>
+<p class="help">Your own website updates itself at each stage, results included, when it is built from the “event” page recipe. Made yours earlier? Ask your AI app to add the live event feed from that recipe.</p>
 </div>`
 
   sp.querySelector('#addr-copy').addEventListener('click', async () => {

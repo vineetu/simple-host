@@ -88,7 +88,7 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Read event-website notifications | `list_notifications` with `event` |
 | Remove event-website notification | `remove_notification` with `event` |
 
-For a custom event website, read `hack_get_event_website(slug)` first. Publish with `hack_publish_event_website(slug, files, files_base64)` using a complete map of site-relative files and root `index.html`; binary assets use base64. The tool also accepts a base64 tar.gz archive. The custom page can read the public event feed; no account credential belongs in website code. Switching to `builtin` preserves custom files.
+For a custom event website, read `hack_get_event_website(slug)` first. Publish with `hack_publish_event_website(slug, files, files_base64)` using a complete map of site-relative files and root `index.html`; binary assets use base64. The tool also accepts a base64 tar.gz archive. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML. No account credential belongs in website code. Switching to `builtin` preserves custom files.
 
 `hack_set_event_icon(slug, content_type, image_base64)` accepts PNG, JPEG or WebP up to the configured limit; clear it to restore the generated initial icon. Account preferences are personal: `hack_get_preferences` and `hack_set_preferences` take theme (`system`, `light`, `dark`) and walkthrough flags, not event settings.
 

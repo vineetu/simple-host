@@ -12383,13 +12383,24 @@ paths:
       tags: ["Hosted events"]
       operationId: getHackPublicEvent
       summary: Public, credentialless event data for custom websites (EVENTS=hosted)
-      description: Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url. Gallery items carry tools (the entry's tags). Each shown results row carries entry (HackResultCard) when the results were published with cards; rows the visibility setting hides are not emitted, so their cards never appear. fixed_schedule lists the event's real times as read-only schedule rows (HackFixedScheduleRow, without prompts), and schedule rows carry no prompt. Carries theme (the organiser's whole-page Look style, or empty for Classic) alongside the usual colour fields.
+      description: Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url. Gallery items carry tools (the entry's tags). Each shown results row always carries overall (boolean, true for an overall winner) and carries entry (HackResultCard) when the results were published with cards; rows the visibility setting hides are not emitted, so their cards never appear. fixed_schedule lists the event's real times as read-only schedule rows (HackFixedScheduleRow, without prompts), and schedule rows carry no prompt. Carries theme (the organiser's whole-page Look style, or empty for Classic) alongside the usual colour fields.
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:
         '200':
           description: Public event fields, applications_open (and apply_url when open), gallery if open, published results and vote counts only after voting closes.
-          content: { application/json: { schema: { type: object } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required: [overall]
+                      properties:
+                        overall: { type: boolean, description: True for an overall winner; false for a track-only winner. }
         '404': { description: Event not found or taken down, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/hack/events/{slug}/site:
     get:

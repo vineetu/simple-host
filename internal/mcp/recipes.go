@@ -3,6 +3,7 @@ package mcp
 import (
 	"embed"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -29,6 +30,9 @@ func PageRecipe(topic, site string) (string, error) {
 	file := topic
 	if alias, ok := recipeAliases[topic]; ok {
 		file = alias
+	}
+	if file == "hack-event" {
+		return "", fmt.Errorf("topic must be one of: %s", strings.Join(recipeTopics, ", "))
 	}
 	data, err := recipeFiles.ReadFile("recipes/" + file + ".md")
 	if err != nil {
@@ -59,8 +63,21 @@ const hackRecipeNote = `On Simple Hack (read this first; it overrides the Simple
 
 `
 
+// eventRecipeSlug is the site-name shape event slugs share (rules/sites.ValidSiteName).
+var eventRecipeSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
+
 // HackPageRecipe is PageRecipe as Simple Hack serves it.
 func HackPageRecipe(topic, site string) (string, error) {
+	if topic == "event" {
+		if !eventRecipeSlug.MatchString(site) {
+			return "", fmt.Errorf("site must be the event slug (lowercase letters, digits and hyphens)")
+		}
+		data, err := recipeFiles.ReadFile("recipes/hack-event.md")
+		if err != nil {
+			return "", err
+		}
+		return strings.ReplaceAll(string(data), "{event}", site), nil
+	}
 	// A portal is a private page per client through named viewers, which
 	// Simple Hack does not offer: without them its documents would be public.
 	if topic == "portal" {
@@ -116,8 +133,8 @@ func hackPageRecipeTool() Tool {
 	tool := pageRecipeTool()
 	tool.Description = strings.Replace(tool.Description, "; the owner's own photos go through create_upload_link, no page code", "", 1)
 	tool.Description = strings.Replace(tool.Description, "people (one page, two views, for many signed-in visitors the owner also works with directly — a coach and clients, a tutor and students, a trainer and members: the owner picks a person, sees and adds to their rows, assigns from a template, replies by adding a row for them; each visitor sees only their own, marked as the owner's when the owner added it), ", "", 1)
-	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there, nor comments or guestbook (no spam check there: use wall, where people sign in to post); topic people does not exist there at all (for and the people pick list are Host only)."
-	hackTopics := make([]string, 0, len(recipeTopics))
+	tool.Description += " Topic event builds the organiser’s event website from the live public event feed. On Simple Hack the storage recipes start with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there, nor comments or guestbook (no spam check there: use wall, where people sign in to post); topic people does not exist there at all (for and the people pick list are Host only)."
+	hackTopics := []string{"event"}
 	for _, topic := range recipeTopics {
 		if topic != "people" {
 			hackTopics = append(hackTopics, topic)
@@ -132,6 +149,7 @@ func hackPageRecipeTool() Tool {
 		topicProp[k] = v
 	}
 	topicProp["enum"] = hackTopics
+	topicProp["description"] = "event (the organiser’s live event website), or " + topicProp["description"].(string)
 	props["topic"] = topicProp
 	schema := map[string]any{}
 	for k, v := range tool.InputSchema {
@@ -151,6 +169,9 @@ func hackPageRecipeTool() Tool {
 		text, err := HackPageRecipe(topic, site)
 		if err != nil {
 			return output{}, err
+		}
+		if topic == "event" {
+			text = hackInstanceReplace(text, c.server.cfg.APIHost)
 		}
 		return output{Text: text, Structured: map[string]any{"topic": topic, "recipe": text}}, nil
 	}

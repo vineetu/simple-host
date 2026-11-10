@@ -10,7 +10,7 @@
       **In chat**
 “Publish these files as my bakery site.” Confirm the name and address before the first publish.   **API**
 Send `POST /v1/sites/{sitename}/files` with `{"files":{"index.html":"..."}}`, or send an archive to `POST /v1/sites/{sitename}` with `Content-Type: application/zip`. Send your key in `X-API-Key`.   
-   Select the event and team first. Use your team key and its exact site name. Organisers send JSON files to `PUT /v1/hack/events/{slug}/website/files?create=1` with their account key.
+   Select the event and team first. Use your team key and its exact site name. Organisers send JSON files to `PUT /v1/hack/events/{slug}/website/files?create=1` with their account key. Build an event website from `hack_get_page_recipe` topic `event` so the public feed keeps its stage, dates, announcements, gallery and results live.
 3. Open the returned address and test the links and form saves.
 
    Publish before your team’s submission deadline. Read the event’s Website screen for the current deadline and the entry’s status. When returning from chat, check that the selected team is still yours before sending another update.
