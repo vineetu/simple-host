@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 10:** Simple Hack Account lists Connected AI apps before collapsible setup steps, with Other AI apps buttons. Home offers Close entries without a deadline; closed entries hide the countdown and show their Website. Schedule names Home, team messages explain delivery, and Settings skips website notifications without a custom website.
+
 - **Nov 10:** Simple Hack clarifies event limits, sign-up and judging guidance, hides obsolete checklist tasks, avoids repeat judging notices, shows consistent winner thumbnails and ranks, starts building without a deadline, defaults announcements to Don’t send, clears stage messages, flags short judging coverage, adds member Leave menus, and keeps Schedule open.
 
 - **Nov 10:** Simple Hack lists, cards and choice groups fit the available space with the sidebar open; row actions wrap together, and judges see team names beneath entry titles.

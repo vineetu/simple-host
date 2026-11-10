@@ -688,7 +688,7 @@ function paintReadOnly (ctx, ev, data, { rules, hasTracks, status }) {
 
   if (status === 'submitted') {
     const by = data.submit_auto ? 'Submitted automatically at the deadline' : ('Submitted' + (data.submitted_at ? ' · ' + ui.dateTime(data.submitted_at, ev) : '') + (data.submitted_by ? ' by ' + data.submitted_by : ''))
-    const bodyCard = buildReadOnlyCard(ctx, ev, entry, false)
+    const bodyCard = buildReadOnlyCard(ctx, ev, entry, false, data.site, rules)
     main.innerHTML = head +
       '<div class="entry-status submitted"><div class="t"><b>' + esc(by) + '</b><span>Entries are closed. This is what the judges see.</span></div></div>' +
       '<div class="split"><div>' + bodyCard + '</div><aside><div class="card"><h2>What happens next</h2><p class="small">The judges score every submitted entry. Results show here and on the event page when the organisers publish them.</p></div>' + rubricCardHTML(ui, main.__enRubric) + '</aside></div>'
@@ -700,7 +700,7 @@ function paintReadOnly (ctx, ev, data, { rules, hasTracks, status }) {
   if (status === 'not_submitted' && hasAnyContent(entry)) {
     // Coordinator decision (2026-11-02): still judged, flagged, not hidden
     // -- exact copy given for both this screen and Home.
-    const bodyCard = buildReadOnlyCard(ctx, ev, entry, true)
+    const bodyCard = buildReadOnlyCard(ctx, ev, entry, true, data.site, rules)
     main.innerHTML = head +
       '<div class="entry-status incomplete" role="status"><div class="t"><b>Entries closed</b><span>Not complete. It will still be judged, marked incomplete.</span></div></div>' +
       '<div class="split"><div>' + bodyCard + '</div><aside><div class="card"><h2>What happens next</h2><p class="small">The judges score this entry too, with an Incomplete flag. Results show here and on the event page when the organisers publish them.</p></div>' + rubricCardHTML(ui, main.__enRubric) + '</aside></div>'
@@ -714,7 +714,7 @@ function paintReadOnly (ctx, ev, data, { rules, hasTracks, status }) {
   main.innerHTML = head + '<div class="note info">' + esc(closedSentence) + '</div>' + body + rubricCardHTML(ui, main.__enRubric)
 }
 
-function buildReadOnlyCard (ctx, ev, entry, incomplete) {
+function buildReadOnlyCard (ctx, ev, entry, incomplete, site = {}, rules) {
   const { ui } = ctx
   const esc = ui.esc
   const me = ctx.event && ctx.event.me
@@ -727,6 +727,13 @@ function buildReadOnlyCard (ctx, ev, entry, incomplete) {
   const wrap = document.createElement('div')
   wrap.append(card)
   let extra = '<section class="card"><h2>Show your work</h2><dl>'
+  if (mode(rules, false, 'site') !== 'off' || site.exists) {
+    const siteURL = me && me.team && me.team.site ? safeHref(me.team.site.url) : ''
+    const website = site.exists && site.live_version
+      ? 'Published · version ' + esc(site.live_version) + (siteURL ? ' · <a href="' + esc(siteURL) + '" target="_blank" rel="noopener">' + esc(siteURL) + '</a>' : '')
+      : '(none)'
+    extra += '<dt>Website</dt><dd>' + website + '</dd>'
+  }
   const videoLink = entry.video_url ? safeHref(entry.video_url) : ''
   extra += '<dt>Video</dt><dd>' + (videoLink ? '<a href="' + esc(videoLink) + '" target="_blank" rel="noopener">' + esc(entry.video_url) + '</a>' : '(none)') + '</dd>'
   const codeLink = entry.code_url ? safeHref(entry.code_url) : ''

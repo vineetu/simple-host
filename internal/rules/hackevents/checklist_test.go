@@ -272,6 +272,28 @@ func TestChecklistDeadlineDoesNotGateBuilding(t *testing.T) {
 	t.Fatal("missing deadline")
 }
 
+func TestChecklistDeadlineDoesNotGateClosing(t *testing.T) {
+	facts := map[string]ChecklistFact{}
+	for _, d := range ChecklistCatalogue() {
+		facts[d.ID] = ChecklistFact{Done: true}
+	}
+	facts["o.deadline"] = ChecklistFact{}
+	forward := &ChecklistNext{Kind: "stage", Stage: "closed", Label: "Close entries"}
+	out := BuildChecklist(ChecklistInput{Role: "organiser", Stage: "building", Facts: facts, Forward: forward}, time.Time{})
+	if out.Next != forward {
+		t.Fatalf("next: %+v", out.Next)
+	}
+	for _, it := range out.Items {
+		if it.ID == "o.deadline" {
+			if it.State != "todo" || !it.Actionable {
+				t.Fatal(it)
+			}
+			return
+		}
+	}
+	t.Fatal("missing deadline")
+}
+
 func TestChecklistJudgesShortOptional(t *testing.T) {
 	for _, n := range []int{0, 1, 3} {
 		facts := map[string]ChecklistFact{}

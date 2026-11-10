@@ -517,7 +517,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
 <div class="field"><div class="lab-row"><label for="d-desc">Details</label><span class="opt">Optional</span></div><textarea class="input" id="d-desc" rows="2" maxlength="500">${ui.esc(item.description || '')}</textarea></div>
 ${dateTimeField(ui, 'd-start', 'Starts', sd, st)}
 ${dateTimeField(ui, 'd-end', 'Ends', ed, et, { fieldID: 'd-end-field' })}
-<div class="field"><div class="lab-row"><label for="d-prompt">When this starts, ask to</label><span class="opt">Optional</span></div><select class="select" id="d-prompt">${promptOptions}</select><p class="help">Overview asks you at this time, like “Kickoff is now. Open sign-up?” Nothing changes until you press the button.</p></div>`
+<div class="field"><div class="lab-row"><label for="d-prompt">When this starts, ask to</label><span class="opt">Optional</span></div><select class="select" id="d-prompt">${promptOptions}</select><p class="help">Home asks you at this time, like “Kickoff is now. Open sign-up?” Nothing changes until you press the button.</p></div>`
     const q = id => body.querySelector('#' + id)
     const saved = await formDialog(ui, { title: existing ? 'Edit time' : 'Add time', body, saveLabel: existing ? 'Save' : 'Add time' }, async () => {
       body.querySelectorAll('.err').forEach(n => n.remove())

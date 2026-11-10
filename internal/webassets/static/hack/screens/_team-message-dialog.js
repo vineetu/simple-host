@@ -72,7 +72,7 @@ export async function openTeamMessageDialog(ctx, { teamIds, title }) {
   const api = client.api
   const slug = ctx.event.event.slug
   const body = document.createElement('div')
-  body.innerHTML = `<div class="field"><div class="lab-row"><label for="tm-text">Message</label><span class="counter" id="tm-ct">0 / ${MAX_TEXT_LEN}</span></div><textarea class="input" id="tm-text" rows="5" maxlength="${MAX_TEXT_LEN}"></textarea><p class="err" id="tm-err"></p></div>`
+  body.innerHTML = `<div class="field"><div class="lab-row"><label for="tm-text">Message</label><span class="counter" id="tm-ct">0 / ${MAX_TEXT_LEN}</span></div><textarea class="input" id="tm-text" rows="5" maxlength="${MAX_TEXT_LEN}"></textarea><p class="help">Shows on the team's Overview. Teammates with email updates on also get an email.</p><p class="err" id="tm-err"></p></div>`
   const textarea = body.querySelector('#tm-text')
   const counter = body.querySelector('#tm-ct')
   const errEl = body.querySelector('#tm-err')

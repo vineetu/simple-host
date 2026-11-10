@@ -153,6 +153,7 @@ hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
 /* disclosure triangles (A6): a plain <details> has no kit styling at all
    outside the sidebar, so it falls back to the raw browser triangle. */
 details>summary{cursor:pointer;list-style:none}
+#acct-connect-how>summary{color:var(--accent);font-weight:600;padding:11px 0}
 details>summary::-webkit-details-marker{display:none}
 details>summary::after{content:"";display:inline-block;width:7px;height:7px;margin-left:8px;border-right:1.6px solid var(--line-faint);border-bottom:1.6px solid var(--line-faint);transform:translateY(-3px) rotate(45deg)}
 details[open]>summary::after{transform:translateY(1px) rotate(-135deg)}

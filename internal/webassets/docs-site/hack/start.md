@@ -15,3 +15,7 @@ Use `hack_get_checklist` with the event slug and `role: "organiser"` for current
 **Mark as final** acknowledges the rubric version you loaded. If someone changes it before you confirm, refresh and read the updated criteria. Publish from Home: the confirmation shows current standings and lets you order tied teams, retaining valid saved choices. Judging opens scoring; Finish judging moves to Results and locks it. Moving back to Judging reopens scoring. If standings change, Home offers Publish again, including after End.
 
 Choose **Organisers who also judge** in Settings → Judging and save with the assignment mode. Organisers start unticked; organisers with existing scores start ticked. This same judge list supplies queues, assignments and counts. Starting Judging shows the mode, judges per team, judge names and coverage with links to fix them; you can start anyway. Informational checklist rows have no button.
+
+Account → **Connected AI apps** lists your connections and lets you disconnect each one. Open **Connect another app** for setup steps, including **Other AI apps**. With no connections, **Connect an AI app** opens automatically.
+
+Home offers **Close entries** even without an entry deadline.

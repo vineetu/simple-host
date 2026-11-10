@@ -2053,7 +2053,7 @@ M4 archive cleanup (a new event starts with Idea, Execution, Design and Demo; af
 sites stay `EVENT_SITES_KEEP_DAYS`, one warning goes out `EVENT_REMOVAL_WARN_DAYS` before they are
 removed, and the event page and results stay) live 2026-10-01. The signed-in Account page (`/account`, from the header) sets the name
 shown to teams, changes the sign-in email, links or unlinks Google, turns sign-in alerts on or off,
-signs out everywhere and deletes the account, through the existing account routes.
+signs out everywhere and deletes the account, through the existing account routes. Connected AI apps lists connections first, then folds the setup steps under Connect another app; when empty it shows None yet. and opens Connect an AI app. Claude, ChatGPT and Claude Code retain their steps, while Other AI apps shows links to their setup instructions.
 
 For standalone installations using Caddy on-demand HTTPS, the certificate check
 accepts the platform apex, real event pages and published team sites. It refuses

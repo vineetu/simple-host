@@ -95,7 +95,8 @@ function entrySectionHTML (ctx, ev, progress) {
   const submitSettled = submit.status === 'submitted' || submit.status === 'not_submitted'
   const r4 = row({ done: submit.status === 'submitted', opt: submit.status === 'not_submitted' }, 4, 'Submit before the deadline', submitSub, submitAction)
 
-  const countdownHTML = (progress.deadline && !submitSettled) || (progress.deadline && submit.status === 'submitted')
+  const entriesOpen = !['judging', 'results', 'archived'].includes(ev.stage) && new Date(progress.server_now || Date.now()) < new Date(progress.deadline)
+  const countdownHTML = entriesOpen && ((progress.deadline && !submitSettled) || (progress.deadline && submit.status === 'submitted'))
     ? '<span class="countdown" data-deadline="' + esc(progress.deadline) + '"><span class="v"></span> <small>' + (submit.status === 'submitted' ? 'left to make changes' : 'left') + '</small></span>'
     : ''
   const smallText = deadlineSmallText(ui, ev, progress)

@@ -91,6 +91,54 @@ async function audit(role,stage) {
 async function auditAtWidth(role,stage) {
  const page = await person(role)
  const {checklist} = await api(role,'GET',base+'/checklist' + (role==='judge'?'?role=judge':''))
+ // Check ordinary controls before following any checklist actions.
+ if (role==='organiser' && stage!=='archived') {
+  await home(page,role)
+  const change = page.locator('#ov-change-stage')
+  await change.waitFor({state:'visible'})
+  assert.ok(await change.isEnabled(), `${stage}: checklist must not block Change stage`)
+  if (stage==='results') {
+   // Ending is its own Home control (irreversible confirm), not a picker option.
+   const end = page.locator('#ov-end-target button')
+   await end.first().waitFor({state:'visible'})
+   assert.ok(await end.first().isEnabled(), 'results: checklist must not block End')
+   await end.first().click()
+   const dialog = page.getByRole('dialog')
+   // END_CONFIRM uses ui.confirm, with no typed confirmation field.
+   const confirm = dialog.locator('[data-confirm]')
+   await dialog.locator('[data-confirm]:enabled').waitFor({state:'visible'})
+   assert.ok(await confirm.isEnabled(), 'results: checklist must not block End confirmation')
+   await dialog.getByRole('button',{name:'Cancel',exact:true}).click()
+  } else {
+   await change.click()
+   const next = {draft:'open',open:'building',building:'closed',closed:'judging',judging:'results'}[stage]
+   const option = page.locator(`#stage-pick option[value="${next}"]`)
+   assert.equal(await option.count(),1, `${stage}: missing forward stage`)
+   assert.ok(await option.isEnabled(), `${stage}: forward stage disabled`)
+   await page.locator('#stage-pick').selectOption(next)
+   const dialog = page.getByRole('dialog')
+   const confirm = dialog.locator('[data-confirm]')
+   await dialog.locator('[data-confirm]:enabled').waitFor({state:'visible'})
+   assert.ok(await confirm.isEnabled(), `${stage}: checklist must not block forward stage confirmation`)
+   await dialog.getByRole('button',{name:'Cancel',exact:true}).click()
+  }
+ }
+ if (role==='participant' && stage==='building') {
+  assert.equal(checklist.items.find(i=>i.id==='p.team')?.state,'done', 'building: team required for entry save check')
+  assert.ok(checklist.items.some(i=>i.id.startsWith('p.') && i.state==='todo'), 'building: participant to-do required for entry save check')
+  await page.goto(info.url+`/e/${slug}/team?s=entry`)
+  const title = page.locator('#en-title')
+  await title.waitFor({state:'visible'})
+  await title.fill((await title.inputValue()) + ' edited')
+  const saved = page.waitForResponse(r=>r.request().method()==='PUT' && new URL(r.url()).pathname===base+'/entry')
+  await page.locator('#en-save').click()
+  const resp = await saved
+  assert.ok(resp.ok(), 'building: to-do checklist must not block entry save: ' + resp.status() + ' ' + await resp.text())
+ } else if (role==='participant' && stage==='open' && checklist.items.some(i=>i.id==='p.team' && i.state==='done') && checklist.items.some(i=>i.state==='todo')) {
+  await page.goto(info.url+`/e/${slug}/team?s=entry`)
+  await page.locator('#en-title').waitFor({state:'visible'})
+  assert.ok(await page.locator('#en-title').isEditable(), `${stage}: to-do checklist must not block entry editing`)
+ }
  for (const item of checklist.items) {
   await home(page,role)
   const row = page.locator(`[data-checklist-id="${item.id}"]`)
@@ -187,7 +235,24 @@ try {
    await page.locator('#mode input:not([disabled])').first().waitFor()
    assert.equal(await page.getByRole('dialog').count(),0,'fix link closes confirmation')
   }
+  // Keep evidence to-do on an unsubmitted draft while checking editing (a submitted entry must stay complete: server rule).
+  if (stage==='building') { await api('participant','POST',base+'/entry/unsubmit',{}); await api('organiser','PUT',base+'/entry-rules',{fields:{...fields,video_url:'required',code_url:'required'}}) }
   for (const role of ['organiser','judge','participant']) await audit(role,stage)
+  if (stage==='judging') {
+   const {checklist} = await api('judge','GET',base+'/checklist?role=judge')
+   for (const id of ['j.rubric','j.conflicts']) assert.equal(checklist.items.find(i=>i.id===id)?.state,'todo', `${id}: check scoring before acknowledgement`)
+   const {queue} = await api('judge','GET',base+'/judge/queue')
+   assert.ok(queue.length, 'assigned team required for scoring check')
+   const page = await person('judge')
+   const teamID = encodeURIComponent(queue[0].team_id)
+   await page.goto(info.url+`/e/${slug}/judge?s=scoring&team=${teamID}`)
+   const score = page.locator('#jsc-criteria [data-points]').first()
+   await score.waitFor({state:'visible'})
+   const saved = page.waitForResponse(r=>r.request().method()==='PUT' && new URL(r.url()).pathname===base+'/judge/scores/'+teamID)
+   await score.click()
+   assert.ok((await saved).ok(), 'to-do rubric and conflicts must not block score write')
+  }
+  if (stage==='building') { await api('organiser','PUT',base+'/entry-rules',{fields:{...fields,video_url:'required'}}); await api('participant','POST',base+'/entry/submit',{}) }
   const orgPage = await person('organiser')
   for (const width of [1280,390]) {
   await orgPage.setViewportSize({width,height:900})

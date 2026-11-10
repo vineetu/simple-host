@@ -30,7 +30,7 @@ export async function render(ctx) {
   }
   main.innerHTML = `<div class="ph"><div class="t"><h1>Account</h1></div></div>
 <section class="card"><h2>Your name</h2><form id="acct-name-form"><div class="field"><label class="sr-only" for="acct-name">Name</label><div class="control-row"><input class="input" id="acct-name" type="text" maxlength="100"><button class="btn primary" id="acct-name-save">Save</button></div><p class="help">The one name shown in every event you join -- to teams, organisers and judges. A change here updates it everywhere at once.</p><p class="help" id="acct-name-err"></p></div></form></section>
-<section class="card" id="acct-connect-card"><h2>Connect your AI app</h2><div id="acct-connect-status">Loading…</div><div class="copy" id="acct-connect-url"></div><nav class="app-tabs" id="acct-connect-tabs" aria-label="How you connect"></nav><div id="acct-connect-steps"></div><p class="help"><a href="/get-started#other-ai-apps">Steps for other AI apps</a></p></section>
+<section class="card" id="acct-connect-card"><h2>Connected AI apps</h2><div id="acct-connect-status">Loading…</div><details id="acct-connect-how"><summary>Connect an AI app</summary><nav class="app-tabs" id="acct-connect-tabs" aria-label="How you connect"></nav><div id="acct-connect-steps"></div></details></section>
 <section class="card"><h2>Email</h2><div id="acct-email-row"><p id="acct-email-text">You sign in with <b id="acct-email"></b>. A change needs a code from this address and one from the new one.</p><div class="form-actions" id="acct-email-actions"><button class="btn" id="acct-email-open">Change email</button></div></div>
 <form id="acct-email-form" hidden><div class="field"><label>New email<input class="input" id="acct-email-input" type="email" required autocomplete="email"></label></div><div class="form-actions"><button class="btn primary" id="acct-email-send">Send codes</button><button class="btn" id="acct-email-cancel" type="button">Cancel</button></div></form>
 <form id="acct-code-form" hidden><p>Enter the codes sent to <span id="acct-code-to"></span> and <span id="acct-current-to"></span>.</p><div class="field"><label>New email code<input class="input" id="acct-code" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}"></label></div><div class="field"><label>Current email code<input class="input" id="acct-current-code" inputmode="numeric" required pattern="[0-9]{6}"></label></div><div class="form-actions"><button class="btn primary" id="acct-code-go">Change email</button><button class="btn" id="acct-code-cancel" type="button">Cancel</button></div></form></section>
@@ -401,27 +401,23 @@ export async function render(ctx) {
       if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', t);
     }
   });
-  // ---- Connect your AI app (B) ----
+  // ---- Connected AI apps ----
   async function loadConnectCard() {
-    const urlBox = $('acct-connect-url')
     const tabsEl = $('acct-connect-tabs')
     const stepsBox = $('acct-connect-steps')
     const address = location.origin + '/mcp'
-    urlBox.innerHTML = ''
-    const addrInput = document.createElement('input')
-    addrInput.className = 'input mono'
-    addrInput.readOnly = true
-    addrInput.value = address
-    addrInput.setAttribute('aria-label', 'Connector address')
-    urlBox.append(addrInput, ui.copyButton(address, 'Copy'))
-
     const doc = await loadConnectSteps()
-    const apps = ((doc && doc.apps) || []).filter(a => a.tab)
+    const all = (doc && doc.apps) || []
+    const apps = all.filter(a => a.tab).concat([{ id: 'other', label: 'Other AI apps' }])
     let tab = apps[0] && apps[0].id
     function paintTab() {
       tabsEl.innerHTML = apps.map(a => '<a href="#" data-acct-app-tab="' + ui.esc(a.id) + '" aria-current="' + (a.id === tab ? 'true' : 'false') + '">' + ui.esc(a.label) + '</a>').join('')
       const app = apps.find(a => a.id === tab)
-      stepsBox.innerHTML = app ? stepsHTML(ui.esc, app) : ''
+      stepsBox.innerHTML = !all.length
+        ? '<p class="help">Steps for this app are not available right now. <a href="/get-started">See the full setup guide</a>.</p>'
+        : tab === 'other'
+        ? '<div class="form-actions">' + all.filter(a => !a.tab).map(a => '<a class="btn sm" href="/get-started#' + ui.esc(a.id) + '" target="_blank" rel="noopener">' + ui.esc(a.label) + '</a>').join(' ') + '</div>'
+        : (app ? stepsHTML(ui.esc, app) : '')
       wireAddresses(ui, stepsBox, address)
       tabsEl.querySelectorAll('[data-acct-app-tab]').forEach(a => a.addEventListener('click', e => {
         e.preventDefault()
@@ -434,14 +430,21 @@ export async function render(ctx) {
     await loadConnections()
   }
 
+  function setHow(state) {
+    const how = $('acct-connect-how')
+    how.open = state === 'none' || state === 'error'
+    how.querySelector('summary').textContent = state === 'connected' ? 'Connect another app' : 'Connect an AI app'
+  }
+
   async function loadConnections() {
     const statusEl = $('acct-connect-status')
     try {
       const r = await api('GET', '/v1/me/connections')
-      if (!r.ok) { statusEl.textContent = ''; setLive(accountErr(r, 'Could not load connected apps'), 'err', statusEl); return }
+      if (!r.ok) { setHow('error'); statusEl.textContent = ''; setLive(accountErr(r, 'Could not load connected apps'), 'err', statusEl); return }
       const list = (r.data && r.data.connections) || []
       statusEl.textContent = ''
-      if (!list.length) { statusEl.textContent = 'Not connected yet.'; return }
+      setHow(list.length ? 'connected' : 'none')
+      if (!list.length) { statusEl.textContent = 'None yet.'; return }
       list.sort((a, b) => new Date(b.last_used_at || b.connected_at || 0) - new Date(a.last_used_at || a.connected_at || 0))
       list.forEach(c => {
         const appName = c.name || 'an AI app'
@@ -461,7 +464,7 @@ export async function render(ctx) {
             const r = await api('DELETE', '/v1/me/connections/' + encodeURIComponent(c.client_id))
             if (!r.ok) { setLive(accountErr(r, 'Could not disconnect app'), 'err', btn); btn.disabled = false; return }
             row.remove()
-            if (!statusEl.children.length) statusEl.textContent = 'Not connected yet.'
+            if (!statusEl.children.length) statusEl.textContent = 'None yet.'
             await loadConnections()
           } catch (e) {
             btn.disabled = false
@@ -471,7 +474,7 @@ export async function render(ctx) {
         row.append(text, btn)
         statusEl.appendChild(row)
       })
-    } catch (e) { statusEl.textContent = ''; if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', statusEl) }
+    } catch (e) { setHow('error'); statusEl.textContent = ''; if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', statusEl) }
   }
 
   const nameForm = ui.trackForm(ctx, $('acct-name-form'))

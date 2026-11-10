@@ -229,7 +229,7 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		return out
 	}
 	for _, it := range out.Items {
-		if it.Optional || it.State != "todo" || !it.Actionable || (it.ID == "o.deadline" && in.Forward != nil && in.Forward.Stage == "building") {
+		if it.Optional || it.State != "todo" || !it.Actionable || (it.ID == "o.deadline" && in.Forward != nil && (in.Forward.Stage == "building" || in.Forward.Stage == "closed")) {
 			continue
 		}
 		if in.Role == "participant" && it.ID != "p."+in.ParticipantNext {

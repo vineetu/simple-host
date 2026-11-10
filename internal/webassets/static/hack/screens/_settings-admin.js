@@ -20,10 +20,12 @@ export async function render(ctx, section) {
   const setLive = ui.live(main)
 
   let notifications = [], notifyLimits = { can_create: false }
-  try {
-    const n = await api('GET', path + '/website/notifications')
-    if (n.ok) { notifications = n.data.notifications || []; notifyLimits = n.data.limits || {} }
-  } catch (e) {}
+  if (ev.website_mode === 'custom') {
+    try {
+      const n = await api('GET', path + '/website/notifications')
+      if (n.ok) { notifications = n.data.notifications || []; notifyLimits = n.data.limits || {} }
+    } catch (e) {}
+  }
 
   // Applications card (owner 2026-10-31, D10): the switch lives here, with
   // People -> Sign-up only showing its state and a link back. directory_listed
