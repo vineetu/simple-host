@@ -35,14 +35,14 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	if n >= perDay {
+	if perDay > 0 && n >= perDay {
 		return model.Event{}, model.EventMember{}, &Error{"too_many_events_today", "you have created too many events today"}
 	}
 	active, err := eventrepo.CountActiveEventsByOrganiser(ctx, tx, userID)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	if active >= maxActive {
+	if maxActive > 0 && active >= maxActive {
 		noun := "active events"
 		if maxActive == 1 {
 			noun = "active event"

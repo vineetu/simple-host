@@ -153,8 +153,9 @@ var knobDocs = map[string]knobDoc{
 	"IDLE_EXEMPT_FAMILY_SITES":               {"cleanup", "on: a site whose main address is an address family is never removed as idle, like one with its own domain.", false, false},
 	"EVENT_TTL_DAYS":                         {"domains", "How long a claimed event hostname lives (only where EVENT_DNS_TOKEN is set).", false, false},
 	"EVENT_MAX_CLAIMS":                       {"domains", "Event hostnames one account may hold at once.", false, false},
-	"EVENT_CREATE_PER_DAY":                   {"events", "Hosted events (EVENTS=hosted): events one account may create in a rolling day.", false, false},
-	"EVENT_MAX_ACTIVE_PER_ORGANISER":         {"events", "Hosted events: events one account may run at once (every stage but archived).", false, false},
+	"EVENT_LIMIT_EXEMPT":                     {"events", "Comma-separated sign-in emails and whole domains (@domain.org), case-insensitive with spaces trimmed; no subdomain matching. Empty by default. Admins and EVENT_LIMIT_EXEMPT accounts are never limited by EVENT_CREATE_PER_DAY (default 20) or EVENT_MAX_ACTIVE_PER_ORGANISER (no limit by default; 0 = no limit for either).", false, false},
+	"EVENT_CREATE_PER_DAY":                   {"events", "Hosted events (EVENTS=hosted): events one account may create in a rolling day (default 20; 0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.", false, false},
+	"EVENT_MAX_ACTIVE_PER_ORGANISER":         {"events", "Hosted events: events one account may run at once (every stage but archived); no limit by default (0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.", false, false},
 	"EVENT_APPLY_PENDING_PER_EVENT":          {"events", "Hosted events: applications one event may have waiting for a decision at once, apart from the per-account pending cap.", false, false},
 	"EVENT_TEAM_SIZE_DEFAULT":                {"events", "Hosted events: the team size cap a new event starts with; the organiser changes it.", false, false},
 	"EVENT_SITES_KEEP_DAYS":                  {"events", "Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay.", false, false},
@@ -520,7 +521,7 @@ func Settings() []Setting {
 			}
 		case "on/off":
 			s.Type, s.Unit, s.Allowed = "bool", "", []string{"on", "off"}
-		case "email address", "URL", "model name", "DNS labels", "handle:sites", "handle:mb", "handle:versions", "handles", "RFC3339":
+		case "emails and domains", "email address", "URL", "model name", "DNS labels", "handle:sites", "handle:mb", "handle:versions", "handles", "RFC3339":
 			s.Type = "string"
 		case "seconds", "minutes", "hours", "days":
 			s.Type = "duration"

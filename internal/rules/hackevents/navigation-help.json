@@ -2781,7 +2781,7 @@
       "limits": [
         "Address: 3–39 lowercase letters, digits or single hyphens, with no leading or trailing hyphen; available and not reserved.",
         "Title: 1–120. Name: 1–100. Organisation: up to 120. Purpose: 1–1,000 characters. Expected participants: 1–100,000. Valid email required. End cannot precede start.",
-        "Creation is subject to configurable rolling daily and active-event limits per creator: defaults are 3 creations per day and 2 active events."
+        "An operator may limit events created per day per account (default 20) and active events per account (default no limit; 0 = no limit for either); admins and accounts listed in EVENT_LIMIT_EXEMPT are never limited."
       ],
       "keywords": [
         "new event",

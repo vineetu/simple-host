@@ -5477,7 +5477,7 @@
       "hack-next-step",
       "weekly-demo-reset"
      ],
-     "evidence": "FEATURES.md \u00a715 L1811-1834 (M0/M1 status, stages), Env row EVENT_CREATE_PER_DAY (3) and EVENT_MAX_ACTIVE_PER_ORGANISER (2), 'Delete an event', 'Event administration', 'Event page Look', 'Organiser Overview', 'Weekly demo reset' (hosted deploy/prod script, hence hosted only). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system'."
+     "evidence": "FEATURES.md \u00a715 L1811-1834 (M0/M1 status, stages), Env row EVENT_CREATE_PER_DAY (20; 0 = no limit), EVENT_MAX_ACTIVE_PER_ORGANISER (0 = no limit), and EVENT_LIMIT_EXEMPT (admins and listed accounts are never limited), 'Delete an event', 'Event administration', 'Event page Look', 'Organiser Overview', 'Weekly demo reset' (hosted deploy/prod script, hence hosted only). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system'."
     },
     {
      "id": "hack-registration",

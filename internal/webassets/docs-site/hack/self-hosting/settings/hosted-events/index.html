@@ -612,16 +612,22 @@ keep one account from flooding the server, and every one is an environment setti
 </thead>
 <tbody>
 <tr>
+<td><code>EVENT_LIMIT_EXEMPT</code></td>
+<td>none</td>
+<td>emails and domains</td>
+<td>Comma-separated sign-in emails and whole domains (@domain.org), case-insensitive with spaces trimmed; no subdomain matching. Empty by default. Admins and EVENT_LIMIT_EXEMPT accounts are never limited by EVENT_CREATE_PER_DAY (default 20) or EVENT_MAX_ACTIVE_PER_ORGANISER (no limit by default; 0 = no limit for either).</td>
+</tr>
+<tr>
 <td><code>EVENT_CREATE_PER_DAY</code></td>
-<td><code>3</code></td>
-<td>1–1000 events</td>
-<td>Hosted events (EVENTS=hosted): events one account may create in a rolling day.</td>
+<td><code>20</code></td>
+<td>0–1000 events</td>
+<td>Hosted events (EVENTS=hosted): events one account may create in a rolling day (default 20; 0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.</td>
 </tr>
 <tr>
 <td><code>EVENT_MAX_ACTIVE_PER_ORGANISER</code></td>
-<td><code>2</code></td>
-<td>1–1000 events</td>
-<td>Hosted events: events one account may run at once (every stage but archived).</td>
+<td><code>0</code></td>
+<td>0–1000 events</td>
+<td>Hosted events: events one account may run at once (every stage but archived); no limit by default (0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.</td>
 </tr>
 <tr>
 <td><code>EVENT_APPLY_PENDING_PER_EVENT</code></td>

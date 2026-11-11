@@ -949,8 +949,12 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	perDay, maxActive := h.limits.EventCreatePerDay, h.limits.EventMaxActivePerOrganiser
+	if user.IsAdmin || h.limits.EventLimitExempt(user.Username) {
+		perDay, maxActive = 0, 0
+	}
 	ctx := r.Context()
-	ev, member, err := h.eventsSvc().CreateEvent(ctx, user.ID, slug, title, organiserName, organisation, contact, purpose, tz, *req.ExpectedParticipants, startsAt, endsAt, h.limits.EventCreatePerDay, h.limits.EventMaxActivePerOrganiser, h.limits.EventTeamSizeDefault, hackJoinCodeLen, hackJudgeCodeLen)
+	ev, member, err := h.eventsSvc().CreateEvent(ctx, user.ID, slug, title, organiserName, organisation, contact, purpose, tz, *req.ExpectedParticipants, startsAt, endsAt, perDay, maxActive, h.limits.EventTeamSizeDefault, hackJoinCodeLen, hackJudgeCodeLen)
 	if err != nil {
 		writeEventsError(w, err)
 		return

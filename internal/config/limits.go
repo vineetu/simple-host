@@ -100,6 +100,7 @@ type Limits struct {
 
 	// Hosted events (EVENTS=hosted, simple-hack.app). No caps on how big an
 	// event is; these only keep one account from flooding the instance.
+	EventLimitExemptRaw        string        // EVENT_LIMIT_EXEMPT
 	EventCreatePerDay          int           // EVENT_CREATE_PER_DAY
 	EventMaxActivePerOrganiser int           // EVENT_MAX_ACTIVE_PER_ORGANISER
 	EventTeamSizeDefault       int           // EVENT_TEAM_SIZE_DEFAULT
@@ -393,8 +394,8 @@ func DefaultLimits() Limits {
 		EventTTL:              21 * day,
 		EventMaxClaims:        5,
 
-		EventCreatePerDay:          3,
-		EventMaxActivePerOrganiser: 2,
+		EventCreatePerDay:          20,
+		EventMaxActivePerOrganiser: 0,
 		EventTeamSizeDefault:       20,
 		EventSitesKeep:             30 * day,
 		EventRemovalWarn:           14 * day,
@@ -595,6 +596,22 @@ func (l *Limits) MaxSitesFor(handles ...string) int {
 		return n
 	}
 	return l.MaxSitesPerAccount
+}
+
+// EventLimitExempt matches sign-in emails against EVENT_LIMIT_EXEMPT.
+func (l Limits) EventLimitExempt(email string) bool {
+	email = strings.ToLower(strings.TrimSpace(email))
+	at := strings.LastIndex(email, "@")
+	if at <= 0 || at == len(email)-1 {
+		return false
+	}
+	for _, entry := range strings.Split(l.EventLimitExemptRaw, ",") {
+		entry = strings.ToLower(strings.TrimSpace(entry))
+		if entry == email || entry == email[at:] {
+			return true
+		}
+	}
+	return false
 }
 
 // ArchiveOverrides is MAX_ARCHIVE_MB_OVERRIDES as a map from lowercased
@@ -817,8 +834,14 @@ func Knobs() []Knob {
 		intKnob("DOMAIN_CERTS_PER_ACCOUNT_DAILY", "certificates", 1, 1000, func(l *Limits) *int { return &l.DomainCertsDaily }),
 		durKnob("EVENT_TTL_DAYS", "days", d, 1, 60, func(l *Limits) *time.Duration { return &l.EventTTL }),
 		intKnob("EVENT_MAX_CLAIMS", "names", 1, 100, func(l *Limits) *int { return &l.EventMaxClaims }),
-		intKnob("EVENT_CREATE_PER_DAY", "events", 1, 1000, func(l *Limits) *int { return &l.EventCreatePerDay }),
-		intKnob("EVENT_MAX_ACTIVE_PER_ORGANISER", "events", 1, 1000, func(l *Limits) *int { return &l.EventMaxActivePerOrganiser }),
+		{Env: "EVENT_LIMIT_EXEMPT", Unit: "emails and domains",
+			Value: func(l *Limits) string { return l.EventLimitExemptRaw },
+			set: func(l *Limits, v string) error {
+				l.EventLimitExemptRaw = v
+				return nil
+			}},
+		intKnob("EVENT_CREATE_PER_DAY", "events", 0, 1000, func(l *Limits) *int { return &l.EventCreatePerDay }),
+		intKnob("EVENT_MAX_ACTIVE_PER_ORGANISER", "events", 0, 1000, func(l *Limits) *int { return &l.EventMaxActivePerOrganiser }),
 		intKnob("EVENT_APPLY_PENDING_PER_EVENT", "applications", 1, 100_000, func(l *Limits) *int { return &l.EventApplyPendingPerEvent }),
 		intKnob("EVENT_TEAM_SIZE_DEFAULT", "people", 1, 50, func(l *Limits) *int { return &l.EventTeamSizeDefault }),
 		durKnob("EVENT_SITES_KEEP_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventSitesKeep }),
