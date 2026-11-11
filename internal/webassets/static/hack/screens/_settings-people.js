@@ -78,12 +78,14 @@ export async function render(ctx, section) {
       main.innerHTML = `<div class="list">${people.filter(p => p.role === 'organiser').map(p => `<div class="r"><span class="main"><b>${esc(organiserLabel(p))}</b></span>${p.primary_organiser ? '<span class="meta">Event creator</span>' : `<button class="btn danger sm" data-remove-organiser="${esc(p.user_id)}" data-name="${esc(p.display_name)}">Remove co-organiser</button>`}</div>`).join('')}</div><section class="card" id="coorg"><h2>Organisers</h2>
 <p>Current: ${ui.esc((people.filter(p => p.role === 'organiser').map(organiserLabel)).join(', '))}</p>
 <p>A co-organiser can do everything you can on this event, including Delete this event. Only the creator can’t be removed.</p>
+<p>Anyone with this link can become an organiser until you revoke it or it expires in 7 days. Creating a new link stops the old one.</p>
 <div class="form-actions"><button class="btn" type="button" id="coorg-create">Create invitation</button></div>
-${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div class="control-row"><input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly><button class="btn" type="button" id="coorg-copy">Copy invitation</button></div></div><div class="form-actions"><button class="btn danger" type="button" id="coorg-revoke">Revoke invitation</button></div>` : ''}
+${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div class="control-row"><input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly><button class="btn" type="button" id="coorg-copy">Copy invitation</button></div></div>` : ''}
+<div class="form-actions"><button class="btn danger" type="button" id="coorg-revoke">Revoke invitation</button></div>
 </section>`
     main.querySelectorAll('[data-remove-organiser]').forEach(btn => btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-remove-organiser'); const name = btn.getAttribute('data-name') || 'this co-organiser'
-      const ok = await ui.confirm({ title: 'Remove ' + name + ' as co-organiser?', body: "They lose manage access to this event right away. (The event's original creator can't be removed.)", confirmLabel: 'Remove co-organiser', danger: true })
+      const ok = await ui.confirm({ title: 'Remove ' + name + ' as co-organiser?', body: "They lose manage access to this event right away. (The event's original creator can't be removed.) This also revokes the current invitation link.", confirmLabel: 'Remove co-organiser', danger: true })
       if (!ok) return
       btn.disabled = true
       try {
@@ -91,20 +93,21 @@ ${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div cla
         if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const p2 = await api('GET', path + '/people')
         if (p2.ok) people = p2.data || []
+        invite = null
         setLive('Removed', 'ok')
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     }))
 
     $('coorg-create').addEventListener('click', async () => {
-      const ok = await ui.confirm({ title: 'Create co-organiser invitation?', body: 'This link grants full control of this event, including deleting it. Create it?', confirmLabel: 'Create invitation' })
+      const ok = await ui.confirm({ title: 'Create co-organiser invitation?', body: 'Anyone with this link gets full control of this event, including deleting it, until you revoke it or it expires in 7 days. Create it?', confirmLabel: 'Create invitation' })
       if (!ok) return
       const btn = $('coorg-create'); btn.disabled = true
       try {
         const r = await api('POST', path + '/organiser-invite')
         if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         invite = { url: r.data.url, expires_at: r.data.expires_at }
-        setLive('Invitation created. Share it with one co-organiser.', 'ok')
+        setLive('Invitation created. Anyone you send it to can accept it.', 'ok')
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
@@ -115,7 +118,7 @@ ${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div cla
     })
     const revokeBtn = $('coorg-revoke')
     if (revokeBtn) revokeBtn.addEventListener('click', async () => {
-      const ok = await ui.confirm({ title: 'Revoke this invitation?', body: 'This invitation stops working. Revoke it?', confirmLabel: 'Revoke', danger: true })
+      const ok = await ui.confirm({ title: 'Revoke this invitation?', body: "The link stops working for anyone who hasn't accepted yet. People who already accepted stay organisers. Revoke it?", confirmLabel: 'Revoke', danger: true })
       if (!ok) return
       revokeBtn.disabled = true
       try {

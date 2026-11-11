@@ -22,6 +22,7 @@ func TestHackAdministrationCoOrganisers(t *testing.T) {
 	co := a.newPerson(t, "coorg")
 	other := a.newPerson(t, "otherorg")
 	part := a.newPerson(t, "part")
+	third := a.newPerson(t, "thirdorg")
 	slug := uniqueSlug()
 	foreign := uniqueSlug()
 	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
@@ -37,6 +38,7 @@ func TestHackAdministrationCoOrganisers(t *testing.T) {
 	first := invite(org)
 	second := invite(org)
 	wantTS(t, "rotation", a.at(t, "GET", first, nil, nil), 404, "invalid_code")
+	wantTS(t, "old link cannot accept", a.at(t, "POST", first, map[string]any{"accept_coc": true}, a.key(co)), 404, "invalid_code")
 	wantTS(t, "preview", a.at(t, "GET", second, nil, nil), 200, "")
 	var stored string
 	err := a.database.QueryRow(`SELECT token_hash FROM event_organiser_invites WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, slug).Scan(&stored)
@@ -55,17 +57,32 @@ func TestHackAdministrationCoOrganisers(t *testing.T) {
 	if joined.json(t)["role"] != "organiser" {
 		t.Fatal("wrong role")
 	}
-	wantTS(t, "single use", a.at(t, "POST", second, body, a.key(other)), 404, "invalid_code")
+	wantTS(t, "second organiser accepts", a.at(t, "POST", second, body, a.key(other)), 200, "")
+	wantTS(t, "already organiser refused", a.at(t, "POST", second, body, a.key(co)), 409, "already_member")
+	ev, err := hackevents.GetEventBySlug(context.Background(), a.database, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []person{co, other} {
+		member, err := hackevents.GetEventMember(context.Background(), a.database, ev.ID, a.userID(t, p))
+		if err != nil || member.Role != "organiser" {
+			t.Fatalf("accepted member role=%s, err=%v", member.Role, err)
+		}
+	}
+	wantTS(t, "revoke shared link", a.at(t, "DELETE", base+"/organiser-invite", nil, a.key(org)), 204, "")
+	wantTS(t, "third organiser denied after revoke", a.at(t, "POST", second, body, a.key(third)), 404, "invalid_code")
 	wantTS(t, "manage own event", a.at(t, "PATCH", base, map[string]any{"tagline": "Co-organiser edit"}, a.key(co)), 200, "")
 	wantTS(t, "foreign event denied", a.at(t, "GET", "/v1/hack/events/"+foreign+"/people", nil, a.key(co)), 404, "event_not_found")
 	wantTS(t, "participant cannot invite", a.at(t, "POST", base+"/organiser-invite", nil, a.key(part)), 404, "event_not_found")
 	wantTS(t, "primary protected", a.at(t, "DELETE", base+"/organisers/"+a.userID(t, org), nil, a.key(co)), 409, "primary_organiser")
-	issuedByCo := invite(co)
+	issuedByOrg := invite(org)
 	wantTS(t, "remove coorganiser", a.at(t, "DELETE", base+"/organisers/"+a.userID(t, co), nil, a.key(org)), 204, "")
 	wantTS(t, "removed access denied", a.at(t, "GET", base+"/people", nil, a.key(co)), 404, "event_not_found")
-	wantTS(t, "removed issuer link denied", a.at(t, "POST", issuedByCo, body, a.key(other)), 404, "invalid_code")
+	wantTS(t, "removed organiser cannot rejoin owner link", a.at(t, "POST", issuedByOrg, body, a.key(co)), 404, "invalid_code")
+	wantTS(t, "removal revokes link for everyone", a.at(t, "POST", issuedByOrg, body, a.key(third)), 404, "invalid_code")
 	fresh := invite(org)
 	wantTS(t, "revoke", a.at(t, "DELETE", base+"/organiser-invite", nil, a.key(org)), 204, "")
+	wantTS(t, "revoke without link", a.at(t, "DELETE", base+"/organiser-invite", nil, a.key(org)), 204, "")
 	wantTS(t, "revoked denied", a.at(t, "POST", fresh, body, a.key(co)), 404, "invalid_code")
 	expired := invite(org)
 	if _, err := a.database.Exec(`UPDATE event_organiser_invites SET expires_at=now()-interval '1 second' WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, slug); err != nil {
@@ -209,7 +226,7 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 	wantTS(t, "deleted project cannot export", a.api(t, "GET", base+"/team/export.tar.gz", nil, p1.key), 404, "no_project")
 }
 
-func TestHackAdministrationInvitationConsumedOnceConcurrently(t *testing.T) {
+func TestHackAdministrationInvitationReusableConcurrently(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "inviteowner")
 	one := a.newPerson(t, "one")
@@ -232,8 +249,18 @@ func TestHackAdministrationInvitationConsumedOnceConcurrently(t *testing.T) {
 	statuses := map[int]int{}
 	statuses[<-done]++
 	statuses[<-done]++
-	if statuses[200] != 1 || statuses[404] != 1 {
-		t.Fatalf("single-use invitation admitted wrong callers: %v", statuses)
+	if statuses[200] != 2 {
+		t.Fatalf("reusable invitation failed to admit both callers: %v", statuses)
+	}
+	ev, err := hackevents.GetEventBySlug(context.Background(), a.database, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []person{one, two} {
+		member, err := hackevents.GetEventMember(context.Background(), a.database, ev.ID, a.userID(t, p))
+		if err != nil || member.Role != "organiser" {
+			t.Fatalf("concurrent member role=%s, err=%v", member.Role, err)
+		}
 	}
 }
 

@@ -1923,7 +1923,7 @@ Marks the listed notice ids (the id of a needs_you item with dismissable true, a
 
 <div data-operation="POST /v1/hack/events/{slug}/organiser-invite"></div>
 
-Organiser only. Returns a single-use URL and expiry, seven days from creation. Only its hash is stored. Replaces any earlier invitation. Cannot change an archived or taken-down event.
+Organiser only. Returns a reusable URL and expiry, seven days from creation: anyone signed in can accept it until it expires, is revoked or is replaced. Only its hash is stored. Replaces any earlier invitation. Cannot change an archived or taken-down event.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1947,7 +1947,7 @@ Organiser only. Returns a single-use URL and expiry, seven days from creation. O
 
 <div data-operation="DELETE /v1/hack/events/{slug}/organiser-invite"></div>
 
-Organiser only. Existing members keep their role; removes only the outstanding link.
+Organiser only. Revokes the current invitation link; people who already accepted stay organisers. Returns 204 even when no invitation exists.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1971,7 +1971,7 @@ Organiser only. Existing members keep their role; removes only the outstanding l
 
 <div data-operation="DELETE /v1/hack/events/{slug}/organisers/{user_id}"></div>
 
-Organiser only. Cannot remove the primary event creator or the last organiser. Removed organisers immediately lose management access, and invitations they issued no longer work.
+Organiser only. Cannot remove the primary event creator or the last organiser. Removed organisers immediately lose management access. Also revokes the current invitation link.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 

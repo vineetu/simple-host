@@ -6281,7 +6281,7 @@
 </table>
 <h2 id="post-v1hackeventsslugorganiser-invite">POST /v1/hack/events/{slug}/organiser-invite</h2>
 <div data-operation="POST /v1/hack/events/{slug}/organiser-invite"></div>
-<p>Organiser only. Returns a single-use URL and expiry, seven days from creation. Only its hash is stored. Replaces any earlier invitation. Cannot change an archived or taken-down event.</p>
+<p>Organiser only. Returns a reusable URL and expiry, seven days from creation: anyone signed in can accept it until it expires, is revoked or is replaced. Only its hash is stored. Replaces any earlier invitation. Cannot change an archived or taken-down event.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -6337,7 +6337,7 @@
 </table>
 <h2 id="delete-v1hackeventsslugorganiser-invite">DELETE /v1/hack/events/{slug}/organiser-invite</h2>
 <div data-operation="DELETE /v1/hack/events/{slug}/organiser-invite"></div>
-<p>Organiser only. Existing members keep their role; removes only the outstanding link.</p>
+<p>Organiser only. Revokes the current invitation link; people who already accepted stay organisers. Returns 204 even when no invitation exists.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -6393,7 +6393,7 @@
 </table>
 <h2 id="delete-v1hackeventsslugorganisersuser_id">DELETE /v1/hack/events/{slug}/organisers/{user_id}</h2>
 <div data-operation="DELETE /v1/hack/events/{slug}/organisers/{user_id}"></div>
-<p>Organiser only. Cannot remove the primary event creator or the last organiser. Removed organisers immediately lose management access, and invitations they issued no longer work.</p>
+<p>Organiser only. Cannot remove the primary event creator or the last organiser. Removed organisers immediately lose management access. Also revokes the current invitation link.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>

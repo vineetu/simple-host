@@ -1982,7 +1982,7 @@
             {
               "label": "Remove co-organiser",
               "kind": "danger",
-              "confirm": "They lose manage access to this event right away. (The event's original creator can't be removed.)"
+              "confirm": "They lose manage access to this event right away. (The event's original creator can't be removed.) This also revokes the current invitation link."
             }
           ]
         },
@@ -3236,7 +3236,7 @@
         {
           "name": "Organisers",
           "contents": [
-            "Invitations, current organisers, remove"
+            "Invitations, current organisers, remove. Anyone with this link can become an organiser until you revoke it or it expires in 7 days. Creating a new link stops the old one. Revoke invitation is always present; URL and Copy invitation appear only after Create invitation. Removing a co-organiser also revokes the current invitation link."
           ]
         },
         {
@@ -3558,7 +3558,7 @@
           "label": "Organisers",
           "url": "?s=settings&tab=organisers",
           "holds": [
-            "Invitations, current organisers, remove"
+            "Invitations, current organisers, remove. Anyone with this link can become an organiser until you revoke it or it expires in 7 days. Creating a new link stops the old one. Revoke invitation is always present; URL and Copy invitation appear only after Create invitation. Removing a co-organiser also revokes the current invitation link."
           ],
           "save": "Existing individual save conventions and stage locks"
         },

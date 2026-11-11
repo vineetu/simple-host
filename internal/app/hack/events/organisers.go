@@ -12,7 +12,7 @@ import (
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
-// CreateOrganiserInvite creates an invitation and returns its code and expiry.
+// CreateOrganiserInvite replaces the reusable invitation and returns its code and expiry.
 func (s *Service) CreateOrganiserInvite(ctx context.Context, eventID, userID string) (string, time.Time, error) {
 	code, err := hackevents.RandomCode(32)
 	if err != nil {
@@ -32,7 +32,7 @@ func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event
 	return eventrepo.OrganiserInviteEvent(ctx, s.db, accounts.HashAPIKey(hackevents.NormalizeCode(code)), false)
 }
 
-// AcceptOrganiserInvite accepts an invitation, locking the event before the invite and member.
+// AcceptOrganiserInvite joins through a reusable invitation, locking the event before the invite and member.
 func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (model.Event, model.EventMember, error) {
 	var ev model.Event
 	var member model.EventMember
@@ -59,8 +59,9 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	if err != nil {
 		return ev, member, err
 	}
-	// Recheck the invite under lock before checking whether the event ended:
-	// ending an event deletes invitations, so invalid_code takes precedence.
+	// Serialise accepts and recheck the reusable invite under lock.
+	// Check before the event stage: ending an event deletes invitations,
+	// so invalid_code takes precedence.
 	if _, err = eventrepo.OrganiserInviteEvent(ctx, tx, hash, true); errors.Is(err, sql.ErrNoRows) {
 		return ev, member, invalid()
 	} else if err != nil {
@@ -87,16 +88,13 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	if err != nil {
 		return ev, member, err
 	}
-	if err = eventrepo.DeleteOrganiserInvite(ctx, tx, ev.ID); err != nil {
-		return ev, member, err
-	}
 	if err = tx.Commit(); err != nil {
 		return ev, member, err
 	}
 	return ev, member, nil
 }
 
-// RemoveOrganiser removes a co-organiser in a transaction.
+// RemoveOrganiser removes a co-organiser and revokes the shared invitation in a transaction.
 func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorID, userID string) error {
 	if event.CreatedBy.Valid && userID == event.CreatedBy.String {
 		return &Error{"primary_organiser", "the event creator cannot be removed"}
@@ -109,6 +107,9 @@ func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorI
 	if err = eventrepo.RemoveCoOrganiser(ctx, tx, event.ID, actorID, userID, eventLeaveOperations()); errors.Is(err, sql.ErrNoRows) {
 		return &Error{"event_not_found", "event not found"}
 	} else if err != nil {
+		return err
+	}
+	if err = eventrepo.DeleteOrganiserInvite(ctx, tx, event.ID); err != nil {
 		return err
 	}
 	return tx.Commit()

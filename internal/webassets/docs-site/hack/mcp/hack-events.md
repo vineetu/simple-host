@@ -926,7 +926,7 @@ Restore a team's public site. Ask first. Organiser only.
 
 <div data-tool="hack_create_organiser_invite"></div>
 
-Create a co-organiser invitation link. Ask first before sharing it. Organiser only.
+Create a co-organiser invitation link. Anyone with it can become an organiser until it is revoked, replaced or expires in 7 days. Ask first before sharing it. Organiser only.
 
 **Parameters:**
 
@@ -938,7 +938,7 @@ Create a co-organiser invitation link. Ask first before sharing it. Organiser on
 
 <div data-tool="hack_revoke_organiser_invite"></div>
 
-Revoke the current co-organiser invitation link. Ask first. Organiser only.
+Revoke the current co-organiser invitation link; people who already accepted stay organisers. Ask first. Organiser only.
 
 **Parameters:**
 
@@ -975,7 +975,7 @@ Accept the invitation with body.accept_coc. Ask the person first. Ask for body.d
 
 <div data-tool="hack_remove_organiser"></div>
 
-Remove a co-organiser. Ask first. Organiser only.
+Remove a co-organiser. Also revokes the current invitation link. Ask first. Organiser only.
 
 **Parameters:**
 

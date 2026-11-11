@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-11",
+    "what": "Co-organiser invitation links are reusable for 7 days until revoked or replaced; Settings always offers Revoke invitation, and removing a co-organiser revokes the current link."
+  },
+  {
+    "date": "2026-11-11",
     "what": "SIM-435 part 2: Other AI apps adds Lovable, Bolt, Cursor and Any other AI app; Claude, ChatGPT and Claude Code remain the primary tabs."
   },
   {
