@@ -427,6 +427,54 @@
               </details>
             </div>
           </details>
+
+          <details class="app" id="lovable" name="pick-ai">
+            <summary class="app-btn" id="b-lovable" aria-expanded="false" aria-controls="p-lovable">
+              <span class="app-text"><span class="app-name">Lovable</span><span class="app-sub">App builder</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-lovable" role="region" aria-labelledby="b-lovable">
+              <ol class="steps">
+                <li>In Lovable, open <b>Connectors</b>, choose <b>Add custom</b>, then <b>MCP server</b>.</li>
+                <li>Name it <b>Simple Host</b>, leave <b>Connection</b> on <b>Direct connection</b>, and paste this address as the <b>Server URL</b>:
+                  <div class="copyrow"><code id="mcp-lovable" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-lovable">Copy</button></div>
+                </li>
+                <li>Keep <b>OAuth</b>, choose <b>Add &amp; authorize</b>, sign in once in the Simple Host window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="bolt" name="pick-ai">
+            <summary class="app-btn" id="b-bolt" aria-expanded="false" aria-controls="p-bolt">
+              <span class="app-text"><span class="app-name">Bolt</span><span class="app-sub">App builder</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-bolt" role="region" aria-labelledby="b-bolt">
+              <ol class="steps">
+                <li>In Bolt, click <b>+</b> in the chat box, then <b>Connectors</b>, then <b>Manage connectors</b>, then <b>Custom MCP server</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address as the <b>URL</b>, and keep the <b>HTTP</b> transport:
+                  <div class="copyrow"><code id="mcp-bolt" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-bolt">Copy</button></div>
+                </li>
+                <li>Under <b>Authentication</b>, choose <b>MCP OAuth</b>, then <b>Connect</b>. Sign in once in the Simple Host window that opens, then choose <b>Allow</b>.</li>
+                <li>In your project, click <b>+</b>, then <b>Connectors</b>, and turn on <b>Simple Host</b>.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="other" name="pick-ai">
+            <summary class="app-btn" id="b-other" aria-expanded="false" aria-controls="p-other">
+              <span class="app-text"><span class="app-name">Any other AI app</span><span class="app-sub">Replit, v0, Windsurf and others</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-other" role="region" aria-labelledby="b-other">
+              <ol class="steps">
+                <li>Add this address as a custom MCP connector (sometimes called an MCP server) in your app's settings, for example in Replit, v0 or Windsurf. If it asks how to sign in, choose <b>OAuth</b>:
+                  <div class="copyrow"><code id="mcp-other" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-other">Copy</button></div>
+                </li>
+                <li>Sign in once in the Simple Host window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
+            </div>
+          </details>
         </div>
       </section>
 
@@ -479,7 +527,7 @@
         if(row.open)document.querySelectorAll('details[name="'+row.getAttribute('name')+'"]').forEach(function(other){if(other!==row)other.open=false;});
       });
     });
-    function openLinkedAI(){var row=document.getElementById(location.hash.slice(1));if(row&&row.matches('.apps > details')){document.querySelectorAll('.apps > details').forEach(function(other){other.open=other===row;});row.scrollIntoView({block:'nearest'});}}
+    function openLinkedAI(){var id=location.hash.slice(1);var row=document.getElementById(id);if(row&&row.matches('.apps > details')){document.querySelectorAll('.apps > details').forEach(function(other){other.open=other===row;});row.scrollIntoView({block:'nearest'});}}
     window.addEventListener('hashchange',openLinkedAI);openLinkedAI();
 
     // The MCP address, and any command built from it, are filled from this

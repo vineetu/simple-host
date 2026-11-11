@@ -5069,7 +5069,7 @@
       "user_moment": "Siti's team has an idea and an entry; she wants it live and has never heard of a connector. She uses ChatGPT on her phone.",
       "purpose": "Get the team site published from the AI app the person already uses, with a clear Connected and Published state, and keep the zip and key options out of the way.",
       "primary_action": "Follow the steps for your AI app (or upload a zip).",
-      "layout": "A two-part state strip: AI app (Not connected / Connected in <apps linked to this team> / connected but no_team · last used · teammates connected as a count) and Website (Not published / Published · version · time / Taken down). Then Publish from your AI app: app tabs (Claude, ChatGPT, Other AI apps), numbered steps with ticks from the real state, the connector address with Copy, the email to sign in with, and a ready prompt with Copy prompt. Then Or upload a zip, Advanced (command line and key), and, once published, Notifications and Keep a copy. Once published, the guide folds into 'Publish again, or from another AI app'.",
+      "layout": "A two-part state strip: AI app (Not connected / Connected in <apps linked to this team> / connected but no_team · last used · teammates connected as a count) and Website (Not published / Published · version · time / Taken down). Then Publish from your AI app: app tabs (Claude, ChatGPT, Claude Code, Other AI apps), numbered steps with ticks from the real state, the connector address with Copy, the email to sign in with, and a ready prompt with Copy prompt. Then Or upload a zip, Advanced (command line and key), and, once published, Notifications and Keep a copy. Once published, the guide folds into 'Publish again, or from another AI app'.",
       "sections": [
         {
           "name": "State strip",
@@ -5084,7 +5084,7 @@
           "contents": [
             "Claude: 1 Settings, then Connectors, then Browse connectors. Search Simple Hack and choose Connect. (Blocked at work? Add custom connector + the address.) 2 Sign in and choose Allow, with <your email>. 3 Paste this into a new chat. 4 Watch this page.",
             "ChatGPT: 1 Settings, then Plugins, then Add, then Add custom MCP server; name it Simple Hack and paste the address. 2 Sign in and choose Allow. 3 Paste the prompt. 4 Watch this page.",
-            "Other AI apps: Grok, Copilot, Gemini, Mistral, Meta Muse, coding agents -- one line each linking to /get-started#<app>",
+            "Other AI apps: Grok, GitHub Copilot, Meta Muse, Gemini, Mistral Vibe, Lovable, Bolt, Cursor, Any other AI app (Codex, Replit, v0, Windsurf and others) -- one line each linking to /get-started#<app>",
             "Prompt: Build a one-page website for our hackathon project and publish it as our team site for <event> (team <team>) on Simple Hack. Problem: <problem>. Solution: <solution>."
           ],
           "actions": [
@@ -6159,7 +6159,7 @@
           "contents": [
             "Every connected app, most recently used first: app name, last used, Publishes to <team> in <event> (several joined with and), or Hasn't picked a team yet. None yet. when empty.",
             "Below the list: plain details #acct-connect-how. Connect an AI app when empty or on load error (open); Connect another app with connections (closed). Loading… starts closed.",
-            "Claude / ChatGPT / Claude Code / Other AI apps tabs. Existing steps contain the connector address once, from this page’s origin; Other AI apps shows only the Website screen’s link buttons to /get-started#<id>, opening a new tab."
+            "Claude / ChatGPT / Claude Code / Other AI apps tabs. Existing steps contain the connector address once, from this page’s origin; Other AI apps shows Grok, GitHub Copilot, Meta Muse, Gemini, Mistral Vibe, Lovable, Bolt, Cursor and Any other AI app (Codex, Replit, v0, Windsurf and others) as the Website screen’s link buttons to /get-started#<id>, opening a new tab."
           ],
           "actions": [
             {

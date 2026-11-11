@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-11: Simple Hack adds Lovable, Bolt, Cursor and Any other AI app under Other AI apps, keeping Claude, ChatGPT and Claude Code as the primary choices. Simple Host setup also adds Lovable, Bolt and Any other AI app (SIM-435 part 2).
+
 2026-11-11: Simple Hack defaults to 20 event creations per day and no active-event limit; 0 disables either limit, and admins and EVENT_LIMIT_EXEMPT accounts bypass both (SIM-435).
 
 2026-11-11: Self-hosted Simple Hack install fixes: use the downloaded release image when no image is set, include time zone data in containers, pass support, privacy and Ask settings through Compose, and explain downloads, password accounts, admin access and upgrades.

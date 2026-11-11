@@ -55,13 +55,13 @@ try {
       assert.equal(await page.locator('#pick-heading').textContent(), 'Pick your AI');
       // There is one way to connect: the MCP address, shown once near the
       // top. Three apps (Claude, ChatGPT, Claude Code) get their own
-      // accordion up front; six more (Grok, Copilot, Meta Muse, Gemini,
-      // Mistral Vibe, Codex/other coding agents) sit collapsed under one
+      // accordion up front; other apps (Grok, Copilot, Meta Muse, Gemini,
+      // Mistral Vibe, Lovable, Bolt, Cursor, Any other AI app) sit collapsed under one
       // "Other AI apps" group -- same connection, not alternatives. Keep
       // this in step with the page (docs/architecture/frontend.md).
       assert.equal(await page.locator('#mcp-url').count(), 1);
-      assert.equal((await page.locator('#mcp-url').textContent()).trim().endsWith('/mcp'), true);
-      assert.equal(await page.locator('.skills > details').count(), 9);
+      assert.equal((await page.locator('#mcp-url').textContent()).trim(), origin + '/mcp');
+      assert.equal(await page.locator('.skills > details').count(), 12);
       assert.equal(await page.locator('#other-ai-apps').getAttribute('open'), null);
       assert.equal(await page.locator('#other-ai-apps a').first().isVisible(), false);
       assert.equal(await page.locator('#other-installs').getAttribute('open'), null);
@@ -108,7 +108,7 @@ try {
       await noOverflow();
 
       const primaryIds = ['claude', 'chatgpt', 'claude-code'];
-      const otherIds = ['grok', 'copilot', 'muse', 'gemini', 'mistral', 'other-coding'];
+      const otherIds = ['grok', 'copilot', 'muse', 'gemini', 'mistral', 'lovable', 'bolt', 'cursor', 'other'];
       const ids = primaryIds.concat(otherIds);
       assert.equal(await page.locator('.skills details[open], .faq details[open]').count(), 0);
       for (const id of primaryIds) {
@@ -158,6 +158,13 @@ try {
         await page.waitForFunction(id => document.getElementById(id).open, id);
         await noOverflow();
       }
+      for (const alias of ['coding-agents', 'other-coding']) {
+        await page.evaluate(hash => { location.hash = hash; }, alias);
+        await page.waitForFunction(() => document.getElementById('other').open && document.getElementById('other-ai-apps').open);
+      }
+      assert.deepEqual(JSON.parse(await page.locator('#cmd-cursor').textContent()), {
+        mcpServers: { 'simple-hack': { url: origin + '/mcp' } },
+      });
       await page.goto(url + '#chatgpt', { waitUntil: 'networkidle' });
       assert.equal(await page.locator('#chatgpt .steps').first().isVisible(), true);
       // Self-hosted has exactly one way to connect: the developer-mode
@@ -168,13 +175,13 @@ try {
       const chatgptHosted = (await page.locator('#chatgpt').innerText()).includes('Upload plugin archive');
       assert.equal(await page.locator('#chatgpt .steps').count(), chatgptHosted ? 2 : 1);
       const buttons = page.locator('[data-copy-target]');
-      // The top mcp-url box, one mcp-<app>/cmd-<app> row per of the 9 apps
+      // The top mcp-url box, one mcp-<app>/cmd-<app> row per of the 12 apps
       // (Meta Muse has an extra Client ID row), the collapsed skill-install
       // command, and the 3 role prompts (each role's own AI-app path). A
       // self-hosted install's skill-install step is a plain download link
       // instead (its own GitHub has no business naming the hosted service's
-      // repo), so it has no #install-command copy row: 14, not 15.
-      assert.equal(await buttons.count(), await page.locator('#install-command').count() ? 15 : 14);
+      // repo), so it has no #install-command copy row: 17, not 18.
+      assert.equal(await buttons.count(), await page.locator('#install-command').count() ? 18 : 17);
       for (const button of await buttons.all()) {
         // An "other AI apps" row needs its own accordion AND the group's
         // outer <details> open; the install-command row lives directly

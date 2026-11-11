@@ -224,58 +224,85 @@
             </div>
         </details>
 
-        <details class="accordion" id="grok" name="pick-ai">
-          <summary><span><span class="ai-name">Grok</span><span class="audience">Custom connectors</span></span></summary>
+        <details class="accordion" id="claude-code" name="pick-ai">
+          <summary><span><span class="ai-name">Claude Code</span><span class="audience">Terminal</span></span></summary>
           <div class="accordion-body">
-          <!--sh:connect:grok-->
-          <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
+          <!--sh:connect:claude-code-->
           </div>
         </details>
-
-        <details class="accordion" id="copilot" name="pick-ai">
-          <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:copilot-->
-          <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
-          </div>
-        </details>
-
-        <details class="accordion" id="muse" name="pick-ai">
-          <summary><span><span class="ai-name">Meta Muse</span><span class="audience">Custom connector</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:muse-->
-          </div>
-        </details>
-
-        <details class="accordion" id="gemini" name="pick-ai">
-          <summary><span><span class="ai-name">Gemini</span><span class="audience">Personal Google account, in the US</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:gemini-->
-          <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on.</p>
-          </div>
-        </details>
-
-        <details class="accordion" id="mistral" name="pick-ai">
-          <summary><span><span class="ai-name">Mistral Vibe</span><span class="audience">Formerly Le Chat. Free plan works</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:mistral-->
-          </div>
-        </details>
-
-        <details class="accordion" id="coding-agents" name="pick-ai">
-          <summary><span><span class="ai-name">Claude Code / Codex / other coding agents</span><span class="audience">Terminal, Node.js</span></span></summary>
-          <div class="accordion-body">
-          <ol class="steps">
-            <li>Install the five Simple Hack skills for Claude Code and Codex, then restart your agent:<div class="copyrow"><code id="install-command-pickai">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command-pickai" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name, such as <code>openclaw</code> or <code>hermes-agent</code>.</li>
-            <li>Ask your agent to add <b>Simple Hack</b> as a remote HTTP MCP server with OAuth at this address:
-              <div class="copyrow"><code id="mcp-coding-agents" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-coding-agents" aria-label="Copy Claude Code / Codex / other coding agents connector address">Copy</button></div>
-            </li>
-            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
-          </ol>
-          </div>
-        </details>
-
       </div>
+
+      <details class="other" id="other-ai-apps">
+        <summary>Other AI apps</summary>
+        <p>They connect the same way, with the same address.</p>
+        <div class="skills">
+          <details class="accordion" id="grok" name="other-ai">
+            <summary><span><span class="ai-name">Grok</span><span class="audience">Custom connectors</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:grok-->
+            <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
+            </div>
+          </details>
+
+          <details class="accordion" id="copilot" name="other-ai">
+            <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:copilot-->
+            <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
+            </div>
+          </details>
+
+          <details class="accordion" id="muse" name="other-ai">
+            <summary><span><span class="ai-name">Meta Muse</span><span class="audience">Custom connector</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:muse-->
+            </div>
+          </details>
+
+          <details class="accordion" id="gemini" name="other-ai">
+            <summary><span><span class="ai-name">Gemini</span><span class="audience">Personal Google account, in the US</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:gemini-->
+            <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on.</p>
+            </div>
+          </details>
+
+          <details class="accordion" id="mistral" name="other-ai">
+            <summary><span><span class="ai-name">Mistral Vibe</span><span class="audience">Formerly Le Chat. Free plan works</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:mistral-->
+            </div>
+          </details>
+
+          <details class="accordion" id="lovable" name="other-ai">
+            <summary><span><span class="ai-name">Lovable</span><span class="audience">App builder</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:lovable-->
+            </div>
+          </details>
+
+          <details class="accordion" id="bolt" name="other-ai">
+            <summary><span><span class="ai-name">Bolt</span><span class="audience">App builder</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:bolt-->
+            </div>
+          </details>
+
+          <details class="accordion" id="cursor" name="other-ai">
+            <summary><span><span class="ai-name">Cursor</span><span class="audience">Code editor</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:cursor-->
+            </div>
+          </details>
+
+          <details class="accordion" id="other" name="other-ai">
+            <summary><span><span class="ai-name">Any other AI app</span><span class="audience">Codex, Replit, v0, Windsurf and others</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:other-->
+            </div>
+          </details>
+        </div>
+      </details>
       <!--/sh:hosted-->
       <!--sh:self-->
       <div class="skills">
@@ -347,11 +374,31 @@
             </div>
           </details>
 
-          <details class="accordion" id="other-coding" name="other-ai">
-            <summary><span><span class="ai-name">Codex and other coding agents</span><span class="audience">Remote HTTP MCP server</span></span></summary>
+          <details class="accordion" id="lovable" name="other-ai">
+            <summary><span><span class="ai-name">Lovable</span><span class="audience">App builder</span></span></summary>
             <div class="accordion-body">
-            <!--sh:connect:other-coding-->
-            <p class="hint">Also works for any agent whose MCP settings take a remote HTTP server and OAuth.</p>
+            <!--sh:connect:lovable-->
+            </div>
+          </details>
+
+          <details class="accordion" id="bolt" name="other-ai">
+            <summary><span><span class="ai-name">Bolt</span><span class="audience">App builder</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:bolt-->
+            </div>
+          </details>
+
+          <details class="accordion" id="cursor" name="other-ai">
+            <summary><span><span class="ai-name">Cursor</span><span class="audience">Code editor</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:cursor-->
+            </div>
+          </details>
+
+          <details class="accordion" id="other" name="other-ai">
+            <summary><span><span class="ai-name">Any other AI app</span><span class="audience">Codex, Replit, v0, Windsurf and others</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:other-->
             </div>
           </details>
         </div>
@@ -399,10 +446,8 @@
         });
       });
     });
-    // #coding-agents was this row's id before the "Other AI apps" group
-    // split it out as #other-coding; a link or bookmark carrying the old
-    // fragment still has to open it.
-    var LEGACY_AI_ANCHORS = { 'coding-agents': 'other-coding' };
+    // Keep old setup links and bookmarks working.
+    var LEGACY_AI_ANCHORS = { 'coding-agents': 'other', 'other-coding': 'other' };
     function openLinkedAI() {
       var hash = location.hash.slice(1);
       var row = document.getElementById(LEGACY_AI_ANCHORS[hash] || hash);
@@ -410,7 +455,7 @@
       if (row.matches('.skills > details')) {
         document.querySelectorAll('.skills > details').forEach(function (other) { other.open = other === row; });
         // A row nested inside "Other AI apps" (grok, copilot, muse, gemini,
-        // mistral, other-coding) sits inside its own .skills, a direct
+        // mistral, lovable, bolt, cursor, other) sits inside its own .skills, a direct
         // child of that group's <details>, not the top-level one -- opening
         // just the row leaves it hidden inside a still-closed group.
         var group = row.closest('details.other');

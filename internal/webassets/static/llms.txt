@@ -357,7 +357,7 @@ Your home page also works on small-box path installs (including Droplet 1-Click 
 
 ### App presentation
 
-Presentation (2026-10-10): the home page opens with a 25-second film narrated by the owner that plays with sound on click, followed by the home actions. Get started at /install.html uses exclusive native AI accordions (deep links #chatgpt, #claude, #grok, #copilot, #muse, #gemini, #mistral, #instinct, #claude-code, #codex, #openclaw, #hermes, #coding-agents) and FAQ accordions.
+Presentation (2026-10-10): the home page opens with a 25-second film narrated by the owner that plays with sound on click, followed by the home actions. Get started at /install.html uses exclusive native AI accordions (deep links #chatgpt, #claude, #grok, #copilot, #muse, #gemini, #mistral, #instinct, #claude-code, #codex, #openclaw, #hermes, #lovable, #bolt, #other (formerly #coding-agents)) and FAQ accordions.
 
 App pages share the film’s blue ink theme and OS light/dark override; published sites keep their own CSS. Small-box installs get the shared look in their next release.
 

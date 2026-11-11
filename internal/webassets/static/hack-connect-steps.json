@@ -170,11 +170,59 @@
       ]
     },
     {
-      "id": "other-coding",
-      "label": "Codex and other coding agents",
+      "id": "lovable",
+      "label": "Lovable",
       "connect": [
         {
-          "html": "In your agent's MCP settings, add a remote HTTP server named <b>simple-hack</b>, with OAuth, at this address:",
+          "html": "In Lovable, open <b>Connectors</b>, choose <b>Add custom</b>, then <b>MCP server</b>."
+        },
+        {
+          "html": "Name it <b>Simple Hack</b>, leave <b>Connection</b> on <b>Direct connection</b>, and paste this address as the <b>Server URL</b>:",
+          "address": true
+        },
+        {
+          "html": "Keep <b>OAuth</b>, choose <b>Add &amp; authorize</b>, sign in once in the Simple Hack window that opens, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "bolt",
+      "label": "Bolt",
+      "connect": [
+        {
+          "html": "In Bolt, click <b>+</b> in the chat box, then <b>Connectors</b>, then <b>Manage connectors</b>, then <b>Custom MCP server</b>."
+        },
+        {
+          "html": "Name it <b>Simple Hack</b>, paste this address as the <b>URL</b>, and keep the <b>HTTP</b> transport:",
+          "address": true
+        },
+        {
+          "html": "Under <b>Authentication</b>, choose <b>MCP OAuth</b>, then <b>Connect</b>. Sign in once in the Simple Hack window that opens, then choose <b>Allow</b>."
+        },
+        {
+          "html": "In your project, click <b>+</b>, then <b>Connectors</b>, and turn on <b>Simple Hack</b>."
+        }
+      ]
+    },
+    {
+      "id": "cursor",
+      "label": "Cursor",
+      "connect": [
+        {
+          "html": "Add this to <b>~/.cursor/mcp.json</b> (or <b>.cursor/mcp.json</b> in your project):",
+          "command": "{\"mcpServers\":{\"simple-hack\":{\"url\":\"{address}\"}}}"
+        },
+        {
+          "html": "When Cursor asks, sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "other",
+      "label": "Any other AI app",
+      "connect": [
+        {
+          "html": "Add this address as a custom MCP connector (sometimes called an MCP server) in your app's settings, for example in Codex, Replit, v0 or Windsurf. If it asks how to sign in, choose <b>OAuth</b>:",
           "address": true
         },
         {

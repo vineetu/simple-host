@@ -684,7 +684,7 @@
         "Switching modes retains both built-in content and website uploads. Built-in edits still save while a custom site is shown.",
         "Uploading a zip publishes immediately. Earlier uploads are listed, but an older version cannot be made live again; upload it again instead. Mode changes and publishing stop after End.",
         "Your own website updates itself at each stage, results included, when it is built from the “event” page recipe. Made yours earlier? Ask your AI app to add the live event feed from that recipe.",
-        "Account → Connected AI apps lists your connected apps. Open Connect an AI app for setup or Other AI apps for another app."
+        "Account → Connected AI apps lists your connected apps. Open Connect an AI app for setup: Claude, ChatGPT and Claude Code have steps; Other AI apps links to Grok, GitHub Copilot, Meta Muse, Gemini, Mistral Vibe, Lovable, Bolt, Cursor and Any other AI app (including Codex, Replit, v0 and Windsurf)."
       ],
       "limits": [
         "Zip limit is set by the server and appears in CURRENT SETTINGS as Website zip upload limit. Include index.html at the top level."

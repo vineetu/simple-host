@@ -39,6 +39,15 @@ func TestSelfHostedGetStartedAndLLMS(t *testing.T) {
 				t.Errorf("%s on a self-hosted server says %q", name, w)
 			}
 		}
+		if name == "install.html" {
+			for _, id := range []string{"lovable", "bolt", "other"} {
+				_, rest, found := strings.Cut(body, `<details class="app" id="`+id+`"`)
+				card, _, _ := strings.Cut(rest, "</ol>")
+				if !found || !strings.Contains(card, "https://box.example/mcp") || strings.Contains(card, "simple-host.app/mcp") {
+					t.Errorf("%s must show only this server's MCP address", id)
+				}
+			}
+		}
 		if !strings.Contains(body, "https://box.example/mcp") || !strings.Contains(body, "Add custom connector") {
 			t.Errorf("%s lacks the custom connector steps for this server", name)
 		}

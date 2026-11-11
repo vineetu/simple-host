@@ -25,10 +25,10 @@ func TestHackConnectStepsJSON(t *testing.T) {
 			tabs++
 		}
 	}
-	if tabs < 2 || len(doc.Publish) < 2 || !doc.Publish[0].Prompt || !strings.Contains(doc.SigninHint, "{email}") {
+	if tabs != 3 || len(doc.Publish) < 2 || !doc.Publish[0].Prompt || !strings.Contains(doc.SigninHint, "{email}") {
 		t.Fatalf("connect steps doc: tabs=%d publish=%d hint=%q", tabs, len(doc.Publish), doc.SigninHint)
 	}
-	for _, id := range []string{"claude", "chatgpt"} {
+	for _, id := range []string{"claude", "chatgpt", "claude-code"} {
 		if a, ok := connectAppByID(id); !ok || !a.Tab || len(a.Connect) < 2 {
 			t.Fatalf("%s: missing or not a tab app", id)
 		}
