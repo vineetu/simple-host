@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 11:** Simple Hack release hack-v0.8.18 carries everything on main since hack-v0.8.17 (2026-11-05): a redesigned web app with Home as the place to run an event (a checklist for each role and stage, stage changes and publishing results from Home, Your events kept in the side pane, lists and cards that fit the space available); organisers opting in to judge, with one judge list driving assignments, scoring and counts, and judging locks that follow the stage; prizes for 1st, 2nd and 3rd on winner cards; event page Looks (Classic plus five styles); custom event websites that update themselves at every stage; one name per person across events; start and end times on events; two entry presets; notices for judges and organiser messages, with an offer to tell participants at every stage change; a small Ask assistant for organisers that answers from the event and the docs and never changes anything (off on self-hosted installs until you set an OpenAI-compatible endpoint); Account listing Connected AI apps; and the docs at /docs/ with a Self-hosting section. Self-hosted installs show only their own address everywhere. Database migrations 0005 to 0014 apply on upgrade.
+
 - **Nov 11:** Simple Hack removes the organiser rubric final step; Ask follows current judging, stage changes, team message delivery and event websites.
 
 - **Nov 10:** Simple Hack organisers can set prizes for 1st, 2nd and 3rd in About; winner cards and public feeds show the place and prize, including in winners-only results.
