@@ -5,6 +5,10 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cat > "$WORK/config" <<'EOF'
 SITE_DOMAIN=hack.example.test
+DB_PASSWORD=
+ADMIN_API_KEY=
+PASSCODE_ENC_KEY=
+ANALYTICS_SALT=
 MCP_APP_PHOTO_PICKER=accounts:alice,bob
 MCP_APP_MY_SITES=on
 MCP_APP_DASHBOARD=accounts:alice
@@ -28,6 +32,18 @@ assert after['MAIL_FROM']=='Équipe $$hack <events@example.test>'
 assert (root/'install/.env').stat().st_mode&0o777==0o600
 assert (root/'install/.env.previous').stat().st_mode&0o777==0o600
 PY
+printf '\nSUPPORT_EMAIL=help@example.test\n' >> "$WORK/config"
+bash "$HERE/install.sh" --dir "$WORK/install" --config "$WORK/config" --prepare-only
+python3 - "$WORK" <<'PY'
+import json,pathlib,sys
+root=pathlib.Path(sys.argv[1])
+def read(path): return dict((k,json.loads(v)) for k,v in (s.split('=',1) for s in path.read_text().splitlines()))
+before=read(root/'before'); after=read(root/'install/.env')
+for key in ('DB_PASSWORD','ADMIN_API_KEY','PASSCODE_ENC_KEY','ANALYTICS_SALT'):
+    assert after[key]==before[key]
+assert after['SUPPORT_EMAIL']=='help@example.test'
+PY
+echo 'PASS: reusing configuration with empty secrets preserves generated values and updates settings'
 # Compose's reusable config output doubles literal dollars; the container
 # receives one dollar. Keep the non-ASCII sender unchanged as well.
 # shellcheck disable=SC2016

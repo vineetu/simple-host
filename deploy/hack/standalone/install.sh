@@ -55,6 +55,7 @@ if config:
     if not Path(config).is_file(): raise SystemExit('Configuration file does not exist.')
     supplied = read(Path(config))
     for key in ('DB_PASSWORD', 'ADMIN_API_KEY', 'PASSCODE_ENC_KEY', 'ANALYTICS_SALT'):
+        if supplied.get(key) == '': supplied.pop(key)
         if values.get(key) and supplied.get(key, values[key]) != values[key]:
             raise SystemExit('Upgrade configuration must retain existing '+key+'.')
     values.update(supplied)
