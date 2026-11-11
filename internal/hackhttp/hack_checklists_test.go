@@ -133,9 +133,9 @@ func TestChecklistAcknowledgementsAndCleanup(t *testing.T) {
 	if read(j, "judge")["j.conflicts"]["state"] != "done" {
 		t.Fatal("conflicts ack")
 	}
-	checklistItems(t, ack(w.org, "o.rubric-ready", v))
-	if read(w.org, "organiser")["o.rubric-ready"]["state"] != "done" {
-		t.Fatal("event ack")
+	r := ack(w.org, "o.rubric-ready", v)
+	if r.status != 400 || r.json(t)["code"] != "invalid_checklist_item" {
+		t.Fatalf("removed acknowledgement accepted: %d %s", r.status, r.body)
 	}
 	if _, err := w.a.database.Exec(`UPDATE rubric_criteria SET description='Changed' WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, w.slug); err != nil {
 		t.Fatal(err)
@@ -143,8 +143,8 @@ func TestChecklistAcknowledgementsAndCleanup(t *testing.T) {
 	if ack(j, "j.rubric", v).status != 409 {
 		t.Fatal("stale version accepted")
 	}
-	if read(j, "judge")["j.rubric"]["state"] != "todo" || read(w.org, "organiser")["o.rubric-ready"]["state"] != "todo" {
-		t.Fatal("stale still done")
+	if read(j, "judge")["j.rubric"]["state"] != "todo" {
+		t.Fatal("judge rubric read remained done after the rubric changed")
 	}
 	if read(j, "judge")["j.conflicts"]["state"] != "done" {
 		t.Fatal("conflicts versioned")
@@ -156,7 +156,7 @@ func TestChecklistAcknowledgementsAndCleanup(t *testing.T) {
 		t.Fatal("conduct fabricated")
 	}
 	// Shared deletion path: leaving, organiser removal and person removal all call it.
-	r := w.call(t, "POST", "/leave", map[string]any{"confirm": w.slug}, j)
+	r = w.call(t, "POST", "/leave", map[string]any{"confirm": w.slug}, j)
 	if r.status != 200 {
 		t.Fatalf("leave %d %s", r.status, r.body)
 	}
@@ -521,7 +521,7 @@ func TestChecklistParticipantAdapterPreservesProgress(t *testing.T) {
 	}
 }
 
-func TestChecklistRemainingOrganiserFactsAndRubricSave(t *testing.T) {
+func TestChecklistRemainingOrganiserFacts(t *testing.T) {
 	w := newJudgingWorld(t, 1, 1)
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -532,15 +532,6 @@ func TestChecklistRemainingOrganiserFactsAndRubricSave(t *testing.T) {
 	read := func() map[string]map[string]any {
 		it, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
 		return it
-	}
-	// A successful Closed-stage save also explicitly confirms that exact rubric.
-	rubric := w.call(t, "GET", "/rubric", nil, w.org).json(t)
-	r := w.call(t, "PUT", "/rubric", map[string]any{"criteria": rubric["criteria"]}, w.org)
-	if r.status != 200 {
-		t.Fatalf("save rubric %d %s", r.status, r.body)
-	}
-	if read()["o.rubric-ready"]["state"] != "done" {
-		t.Fatal("Closed rubric save did not acknowledge")
 	}
 	w.setStage(t, "draft")
 	exec(`INSERT INTO event_tracks(event_id,slug,name) SELECT id,'track','Track' FROM events WHERE slug=$1`, w.slug)
@@ -571,7 +562,7 @@ func TestChecklistRemainingOrganiserFactsAndRubricSave(t *testing.T) {
 	if read()["o.deadline"]["state"] != "done" {
 		t.Fatal("past deadline not set")
 	}
-	r = w.call(t, "POST", "/announcements", map[string]any{"title": "Welcome", "body": "Build", "email": false}, w.org)
+	r := w.call(t, "POST", "/announcements", map[string]any{"title": "Welcome", "body": "Build", "email": false}, w.org)
 	if r.status != 201 {
 		t.Fatalf("announcement %d %s", r.status, r.body)
 	}
@@ -718,29 +709,6 @@ func TestChecklistOrganiserObligationUsesCurrentAssignmentMode(t *testing.T) {
 	}
 }
 
-func TestChecklistRubricFinalBeforeClosed(t *testing.T) {
-	w := newJudgingWorld(t, 1, 1)
-	w.setStage(t, "draft")
-	response := w.call(t, "GET", "/checklist", nil, w.org)
-	rows, _ := checklistItems(t, response)
-	if response.json(t)["can"] == nil {
-		t.Fatal("missing abilities")
-	}
-	version, _ := rows["o.rubric"]["version"].(string)
-	if version == "" {
-		t.Fatal("draft rubric has no acknowledgement version")
-	}
-	r := w.call(t, "POST", "/checklist/acknowledgements/o.rubric-ready", map[string]string{"version": version}, w.org)
-	if r.status != 200 {
-		t.Fatalf("acknowledge final: %d %s", r.status, r.body)
-	}
-	w.setStage(t, "closed")
-	rows, _ = checklistItems(t, w.call(t, "GET", "/checklist", nil, w.org))
-	if rows["o.rubric-ready"]["state"] != "done" {
-		t.Fatal("final rubric did not carry to Closed")
-	}
-}
-
 func TestChecklistTakenDownGuidance(t *testing.T) {
 	w := newJudgingWorld(t, 1, 1)
 	w.setStage(t, "closed")
@@ -797,7 +765,7 @@ func TestChecklistDisplayedRubricVersionRace(t *testing.T) {
 	for _, tc := range []struct {
 		id string
 		p  person
-	}{{"o.rubric-ready", w.org}, {"j.rubric", w.judges[0].person}} {
+	}{{"j.rubric", w.judges[0].person}} {
 		shown := w.call(t, "GET", "/rubric", nil, tc.p).json(t)
 		version, _ := shown["version"].(string)
 		if version == "" {

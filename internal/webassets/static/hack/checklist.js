@@ -87,7 +87,7 @@ export async function bindAcknowledgement(ctx, { node = ctx.main, id, label, rol
   const r = await api.api('GET', base + (role ? '?role=' + role : ''))
   if (ctx.alive && !ctx.alive()) return
   if (!r.ok) { ui.live(node)(ui.errText(r), 'err'); return }
-  const item = r.data.checklist?.items.find(i => i.id === id) || (id === 'o.rubric-ready' ? r.data.checklist?.items.find(i => i.id === 'o.rubric') : null)
+  const item = r.data.checklist?.items.find(i => i.id === id)
   if (!item || (item.id === id && item.state === 'done' && (!version || item.version === version)) || (!version && !item.version && id !== 'j.conflicts')) return
   const displayedVersion = version ?? item.version
   const button = ui.el('button', { class: 'btn', type: 'button', text: label })

@@ -604,7 +604,7 @@ Explicitly acknowledge the current rubric or own conflict review
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| version | string |  | Current item version for o.rubric-ready or j.rubric. Omit for unversioned j.conflicts. |
+| version | string |  | Current item version for j.rubric. Omit for unversioned j.conflicts. |
 
 **Responses:**
 

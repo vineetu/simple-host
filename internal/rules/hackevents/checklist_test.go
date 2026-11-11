@@ -324,3 +324,25 @@ func TestChecklistJudgesShortOptional(t *testing.T) {
 		}
 	}
 }
+
+func TestChecklistClosedNextStartsJudging(t *testing.T) {
+	facts := map[string]ChecklistFact{}
+	for _, d := range ChecklistCatalogue() {
+		facts[d.ID] = ChecklistFact{Done: true}
+	}
+	forward := &ChecklistNext{Kind: "stage", Stage: "judging", Label: "Start judging"}
+	out := BuildChecklist(ChecklistInput{Role: "organiser", Stage: "closed", AssignmentMode: "manual", Facts: facts, Forward: forward}, time.Time{})
+	if out.Next != forward {
+		t.Fatalf("next: %+v; want Start judging", out.Next)
+	}
+	for _, role := range []string{"organiser", "judge", "participant"} {
+		for _, stage := range []string{"draft", "open", "building", "closed", "judging", "results", "archived"} {
+			out := BuildChecklist(ChecklistInput{Role: role, Stage: stage, Facts: facts}, time.Time{})
+			for _, item := range out.Items {
+				if item.ID == "o.rubric-ready" {
+					t.Fatalf("removed item in %s at %s", role, stage)
+				}
+			}
+		}
+	}
+}

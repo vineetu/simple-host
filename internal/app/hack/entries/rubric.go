@@ -83,11 +83,6 @@ func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []mod
 	if err != nil {
 		return nil, err
 	}
-	if ev.Stage == "closed" && len(actorID) > 0 {
-		if err = eventrepo.AcknowledgeChecklist(ctx, tx, eventID, "event", "o.rubric-ready", rules.RubricFingerprint(saved), actorID[0]); err != nil {
-			return nil, err
-		}
-	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}

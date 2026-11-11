@@ -9049,7 +9049,7 @@ paths:
               properties:
                 version:
                   type: string
-                  description: Current item version for o.rubric-ready or j.rubric.
+                  description: Current item version for j.rubric.
                     Omit for unversioned j.conflicts.
 
   /v1/hack/events/{slug}:

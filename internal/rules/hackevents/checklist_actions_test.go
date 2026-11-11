@@ -26,7 +26,6 @@ func TestEveryChecklistActionHasItsFix(t *testing.T) {
 		"o.announcement":   {{"organiser-announcements", "", ""}},
 		"o.deadline":       {{"organiser-settings", "deadline", "entries"}},
 		"o.judges":         {{"organiser-settings", "organiser-judges", "judging"}},
-		"o.rubric-ready":   {{"organiser-settings", "rubric", "judging"}},
 		"o.assignments":    {{"organiser-settings", "organiser-judges", "judging"}, {"organiser-judging-assignments", "jg-grid-rows", ""}, {"organiser-team-detail", "team-track", ""}},
 		"o.judges-short":   {{"organiser-judging", "jg-progress-card", ""}},
 		"o.lock":           {{"organiser-overview", "ov-next-move", ""}},
@@ -61,7 +60,7 @@ func TestEveryChecklistActionHasItsFix(t *testing.T) {
 							}
 							switch variant {
 							case "no-rubric":
-								if d.ID == "o.rubric-ready" || d.ID == "o.tie-break" {
+								if d.ID == "o.tie-break" {
 									f.TargetID = "o.rubric"
 								}
 								if d.ID == "j.rubric" {

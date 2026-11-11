@@ -1208,12 +1208,12 @@ Set or restore a shared optional organiser checklist item. Ask first. Ended even
 
 <div data-tool="hack_acknowledge_checklist_item"></div>
 
-Explicitly confirm o.rubric-ready, your j.rubric, or your j.conflicts review. Ask first. Rubric items need the current checklist version; conflicts are unversioned.
+Explicitly confirm your j.rubric or j.conflicts review. Ask first. Rubric items need the current checklist version; conflicts are unversioned.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| item_id | string | yes | o.rubric-ready, j.rubric or j.conflicts. |
+| item_id | string, one of `j.rubric`, `j.conflicts` | yes | j.rubric or j.conflicts. |
 | slug | string | yes | Event slug. |
 | version | string |  | Current rubric item's version; omit for conflicts. |

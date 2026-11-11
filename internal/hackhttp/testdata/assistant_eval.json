@@ -1248,5 +1248,396 @@
   "area": "unanswerable",
   "question": "What will the weather be on the day of my event?",
   "expect_unsure": true
+ },
+ {
+  "area": "judging",
+  "question": "When does scoring open, and when does judging setup lock?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=settings&tab=judging"
+  ],
+  "expect_all": [
+   [
+    "at judging",
+    "to judging",
+    "when judging starts",
+    "judging starts",
+    "in judging"
+   ],
+   [
+    "score",
+    "scoring"
+   ],
+   [
+    "lock",
+    "locks",
+    "locked"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "scoring opens before",
+   "unlocked during judging",
+   "before judging"
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "Who counts as a judge? Do all organisers judge automatically?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=settings&tab=judging",
+   "/e/{slug}/manage?s=people"
+  ],
+  "expect_all": [
+   [
+    "joined",
+    "join"
+   ],
+   [
+    "organisers"
+   ],
+   [
+    "ticked",
+    "selected",
+    "choose",
+    "opt in"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "every organiser judges"
+  ]
+ },
+ {
+  "area": "lifecycle",
+  "question": "Where do I finish judging and change stages?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_all": [
+   [
+    "home"
+   ],
+   [
+    "finish judging"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "must click Lock judging"
+  ],
+  "fixture": "judging"
+ },
+ {
+  "area": "lifecycle",
+  "question": "Can I Start building without setting an entry deadline?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=settings&tab=entries"
+  ],
+  "expect_all": [
+   [
+    "deadline"
+   ],
+   [
+    "without",
+    "no deadline",
+    "not required",
+    "don't need",
+    "do not need",
+    "isn't needed",
+    "not needed"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "must set a deadline",
+   "need a deadline",
+   "needs a deadline",
+   "set a deadline first",
+   "requires a deadline"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "lifecycle",
+  "question": "Can I Close entries without setting an entry deadline?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_all": [
+   [
+    "deadline"
+   ],
+   [
+    "without",
+    "no deadline",
+    "not required",
+    "don't need",
+    "do not need",
+    "isn't needed",
+    "not needed"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "must set a deadline",
+   "need a deadline",
+   "needs a deadline",
+   "set a deadline first",
+   "requires a deadline"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "announcements",
+  "question": "What is selected by default in Tell participants, and is it offered on backward stage moves?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=announcements"
+  ],
+  "expect_all": [
+   [
+    "don't send"
+   ],
+   [
+    "back",
+    "backward"
+   ],
+   [
+    "no",
+    "not",
+    "never",
+    "only"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "defaults to Send"
+  ]
+ },
+ {
+  "area": "teams",
+  "question": "Do team messages send an email?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_all": [
+   [
+    "email"
+   ],
+   [
+    "email updates on",
+    "email updates turned on",
+    "have email updates",
+    "with email updates"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "in-app only",
+   "never send email",
+   "even when email updates are off",
+   "everyone gets an email",
+   "all members get an email"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "teams",
+  "question": "Where do team messages appear, and what happens when I change the stage?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams",
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_all": [
+   [
+    "overview"
+   ],
+   [
+    "clear",
+    "dismiss"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "stay on their overview",
+   "remain on their overview"
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "How can I spot teams with too few judges?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview",
+   "/e/{slug}/manage?s=judging"
+  ],
+  "expect_all": [
+   [
+    "judges"
+   ],
+   [
+    "fewer",
+    "too few",
+    "below",
+    "short",
+    "of"
+   ],
+   [
+    "progress",
+    "judging"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know"
+  ],
+  "fixture": "judging"
+ },
+ {
+  "area": "teams",
+  "question": "Can an ordinary team member Leave team, or only an admin?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_all": [
+   [
+    "every member",
+    "any member",
+    "members",
+    "admin is not",
+    "not just admins",
+    "non-admin"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "only admins can leave"
+  ]
+ },
+ {
+  "area": "event page",
+  "question": "Where can I set prizes for 1st, 2nd and 3rd place?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=about"
+  ],
+  "expect_all": [
+   [
+    "prize"
+   ],
+   [
+    "1st",
+    "first"
+   ],
+   [
+    "2nd",
+    "second"
+   ],
+   [
+    "3rd",
+    "third"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know"
+  ]
+ },
+ {
+  "area": "website",
+  "question": "Will my custom event website update itself when stages and results change?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=event-page&tab=website"
+  ],
+  "expect_all": [
+   [
+    "recipe"
+   ],
+   [
+    "stage"
+   ],
+   [
+    "results"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know"
+  ],
+  "expect_start": "yes"
+ },
+ {
+  "area": "website",
+  "question": "Where can I see my Connected AI apps?",
+  "expect_all": [
+   [
+    "Account"
+   ],
+   [
+    "Connected AI apps"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know"
+  ]
+ },
+ {
+  "area": "judging",
+  "question": "After Entries closed, what comes next once judges and assignments are ready?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_all": [
+   [
+    "start judging",
+    "starting judging",
+    "stage to judging",
+    "move to judging"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "can't tell",
+   "cannot tell",
+   "don't know",
+   "must mark the rubric",
+   "need to mark"
+  ]
  }
 ]

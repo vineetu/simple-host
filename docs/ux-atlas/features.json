@@ -3210,7 +3210,7 @@
     "role": "judge",
     "area": "checklists",
     "name": "Read acknowledgement",
-    "what": "Versioned rubric; unversioned no-known-teams acknowledgement; organiser Rubric final.",
+    "what": "Versioned judge rubric read; unversioned no-known-teams acknowledgement.",
     "stages": "any applicable stage",
     "today_location": "Proposed SIM-388/SIM-393: organiser-settings, judge-queue, judge-rubric",
     "api": "Planned: GET /v1/hack/navigation; event can/checklist; checklist reads and explicit writes",

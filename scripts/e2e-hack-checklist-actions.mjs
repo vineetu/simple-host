@@ -52,7 +52,6 @@ const fixes = {
  'o.mode':'input[name="jg-mode"]', 'o.tie-break':'#jg-tie, #jg-add',
  'o.judging-closes':'#jg-closes-input', 'o.reminders':'#rem-n', 'o.announcement':'#ann-title',
  'o.deadline':'#deadline-input', 'o.judges':'[data-organiser-judge], #jg-judge-link button',
- 'o.rubric-ready':'[data-rubric-final] button, #jg-add',
  'o.assignments':'[data-organiser-judge], #jg-judge-link button, #jg-grid-rows input[data-judge], #team-track-select, #track-add, #jg-conflicts-card select',
  'o.lock':'#ov-next-move', 'o.ties':'#ov-next-move',
  'o.publish':'#ov-next-move', 'o.end':'#ov-end-target button',
@@ -214,8 +213,6 @@ try {
    await api('organiser','PUT',base+'/team/track',{team:teams.teams[0].slug,track:tracks[0].slug})
    await audit('organiser',stage)
    await api('organiser','PATCH',base+'/judging/settings',{assignment_mode:'open'})
-   const rubric = await api('organiser','GET',base+'/rubric')
-   await api('organiser','POST',base+'/checklist/acknowledgements/o.rubric-ready',{version:rubric.version})
    const page = await person('organiser')
    await page.goto(info.url+`/e/${slug}/manage?s=settings&tab=judging#organiser-judges`)
    await page.locator('[data-organiser-judge]').first().check()

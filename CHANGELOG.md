@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-11: Simple Hack removes the organiser rubric final step; Ask follows current judging, stage changes, team message delivery and event websites (SIM-430).
+
 2026-11-10: Simple Hack organisers can set prizes for 1st, 2nd and 3rd in About; winner cards and public feeds show the place and prize, including in winners-only results (SIM-428).
 
 2026-11-10: Simple Hack Account lists Connected AI apps before collapsible setup steps, with Other AI apps buttons. Home offers Close entries without a deadline; closed entries hide the countdown and show their Website. Schedule names Home, team messages explain delivery, and Settings skips website notifications without a custom website (SIM-427).

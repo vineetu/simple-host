@@ -50,10 +50,12 @@
       ],
       "controls": [
         "button:Use this item",
-        "button:Not needed"
+        "button:Not needed",
+        "button:text:label"
       ],
       "effects": [
-        "Not needed dismisses an optional item; Use this item restores it. Neither changes the underlying setting."
+        "Not needed dismisses an optional item; Use this item restores it. Neither changes the underlying setting.",
+        "After Entries closed, Home offers Start judging when required work is done. There is no organiser rubric confirmation. A judge’s Read the rubric is personal guidance, never a scoring or stage prerequisite, and is done once they have scored all their teams."
       ]
     },
     {
@@ -124,7 +126,7 @@
         "screens/_orgA-util.js",
         "ui.js"
       ],
-      "explains": "Move stages explicitly, including backwards before Ended. Dates and prompts never move stages automatically.",
+      "explains": "Move stages from Home only, including backwards before Ended. Dates and prompts never move stages automatically. Start building and Close entries need no deadline.",
       "when": "Open joining, start work, close entries or correct a premature stage change.",
       "controls": [
         "stage-pick"
@@ -308,7 +310,9 @@
       "when": "Tell teams what they can win.",
       "controls": [
         "f-prizes",
-        "f-prize-1", "f-prize-2", "f-prize-3"
+        "f-prize-1",
+        "f-prize-2",
+        "f-prize-3"
       ],
       "limits": [
         "Free-text Prizes: up to 5,000 characters. Each of the three optional rank prizes: one line, up to 60 characters."
@@ -658,7 +662,8 @@
       "label": "Website",
       "sources": [
         "screens/organiser-event-page.js",
-        "navigation-data.js"
+        "navigation-data.js",
+        "screens/account.js"
       ],
       "explains": "Choose what appears at the event website address. The address cannot be renamed here.",
       "when": "Choose your public website before End.",
@@ -677,7 +682,9 @@
       ],
       "effects": [
         "Switching modes retains both built-in content and website uploads. Built-in edits still save while a custom site is shown.",
-        "Uploading a zip publishes immediately. Earlier uploads are listed, but an older version cannot be made live again; upload it again instead. Mode changes and publishing stop after End."
+        "Uploading a zip publishes immediately. Earlier uploads are listed, but an older version cannot be made live again; upload it again instead. Mode changes and publishing stop after End.",
+        "Your own website updates itself at each stage, results included, when it is built from the “event” page recipe. Made yours earlier? Ask your AI app to add the live event feed from that recipe.",
+        "Account → Connected AI apps lists your connected apps. Open Connect an AI app for setup or Other AI apps for another app."
       ],
       "limits": [
         "Zip limit is set by the server and appears in CURRENT SETTINGS as Website zip upload limit. Include index.html at the top level."
@@ -1442,7 +1449,6 @@
       ],
       "related": [
         "rubric.scores",
-        "rubric.final",
         "tie",
         "rubric.name",
         "rubric.description",
@@ -1474,27 +1480,6 @@
         "rubric",
         "tie",
         "publish"
-      ]
-    },
-    {
-      "id": "rubric.final",
-      "target": "o.rubric-ready",
-      "label": "Mark as final",
-      "sources": [
-        "screens/_settings-judging.js",
-        "ui.js",
-        "checklist.js"
-      ],
-      "explains": "Mark the rubric setup item as ready for the organiser checklist. This does not replace the judging lock.",
-      "when": "Confirm your criteria are ready.",
-      "related": [
-        "rubric"
-      ],
-      "effects": [
-        "The acknowledgement follows the saved rubric version. Saving a rubric in Entries closed automatically marks that saved version final; changes in other stages need a fresh acknowledgement."
-      ],
-      "controls": [
-        "button:text:label"
       ]
     },
     {
@@ -2149,7 +2134,7 @@
         "ui.js",
         "navigation-data.js"
       ],
-      "explains": "Share the judge link or tick organisers under Judging. The shared set supplies counts, assignments and scoring access.",
+      "explains": "Judges are people who joined as judges plus organisers ticked under Organisers who also judge in Settings → Judging. Unticked organisers do not judge. This one list supplies counts, assignments and scoring access; Score as a judge opens from Judging.",
       "when": "Recruit people to assess entries.",
       "keywords": [
         "score as a judge"
@@ -2254,7 +2239,8 @@
       ],
       "effects": [
         "Placement needs approval and capacity. Organisers can bypass ordinary admission locks, but cannot refill kept empty teams.",
-        "Organiser changes stop after End; participant stage and deadline limits are separate."
+        "Organiser changes stop after End; participant stage and deadline limits are separate.",
+        "Every member can Leave team from their own member menu while teams can change; being an admin is not required."
       ],
       "keywords": [
         "make admin",
@@ -2349,7 +2335,8 @@
         "button:Message selected"
       ],
       "effects": [
-        "Notifies current team recipients and keeps team message history. No sends after End."
+        "Shows on the team's Overview. Teammates with email updates on also get an email.",
+        "Messages clear from the team’s Overview when the stage changes; organiser message history stays. No sends after End."
       ],
       "limits": [
         "Message: 1–1,000 characters. Select 1–25 teams. At most 50 team-message rows per event per rolling hour; each recipient team counts as one row."
@@ -2519,7 +2506,13 @@
         "button:Post"
       ],
       "effects": [
-        "Editing does not resend email. Deleting removes the announcement. No posting, editing or deletion after End."
+        "Editing does not resend email. Deleting removes the announcement. No posting, editing or deletion after End.",
+        "Editing it later never sends another email.",
+        "Saving changes doesn't email anyone again.",
+        "It disappears from your page and from everyone's app. Emails already sent stay sent.",
+        "When nobody has an email address yet, the disabled email option says: No participant has an email address yet.",
+        "If you asked to email and no emails were queued, it says: Posted. Nobody had an email address on file, so no email was sent.",
+        "If you asked to email and emails were queued, the screen says Posted and emailed to the queued number of people, adding (including a copy to you) when you were copied."
       ],
       "limits": [
         "Title: 1–120 characters. Message: 1–3,000."
@@ -2541,10 +2534,11 @@
         "screens/_stage-announce-dialog.js",
         "screens/organiser-announcements.js"
       ],
-      "explains": "After a forward stage change or publishing results, an optional announcement can tell participants what changed. Don’t send is the primary and initially focused button; Send is secondary. The suggested title and message are editable. Moving back does not offer an announcement.",
+      "explains": "After a forward stage change or publishing results, the Tell participants? dialog offers an optional announcement saying what changed. Don’t send is the primary and initially focused button; Send is secondary. The suggested title and message are editable. Moving back does not offer an announcement.",
       "when": "Explain a stage change before End.",
       "effects": [
-        "Email is optional on creation; later editing never emails again. Skipping the announcement does not undo the stage change."
+        "Email is optional on creation; later editing never emails again. Skipping the announcement does not undo the stage change.",
+        "Editing it later never sends another email."
       ],
       "related": [
         "stage",
@@ -3465,7 +3459,7 @@
       "sources": [
         "screens/organiser-overview.js"
       ],
-      "explains": "Finish judging from Home moves to Results and stops scoring. Moving back to Judging reopens scoring.",
+      "explains": "Finish judging from Home moves to Results and stops scoring. There is no separate judging lock button. Moving back to Judging reopens scoring.",
       "when": "Every judge is done.",
       "related": [
         "publish"

@@ -149,18 +149,7 @@ try {
  await home(org.page,'organiser'); await state(org.page,'o.faq',true)
  assert.equal(await org.page.locator('[data-checklist-id="o.faq"] button').count(),0)
  assert.ok(!(await org.page.locator('[data-checklist-id="o.faq"]').innerText()).includes('Optional'))
- await org.page.route('**/checklist', async route => {
-  await org.page.unroute('**/checklist')
-  const shownFinal=await api('organiser','GET',base+'/rubric')
-  await api('organiser','PUT',base+'/rubric',{criteria:shownFinal.criteria.map((c,i)=>({...c,description:c.description+(i===0?' Final brief.':'')}))})
-  await route.continue()
- })
- await org.page.goto(info.url+`/e/${info.slug}/manage?s=settings&tab=judging`)
- await Promise.all([org.page.waitForResponse(r=>r.url().includes('/acknowledgements/o.rubric-ready') && r.status()===409),org.page.getByRole('button',{name:'Mark as final',exact:true}).click()])
- await org.page.getByRole('button',{name:'Mark as final',exact:true}).waitFor()
- await Promise.all([org.page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes('/acknowledgements/o.rubric-ready')), org.page.getByRole('button',{name:'Mark as final',exact:true}).click()])
  await api('organiser','POST',base+'/stage',{stage:'closed'})
- await home(org.page,'organiser'); await state(org.page,'o.rubric-ready',true)
  await api('organiser','POST',base+'/stage',{stage:'open'})
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=settings&tab=entries#deadline`)
  await org.page.locator('#deadline-input').fill('2026-12-01T18:00')
@@ -272,7 +261,7 @@ try {
     assert.equal(await org.page.locator('[data-checklist-id="o.entry-rules"]').evaluate(row => row.closest('details').open),false)
    }
   }
-  const expected = {draft:['o.entry-rules','o.basics','o.about','o.rubric'],open:['o.announcement','o.deadline'],building:['o.announcement','o.deadline'],closed:['o.judges','o.rubric-ready'],judging:['o.scores','o.lock'],results:['o.scores','o.lock','o.ties','o.publish','o.end'],archived:['o.end']}[stage]
+  const expected = {draft:['o.entry-rules','o.basics','o.about','o.rubric'],open:['o.announcement','o.deadline'],building:['o.announcement','o.deadline'],closed:['o.judges'],judging:['o.scores','o.lock'],results:['o.scores','o.lock','o.ties','o.publish','o.end'],archived:['o.end']}[stage]
   for (const id of expected) assert.ok(checklist.items.some(i=>i.id===id),stage+' '+id)
   const ids=await org.page.locator('[data-checklist-id]').evaluateAll(rows=>rows.map(r=>r.dataset.checklistId))
   assert.deepEqual(ids.slice().sort(),checklist.items.map(i=>i.id).sort(),stage)

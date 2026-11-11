@@ -22587,7 +22587,7 @@
                 "properties": {
                   "version": {
                     "type": "string",
-                    "description": "Current item version for o.rubric-ready or j.rubric. Omit for unversioned j.conflicts."
+                    "description": "Current item version for j.rubric. Omit for unversioned j.conflicts."
                   }
                 }
               }

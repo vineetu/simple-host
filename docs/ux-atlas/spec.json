@@ -946,7 +946,7 @@
         {
           "date": "2026-11-07",
           "q": "SIM-388/SIM-393 — reviewed navigation and checklists",
-          "decision": "Home with stage checklist and optional Not needed, checklist-led next action then existing forward confirmation; Rubric final / Mark as final in Settings → Judging.",
+          "decision": "Home with stage checklist and optional Not needed, checklist-led next action then existing forward confirmation.",
           "why": "Gated review and lead decisions; supersedes conflicting earlier decisions on these controls."
         },
         {
@@ -1137,7 +1137,6 @@
         ],
         "closed": [
           "judges",
-          "rubric-ready",
           "assignments (non-open)"
         ],
         "judging": [
@@ -3218,7 +3217,7 @@
         {
           "name": "Judging",
           "contents": [
-            "Rubric (#rubric), Rubric final / Mark as final (#rubric-final), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)",
+            "Rubric (#rubric), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)",
             "Organisers who also judge (#organiser-judges): checkbox per organiser, default unticked, saved with mode; setup locks at Judging. Existing judge-link copy control."
           ]
         },
@@ -3299,11 +3298,6 @@
           "name": "after leaving",
           "when": "the leave succeeded",
           "shows": "Home with one toast: 'You left Generation Girl Online Hack 2026.', 'You handed Generation Girl Online Hack 2026 to Rina Hartono and left it.', 'You ended Generation Girl Online Hack 2026 and left it.' or 'Generation Girl Online Hack 2026 was deleted.'"
-        },
-        {
-          "name": "Rubric final",
-          "when": "Current rubric fingerprint acknowledged by organiser",
-          "shows": "Rubric final done; Mark as final beside Save rubric. Editing criteria invalidates it."
         }
       ],
       "replaces": [
@@ -3537,7 +3531,7 @@
           "label": "Judging",
           "url": "?s=settings&tab=judging",
           "holds": [
-            "Rubric (#rubric), Rubric final / Mark as final (#rubric-final), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)"
+            "Rubric (#rubric), mode and judges per team (#mode), tie-break (#tie-break), judging closes (#closes)"
           ],
           "save": "Existing individual save conventions and stage locks"
         },

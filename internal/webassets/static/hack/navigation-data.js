@@ -1017,22 +1017,6 @@ export const navigation = {
       "action_label": "Set"
     },
     {
-      "id": "o.rubric-ready",
-      "kind": "setting",
-      "label": "Rubric final",
-      "role": "organiser",
-      "screen": "organiser-settings",
-      "section": "settings",
-      "tab": "judging",
-      "anchor": "rubric",
-      "href_pattern": "/e/{slug}/manage?s=settings&tab=judging#rubric",
-      "nav": false,
-      "order": 440,
-      "group": "Set up",
-      "settings_group": "rules",
-      "action_label": "Mark final"
-    },
-    {
       "id": "o.judging-mode",
       "kind": "setting",
       "label": "Choose how judges score",

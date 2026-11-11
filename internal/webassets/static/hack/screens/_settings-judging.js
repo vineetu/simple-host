@@ -1,4 +1,3 @@
-import { bindAcknowledgement } from '../checklist.js'
 import { href } from '../nav.js'
 export async function render(ctx) {
   const { main, ui } = ctx
@@ -29,7 +28,6 @@ export async function render(ctx) {
   // per page load — the stage doesn't change on this screen, only `locked`
   // does.
   let rubric = []
-  let rubricVersion = ''
   let organiserSelectionLoaded = false
   let settings = { assignment_mode: 'open', judges_per_team: 2, score_mode: 'raw', tie_criterion_id: '', public_scores: false, public_ranks: false }
   let conflicts = []
@@ -267,18 +265,16 @@ ${closesHTML()}
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     const editedDuring = rubricForm.snapshot() !== sent
     rubric = (r.data && r.data.criteria) || []
-    rubricVersion = r.data.version
     paintRubric()
     paintTie()
     editedDuring ? rubricForm.reset(sent) : rubricForm.reset()
     setLive('Rubric saved', 'ok', btn)
-    await finalButton()
   }
 
 
   const [rubricR, settingsR, peopleR] = await Promise.all([api('GET', base + '/rubric'), api('GET', base + '/judging/settings'), api('GET', base + '/people')])
   if (!ctx.alive()) return
-  if (rubricR.ok) { rubric = rubricR.data.criteria || []; rubricVersion = rubricR.data.version }
+  if (rubricR.ok) { rubric = rubricR.data.criteria || [] }
   organiserSelectionLoaded = settingsR.ok && peopleR.ok
   if (settingsR.ok) settings = settingsR.data
   $('jg-organisers').innerHTML = (organiserSelectionLoaded ? peopleR.data : []).filter(p => p.role === 'organiser').map(p => `<label class="check"><input data-help="judging.organiser-judges" data-organiser-judge type="checkbox" value="${ui.esc(p.user_id)}"${(settings.organiser_judges || []).includes(p.user_id) ? ' checked' : ''}${setupLocked || adminLockReason ? ' disabled' : ''}><span>${ui.esc(p.display_name || p.email)}</span></label>`).join('')
@@ -290,12 +286,4 @@ ${closesHTML()}
   const rubricForm = ui.trackForm(ctx, $('rubric'))
   tieForm = ui.trackForm(ctx, $('tie-break'))
   const modeForm = ui.trackForm(ctx, $('mode'))
-  await finalButton()
-  async function finalButton() {
-    const actions = $('jg-rubric-save').parentElement
-    actions.querySelector('[data-rubric-final]')?.remove()
-    const slot = ui.el('span', { 'data-rubric-final': '' })
-    actions.append(slot)
-    await bindAcknowledgement(ctx, { node: slot, id: 'o.rubric-ready', label: 'Mark as final', version: rubricVersion })
-  }
 }

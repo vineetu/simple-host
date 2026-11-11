@@ -120,12 +120,6 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			rubricFact := facts["o.rubric"]
 			rubricFact.Version = version
 			facts["o.rubric"] = rubricFact
-			facts["o.rubric-ready"] = rules.ChecklistFact{Done: version != "" && acks["o.rubric-ready"] == version, Version: version, TargetID: "o.rubric-ready"}
-			if version == "" {
-				f := facts["o.rubric"]
-				f.TargetID = "o.rubric"
-				facts["o.rubric-ready"] = f
-			}
 		} else {
 			closed := ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "results" || ev.Stage == "archived"
 			queueOpen := ev.Stage == "judging" && !closed
@@ -468,11 +462,6 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 	} else {
 		subject := actorID
 		switch itemID {
-		case "o.rubric-ready":
-			if m.Role != "organiser" {
-				return &Error{"checklist_role_forbidden", "only organisers can mark the rubric final"}
-			}
-			subject = "event"
 		case "j.rubric", "j.conflicts":
 			if judge, err := entryrepo.EventJudgeInEvent(ctx, tx, eventID, actorID); err != nil {
 				return err
