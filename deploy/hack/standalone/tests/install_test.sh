@@ -45,6 +45,23 @@ if bash "$HERE/install.sh" --dir "$WORK/install" --config "$WORK/config" --prepa
 fi
 echo 'PASS: fresh configuration, upgrade preservation, secret permissions and required inputs'
 
+# The example and an explicitly empty image both use this package's release default.
+cp "$HERE/.env.example" "$WORK/example-config"
+sed -i 's/^SITE_DOMAIN=.*/SITE_DOMAIN=hack.example.test/' "$WORK/example-config"
+bash "$HERE/install.sh" --dir "$WORK/example" --config "$WORK/example-config" --prepare-only
+printf '\nSIMPLE_HACK_IMAGE=\n' >> "$WORK/example-config"
+bash "$HERE/install.sh" --dir "$WORK/empty-image" --config "$WORK/example-config" --prepare-only
+python3 - "$HERE/install.sh" "$WORK" <<'PYTEST'
+import json,pathlib,re,sys
+installer=pathlib.Path(sys.argv[1]).read_text()
+default=re.search(r"values\['SIMPLE_HACK_IMAGE'\] = '(ghcr.io/[^']+)'", installer).group(1)
+root=pathlib.Path(sys.argv[2])
+for name in ('example', 'empty-image'):
+    values=dict(line.split('=',1) for line in (root/name/'.env').read_text().splitlines())
+    assert json.loads(values['SIMPLE_HACK_IMAGE'])==default
+PYTEST
+echo 'PASS: example configuration and empty image use the release default'
+
 # -- TLS: always-created directory, validation, and persistence --
 [ -d "$WORK/install/tls" ] || { echo 'tls directory not created' >&2; exit 1; }
 if bash "$HERE/install.sh" --dir "$WORK/badtls" --config "$WORK/config" --tls carrier-pigeon --prepare-only >"$WORK/refused" 2>&1; then

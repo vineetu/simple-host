@@ -618,8 +618,8 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p><a href="https://chatgpt.com/plugins">Open ChatGPT Plugins</a>. Click <strong>Add</strong>, then choose <strong>Add custom MCP server</strong>. Name it <strong>Simple Hack</strong>, paste <code>https://&lt;your-domain&gt;/mcp</code>, and save. In the sign-in window, sign in with an email code or a configured sign-in provider, then choose <strong>Allow</strong>. In a chat, pick Simple Hack from the <strong>+</strong> menu, or just ask. Use your instance’s address.</p>
-<p><a href="https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours">Open Claude connectors</a>. Name it <strong>Simple Hack</strong>, paste <code>https://&lt;your-domain&gt;/mcp</code>, and choose <strong>Add</strong>. In the sign-in window, sign in with an email code or a configured sign-in provider, then choose <strong>Allow</strong>. The connector works in the Claude web, desktop, and phone apps.</p>
+								<div class="sl-markdown-content"><p><a href="https://chatgpt.com/plugins">Open ChatGPT Plugins</a>. Click <strong>Add</strong>, then choose <strong>Add custom MCP server</strong>. Name it <strong>Simple Hack</strong>, paste <code>https://&lt;your-domain&gt;/mcp</code>, and save. In the sign-in window, sign in with your account on this server, then choose <strong>Allow</strong>. In a chat, pick Simple Hack from the <strong>+</strong> menu, or just ask. Use your instance’s address.</p>
+<p><a href="https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours">Open Claude connectors</a>. Name it <strong>Simple Hack</strong>, paste <code>https://&lt;your-domain&gt;/mcp</code>, and choose <strong>Add</strong>. In the sign-in window, sign in with your account on this server, then choose <strong>Allow</strong>. The connector works in the Claude web, desktop, and phone apps.</p>
 <p>Simple Hack: <strong>Hackathons, now for everyone.</strong> Participants describe an idea to
 their AI and it builds their team’s site. No coding needed. The best idea wins,
 not the best coder. Organisers choose the platform for college students, product
@@ -748,22 +748,68 @@ deployment requiring a certificate for each <code>*.&lt;event&gt;.&lt;domain&gt;
 package automates that alternative. <a href="https://letsencrypt.org/docs/rate-limits/">CA limits</a>,
 <a href="https://caddyserver.com/docs/caddyfile/options">Caddy on-demand TLS</a>.</p>
 <h2 id="install">Install</h2>
-<p>Use a checkout or unpacked artifact from the release you intend to install.
-From the repository root, create a private configuration file:</p>
+<p>Find the latest <code>hack-v...</code> release on the
+<a href="https://github.com/vineetu/simple-host/releases">releases page</a>.
+Set <code>VERSION</code> to the version from that page. Download the archive and
+<code>SHA256SUMS</code>, check the archive, then unpack it:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#E1E4E8">VERSION</span><span style="color:#F97583">=</span><span style="color:#9ECBFF">0.8.13</span></span>
+<span class="line"><span style="color:#B392F0">curl</span><span style="color:#79B8FF"> -fLO</span><span style="color:#9ECBFF"> "https://github.com/vineetu/simple-host/releases/download/hack-v${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}/simple-hack-${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}.tar.gz"</span></span>
+<span class="line"><span style="color:#B392F0">curl</span><span style="color:#79B8FF"> -fLO</span><span style="color:#9ECBFF"> "https://github.com/vineetu/simple-host/releases/download/hack-v${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}/SHA256SUMS"</span></span>
+<span class="line"><span style="color:#B392F0">sha256sum</span><span style="color:#79B8FF"> --ignore-missing</span><span style="color:#79B8FF"> -c</span><span style="color:#9ECBFF"> SHA256SUMS</span><span style="color:#E1E4E8"> &amp;&amp; </span><span style="color:#B392F0">tar</span><span style="color:#79B8FF"> -xzf</span><span style="color:#9ECBFF"> "simple-hack-${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}.tar.gz"</span></span>
+<span class="line"><span style="color:#79B8FF">cd</span><span style="color:#9ECBFF"> "simple-hack-${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}"</span></span></code></pre>
+<p>Create a private configuration file:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#79B8FF">umask</span><span style="color:#79B8FF"> 077</span><span style="color:#E1E4E8">; </span><span style="color:#B392F0">cp</span><span style="color:#9ECBFF"> deploy/hack/standalone/.env.example</span><span style="color:#9ECBFF"> /tmp/simple-hack.env</span><span style="color:#E1E4E8">; ${EDITOR</span><span style="color:#F97583">:-</span><span style="color:#E1E4E8">vi} </span><span style="color:#9ECBFF">/tmp/simple-hack.env</span></span></code></pre>
-<p>Set <code>SITE_DOMAIN</code>, <code>RESEND_API_KEY</code>, and <code>MAIL_FROM</code>. Leave the four secret
-fields empty to generate independent values on first install. Set
-<code>SIMPLE_HACK_IMAGE</code> only if using a different application image.</p>
+<p>Set <code>SITE_DOMAIN</code>. Password sign-in works without email. <code>RESEND_API_KEY</code>
+and <code>MAIL_FROM</code> are optional, needed only for email-code sign-in and email notices.
+Leave the four secret fields empty to generate independent values on first install.
+Leave <code>SIMPLE_HACK_IMAGE</code> unset to use the image of the release you downloaded.</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> bash</span><span style="color:#9ECBFF"> deploy/hack/standalone/install.sh</span><span style="color:#79B8FF"> --config</span><span style="color:#9ECBFF"> /tmp/simple-hack.env</span></span></code></pre>
 <p>The installer writes <code>/opt/simple-hack/.env</code> with mode 0600, creates an isolated
 Postgres database, loads the schema and migrations, then starts the app and
 Caddy. It does not print secrets. The application image and its bundled schema
 must come from the same release. Container readiness is checked locally;
 public DNS and trusted HTTPS still need the client checks below.</p>
-<p>Open the configured domain, sign in by email, create an event, join it as a
-participant and publish a team site. Verify the event and team site addresses
+<p>Open the configured domain and choose <strong>Create an account</strong>. Use an email or
+username plus a password. There is no separate setup wizard. Every account
+can create events.</p>
+<p>The server admin page is at <code>https://&lt;your-domain&gt;/admin</code>. It takes the
+<code>ADMIN_API_KEY</code> from the install directory’s <code>.env</code>, for example:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> grep</span><span style="color:#9ECBFF"> ADMIN_API_KEY</span><span style="color:#9ECBFF"> /opt/simple-hack/.env</span></span></code></pre>
+<p>To allow only accounts you create, set <code>PASSWORD_SELF_SIGNUP=off</code> and create
+them from the admin page.</p>
+<p>Create an event, join it as a participant and publish a team site.
+Verify the event and team site addresses
 over HTTPS from another machine. <code>/healthz</code> and <code>/readyz</code> must return 200;
 <code>/internal/tls-ask</code> must return 404 from the public address.</p>
+<h3 id="optional-settings">Optional settings</h3>
+<p>Put these settings in the configuration file and re-run the installer with
+<code>--config</code>. They are kept across upgrades.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUPPORT_EMAIL</code></td>
+<td>Your support contact shown on pages.</td>
+</tr>
+<tr>
+<td><code>PRIVACY_URL</code></td>
+<td>Your own privacy policy, linked from the footer.</td>
+</tr>
+<tr>
+<td><code>ASSISTANT_BASE_URL</code>, <code>ASSISTANT_MODEL</code>, <code>ASSISTANT_API_KEY</code></td>
+<td>Configure the organiser Ask assistant. It stays off until the base URL and model point at an OpenAI-compatible endpoint. Set the API key if the endpoint needs one.</td>
+</tr>
+<tr>
+<td><code>HTTP_BIND</code>, <code>HTTPS_BIND</code></td>
+<td>Change which address and port the server listens on. Defaults are <code>0.0.0.0:80</code> and <code>0.0.0.0:443</code>.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="company-sign-in-and-running-inside-your-network">Company sign-in and running inside your network</h2>
 <p>A company installation can let people sign in with their existing work account
 instead of an emailed code, and can run entirely inside the company network
@@ -908,8 +954,8 @@ company’s internal PKI, since the certificates come from there.</p>
 certificates and access logs. Use a logical Postgres backup plus the data
 volume, or stop the installation while taking a consistent volume snapshot.
 Deleting the Compose volumes deletes the installation’s data.</p>
-<p>From the new release’s checkout, run its upgrade script with that release’s
-published image:</p>
+<p>Download and unpack the new release the same way as in Install, then run its
+upgrade script from that folder with the release’s published image:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> bash</span><span style="color:#9ECBFF"> deploy/hack/standalone/upgrade.sh</span><span style="color:#79B8FF"> --image</span><span style="color:#9ECBFF"> ghcr.io/vineetu/simple-hack:0.8.13</span></span></code></pre>
 <p>Upgrades retain the domain, credentials, database and files. The previous environment file is kept
 as <code>.env.previous</code>. The installer stops the app while applying migrations;
@@ -924,9 +970,11 @@ carry the same settings.</p>
 <p>After upgrading to a release with <code>zi-site-search-summary.sql</code>, populate old
 site summaries after migration with this idempotent command:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">docker</span><span style="color:#9ECBFF"> compose</span><span style="color:#79B8FF"> --project-directory</span><span style="color:#9ECBFF"> /opt/simple-hack</span><span style="color:#79B8FF"> --env-file</span><span style="color:#9ECBFF"> /opt/simple-hack/.env</span><span style="color:#9ECBFF"> run</span><span style="color:#79B8FF"> --rm</span><span style="color:#79B8FF"> --no-deps</span><span style="color:#79B8FF"> -T</span><span style="color:#9ECBFF"> app</span><span style="color:#9ECBFF"> site-summary-backfill</span></span></code></pre>
-<p>For additional application settings, add environment entries under both
-<code>release</code> and <code>app</code> as needed in your copy of <code>compose.yaml</code>; consult
-<a href="/docs/self-hosting/configuration/">configuration.md</a>. The bundled defaults enable the full
+<p>Settings listed in <code>.env.example</code> go in the configuration file. For any other
+setting from <a href="/docs/self-hosting/configuration/">configuration.md</a>, add it to <code>compose.yaml</code>’s
+shared environment map. The installer replaces <code>compose.yaml</code> on every
+upgrade, so re-apply those additions after upgrading.</p>
+<p>The bundled defaults enable the full
 event platform, with 30-day archived-site retention and a warning 14 days
 before removal. The site byte budget and retention values are environment
 settings, not limits on event attendance.</p>

@@ -1,8 +1,8 @@
 # Install the full Simple Hack platform
 
-[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://<your-domain>/mcp`, and save. In the sign-in window, sign in with an email code or a configured sign-in provider, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask. Use your instance’s address.
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://<your-domain>/mcp`, and save. In the sign-in window, sign in with your account on this server, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask. Use your instance’s address.
 
-[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://<your-domain>/mcp`, and choose **Add**. In the sign-in window, sign in with an email code or a configured sign-in provider, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://<your-domain>/mcp`, and choose **Add**. In the sign-in window, sign in with your account on this server, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
 
 Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
 their AI and it builds their team's site. No coding needed. The best idea wins,
@@ -124,16 +124,29 @@ package automates that alternative. [CA limits](https://letsencrypt.org/docs/rat
 
 ## Install
 
-Use a checkout or unpacked artifact from the release you intend to install.
-From the repository root, create a private configuration file:
+Find the latest `hack-v...` release on the
+[releases page](https://github.com/vineetu/simple-host/releases).
+Set `VERSION` to the version from that page. Download the archive and
+`SHA256SUMS`, check the archive, then unpack it:
+
+```sh
+VERSION=0.8.13
+curl -fLO "https://github.com/vineetu/simple-host/releases/download/hack-v${VERSION}/simple-hack-${VERSION}.tar.gz"
+curl -fLO "https://github.com/vineetu/simple-host/releases/download/hack-v${VERSION}/SHA256SUMS"
+sha256sum --ignore-missing -c SHA256SUMS && tar -xzf "simple-hack-${VERSION}.tar.gz"
+cd "simple-hack-${VERSION}"
+```
+
+Create a private configuration file:
 
 ```sh
 umask 077; cp deploy/hack/standalone/.env.example /tmp/simple-hack.env; ${EDITOR:-vi} /tmp/simple-hack.env
 ```
 
-Set `SITE_DOMAIN`, `RESEND_API_KEY`, and `MAIL_FROM`. Leave the four secret
-fields empty to generate independent values on first install. Set
-`SIMPLE_HACK_IMAGE` only if using a different application image.
+Set `SITE_DOMAIN`. Password sign-in works without email. `RESEND_API_KEY`
+and `MAIL_FROM` are optional, needed only for email-code sign-in and email notices.
+Leave the four secret fields empty to generate independent values on first install.
+Leave `SIMPLE_HACK_IMAGE` unset to use the image of the release you downloaded.
 
 ```sh
 sudo bash deploy/hack/standalone/install.sh --config /tmp/simple-hack.env
@@ -145,10 +158,36 @@ Caddy. It does not print secrets. The application image and its bundled schema
 must come from the same release. Container readiness is checked locally;
 public DNS and trusted HTTPS still need the client checks below.
 
-Open the configured domain, sign in by email, create an event, join it as a
-participant and publish a team site. Verify the event and team site addresses
+Open the configured domain and choose **Create an account**. Use an email or
+username plus a password. There is no separate setup wizard. Every account
+can create events.
+
+The server admin page is at `https://<your-domain>/admin`. It takes the
+`ADMIN_API_KEY` from the install directory's `.env`, for example:
+
+```sh
+sudo grep ADMIN_API_KEY /opt/simple-hack/.env
+```
+
+To allow only accounts you create, set `PASSWORD_SELF_SIGNUP=off` and create
+them from the admin page.
+
+Create an event, join it as a participant and publish a team site.
+Verify the event and team site addresses
 over HTTPS from another machine. `/healthz` and `/readyz` must return 200;
 `/internal/tls-ask` must return 404 from the public address.
+
+### Optional settings
+
+Put these settings in the configuration file and re-run the installer with
+`--config`. They are kept across upgrades.
+
+| Setting | What it does |
+|---|---|
+| `SUPPORT_EMAIL` | Your support contact shown on pages. |
+| `PRIVACY_URL` | Your own privacy policy, linked from the footer. |
+| `ASSISTANT_BASE_URL`, `ASSISTANT_MODEL`, `ASSISTANT_API_KEY` | Configure the organiser Ask assistant. It stays off until the base URL and model point at an OpenAI-compatible endpoint. Set the API key if the endpoint needs one. |
+| `HTTP_BIND`, `HTTPS_BIND` | Change which address and port the server listens on. Defaults are `0.0.0.0:80` and `0.0.0.0:443`. |
 
 ## Company sign-in and running inside your network
 
@@ -257,8 +296,8 @@ certificates and access logs. Use a logical Postgres backup plus the data
 volume, or stop the installation while taking a consistent volume snapshot.
 Deleting the Compose volumes deletes the installation's data.
 
-From the new release's checkout, run its upgrade script with that release's
-published image:
+Download and unpack the new release the same way as in Install, then run its
+upgrade script from that folder with the release's published image:
 
 ```sh
 sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.13
@@ -283,9 +322,12 @@ site summaries after migration with this idempotent command:
 docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env run --rm --no-deps -T app site-summary-backfill
 ```
 
-For additional application settings, add environment entries under both
-`release` and `app` as needed in your copy of `compose.yaml`; consult
-[configuration.md](/docs/self-hosting/configuration.md). The bundled defaults enable the full
+Settings listed in `.env.example` go in the configuration file. For any other
+setting from [configuration.md](/docs/self-hosting/configuration.md), add it to `compose.yaml`'s
+shared environment map. The installer replaces `compose.yaml` on every
+upgrade, so re-apply those additions after upgrading.
+
+The bundled defaults enable the full
 event platform, with 30-day archived-site retention and a warning 14 days
 before removal. The site byte budget and retention values are environment
 settings, not limits on event attendance.

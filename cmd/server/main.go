@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata" // Container images have no zoneinfo.
 
 	_ "github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/analytics"
