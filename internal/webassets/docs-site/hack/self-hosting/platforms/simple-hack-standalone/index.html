@@ -634,23 +634,25 @@ Organisers share a join link and a private judge link; participants form teams,
 publish a team site and complete an entry. No account keys are handed out as
 part of that onboarding.</p>
 <p><img src="/docs/self-hosting/assets/simple-hack-get-started.png" alt="Simple Hack Get started"></p>
-<p><strong>Release status: v0.8.13 is published.</strong> Its default image and ZIP/tar downloads
-are available from the <a href="https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.13">hack-v0.8.13 release</a>.
-It carries the new default Simple Hack web app (the classic screens it
-replaced, reachable then via <code>?ui=classic</code>, were removed in a later release),
-private team finding (join requests, invites, solo listing,
-organiser fill), announcement edit and delete, zip-upload and
-personal-data-minimisation fixes in Hack MCP, the organiser Event page as
-sub-pages with a collapsible sidebar, and applying to a hackathon without a
-join link. The ZIP and tarball match their checksums, and both images are
-published for arm64 and amd64 (the published image’s binary reports
-<code>v0.8.13 (commit 3a097ad)</code>). No DigitalOcean token was configured on the
-release host, so this was checked in local Docker containers instead of a
-droplet: a published hack-v0.8.12 install with an event, an admin-created
-participant, a team and a published team site, upgraded to v0.8.13 with a
-bare <code>migrate</code> re-run, applying the 7 new migrations once and keeping every
-item of that data. Checked on 2026-10-31;
-<a href="https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.13.md">release record</a>.
+<p><strong>Release status: v0.8.20 is published.</strong> Its default image and ZIP/tar downloads
+are available from the <a href="https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.20">hack-v0.8.20 release</a>.
+It carries the redesigned Simple Hack web app with Home as the place to run an
+event, no active-event limit by default on self-hosted installs, and the
+install fixes found by a clean install from the published downloads. The ZIP,
+tarball and Helm chart match their checksums, and the image is published for
+arm64 and amd64 (its binary reports <code>v0.8.20 (commit 6851b9f)</code>). Checked on
+2026-11-11 in local Docker Compose: a fresh install from the downloaded
+archive following this page (93 migrations, through
+<code>0014-hack-overall-prizes.sql</code>), then a whole event in a browser with password
+accounts and no email: create the event in the America/Los_Angeles time zone,
+tracks, sign-up, two participants on one team, an entry, a team site published
+from a zip, a judge, judging, published results and the public winners page. A
+published v0.8.17 install with an account and an event was upgraded to v0.8.20
+with <code>upgrade.sh</code>, applying 10 migrations and keeping its data;
+<a href="https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.20.md">release record</a>.
+v0.8.13 carried the new default Simple Hack web app, private team finding and
+applying without a join link
+(<a href="https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.13.md">release record</a>).
 v0.8.12 was the same Go 1.27.3 toolchain and dependency bump as v0.7.21 (no
 behavior change), checked on a real DigitalOcean droplet
 (<a href="https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.12.md">release record</a>).
@@ -752,7 +754,7 @@ package automates that alternative. <a href="https://letsencrypt.org/docs/rate-l
 <a href="https://github.com/vineetu/simple-host/releases">releases page</a>.
 Set <code>VERSION</code> to the version from that page. Download the archive and
 <code>SHA256SUMS</code>, check the archive, then unpack it:</p>
-<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#E1E4E8">VERSION</span><span style="color:#F97583">=</span><span style="color:#9ECBFF">0.8.13</span></span>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#E1E4E8">VERSION</span><span style="color:#F97583">=</span><span style="color:#9ECBFF">0.8.20</span></span>
 <span class="line"><span style="color:#B392F0">curl</span><span style="color:#79B8FF"> -fLO</span><span style="color:#9ECBFF"> "https://github.com/vineetu/simple-host/releases/download/hack-v${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}/simple-hack-${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}.tar.gz"</span></span>
 <span class="line"><span style="color:#B392F0">curl</span><span style="color:#79B8FF"> -fLO</span><span style="color:#9ECBFF"> "https://github.com/vineetu/simple-host/releases/download/hack-v${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}/SHA256SUMS"</span></span>
 <span class="line"><span style="color:#B392F0">sha256sum</span><span style="color:#79B8FF"> --ignore-missing</span><span style="color:#79B8FF"> -c</span><span style="color:#9ECBFF"> SHA256SUMS</span><span style="color:#E1E4E8"> &amp;&amp; </span><span style="color:#B392F0">tar</span><span style="color:#79B8FF"> -xzf</span><span style="color:#9ECBFF"> "simple-hack-${</span><span style="color:#E1E4E8">VERSION</span><span style="color:#9ECBFF">}.tar.gz"</span></span>
@@ -956,7 +958,7 @@ volume, or stop the installation while taking a consistent volume snapshot.
 Deleting the Compose volumes deletes the installation’s data.</p>
 <p>Download and unpack the new release the same way as in Install, then run its
 upgrade script from that folder with the release’s published image:</p>
-<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> bash</span><span style="color:#9ECBFF"> deploy/hack/standalone/upgrade.sh</span><span style="color:#79B8FF"> --image</span><span style="color:#9ECBFF"> ghcr.io/vineetu/simple-hack:0.8.13</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> bash</span><span style="color:#9ECBFF"> deploy/hack/standalone/upgrade.sh</span><span style="color:#79B8FF"> --image</span><span style="color:#9ECBFF"> ghcr.io/vineetu/simple-hack:0.8.20</span></span></code></pre>
 <p>Upgrades retain the domain, credentials, database and files. The previous environment file is kept
 as <code>.env.previous</code>. The installer stops the app while applying migrations;
 if migration fails, it leaves the app stopped and both volumes intact. Fix the
@@ -979,11 +981,11 @@ event platform, with 30-day archived-site retention and a warning 14 days
 before removal. The site byte budget and retention values are environment
 settings, not limits on event attendance.</p>
 <h2 id="build-and-local-verification">Build and local verification</h2>
-<p>The <code>hack-v0.8.13</code> release builds a matching base image and platform image from
+<p>The <code>hack-v0.8.20</code> release builds a matching base image and platform image from
 one checkout and provides a ZIP or tar.gz installation package. It leaves the
 older Simple Host small-box release pins intact. For a local build after that
 base image exists, use the same release checkout:</p>
-<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">docker</span><span style="color:#9ECBFF"> build</span><span style="color:#79B8FF"> --build-arg</span><span style="color:#9ECBFF"> SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.13</span><span style="color:#79B8FF"> -f</span><span style="color:#9ECBFF"> deploy/hack/standalone/Dockerfile</span><span style="color:#79B8FF"> -t</span><span style="color:#9ECBFF"> simple-hack:candidate</span><span style="color:#9ECBFF"> .</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">docker</span><span style="color:#9ECBFF"> build</span><span style="color:#79B8FF"> --build-arg</span><span style="color:#9ECBFF"> SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.20</span><span style="color:#79B8FF"> -f</span><span style="color:#9ECBFF"> deploy/hack/standalone/Dockerfile</span><span style="color:#79B8FF"> -t</span><span style="color:#9ECBFF"> simple-hack:candidate</span><span style="color:#9ECBFF"> .</span></span></code></pre>
 <p>For an unpublished build, replace <code>SIMPLE_HOST_IMAGE</code> with a locally built
 image containing its static binary at <code>/usr/local/bin/simple-host</code>. The schema
 is copied from this checkout. Release publication must build both artifacts

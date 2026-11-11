@@ -22,23 +22,25 @@ part of that onboarding.
 ![Simple Hack Get started](assets/simple-hack-get-started.png)
 
 
-**Release status: v0.8.13 is published.** Its default image and ZIP/tar downloads
-are available from the [hack-v0.8.13 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.13).
-It carries the new default Simple Hack web app (the classic screens it
-replaced, reachable then via `?ui=classic`, were removed in a later release),
-private team finding (join requests, invites, solo listing,
-organiser fill), announcement edit and delete, zip-upload and
-personal-data-minimisation fixes in Hack MCP, the organiser Event page as
-sub-pages with a collapsible sidebar, and applying to a hackathon without a
-join link. The ZIP and tarball match their checksums, and both images are
-published for arm64 and amd64 (the published image's binary reports
-`v0.8.13 (commit 3a097ad)`). No DigitalOcean token was configured on the
-release host, so this was checked in local Docker containers instead of a
-droplet: a published hack-v0.8.12 install with an event, an admin-created
-participant, a team and a published team site, upgraded to v0.8.13 with a
-bare `migrate` re-run, applying the 7 new migrations once and keeping every
-item of that data. Checked on 2026-10-31;
-[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.13.md).
+**Release status: v0.8.20 is published.** Its default image and ZIP/tar downloads
+are available from the [hack-v0.8.20 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.20).
+It carries the redesigned Simple Hack web app with Home as the place to run an
+event, no active-event limit by default on self-hosted installs, and the
+install fixes found by a clean install from the published downloads. The ZIP,
+tarball and Helm chart match their checksums, and the image is published for
+arm64 and amd64 (its binary reports `v0.8.20 (commit 6851b9f)`). Checked on
+2026-11-11 in local Docker Compose: a fresh install from the downloaded
+archive following this page (93 migrations, through
+`0014-hack-overall-prizes.sql`), then a whole event in a browser with password
+accounts and no email: create the event in the America/Los_Angeles time zone,
+tracks, sign-up, two participants on one team, an entry, a team site published
+from a zip, a judge, judging, published results and the public winners page. A
+published v0.8.17 install with an account and an event was upgraded to v0.8.20
+with `upgrade.sh`, applying 10 migrations and keeping its data;
+[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.20.md).
+v0.8.13 carried the new default Simple Hack web app, private team finding and
+applying without a join link
+([release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.13.md)).
 v0.8.12 was the same Go 1.27.3 toolchain and dependency bump as v0.7.21 (no
 behavior change), checked on a real DigitalOcean droplet
 ([release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.12.md)).
@@ -132,7 +134,7 @@ Set `VERSION` to the version from that page. Download the archive and
 `SHA256SUMS`, check the archive, then unpack it:
 
 ```sh
-VERSION=0.8.13
+VERSION=0.8.20
 curl -fLO "https://github.com/vineetu/simple-host/releases/download/hack-v${VERSION}/simple-hack-${VERSION}.tar.gz"
 curl -fLO "https://github.com/vineetu/simple-host/releases/download/hack-v${VERSION}/SHA256SUMS"
 sha256sum --ignore-missing -c SHA256SUMS && tar -xzf "simple-hack-${VERSION}.tar.gz"
@@ -302,7 +304,7 @@ Download and unpack the new release the same way as in Install, then run its
 upgrade script from that folder with the release's published image:
 
 ```sh
-sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.13
+sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.20
 ```
 
 Upgrades retain the domain, credentials, database and files. The previous environment file is kept
@@ -336,13 +338,13 @@ settings, not limits on event attendance.
 
 ## Build and local verification
 
-The `hack-v0.8.13` release builds a matching base image and platform image from
+The `hack-v0.8.20` release builds a matching base image and platform image from
 one checkout and provides a ZIP or tar.gz installation package. It leaves the
 older Simple Host small-box release pins intact. For a local build after that
 base image exists, use the same release checkout:
 
 ```sh
-docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.13 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
+docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.20 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
 ```
 
 For an unpublished build, replace `SIMPLE_HOST_IMAGE` with a locally built
