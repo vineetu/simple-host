@@ -51,6 +51,7 @@ type TeamMessage struct {
 	SenderName          string
 	Body                string
 	CreatedAt           time.Time
+	FromTeam            bool // written by a member of the team to the organisers
 }
 
 // GalleryCard is a shared Hack record.

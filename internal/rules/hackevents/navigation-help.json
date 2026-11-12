@@ -2328,7 +2328,7 @@
         "screens/organiser-teams.js",
         "screens/_team-message-dialog.js"
       ],
-      "explains": "Send a private message to one team or Message selected teams. This is separate from a public announcement.",
+      "explains": "Send a private message to one team or Message selected teams, and read what a team wrote back in the same thread on that team's page. This is separate from a public announcement.",
       "when": "Contact teams privately before End.",
       "controls": [
         "tm-text",
@@ -2336,12 +2336,15 @@
       ],
       "effects": [
         "Shows on the team's Overview. Teammates with email updates on also get an email.",
-        "Messages clear from the team’s Overview when the stage changes; organiser message history stays. No sends after End."
+        "Messages clear from the team’s Overview when the stage changes; organiser message history stays. No sends after End.",
+        "Any team member can write back from Team. The thread is one per team, shared by every organiser and the team. Home shows a line for each team with messages you have not opened; opening the team’s page clears it, and it never blocks a stage move. You get an email about a new team message only if Email me when something waits on me is on in your Account."
       ],
       "limits": [
-        "Message: 1–1,000 characters. Select 1–25 teams. At most 50 team-message rows per event per rolling hour; each recipient team counts as one row."
+        "Message: 1–1,000 characters. Select 1–25 teams. At most 50 team-message rows per event per rolling hour; each recipient team counts as one row. A team can write at most 10 messages per rolling hour."
       ],
       "keywords": [
+        "team replies",
+        "messages from teams",
         "team messages",
         "message selected",
         "private message"

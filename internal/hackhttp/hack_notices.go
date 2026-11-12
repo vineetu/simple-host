@@ -131,6 +131,9 @@ func needsYouView(needs []events.Need) []map[string]any {
 		if n.ID != "" {
 			item["id"] = n.ID
 		}
+		if n.Team != "" {
+			item["team"] = n.Team
+		}
 		if !n.At.IsZero() {
 			item["at"] = n.At.UTC().Format(time.RFC3339)
 		}

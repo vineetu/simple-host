@@ -54,6 +54,7 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 		{"hack_get_team_status", "GET", "/v1/hack/events/spring", map[string]any{"slug": "spring"}, nil},
 		{"hack_get_my_teams", "GET", "/v1/hack/my-teams", map[string]any{}, nil},
 		{"hack_get_my_team_messages", "GET", "/v1/hack/events/spring/team/messages", map[string]any{"slug": "spring"}, nil},
+		{"hack_message_organisers", "POST", "/v1/hack/events/spring/team/messages", map[string]any{"slug": "spring", "text": "hi"}, map[string]any{"text": "hi"}},
 		{"hack_get_my_todos", "GET", "/v1/hack/todos", map[string]any{}, nil},
 		{"hack_dismiss_notices", "POST", "/v1/hack/events/spring/notices/seen", map[string]any{"slug": "spring", "ids": []any{"n1"}}, map[string]any{"ids": []any{"n1"}}},
 		{"hack_set_email_updates", "PATCH", "/v1/hack/preferences", map[string]any{"email_updates": false}, map[string]any{"email_updates": false}},

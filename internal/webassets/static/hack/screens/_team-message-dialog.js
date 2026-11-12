@@ -27,35 +27,25 @@ export function agoText(iso) {
   return d + ' day' + (d === 1 ? '' : 's') + ' ago'
 }
 
-// The rows for a list of sent messages, newest first (as the API already
-// returns them) -- "<sender> · <relative> · <absolute>" when `withSender`
-// (the organiser's own Messages card, where the sender may be a
-// co-organiser) or just the time (participant's card: every message here
-// is already "from the organisers", the notice's own wording). '' when
-// there are none -- callers write their own empty state next to their own
-// Message button, since the organiser and participant cards word it
-// differently.
-export function messageRowsHTML(ui, ev, messages, { withSender = false } = {}) {
+// The rows for a team's thread, newest first (as the API already returns
+// them) -- "<sender> (team|organiser) · <relative> · <absolute>". The thread
+// holds both directions (SIM-443), so each row says which side wrote it.
+// '' when there are none -- callers write their own empty state next to
+// their own Message button.
+export function messageRowsHTML(ui, ev, messages) {
   const esc = ui.esc
   if (!messages || !messages.length) return ''
   const rows = messages.map(m => {
     const abs = esc(ui.dateTime(m.created_at, ev))
     const rel = agoText(m.created_at)
     const when = rel ? `${esc(rel)} · ${abs}` : abs
-    const meta = withSender && m.sender_name ? `${esc(m.sender_name)} · ${when}` : when
+    const meta = `${esc(m.sender_name || (m.from_team ? 'A teammate' : 'An organiser'))} (${m.from_team ? 'team' : 'organiser'}) · ${when}`
     // Its own class, not `<b>`: `.list .r .main b` is nowrap/ellipsis (built
     // for a one-line title), which clipped a long message body instead of
     // wrapping it (point 7). `.msg-text` (kit.css) wraps fully.
     return `<div class="r"><div class="main"><b class="msg-text">${esc(m.text)}</b><span>${meta}</span></div></div>`
   }).join('')
   return `<div class="list">${rows}</div>`
-}
-
-// participant-team.js's read-only card: '' (hidden entirely) when there is
-// nothing to show, per the contract's own "hidden when empty".
-export function messagesFromOrganisersCardHTML(ui, ev, messages) {
-  if (!messages || !messages.length) return ''
-  return `<section class="card"><h2>Messages from the organisers</h2>${messageRowsHTML(ui, ev, messages, { withSender: true })}</section>`
 }
 
 // openTeamMessageDialog: textarea (1000 max, live counter), Send ->

@@ -210,7 +210,7 @@ export async function render(ctx) {
   // inlined: this screen is also bundled into the organiser MCP App, whose
   // bundlegen maps only nav.js's href.
   const needsLines = (data.needs_you || []).map(n =>
-    `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href('organiser', ev.slug, n.section === 'home' ? undefined : n.section))}">${n.kind === 'application_new' ? 'Review applications' : 'Open'}</a></div>`).join('')
+    `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href('organiser', ev.slug, n.section === 'home' ? undefined : n.section) + (n.team ? '&team=' + encodeURIComponent(n.team) : ''))}">${n.kind === 'application_new' ? 'Review applications' : n.kind === 'team_inbound' ? 'Read and reply' : 'Open'}</a></div>`).join('')
 
   // Finding #9 (prod full test, round 7): the bare host (e.g.
   // "e2e-c-0301.simple-hack.app/") used to break mid-word on a narrow

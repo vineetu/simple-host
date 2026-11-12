@@ -431,13 +431,26 @@ List current teams and their site addresses for this person.
 
 <div data-tool="hack_get_my_team_messages"></div>
 
-Read messages your team got from the organisers, newest first. Empty when you have no team.
+Read your team's thread with the organisers, newest first: what the organisers sent the team and what any teammate wrote to them (from_team is true for those). Empty when you have no team.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | slug | string | yes | Event name. |
+
+## hack_message_organisers
+
+<div data-tool="hack_message_organisers"></div>
+
+Write to the event's organisers as a member of your team, up to 1000 characters. Every organiser sees it and so do your teammates; replies arrive in hack_get_my_team_messages. At most 10 per team per hour. Ask the person for the wording first.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| slug | string | yes | Event name. |
+| text | string | yes | The message, 1 to 1000 characters. |
 
 ## hack_get_my_todos
 
@@ -1073,7 +1086,7 @@ Send a message to one or more teams, in-app and by email, from the organisers. A
 
 <div data-tool="hack_get_team_messages"></div>
 
-Read messages sent to one team from the organisers, newest first. Organiser only.
+Read one team's thread with the organisers, newest first: messages the organisers sent the team and messages the team wrote to the organisers (from_team is true for those). Reading it clears the team's unread notice on Home. Organiser only.
 
 **Parameters:**
 

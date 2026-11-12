@@ -8,7 +8,8 @@ import { href } from './nav.js'
 // The screen an item opens, inside the person's own area of the event.
 export function needHref(role, slug, item) {
   const section = item.section === 'home' ? undefined : item.section
-  return href(role, slug, section)
+  // team_inbound (SIM-443): the organiser opens that team's own page.
+  return href(role, slug, section) + (item.team ? '&team=' + encodeURIComponent(item.team) : '')
 }
 
 // A short line under the item: the rest of the server's text after its first

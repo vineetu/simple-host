@@ -1,7 +1,7 @@
 import { errText, isBlockedCode } from './_partB-util.js'
 import { startTour } from '../tour.js'
 import { row, rowMenuHTML, wireRowMenus, teamLink, COPY_ICON, LOCK_ICON } from './_team-util.js'
-import { messagesFromOrganisersCardHTML } from './_team-message-dialog.js'
+import { organiserThreadCardHTML, openMessageOrganisersDialog } from './_thread-with-organisers.js'
 
 // Teams redesign (owner, 2026-10-31): the old side-by-side Start/Join cards
 // and the single long on-team page are gone. No team: one question, "How
@@ -283,7 +283,7 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     // link card's own "Anyone ... joins straight away."
     parts.push(`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Members</h2><p>Anyone with the team link joins straight away. Admins approve requests to join.</p></div>`)
     if (frozen) parts.push(`<div class="note" role="status">Entries are closed, so ${esc(team.name)} can’t change now.</div>`)
-    parts.push(messagesFromOrganisersCardHTML(ui, ev, messages))
+    parts.push(organiserThreadCardHTML(ui, ev, messages))
     parts.push(teamLinkCardHTML())
     if (!frozen) parts.push(requestsHTML(pendingRequests))
     parts.push(`<div class="list editable" aria-label="Members"><div class="lh">Members · ${members.length}</div>${members.map(m => memberRowHTML(m, members.length >= ev.team_size_max)).join('')}</div>`)
@@ -342,6 +342,11 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     const members = team.members || []
     const unlockBtn = $('unlock-team')
     if (unlockBtn) unlockBtn.addEventListener('click', () => act(unlockBtn, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/lock', { locked: false })))
+    const msgBtn = $('msg-organisers-btn')
+    if (msgBtn) msgBtn.addEventListener('click', async () => {
+      const sent = await openMessageOrganisersDialog(ctx)
+      if (sent) await refresh()
+    })
     const copyBtn = $('copy-team-link')
     if (copyBtn) copyBtn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(copyBtn.getAttribute('data-link') || ''); copyBtn.textContent = 'Copied'; setTimeout(() => { copyBtn.innerHTML = COPY_ICON + 'Copy link' }, 2000) }

@@ -29,7 +29,7 @@ func writeEventsError(w http.ResponseWriter, err error) {
 		status = http.StatusForbidden
 	case "too_many_events_today":
 		status = http.StatusTooManyRequests
-	case "event_closed", "too_many_active_events", "name_taken", "archive_needs_participants", "delete_only_empty", "submissions_closed_stage", "judging_closed", "joining_closed", "already_member", "primary_organiser":
+	case "event_closed", "too_many_active_events", "name_taken", "archive_needs_participants", "delete_only_empty", "submissions_closed_stage", "judging_closed", "joining_closed", "already_member", "primary_organiser", "no_team":
 	default:
 		status = http.StatusBadRequest
 	}

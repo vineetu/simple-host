@@ -1639,5 +1639,57 @@
    "must mark the rubric",
    "need to mark"
   ]
+ },
+ {
+  "area": "teams",
+  "question": "Can teams message me?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams"
+  ],
+  "expect_start": "yes",
+  "expect_all": [
+   [
+    "team"
+   ],
+   [
+    "member"
+   ],
+   [
+    "thread",
+    "message"
+   ]
+  ],
+  "forbid_any": [
+   "only admins",
+   "cannot reply",
+   "not sure"
+  ]
+ },
+ {
+  "area": "teams",
+  "question": "Where do I see what a team wrote to us?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=teams",
+   "/e/{slug}/manage?s=overview"
+  ],
+  "expect_all": [
+   [
+    "home"
+   ],
+   [
+    "team"
+   ],
+   [
+    "open",
+    "opening"
+   ],
+   [
+    "clear"
+   ]
+  ],
+  "forbid_any": [
+   "not sure",
+   "blocks a stage move"
+  ]
  }
 ]

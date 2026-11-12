@@ -2730,7 +2730,7 @@ Teams redesign, 2026-10-31. Team admin only, acting on the caller's own team. us
 
 <div data-operation="GET /v1/hack/events/{slug}/team/messages"></div>
 
-Up to 100 messages sent to the caller's current team, newest first; an empty list when they are on no team. Participant only.
+Up to 100 messages in the caller's current team's thread, newest first: what the organisers sent the team and what any teammate wrote to them (from_team true); an empty list when they are on no team. Participant only.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -2747,6 +2747,37 @@ Up to 100 messages sent to the caller's current team, newest first; an empty lis
 | 200 | Message history |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 404 | event_not_found |
+
+## POST /v1/hack/events/{slug}/team/messages
+
+<div data-operation="POST /v1/hack/events/{slug}/team/messages"></div>
+
+A member of a team writes to the event's organisers, into the team's one thread (shared by every organiser; teammates see it too). Every organiser gets a notice on Home; an organiser whose "Email me when something waits on me" is on also gets an email, batched like the other notice emails. At most 10 messages per team per rolling hour; over that, 429 rate_limited with Retry-After. 409 no_team without a team, 409 event_closed once the event is archived. Participant only; there is no team id in the request, so only the caller's own team's thread is ever written.
+
+**Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| slug | path | string | yes |  |
+
+**Request body:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| text | string | yes | 1 to 1000 characters, trimmed. |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 201 | The message as stored |
+| 400 | invalid_text |
+| 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
+| 404 | event_not_found for a non-participant |
+| 409 | no_team or event_closed |
+| 429 | rate_limited; Retry-After header |
 
 ## PUT /v1/hack/events/{slug}/team/track
 
@@ -3235,7 +3266,7 @@ Teams redesign, 2026-10-31. Same effect and response as PUT .../team/members/{us
 
 <div data-operation="GET /v1/hack/events/{slug}/teams/{team}/messages"></div>
 
-Up to 100 messages sent to this team, newest first. Organiser only.
+Up to 100 messages in this team's thread, newest first: what the organisers sent the team and what the team wrote to them (from_team true). Reading it clears the Home notice about that team's new messages for the organiser who read it. Organiser only.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 

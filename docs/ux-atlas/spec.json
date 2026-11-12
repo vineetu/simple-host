@@ -622,6 +622,21 @@
           ]
         },
         {
+          "name": "Needs you (team_inbound)",
+          "contents": [
+            "One line per team with messages this organiser has not opened: <Team> wrote to the organisers: <text>, or <Team> sent N messages to the organisers. Latest: <text>.",
+            "Opening the team page/thread clears this organiser’s line. It never blocks a stage move."
+          ],
+          "actions": [
+            {
+              "label": "Read and reply",
+              "kind": "secondary",
+              "href": "?s=team&team=<slug>",
+              "confirm": null
+            }
+          ]
+        },
+        {
           "name": "Your next step",
           "contents": [
             "Close entries when building time is over",
@@ -977,6 +992,10 @@
           "q": "SIM-426 owner-approved corrections",
           "decision": "At Sign-up open, the entry deadline stays listed but does not gate Start building. Forward announcements, including publishing results, default to Don’t send (primary and initial focus); Send is secondary and the text stays editable. At Judging, an optional, non-blocking “N teams have fewer judges than the target” item links to Judging progress. Archived history retains blocked earlier items.",
           "why": "Owner approved, 2026-11-10."
+        },
+        {
+          "date": "2026-11-12",
+          "decision": "New team messages email organisers only with Account’s Email me when something waits on me on, batched at most once per 15 minutes. No email when mail is not set up."
         }
       ],
       "features": [
@@ -995,7 +1014,8 @@
         "dismiss-optional-checklist-item",
         "organiser-assistant",
         "publish-results",
-        "override-rank-on-publish"
+        "override-rank-on-publish",
+        "team-writes-organisers"
       ],
       "prototype_states": [
         {
@@ -2452,7 +2472,7 @@
         },
         {
           "q": "Where does Message team live? (notices contract, 2026-11-05)",
-          "decision": "A Messages card between Team and Joining: the sent-message history (newest first, 'No messages sent to this team yet.' when empty) with a Message team button under it, opening a Send dialog (textarea, 1000-character counter). The button is left off entirely once the event is archived; the history stays visible.",
+          "decision": "A Messages card between Team and Joining lists both directions, newest first, with '<name> (team|organiser) · <relative> · <absolute>' on each row. Empty: 'No messages with this team yet.'. Message team opens the existing Send dialog (textarea, 1000-character counter). Hide the button after End; keep the history.",
           "why": "History belongs where the team already lives, not buried behind a dialog with no record. Hiding the button (not just disabling it) once archived matches POST team-messages' own 409 event_closed -- there is nothing the button could do."
         }
       ],
@@ -2466,7 +2486,8 @@
         "new-team-link",
         "message-team",
         "view-team-messages",
-        "organiser-assistant"
+        "organiser-assistant",
+        "team-writes-organisers"
       ],
       "prototype_states": [
         {
@@ -4454,6 +4475,19 @@
               "confirm": "Leave Kopi Kode? You'll lose access to its entry and website. Dian becomes admin. You can join or start another team while teams are open."
             }
           ]
+        },
+        {
+          "name": "Messages with the organisers",
+          "contents": [
+            "Both directions, newest first; No messages yet. when empty."
+          ],
+          "actions": [
+            {
+              "label": "Message the organisers",
+              "kind": "secondary",
+              "confirm": null
+            }
+          ]
         }
       ],
       "states": [
@@ -4625,8 +4659,8 @@
         },
         {
           "q": "Where do organiser messages show on Team? (notices contract, 2026-11-05)",
-          "decision": "A Messages from the organisers card on Members (the default tab), right under the sp-head and above the Team link card -- hidden entirely (no card at all) when the team has never been messaged.",
-          "why": "Members is what everyone already lands on; a message from the organisers is exactly the kind of thing that should be seen without hunting through Settings. Hidden rather than an empty state because most teams will never get one and an always-there 'nothing here' card is just noise."
+          "decision": "A Messages with the organisers card on Members, above Team link, shows both directions newest first. Each row reads '<name> (team|organiser) · <relative> · <absolute>'. Empty: 'No messages yet.'. Any member can use Message the organisers. After End, hide the button and hide the card if empty.",
+          "why": "One thread per team, shared by every organiser and teammate."
         },
         {
           "date": "2026-11-10",
@@ -4659,7 +4693,8 @@
         "copy-team-code",
         "replay-participant-walkthrough",
         "team-removal-notice",
-        "view-messages-from-organisers"
+        "view-messages-from-organisers",
+        "team-writes-organisers"
       ],
       "prototype_states": [
         {
@@ -4792,6 +4827,20 @@
           ],
           "save": "Team form: one Save. Track and Lock: save on change with a Saved tick. New link and Leave: confirm first.",
           "empty": "never empty"
+        }
+      ],
+      "dialogs": [
+        {
+          "name": "Message the organisers",
+          "fields": [
+            "Message textarea, 1–1000 characters, live 0 / 1000 counter"
+          ],
+          "help": "Every organiser can read it. Your teammates see it too.",
+          "actions": [
+            "Cancel",
+            "Send"
+          ],
+          "limits": "10 per team per rolling hour (429 rate_limited); 409 no_team without a team; 409 event_closed after End."
         }
       ]
     },

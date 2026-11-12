@@ -2227,7 +2227,7 @@
     {
       "method": "GET",
       "path": "/v1/hack/events/{slug}/team/messages",
-      "feature_id": "team-messages",
+      "feature_id": "team-writes-organisers",
       "source": "internal/hackhttp/hack_team_messages.go:22",
       "package": "internal/hackhttp",
       "dynamic": false
@@ -2251,7 +2251,7 @@
     {
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/{team}/messages",
-      "feature_id": "team-messages",
+      "feature_id": "team-writes-organisers",
       "source": "internal/hackhttp/hack_team_messages.go:21",
       "package": "internal/hackhttp",
       "dynamic": false
@@ -3986,6 +3986,14 @@
     },
     {
       "method": "POST",
+      "path": "/v1/hack/events/{slug}/team/messages",
+      "feature_id": "team-writes-organisers",
+      "source": "internal/hackhttp/hack_team_messages.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
       "source": "internal/hackhttp/hack.go:517",
@@ -5620,7 +5628,7 @@
       "name": "hack_get_my_team_messages",
       "family": "hack-events",
       "edition": "hack",
-      "feature_id": "team-messages"
+      "feature_id": "team-writes-organisers"
     },
     {
       "name": "hack_get_my_teams",
@@ -5710,7 +5718,7 @@
       "name": "hack_get_team_messages",
       "family": "hack-events",
       "edition": "hack",
-      "feature_id": "team-messages"
+      "feature_id": "team-writes-organisers"
     },
     {
       "name": "hack_get_team_screenshot",
@@ -5815,10 +5823,16 @@
       "feature_id": "hack-team-admins-lock-links"
     },
     {
+      "name": "hack_message_organisers",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "team-writes-organisers"
+    },
+    {
       "name": "hack_message_team",
       "family": "hack-events",
       "edition": "hack",
-      "feature_id": "team-messages"
+      "feature_id": "team-writes-organisers"
     },
     {
       "name": "hack_move_member",

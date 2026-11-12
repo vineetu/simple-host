@@ -4617,7 +4617,7 @@
     const teamsHref = href("organiser", ev.slug, "teams");
     const noTrackNoteHTML = atStartJudging && noTrackTeams.length > 0 ? `<div class="note warn">${noTrackTeams.length} team${noTrackTeams.length === 1 ? "" : "s"} with no track won't be judged until ${noTrackTeams.length === 1 ? "it picks" : "they pick"} one, or you assign one: ${noTrackTeams.map((t) => ui.esc(t.name || "A team")).join(", ")}. <a href="${ui.esc(teamsHref)}">Go to Teams</a></div>` : "";
     const openWalk = params.get("walkthrough") === "1";
-    const needsLines = (data.needs_you || []).map((n) => `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href("organiser", ev.slug, n.section === "home" ? void 0 : n.section))}">${n.kind === "application_new" ? "Review applications" : "Open"}</a></div>`).join("");
+    const needsLines = (data.needs_you || []).map((n) => `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href("organiser", ev.slug, n.section === "home" ? void 0 : n.section) + (n.team ? "&team=" + encodeURIComponent(n.team) : ""))}">${n.kind === "application_new" ? "Review applications" : n.kind === "team_inbound" ? "Read and reply" : "Open"}</a></div>`).join("");
     const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, "")).split(".").join(".<wbr>");
     main.innerHTML = `
 <div class="ph organiser-home-head"><div class="t"><h1>Home</h1></div><button class="btn quiet sm" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button>${canScoreAsJudge(data) ? `<a class="btn quiet sm" href="${ui.esc(href("judge", ev.slug, "home"))}">Score as a judge</a>` : ""}</div>

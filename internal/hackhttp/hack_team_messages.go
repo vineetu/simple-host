@@ -20,6 +20,7 @@ func (h *HackHandler) registerTeamMessages(mux *http.ServeMux, wrap func(http.Ha
 	mux.Handle("POST /v1/hack/events/{slug}/team-messages", wrap(h.postTeamMessages))
 	mux.Handle("GET /v1/hack/events/{slug}/teams/{team}/messages", wrap(h.getOrganiserTeamMessages))
 	mux.Handle("GET /v1/hack/events/{slug}/team/messages", wrap(h.getMyTeamMessages))
+	mux.Handle("POST /v1/hack/events/{slug}/team/messages", wrap(h.postMyTeamMessage))
 }
 
 func teamMessageJSON(m model.TeamMessage) map[string]any {
@@ -27,6 +28,7 @@ func teamMessageJSON(m model.TeamMessage) map[string]any {
 		"id":          m.ID,
 		"text":        m.Body,
 		"sender_name": m.SenderName,
+		"from_team":   m.FromTeam,
 		"created_at":  rfc3339Time(m.CreatedAt),
 	}
 }
@@ -115,7 +117,55 @@ func (h *HackHandler) getOrganiserTeamMessages(w http.ResponseWriter, r *http.Re
 		httpx.WriteInternal(w)
 		return
 	}
-	h.writeTeamMessages(w, r, team.ID)
+	list, err := h.eventsSvc().ListTeamMessages(r.Context(), team.ID)
+	if err != nil {
+		httpx.WriteInternal(w)
+		return
+	}
+	// Reading the thread clears this organiser's Home line for the team.
+	if a.member.Role == "organiser" && !a.admin {
+		if err := h.eventsSvc().OrganiserOpenedThread(r.Context(), a.event.ID, a.user.ID, team.ID, list); err != nil {
+			httpx.WriteInternal(w)
+			return
+		}
+	}
+	writeTeamMessageList(w, list)
+}
+
+// postMyTeamMessage is POST .../team/messages: a member of the team writes
+// to the event's organisers. Only the caller's own current team's thread is
+// ever written; there is no team id in the request.
+func (h *HackHandler) postMyTeamMessage(w http.ResponseWriter, r *http.Request) {
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	if !ok {
+		return
+	}
+	if a.event.Stage == "archived" {
+		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
+		return
+	}
+	var req struct {
+		Text string `json:"text"`
+	}
+	if !decodeHackJSON(w, r, &req) {
+		return
+	}
+	text, ok := checkHackText(w, req.Text, "text", 1, 1000)
+	if !ok {
+		return
+	}
+	sent, err := h.eventsSvc().SendToOrganisers(r.Context(), a.event, a.user.ID, a.member.DisplayName, text)
+	if err != nil {
+		var rl *events.RateLimitError
+		if errors.As(err, &rl) {
+			w.Header().Set("Retry-After", strconv.Itoa(rl.RetryAfter))
+			httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "your team sent too many messages to the organisers; try again later")
+			return
+		}
+		writeEventsError(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"message": postedTeamMessageJSON(sent)})
 }
 
 // getMyTeamMessages is GET .../team/messages: a participant's own team's
@@ -138,6 +188,10 @@ func (h *HackHandler) writeTeamMessages(w http.ResponseWriter, r *http.Request, 
 		httpx.WriteInternal(w)
 		return
 	}
+	writeTeamMessageList(w, list)
+}
+
+func writeTeamMessageList(w http.ResponseWriter, list []model.TeamMessage) {
 	messages := make([]map[string]any, 0, len(list))
 	for _, m := range list {
 		messages = append(messages, teamMessageJSON(m))

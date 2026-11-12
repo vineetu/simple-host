@@ -865,6 +865,9 @@
 		<a href="#get-v1hackeventsslugteammessages" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/hack/events/{slug}/team/messages</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1hackeventsslugteammessages" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/team/messages</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#put-v1hackeventsslugteamtrack" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">PUT /v1/hack/events/{slug}/team/track</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -1333,6 +1336,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#get-v1hackeventsslugteammessages" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/hack/events/{slug}/team/messages</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1hackeventsslugteammessages" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/team/messages</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#put-v1hackeventsslugteamtrack" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">PUT /v1/hack/events/{slug}/team/track</span></a>
@@ -8281,7 +8287,7 @@
 </table>
 <h2 id="get-v1hackeventsslugteammessages">GET /v1/hack/events/{slug}/team/messages</h2>
 <div data-operation="GET /v1/hack/events/{slug}/team/messages"></div>
-<p>Up to 100 messages sent to the caller’s current team, newest first; an empty list when they are on no team. Participant only.</p>
+<p>Up to 100 messages in the caller’s current team’s thread, newest first: what the organisers sent the team and what any teammate wrote to them (from_team true); an empty list when they are on no team. Participant only.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -8324,6 +8330,85 @@
 <tr>
 <td>404</td>
 <td>event_not_found</td>
+</tr>
+</tbody>
+</table>
+<h2 id="post-v1hackeventsslugteammessages">POST /v1/hack/events/{slug}/team/messages</h2>
+<div data-operation="POST /v1/hack/events/{slug}/team/messages"></div>
+<p>A member of a team writes to the event’s organisers, into the team’s one thread (shared by every organiser; teammates see it too). Every organiser gets a notice on Home; an organiser whose “Email me when something waits on me” is on also gets an email, batched like the other notice emails. At most 10 messages per team per rolling hour; over that, 429 rate_limited with Retry-After. 409 no_team without a team, 409 event_closed once the event is archived. Participant only; there is no team id in the request, so only the caller’s own team’s thread is ever written.</p>
+<p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>slug</td>
+<td>path</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Request body:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>text</td>
+<td>string</td>
+<td>yes</td>
+<td>1 to 1000 characters, trimmed.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>201</td>
+<td>The message as stored</td>
+</tr>
+<tr>
+<td>400</td>
+<td>invalid_text</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body’s code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).</td>
+</tr>
+<tr>
+<td>404</td>
+<td>event_not_found for a non-participant</td>
+</tr>
+<tr>
+<td>409</td>
+<td>no_team or event_closed</td>
+</tr>
+<tr>
+<td>429</td>
+<td>rate_limited; Retry-After header</td>
 </tr>
 </tbody>
 </table>
@@ -9580,7 +9665,7 @@
 </table>
 <h2 id="get-v1hackeventsslugteamsteammessages">GET /v1/hack/events/{slug}/teams/{team}/messages</h2>
 <div data-operation="GET /v1/hack/events/{slug}/teams/{team}/messages"></div>
-<p>Up to 100 messages sent to this team, newest first. Organiser only.</p>
+<p>Up to 100 messages in this team’s thread, newest first: what the organisers sent the team and what the team wrote to them (from_team true). Reading it clears the Home notice about that team’s new messages for the organiser who read it. Organiser only.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>

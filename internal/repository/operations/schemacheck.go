@@ -131,7 +131,7 @@ var hackColumns = map[string][]string{
 	"event_entry_reminders": {"event_id", "team_id", "kind", "deadline", "sent_at"},
 	// 0003-hack-notices-judges-messages.sql
 	"event_judge_reminders": {"event_id", "user_id", "kind", "deadline", "sent_at"},
-	"event_team_messages":   {"id", "event_id", "team_id", "sender_id", "sender_name", "body", "created_at"},
+	"event_team_messages":   {"id", "event_id", "team_id", "sender_id", "sender_name", "body", "created_at", "from_team"},
 	"events": {"signup_questions", "approval_required", "id", "slug", "account_id", "created_by", "title", "stage", "organiser_name", "organisation",
 		"contact_email", "purpose", "expected_participants", "tagline", "website_mode", "icon_media_type", "icon_bytes", "accent_color", "about", "rules", "prizes", "overall_prizes", "coc_text",
 		"time_zone", "starts_at", "ends_at", "team_size_max", "join_code", "judge_code", "submission_deadline",

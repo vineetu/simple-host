@@ -15528,8 +15528,11 @@ paths:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: getHackTeamMessages
-      summary: Read one team's messages from the organisers (organiser) (EVENTS=hosted only)
-      description: Up to 100 messages sent to this team, newest first. Organiser only.
+      summary: Read one team's thread with the organisers (organiser) (EVENTS=hosted only)
+      description: >-
+        Up to 100 messages in this team's thread, newest first: what the organisers sent the
+        team and what the team wrote to them (from_team true). Reading it clears the Home
+        notice about that team's new messages for the organiser who read it. Organiser only.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -15548,10 +15551,11 @@ paths:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: getMyHackTeamMessages
-      summary: Read my team's messages from the organisers (participant) (EVENTS=hosted only)
+      summary: Read my team's thread with the organisers (participant) (EVENTS=hosted only)
       description: >-
-        Up to 100 messages sent to the caller's current team, newest first; an empty list
-        when they are on no team. Participant only.
+        Up to 100 messages in the caller's current team's thread, newest first: what the
+        organisers sent the team and what any teammate wrote to them (from_team true); an
+        empty list when they are on no team. Participant only.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -15563,6 +15567,52 @@ paths:
               schema: { $ref: '#/components/schemas/HackTeamMessages' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: postMyHackTeamMessage
+      summary: Message the organisers (participant) (EVENTS=hosted only)
+      description: >-
+        A member of a team writes to the event's organisers, into the team's one thread
+        (shared by every organiser; teammates see it too). Every organiser gets a notice on
+        Home; an organiser whose "Email me when something waits on me" is on also gets an
+        email, batched like the other notice emails. At most 10 messages per team per
+        rolling hour; over that, 429 rate_limited with Retry-After. 409 no_team without a
+        team, 409 event_closed once the event is archived. Participant only; there is no
+        team id in the request, so only the caller's own team's thread is ever written.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, description: "1 to 1000 characters, trimmed." }
+      responses:
+        '201':
+          description: The message as stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    allOf:
+                      - { $ref: '#/components/schemas/HackTeamMessage' }
+                      - type: object
+                        properties:
+                          team_id: { type: string, format: uuid }
+                          team_name: { type: string }
+                          recipients: { type: integer, description: Organisers notified. }
+        '400': { description: invalid_text, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: event_not_found for a non-participant, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: no_team or event_closed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { description: 'rate_limited; Retry-After header', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/hack/events/{slug}/reminders:
     get:
@@ -16315,6 +16365,7 @@ components:
         id: { type: string, format: uuid }
         text: { type: string }
         sender_name: { type: string }
+        from_team: { type: boolean, description: "true when a member of the team wrote it to the organisers." }
         created_at: { type: string, format: date-time }
     HackTeamMessages:
       type: object

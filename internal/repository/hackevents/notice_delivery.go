@@ -36,6 +36,9 @@ const (
 	NoticeJudgingOpen     = "judging_open"
 	NoticeJudgingReminder = "judging_reminder"
 	NoticeTeamMessage     = "team_message"
+	// 0015-hack-team-to-organiser-messages.sql: a team member wrote to the
+	// organisers; goes to every organiser of the event.
+	NoticeTeamInbound = "team_inbound"
 )
 
 // noticeIsNews: shown in the app as a dismissable line until seen. The other
@@ -45,7 +48,7 @@ func noticeIsNews(kind string) bool {
 	switch kind {
 	case NoticeRequestAnswered, NoticeApplicationDecided, NoticeSiteTakenDown, NoticeSiteRestored,
 		NoticeDeadlineChanged, TeamAdminNotice, NoticeTeamLocked,
-		NoticeJudgingOpen, NoticeJudgingReminder, NoticeTeamMessage:
+		NoticeJudgingOpen, NoticeJudgingReminder, NoticeTeamMessage, NoticeTeamInbound:
 		return true
 	}
 	return false
@@ -259,7 +262,7 @@ func ListNews(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]
 func MarkNewsSeen(ctx context.Context, q sqlkit.Querier, eventID, userID string, ids []string) (int64, error) {
 	res, err := q.ExecContext(ctx, `
 		UPDATE event_notices SET seen_at = now()
-		 WHERE event_id = $1 AND user_id = $2 AND seen_at IS NULL
+		 WHERE event_id = $1 AND user_id = $2 AND seen_at IS NULL AND kind <> 'team_inbound'
 		   AND (cardinality($3::uuid[]) = 0 OR id = ANY($3::uuid[]))`, eventID, userID, pq.Array(ids))
 	if err != nil {
 		return 0, err

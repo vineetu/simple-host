@@ -1,5 +1,9 @@
 [
   {
+    "date": "2026-11-12",
+    "what": "SIM-443: Any team member can message the organisers from Team. Both sides see one shared thread. Organiser Home links unread team messages to Read and reply; opening the team clears the line for that organiser."
+  },
+  {
     "date": "2026-11-11",
     "what": "Co-organiser invitation links are reusable for 7 days until revoked or replaced; Settings always offers Revoke invitation, and removing a co-organiser revokes the current link."
   },

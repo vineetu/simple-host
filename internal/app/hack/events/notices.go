@@ -21,10 +21,22 @@ type Need struct {
 	Kind, ID, Text, Section string
 	Count                   int
 	At                      time.Time
+	// Team is the team slug when the item opens one team's page.
+	Team string
 }
 
 func needsYouItem(kind, id string, count int, text, section string, at time.Time) Need {
-	return Need{kind, id, text, section, count, at}
+	return Need{Kind: kind, ID: id, Text: text, Section: section, Count: count, At: at}
+}
+
+// clip shortens a message to one line of at most n characters for a notice line.
+func clip(s string, n int) string {
+	s = oneLine(s)
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return strings.TrimSpace(string(r[:n])) + "…"
 }
 
 // NeedsYou lists what waits on this member in this event, live to-dos first,
@@ -50,6 +62,20 @@ func (s *Service) NeedsYou(ctx context.Context, ev model.Event, m model.EventMem
 				text = "1 application is waiting for a decision."
 			}
 			items = append(items, needsYouItem(hackevents.NoticeApplicationNew, "", n, text, "people", time.Time{}))
+		}
+		// SIM-443: teams that wrote to the organisers and this organiser has
+		// not opened yet. A to-do like applications: it goes away when they
+		// open the team's thread, and it never blocks a stage move.
+		if inbound, err := hackevents.ListInboundTeams(ctx, s.db, ev.ID, m.UserID); err == nil {
+			for _, t := range inbound {
+				text := t.TeamName + " wrote to the organisers: " + clip(t.Latest, 140)
+				if t.Count > 1 {
+					text = fmt.Sprintf("%s sent %d messages to the organisers. Latest: %s", t.TeamName, t.Count, clip(t.Latest, 140))
+				}
+				it := needsYouItem(hackevents.NoticeTeamInbound, "", t.Count, text, "team", time.Time{})
+				it.Team = t.TeamSlug
+				items = append(items, it)
+			}
 		}
 		return items
 	case "judge":
@@ -419,6 +445,8 @@ func noticeSubject(kind string) string {
 		return "judging closes soon"
 	case hackevents.NoticeTeamMessage:
 		return "a message from the organisers"
+	case hackevents.NoticeTeamInbound:
+		return "a team wrote to the organisers"
 	}
 	return "something is waiting for you"
 }
@@ -438,6 +466,8 @@ func (s *Service) noticeLink(kind, slug, publicBaseURL string) string {
 		return base + "/judge?s=queue"
 	case hackevents.NoticeTeamMessage:
 		return base + "/team?s=team"
+	case hackevents.NoticeTeamInbound:
+		return base + "/manage?s=teams"
 	}
 	return base + "/team?s=team"
 }
@@ -503,6 +533,18 @@ func (s *Service) mailLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, 
 			return "Your application was approved. You're in.", true, nil
 		}
 		return "Your application wasn't accepted this time.", true, nil
+	case hackevents.NoticeTeamInbound:
+		if role != "organiser" || stage == "archived" {
+			return "", false, nil
+		}
+		name, body, err := hackevents.NoticeTeamInboundLine(ctx, tx, n.RefID, n.TeamID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", false, nil
+		}
+		if err != nil {
+			return "", false, err
+		}
+		return oneLine(name) + " wrote to the organisers: " + clip(body, 200), true, nil
 	case hackevents.NoticeRequestAnswered, hackevents.NoticeTeamRemoved:
 		if role != "participant" {
 			return "", false, nil

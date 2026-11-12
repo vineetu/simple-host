@@ -1740,7 +1740,9 @@ CREATE TABLE IF NOT EXISTS event_notices (
                  'application_decided','site_taken_down','site_restored','deadline_changed','team_admin',
                  'team_locked','team_removed','entry_reminder',
                  -- 0003-hack-notices-judges-messages.sql
-                 'judging_open','judging_reminder','team_message')),
+                 'judging_open','judging_reminder','team_message',
+                 -- 0015-hack-team-to-organiser-messages.sql
+                 'team_inbound')),
   team_id      UUID,
   ref_id       UUID,
   detail       TEXT NOT NULL DEFAULT '',
@@ -1798,7 +1800,9 @@ CREATE TABLE IF NOT EXISTS event_team_messages (
   sender_id   UUID REFERENCES users(id) ON DELETE SET NULL,
   sender_name TEXT NOT NULL DEFAULT '',
   body        TEXT NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- 0015: true when a member of the team wrote it to the organisers
+  from_team   BOOLEAN NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS event_team_messages_team_idx ON event_team_messages (team_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS event_team_messages_event_idx ON event_team_messages (event_id, created_at);

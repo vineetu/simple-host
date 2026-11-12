@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-12: Simple Hack teams can write to the organisers (SIM-443). Any member of a team can send a message from Team to the event's organisers; it joins the team's one thread with the organisers' own messages, which every organiser and teammate can read. Organisers see a line on Home that takes them to the team's thread, and get an email only if their "Email me when something waits on me" is on. Connected AI apps get `hack_message_organisers`.
+
 2026-11-11: Simple Hack co-organiser invitation links are reusable until revoked, replaced, expired or the event ends, and removing a co-organiser revokes the current link.
 
 2026-11-11: Simple Hack release hack-v0.8.20 for self-hosted installs: no active-event limit by default (SIM-435), more AI apps in the connect steps, and the install fixes from the clean-install test (the example config no longer installs v0.8.0, event time zones work in the containers, support, privacy and Ask settings pass through the config file and survive upgrades, and re-running the installer with the original config works).

@@ -23,6 +23,9 @@ import (
 const (
 	teamMessageRateWindow = time.Hour
 	teamMessageRateMax    = 50
+	// A team writing to the organisers: at most this many per team per window.
+	teamInboundRateWindow = time.Hour
+	teamInboundRateMax    = 10
 )
 
 // TeamMessageSent is one team's message, as the POST response shows it.
@@ -108,7 +111,7 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 		if err != nil {
 			return nil, err
 		}
-		msg, err := eventrepo.InsertTeamMessage(ctx, tx, ev.ID, teamID, senderID, senderName, text)
+		msg, err := eventrepo.InsertTeamMessage(ctx, tx, ev.ID, teamID, senderID, senderName, text, false)
 		if err != nil {
 			return nil, err
 		}
@@ -131,4 +134,110 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 // ListTeamMessages is the organiser's GET .../teams/{team}/messages.
 func (s *Service) ListTeamMessages(ctx context.Context, teamID string) ([]model.TeamMessage, error) {
 	return eventrepo.ListTeamMessages(ctx, s.db, teamID, 100)
+}
+
+// SendToOrganisers is a team member's message to the event's organisers
+// (SIM-443): one history row in the team's thread (from_team), then a
+// team_inbound notice to every organiser of the event. Like SendTeamMessage,
+// membership, event state and the rate limit are checked inside the
+// transaction, under the event row's lock and a per-team advisory lock, so a
+// member who has just left the team, an archived or taken-down event and two
+// concurrent sends are all handled at the moment of writing. Email goes only
+// to organisers whose "Email me when something waits on me" is on (the
+// notice queue's own rule, noticeEmails/emailableSQL); everyone else sees the
+// message in the app.
+func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID, senderName, text string) (TeamMessageSent, error) {
+	var zero TeamMessageSent
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return zero, err
+	}
+	defer tx.Rollback()
+	fresh, err := eventrepo.GetEventForShare(ctx, tx, ev.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return zero, &Error{"event_not_found", "event not found"}
+	}
+	if err != nil {
+		return zero, err
+	}
+	if fresh.Stage == "archived" {
+		return zero, &Error{"event_closed", "an ended event cannot be changed"}
+	}
+	if fresh.TakenDown() {
+		return zero, &Error{"event_taken_down", "this event has been taken down"}
+	}
+	status, teamID, _, err := eventrepo.NoticeMemberStatus(ctx, tx, ev.ID, senderID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return zero, &Error{"event_not_found", "event not found"}
+	}
+	if err != nil {
+		return zero, err
+	}
+	role, _, _, _, _, err := eventrepo.MailMember(ctx, tx, ev.ID, senderID)
+	if err != nil || role != "participant" {
+		return zero, &Error{"event_not_found", "event not found"}
+	}
+	if status != "approved" {
+		return zero, &Error{"approval_" + status, "your application is " + status}
+	}
+	if !teamID.Valid {
+		return zero, &Error{"no_team", "join or start a team first"}
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('hack-team-inbound:' || $1, 0))`, teamID.String); err != nil {
+		return zero, err
+	}
+	// Re-read the team after waiting on the lock: someone who left or moved
+	// meanwhile must not write into their former team's thread. (No member
+	// row lock: leave and move lock the team before other members' rows.)
+	if _, now, _, err := eventrepo.NoticeMemberStatus(ctx, tx, ev.ID, senderID); err != nil || now != teamID {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return zero, err
+		}
+		return zero, &Error{"no_team", "join or start a team first"}
+	}
+	count, oldest, err := eventrepo.CountRecentTeamInbound(ctx, tx, teamID.String, time.Now().Add(-teamInboundRateWindow))
+	if err != nil {
+		return zero, err
+	}
+	if count >= teamInboundRateMax {
+		retry := teamInboundRateWindow
+		if oldest.Valid {
+			retry = teamInboundRateWindow - time.Since(oldest.Time)
+		}
+		if retry < time.Second {
+			retry = time.Second
+		}
+		return zero, &RateLimitError{RetryAfter: int(retry.Seconds()) + 1}
+	}
+	team, err := teamrepo.GetEventTeamByID(ctx, tx, teamID.String)
+	if err != nil {
+		return zero, err
+	}
+	msg, err := eventrepo.InsertTeamMessage(ctx, tx, ev.ID, teamID.String, senderID, senderName, text, true)
+	if err != nil {
+		return zero, err
+	}
+	ids, err := eventrepo.OrganiserIDs(ctx, tx, ev.ID)
+	if err != nil {
+		return zero, err
+	}
+	n, err := eventrepo.NotifyUsersCount(ctx, tx, ev.ID, eventrepo.NoticeTeamInbound, teamID.String, msg.ID, "", ids...)
+	if err != nil {
+		return zero, err
+	}
+	if err := tx.Commit(); err != nil {
+		return zero, err
+	}
+	return TeamMessageSent{TeamMessage: msg, TeamName: team.Name, Recipients: int(n)}, nil
+}
+
+// OrganiserOpenedThread marks the organiser's unread notices about the
+// team's messages they were just shown seen; one that arrived after the read
+// keeps its Home line.
+func (s *Service) OrganiserOpenedThread(ctx context.Context, eventID, userID, teamID string, read []model.TeamMessage) error {
+	if len(read) == 0 {
+		return nil
+	}
+	// read is newest first: everything up to its newest row was shown.
+	return eventrepo.MarkTeamInboundSeen(ctx, s.db, eventID, userID, teamID, read[0].CreatedAt)
 }
