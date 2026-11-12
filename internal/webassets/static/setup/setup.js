@@ -96,7 +96,7 @@
     values: { small: {}, ent: {} },      // NAME -> value, only where it differs from the default
     secrets: { small: {}, ent: {} },     // NAME -> true: list it as a blank to fill in
     basic: {
-      hack: { SITE_DOMAIN: '', SUPPORT_EMAIL: '', PRIVACY_URL: '', signup: 'anyone', RESEND_API_KEY: '', MAIL_FROM: '', assistant: false, ASSISTANT_BASE_URL: '', ASSISTANT_MODEL: '', ASSISTANT_API_KEY: '' },
+      hack: { SITE_DOMAIN: '', SUPPORT_EMAIL: '', PRIVACY_URL: '', RESEND_API_KEY: '', MAIL_FROM: '', assistant: false, ASSISTANT_BASE_URL: '', ASSISTANT_MODEL: '', ASSISTANT_API_KEY: '' },
       small: { where: 'upcloud', domain: '', content: '', email: '', codes: true, google: false, mailFrom: '', googleId: '' },
       ent: { host: '', admins: '', idp: 'okta', issuer: IDPS[0].issuer, clientId: '', domains: '', certs: 'auto', issuerName: '',
         smtp: false, smtpFrom: '', bucket: 'other', endpoint: '', region: '', bucketName: '',
@@ -376,9 +376,6 @@
     field('SITE_DOMAIN', 'Domain', { placeholder: 'hack.example.com', help: 'Point it and *.<domain> at the server.' });
     field('SUPPORT_EMAIL', 'Support email (optional)');
     field('PRIVACY_URL', 'Privacy policy link (optional)');
-    card.appendChild(radios('signup', b, 'Who can create accounts?', [
-      ['anyone', 'Anyone'], ['admin', 'Only accounts I create in /admin']
-    ]));
     card.appendChild(el('h3', { text: 'Email sending (optional)' }));
     card.appendChild(el('p', { class: 'note', text: 'Sign-in works without email. Fill in both fields or neither.' }));
     field('RESEND_API_KEY', 'Resend API key');
@@ -402,7 +399,6 @@
   function hackSettings() {
     var b = S.basic.hack, lines = ['SITE_DOMAIN=' + b.SITE_DOMAIN];
     ['SUPPORT_EMAIL', 'PRIVACY_URL'].forEach(function (key) { if (b[key]) lines.push(key + '=' + b[key]); });
-    if (b.signup === 'admin') lines.push('PASSWORD_SELF_SIGNUP=off');
     ['RESEND_API_KEY', 'MAIL_FROM'].forEach(function (key) { if (b[key]) lines.push(key + '=' + b[key]); });
     if (b.assistant) ['ASSISTANT_BASE_URL', 'ASSISTANT_MODEL', 'ASSISTANT_API_KEY'].forEach(function (key) {
       if (b[key]) lines.push(key + '=' + b[key]);
