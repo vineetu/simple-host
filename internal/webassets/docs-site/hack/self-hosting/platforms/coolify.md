@@ -97,3 +97,5 @@ release containing summaries, run `simple-host site-summary-backfill` in the app
 terminal after migration. It only updates sites without summaries.
 The Apps flags default off. Dashboard also needs My sites, and preview still
 requires a client and site headers that permit framing.
+
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

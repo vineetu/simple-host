@@ -146,3 +146,5 @@ participant sites on `sites.hack.example.com`.
   not log `/healthz`.
 - **`sites.<domain>/healthz` is a 404.** Only the main address answers it,
   as on a VPS.
+
+Release notes: [the changelog](../../CHANGELOG.md).

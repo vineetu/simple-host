@@ -94,3 +94,5 @@ for what each one does). A DigitalOcean droplet is public by nature, so
 `TLS_MODE=internal` or `acme` here only makes sense on a droplet attached to
 a VPC private network with no public inbound rule, reached over a VPN or
 DigitalOcean's private networking rather than the public internet.
+
+Release notes: [the changelog](../../CHANGELOG.md).

@@ -57,3 +57,5 @@ https://simple-host.app/setup?product=small-box#help.
 
 Delete the server and its storage in the UpCloud control panel, then remove the
 two DNS records. Nothing else was created.
+
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

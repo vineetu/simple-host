@@ -90,3 +90,5 @@ TLS passes through Traefik to Caddy. PROXY protocol preserves visitor addresses
 for rate limits and analytics. Postgres has no host port.
 
 A public one-click catalog listing is separate: see [Coolify's template eligibility](https://coolify.io/docs/contribute/service).
+
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

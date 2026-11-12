@@ -17,7 +17,7 @@
       "code": "sudo bash deploy/hack/standalone/install.sh --config /tmp/sh.env && rm /tmp/sh.env"
     },
     {
-      "text": "Open `https://{DOMAIN}` and choose **Create an account**."
+      "text": "Open `https://{DOMAIN}/signin` and choose **Create an account**."
     }
   ],
   "after": [

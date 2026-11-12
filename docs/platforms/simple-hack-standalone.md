@@ -41,7 +41,7 @@ One wildcard certificate for `*.hack.<domain>` does not cover team addresses suc
    sudo bash deploy/hack/standalone/install.sh --config /tmp/sh.env && rm /tmp/sh.env
    ```
 
-5. Open `https://hack.example.com` and choose **Create an account**.
+5. Open `https://hack.example.com/signin` and choose **Create an account**.
 
 The [setup helper](https://simple-hack.app/setup) fills in your domain.
 
@@ -105,7 +105,7 @@ Stop the app while taking the pair so its files and database stay consistent:
 sudo docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env stop app
 sudo docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env exec -T db pg_dump -U simplehack -d simplehack > simple-hack-db.sql
 sudo docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env run --rm --no-deps -T --entrypoint tar app czf - -C /data . > simple-hack-data.tar.gz
-sudo docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env start app
+sudo docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env up -d --no-deps app
 ```
 
 Keep a private copy of `/opt/simple-hack/.env` and `/opt/simple-hack/tls` with the backups.

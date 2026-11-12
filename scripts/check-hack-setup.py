@@ -46,6 +46,11 @@ def main():
         for i in range(max(len(blocks), len(rendered))):
             if i >= len(blocks) or i >= len(rendered) or blocks[i] != rendered[i]:
                 failures.append(f'Install code block {i + 1} does not match simple-hack.json')
+    for step in data['steps']:
+        if 'text' in step:
+            text = step['text'].replace('{DOMAIN}', domain)
+            check(install is not None and text in install[1],
+                  f'{docs_path.relative_to(ROOT)} Install section must contain the helper step: {text}')
     check(domain in docs and '*.' + domain in docs,
           f'{docs_path.relative_to(ROOT)} must name {domain} and *.{domain}')
 

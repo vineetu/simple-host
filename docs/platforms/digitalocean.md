@@ -94,3 +94,5 @@ https://simple-host.app/setup?product=small-box#help.
 Destroy the droplet in the DigitalOcean control panel (Destroy → Destroy
 Droplet), with its backups and snapshots if you made any, then remove the DNS
 records. Nothing else was created.
+
+Release notes: [the changelog](../../CHANGELOG.md).

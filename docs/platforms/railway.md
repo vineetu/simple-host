@@ -182,3 +182,5 @@ reference table. This is the walkthrough.
 - **Root and the volume.** A new volume is owned by root, and Railway's containers, like
   Render's, do not let root signal another user's processes. `start.sh` hands `/data` to
   the server's user and then runs everything as that user.
+
+Release notes: [the changelog](../../CHANGELOG.md).

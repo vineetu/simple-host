@@ -128,3 +128,5 @@ the address is `example.com`, with participant sites on
 - **CMD, not ENTRYPOINT.** The image starts with `CMD`, so the Pre-Deploy
   Command (`/usr/local/bin/start.sh release`) runs on its own rather than
   being handed to an entrypoint.
+
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).
