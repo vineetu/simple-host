@@ -30,6 +30,7 @@ never touch the API directly.
   domain of its own), its own browser origin. There a visitor signs in with Google or an emailed
   code and saves are per-person. Agents save with an API key anywhere.
 - The whole thing keeps running on a 1 CPU / 1 GB box: one binary, one Postgres, one folder.
+  Replaced 2026-11-12: the 1 GB promise now applies to the small self-hosted Compose install, database included; page serving gets a measured target from a load test (re-architecture decision 18).
 
 ## The hackathon product, and the page that sells it
 
@@ -128,6 +129,69 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+### 2026-11-12 — Re-architecture: platform, products, add-ons
+
+Agreed with the owner on 2026-11-12. Source of truth for the refactor; where the older plans (SIM-401, SIM-413) disagree, these win. Entries below that they replace are marked "Replaced 2026-11-12".
+
+Settled with the owner:
+
+- **Layers.** Platform = Simple Host. Add-ons = a secrets service and workers (none built now). Products = Simple Hack (built), travel and trainers (not built).
+- **Enterprise is frozen and comes back as add-ons.** Nobody uses it. Its separate repo is frozen and is not moved here during the refactor. After the split it is rebuilt in this repo as an organisation pack of add-ons: object storage for site files first, then company-only sign-in, audit log, access levels and teams, admin tooling. The refactor only shapes the storage layer so an object-storage backend can slot in later. The Host-vs-Enterprise parity rule and its check are removed; `PARITY.md` stays as history because other tooling reads it. Reason: a parity rule against a product nobody runs costs every change and protects no one.
+- **Self-hosting.** Docker Compose is the tested way; Kubernetes (Helm) is the second way, for organisations; an install on its own address is set up one way; self-hosters run documented upgrade steps.
+- **Roles.** The main session plans and orchestrates; Opus agents and Codex Sol build; Codex Astra reviews; no smaller models for build work.
+- **Impact tiers decide when the owner is involved.** Low (nothing visible changes) ships silently into a digest. Medium (visible, reversible) ships and is shown. High (sign-in, keys, permissions, account deletion, data that moves or cannot be undone, anything sent to other people, live web-server settings) waits for the owner's go. The tier follows what a change does, not only which files it touches.
+- **No other feature work in the repo while the refactor runs**; Auto-ship is paused.
+- **SIM-449** (restoring a Hack team site from the bin can drop an organiser's take-down) is fixed inside the refactor, with the site write gates.
+- **Baseline.** SIM-440, SIM-441, SIM-442/443/444 and SIM-448 (if landed) shipped just before and are part of what the refactor preserves.
+
+Layout:
+
+- **1. One repo, three areas:** the platform in `host/`, each product in `products/`, each add-on in `addons/` once one exists; one Go module, with the rules engine as the one nested module. Reason: the simplest layout with a real boundary; modules per product add release work for no gain.
+- **2. Imports only point down.** The platform imports only the platform; a product imports the platform and itself; products and add-ons never import each other; today's layering rules inside the platform stay. Reason: a build check enforces it, so the boundary cannot erode.
+- **3. A full product is chosen when the program is built.** `simple-host` is the platform alone; `simple-hack` is the platform plus Hack. An install records which product it is and refuses to start as another. Reason: the platform program holds no product code or text, and an install cannot turn into another product by accident.
+- **4. A light product is files the platform reads:** templates, row rules, a skill and text, loaded by the same program, with no build of its own. Designed now, built with the first light product. Reason: adding one needs no new program.
+- **5. A light product can use only what the platform offers:** visitors, the site owner, and rows that belong to the signed-in person. It cannot invent trusted roles, membership or background work. Reason: one trainer whose clients see their own records fits; an organisation of trainers with assignments needs a platform ability or a small code product, decided when that product is real.
+- **6. One full product per install,** plus any number of light products and sites. Reason: matches separate accounts per install and keeps each program small.
+- **7. A product plugs in through one description** (pages, data, AI tools, settings, docs, jobs). The platform calls it only at a limited set of points drawn from today's code: key lookup, account deletion, site write gates, notification lists, image take-down, serving its own addresses, storage rule bindings, connected-app team selection. Reason: no plugin framework; the points are cut from real callers during the work, not frozen up front.
+- **8. Platform text never names a product:** pages, API reference, AI tool list, skills and platform docs (not what users write or the domains they configure). The hackathons page and hackathon skills move to Simple Hack. Reason: people must be able to use Simple Host alone.
+
+Data:
+
+- **9. Separate accounts and database per install.** Owner's decision. Reason: one sign-in across installs can come later; it needs account linking, not a different split.
+- **10. Each product owns its tables and migrations.** A new platform-only install creates no product tables; table names do not change; one combined migration order is kept. Reason: existing Simple Host databases keep the unused Hack tables; nothing is deleted.
+- **11. The platform never queries a product's tables.** Every such query moves behind the product's description, found by a check, not a hand count; queries in one transaction today stay in one. Reason: the core of the untangling; it touches sign-in, account deletion and site gates, so each cut gets a security review.
+- **12. Holding accounts become a platform idea** ("an account that holds sites for a group"); a connected app's selected team moves into Hack's own data. Reason: removes the two Hack columns on shared tables without renaming anything.
+
+Processes:
+
+- **13. One process per install by default.** Hosted Simple Host may split page serving into its own process, Static; hosted Simple Hack and small self-hosted installs stay one process. Reason: Hack is its own install, not a third process of Simple Host.
+- **14. Static serves pages when the API or database is down,** from its own copy of site facts. Disk markers for private, offline and taken-down sites are checked first, and a site missing from the copy is never served from a guess. Reason: pages staying up is the reliability gain; the markers keep a newly private site private.
+- **15. Sites limited to named people fail closed in an outage:** if the database cannot be reached they show an error page. Owner's decision, confirmed 2026-11-12. Reason: a person removed from the list can never get in during an outage.
+- **16. Add-ons are optional and separate:** their own process behind the same front door, or inside the program when they need no isolation; the secrets service will be its own process. None is built now.
+- **17. Static is switched on after 2 Feb 2027;** built and tested now, with test traffic kept out of the research data. Reason: it changes what the paper metrics measure.
+- **18. Efficiency is measured:** a speed and memory target for page serving, set from a load test. The 1 GB target covers a whole small self-hosted install, database included. Reason: a measured target is more useful than a fixed cap.
+
+Saved data:
+
+- **19. Row rules replace the access presets:** rules in the style of Postgres row security on per-site databases and key-value data; nothing is allowed unless a rule allows it. File access keeps today's policies. Reason: one engine for every product, and what makes light products possible.
+- **20. Products add trusted facts to the rules.** Hack adds team member, organiser, stage and deadline from the server's own data, and Hack's own gates still apply whatever the rules say. Reason: the engine knows nothing about hackathons, and a rule cannot weaken a product's safety checks.
+- **21. Key-value data moves into its own small database per site,** keeping today's size limits, authorship, notifications, export and deletion, with a verification step and a way back. Reason: one store for saved data; backups cover the database and the files together.
+- **22. No sandbox for site databases:** limits inside the program and recovery from errors; visitors never send raw queries once the old route is retired. Owner's decision. Reason: a sandbox was more than the requirement needs.
+- **23. The presets and the older saved-data APIs retire on one date,** as two separate things, each with its own notice to the owners affected; our own sites convert first. Reason: one hard switch, as the owner asked.
+
+Self-hosting and parity:
+
+- **24. Docker Compose is the tested way,** for the platform alone and for the platform plus a product; Railway and the one-click platforms are thin layers on it. Owner's decision.
+- **25. Kubernetes is the second way, for organisations:** one copy at a time, no rolling upgrades. Reason: site databases live on local disk, so two copies cannot write at once. A chart for the platform alone is new work.
+- **26. Shared settings, a few templates:** the settings and versions every layer needs come from one place, and each way of installing is proved by an install test. Reason: stops today's version drift without a packaging language.
+- **27. Parity means the same outcomes:** every supported step works on the website, in the API and in an AI app, with deliberate exceptions written down; one command runs the checks for every product.
+- **28. Upgrades have documented steps:** the upgrade command takes a backup, moves the data and verifies it; release notes say which versions can upgrade directly. Owner's decision.
+- **29. One version for the whole repo;** each product's program is built from the same release. Reason: replaces today's two version families.
+
+How the work runs (delivery, not lasting architecture): today's behaviour is recorded first, with approved differences listed, and the database tests stay; small steps are deployed separately from being switched on, and steps that move data carry their own way back; the split and the row rules run side by side and meet at the storage rule bindings; builder and reviewer are separate and the running app is tested in a browser.
+
+Not doing: separate modules per product, a plugin framework, renamed tables, a queue, service mesh or extra database servers, a process sandbox, a packaging language, the secrets service, workers, travel or trainers now, one account across installs, groups and roles in the platform until a real product needs them.
 
 - **2026-11-12 (owner, SIM-440). Redirect rules and plain addresses.** Directory-only pages keep the 301 to a trailing slash so existing relative links work; a sibling `faq.html` serves `/faq` with 200. Root `_redirects` rules run after all access gates. Versions retain the file, but `current` omits it; the `redirects` marker beside `current` holds its bytes. External absolute HTTP(S) targets are allowed only with a literal host. No opt-in setting.
 
@@ -500,7 +564,7 @@ What follows from that, and is not negotiable without changing the line above:
   we contacted" should use the Linear connector (`mcp__claude_ai_Linear__*`) against that
   workspace, not re-derive it from email. Reason: the owner sends a lot of outreach email and
   wants every agent, not just the one that sent it, to see and update the same board.
-- **2026-10-16. Simple Hack for companies is the Docker package, not Kubernetes.** The owner approved selling Simple Hack to companies as the existing self-hosted package (`install.sh`: app, Postgres and Caddy on one small server; Coolify and the DigitalOcean one-click), with no Kubernetes or Helm. Reason: a company hackathon is about 20 to 100 people over a few days to a week, so it should be as light as possible; Simple Host Enterprise is the Kubernetes product.
+- **2026-10-16. Simple Hack for companies is the Docker package, not Kubernetes.** Replaced 2026-11-12: Kubernetes (Helm) is the second supported way, for organisations, one copy at a time; Docker Compose stays the tested way (re-architecture decisions 24 and 25). The owner approved selling Simple Hack to companies as the existing self-hosted package (`install.sh`: app, Postgres and Caddy on one small server; Coolify and the DigitalOcean one-click), with no Kubernetes or Helm. Reason: a company hackathon is about 20 to 100 people over a few days to a week, so it should be as light as possible; Simple Host Enterprise is the Kubernetes product.
 - **2026-10-16. Company sign-in on self-hosted installs.** Organisers, teams, judges and the connector in people's AI apps can sign in through the company's OpenID Connect provider (Okta, Google Workspace, Microsoft Entra, Keycloak), set by `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`, optionally limited by `ALLOWED_EMAIL_DOMAINS`, with `EMAIL_SIGNIN=off` to turn emailed codes off. The OIDC client and its rules are Enterprise's, ported (same author). The package also runs inside a company network: `--tls internal`, `--tls acme`, or `--tls certs` with the company's own certificates, and `--ca-cert` for an internal CA. Reason: a company runs its hackathon behind its own identity and network. simple-hack.app keeps email codes and Google.
 - **2026-10-16. Light by design.** The single-container `docker run` variant (app with embedded Postgres) was not built: it would put a database supervisor, initdb, backups and major-version upgrades inside one image for little gain over the Compose package, which already runs on one small server. It is listed in PARITY.md with an estimate (1.5 to 2 days) for the owner to decide. `/companies` on simple-hack.app sells this, with a 45-second film in the owner's voice that closes on the address to start at, and stays light like the other Simple Hack landings.
 - **2026-10-15. Count who joins from each source, and what they do next.** The owner approved
@@ -576,7 +640,7 @@ What follows from that, and is not negotiable without changing the line above:
   accounts get 30 days' written notice before the routes are removed; the notice and the removal
   date wait for the owner's approval. Reason: the owner approved the phase-out on 2026-10-12 ("do
   it in the background"); two storage systems for the same job kept leading agents to the old one.
-- **2026-10-10. Storage access presets.** Every KV namespace, file bucket and SQLite table has
+- **2026-10-10. Storage access presets.** Replaced 2026-11-12: row rules replace the presets, and they retire on one date with notice (re-architecture decisions 19 and 23). Every KV namespace, file bucket and SQLite table has
   an access matrix: read, add, edit and delete, each one of nobody, owner, own, signed-in or
   anyone. Seven presets name the common cases (public, inbox, wall, records, personal, board,
   private, the default); SQLite sets a preset per table with a database default. Four rules
@@ -603,7 +667,7 @@ What follows from that, and is not negotiable without changing the line above:
   covered by the framing check; the recipes use auth.js. Reason: the
   owner wants admin pages such as "all orders, set status" inside the site (owner decision
   2026-10-10).
-- **2026-10-10. Simple Hack uses storage access presets too.** Replaces "Simple Hack keeps its
+- **2026-10-10. Simple Hack uses storage access presets too.** Replaced 2026-11-12: row rules replace the presets on Hack too, with Hack adding its trusted facts and keeping its own gates (re-architecture decisions 19 and 20). Replaces "Simple Hack keeps its
   storage rules (D2)". Once the presets were tested on Simple Host, team sites and custom event
   websites got the same matrix, seven presets, four rules and server-built table routes. Hack's
   own gates still apply on top: team membership and the team-site-only key, the submission
@@ -695,7 +759,7 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-10-10. Two sign-ins, one rule; one storage path for new sites.** Account sign-in (`/v1/auth*`) is for Simple Host account owners and their agents and answers only on the app's own address; a site's visitors always use visitor sign-in on the site's own address through `auth.js`, and a page never holds an API key. The connector offers only storage resources for saving (the 19 state, collection and kinds tools are gone), says which tool is for which job, and hands out the exact page code for visitor sign-in plus each person's records (`get_page_recipe`). The deprecated state, collection and kinds routes keep working for existing sites; every surface marks them existing-sites-only, and whether to turn them off is a separate decision (2026-10-13). Reason: a free ChatGPT account using the connector alone built a shop that signed shoppers in with the account API, stored an account key in the browser, and posted orders to the deprecated collections API, because the connector's instructions still taught the kinds and never mentioned storage resources or the two sign-ins.
 
 - **2026-10-21. Named viewers are managed from the dashboard; per-site visitor
-  sign-in stays separate on purpose.** The owner app's Your sites, Manage, "Who
+  sign-in stays separate on purpose.** Replaced 2026-11-12: the dropped one-sign-in-across-sites idea was adopted on 2026-10-29 (SIM-338, "One sign-in across sites"); the dashboard part stands. The owner app's Your sites, Manage, "Who
   can open" dialog is a first-class way to run named viewers, not just a thing
   the connector sets up: it shows whether each named person has actually signed
   in yet (not just when they were named), always shows the viewer limit, and
@@ -745,6 +809,7 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-10-09. In-app AI create, transcription, Ask and the setup assistant were removed.** Sites are built only through people’s own AI apps and agents; Simple Host publishes and manages them. Reason: 4 sites used in-app create in the last two weeks, versus about 130 built with people’s own AI apps. Existing sites are unaffected.
 
 - **2026-10-09. Transcription, Ask, and the setup assistant and check removed.**
+  Replaced 2026-11-12: AI create is removed too (the other 2026-10-09 entry); the code has no AI-create route or sidecar call, so the sentence below that it continues is wrong.
   Owner decision: these are no longer used. Remove their routes, page controls,
   settings and documentation. The setup helper's questions, client-side validation,
   generated settings and install commands remain. AI create and its status route
@@ -898,7 +963,7 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-08-14. Every state/collection write requires a signed-in visitor.** Not per-site opt-in.
   Reason: writes should cost an identity without giving pages an API key. `docs/history/SPEC.md` is the
   historical design; later entries here override it.
-- **2026-08-23. AI create uses Grok only, via the local CLIProxy sidecar.** No fallbacks. Reason:
+- **2026-08-23. AI create uses Grok only, via the local CLIProxy sidecar.** Replaced 2026-11-12: AI create was removed on 2026-10-09; no AI-create route remains. No fallbacks. Reason:
   no metered third-party AI keys, no silent provider switches.
 - **2026-09-05. Enforcement flipped globally (`WRITE_AUTH_MODE=on`).** Reason: the rule is only
   true if it holds everywhere; log mode let agents build saves that would silently break later.
@@ -1549,6 +1614,7 @@ What follows from that, and is not negotiable without changing the line above:
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
   guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
 - **2026-09-28. A new account chooses its address at sign-up; pages never use native dialogs.**
+  Replaced 2026-11-12: filed here by mistake; this is a settled decision, not parked, and stands as written.
   When an emailed code, link or Google sign-in would create an account, the person (or their
   agent, via `choose_handle` then `handle` on `POST /v1/auth/verify`) chooses the handle before
   it is created, prefilled with the address it would have been given; a taken or reserved one
@@ -1557,6 +1623,7 @@ What follows from that, and is not negotiable without changing the line above:
   and then could not change it. Owner decision 2026-09-28.
 
 - **2026-10-06. Google Trust Services before ZeroSSL for certificate fallback.**
+  Replaced 2026-11-12: filed here by mistake; this is a settled decision, not parked, and stands as written.
   LE stays primary; its rate limits enter an ordered `google,zerossl` chain.
   Google failure advances to ZeroSSL. Reuse one Google ACME account and pace
   project requests/orders across issuers. Raise hosted platform queue bounds
@@ -1570,7 +1637,7 @@ What follows from that, and is not negotiable without changing the line above:
 
 Ideas the owner likes but has parked. Not built, not promised; each needs the owner's go first.
 
-- **Webhooks and reactions** (parked 2026-10-08). Hosted and small box only, not Enterprise.
+- **Webhooks and reactions** (parked 2026-10-08). Replaced 2026-11-12: the webhooks item is stale: plain webhooks shipped with MCP Events on 2026-10-22 and Web Push joined on 2026-11-06 behind a flag. This marks only the webhooks item. Hosted and small box only, not Enterprise.
   - "Email me" for "Each person's records", reusing the Submissions digest.
   - Owner AI tools "what's new since last check" and "update status".
   - Webhooks out per storage resource: HMAC-signed, retried for an hour, capped per site, and security-reviewed before deploy.
