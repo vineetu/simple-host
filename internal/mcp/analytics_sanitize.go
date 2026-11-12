@@ -140,7 +140,7 @@ func analyticsEmailField(policy toolPolicy, name string) bool {
 	if name == "visitoremail" || name == "visitoremails" || (policy.analytics.contactEmail && name == "contactemail") {
 		return true
 	}
-	if name != "email" && name != "emails" {
+	if name != "email" && name != "emails" && name != "viewers" {
 		return false
 	}
 	return policy.analytics.emailIdentity

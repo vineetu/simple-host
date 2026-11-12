@@ -42,7 +42,10 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 
 - **A new site.** `create_site` with every file inline (`{"index.html": "..."}`; generated binary assets in
   `files_base64`), named with lowercase letters, numbers and hyphens. Give the person the `url` the
-  tool returned, exactly as returned.
+  tool returned, exactly as returned. If private, include `access: "specific"` and their
+  `viewers` in this call (no viewers means owner only); never create open and then lock.
+  For a large private archive, create the site private first, then use the upload link to
+  update that existing private site.
 - **A big site** (many photos, or a site being moved) is too large to send inline. With a shell,
   pack the folder (`tar -czf site.tar.gz -C <folder> .`), call `create_upload_link` with `archive: true` and the site
   name, and run the one-line `curl` it returns; it creates or updates the site. Moving an existing
@@ -118,8 +121,8 @@ the page that uses them. Then the page:
 
 ## 4. Check with the person first
 
-- Before a new site goes online the first time, say its name and address and that anyone with the
-  link can open it, and wait for a yes.
+- Before a new site goes online the first time, say its name and address, ask who can open it
+  (anyone with the link, or only them and named people), and wait for a yes.
 - Always ask before deleting a site or saved data, making private data public, changing who can
   see or save, connecting a domain, rolling back, taking a site offline, or adding or removing a
   passcode or named viewers. Name exactly what changes. Updates they asked for go ahead.
@@ -136,7 +139,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.110` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.111` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 
@@ -156,3 +159,18 @@ A coding agent with a configured owner credential uses REST (`X-API-Key`, and
 | A free `<name>.simple-host.app` or a custom domain in depth | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
 For sites shared with the person, use `visitor_read_site`, `visitor_add_entry`, and `visitor_change_entry` with their visitor rights only; each accepts an optional site `passcode`.
+
+## Choose access when creating
+
+For a new private site, use `create_site` with `access: "specific"` and optional
+`viewers: ["person@example.com"]` in the same call. With no viewers only the owner
+can open it. Never create open and then lock it. Ask who can open it: anyone with
+the address (the unchanged default), or only the owner and the people they name.
+Keep emails exactly as given. REST JSON create accepts these body fields; archive
+create accepts `?access=specific&viewers=a@example.com,b@example.com` (also repeated
+`viewers=`). PUT `?create=1` adds viewers only on creation. On an existing site,
+`specific` requires it already be specific (409 `access_differs`); `anyone` never
+changes its access. Plain PUT rejects creation access/viewers; later use
+`set_site_access` / `grant_site_viewer`. Named viewers require visitor sign-in and
+the site's own address; unavailable on Simple Hack. Passcodes stay in the dashboard,
+never in chat or tool arguments.

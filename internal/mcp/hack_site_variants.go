@@ -3,6 +3,7 @@ package mcp
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 )
 
@@ -13,6 +14,12 @@ func hackSiteCreateUploadLink(tool Tool, limits Limits) Tool {
 }
 
 func hackSiteCreateSite(tool Tool, limits Limits) Tool {
+	tool.InputSchema = maps.Clone(tool.InputSchema)
+	props := maps.Clone(tool.InputSchema["properties"].(map[string]any))
+	tool.InputSchema["properties"] = props
+	delete(props, "access")
+	delete(props, "viewers")
+	tool.Description = strings.Replace(tool.Description, "By default anyone with the returned URL can open it as soon as this returns; with access specific only the owner and named viewers can, from the first request. Ask the person who should open it.", "Anyone with the returned URL can open it as soon as this returns.", 1)
 	tool.Description = strings.Replace(tool.Description, deployPhotoTip, hackPhotoTip, 1)
 	return tool
 }

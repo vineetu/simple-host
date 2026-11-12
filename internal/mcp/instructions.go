@@ -18,7 +18,7 @@ BUILD
 - Sites live at https://<site>.<handle>.simple-host.app/. Give the person each url exactly as returned.
 
 ASK FIRST
-- Before create_site: say its name and address, that anyone with the link can open it, and await a yes.
+- Before create_site: name/address; ask: anyone with the link, or only you and named people? Await yes.
 - Before deleting anything, widening who can read data, connecting or removing a domain, changing a passcode or viewers, rolling back, or taking a site offline. Name exactly what changes. Updates the person asked for go ahead.
 
 MORE TOOLS

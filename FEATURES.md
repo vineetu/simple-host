@@ -205,6 +205,15 @@ gate's machinery: the `passcode` marker file (set before the database when turne
 after it when turned off, kept while a passcode remains), `siteGate`, `/internal/passcode` for
 nginx and Caddy, and the data-route wrapper. Needs migration `zc-site-named-viewers.sql`.
 
+A new site can be private from its first request (SIM-448, 2026-11-12):
+`create_site` or REST create accepts optional `access: "specific"` and `viewers`
+emails in one call; no emails means only the owner. The default stays `anyone`.
+Archive uploads use query parameters; JSON uploads use body fields. PUT `?create=1`
+adds viewers only when it creates; on an existing open site `specific` refuses
+`access_differs`, and `anyone` never changes existing access. Plain PUT rejects
+these creation options. The marker is verified before access, viewers and v1 commit
+atomically, then `current` becomes live. Simple Hack does not offer this option.
+
 **Idle-site cleanup (INTENT 2026-09-27). Status: flag** (`IDLE_CLEANUP=on`; default off). A site <a id="publish-idle-cleanup"></a>
 with no visits by people (analytics class `person`; the owner's own visits cannot be told apart,
 so any person's visit counts), no new version, no saved-data or list write and no other change

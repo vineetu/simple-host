@@ -132,7 +132,7 @@ No authentication required.
 
 <div data-operation="POST /v1/sites/{sitename}"></div>
 
-Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB.
+Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB. Choose `access: specific` at creation for only the owner and named viewers from the first request; omitted or `anyone` keeps the default (anyone with the address). Optional `viewers` emails require `specific`, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. Archive options use query parameters `access` and `viewers` (comma-separated or repeated).
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -143,6 +143,8 @@ Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites).
 | sitename | path | string | yes |  |
 | Idempotency-Key | header | string |  | Opaque key for a create request. For 24 hours, the same authenticated account, POST path and query, key and exact request body replay the original handler status and body, including errors, without executing it again. A different body under that key returns 409 idempotency_key_reused. Concurrent identical requests wait for the first response. Stored only in this server's memory; a restart clears it. Authentication and rate limiting still apply to replays. A replay does not extend a minted link's expiry; use a new key to request a new link. Storage row creates support owner credentials and signed-in visitors; anonymous writes ignore this header. Storage replay also checks current resource permissions and is scoped to the resolved site. |
 | author | query | string |  | Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions. |
+| access | query | string, one of `anyone`, `specific` |  | Creation only. Default anyone; specific allows only the owner and named viewers from the first request. |
+| viewers | query | array of string |  | Optional creation viewer emails, only with access specific. Comma-separated or repeated viewers parameters; SITE_VIEWERS_MAX applies. Not added to existing sites. |
 
 **Request body:** application/gzip
 
@@ -153,14 +155,14 @@ Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites).
 | 201 | Site created |
 | 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
-| 409 | Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object) |
+| 409 | site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused |
 | 413 | Payload too large (on saved data, code item_too_large; on a deploy: site_too_large (per-upload limit), site_total_too_large (whole website footprint for sites created from SITE_TOTAL_CAP_FROM), or account_storage_full (all account website files including Recently deleted). Totals count the separate live copy and kept versions after pruning; backend storage and saved data are excluded. The error names the limit and current size for total caps, and hint gives photo-compression and file-cleanup tips) |
 
 ## PUT /v1/sites/{sitename}
 
 <div data-operation="PUT /v1/sites/{sitename}"></div>
 
-Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. `curl -X PUT ".../v1/sites/<name>?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz`.
+Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. `curl -X PUT ".../v1/sites/<name>?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz`. Choose `access: specific` at creation for only the owner and named viewers from the first request; omitted or `anyone` keeps the default (anyone with the address). Optional `viewers` emails require `specific`, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. With create=1, access/viewers apply when creating. On an existing site, specific refuses 409 access_differs unless it is already specific; viewers are not added. anyone never changes an existing site's access. Without create=1, access/viewers are 400 invalid_request; later use set_site_access / grant_site_viewer. Archive options use query parameters `access` and `viewers` (comma-separated or repeated).
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -172,6 +174,8 @@ Upload a new version of an existing site you own. Creates a new version and acti
 | publish | query | boolean |  | false stores the new version without making it live (updates only; a new site's first version always goes live: 400) |
 | create | query | string, one of `1`, `0`, `true`, `false` |  | 1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists |
 | author | query | string |  | Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions. |
+| access | query | string, one of `anyone`, `specific` |  | Creation only. Default anyone; specific allows only the owner and named viewers from the first request. |
+| viewers | query | array of string |  | Optional creation viewer emails, only with access specific. Comma-separated or repeated viewers parameters; SITE_VIEWERS_MAX applies. Not added to existing sites. |
 
 **Request body:** application/gzip
 
@@ -181,15 +185,17 @@ Upload a new version of an existing site you own. Creates a new version and acti
 | --- | --- |
 | 200 | Site updated |
 | 201 | Site created (?create=1 and no site of that name) |
+| 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 404 | Not found |
+| 409 | site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused |
 | 413 | Payload too large (on saved data, code item_too_large; on a deploy: site_too_large (per-upload limit), site_total_too_large (whole website footprint for sites created from SITE_TOTAL_CAP_FROM), or account_storage_full (all account website files including Recently deleted). Totals count the separate live copy and kept versions after pruning; backend storage and saved data are excluded. The error names the limit and current size for total caps, and hint gives photo-compression and file-cleanup tips) |
 
 ## POST /v1/sites/{sitename}/files
 
 <div data-operation="POST /v1/sites/{sitename}/files"></div>
 
-The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call.
+The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. Choose `access: specific` at creation for only the owner and named viewers from the first request; omitted or `anyone` keeps the default (anyone with the address). Optional `viewers` emails require `specific`, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. JSON body fields: `access` and `viewers`.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -205,9 +211,11 @@ The LLM-friendly deploy path — send every file inline in one request, no archi
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| access | string, one of `anyone`, `specific` |  | Creation only (POST or PUT create=1). Default anyone; specific allows only the owner and named viewers from the first request. No access change on existing sites. |
 | files | object | yes | relative path -&gt; file contents (text). index.html required unless PUT uses keep=1. |
 | files_base64 | object |  | relative path -&gt; base64-encoded binary contents. A path cannot also appear in `files`. |
 | remove_files | array of string |  | Paths to drop from the live version; only with PUT keep=1. |
+| viewers | array of string |  | Optional emails, only with access specific; normalized, deduplicated, limited by SITE_VIEWERS_MAX. Added only when the site is created. |
 
 **Responses:**
 
@@ -216,13 +224,13 @@ The LLM-friendly deploy path — send every file inline in one request, no archi
 | 201 | Site created |
 | 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
-| 409 | Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object) |
+| 409 | site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused |
 
 ## PUT /v1/sites/{sitename}/files
 
 <div data-operation="PUT /v1/sites/{sitename}/files"></div>
 
-Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps.
+Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps. Choose `access: specific` at creation for only the owner and named viewers from the first request; omitted or `anyone` keeps the default (anyone with the address). Optional `viewers` emails require `specific`, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. With create=1, access/viewers apply when creating. On an existing site, specific refuses 409 access_differs unless it is already specific; viewers are not added. anyone never changes an existing site's access. Without create=1, access/viewers are 400 invalid_request; later use set_site_access / grant_site_viewer. JSON body fields: `access` and `viewers`.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -240,9 +248,11 @@ Same as POST, but for an existing site you own. Creates a new version and activa
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| access | string, one of `anyone`, `specific` |  | Creation only (POST or PUT create=1). Default anyone; specific allows only the owner and named viewers from the first request. No access change on existing sites. |
 | files | object | yes | relative path -&gt; file contents (text). index.html required unless PUT uses keep=1. |
 | files_base64 | object |  | relative path -&gt; base64-encoded binary contents. A path cannot also appear in `files`. |
 | remove_files | array of string |  | Paths to drop from the live version; only with PUT keep=1. |
+| viewers | array of string |  | Optional emails, only with access specific; normalized, deduplicated, limited by SITE_VIEWERS_MAX. Added only when the site is created. |
 
 **Responses:**
 
@@ -253,6 +263,7 @@ Same as POST, but for an existing site you own. Creates a new version and activa
 | 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 404 | Not found |
+| 409 | site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused |
 
 ## POST /v1/sites/{sitename}/photos
 

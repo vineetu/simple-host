@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 12:** Create a site private from the first request, with only you and the viewers you name able to open it. Send access specific and optional viewer emails in the create call; the default stays anyone with the address. Available on Simple Host, including self-hosted installs with visitor sign-in and per-site addresses.
+
 - **Nov 12:** Keep old links working with a root `_redirects` file, checked on publish and applied after access gates. Plain `/faq` addresses serve `faq.html` directly; directory-only pages keep their trailing slash redirect.
 
 - **Nov 12:** Announcements support clickable http(s) addresses, labelled links, bold, bullets and line breaks. Standalone Zoom, Meet, Teams and YouTube links become cards without fetching linked pages. Organisers can preview before posting and pin one announcement, replacing the previous pin; it appears first for participants and judges. Email carries matching HTML buttons and full addresses in plain text.

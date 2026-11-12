@@ -83,31 +83,26 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 ## Check with the person first
 
 - **A new site:** before it goes online the first time, ask once. Say its name and
-  address (`https://<sitename>.<handle>.simple-host.app/`), that anyone with the
-  link can open it, and wait for a yes.
+  address (`https://<sitename>.<handle>.simple-host.app/`), ask who can open it
+  (anyone with the link, or only them and named people), and wait for a yes.
 - **Always ask before** deleting a site or saved data, making private data public,
   changing who can see or save, connecting a domain or free address, rolling back,
   taking a site offline, putting a passcode on a site or naming who can open it
   (or changing or removing either), or lowering how many versions a site keeps.
   Name exactly what changes.
 - **Who can open a site:** when the person names people ("only mom@example.com and
-  dad@example.com", "only these emails"), use named viewers: `grant_site_viewer` with exactly
-  the emails they gave turns it on in one call (`references/operations.md` §Named viewers). Each
+  dad@example.com", "only these emails"), for a new site pass `access: "specific"` and `viewers` with exactly
+  the emails they gave to `create_site`; on an existing site `grant_site_viewer` turns it on in one call (`references/operations.md` §Named viewers). Each
   named person signs in on the site with that email; nobody else gets in. "With a code" or "a
-  password" means a site passcode (`set_site_passcode`): ask first, and use the passcode the
-  person chose (or, if they ask you to pick one, `generate: true`, told back to them). For "private" or
-  "only family" with no names and no code, ask which of the two they want. `get_site_passcode`
-  shows the current one, `remove_site_passcode` takes it off (ask first), and
-  `sign_out_site_visitors` makes every visitor enter it again. List on my profile only controls the profile page. A site has named viewers or a passcode, not both. A passcode typed in chat stays in
-  the transcript; the dashboard can set either.
-- **Updates** to a site the person asked for in this conversation go ahead once
-  they ask for the change: publishing it is the point.
+  password" means a site passcode: use the dashboard passcode screen, never ask for
+  or pass a passcode in chat or tool arguments. A site has named viewers or a passcode,
+  not both. List on my profile only controls the profile page.
 
 ## Service
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.110`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.111`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -243,7 +238,7 @@ gets 404 and writes nothing. An agent acting for the owner uses the connector if
 it has one; otherwise ask the person to connect Simple Host or complete setup in the trusted browser. `references/backend.md` covers local credential use, the `SH` API and error bodies.
 
 Sign-in identifies the visitor; on its own it does not make the page private.
-Pages are public to anyone with the link, unless the owner opens the whole site
+By default pages are open to anyone with the link, unless the owner opens the whole site
 only to named viewers (`references/operations.md` §Named viewers: each signs in
 with their own email) or puts one passcode on it (§Site passcode: shared, not a
 login). There is no lock on a single page.
@@ -323,3 +318,18 @@ Publish a root `_redirects` text file with `FROM [key=value ...] TO [STATUS]`, o
 The file is validated on publish and never served. Limits: 128 KiB, 2048 bytes per line, 1000 rules by default (`REDIRECTS_MAX_RULES` on self-hosted installs). Fix publish errors at their reported line numbers. `/faq` serves `faq.html` directly with 200; directory-only `faq/index.html` keeps the 301 to `/faq/` for relative links.
 
 **List on my profile:** `set_visibility` keeps its public/unlisted values: public = on (shows on the owner’s profile page), unlisted = off (does not). New sites start off. Every open site can be found by search engines on every address. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.
+
+## Choose access when creating
+
+For a new private site, use `create_site` with `access: "specific"` and optional
+`viewers: ["person@example.com"]` in the same call. With no viewers only the owner
+can open it. Never create open and then lock it. Ask who can open it: anyone with
+the address (the unchanged default), or only the owner and the people they name.
+Keep emails exactly as given. REST JSON create accepts these body fields; archive
+create accepts `?access=specific&viewers=a@example.com,b@example.com` (also repeated
+`viewers=`). PUT `?create=1` adds viewers only on creation. On an existing site,
+`specific` requires it already be specific (409 `access_differs`); `anyone` never
+changes its access. Plain PUT rejects creation access/viewers; later use
+`set_site_access` / `grant_site_viewer`. Named viewers require visitor sign-in and
+the site's own address; unavailable on Simple Hack. Passcodes stay in the dashboard,
+never in chat or tool arguments.

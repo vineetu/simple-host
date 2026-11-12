@@ -176,7 +176,7 @@ What it is: a static HTML/JS dashboard or report built from data that was export
 When to choose: public reports, class projects, research notes, and read-only dashboards where the private work already happened in another tool. For example, a user can turn a sanitized analytics or social export (a follower list, a search result, a CSV of metrics) into a static report, then deploy the report output here.
 
 Gotchas:
-- Every deployed file is public. Remove keys, cookies, and anything the user did not explicitly approve for publication.
+- Every deployed file is readable by whoever can open the site. Remove keys, cookies, and anything the user did not explicitly approve for publication.
 - Prefer small, pre-filtered exports. Large raw datasets can exceed archive limits and make the page slow.
 - Do not fetch private APIs from the browser unless the user supplies a key at runtime. If the report needs server-side refresh, Website Deploy is only the static front-end, not the refresh worker.
 
@@ -190,14 +190,14 @@ Website Deploy serves files. There is no rewrite layer. Because sites live under
 
 ### 8. A nicer address: free name or custom domain
 
-Optional — every site already has its own `https://<sitename>.<handle>.simple-host.app/`, where sign-in and private collections work. The quickest nicer address is a free `<name>.simple-host.app`: `connect_domain` (or `POST /v1/sites/<sitename>/domain`) with `{"domain":"clay-studio.simple-host.app"}` answers `active` at once, no DNS. First come, first served. A user can instead serve a site from their own domain (e.g. `recipes.brand.com`) — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds two DNS records (the address and a TXT ownership record) → poll `GET /v1/sites/<sitename>/domain` until `active` (with the connector: `connect_domain`, then `domain_status`). Either one changes the address; sign-in and private collections carry over. Pages stay public. Once connected, the site lives only at that address: its `<sitename>.<handle>.simple-host.app` URL 302s there and takes no writes for it (agents keep writing through the apex `https://simple-host.app/v1/...`).
+Optional — every site already has its own `https://<sitename>.<handle>.simple-host.app/`, where sign-in and private collections work. The quickest nicer address is a free `<name>.simple-host.app`: `connect_domain` (or `POST /v1/sites/<sitename>/domain`) with `{"domain":"clay-studio.simple-host.app"}` answers `active` at once, no DNS. First come, first served. A user can instead serve a site from their own domain (e.g. `recipes.brand.com`) — use the `connect-domain` skill (`simple-host-website/skills/connect-domain`). Summary: `POST /v1/sites/<sitename>/domain` with `{domain}` → user adds two DNS records (the address and a TXT ownership record) → poll `GET /v1/sites/<sitename>/domain` until `active` (with the connector: `connect_domain`, then `domain_status`). Either one changes the address; sign-in and private collections carry over. The site keeps its chosen access. Once connected, the site lives only at that address: its `<sitename>.<handle>.simple-host.app` URL 302s there and takes no writes for it (agents keep writing through the apex `https://simple-host.app/v1/...`).
 
 ## Picking a capability mix
 
 | User says | Capabilities |
 |---|---|
 | "a landing page / portfolio / CV" | static only |
-| "only mom@example.com and dad@example.com should see it" | static + named viewers (`grant_site_viewer` with those emails, after asking) |
+| "only mom@example.com and dad@example.com should see it" | static + named viewers (`create_site` with access specific and those viewers for a new site; `grant_site_viewer` for an existing site, after asking) |
 | "only my family / class / team should see it" | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`); List on my profile only controls the profile page |
 | "a guestbook" | static + a SQLite table with preset `comments` (`get_page_recipe` topic `comments`; anyone posts after a spam check, optional approve-first), or `wall` when posters should sign in and take back their own. An existing guestbook using public Submissions can keep them. |
 | "a waitlist / quote request / contact / signup form" | SQLite with preset `inbox` (`get_page_recipe` topic `inbox`): anyone sends without signing in, only the owner reads. An event RSVP people check later is `records`; `board` for a sheet people edit together, `wall` for a public who's-coming list. |
@@ -226,3 +226,18 @@ owner and the people named. A
 signed-in resource is available to every signed-in visitor; do not describe it
 as a private page or per-person data store. Existing private Submissions and
 Personal records keep their narrower visibility rules.
+
+## Choose access when creating
+
+For a new private site, use `create_site` with `access: "specific"` and optional
+`viewers: ["person@example.com"]` in the same call. With no viewers only the owner
+can open it. Never create open and then lock it. Ask who can open it: anyone with
+the address (the unchanged default), or only the owner and the people they name.
+Keep emails exactly as given. REST JSON create accepts these body fields; archive
+create accepts `?access=specific&viewers=a@example.com,b@example.com` (also repeated
+`viewers=`). PUT `?create=1` adds viewers only on creation. On an existing site,
+`specific` requires it already be specific (409 `access_differs`); `anyone` never
+changes its access. Plain PUT rejects creation access/viewers; later use
+`set_site_access` / `grant_site_viewer`. Named viewers require visitor sign-in and
+the site's own address; unavailable on Simple Hack. Passcodes stay in the dashboard,
+never in chat or tool arguments.

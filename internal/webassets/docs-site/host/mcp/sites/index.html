@@ -837,7 +837,7 @@
 </table>
 <h2 id="create_site">create_site</h2>
 <div data-tool="create_site"></div>
-<p>Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. When the person says “my site”, “our site”, or “my salon site”, call list_sites first: if they already have that site, add to it with update_site instead of making a new one. <code>index.html</code> is required. Use relative links only (<code>css/style.css</code>, never <code>/css/style.css</code>), because a site can be served under a path as well as at a root. The site is public to anyone with the returned URL as soon as this returns. A root _redirects file holds redirect rules, is validated on publish and is never served. A form visitors send (contact, quote, booking, sign-up, order) must save to storage: call get_page_recipe first; never use a mailto: link or an outside form service. Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. For the person’s own photos, give them create_upload_link’s photos_url (it shrinks them); never ask them to resize or attach photos. Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need.</p>
+<p>Publish a NEW website from files given inline, at its own address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. When the person says “my site”, “our site”, or “my salon site”, call list_sites first: if they already have that site, add to it with update_site instead of making a new one. <code>index.html</code> is required. Use relative links only (<code>css/style.css</code>, never <code>/css/style.css</code>), because a site can be served under a path as well as at a root. By default anyone with the returned URL can open it as soon as this returns; with access specific only the owner and named viewers can, from the first request. Ask the person who should open it. A root _redirects file holds redirect rules, is validated on publish and is never served. A form visitors send (contact, quote, booking, sign-up, order) must save to storage: call get_page_recipe first; never use a mailto: link or an outside form service. Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. For the person’s own photos, give them create_upload_link’s photos_url (it shrinks them); never ask them to resize or attach photos. Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -849,6 +849,12 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>access</td>
+<td>string, one of <code>anyone</code>, <code>specific</code></td>
+<td></td>
+<td>Default anyone: anyone with the address. specific: only the owner and named viewers; everyone else sees a sign-in page, from the first request.</td>
+</tr>
 <tr>
 <td>files</td>
 <td>object</td>
@@ -866,6 +872,12 @@
 <td>string</td>
 <td>yes</td>
 <td>The site’s name as it appears in its address, e.g. <code>birthday-rsvp</code>: lowercase letters, numbers and hyphens. Pick a short, descriptive name.</td>
+</tr>
+<tr>
+<td>viewers</td>
+<td>array of string</td>
+<td></td>
+<td>Emails exactly as the person gave them; only with access specific. Added in the same create call.</td>
 </tr>
 </tbody>
 </table>

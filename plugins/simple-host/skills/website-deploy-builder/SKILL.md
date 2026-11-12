@@ -65,3 +65,18 @@ If a file is not on disk next to this one, fetch its URL.
 | Example prompts for another agent, the deploy handoff, home page, file sizes, each person's records worked example | `references/handoff-and-examples.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/handoff-and-examples.md |
 | Presets, custom access matrices and the page helper in full | the `website-deploy` skill's `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
 | Simple Hack team or event sites | the separate Simple Hack `website-deploy-builder` skill |
+
+## Choose access when creating
+
+For a new private site, use `create_site` with `access: "specific"` and optional
+`viewers: ["person@example.com"]` in the same call. With no viewers only the owner
+can open it. Never create open and then lock it. Ask who can open it: anyone with
+the address (the unchanged default), or only the owner and the people they name.
+Keep emails exactly as given. REST JSON create accepts these body fields; archive
+create accepts `?access=specific&viewers=a@example.com,b@example.com` (also repeated
+`viewers=`). PUT `?create=1` adds viewers only on creation. On an existing site,
+`specific` requires it already be specific (409 `access_differs`); `anyone` never
+changes its access. Plain PUT rejects creation access/viewers; later use
+`set_site_access` / `grant_site_viewer`. Named viewers require visitor sign-in and
+the site's own address; unavailable on Simple Hack. Passcodes stay in the dashboard,
+never in chat or tool arguments.

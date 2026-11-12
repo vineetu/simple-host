@@ -6280,7 +6280,7 @@
       "name": "create_site",
       "family": "sites",
       "edition": "host",
-      "feature_id": "publish-idle-cleanup"
+      "feature_id": "access-named-viewers"
     },
     {
       "name": "create_upload_link",

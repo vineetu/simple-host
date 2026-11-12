@@ -41,6 +41,21 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 4. Confirm before removing either restriction. Use named viewers or a passcode, not both; List on my profile only controls your profile page.
 
 
+To create a new site private from the first request, send `access: "specific"` and
+optional `viewers: ["person@example.com"]` alongside `files` in the create call
+(`create_site` or `POST /v1/sites/{sitename}/files`). With no viewers, only you can
+open it. Never publish open and then restrict it. Archive uploads use
+`?access=specific&viewers=person@example.com` (comma-separated or repeated viewers).
+Omitting access keeps the default: anyone with the address can open it.
+
+With `PUT ?create=1`, viewers are added only when creating. For an existing site,
+`access: "specific"` refuses `409 access_differs` unless it is already specific;
+use `set_site_access` / `grant_site_viewer` first. `anyone` does not change an
+existing site's access. Plain PUT rejects these options with `400 invalid_request`.
+Named viewers require visitor sign-in and an address of the site's own.
+As on any private site, a preview link or download link you make later opens for
+whoever holds it.
+
 ## Errors you may see
 
 | Code | Means | Do this |

@@ -1584,6 +1584,9 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.readArchiveCreateAccess(w, r) {
+		return
+	}
 	files, archiveSHA, err := h.readAndValidateFiles(w, r, siteName)
 	if err != nil {
 		return
@@ -1607,7 +1610,9 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 	// Every path that creates a site comes through here (hack_mode.go).
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
+	access := creationAccess(r)
 	result, err := h.sitesSvc().Create(r.Context(), sites.CreateInput{
+		Access: access.Access, Viewers: access.Viewers, NamedViewersRefusal: access.NamedViewersRefusal,
 		User: user, Name: siteName,
 		ArchiveSHA: archiveSHA, Author: versionAuthor(r), Files: files, OrUpdate: orUpdate,
 	})
@@ -1624,6 +1629,12 @@ func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *model.User, res
 		var gateErr *sites.GateError
 		var siteErr *sites.Error
 		switch {
+		case errors.As(err, &siteErr) && (siteErr.Code == "named_viewers_unavailable" || siteErr.Code == "sign_in_unavailable" || siteErr.Code == "named_viewers_need_own_address" || siteErr.Code == "access_differs"):
+			writeJSON(w, 409, errorResponse{Code: siteErr.Code, Error: siteErr.Message})
+		case errors.As(err, &siteErr) && siteErr.Code == "too_many_viewers":
+			writeJSON(w, 400, errorResponse{Code: siteErr.Code, Error: siteErr.Message})
+		case errors.As(err, &siteErr) && siteErr.Code == "access_marker":
+			writeJSON(w, 500, errorResponse{Code: siteErr.Code, Error: siteErr.Message})
 		case errors.As(err, &siteErr) && siteErr.Code == "redirects_invalid":
 			writeJSON(w, 400, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 		case errors.As(err, &siteErr) && siteErr.Code == "unauthorized":
@@ -1674,6 +1685,9 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 	}
 	publish, create := preflight.Publish, preflight.Create
 
+	if !h.readArchiveCreateAccess(w, r) {
+		return
+	}
 	files, archiveSHA, err := h.readAndValidateFiles(w, r, siteName)
 	if err != nil {
 		return
@@ -1698,6 +1712,8 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 }
 
 func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, user *model.User, siteName string, input sites.UpdateInput, respond func(siteResponse)) {
+	access := creationAccess(r)
+	input.Access, input.Viewers, input.NamedViewersRefusal = access.Access, access.Viewers, access.NamedViewersRefusal
 	input.ExpectedID, input.CheckID = r.Context().Value(adminSiteKey{}).(string)
 	result, err := h.sitesSvc().Update(r.Context(), input)
 	if result.Created != nil {
@@ -1720,6 +1736,8 @@ func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, 
 // the file contents inline, no archiving step. For binary assets or large sites,
 // use the archive upload (POST/PUT /v1/sites/{name}).
 type filesRequest struct {
+	Access      *string           `json:"access"`
+	Viewers     []string          `json:"viewers"`
 	Files       map[string]string `json:"files"`
 	FilesBase64 map[string]string `json:"files_base64"`
 	RemoveFiles []string          `json:"remove_files"`
@@ -1731,6 +1749,12 @@ func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Reques
 	switch {
 	case errors.As(err, &gateErr):
 		writeRollbackGateError(w, gateErr)
+	case errors.As(err, &siteErr) && (siteErr.Code == "named_viewers_unavailable" || siteErr.Code == "sign_in_unavailable" || siteErr.Code == "named_viewers_need_own_address" || siteErr.Code == "access_differs"):
+		writeJSON(w, 409, errorResponse{Code: siteErr.Code, Error: siteErr.Message})
+	case errors.As(err, &siteErr) && siteErr.Code == "too_many_viewers":
+		writeJSON(w, 400, errorResponse{Code: siteErr.Code, Error: siteErr.Message})
+	case errors.As(err, &siteErr) && siteErr.Code == "access_marker":
+		writeJSON(w, 500, errorResponse{Code: siteErr.Code, Error: siteErr.Message})
 	case errors.As(err, &siteErr) && siteErr.Code == "redirects_invalid":
 		writeJSON(w, 400, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 	case errors.As(err, &siteErr) && siteErr.Code == "deploy_site_not_found":
@@ -1774,6 +1798,11 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 	defer rc.SetReadDeadline(time.Time{})
 	var req filesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var requestErr *sites.Error
+		if errors.As(err, &requestErr) {
+			writeJSON(w, 400, errorResponse{Code: requestErr.Code, Error: requestErr.Message})
+			return nil, nil, limit, override, err
+		}
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			writeTooLarge(w, limit, "")
@@ -1781,6 +1810,9 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
 		return nil, nil, limit, override, err
+	}
+	if !h.readCreateAccess(w, r, req.Access, req.Viewers) {
+		return nil, nil, limit, override, errors.New("invalid creation access")
 	}
 	keep := r.Method == http.MethodPut && r.URL.Query().Get("keep") == "1"
 	if req.RemoveFiles != nil && !keep {

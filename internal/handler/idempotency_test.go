@@ -175,3 +175,25 @@ func TestCreateIdempotencyRateLimitHeadersStayCurrent(t *testing.T) {
 		t.Fatalf("rate limited replay: calls=%d, %d %v", calls, w.Code, w.Header())
 	}
 }
+
+func TestCreateIdempotencyAccessIsRequestData(t *testing.T) {
+	for _, paths := range [][2]string{
+		{"/v1/sites/s?access=anyone", "/v1/sites/s?access=specific"},
+		{"/v1/sites/s?access=specific&viewers=a@example.com", "/v1/sites/s?access=specific&viewers=b@example.com"},
+		{"/v1/sites/s/files", "/v1/sites/s/files"},
+	} {
+		store := newCreateIdempotencyStore(config.DefaultLimits())
+		calls := 0
+		h := store.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.WriteHeader(201) }))
+		h.ServeHTTP(httptest.NewRecorder(), createRequest("a", "POST", paths[0], "k", `{"access":"anyone"}`))
+		rec := httptest.NewRecorder()
+		body := `{"access":"anyone"}`
+		if paths[0] == paths[1] {
+			body = `{"access":"specific","viewers":["a@example.com"]}`
+		}
+		h.ServeHTTP(rec, createRequest("a", "POST", paths[1], "k", body))
+		if calls != 1 || rec.Code != 409 || !strings.Contains(rec.Body.String(), "idempotency_key_reused") {
+			t.Fatalf("%v: calls=%d %d %s", paths, calls, rec.Code, rec.Body)
+		}
+	}
+}

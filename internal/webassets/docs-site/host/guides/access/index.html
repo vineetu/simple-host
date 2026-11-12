@@ -679,6 +679,19 @@
 <li>For a shared passcode, use the site’s Passcode controls in the dashboard. Keep the passcode out of chat.</li>
 <li>Confirm before removing either restriction. Use named viewers or a passcode, not both; List on my profile only controls your profile page.</li>
 </ol>
+<p>To create a new site private from the first request, send <code>access: "specific"</code> and
+optional <code>viewers: ["person@example.com"]</code> alongside <code>files</code> in the create call
+(<code>create_site</code> or <code>POST /v1/sites/{sitename}/files</code>). With no viewers, only you can
+open it. Never publish open and then restrict it. Archive uploads use
+<code>?access=specific&amp;viewers=person@example.com</code> (comma-separated or repeated viewers).
+Omitting access keeps the default: anyone with the address can open it.</p>
+<p>With <code>PUT ?create=1</code>, viewers are added only when creating. For an existing site,
+<code>access: "specific"</code> refuses <code>409 access_differs</code> unless it is already specific;
+use <code>set_site_access</code> / <code>grant_site_viewer</code> first. <code>anyone</code> does not change an
+existing site’s access. Plain PUT rejects these options with <code>400 invalid_request</code>.
+Named viewers require visitor sign-in and an address of the site’s own.
+As on any private site, a preview link or download link you make later opens for
+whoever holds it.</p>
 <h2 id="errors-you-may-see">Errors you may see</h2>
 <table>
 <thead>

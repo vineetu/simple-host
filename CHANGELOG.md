@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-12: Create a site private from the first request, with only you and the viewers you name able to open it (SIM-448). Send access specific and optional viewer emails in the create call; the default stays anyone with the address. Available on Simple Host, including self-hosted installs with visitor sign-in and per-site addresses.
+
 2026-11-12: Every open site can now be found by search engines (SIM-441). The listed/unlisted switch is renamed List on my profile and only decides whether a site shows on your profile page; it is still off for new sites and every site keeps its current setting. Sites with a passcode or named viewers, offline, taken-down and deleted sites stay out of search engines, and a site's own robots.txt or noindex is respected. The simple-host.app and simple-hack.app sitemaps now list every open site's address. Old API and AI-app calls that set visibility keep working.
 
 2026-11-12: Keep old links working with a root `_redirects` file, checked on publish and applied after access gates. Plain `/faq` addresses serve `faq.html` directly; directory-only pages keep their trailing slash redirect (SIM-440).

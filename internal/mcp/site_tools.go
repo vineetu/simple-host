@@ -189,7 +189,7 @@ func siteTools(limits Limits) []Tool {
 			run:         readSiteFiles,
 		},
 		{
-			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{fileArguments: true}, hackSite: hackSiteCreateSite},
+			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{fileArguments: true, structuredText: true, emailIdentity: true, emailChanges: true}, hackSite: hackSiteCreateSite},
 			OutputSchema: func() map[string]any {
 				schema := siteSummaryWith(map[string]any{
 					"file_count":    outInteger("How many files were published."),
@@ -202,12 +202,14 @@ func siteTools(limits Limits) []Tool {
 			}(),
 			Name:  "create_site",
 			Title: "Publish a new site",
-			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
+			Description: "Publish a NEW website from files given inline, at its own address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
 				"When the person says \"my site\", \"our site\", or \"my salon site\", call list_sites first: if they already have that site, add to it with update_site instead of making a new one. " +
 				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because a site can be served under a path as well as at a root. " +
-				"The site is public to anyone with the returned URL as soon as this returns. A root _redirects file holds redirect rules, is validated on publish and is never served. " + deployFormTip + deploySizeTips,
+				"By default anyone with the returned URL can open it as soon as this returns; with access specific only the owner and named viewers can, from the first request. Ask the person who should open it. A root _redirects file holds redirect rules, is validated on publish and is never served. " + deployFormTip + deploySizeTips,
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc + " Pick a short, descriptive name."),
+				"access":       map[string]any{"type": "string", "enum": []string{"anyone", "specific"}, "description": "Default anyone: anyone with the address. specific: only the owner and named viewers; everyone else sees a sign-in page, from the first request."},
+				"viewers":      createViewersSchema(limits),
 				"files":        filesSchema(),
 				"files_base64": filesBase64Schema(),
 			}, "site", "files"),
@@ -1341,6 +1343,13 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	if len(binary) > 0 {
 		payload["files_base64"] = binary
 	}
+	if mode == "create" {
+		for _, key := range []string{"access", "viewers"} {
+			if value, ok := args[key]; ok {
+				payload[key] = value
+			}
+		}
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return output{}, err
@@ -1441,6 +1450,31 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		verb = "Created"
 	}
 	text := fmt.Sprintf("%s %s (version %d). Live at %s", verb, name, site.ActiveVersion, site.liveURL())
+	if mode == "create" {
+		if site.Access == "specific" {
+			n := 0
+			if viewers, ok := args["viewers"].([]any); ok {
+				seen := map[string]bool{}
+				for _, v := range viewers {
+					if email, ok := v.(string); ok {
+						seen[strings.ToLower(strings.TrimSpace(email))] = true
+					}
+				}
+				n = len(seen)
+			}
+			if n == 0 {
+				text += "\nOnly you can open it; everyone else sees a sign-in page."
+			} else {
+				label := "viewers"
+				if n == 1 {
+					label = "viewer"
+				}
+				text += fmt.Sprintf("\nOnly you and %d named %s can open it; everyone else sees a sign-in page.", n, label)
+			}
+		} else {
+			text += "\nAnyone with the address can open it."
+		}
+	}
 	// Said in the text, not a new structured field: apps that cache the
 	// output schema (ChatGPT keeps it from the day it connected) refuse fields
 	// they do not know.
@@ -1460,3 +1494,11 @@ const deployPhotoTip = "For the person's own photos, give them create_upload_lin
 const hackPhotoTip = "Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB."
 
 const deploySizeTips = "Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. " + deployPhotoTip + " Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need."
+
+func createViewersSchema(limits Limits) map[string]any {
+	schema := map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Emails exactly as the person gave them; only with access specific. Added in the same create call."}
+	if limits.SiteViewersMax > 0 {
+		schema["maxItems"] = limits.SiteViewersMax
+	}
+	return schema
+}

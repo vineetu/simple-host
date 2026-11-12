@@ -632,7 +632,7 @@
 								<div class="sl-markdown-content"><p>Publish inline JSON files or a tar.gz/zip archive.</p>
 <h2 id="post-v1sitessitename">POST /v1/sites/{sitename}</h2>
 <div data-operation="POST /v1/sites/{sitename}"></div>
-<p>Upload a <code>.tar.gz</code> or <code>.zip</code> (for framework builds, binary assets, large sites). Max 100 MB. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Upload a <code>.tar.gz</code> or <code>.zip</code> (for framework builds, binary assets, large sites). Max 100 MB. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down. Choose <code>access: specific</code> at creation for only the owner and named viewers from the first request; omitted or <code>anyone</code> keeps the default (anyone with the address). Optional <code>viewers</code> emails require <code>specific</code>, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. Named viewers require sign-in and the site’s own address and are unavailable on Simple Hack. Archive options use query parameters <code>access</code> and <code>viewers</code> (comma-separated or repeated).</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -667,6 +667,20 @@
 <td></td>
 <td>Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions.</td>
 </tr>
+<tr>
+<td>access</td>
+<td>query</td>
+<td>string, one of <code>anyone</code>, <code>specific</code></td>
+<td></td>
+<td>Creation only. Default anyone; specific allows only the owner and named viewers from the first request. Simple Hack refuses specific.</td>
+</tr>
+<tr>
+<td>viewers</td>
+<td>query</td>
+<td>array of string</td>
+<td></td>
+<td>Optional creation viewer emails, only with access specific. Comma-separated or repeated viewers parameters; SITE_VIEWERS_MAX applies. Not added to existing sites.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Request body:</strong> application/gzip</p>
@@ -693,7 +707,7 @@
 </tr>
 <tr>
 <td>409</td>
-<td>Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)</td>
+<td>site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused</td>
 </tr>
 <tr>
 <td>413</td>
@@ -703,7 +717,7 @@
 </table>
 <h2 id="put-v1sitessitename">PUT /v1/sites/{sitename}</h2>
 <div data-operation="PUT /v1/sites/{sitename}"></div>
-<p>Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. <code>curl -X PUT ".../v1/sites/&lt;name&gt;?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz</code>. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. <code>curl -X PUT ".../v1/sites/&lt;name&gt;?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz</code>. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down. Choose <code>access: specific</code> at creation for only the owner and named viewers from the first request; omitted or <code>anyone</code> keeps the default (anyone with the address). Optional <code>viewers</code> emails require <code>specific</code>, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. Named viewers require sign-in and the site’s own address and are unavailable on Simple Hack. With create=1, access/viewers apply when creating. On an existing site, specific refuses 409 access_differs unless it is already specific; viewers are not added. anyone never changes an existing site’s access. Without create=1, access/viewers are 400 invalid_request; later use set_site_access / grant_site_viewer. Archive options use query parameters <code>access</code> and <code>viewers</code> (comma-separated or repeated).</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -745,6 +759,20 @@
 <td></td>
 <td>Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions.</td>
 </tr>
+<tr>
+<td>access</td>
+<td>query</td>
+<td>string, one of <code>anyone</code>, <code>specific</code></td>
+<td></td>
+<td>Creation only. Default anyone; specific allows only the owner and named viewers from the first request. Simple Hack refuses specific.</td>
+</tr>
+<tr>
+<td>viewers</td>
+<td>query</td>
+<td>array of string</td>
+<td></td>
+<td>Optional creation viewer emails, only with access specific. Comma-separated or repeated viewers parameters; SITE_VIEWERS_MAX applies. Not added to existing sites.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Request body:</strong> application/gzip</p>
@@ -766,12 +794,20 @@
 <td>Site created (?create=1 and no site of that name)</td>
 </tr>
 <tr>
+<td>400</td>
+<td>Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.</td>
+</tr>
+<tr>
 <td>401</td>
 <td>Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body’s code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).</td>
 </tr>
 <tr>
 <td>404</td>
 <td>Not found</td>
+</tr>
+<tr>
+<td>409</td>
+<td>site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused</td>
 </tr>
 <tr>
 <td>413</td>
@@ -781,7 +817,7 @@
 </table>
 <h2 id="post-v1sitessitenamefiles">POST /v1/sites/{sitename}/files</h2>
 <div data-operation="POST /v1/sites/{sitename}/files"></div>
-<p>The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in <code>files</code>; base64-encoded binary goes in <code>files_base64</code>. <code>index.html</code> is required. Relative paths only (<code>..</code>/absolute are rejected); secret files (<code>.env</code>, <code>.git/*</code>, <code>id_rsa</code>) are dropped and script extensions (<code>.sh .py .php …</code>) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in <code>files</code>; base64-encoded binary goes in <code>files_base64</code>. <code>index.html</code> is required. Relative paths only (<code>..</code>/absolute are rejected); secret files (<code>.env</code>, <code>.git/*</code>, <code>id_rsa</code>) are dropped and script extensions (<code>.sh .py .php …</code>) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down. Choose <code>access: specific</code> at creation for only the owner and named viewers from the first request; omitted or <code>anyone</code> keeps the default (anyone with the address). Optional <code>viewers</code> emails require <code>specific</code>, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. Named viewers require sign-in and the site’s own address and are unavailable on Simple Hack. JSON body fields: <code>access</code> and <code>viewers</code>.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -830,6 +866,12 @@
 </thead>
 <tbody>
 <tr>
+<td>access</td>
+<td>string, one of <code>anyone</code>, <code>specific</code></td>
+<td></td>
+<td>Creation only (POST or PUT create=1). Default anyone; specific allows only the owner and named viewers from the first request. No access change on existing sites.</td>
+</tr>
+<tr>
 <td>files</td>
 <td>object</td>
 <td>yes</td>
@@ -846,6 +888,12 @@
 <td>array of string</td>
 <td></td>
 <td>Paths to drop from the live version; only with PUT keep=1.</td>
+</tr>
+<tr>
+<td>viewers</td>
+<td>array of string</td>
+<td></td>
+<td>Optional emails, only with access specific; normalized, deduplicated, limited by SITE_VIEWERS_MAX. Added only when the site is created.</td>
 </tr>
 </tbody>
 </table>
@@ -872,13 +920,13 @@
 </tr>
 <tr>
 <td>409</td>
-<td>Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)</td>
+<td>site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused</td>
 </tr>
 </tbody>
 </table>
 <h2 id="put-v1sitessitenamefiles">PUT /v1/sites/{sitename}/files</h2>
 <div data-operation="PUT /v1/sites/{sitename}/files"></div>
-<p>Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.</p>
+<p>Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team’s site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down. Choose <code>access: specific</code> at creation for only the owner and named viewers from the first request; omitted or <code>anyone</code> keeps the default (anyone with the address). Optional <code>viewers</code> emails require <code>specific</code>, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. Named viewers require sign-in and the site’s own address and are unavailable on Simple Hack. With create=1, access/viewers apply when creating. On an existing site, specific refuses 409 access_differs unless it is already specific; viewers are not added. anyone never changes an existing site’s access. Without create=1, access/viewers are 400 invalid_request; later use set_site_access / grant_site_viewer. JSON body fields: <code>access</code> and <code>viewers</code>.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -941,6 +989,12 @@
 </thead>
 <tbody>
 <tr>
+<td>access</td>
+<td>string, one of <code>anyone</code>, <code>specific</code></td>
+<td></td>
+<td>Creation only (POST or PUT create=1). Default anyone; specific allows only the owner and named viewers from the first request. No access change on existing sites.</td>
+</tr>
+<tr>
 <td>files</td>
 <td>object</td>
 <td>yes</td>
@@ -957,6 +1011,12 @@
 <td>array of string</td>
 <td></td>
 <td>Paths to drop from the live version; only with PUT keep=1.</td>
+</tr>
+<tr>
+<td>viewers</td>
+<td>array of string</td>
+<td></td>
+<td>Optional emails, only with access specific; normalized, deduplicated, limited by SITE_VIEWERS_MAX. Added only when the site is created.</td>
 </tr>
 </tbody>
 </table>
@@ -988,6 +1048,10 @@
 <tr>
 <td>404</td>
 <td>Not found</td>
+</tr>
+<tr>
+<td>409</td>
+<td>site_exists, access_differs (create-or-update), named_viewers_unavailable, sign_in_unavailable, named_viewers_need_own_address, or idempotency_key_reused</td>
 </tr>
 </tbody>
 </table>

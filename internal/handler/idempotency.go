@@ -121,6 +121,13 @@ func (s *createIdempotencyStore) wrapAccount(account, siteID string, next http.H
 		rc := http.NewResponseController(w)
 		_ = rc.SetReadDeadline(time.Now().Add(bodyReadTimeout(limit)))
 		hash := sha256.New()
+		query := r.URL.Query()
+		for _, name := range []string{"access", "viewers"} {
+			for _, value := range query[name] {
+				_, _ = io.WriteString(hash, name+"="+value+"\x00")
+			}
+			query.Del(name)
+		}
 		_, err = io.Copy(io.MultiWriter(body, hash), http.MaxBytesReader(w, r.Body, limit))
 		_ = rc.SetReadDeadline(time.Time{})
 		if err != nil {
@@ -140,8 +147,9 @@ func (s *createIdempotencyStore) wrapAccount(account, siteID string, next http.H
 		var digest [sha256.Size]byte
 		copy(digest[:], hash.Sum(nil))
 		// Concrete path and canonical query keep sites, versions and options
-		// distinct; a route pattern alone would collide across sites.
-		k := createIdempotencyKey{account, siteID + ":" + r.Method + " " + r.URL.EscapedPath() + "?" + r.URL.Query().Encode(), key}
+		// distinct; a route pattern alone would collide across sites. Creation
+		// access/viewers are hashed with the body so changing them refuses reuse.
+		k := createIdempotencyKey{account, siteID + ":" + r.Method + " " + r.URL.EscapedPath() + "?" + query.Encode(), key}
 		for {
 			s.mu.Lock()
 			old := s.entries[k]
@@ -152,7 +160,7 @@ func (s *createIdempotencyStore) wrapAccount(account, siteID string, next http.H
 			if old != nil {
 				s.mu.Unlock()
 				if old.hash != digest {
-					writeJSON(w, http.StatusConflict, errorResponse{Error: "Idempotency-Key was already used with a different request body", Code: "idempotency_key_reused"})
+					writeJSON(w, http.StatusConflict, errorResponse{Error: "Idempotency-Key was already used with a different request body or access/viewers", Code: "idempotency_key_reused"})
 					return
 				}
 				select {

@@ -43,6 +43,7 @@ type Service struct {
 
 // Deps holds collaborators shared by site workflows.
 type Deps struct {
+	SiteViewersMax          int
 	PlatformDomains         []string
 	ContentHost, SiteDomain string
 	PersonalSitesEnabled    bool
@@ -105,8 +106,15 @@ type Deps struct {
 	DeleteViewerPush func(ctx context.Context, siteID, email string) error
 }
 
+// createMarkerSettle is how long a private create waits between writing its
+// access marker and making its files live (SIM-448).
+var createMarkerSettle = time.Second
+
 // CreateInput contains the values and non-HTTP dependencies for a locked create.
 type CreateInput struct {
+	Access                   string
+	Viewers                  []string
+	NamedViewersRefusal      func(handle, name string) (code, msg string)
 	User                     *model.User
 	Name, ArchiveSHA, Author string
 	Files                    map[string][]byte
@@ -156,6 +164,16 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if err := repo.LockUserHandle(ctx, tx, in.User.ID, &in.User.Handle); err != nil {
 		return CreateResult{}, err
 	}
+	if in.Access == "specific" {
+		if len(in.Viewers) > s.deps.SiteViewersMax {
+			return CreateResult{}, &Error{Code: "too_many_viewers", Message: fmt.Sprintf("a site can name at most %d viewers", s.deps.SiteViewersMax)}
+		}
+		if in.NamedViewersRefusal != nil {
+			if code, msg := in.NamedViewersRefusal(in.User.Handle.String, in.Name); code != "" {
+				return CreateResult{}, &Error{Code: code, Message: msg}
+			}
+		}
+	}
 	siteURL := fmt.Sprintf("https://%s.%s", in.Name, s.deps.SiteDomain)
 	if in.User.Handle.Valid && in.User.Handle.String != "" {
 		siteURL = fmt.Sprintf("https://%s/%s/%s/", s.deps.ContentHost, in.User.Handle.String, in.Name)
@@ -169,6 +187,30 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if err != nil {
 		return CreateResult{Site: site}, err
 	}
+	if in.Access == "specific" {
+		if err := repo.SetSiteAccess(ctx, tx, site.ID, "specific"); err != nil {
+			return CreateResult{Site: site}, err
+		}
+		for _, email := range in.Viewers {
+			if _, err := repo.AddSiteViewer(ctx, tx, site.ID, email); err != nil {
+				return CreateResult{Site: site}, err
+			}
+		}
+		site.NamedViewers = true
+	}
+	// The marker comes off again only when the transaction surely rolled
+	// back: once Commit has been called its outcome can be unknown (a lost
+	// acknowledgement), and the Go gate reads the marker first, so a
+	// committed private site must never lose it. A marker left on a site
+	// whose row never committed is harmless: the gate finds no protected
+	// row and serves nothing extra (fail closed, never open).
+	commitTried := false
+	markerAttempted := false
+	defer func() {
+		if markerAttempted && !commitTried {
+			_ = s.disk.SetPasscodeMarker(site.UserID, site.Name, false)
+		}
+	}()
 	if err := repo.UpdateSiteSummary(ctx, tx, site.ID, s.deps.Summarize(in.Files)); err != nil {
 		return CreateResult{Site: site}, err
 	}
@@ -197,14 +239,36 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if err := s.disk.WriteFiles(ctx, site.UserID, site.Name, versionNumber, in.Files); err != nil {
 		return CreateResult{Site: site}, err
 	}
+	if in.Access == "specific" {
+		markerAttempted = true
+		if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil || !s.disk.HasPasscodeMarker(site.UserID, site.Name) {
+			return CreateResult{Site: site}, &Error{Code: "access_marker", Message: "the site's files could not be marked; nothing changed, try again"}
+		}
+	}
 	if err := repo.ActivateVersion(ctx, tx, version.ID); err != nil {
 		return CreateResult{Site: site}, err
 	}
 	if err := repo.UpdateSiteActiveVersion(ctx, tx, site.ID, versionNumber); err != nil {
 		return CreateResult{Site: site}, err
 	}
+	commitTried = true
 	if err := tx.Commit(); err != nil {
 		return CreateResult{Site: site}, err
+	}
+	if site.NamedViewers && createMarkerSettle > 0 {
+		// A request that checked for the marker just before it existed
+		// (nginx, Caddy and the Go gate all check it, then open the file)
+		// must have finished before `current` exists: this pause keeps that
+		// gap far wider than any single request's check-then-open. The Go
+		// site and person hosts need no pause (they find the row, committed
+		// after the marker, before they look for the marker); this is for
+		// servers that read the disk directly. The site is committed, so the
+		// pause does not hold a transaction open.
+		time.Sleep(createMarkerSettle)
+	}
+	if site.NamedViewers {
+		log.Printf("site_access access=specific site_id=%s name=%s by=%s", site.ID, site.Name, in.User.ID)
+		log.Printf("site_viewers added=%d site_id=%s name=%s by=%s", len(in.Viewers), site.ID, site.Name, in.User.ID)
 	}
 	if err := s.disk.UpdateCurrent(site.UserID, site.Name, 1); err != nil {
 		log.Printf("createSite: promote %s v%d after commit: %v", site.Name, 1, err)
@@ -692,6 +756,9 @@ func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, vers
 
 // UpdateInput contains a deploy's files and request facts.
 type UpdateInput struct {
+	Access                   string
+	Viewers                  []string
+	NamedViewersRefusal      func(handle, name string) (code, msg string)
 	User                     *model.User
 	Name, ArchiveSHA, Author string
 	Files                    map[string][]byte
@@ -774,7 +841,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		}
 	}
 	if in.CreateIfMissing {
-		create := CreateInput{User: in.User, Name: in.Name, Files: in.Files, ArchiveSHA: in.ArchiveSHA, Author: in.Author, OrUpdate: true}
+		create := CreateInput{Access: in.Access, Viewers: in.Viewers, NamedViewersRefusal: in.NamedViewersRefusal, User: in.User, Name: in.Name, Files: in.Files, ArchiveSHA: in.ArchiveSHA, Author: in.Author, OrUpdate: true}
 		var created CreateResult
 		var err error
 		if locked {
@@ -798,6 +865,9 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	}
 	if err != nil {
 		return UpdateResult{}, err
+	}
+	if in.Access == "specific" && !site.NamedViewers {
+		return UpdateResult{}, &Error{Code: "access_differs", Message: "the existing site is not specific; use set_site_access / grant_site_viewer before updating"}
 	}
 	if site.Suspended() {
 		return UpdateResult{}, &Error{Code: "site_suspended", Message: site.SuspendedReason()}

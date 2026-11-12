@@ -222,7 +222,8 @@ is enforced in the fan-out SQL itself (`repository/notifications.go:emitSiteEven
 Create-request idempotency is an in-memory response cache, distinct from the legacy Postgres
 `idempotency_keys` mechanism (`handler/idempotency.go:createIdempotencyStore`). It scopes an
 Idempotency-Key by account, resolved site (when supplied), method, concrete escaped path and
-canonical query; SHA-256 body hashes reject reuse for a different body. It snapshots exact status,
+canonical query apart from creation access/viewers; SHA-256 hashes include those creation
+options and the body, so changed access/viewers reject key reuse. It snapshots exact status,
 headers and body for replay, expires after 24 hours and cleans hourly. Uploads are temporarily
 spooled while hashing and removed at request end, rather than retained as another memory copy.
 The wrapper runs after authentication/IP limiting and before response notices. Storage row creates
@@ -248,3 +249,14 @@ Hosted sitemaps enumerate eligible open sites with one repository query and disk
 cached ten minutes per brand. Own domains (including claimed names) win, then canonical
 families, then the normal platform address; redirecting aliases are omitted. Self-hosted
 instances enumerate only marketing and docs pages.
+
+## Private from creation
+
+`app/sites.Create` accepts access and normalized viewers. The handler's refusal hook
+runs after the handle is known, before inserting a site. Access and viewers are inserted
+in the version transaction. After WriteFiles creates the site directory, the passcode
+marker is set and verified before commit; only after commit may UpdateCurrent publish.
+A rollback removes the attempted marker best-effort; a committed promotion failure keeps
+it. Existing named-viewer request gates, noindex and sitemap filters apply unchanged.
+Create-or-update checks existing access before writing a version and never adds viewers
+on an update. Default creation never touches a marker.

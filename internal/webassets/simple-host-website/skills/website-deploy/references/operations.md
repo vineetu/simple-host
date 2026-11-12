@@ -57,6 +57,10 @@ explicitly bypass it through their resource policy.
 
 ## Named viewers
 
+For a new site, choose `access: "specific"` and optional `viewers` in the create call,
+not after publishing. With no viewers only the owner can open it. Use the existing
+access/viewer operations below for a site that is already published.
+
 Who can open a site: `anyone` (the default) or `specific`, only the owner and the
 people named by email. Each named person opens the site's address and signs in there
 with that email (an emailed code, or Google for a Google address); anyone else sees
@@ -182,7 +186,7 @@ lists only the drafts that have never been live. Discard a draft nobody will use
 (it is final, so confirm with the person first; connector: `discard_version`):
 
 ```bash
-curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.110"
+curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.111"
 ```
 
 200 answers `discarded_version` and `active_version`; 404 `version_not_found`; 409
@@ -195,9 +199,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.110"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.111"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.110"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.111"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -449,7 +453,7 @@ deletes one item with `PATCH` / `DELETE /v1/sites/<sitename>/collections/<name>/
 and empties a whole list with `DELETE /v1/sites/<sitename>/collections/<name>` and
 `{"confirm": "<name>"}`. Full flow: `backend.md`.
 
-**Pages are public.** Every deployed page is public to anyone with its
+**Choose who can open it.** By default every deployed page is open to anyone with its
 address, on a custom domain or not, unless the owner opens the whole site only
 to named viewers (§Named viewers above) or puts one passcode on it (§Site
 passcode above). There is no lock on a single page. If a user asks for a private
@@ -460,3 +464,18 @@ gates saving, not reading pages; a storage resource with `read:"own"` or
 `"owner"`, or, on an existing site, a private collection, is the exception.
 
 Hosted retention (2026-10-05): normally 4 latest versions, plus any older live one. Only accounts enabled by `KEEP_VERSIONS_SELF_SET` may use the per-site route or `set_keep_versions`; others receive 403 `keep_versions_fixed`, “Simple Host keeps your 4 latest versions”. `0` uses the account default (`KEEP_VERSIONS_OVERRIDES`), else the instance setting.
+
+## Choose access when creating
+
+For a new private site, use `create_site` with `access: "specific"` and optional
+`viewers: ["person@example.com"]` in the same call. With no viewers only the owner
+can open it. Never create open and then lock it. Ask who can open it: anyone with
+the address (the unchanged default), or only the owner and the people they name.
+Keep emails exactly as given. REST JSON create accepts these body fields; archive
+create accepts `?access=specific&viewers=a@example.com,b@example.com` (also repeated
+`viewers=`). PUT `?create=1` adds viewers only on creation. On an existing site,
+`specific` requires it already be specific (409 `access_differs`); `anyone` never
+changes its access. Plain PUT rejects creation access/viewers; later use
+`set_site_access` / `grant_site_viewer`. Named viewers require visitor sign-in and
+the site's own address; unavailable on Simple Hack. Passcodes stay in the dashboard,
+never in chat or tool arguments.

@@ -27,7 +27,7 @@ func TestAnalyticsPostedConversation(t *testing.T) {
 		text             string
 	}{
 		{"storage_put_kv", map[string]any{"site": "ordinary-site", "key": "menu", "value": map[string]any{"normal": "ordinary text", "nested": map[string]any{"passcode": planted, "access_token": planted, "team_key": planted, "signing_secret": planted, "API-Key": planted, "Authorization": planted, "cookie": planted, "auth_header": map[string]any{"value": planted}}}}, map[string]any{"visitor_id": ref, "email": planted}, `{"visitor_id":"v_opaque-visitor","email":"PLANTED_PRIVATE_VALUE","normal":"ordinary text"}`},
-		{"create_site", map[string]any{"site": "ordinary-site", "files": map[string]any{"index.html": planted}, "files_base64": map[string]any{"a.png": encoded}}, map[string]any{"site": "ordinary-site"}, "ordinary text"},
+		{"create_site", map[string]any{"site": "ordinary-site", "viewers": []any{planted}, "files": map[string]any{"index.html": planted}, "files_base64": map[string]any{"a.png": encoded}}, map[string]any{"site": "ordinary-site"}, "not an email address: " + planted},
 		{"update_site", map[string]any{"site": "ordinary-site", "edits": `[{"path":"index.html","find":"PLANTED_PRIVATE_VALUE","replace":"PLANTED_PRIVATE_VALUE"}]`}, map[string]any{"preview_url": planted}, planted},
 		{"storage_put_file", map[string]any{"content_base64": encoded, "content_type": "image/png", "data": planted}, map[string]any{}, "ordinary text"},
 		{"read_site_file", map[string]any{"site": "ordinary-site", "path": "index.html"}, map[string]any{"content": planted, "path": "index.html", "size": len(planted)}, planted},

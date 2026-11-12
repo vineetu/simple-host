@@ -150,6 +150,7 @@ func TestLeafLimitDefaultsMatchConfig(t *testing.T) {
 		DomainLapseWarnAfter: def.DomainLapseWarnAfter,
 		DomainLapseAfter:     def.DomainLapseAfter,
 		UndoDays:             time.Duration(def.SavedData.UndoDays) * 24 * time.Hour,
+		SiteViewersMax:       def.SiteViewersMax,
 		FamilyUnprovenTTL:    def.FamilyUnprovenTTL,
 	}); got != want {
 		t.Errorf("mcp defaults %+v, config says %+v", got, want)

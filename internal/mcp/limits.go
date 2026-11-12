@@ -11,6 +11,7 @@ import (
 // Config.Limits (internal/handler builds it from edition.Edition.Limits()).
 // The zero state is today's values.
 type Limits struct {
+	SiteViewersMax       int           // SITE_VIEWERS_MAX
 	DeletedRetention     time.Duration // DELETED_RETENTION_DAYS
 	PreviewLinkTTL       time.Duration // PREVIEW_LINK_TTL_MINUTES
 	ExportLinkTTL        time.Duration // EXPORT_LINK_TTL_MINUTES
@@ -28,6 +29,7 @@ type Limits struct {
 func DefaultLimits() Limits {
 	const day = 24 * time.Hour
 	return Limits{
+		SiteViewersMax:       50,
 		DeletedRetention:     7 * day,
 		PreviewLinkTTL:       time.Hour,
 		ExportLinkTTL:        10 * time.Minute,
