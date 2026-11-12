@@ -1751,5 +1751,19 @@
    "not sure",
    "blocks a stage move"
   ]
+ },
+ {
+  "area": "event-page",
+  "question": "Where do I let public visitors see submitted entries?",
+  "expect_href_any": ["/e/{slug}/manage?s=event-page&tab=look"],
+  "expect_all": [["Show submissions on the event page"]],
+  "forbid_any": ["not sure"]
+ },
+ {
+  "area": "entries",
+  "question": "Where can participants browse what other teams submitted?",
+  "expect_href_any": ["/e/{slug}/manage?s=entries", "/e/{slug}/manage?s=event-page&tab=look"],
+  "expect_all": [["Submissions"], ["Judging"]],
+  "forbid_any": ["not sure"]
  }
 ]

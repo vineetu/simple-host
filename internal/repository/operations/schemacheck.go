@@ -138,7 +138,7 @@ var hackColumns = map[string][]string{
 		"results_visibility", "results_published_at", "closed_at", "removal_warned_at", "sites_removed_at",
 		"keep_sites", "taken_down_at", "taken_down_reason", "created_at", "updated_at",
 		// hack2-team-sites.sql
-		"entry_required", "gallery_open",
+		"entry_required", "gallery_open", "submissions_public",
 		// hack3-judging.sql
 		"organiser_judges", "judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason", "score_mode", "tie_criterion_id", "public_scores", "public_ranks",
 		"team_finding", "voting_enabled", "voting_opens_at", "voting_closes_at", "voting_eligibility", "directory_listed",

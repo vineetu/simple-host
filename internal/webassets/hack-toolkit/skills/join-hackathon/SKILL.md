@@ -32,6 +32,7 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Read the rubric (how the entry is judged) | `hack_get_rubric` |
 | Check team site and deadline | `hack_get_team_status`, `hack_get_my_teams` |
 | Read the schedule, with the event's real times | `hack_get_content` (`schedule` plus read-only `fixed_schedule`, which shows the team's own deadline when it was given more time) |
+| Browse submissions from Judging | `hack_get_submissions` (`slug`: event slug), for every joined participant, with or without a team |
 | Read choices, vote, see own result | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` (`shown_publicly` and `entry`: the card the public sees) |
 | Make private team archive link | `hack_export_own_team_archive` |
 | See what waits on me in every event; dismiss news | `hack_get_my_todos`, `hack_dismiss_notices` |

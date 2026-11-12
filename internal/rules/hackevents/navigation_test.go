@@ -76,3 +76,25 @@ func TestValidateNavigation(t *testing.T) {
 		t.Fatal("missing screen accepted")
 	}
 }
+
+func TestSubmissionsNavigation(t *testing.T) {
+	link, err := Resolve("p.submissions", "demo", nil)
+	if err != nil || link.Href != "/e/demo/team?s=submissions" {
+		t.Fatalf("%+v %v", link, err)
+	}
+	for _, role := range Navigation().Roles {
+		if role.ID != "participant" {
+			continue
+		}
+		for _, item := range role.Nav {
+			if item.ID != "submissions" {
+				continue
+			}
+			if item.Order != 65 || item.PhoneTab || len(item.Stages) != 3 || item.Stages[0] != "judging" || item.Stages[2] != "ended" {
+				t.Fatalf("%+v", item)
+			}
+			return
+		}
+	}
+	t.Fatal("missing participant submissions")
+}

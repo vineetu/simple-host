@@ -124,7 +124,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:48",
+      "source": "internal/hackhttp/hack_entries.go:50",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -764,7 +764,7 @@
       "method": "GET",
       "path": "/e/{slug}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_public.go:42",
+      "source": "internal/hackhttp/hack_public.go:68",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -796,7 +796,15 @@
       "method": "GET",
       "path": "/e/{slug}/screenshots/{team}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_public.go:52",
+      "source": "internal/hackhttp/hack_public.go:78",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/submissions/{team}/screenshot",
+      "feature_id": "results-show-what-each-team-built",
+      "source": "internal/hackhttp/hack_public.go:22",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1996,7 +2004,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entries",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:52",
+      "source": "internal/hackhttp/hack_entries.go:54",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2004,7 +2012,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:42",
+      "source": "internal/hackhttp/hack_entries.go:44",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2012,7 +2020,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry-rules",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:49",
+      "source": "internal/hackhttp/hack_entries.go:51",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2020,7 +2028,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:46",
+      "source": "internal/hackhttp/hack_entries.go:48",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2218,6 +2226,22 @@
     },
     {
       "method": "GET",
+      "path": "/v1/hack/events/{slug}/submissions",
+      "feature_id": "results-show-what-each-team-built",
+      "source": "internal/hackhttp/hack_entries.go:42",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/submissions/{team}/screenshot",
+      "feature_id": "results-show-what-each-team-built",
+      "source": "internal/hackhttp/hack_entries.go:43",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
       "path": "/v1/hack/events/{slug}/team/export.tar.gz",
       "feature_id": "hack-voting",
       "source": "internal/hackhttp/hack_administration.go:32",
@@ -2260,7 +2284,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/{team}/screenshot",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:51",
+      "source": "internal/hackhttp/hack_entries.go:53",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3868,7 +3892,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/entry/submit",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:44",
+      "source": "internal/hackhttp/hack_entries.go:46",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3876,7 +3900,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/entry/unsubmit",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:45",
+      "source": "internal/hackhttp/hack_entries.go:47",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4036,7 +4060,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/entry/exclude",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:53",
+      "source": "internal/hackhttp/hack_entries.go:55",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4044,7 +4068,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/entry/include",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:54",
+      "source": "internal/hackhttp/hack_entries.go:56",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4732,7 +4756,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:43",
+      "source": "internal/hackhttp/hack_entries.go:45",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4740,7 +4764,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry-rules",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:50",
+      "source": "internal/hackhttp/hack_entries.go:52",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4748,7 +4772,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:47",
+      "source": "internal/hackhttp/hack_entries.go:49",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -5715,6 +5739,12 @@
       "family": "hack-entries",
       "edition": "hack",
       "feature_id": "simple-hack-judge-app"
+    },
+    {
+      "name": "hack_get_submissions",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "results-show-what-each-team-built"
     },
     {
       "name": "hack_get_team_key",

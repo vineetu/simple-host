@@ -506,6 +506,22 @@
           "target_id": "p.website"
         },
         {
+          "id": "submissions",
+          "label": "Submissions",
+          "icon": "entries",
+          "phone_tab": false,
+          "badge": null,
+          "stage_rule": "Shown from Judging onward.",
+          "stages": [
+            "judging",
+            "results",
+            "ended"
+          ],
+          "order": 65,
+          "group": null,
+          "target_id": "p.submissions"
+        },
+        {
           "id": "results",
           "label": "Results",
           "icon": "trophy",
@@ -1430,7 +1446,8 @@
             "Event icon row: round preview, Upload icon / Replace (a kit button that opens the file picker), Remove (quiet, only when an icon is uploaded; the automatic letter icon comes back). 'Shown round on your page, in Find a hackathon and on join links. PNG, JPEG or WebP, up to 128 KB.'",
             "Colour row: a radio group of swatches with their names under them: Automatic, Red, Teal, Indigo, Orange, Yellow, Grass, Blush. The chosen one has a teal ring and a tick. 'For buttons, links and your page style's highlights. Automatic picks one from your address.'",
             "Show entries on the event page: a switch. 'Lists every team whose website is live. People's choice voting needs this on.'",
-            "Each change saves at once and shows a green 'Saved' tick beside that row's title for 3 seconds; an error replaces it in red and the control goes back to what is saved"
+            "Each change saves at once and shows a green 'Saved' tick beside that row's title for 3 seconds; an error replaces it in red and the control goes back to what is saved",
+            "Sibling toggle: Show submissions on the event page (off by default), id submissions-public. From Judging on, anyone can see each submitted entry. Saves PATCH submissions_public; same read-only handling as gallery."
           ],
           "actions": [
             {
@@ -1702,7 +1719,8 @@
         {
           "date": "2026-11-10",
           "decision": "Website says: \"Made from Basics, About, Schedule, Tracks, Prizes, Rules, Sponsors and FAQ. It updates as you edit.\""
-        }
+        },
+        "Show submissions on the event page: sibling of gallery in Look, off by default; helper: From Judging on, anyone can see each submitted entry."
       ],
       "features": [
         "overall-prizes",
@@ -1725,7 +1743,8 @@
         "schedule-row-prompt",
         "add-tracks-and-challenges",
         "remove-track",
-        "organiser-assistant"
+        "organiser-assistant",
+        "public-submissions"
       ],
       "prototype_states": [
         {
@@ -6549,6 +6568,47 @@
         }
       ],
       "phone": "Single column, same content, full width."
+    },
+    {
+      "id": "participant-submissions",
+      "role": "participant",
+      "nav_id": "submissions",
+      "title": "Submissions",
+      "user_moment": "A participant explores what other teams submitted after judging starts.",
+      "purpose": "Browse submitted entries from Judging onward.",
+      "primary_action": "Open a submitted project.",
+      "layout": "Responsive grid of entry summary cards.",
+      "sections": [
+        {
+          "name": "Submissions",
+          "contents": [
+            "Responsive grid of ui.entryCard summaries: title, team name, problem, tagline, audience, tools and maturity.",
+            "Screenshot loaded lazily through the authenticated screenshot route, only when present.",
+            "Your team pill on the own-team card; website/video/code link row."
+          ],
+          "actions": [
+            {
+              "label": "Open website / Watch video / View code",
+              "kind": "secondary",
+              "confirm": null
+            }
+          ]
+        }
+      ],
+      "states": {
+        "empty": "No submissions to show yet.",
+        "not_open": "Submissions open to everyone when judging starts."
+      },
+      "replaces": [],
+      "fixes": [],
+      "phone": "One column at 390px, two columns at 1280px. No search, filter or sort controls.",
+      "features": [
+        "browse-submissions"
+      ],
+      "prototype_states": [],
+      "decisions": [
+        "Visible from judging, results and ended; no team required."
+      ]
     }
   ],
   "public_pages": [
@@ -7133,6 +7193,21 @@
           ]
         },
         {
+          "name": "Submissions",
+          "stages": "Judging, Results and Ended; only when submissions_public is on and non-empty",
+          "contents": [
+            "Submitted, non-excluded entry cards with title, team name, tagline, tools, maturity pill, screenshot and website/video/code links, using winner-card classes.",
+            "Separate from Results, with its own on-this-page chip."
+          ],
+          "actions": [
+            {
+              "label": "Open website / Watch video / View code",
+              "kind": "secondary",
+              "confirm": null
+            }
+          ]
+        },
+        {
           "name": "Taken down",
           "stages": "taken down",
           "contents": [
@@ -7402,7 +7477,8 @@
           "q": "SIM-426 owner-approved corrections",
           "decision": "Schedule starts open at every stage. Rules still collapses at Results and Ended.",
           "why": "Owner approved, 2026-11-10."
-        }
+        },
+        "Submissions is a separate section using winner-card markup when enabled from Judging onward and non-empty; include its on-this-page chip."
       ],
       "features": [
         "view-public-event-page",
@@ -7412,7 +7488,8 @@
         "apply-to-event",
         "schedule-fixed-rows",
         "see-entry-cards-in-results",
-        "see-entry-tools-in-gallery"
+        "see-entry-tools-in-gallery",
+        "public-submissions"
       ],
       "feature_ideas": [
         "(Done 2026-10-31, replaced by Apply) 1. Show a Join button on the public page.",

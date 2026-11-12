@@ -2,6 +2,27 @@
 
 Hosted events, teams, entries, judging, results and event websites.
 
+## GET /e/{slug}/submissions/{team}/screenshot
+
+<div data-operation="GET /e/{slug}/submissions/{team}/screenshot"></div>
+
+Available only with submissions_public on from Judging onward for a submitted, non-excluded entry. Taken-down events return 404. Sends Cross-Origin-Resource-Policy cross-origin for custom websites.
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| slug | path | string | yes |  |
+| team | path | string | yes |  |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 200 | Screenshot bytes |
+| 404 | Event not found |
+| 429 | Too many requests |
+
 ## GET /v1/hack/archive
 
 <div data-operation="GET /v1/hack/archive"></div>
@@ -103,7 +124,7 @@ Create an event (EVENTS=hosted only)
 
 <div data-operation="GET /v1/hack/events/{slug}"></div>
 
-The event as the caller's role sees it. event includes submission_deadline, entry_required, gallery_open, team_sites_ready and stages_offered. A participant on a team gets me.team (site, deadline, extended, frozen, pinned_version) and me.team_key (null, or last4, created_at and last_used_at; absent for other roles). admin_view is true when the platform admin reads an event it is not in (read-only).
+The event as the caller's role sees it. event includes submission_deadline, entry_required, gallery_open, submissions_public, team_sites_ready and stages_offered. A participant on a team gets me.team (site, deadline, extended, frozen, pinned_version) and me.team_key (null, or last4, created_at and last_used_at; absent for other roles). admin_view is true when the platform admin reads an event it is not in (read-only).
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -158,6 +179,7 @@ Edit page text and settings (organiser) (EVENTS=hosted only)
 | rules | string |  |  |
 | starts_at | string |  |  |
 | submission_deadline | string |  | RFC 3339, or YYYY-MM-DDTHH:MM or YYYY-MM-DD in the event's time zone. An empty string clears it. A future deadline while the stage is closed is 409 submissions_closed_stage (move the event back to Building, or give single teams more time). Changing the deadline after the event has ended is 409 event_closed. A value that is not a time is 400 invalid_submission_deadline. |
+| submissions_public | boolean |  | Show submitted, non-excluded entry summary cards publicly from Judging onward; separate from gallery_open. |
 | tagline | string |  |  |
 | team_finding | boolean |  |  |
 | team_size_max | integer |  |  |
@@ -2490,6 +2512,52 @@ closed ("Submissions closed") is accepted. Setting it makes the deadline now whe
 | 403 | event_taken_down |
 | 404 | event_not_found |
 | 409 | event_closed (leaving archived), archive_needs_participants (nobody joined: delete instead) |
+
+## GET /v1/hack/events/{slug}/submissions
+
+<div data-operation="GET /v1/hack/events/{slug}/submissions"></div>
+
+Every joined participant, including one without a team, can browse from Judging onward. Only submitted, non-excluded entries are returned, sorted by lower(team_name). No judging metadata. Taken-down events return nothing. Site links require a live site that is not taken down.
+
+**Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| slug | path | string | yes |  |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 200 | Visible submitted entries |
+| 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
+| 404 | Event not found or not a participant |
+| 409 | submissions_not_open — Submissions open to everyone when judging starts |
+
+## GET /v1/hack/events/{slug}/submissions/{team}/screenshot
+
+<div data-operation="GET /v1/hack/events/{slug}/submissions/{team}/screenshot"></div>
+
+Read a visible submission screenshot (participant)
+
+**Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| slug | path | string | yes |  |
+| team | path | string | yes |  |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 200 | Screenshot bytes |
+| 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
+| 404 | team_not_found when stage is early or team is not visible; no_screenshot when absent |
 
 ## PATCH /v1/hack/events/{slug}/team
 

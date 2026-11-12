@@ -50,6 +50,18 @@ Download the event's results as CSV (team, total, rank, tied, judges scored). Us
 | --- | --- | --- | --- |
 | slug | string | yes | The event name. |
 
+## hack_get_submissions
+
+<div data-tool="hack_get_submissions"></div>
+
+Read submitted, non-excluded entry summary cards for every team from Judging onward. Any joined participant, including one without a team. Never returns judging metadata.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| slug | string | yes | Event name. |
+
 ## hack_get_entry
 
 <div data-tool="hack_get_entry"></div>

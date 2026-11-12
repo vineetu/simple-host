@@ -366,12 +366,12 @@ func TestHackToolDispatch(t *testing.T) {
 	if len(sent) != 3 || sent["title"] != "Renamed" || sent["ends_at"] != "" || sent["team_size_max"].(float64) != 3 || up.last().method != "PATCH" {
 		t.Fatalf("update sent extra fields: %s", up.last().body)
 	}
-	check("hack_update_event", map[string]any{"slug": "spring", "submission_deadline": "2026-10-02", "entry_required": []any{"title", "description"}, "gallery_open": true})
+	check("hack_update_event", map[string]any{"slug": "spring", "submission_deadline": "2026-10-02", "entry_required": []any{"title", "description"}, "gallery_open": true, "submissions_public": true})
 	sent = map[string]any{}
 	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
 		t.Fatal(err)
 	}
-	if sent["submission_deadline"] != "2026-10-02" || sent["gallery_open"] != true || len(sent["entry_required"].([]any)) != 2 {
+	if sent["submission_deadline"] != "2026-10-02" || sent["gallery_open"] != true || sent["submissions_public"] != true || len(sent["entry_required"].([]any)) != 2 {
 		t.Fatalf("update omitted deadline, entry fields or gallery setting: %s", up.last().body)
 	}
 	// SIM-353: hack_update_event forwards theme, including an empty string
@@ -535,5 +535,22 @@ func TestHackOverallPrizesPatch(t *testing.T) {
 		if string(got) != string(want) {
 			t.Errorf("prizes = %s, want %s", got, want)
 		}
+	}
+}
+
+func TestHackEventSubmissionsPublic(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		body, err := hackPatchBody(map[string]any{"submissions_public": enabled})
+		if err != nil || body["submissions_public"] != enabled {
+			t.Fatalf("%v %v", body, err)
+		}
+		raw, _ := json.Marshal(map[string]any{"event": map[string]any{"slug": "spring", "submissions_public": enabled}})
+		out, err := hackEventOutput("Event", raw)
+		if err != nil || out.Structured["submissions_public"] != enabled {
+			t.Fatalf("%v %v", out, err)
+		}
+	}
+	if _, err := hackPatchBody(map[string]any{"submissions_public": "yes"}); err == nil {
+		t.Fatal("accepted non-boolean")
 	}
 }

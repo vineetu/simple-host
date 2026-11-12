@@ -49,7 +49,7 @@ Create a draft event for this person, who becomes its organiser. Ask them first.
 
 <div data-tool="hack_get_event"></div>
 
-Read one event: its page, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. "Kickoff is now. Open sign-up?"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.
+Read one event: its page, submissions_public, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. "Kickoff is now. Open sign-up?"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.
 
 **Parameters:**
 
@@ -85,6 +85,7 @@ Change an event's page text and settings, including overall_prizes for 1st/2nd/3
 | slug | string | yes | The event name. |
 | starts_at | string |  | New start. A date means midnight in the event's time zone. |
 | submission_deadline | string |  | Entry deadline in the event time zone. Empty clears it. |
+| submissions_public | boolean |  | Show submissions on the event page from Judging onward. Off by default; separate from gallery_open. |
 | tagline | string |  | Short line under the title, up to 160 characters. Empty clears it. |
 | team_finding | boolean |  | Enable private team finding. Codes keep working when off. |
 | team_size_max | integer |  | Maximum people on a team, from 1 to 50. |
@@ -1162,7 +1163,7 @@ Remove the uploaded event icon and restore its generated initial icon. Ask the o
 
 <div data-tool="hack_get_public_event"></div>
 
-Read the credentialless public event feed, including overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.
+Read the credentialless public event feed, including submissions_public and the submissions array (submitted, non-excluded entry summary cards when enabled from Judging onward), overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.
 
 **Parameters:**
 

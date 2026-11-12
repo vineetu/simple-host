@@ -285,6 +285,14 @@ export const navigation = {
       "path": "/team/{code}",
       "section": null,
       "module": "public-team-link"
+    },
+    {
+      "id": "participant-submissions",
+      "role": "participant",
+      "ability": "take_part",
+      "path": "/e/{slug}/team",
+      "section": "submissions",
+      "module": "participant-submissions"
     }
   ],
   "targets": [
@@ -1723,6 +1731,29 @@ export const navigation = {
       "order": 989,
       "group": null,
       "action_label": "Add screenshot"
+    },
+    {
+      "id": "p.submissions",
+      "kind": "screen",
+      "label": "Submissions",
+      "role": "participant",
+      "screen": "participant-submissions",
+      "section": "submissions",
+      "tab": null,
+      "anchor": null,
+      "href_pattern": "/e/{slug}/team?s=submissions",
+      "nav": true,
+      "icon": "entries",
+      "phone_tab": false,
+      "badge": null,
+      "stage_rule": "Shown from Judging onward.",
+      "stages": [
+        "judging",
+        "results",
+        "ended"
+      ],
+      "order": 65,
+      "group": null
     }
   ],
   "roles": [
@@ -1904,6 +1935,22 @@ export const navigation = {
           "order": 60,
           "group": null,
           "target_id": "p.website"
+        },
+        {
+          "id": "submissions",
+          "label": "Submissions",
+          "icon": "entries",
+          "phone_tab": false,
+          "badge": null,
+          "stage_rule": "Shown from Judging onward.",
+          "stages": [
+            "judging",
+            "results",
+            "ended"
+          ],
+          "order": 65,
+          "group": null,
+          "target_id": "p.submissions"
         },
         {
           "id": "results",

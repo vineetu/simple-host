@@ -29,7 +29,7 @@ const EventColumns = `
 	team_size_max, join_code, judge_code, submission_deadline, results_visibility,
 	results_published_at, closed_at, removal_warned_at, sites_removed_at, keep_sites,
 	taken_down_at, taken_down_reason, created_at, updated_at,
-	entry_required, gallery_open,
+	entry_required, gallery_open, submissions_public,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
 	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed,
 	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at, entry_rules_chosen, theme, organiser_judges, overall_prizes`
@@ -43,7 +43,7 @@ func ScanEventFields(e *Event) []any {
 		&e.TeamSizeMax, &e.JoinCode, &e.JudgeCode, &e.SubmissionDeadline, &e.ResultsVisibility,
 		&e.ResultsPublishedAt, &e.ClosedAt, &e.RemovalWarnedAt, &e.SitesRemovedAt, &e.KeepSites,
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
-		pq.Array(&e.EntryRequired), &e.GalleryOpen,
+		pq.Array(&e.EntryRequired), &e.GalleryOpen, &e.SubmissionsPublic,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
 		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen, &e.DirectoryListed,
 		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt, &e.EntryRulesChosen, &e.Theme, pq.Array(&e.OrganiserJudges), pq.Array(&e.OverallPrizes),
@@ -268,13 +268,13 @@ func UpdateEventPatch(ctx context.Context, q sqlkit.Querier, e Event) (Event, er
 			time_zone = $8, starts_at = $9, ends_at = $10, team_size_max = $11,
 			organiser_name = $12, organisation = $13, contact_email = $14, purpose = $15,
 			expected_participants = $16, accent_color = $17, updated_at = now(), team_finding = $18, applications_open = $19,
-			judging_ends_at = $20, theme = $21, overall_prizes = $22
+			judging_ends_at = $20, theme = $21, overall_prizes = $22, submissions_public = $23
 		WHERE id = $1
 		RETURNING `+EventColumns,
 		e.ID, e.Title, e.Tagline, e.About, e.Rules, e.Prizes, e.CocText,
 		e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt), e.TeamSizeMax,
 		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor, e.TeamFinding, e.ApplicationsOpen,
-		nullTime(e.JudgingEndsAt), e.Theme, pq.Array(e.OverallPrizes),
+		nullTime(e.JudgingEndsAt), e.Theme, pq.Array(e.OverallPrizes), e.SubmissionsPublic,
 	)
 	return ScanEvent(row)
 }

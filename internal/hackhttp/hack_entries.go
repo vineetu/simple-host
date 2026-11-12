@@ -39,6 +39,8 @@ const hackScreenshotMax = 2 << 20
 const hackScreenshotMaxSide = 8000
 
 func (h *HackHandler) registerEntries(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
+	mux.Handle("GET /v1/hack/events/{slug}/submissions", wrap(h.getSubmissions))
+	mux.Handle("GET /v1/hack/events/{slug}/submissions/{team}/screenshot", wrap(h.getSubmissionScreenshot))
 	mux.Handle("GET /v1/hack/events/{slug}/entry", wrap(h.getEntry))
 	mux.Handle("PUT /v1/hack/events/{slug}/entry", wrap(h.putEntry))
 	mux.Handle("POST /v1/hack/events/{slug}/entry/submit", wrap(h.submitEntry))

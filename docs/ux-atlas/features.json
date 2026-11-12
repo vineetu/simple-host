@@ -3260,5 +3260,33 @@
     "frequency": "occasional",
     "risk": "reversible",
     "feature": "results-show-what-each-team-built"
+  },
+  {
+    "id": "browse-submissions",
+    "role": "participant",
+    "area": "entries",
+    "name": "Browse submissions",
+    "what": "All joined participants browse submitted, non-excluded entry summary cards from Judging onward.",
+    "stages": "judging, results, ended",
+    "today_location": "Submissions",
+    "api": "GET /v1/hack/events/{slug}/submissions",
+    "mcp": "hack_get_submissions",
+    "frequency": "occasional",
+    "risk": "safe",
+    "feature": "hosted-events-simple-hack-app"
+  },
+  {
+    "id": "public-submissions",
+    "role": "organiser",
+    "area": "website",
+    "name": "Show submissions on the event page",
+    "what": "Off by default; publishes submitted entry cards from Judging onward.",
+    "stages": "judging, results, ended",
+    "today_location": "Event page > Look",
+    "api": "PATCH /v1/hack/events/{slug}",
+    "mcp": "hack_update_event",
+    "frequency": "occasional",
+    "risk": "safe",
+    "feature": "hosted-events-simple-hack-app"
   }
 ]

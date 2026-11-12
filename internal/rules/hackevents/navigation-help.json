@@ -3490,6 +3490,19 @@
       "related": [
         "publish"
       ]
+    },
+    {
+      "id": "submissions.public",
+      "target": "o.look",
+      "label": "Show submissions on the event page",
+      "sources": [
+        "screens/organiser-event-page.js",
+        "screens/participant-submissions.js"
+      ],
+      "explains": "From Judging, participants see other teams' submitted entries in Submissions; on, so do visitors.",
+      "controls": [
+        "submissions-public-toggle"
+      ]
     }
   ]
 }

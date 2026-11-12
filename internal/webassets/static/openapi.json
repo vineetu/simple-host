@@ -22606,7 +22606,7 @@
         ],
         "operationId": "getHackEvent",
         "summary": "The event as my role sees it (EVENTS=hosted only)",
-        "description": "The event as the caller's role sees it. event includes submission_deadline, entry_required, gallery_open, team_sites_ready and stages_offered. A participant on a team gets me.team (site, deadline, extended, frozen, pinned_version) and me.team_key (null, or last4, created_at and last_used_at; absent for other roles). admin_view is true when the platform admin reads an event it is not in (read-only).",
+        "description": "The event as the caller's role sees it. event includes submission_deadline, entry_required, gallery_open, submissions_public, team_sites_ready and stages_offered. A participant on a team gets me.team (site, deadline, extended, frozen, pinned_version) and me.team_key (null, or last4, created_at and last_used_at; absent for other roles). admin_view is true when the platform admin reads an event it is not in (read-only).",
         "security": [
           {
             "apiKey": []
@@ -22785,6 +22785,11 @@
                     "items": {
                       "$ref": "#/components/schemas/HackEntryField"
                     }
+                  },
+                  "submissions_public": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Show submitted, non-excluded entry summary cards publicly from Judging onward; separate from gallery_open."
                   },
                   "gallery_open": {
                     "type": "boolean",
@@ -25546,6 +25551,201 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/submissions": {
+      "get": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "getHackSubmissions",
+        "summary": "Browse submitted entry summary cards (participant)",
+        "description": "Every joined participant, including one without a team, can browse from Judging onward. Only submitted, non-excluded entries are returned, sorted by lower(team_name). No judging metadata. Taken-down events return nothing. Site links require a live site that is not taken down.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visible submitted entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "submissions"
+                  ],
+                  "properties": {
+                    "submissions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HackSubmission"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "submissions_not_open — Submissions open to everyone when judging starts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Event not found or not a participant"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/submissions/{team}/screenshot": {
+      "get": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "getHackSubmissionScreenshot",
+        "summary": "Read a visible submission screenshot (participant)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Screenshot bytes",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "team_not_found when stage is early or team is not visible; no_screenshot when absent"
+          }
+        }
+      }
+    },
+    "/e/{slug}/submissions/{team}/screenshot": {
+      "get": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "getHackPublicSubmissionScreenshot",
+        "summary": "Public submission screenshot",
+        "description": "Available only with submissions_public on from Judging onward for a submitted, non-excluded entry. Taken-down events return 404. Sends Cross-Origin-Resource-Policy cross-origin for custom websites.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Screenshot bytes",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Event not found"
+          },
+          "429": {
+            "description": "Too many requests"
           }
         }
       }
@@ -31317,6 +31517,16 @@
                       "items": {
                         "$ref": "#/components/schemas/HackEventAnnouncement"
                       }
+                    },
+                    "submissions_public": {
+                      "type": "boolean"
+                    },
+                    "submissions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HackSubmission"
+                      },
+                      "description": "Empty unless submissions_public is on and stage is judging, results or archived. Screenshot URLs are absolute and support cross-origin images."
                     },
                     "overall_prizes": {
                       "type": "array",
@@ -40359,6 +40569,10 @@
               "$ref": "#/components/schemas/HackEntryField"
             }
           },
+          "submissions_public": {
+            "type": "boolean",
+            "default": false
+          },
           "gallery_open": {
             "type": "boolean"
           },
@@ -41073,6 +41287,33 @@
             ]
           }
         }
+      },
+      "HackSubmission": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/HackResultCard"
+          },
+          {
+            "type": "object",
+            "required": [
+              "team",
+              "team_name"
+            ],
+            "properties": {
+              "team": {
+                "type": "string",
+                "description": "Team slug"
+              },
+              "team_name": {
+                "type": "string"
+              },
+              "screenshot_url": {
+                "type": "string",
+                "description": "Present only when has_screenshot is true."
+              }
+            }
+          }
+        ]
       },
       "HackResultCard": {
         "type": "object",

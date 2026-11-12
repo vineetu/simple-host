@@ -551,3 +551,24 @@
   </div>
 </section>
 {{end}}
+
+{{define "sec-submissions"}}<section class="results" id="submissions"><h2>Submissions</h2>{{range .Submissions}}<article class="result-entry">
+    <div class="re-head">
+      <span class="main"><b>{{if .Title}}{{.Title}}{{else}}{{.TeamName}}{{end}}</b><span class="sub">{{.TeamName}}{{if .Track}} · {{.Track.Name}} track{{end}}</span></span>
+    </div>
+    <div class="re-body">
+      {{if .ScreenshotURL}}<span class="site-frame"><img src="{{.ScreenshotURL}}" alt="" width="240" height="150" loading="lazy"></span>{{end}}
+      <dl class="ec-rows">
+        {{if .Problem}}<dt>Problem</dt><dd>{{.Problem}}</dd>{{end}}
+        {{if .Tagline}}<dt>Solution</dt><dd>{{.Tagline}}</dd>{{end}}
+        {{if .Audience}}<dt>For</dt><dd>{{.Audience}}</dd>{{end}}
+        {{if .Tools}}<dt>Tools &amp; AI</dt><dd><ul class="tags">{{range .Tools}}<li class="tag">{{.}}</li>{{end}}</ul></dd>{{end}}
+        {{if .MaturityLabel}}<dt>Works today</dt><dd><span class="pill mat-{{.Maturity}}">{{.MaturityLabel}}</span></dd>{{end}}
+      </dl>
+    </div>
+    {{if or .SiteURL .VideoURL .CodeURL}}<div class="ec-links">
+      {{if .SiteURL}}<a class="btn primary" href="{{.SiteURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">Open website ↗</a>{{end}}
+      {{if .VideoURL}}<a class="btn quiet" href="{{.VideoURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">Watch video{{if .VideoHost}} · {{.VideoHost}}{{end}} ↗</a>{{end}}
+      {{if .CodeURL}}<a class="btn quiet" href="{{.CodeURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">View code{{if .CodeHost}} · {{.CodeHost}}{{end}} ↗</a>{{end}}
+    </div>{{end}}
+  </article>{{end}}</section>{{end}}

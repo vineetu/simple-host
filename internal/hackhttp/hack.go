@@ -1051,6 +1051,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member mode
 			"judging_ends_at":      rfc3339UTC(ev.JudgingEndsAt),
 			"entry_required":       entryRequiredList(ev.EntryRequired),
 			"gallery_open":         ev.GalleryOpen,
+			"submissions_public":   ev.SubmissionsPublic,
 			"team_sites_ready":     h.teamSitesReady(ev.Slug),
 			"stages_offered":       hackStagesOfferedList,
 			"judging_locked_at":    rfc3339UTC(ev.JudgingLockedAt),
@@ -1328,6 +1329,7 @@ type patchEventReq struct {
 	EntryRequired      *[]string `json:"entry_required"`
 	OverallPrizes      *[]string `json:"overall_prizes"`
 	GalleryOpen        *bool     `json:"gallery_open"`
+	SubmissionsPublic  *bool     `json:"submissions_public"`
 	// 0003-hack-notices-judges-messages.sql: when judging closes. Same
 	// parsing as submission_deadline; "" or null clears it.
 	JudgingEndsAt *string `json:"judging_ends_at"`
@@ -1538,6 +1540,9 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 			}
 			ev.EntryRequired = fields
 			entryRequiredChanged = true
+		}
+		if req.SubmissionsPublic != nil {
+			ev.SubmissionsPublic = *req.SubmissionsPublic
 		}
 		if req.GalleryOpen != nil {
 			ev.GalleryOpen = *req.GalleryOpen

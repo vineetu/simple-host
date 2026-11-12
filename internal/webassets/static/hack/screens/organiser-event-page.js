@@ -6,7 +6,7 @@ import { render as renderTracks } from './_event-tracks.js'
 // replaces the old one-long-page-with-a-jump-nav version; every capability
 // that file had is kept here (basics, about/prizes/rules, code of conduct
 // extra, dates/time zone, schedule, sponsors with logo, FAQ, icon upload/
-// remove, colour, gallery toggle, built-in vs own website, zip upload with
+// remove, colour, gallery and public submissions toggles, built-in vs own website, zip upload with
 // plain errors, versions, read-only states, admin view). Announcements
 // moved out to its own screen (screens/organiser-announcements.js).
 import { fileAsDataURL, fileAsArrayBuffer, moveItem, rowMenuHTML, wireRowMenus, formDialog, undoToast } from './_orgA-util.js'
@@ -937,6 +937,7 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
     return `<label class="swatch${v ? '' : ' auto'}"><input data-help="look.colour" type="radio" name="colour" value="${v}" data-c="${hex}"${(ev.accent_color || '') === v ? ' checked' : ''}><i style="--sw:${hex};--sw-ink:${ink}"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>${ui.esc(l)}</span></label>`
   }).join('')}</fieldset></div>
 <div class="setting" id="gallery"><div class="t"><div class="t-row"><b>Show entries on the event page</b><span class="saved" id="gallery-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>Lists every team whose website is live. People's choice voting needs this on.</span></div><div class="ctl"><button class="toggle${ev.gallery_open ? ' on' : ''}" type="button" role="switch" aria-checked="${!!ev.gallery_open}" id="gallery-toggle" aria-label="Show entries on the event page"></button></div></div>
+<div class="setting" id="submissions-public"><div class="t"><div class="t-row"><b>Show submissions on the event page</b><span class="saved" id="submissions-public-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>From Judging on, anyone can see each submitted entry.</span></div><div class="ctl"><button class="toggle${ev.submissions_public ? ' on' : ''}" type="button" role="switch" aria-checked="${!!ev.submissions_public}" id="submissions-public-toggle" aria-label="Show submissions on the event page"></button></div></div>
 </div>`
 
   function flashSaved(id) {
@@ -1099,6 +1100,20 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
       btn.classList.toggle('on', want)
       btn.setAttribute('aria-checked', String(want))
       flashSaved('gallery-saved')
+      btn.disabled = false
+    } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
+  })
+  $('submissions-public-toggle').addEventListener('click', async () => {
+    const btn = $('submissions-public-toggle')
+    const want = !btn.classList.contains('on')
+    btn.disabled = true
+    try {
+      const r = await api('PATCH', path, { submissions_public: want })
+      if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
+      ev.submissions_public = want
+      btn.classList.toggle('on', want)
+      btn.setAttribute('aria-checked', String(want))
+      flashSaved('submissions-public-saved')
       btn.disabled = false
     } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
   })

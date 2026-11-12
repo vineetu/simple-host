@@ -61,6 +61,7 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 		{"hack_get_voting", "GET", "/v1/hack/events/spring/vote", map[string]any{"slug": "spring"}, nil},
 		{"hack_get_my_vote", "GET", "/v1/hack/events/spring/my-vote", map[string]any{"slug": "spring"}, nil},
 		{"hack_vote", "PUT", "/v1/hack/events/spring/vote", map[string]any{"slug": "spring", "team": "build"}, map[string]any{"team": "build"}},
+		{"hack_get_submissions", "GET", "/v1/hack/events/spring/submissions", map[string]any{"slug": "spring"}, nil},
 		{"hack_get_my_results", "GET", "/v1/hack/events/spring/my-results", map[string]any{"slug": "spring"}, nil},
 		{"hack_preview_judge", "GET", "/v1/hack/judge/JUDGECODE", map[string]any{"code": "JUDGECODE"}, nil},
 		{"hack_join_judge", "POST", "/v1/hack/judge/JUDGECODE", map[string]any{"code": "JUDGECODE", "accept_coc": true, "display_name": "Jules"}, map[string]any{"accept_coc": true, "display_name": "Jules"}},
@@ -94,7 +95,7 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 				gotMethod, gotPath, gotKey = r.Method, r.URL.Path, r.Header.Get("X-API-Key")
 				gotBody, _ = ioRead(r)
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"rest":"same","role":"participant","judge_id":"caller"}`))
+				_, _ = w.Write([]byte(`{"rest":"same","role":"participant","judge_id":"caller","submissions":[]}`))
 			})
 			tool, ok := tools[tc.name]
 			if !ok {

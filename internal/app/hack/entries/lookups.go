@@ -109,3 +109,8 @@ func (s *Service) TeamsWithMembersInTx(ctx context.Context, q sqlkit.Querier, ev
 func (s *Service) EventEntriesInTx(ctx context.Context, q sqlkit.Querier, eventID string) ([]model.EventEntry, error) {
 	return entryrepo.ListEventEntries(ctx, q, eventID)
 }
+
+// TeamTracks forwards the EventTeamTracks lookup: each team's chosen track by team ID.
+func (s *Service) TeamTracks(ctx context.Context, eventID string) (map[string]*model.EventTrack, error) {
+	return entryrepo.EventTeamTracks(ctx, s.db, eventID)
+}

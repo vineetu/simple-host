@@ -204,6 +204,22 @@ window.PROTO = {
     "target_id": "p.website"
    },
    {
+    "id": "submissions",
+    "label": "Submissions",
+    "icon": "entries",
+    "phone_tab": false,
+    "badge": null,
+    "stage_rule": "Shown from Judging onward.",
+    "stages": [
+     "judging",
+     "results",
+     "ended"
+    ],
+    "order": 65,
+    "group": null,
+    "target_id": "p.submissions"
+   },
+   {
     "id": "results",
     "label": "Results",
     "icon": "trophy",

@@ -42,7 +42,16 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
+	submissions := []hackSubmission{}
+	if ev.SubmissionsPublic {
+		submissions, err = visibleSubmissions(r.Context(), h.database, ev, h.submissionSiteURL(), strings.TrimRight(h.publicBaseURL, "/")+"/e/"+ev.Slug+"/submissions")
+		if err != nil {
+			httpx.WriteInternal(w)
+			return
+		}
+	}
 	out := map[string]any{
+		"submissions_public": ev.SubmissionsPublic, "submissions": submissions,
 		"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
 		"about": ev.About, "rules": ev.Rules, "prizes": ev.Prizes, "overall_prizes": append([]string{}, ev.OverallPrizes...),
 		"organiser_name": ev.OrganiserName, "organisation": ev.Organisation,

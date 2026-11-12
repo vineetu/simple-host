@@ -48,6 +48,7 @@ type hackEventPage struct {
 	Theme           string
 	TakenDown       bool
 	TakenDownReason string
+	Submissions     []hackSubmission
 	Gallery         []hackGalleryCard
 	Tracks          []hackTrackView
 	Results         *hackResultsView
@@ -288,6 +289,11 @@ type hackResultsRowView struct {
 	MaturityLabel string
 }
 
+type hackSubmissionView struct {
+	hackSubmission
+	MaturityLabel string
+}
+
 type hackEventView struct {
 	Title, Tagline, OrganisedBy string
 	DateRange, ZoneNote         string
@@ -340,6 +346,7 @@ type hackEventView struct {
 	Sponsors              []hackSponsorView
 	AnnouncementLines     []hackAnnouncementLine
 	AnnouncementLinesMore []hackAnnouncementLine
+	Submissions           []hackSubmissionView
 	Gallery               []hackGalleryCard
 	VoteURL               string
 }
@@ -444,15 +451,16 @@ var hackStageSectionOrder = map[string][]string{
 	"open":     {"about", "tracks", "sites", "prizes", "schedule", "faq", "rules", "sponsors", "announcements"},
 	"building": {"announcements", "schedule", "sites", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
 	"closed":   {"sites", "announcements", "schedule", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
-	"judging":  {"sites", "announcements", "schedule", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
-	"results":  {"sites", "sponsors", "tracks", "about", "prizes", "announcements", "schedule", "rules", "faq"},
-	"archived": {"sites", "sponsors", "tracks", "about", "prizes", "announcements", "schedule", "rules", "faq"},
+	"judging":  {"submissions", "sites", "announcements", "schedule", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
+	"results":  {"submissions", "sites", "sponsors", "tracks", "about", "prizes", "announcements", "schedule", "rules", "faq"},
+	"archived": {"submissions", "sites", "sponsors", "tracks", "about", "prizes", "announcements", "schedule", "rules", "faq"},
 }
 
 var hackSectionChipLabel = map[string]string{
 	"about": "About", "tracks": "Tracks", "prizes": "Prizes", "schedule": "Schedule",
 	"faq": "FAQ", "rules": "Rules", "sponsors": "Sponsors", "announcements": "Announcements",
-	"sites": "Team sites",
+	"sites":       "Team sites",
+	"submissions": "Submissions",
 }
 
 func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, error) {
@@ -582,6 +590,9 @@ func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, erro
 		v.Results = buildHackResultsBlock(p.Results)
 	}
 
+	for _, c := range p.Submissions {
+		v.Submissions = append(v.Submissions, hackSubmissionView{c, hackMaturityLabel(c.Maturity)})
+	}
 	order := hackStageSectionOrder[effStage]
 	present := map[string]bool{
 		"about":         len(v.About) > 0,
@@ -593,6 +604,7 @@ func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, erro
 		"sponsors":      len(v.Sponsors) > 0,
 		"announcements": len(v.AnnouncementLines) > 0,
 		"sites":         len(v.Gallery) > 0,
+		"submissions":   len(v.Submissions) > 0,
 	}
 	if v.Results != nil {
 		v.Chips = append(v.Chips, hackChip{ID: "results", Label: v.Results.Heading})

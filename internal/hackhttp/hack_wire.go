@@ -93,6 +93,13 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 		if events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
 			p.ApplyURL = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + "/apply"
 		}
+		if ev.SubmissionsPublic {
+			p.Submissions, err = visibleSubmissions(r.Context(), database, ev, teamSiteURL, strings.TrimRight(appURL, "/")+"/e/"+ev.Slug+"/submissions")
+			if err != nil {
+				httpx.WriteInternal(w)
+				return true
+			}
+		}
 		p.Color = hackEventAccent(ev)
 		p.Theme = ev.Theme
 		p.IconURL = strings.TrimRight(appURL, "/") + "/v1/hack/events/" + ev.Slug + "/icon"
@@ -361,6 +368,10 @@ func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHa
 }
 
 func writeHackScreenshot(w http.ResponseWriter, r *http.Request, data []byte, contentType string) {
+	writeHackScreenshotPolicy(w, r, data, contentType, false)
+}
+
+func writeHackScreenshotPolicy(w http.ResponseWriter, r *http.Request, data []byte, contentType string, crossOrigin bool) {
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
@@ -368,6 +379,13 @@ func writeHackScreenshot(w http.ResponseWriter, r *http.Request, data []byte, co
 	// shows within a minute.
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	if crossOrigin {
+		// Public submissions: custom event websites load these from their own
+		// host, and every load revalidates so switching the setting off, an
+		// exclusion or a stage move back takes effect at once.
+		w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
+		w.Header().Set("Cache-Control", "no-cache")
+	}
 	sum := sha256.Sum256(data)
 	etag := `"` + hex.EncodeToString(sum[:12]) + `"`
 	w.Header().Set("ETag", etag)

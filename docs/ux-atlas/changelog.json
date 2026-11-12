@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-12",
+    "what": "SIM-442: Participants browse Submissions from Judging onward; organisers can show them publicly from Event page."
+  },
+  {
+    "date": "2026-11-12",
     "what": "SIM-444: Announcement links, call and video cards, preview and one pinned update across the app, public page and email."
   },
   {

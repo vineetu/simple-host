@@ -1,4 +1,5 @@
 Build the organiser's event website from this complete index.html and publish with hack_publish_event_website.
+The public feed has a submissions array; list its cards when non-empty.
 Restyle freely, but keep the live fetch; never hard-code stage, dates, announcements, gallery or results.
 
 ```html
@@ -99,6 +100,27 @@ function draw(event) {
         const img = add(item, 'img');
         img.src = screenshot;
         img.alt = row.title;
+      }
+    }
+  }
+  if (event.submissions?.length) {
+    const area = section(page, 'Submissions');
+    for (const row of event.submissions) {
+      const item = add(area, 'article');
+      add(item, 'h3', row.title || row.team_name);
+      add(item, 'p', row.team_name);
+      add(item, 'p', row.tagline);
+      if (row.tools?.length) add(item, 'p', row.tools.join(', '));
+      if (row.maturity) add(item, 'p', row.maturity);
+      link(item, 'Open website', row.site_url);
+      link(item, 'Watch video', row.video_url);
+      link(item, 'View code', row.code_url);
+      const screenshot = httpURL(row.screenshot_url);
+      if (screenshot) {
+        const img = add(item, 'img');
+        img.src = screenshot;
+        img.alt = row.title || row.team_name;
+        img.loading = 'lazy';
       }
     }
   }

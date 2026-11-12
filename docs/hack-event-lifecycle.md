@@ -75,3 +75,5 @@ setting on a team: every unlocked team can be asked to join, and its link or cod
 instantly. A new event's team size now defaults to 20, and an existing event below that was
 raised to it on migration. Fill teams asks for people per team (default 4) instead of filling
 every team to the event's cap.
+
+From Judging onward, participants open **Submissions** to browse submitted entry cards, websites and screenshots, with or without their own team. In **Event page → Look**, organisers can turn on **Show submissions on the event page** (off by default). Visitors and custom event websites then see the same submitted, non-excluded entries. This is separate from the live team sites gallery.

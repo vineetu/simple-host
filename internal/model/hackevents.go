@@ -51,8 +51,9 @@ type Event struct {
 	UpdatedAt          time.Time
 	// M2 (hack2-team-sites.sql): which entry fields are required, and
 	// whether the public gallery is open.
-	EntryRequired []string
-	GalleryOpen   bool
+	EntryRequired     []string
+	SubmissionsPublic bool
+	GalleryOpen       bool
 	// M3 (hack3-judging.sql): how judges are spread, and the score lock.
 	// JudgingLockReason is cleared on unlock; the reason itself is logged.
 	OrganiserJudges     []string

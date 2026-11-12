@@ -237,6 +237,7 @@ func hackMemberEntryTools() []Tool {
 		return p
 	}
 	list := []Tool{
+		memberTool("hack_get_submissions", "Browse submissions", "Read submitted, non-excluded entry summary cards for every team from Judging onward. Any joined participant, including one without a team. Never returns judging metadata.", http.MethodGet, "/v1/hack/events/{slug}/submissions", object(slug, "slug"), nil, readOnly()),
 		memberTool("hack_get_entry", "Read my team's entry", "Read the entry, the event's entry rules, completeness, submit status, the Home progress checklist and entry deadline.", http.MethodGet, "/v1/hack/events/{slug}/entry", object(slug, "slug"), nil, readOnly()),
 		memberTool("hack_update_entry", "Update my team's entry", "Set only the entry fields supplied. Empty strings clear fields. tagline is the one-line solution shown on the summary card; description is the longer write-up. Saving a draft never checks or changes completeness and never submits it -- call hack_submit_entry when it's ready. tools lists what was used, up to 10 items, each 1-30 characters, case-insensitive duplicates dropped. maturity is how far along it is: working, partial, concept, or empty to clear. track sets the team's chosen track by its slug, or clears it with an empty string. A save on an already-submitted entry that would make it incomplete is refused with `missing`. Ask before overwriting team text.", http.MethodPut, "/v1/hack/events/{slug}/entry", object(with(slug, map[string]any{
 			"title":       str("Project title."),

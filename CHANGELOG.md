@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-12: Simple Hack participants can browse submitted entries from Judging onward. Organisers can show the same submissions on the public event page and custom website feed with a new setting, off by default (SIM-442).
+
 2026-11-12: Announcements support clickable http(s) addresses, labelled links, bold, bullets and line breaks. Standalone Zoom, Meet, Teams and YouTube links become cards without fetching linked pages. Organisers can preview before posting and pin one announcement, replacing the previous pin; it appears first for participants and judges. Email carries matching HTML buttons and full addresses in plain text.
 
 2026-11-12: Simple Hack teams can write to the organisers (SIM-443). Any member of a team can send a message from Team to the event's organisers; it joins the team's one thread with the organisers' own messages, which every organiser and teammate can read. Organisers see a line on Home that takes them to the team's thread, and get an email only if their "Email me when something waits on me" is on. Connected AI apps get `hack_message_organisers`.

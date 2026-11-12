@@ -104,7 +104,7 @@ export function mount(ctx, section, screenId) {
   const { event: detail, role, me } = ctx
   let events = ctx.events
   const event = detail?.event
-  const items = (nav[role] || []).filter(it => !it.stages || (event?.results_published && it.stages.includes(event.stage === 'archived' ? 'ended' : event?.stage)))
+  const items = (nav[role] || []).filter(it => !it.stages || ((it.id !== 'results' || event?.results_published) && it.stages.includes(event?.stage === 'archived' ? 'ended' : event?.stage)))
   // Teams redesign (2026-10-31): nav.js's own item objects carry no live
   // counts (they never did -- `it.badge` was always undefined), so the two
   // real badges this plan asks for are computed here, from the same event

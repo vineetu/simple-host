@@ -91,7 +91,7 @@ func hackBaseEventTools() []Tool {
 			OutputSchema: schemas.event,
 			Name:         "hack_get_event",
 			Title:        "Get an event",
-			Description:  "Read one event: its page, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
+			Description:  "Read one event: its page, submissions_public, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
 			InputSchema:  object(map[string]any{"slug": str("The event name.")}, "slug"),
 			Annotations:  writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -130,6 +130,7 @@ func hackBaseEventTools() []Tool {
 				"entry_required":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Deprecated: use hack_set_entry_rules instead (presets, per-field required/optional/off/one_of, judge_first). Sending this still works: it sets required for exactly the listed fields and demotes the stored preset to custom."},
 				"team_finding":        map[string]any{"type": "boolean", "description": "Enable private team finding. Codes keep working when off."},
 				"applications_open":   map[string]any{"type": "boolean", "description": "Whether people without the join link can apply from Find a hackathon and the event page. On by default; turning it off stops new applications and keeps waiting ones. Ask the organiser before changing it."},
+				"submissions_public":  map[string]any{"type": "boolean", "description": "Show submissions on the event page from Judging onward. Off by default; separate from gallery_open."},
 				"gallery_open":        map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},
 				"theme": map[string]any{
 					"type":        "string",
@@ -290,6 +291,13 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 		}
 		body["entry_required"] = list
 	}
+	if raw, present := args["submissions_public"]; present {
+		value, ok := raw.(bool)
+		if !ok {
+			return nil, errors.New("submissions_public must be true or false")
+		}
+		body["submissions_public"] = value
+	}
 	if raw, present := args["gallery_open"]; present {
 		open, ok := raw.(bool)
 		if !ok {
@@ -320,25 +328,26 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 type hackEventView struct {
 	Checklist any `json:"checklist"`
 	Event     struct {
-		Slug          string   `json:"slug"`
-		Title         string   `json:"title"`
-		Tagline       string   `json:"tagline"`
-		About         string   `json:"about"`
-		Rules         string   `json:"rules"`
-		Prizes        string   `json:"prizes"`
-		OverallPrizes []string `json:"overall_prizes"`
-		CocText       string   `json:"coc_text"`
-		Theme         string   `json:"theme"`
-		Stage         string   `json:"stage"`
-		TimeZone      string   `json:"time_zone"`
-		StartsAt      *string  `json:"starts_at"`
-		EndsAt        *string  `json:"ends_at"`
-		JudgingEndsAt *string  `json:"judging_ends_at"`
-		TeamSizeMax   int      `json:"team_size_max"`
-		TeamFinding   bool     `json:"team_finding"`
-		URL           string   `json:"url"`
-		TakenDown     bool     `json:"taken_down"`
-		StagesOffered []string `json:"stages_offered"`
+		Slug              string   `json:"slug"`
+		Title             string   `json:"title"`
+		Tagline           string   `json:"tagline"`
+		About             string   `json:"about"`
+		Rules             string   `json:"rules"`
+		Prizes            string   `json:"prizes"`
+		OverallPrizes     []string `json:"overall_prizes"`
+		SubmissionsPublic bool     `json:"submissions_public"`
+		CocText           string   `json:"coc_text"`
+		Theme             string   `json:"theme"`
+		Stage             string   `json:"stage"`
+		TimeZone          string   `json:"time_zone"`
+		StartsAt          *string  `json:"starts_at"`
+		EndsAt            *string  `json:"ends_at"`
+		JudgingEndsAt     *string  `json:"judging_ends_at"`
+		TeamSizeMax       int      `json:"team_size_max"`
+		TeamFinding       bool     `json:"team_finding"`
+		URL               string   `json:"url"`
+		TakenDown         bool     `json:"taken_down"`
+		StagesOffered     []string `json:"stages_offered"`
 	} `json:"event"`
 	Role     string          `json:"role"`
 	Can      map[string]bool `json:"can"`
@@ -384,26 +393,27 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 	}
 	offered := append([]string{}, view.Event.StagesOffered...)
 	out := map[string]any{
-		"slug":            view.Event.Slug,
-		"title":           view.Event.Title,
-		"tagline":         view.Event.Tagline,
-		"about":           view.Event.About,
-		"rules":           view.Event.Rules,
-		"prizes":          view.Event.Prizes,
-		"overall_prizes":  append([]string{}, view.Event.OverallPrizes...),
-		"coc_text":        view.Event.CocText,
-		"theme":           view.Event.Theme,
-		"stage":           view.Event.Stage,
-		"role":            view.Role,
-		"url":             view.Event.URL,
-		"time_zone":       view.Event.TimeZone,
-		"team_size_max":   view.Event.TeamSizeMax,
-		"team_finding":    view.Event.TeamFinding,
-		"taken_down":      view.Event.TakenDown,
-		"stages_offered":  offered,
-		"starts_at":       nil,
-		"ends_at":         nil,
-		"judging_ends_at": nil,
+		"slug":               view.Event.Slug,
+		"title":              view.Event.Title,
+		"tagline":            view.Event.Tagline,
+		"about":              view.Event.About,
+		"rules":              view.Event.Rules,
+		"prizes":             view.Event.Prizes,
+		"overall_prizes":     append([]string{}, view.Event.OverallPrizes...),
+		"submissions_public": view.Event.SubmissionsPublic,
+		"coc_text":           view.Event.CocText,
+		"theme":              view.Event.Theme,
+		"stage":              view.Event.Stage,
+		"role":               view.Role,
+		"url":                view.Event.URL,
+		"time_zone":          view.Event.TimeZone,
+		"team_size_max":      view.Event.TeamSizeMax,
+		"team_finding":       view.Event.TeamFinding,
+		"taken_down":         view.Event.TakenDown,
+		"stages_offered":     offered,
+		"starts_at":          nil,
+		"ends_at":            nil,
+		"judging_ends_at":    nil,
 	}
 	if view.Can != nil {
 		out["can"] = view.Can
@@ -604,7 +614,7 @@ func hackWebEventTools() []Tool {
 		},
 		{
 			Name: "hack_get_public_event", Title: "Read public event data",
-			Description: "Read the credentialless public event feed, including overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.",
+			Description: "Read the credentialless public event feed, including submissions_public and the submissions array (submitted, non-excluded entry summary cards when enabled from Judging onward), overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.",
 			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: hackPublicReadOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/public")
@@ -664,28 +674,29 @@ func hackEventSchemas() hackEventSchemaSet {
 		return schema
 	}
 	event := outObject(map[string]any{
-		"slug":            outString("The event name."),
-		"title":           outString("The event title."),
-		"tagline":         outString("Short line under the title. Empty when unset."),
-		"about":           outString("About text. Empty when unset."),
-		"rules":           outString("Rules text. Empty when unset."),
-		"prizes":          outString("Prizes text. Empty when unset."),
-		"overall_prizes":  map[string]any{"type": "array", "items": outString("Prize for this place."), "description": "Prizes for 1st, 2nd, 3rd by index. Always an array."},
-		"coc_text":        outString("The organiser's own code of conduct. Empty when unset."),
-		"theme":           outString("Page style for the public event page: poster, confetti, boardroom, garden, terminal, or empty for the classic look. The organiser's accent_color still drives buttons and links under every style."),
-		"stage":           outString("draft, open, building, closed, judging, results or archived."),
-		"can":             hackAbilitiesSchema(),
-		"role":            outString("This person's role: organiser, participant or judge."),
-		"url":             outString("The event's public address."),
-		"time_zone":       outString("IANA time zone."),
-		"team_size_max":   outInteger("Maximum people on a team."),
-		"team_finding":    outBool("Whether private team finding is enabled."),
-		"taken_down":      outBool("Whether the operator has taken the event down."),
-		"stages_offered":  outArray("Stages hack_set_event_stage accepts.", outString("A stage name.")),
-		"starts_at":       nullableString("Start time, or null when unset."),
-		"ends_at":         nullableString("End time, or null when unset."),
-		"judging_ends_at": nullableString("When judging closes, or null when unset. Judges with unscored teams are reminded before this time, once set."),
-		"checklist":       nullableObject(hackChecklistSchema(), "Role-specific checklist and guided next action."),
+		"slug":               outString("The event name."),
+		"title":              outString("The event title."),
+		"tagline":            outString("Short line under the title. Empty when unset."),
+		"about":              outString("About text. Empty when unset."),
+		"rules":              outString("Rules text. Empty when unset."),
+		"prizes":             outString("Prizes text. Empty when unset."),
+		"submissions_public": map[string]any{"type": "boolean", "description": "Whether submitted entries are public from Judging onward."},
+		"overall_prizes":     map[string]any{"type": "array", "items": outString("Prize for this place."), "description": "Prizes for 1st, 2nd, 3rd by index. Always an array."},
+		"coc_text":           outString("The organiser's own code of conduct. Empty when unset."),
+		"theme":              outString("Page style for the public event page: poster, confetti, boardroom, garden, terminal, or empty for the classic look. The organiser's accent_color still drives buttons and links under every style."),
+		"stage":              outString("draft, open, building, closed, judging, results or archived."),
+		"can":                hackAbilitiesSchema(),
+		"role":               outString("This person's role: organiser, participant or judge."),
+		"url":                outString("The event's public address."),
+		"time_zone":          outString("IANA time zone."),
+		"team_size_max":      outInteger("Maximum people on a team."),
+		"team_finding":       outBool("Whether private team finding is enabled."),
+		"taken_down":         outBool("Whether the operator has taken the event down."),
+		"stages_offered":     outArray("Stages hack_set_event_stage accepts.", outString("A stage name.")),
+		"starts_at":          nullableString("Start time, or null when unset."),
+		"ends_at":            nullableString("End time, or null when unset."),
+		"judging_ends_at":    nullableString("When judging closes, or null when unset. Judges with unscored teams are reminded before this time, once set."),
+		"checklist":          nullableObject(hackChecklistSchema(), "Role-specific checklist and guided next action."),
 		"next_step": withDescription(outObject(map[string]any{
 			"kind":            outString("stage, entry_rules, publish_results or none. entry_rules means a draft event whose organiser hasn't chosen entry rules yet: call hack_set_entry_rules with the organiser's choice of preset first (ask which: video_or_website or video_website_code), then this becomes stage/open (\"Open sign-up\")."),
 			"stage":           outString("The stage hack_set_event_stage would move to. Empty for entry_rules, publish_results or none."),
@@ -719,7 +730,7 @@ func hackEventSchemas() hackEventSchemaSet {
 				"on_no_team":   outInteger("Participants who have not joined a team."),
 			}, "participants", "teams", "judges", "on_no_team"),
 		}, "organiser_name", "organisation", "contact_email", "purpose", "expected_participants", "join_code", "join_url", "judge_code", "judge_url", "counts"), "Present only when this person is the organiser."),
-	}, "slug", "title", "tagline", "about", "rules", "prizes", "overall_prizes", "coc_text", "theme", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
+	}, "slug", "title", "tagline", "about", "rules", "prizes", "overall_prizes", "submissions_public", "coc_text", "theme", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
 	listItem := outObject(map[string]any{
 		"slug":       outString("The event name."),
 		"title":      outString("The event title."),

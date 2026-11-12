@@ -1056,6 +1056,7 @@ CREATE TABLE IF NOT EXISTS events (
   about                 TEXT NOT NULL DEFAULT '',
   rules                 TEXT NOT NULL DEFAULT '',
   prizes                TEXT NOT NULL DEFAULT '',
+  submissions_public boolean NOT NULL DEFAULT false,
   overall_prizes        TEXT[] NOT NULL DEFAULT '{}',
   coc_text              TEXT NOT NULL DEFAULT '',
   time_zone             TEXT NOT NULL DEFAULT 'UTC',
