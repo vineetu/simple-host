@@ -1,24 +1,14 @@
-# Run the small box on Render
+# Install Simple Host on Render
 
-![Simple Host on Render: your DNS points both names at the service; Render's edge, behind Cloudflare, ends HTTPS and forwards to one web service running Caddy and the Simple Host server with a 1 GB disk; Render Postgres on the private network; your Git repository holds the Blueprint](/diagrams/render.svg)
+![Simple Host deployment on Render](/diagrams/render.svg)
 
 The small box (the installer's Postgres + server + Caddy) runs on Render as one
-web service with a disk, plus a Render Postgres database. Tested end to end on
-2026-09-28 with v0.7.4, on a Starter service with a 1 GB disk and the smallest
-paid Postgres: first deploy (the Pre-Deploy Command loaded the schema and
-applied every migration), both custom domains with HTTPS, first admin and admin
-sign-in, a participant account, publish, update, rollback, saved data, the
-Caddy routes, `/internal/*` hidden, a redeploy (migrations: nothing to apply)
-and a restart with the site and data intact, and the visitor's real address in
-visitor analytics (a spoofed `X-Forwarded-For` is ignored). Then everything was
-deleted. The service and database were created through Render's API with the
-exact settings in `render.yaml`, and Render's Blueprint validator accepts that
-file as it is.
+web service with a disk, plus a Render Postgres database.
 
 The files are in [`deploy/platforms/render/`](https://github.com/vineetu/simple-host/tree/main/deploy/platforms/render/):
 `render.yaml` (a Blueprint), a `Dockerfile` that copies the released server
 into the Caddy image, a `Caddyfile` (the small box's, without its TLS parts),
-and `start.sh`. Nothing is compiled; no change to the server is needed.
+and `start.sh`. Nothing is compiled. No change to the server is needed.
 
 ## What it looks like
 
@@ -31,10 +21,9 @@ and `start.sh`. Nothing is compiled; no change to the server is needed.
 | Sites on disk | Docker volume | 1 GB Render disk at `/data` |
 | Schema and migrations | the installer runs `simple-host migrate` | the Pre-Deploy Command loads `schema.sql` into an empty database, then runs `simple-host migrate`, before every deploy |
 
-## Minimum size and cost
+## What you need
 
-Prices from render.com/pricing on 2026-09-28. The server and Caddy used about
-75 MB on Fly, so 512 MB is plenty. The test box used 16 MB of its 1 GB disk.
+Start with a 512 MB web service and a persistent disk. The costs below are estimates.
 
 | Item | Size | Per month |
 |---|---|---|
@@ -46,18 +35,15 @@ Prices from render.com/pricing on 2026-09-28. The server and Caddy used about
 | Workspace | Hobby | $0 |
 | **Total** | | **about $13.55** |
 
-Why not free: a free web service has no disk, so published sites live in the
-container and are gone after a deploy, a restart, or the sleep that follows
-15 minutes without traffic (seen in a free-plan test: after a redeploy the
-site was a 404 while its database rows were still there). Free services also
-have no Pre-Deploy Command, and a free Postgres expires after 30 days.
+A free web service has no disk, so published sites disappear after a deploy,
+a restart, or the sleep that follows 15 minutes without traffic. Free services
+also have no Pre-Deploy Command, and a free Postgres expires after 30 days.
 
-## Commands
+## Install
 
-You need a Render account with a card, a GitHub (or GitLab) repository with
-these files (a fork of Simple Host, or your own repository with
-`deploy/platforms/render/` copied in), a domain, and the release you want
-(this guide: 0.7.12, set in the `Dockerfile` as `SIMPLE_HOST_VERSION`). Below,
+You need a Render account with a card and a domain. Fork Simple Host on
+GitHub or GitLab, or copy `deploy/platforms/render/` into your repository.
+Set `SIMPLE_HOST_VERSION` in the `Dockerfile` (this guide uses 0.7.12). Below,
 the address is `hack.example.com`, with participant sites on
 `sites.hack.example.com`.
 
@@ -66,7 +52,7 @@ the address is `hack.example.com`, with participant sites on
    `domains`. Change `region` (both places) if Oregon is far from you.
    Commit and push.
 
-2. In the Render dashboard: **New > Blueprint**, pick the repository, and set
+2. In the Render dashboard, choose **New > Blueprint**, pick the repository, and set
    **Blueprint Path** to `deploy/platforms/render/render.yaml`. Render creates
    the database, then builds the image and deploys the service. The Pre-Deploy
    Command loads the schema and applies every migration
@@ -81,9 +67,8 @@ the address is `hack.example.com`, with participant sites on
    sites.hack.example.com  CNAME  simple-host-xxxx.onrender.com
    ```
 
-   Render verifies each name and issues its certificate by itself; in the test
-   both were live within a minute. (An apex name, `example.com`, takes an A
-   record instead; the service's Settings page shows it.)
+   Render verifies each name and issues its certificate. An apex name,
+   `example.com`, takes an A record instead. The service's Settings page shows it.
 
 4. Sign in: the admin key is the service's `ADMIN_API_KEY` (Environment tab,
    generated by the Blueprint). Open `https://hack.example.com/admin` and paste
@@ -93,16 +78,15 @@ the address is `hack.example.com`, with participant sites on
 ## Everyday operations
 
 - **Upgrade:** set the new `SIMPLE_HOST_VERSION` in the `Dockerfile` and push.
-  The Pre-Deploy Command runs the new release's migrations first; if they fail,
+  The Pre-Deploy Command runs the new release's migrations first. If they fail,
   the deploy stops and the old version keeps running. A redeploy with nothing
-  new logs `database is up to date; nothing to apply`. With a disk there is no
-  zero-downtime deploy: the old instance stops before the new one starts. In
-  the test, sites answered 502 for about 30 seconds.
-- **Restart:** **Manual Deploy > Restart service** on the service page. Sites,
-  saved data and accounts all survive; about 30 seconds of 502 in the test.
+  new logs `database is up to date. Nothing to apply`. With a disk there is no
+  zero-downtime deploy: the old instance stops before the new one starts. Sites can answer 502 during the deploy.
+- **Restart:** choose **Manual Deploy > Restart service** on the service page. Sites,
+  saved data and accounts all survive. Expect a short interruption.
 - **Settings:** anything in [configuration.md](/docs/self-hosting/configuration.md) goes in the
   service's Environment tab. Email sign-in codes need `RESEND_API_KEY` and
-  `MAIL_FROM`; without them participants use the keys the admin issues, which
+  `MAIL_FROM`. Without them participants use the keys the admin issues, which
   is how a small box runs by default.
 - **Backups:** Render snapshots the disk daily and keeps at least 7 days (the
   disk's page restores one). Paid Postgres has point-in-time recovery (3 days
@@ -111,26 +95,24 @@ the address is `hack.example.com`, with participant sites on
   dashboard (deleting the service takes its disk and custom domains with it),
   then remove the two DNS records.
 
-## Gotchas
+## Troubleshooting
 
 - **A card is required.** Without one, Render refuses the disk, the Pre-Deploy
   Command and paid Postgres ("Payment information is required to complete
   this request"). Do not try to run it on the free plan: sites vanish.
 - **The admin page's disk figure is the Render disk** (973 MB usable on a
-  1 GB disk). Grow the disk on its page if it fills; it cannot shrink.
+  1 GB disk). Grow the disk on its page if it fills. It cannot shrink.
 - **Health checks use your domain.** Once the service has custom domains,
   Render sends its checks with one of them as the Host, which can be
   `sites.<domain>`. There the content routes answer 404, so the first deploy
   after adding the domains never went live and failed after 15 minutes. The
   Caddyfile sends `/healthz` to the server on every host.
 - **Visitor addresses.** Render's proxy reaches Caddy over loopback (`::1`)
-  and sits behind Cloudflare. The first `X-Forwarded-For` entry is whatever the
-  visitor sent (a test with `X-Forwarded-For: 6.6.6.6` came through as the
-  visitor), so the Caddyfile reads `CF-Connecting-IP`, which Cloudflare sets
-  and refuses (403) from a visitor, and sends the server that address alone
-  in `X-Forwarded-For`. Without this, rate limits would share a few buckets
-  (Render's internal proxies) and analytics could be spoofed.
-- **Caddy's file capability.** Render will not start a program that carries
+  and sits behind Cloudflare. The Caddyfile reads `CF-Connecting-IP`, which
+  Cloudflare sets, and sends that address alone in `X-Forwarded-For`. This
+  keeps visitor addresses correct for rate limits and analytics.
+
+- **Caddy's file capability.** Render will not start a program with
   file capabilities (`caddy: Operation not permitted`), so the Dockerfile
   removes Caddy's (it only lets Caddy bind ports below 1024).
 - **Root and the disk.** A new disk belongs to root, and in Render's
@@ -146,8 +128,3 @@ the address is `hack.example.com`, with participant sites on
 - **CMD, not ENTRYPOINT.** The image starts with `CMD`, so the Pre-Deploy
   Command (`/usr/local/bin/start.sh release`) runs on its own rather than
   being handed to an entrypoint.
-
-Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
-manual order also work on small-box path installs. The public person page opens
-the selected site’s usual URL; the owner dashboard keeps its own origin. No
-whole-space domain is included. See [Your home page](https://github.com/vineetu/simple-host/blob/main/docs/your-home-page.md).

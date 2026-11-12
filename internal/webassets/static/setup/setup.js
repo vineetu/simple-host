@@ -1,11 +1,9 @@
-// The setup helper at /setup. Everything happens in this page: the settings
-// lists are the two settings.json files next to this script (generated from
-// each product's code, see docs/advanced/README.md), and secrets are never
-// asked for, only named as blanks.
+// The setup helper at /setup. Everything stays in this browser. Host settings
+// lists are generated from code; Simple Hack steps live in simple-hack.json.
 (function () {
   'use strict';
 
-  var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json' };
+  var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json', hack: '/setup/simple-hack.json' };
   // The release the installer pins (VERSION in deploy/install/install.sh),
   // the commit its tag points at, and install.sh's sha256 in that commit.
   // The command fetches the installer by commit (a tag can be moved) and
@@ -93,11 +91,12 @@
   function bucketOf(id) { return BUCKETS.filter(function (p) { return p.id === id; })[0] || {}; }
 
   var S = {
-    product: 'small', mode: 'basic', step: 0, area: 0,
+    product: document.body.getAttribute('data-setup-product') === 'hack' ? 'hack' : 'small', mode: 'basic', step: 0, area: 0,
     data: {},
     values: { small: {}, ent: {} },      // NAME -> value, only where it differs from the default
     secrets: { small: {}, ent: {} },     // NAME -> true: list it as a blank to fill in
     basic: {
+      hack: { SITE_DOMAIN: '', SUPPORT_EMAIL: '', PRIVACY_URL: '', signup: 'anyone', RESEND_API_KEY: '', MAIL_FROM: '', assistant: false, ASSISTANT_BASE_URL: '', ASSISTANT_MODEL: '', ASSISTANT_API_KEY: '' },
       small: { where: 'upcloud', domain: '', content: '', email: '', codes: true, google: false, mailFrom: '', googleId: '' },
       ent: { host: '', admins: '', idp: 'okta', issuer: IDPS[0].issuer, clientId: '', domains: '', certs: 'auto', issuerName: '',
         smtp: false, smtpFrom: '', bucket: 'other', endpoint: '', region: '', bucketName: '',
@@ -114,6 +113,7 @@
     var want = new URLSearchParams(location.search).get('product');
     if (want === 'enterprise') S.product = 'ent';
     else if (want === 'small-box') S.product = 'small';
+    else if (want === 'simple-hack') S.product = 'hack';
     // ?cloud= is ignored. Enterprise always targets a cluster that already exists.
   } catch (e) { /* keep the default */ }
 
@@ -232,7 +232,7 @@
   // ── Progress ──
   function renderProgress() {
     var lis = document.querySelectorAll('#progress li');
-    var steps = S.mode === 'advanced' ? [0, 1, 2, 3] : [0, 1, 3];
+    var steps = S.mode === 'advanced' && S.product !== 'hack' ? [0, 1, 2, 3] : [0, 1, 3];
     for (var i = 0; i < lis.length; i++) {
       lis[i].className = (i === S.step ? 'on' : (i < S.step ? 'done' : ''));
       lis[i].hidden = steps.indexOf(i) < 0;
@@ -260,7 +260,9 @@
   function render() {
     renderProgress();
     app.textContent = '';
-    [renderChoose, renderBasics, renderAdvanced, renderOutput][S.step]();
+    if (S.product === 'hack' && S.step === 1) renderHackBasics();
+    else if (S.product === 'hack' && S.step === 3) renderHackOutput();
+    else [renderChoose, renderBasics, renderAdvanced, renderOutput][S.step]();
   }
 
   // ── Step 1: what to set up ──
@@ -286,10 +288,10 @@
       el('h2', { text: 'What are you setting up?' }),
       el('fieldset', null, [
         el('legend', { class: 'note', text: 'Choose one.' }),
-        el('div', { class: 'choices' }, [
-          choice('product', 'small', S.product, 'Small box', 'One server with Docker: self-hosting, a team or a hackathon. Runs on 1 CPU and 1 GB of RAM.', redrawChoose('product')),
+        el('div', { class: 'choices' }, productChoices([
+          choice('product', 'small', S.product, 'Small box', 'One server with Docker: self-hosting or a team. Runs on 1 CPU and 1 GB of RAM.', redrawChoose('product')),
           choice('product', 'ent', S.product, 'Enterprise', 'An existing Kubernetes cluster (1.30 or later), behind your own sign-in, with Postgres and a bucket you already have.', redrawChoose('product'))
-        ])
+        ]))
       ])
     ]));
     if (S.product === 'ent') {
@@ -307,7 +309,7 @@
         ])
       ]));
     }
-    app.appendChild(el('div', { class: 'card' }, [
+    if (S.product !== 'hack') app.appendChild(el('div', { class: 'card' }, [
       el('h2', { text: 'How much do you want to decide?' }),
       el('fieldset', null, [
         el('legend', { class: 'note', text: 'You can go back and change this.' }),
@@ -325,13 +327,129 @@
     app.appendChild(err);
   }
 
+  function productChoices(choices) {
+    var hack = choice('product', 'hack', S.product, 'Simple Hack on one server', 'A hackathon platform on your own server.', redrawChoose('product'));
+    if (document.body.getAttribute('data-setup-product') === 'hack') choices.unshift(hack);
+    else choices.push(hack);
+    return choices;
+  }
+
+  var HACK_FIELDS = ['SITE_DOMAIN', 'SUPPORT_EMAIL', 'PRIVACY_URL', 'RESEND_API_KEY', 'MAIL_FROM',
+    'ASSISTANT_BASE_URL', 'ASSISTANT_MODEL', 'ASSISTANT_API_KEY'];
+
+  function checkHackBasics() {
+    var b = S.basic.hack, errors = {};
+    HACK_FIELDS.forEach(function (key) {
+      var v = b[key];
+      if (/[\x00-\x1f\x7f-\x9f]/.test(v) || /^["']/.test(v) || (key !== 'MAIL_FROM' && /\s/.test(v))) {
+        errors[key] = 'Use one line, without control characters, a leading quote or spaces (spaces are allowed in Mail from).';
+      }
+    });
+    b.SITE_DOMAIN = b.SITE_DOMAIN.toLowerCase();
+    // Exactly install.sh's SITE_DOMAIN rule, including its total length limit.
+    if (b.SITE_DOMAIN.length > 253 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(b.SITE_DOMAIN)) {
+      errors.SITE_DOMAIN = 'Use your DNS hostname, without a URL or wildcard.';
+    }
+    if (b.SUPPORT_EMAIL && !/^[^@\s]+@[^@\s]+$/.test(b.SUPPORT_EMAIL)) errors.SUPPORT_EMAIL = 'Use an email address.';
+    if (b.PRIVACY_URL) {
+      try {
+        var url = new URL(b.PRIVACY_URL);
+        if (url.protocol !== 'https:' || !url.hostname) throw new Error();
+      } catch (e) { errors.PRIVACY_URL = 'Use an https URL.'; }
+    }
+    function pair(a, c) {
+      if (!!b[a] !== !!b[c]) errors[b[a] ? c : a] = 'Fill in both fields, or leave both empty.';
+    }
+    pair('RESEND_API_KEY', 'MAIL_FROM');
+    if (b.assistant) pair('ASSISTANT_BASE_URL', 'ASSISTANT_MODEL');
+    S.errors = errors;
+    return !Object.keys(errors).length;
+  }
+
+  function renderHackBasics() {
+    var b = S.basic.hack, card = el('div', { class: 'card' }, [el('h2', { text: 'Simple Hack on one server' })]);
+    function field(key, label, opts) {
+      opts = opts || {};
+      opts.name = key; opts.raw = true;
+      card.appendChild(textField(key, b, label, opts));
+    }
+    field('SITE_DOMAIN', 'Domain', { placeholder: 'hack.example.com', help: 'Point it and *.<domain> at the server.' });
+    field('SUPPORT_EMAIL', 'Support email (optional)');
+    field('PRIVACY_URL', 'Privacy policy link (optional)');
+    card.appendChild(radios('signup', b, 'Who can create accounts?', [
+      ['anyone', 'Anyone'], ['admin', 'Only accounts I create in /admin']
+    ]));
+    card.appendChild(el('h3', { text: 'Email sending (optional)' }));
+    card.appendChild(el('p', { class: 'note', text: 'Sign-in works without email. Fill in both fields or neither.' }));
+    field('RESEND_API_KEY', 'Resend API key');
+    field('MAIL_FROM', 'Mail from');
+    card.appendChild(radios('assistant', b, 'Ask assistant', [['false', 'Off'], ['true', 'On']], render));
+    if (b.assistant) {
+      card.appendChild(el('p', { class: 'note', text: 'Fill in both the base URL and model, or leave both empty.' }));
+      field('ASSISTANT_BASE_URL', 'Base URL');
+      field('ASSISTANT_MODEL', 'Model');
+      field('ASSISTANT_API_KEY', 'API key (optional)');
+    }
+    app.appendChild(card);
+    app.appendChild(el('div', { class: 'nav' }, [
+      el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () { S.errors = {}; go(0); } }),
+      el('button', { class: 'btn solid', type: 'button', text: 'Show my steps', onclick: function () {
+        if (checkHackBasics()) go(3); else { render(); var bad = app.querySelector('input.bad'); if (bad) bad.focus(); }
+      } })
+    ]));
+  }
+
+  function hackSettings() {
+    var b = S.basic.hack, lines = ['SITE_DOMAIN=' + b.SITE_DOMAIN];
+    ['SUPPORT_EMAIL', 'PRIVACY_URL'].forEach(function (key) { if (b[key]) lines.push(key + '=' + b[key]); });
+    if (b.signup === 'admin') lines.push('PASSWORD_SELF_SIGNUP=off');
+    ['RESEND_API_KEY', 'MAIL_FROM'].forEach(function (key) { if (b[key]) lines.push(key + '=' + b[key]); });
+    if (b.assistant) ['ASSISTANT_BASE_URL', 'ASSISTANT_MODEL', 'ASSISTANT_API_KEY'].forEach(function (key) {
+      if (b[key]) lines.push(key + '=' + b[key]);
+    });
+    return lines.join('\n');
+  }
+
+  function hackSubstitute(text) {
+    // Replace once over the template so user values never become placeholders.
+    return text.replace(/\{DOMAIN\}|\{SETTINGS\}/g, function (key) {
+      return key === '{DOMAIN}' ? S.basic.hack.SITE_DOMAIN : hackSettings();
+    });
+  }
+
+  function hackText(text) {
+    var p = el('p'), parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    parts.forEach(function (part) {
+      p.appendChild(part.charAt(0) === '`' ? el('code', { text: part.slice(1, -1) }) :
+        part.slice(0, 2) === '**' ? el('strong', { text: part.slice(2, -2) }) : document.createTextNode(part));
+    });
+    return p;
+  }
+
+  function renderHackOutput() {
+    var data = S.data.hack, card = el('div', { class: 'card', id: 'files' }, [el('h2', { text: 'Install Simple Hack' })]);
+    var steps = el('ol', { class: 'steps' });
+    data.steps.forEach(function (step) {
+      var li = el('li');
+      li.appendChild(step.code != null ? block('Run', hackSubstitute(step.code)) : hackText(hackSubstitute(step.text)));
+      steps.appendChild(li);
+    });
+    card.appendChild(steps);
+    data.after.forEach(function (line) { card.appendChild(hackText(hackSubstitute(line))); });
+    app.appendChild(card);
+    app.appendChild(el('div', { class: 'nav' }, [
+      el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () { go(1); } }),
+      el('button', { class: 'btn', type: 'button', text: 'Start over', onclick: function () { location.reload(); } })
+    ]));
+  }
+
   // ── Step 2: the basics ──
   function textField(key, obj, label, opts) {
     opts = opts || {};
     var id = uid(key);
     var input = el('input', { id: id, type: opts.type || 'text', value: obj[key], placeholder: opts.placeholder || '', autocomplete: 'off', spellcheck: 'false',
       'aria-describedby': opts.help ? id + '-h' : null,
-      oninput: function () { obj[key] = input.value.trim(); if (opts.oninput) opts.oninput(); } });
+      oninput: function () { obj[key] = opts.raw ? input.value : input.value.trim(); if (opts.oninput) opts.oninput(); } });
     if (S.errors[key]) input.className = 'bad';
     return el('div', { class: 'field' }, [
       el('label', { for: id }, [label, opts.name ? el('span', { class: 'name', text: opts.name }) : null]),

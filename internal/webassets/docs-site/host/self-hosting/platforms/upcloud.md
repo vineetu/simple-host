@@ -1,17 +1,11 @@
-# Run the small box on UpCloud
+# Install Simple Host on UpCloud
 
-![Simple Host on UpCloud, or any Ubuntu server: two DNS A records point at the server; one Ubuntu server runs the installer's docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let's Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database](/diagrams/upcloud.svg)
+![Simple Host deployment on an Ubuntu server](/diagrams/upcloud.svg)
 
-UpCloud is where we recommend running a small box, and where we test it. The
-smallest server (1 CPU, 1 GB, Ubuntu 24.04) runs Simple Host comfortably with
-the standard installer: no special image and no changes.
+The smallest server (1 CPU, 1 GB, Ubuntu 24.04) runs Simple Host with
+the standard installer. You can use the same steps on any Ubuntu VPS.
 
-Tested end to end on 2026-09-28 from the setup page's own output: server
-created in about a minute, installer done in 50 seconds, about 3.5 minutes from
-prompt to a working box with HTTPS. Admin sign-in, publish, saved data and
-`/internal/*` hidden all checked. Then everything was deleted.
-
-[Create your UpCloud account — $25 in credits](https://signup.upcloud.com/?promo=JF2WCV)
+[Create your UpCloud account ($25 in credits)](https://signup.upcloud.com/?promo=JF2WCV)
 (referral link. New accounts through this link get $25 of UpCloud credit;
 their terms apply.)
 
@@ -28,7 +22,7 @@ there is nothing else to pay for. The $25 credit covers about six months.
 
 1. Create your UpCloud account.
 2. In the UpCloud control panel, create an **API token** (Account → API
-   tokens; it can have an expiry and an IP allow-list) or an **API user** (a
+   tokens. It can have an expiry and an IP allow-list) or an **API user** (a
    sub-account with API access and only the server permissions it needs).
 3. Answer the questions at https://simple-host.app/setup?product=small-box,
    with **UpCloud** as where it runs.
@@ -45,8 +39,8 @@ The setup page never asks for or accepts UpCloud credentials.
 
 ## By hand
 
-1. In the UpCloud control panel, deploy a server: any zone, plan
-   `STARTER-1xCPU-1GB`, template **Ubuntu Server 24.04 LTS**, and your SSH key.
+1. In the UpCloud control panel, deploy a server in any zone with plan
+   `STARTER-1xCPU-1GB`. Choose **Ubuntu Server 24.04 LTS** and add your SSH key.
 2. At your DNS provider, add two A records pointing at the server's public
    IPv4 address: your domain, and `*.<your domain>`.
 3. Answer the questions at https://simple-host.app/setup?product=small-box

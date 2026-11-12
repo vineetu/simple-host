@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,6 +52,54 @@ func TestSetupHelper(t *testing.T) {
 		if rec := get(t, mux, "simple-host.app", p); rec.Code != http.StatusOK {
 			t.Errorf("%s: status %d", p, rec.Code)
 		}
+	}
+}
+
+func TestSetupHelperEditions(t *testing.T) {
+	for _, tc := range []struct {
+		edition edition.Kind
+		name    string
+		product string
+	}{
+		{edition.Host, "Simple Host", "small"},
+		{edition.Hack, "Simple Hack", "hack"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mux := chromeTestMux(t, tc.edition)
+			page := get(t, mux, "example.test", "/setup")
+			for _, want := range []string{
+				"<title>Set up " + tc.name + "</title>",
+				"<h1>Set up " + tc.name + "</h1>",
+				`data-setup-product="` + tc.product + `"`,
+			} {
+				if !strings.Contains(page.Body.String(), want) {
+					t.Errorf("/setup missing %q", want)
+				}
+			}
+			rec := get(t, mux, "example.test", "/setup/simple-hack.json")
+			if rec.Code != http.StatusOK {
+				t.Fatalf("/setup/simple-hack.json: status %d", rec.Code)
+			}
+			var steps struct {
+				Version string              `json:"version"`
+				Steps   []map[string]string `json:"steps"`
+				After   []string            `json:"after"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &steps); err != nil {
+				t.Fatal(err)
+			}
+			if len(steps.Steps) != 5 || len(steps.After) != 2 {
+				t.Fatalf("want five steps and two after-install lines, got %d and %d", len(steps.Steps), len(steps.After))
+			}
+			compose, err := os.ReadFile("../../deploy/hack/standalone/compose.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			pin := regexp.MustCompile(`simple-hack:([0-9]+\.[0-9]+\.[0-9]+)`).FindSubmatch(compose)
+			if pin == nil || steps.Version != string(pin[1]) {
+				t.Errorf("helper version %q differs from compose image pin %q", steps.Version, pin)
+			}
+		})
 	}
 }
 

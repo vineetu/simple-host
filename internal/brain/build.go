@@ -594,7 +594,7 @@ func buildProducts(b *Bundle, v map[string]string) []Product {
 			fallback: "The small-box edition of Simple Host that anyone can run on one ~$5 VPS with Docker Compose and Caddy: the same binary as simple-host.app, with the path address model by default.",
 			what:     [2]string{RepoHost + "/docs/platforms/README.md", "Where it runs"}, nonGoals: [2]string{hostIntent, "Non-goals"}},
 		{id: "selfhost-hack", name: "Simple Hack standalone (self-hosted)",
-			what:  [2]string{RepoHost + "/docs/platforms/simple-hack-standalone.md", "Install the full Simple Hack platform"},
+			what:  [2]string{RepoHost + "/docs/platforms/simple-hack-standalone.md", "Install Simple Hack on your own server"},
 			extra: []string{RepoHost + "/docs/platforms/simple-hack-coolify.md", RepoHost + "/docs/platforms/simple-hack-digitalocean.md"}},
 		{id: "hack-companies", name: "Simple Hack for companies",
 			what:  [2]string{hackLLMs, "Simple Hack for companies"},

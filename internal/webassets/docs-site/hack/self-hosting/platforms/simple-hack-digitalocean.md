@@ -1,67 +1,23 @@
-# Full Simple Hack on DigitalOcean
+# Install Simple Hack on DigitalOcean
 
-Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
-their AI and it builds their team's site. No coding needed. The best idea wins,
-not the best coder. Organisers choose the platform for college students, product
-managers and leaders, and people who aren't programmers.
-The full platform uses the same hand-drawn landing film, ink theme, local
-Caveat/Kalam fonts and per-event crayon colours as the hosted service. At
-`https://<your-domain>/get-started`, “Pick your AI” leads to the instance's own
-`https://<your-domain>/mcp`, role prompts and the FAQ; skill folders and plugin
-ZIPs are under “Other ways to install” and also name your instance. Use those
-instance downloads rather than the hosted GitHub skills when self-hosting.
-Organisers share a join link and a private judge link; participants form teams,
-publish a team site and complete an entry. No account keys are handed out as
-part of that onboarding.
+Run events, teams, team sites, judging and results on your own server.
+People use password accounts without email.
 
-![Simple Hack Get started](/docs/self-hosting/assets/simple-hack-get-started.png)
+## What you need
 
-**The full platform installer and a private Packer snapshot were tested on
-DigitalOcean on 2026-10-01.** A Marketplace listing has not been submitted or
-approved. This package is separate from the existing Simple Host small-box
-snapshot. The packaged release download and pinned application image are
-published.
+Use an Ubuntu 24.04 droplet with Docker, or build your own snapshot with Packer
+and a DigitalOcean API token. The [standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md#what-you-need)
+covers server size, DNS and certificate capacity.
 
-The live test used one Ubuntu 24.04 `s-1vcpu-2gb` droplet in `nyc3`, with an
-amd64 candidate built from source commit `7a1180b`. The platform, event and
-team addresses used the temporary IP's `sslip.io` names and received trusted
-Let's Encrypt certificates. A desktop organiser and mobile participant signed
-in through the browser, joined an event, created a team and published its
-project. Email-code messages were captured by an isolated mail transport sink
-inside the test network; external email delivery was not tested.
+The recipe in `deploy/hack/standalone/digitalocean/` builds an image with Docker,
+Simple Hack and first-login setup. No database, admin key, mail key or certificate
+is created in the snapshot. A private snapshot does not create a Marketplace listing;
+that also requires vendor access, listing materials and image review
+([Marketplace partner workflow](https://github.com/digitalocean/marketplace-partners)).
 
-Fresh installation applied all 38 migrations. Restart and a second-image
-redeploy preserved the event, team, project, credentials, settings and existing
-certificate. The second image contained the same candidate binary; this was
-an upgrade/persistence check, not a migration between released versions.
-Unknown/deeper hostnames were refused certificates, and the public internal
-certificate-check route returned 404. The disposable droplet, SSH key and tag
-were deleted after verification; no snapshot or backup was retained.
+## Install
 
-The published `hack-v0.8.0` ZIP and tarball matched their `SHA256SUMS` and
-GitHub asset digests, extracted to identical 30-file trees, and the ZIP's
-default installer passed its configuration and upgrade tests. Packer built a
-private snapshot from that ZIP and the public amd64 image in 8 minutes 53
-seconds. DigitalOcean's image checker passed all eight checks with no
-warnings. The snapshot held 3.03 GB before deletion. On a new droplet from
-the snapshot, the first root login asked for the domain, hidden mail key and
-sender; installation continued after an intentional SSH disconnect. The
-published image applied 39 migrations and served trusted HTTPS. Restart and
-same-image upgrade retained the settings, a database row, a data-volume file
-and the certificate. The test used a fake mail key and sent no email. The
-build and first-boot droplets, private snapshot, temporary SSH key and tag
-were deleted, then verified absent. Both droplets existed for about 15 minutes
-combined; at the $0.01786/hour rate returned by DigitalOcean's API, compute
-is about $0.0045 prorated or $0.03572 if each incurs a full-hour minimum, plus a small
-short-lived snapshot storage charge. Billing was not independently confirmed.
-
-The recipe in `deploy/hack/standalone/digitalocean/` builds an Ubuntu 24.04
-image with Docker, the full Simple Hack application image and first-login
-setup. It reuses the existing small-box Docker installation, firewall, cleanup
-and DigitalOcean image validation scripts. No database, admin key, mail key or
-certificate is created in the snapshot.
-
-## Build the image
+### Build the image
 
 The image pinned by this package's Packer template is published. The build
 fails if that image cannot be pulled. Packer and a DigitalOcean API token are
@@ -77,44 +33,64 @@ make -C deploy/hack/standalone/digitalocean build
 
 Supply `DIGITALOCEAN_API_TOKEN` through your own secret environment. To build
 with another published application image, run Packer from that directory with
-`-var simple_hack_image=your-image-reference`; use a digest to fix the exact
+`-var simple_hack_image=your-image-reference`. Use a digest to fix the exact
 artifact. The build uses a temporary 2 GB droplet in `nyc3` by default and saves
-a snapshot; both the build and retained snapshot incur provider charges.
+a snapshot. Both the build and retained snapshot incur provider charges.
 
-## Install from your snapshot
+### Install from your snapshot
 
 Create a droplet from the snapshot and add your SSH key. Configure the domain
-and email prerequisites from [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md).
+and certificate prerequisites from [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md).
 On first root SSH login, setup asks for your domain, verifies the apex, event
 and team DNS shapes against the droplet IPv4, and asks for the Resend key
 without echoing it. This first-login setup uses IPv4: remove existing AAAA
 records before proceeding. Configure and verify IPv6 separately after installation.
 
-Setup generates credentials once, starts the database, applies migrations and
-starts the full platform. It continues if SSH disconnects. The private log is
-`/opt/simple-hack/install.log`; after failure, reconnect or run
+Setup generates credentials once. It starts the database and applies migrations
+before starting the platform. It continues if SSH disconnects. The private log is
+`/opt/simple-hack/install.log`. After failure, reconnect or run
 `/opt/simple-hack-setup/digitalocean/first-login.sh` to retry. The first-login
 hook is removed only after successful installation.
 
-After startup, sign in at your domain, create an event and publish a team
-site. Verify trusted certificates and the event and team hostnames from a
-separate client. The private snapshot passed first-login and persistence
-checks; the earlier live event walkthrough verified the installer on a plain
-droplet. Neither is a Marketplace listing or a test of external email delivery.
+## First sign-in
 
-For upgrades and backups, follow [the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md).
-The installer uses persistent Docker volumes and preserves existing secrets;
-it does not contact simple-host.app to register an event name.
+Open your domain and choose **Create an account**. Use an email or username plus a password.
+Open `https://<your-domain>/admin` with the key from:
+
+```sh
+sudo grep ADMIN_API_KEY /opt/simple-hack/.env
+```
+
+Set `PASSWORD_SELF_SIGNUP=off` for admin-created accounts only.
+Create an event and publish a team site. Check their HTTPS addresses from another machine.
+
+## Connect an AI app
+
+In ChatGPT or Claude, add a custom connector called **Simple Hack** with
+`https://<your-domain>/mcp`. Sign in with your account on this server and choose **Allow**.
+Your server's `/get-started` page has the same steps. Use your own server's address.
+
+## Upgrade
+
+Follow the [standalone upgrade steps](/docs/self-hosting/platforms/simple-hack-standalone.md#upgrade).
+The installer keeps your persistent Docker volumes and existing secrets.
+
+## Back up
+
+Follow the [standalone backup steps](/docs/self-hosting/platforms/simple-hack-standalone.md#back-up):
+a logical Postgres dump plus the `data` volume, with a private copy of the configuration.
+
+## Troubleshooting
+
+First-login setup checks IPv4 DNS. Remove AAAA records until you configure and verify IPv6.
+After a failure, read `/opt/simple-hack/install.log` and rerun
+`/opt/simple-hack-setup/digitalocean/first-login.sh`.
 
 Company sign-in and the TLS mode are environment settings, not part of the
-first-login prompts; add them to `/opt/simple-hack/.env` and rerun
+first-login prompts. Add them to `/opt/simple-hack/.env` and rerun
 `/opt/simple-hack-setup/digitalocean/first-login.sh --apply` afterwards (see
-[the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md#company-sign-in-and-running-inside-your-network)
+[the standalone guide](/docs/self-hosting/platforms/simple-hack-standalone.md#company-sign-in-and-private-networks)
 for what each one does). A DigitalOcean droplet is public by nature, so
 `TLS_MODE=internal` or `acme` here only makes sense on a droplet attached to
 a VPC private network with no public inbound rule, reached over a VPN or
 DigitalOcean's private networking rather than the public internet.
-
-Publishing a public Marketplace entry additionally requires DigitalOcean
-vendor access, listing materials and image review. Building a private snapshot
-does not complete that process. [Marketplace partner workflow](https://github.com/digitalocean/marketplace-partners).

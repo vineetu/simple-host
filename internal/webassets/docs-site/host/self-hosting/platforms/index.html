@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="19dnjjr" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1im7ay9" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -433,32 +433,32 @@
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/coolify/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Coolify</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Coolify</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/digitalocean/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on DigitalOcean</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on DigitalOcean</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/fly/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Fly.io</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Fly.io</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/railway/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Railway</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Railway</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/render/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Render</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Render</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/upcloud/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on UpCloud</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on UpCloud</span>
 				
 			</a>
 	</li>
@@ -578,78 +578,48 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p>The small box needs three things: a process that is always on, a disk that
-keeps its files, and Postgres. Anywhere that gives all three can run it.</p>
+								<div class="sl-markdown-content"><ul>
+<li>Simple Host on one server: <a href="/docs/self-hosting/platforms/upcloud/">UpCloud or any Ubuntu VPS</a>, or use the <a href="https://simple-host.app/setup">setup helper</a>.</li>
+<li>Kubernetes / Enterprise: use Kubernetes and the <a href="https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md">Enterprise guide</a>.</li>
+</ul>
+<p>Simple Host needs a process that stays on, persistent disk and Postgres.
+Choose a provider guide below.</p>
 <table>
 <thead>
 <tr>
-<th>Where</th>
-<th>How</th>
-<th>Status</th>
+<th>Provider</th>
+<th>Guide</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>UpCloud (recommended)</td>
-<td><a href="/docs/self-hosting/platforms/upcloud/">this guide</a>: the installer on the smallest server</td>
-<td>tested 2026-09-28, about $4/month; <a href="https://signup.upcloud.com/?promo=JF2WCV">$25 in credits</a> (referral link)</td>
-</tr>
-<tr>
-<td>Any other Ubuntu VPS</td>
-<td>the installer, <a href="https://simple-host.app/setup">simple-host.app/setup</a></td>
-<td>the same installer</td>
-</tr>
-<tr>
-<td>Hostinger VPS</td>
-<td>the installer</td>
-<td>an Ubuntu VPS like any other</td>
+<td>UpCloud or any Ubuntu VPS</td>
+<td><a href="/docs/self-hosting/platforms/upcloud/">Install Simple Host</a></td>
 </tr>
 <tr>
 <td>DigitalOcean</td>
-<td><a href="/docs/self-hosting/platforms/digitalocean/">this guide</a>: the 1-Click droplet, or the installer on the $6 droplet</td>
-<td>tested 2026-10-01, about $6/month</td>
-</tr>
-<tr>
-<td>Fly.io</td>
-<td><a href="/docs/self-hosting/platforms/fly/">this guide</a></td>
-<td>tested 2026-09-28, about $4.50/month</td>
-</tr>
-<tr>
-<td>Render</td>
-<td><a href="/docs/self-hosting/platforms/render/">this guide</a></td>
-<td>tested 2026-09-28, about $13.55/month (needs a card)</td>
+<td><a href="/docs/self-hosting/platforms/digitalocean/">Install Simple Host</a></td>
 </tr>
 <tr>
 <td>Coolify</td>
-<td><a href="/docs/self-hosting/platforms/coolify/">this guide</a></td>
-<td>tested 2026-10-01 on Coolify 4.3.23 (resource made through its API)</td>
+<td><a href="/docs/self-hosting/platforms/coolify/">Install Simple Host</a></td>
+</tr>
+<tr>
+<td>Fly.io</td>
+<td><a href="/docs/self-hosting/platforms/fly/">Install Simple Host</a></td>
 </tr>
 <tr>
 <td>Railway</td>
-<td><a href="/docs/self-hosting/platforms/railway/">this guide</a>: a GitHub-repo template, Railway Postgres and a volume</td>
-<td>built and run locally 2026-10-27 with the exact image, env vars and volume layout (no Railway account available); the real deploy is tracked in a Linear ticket, about $5–15/month (needs a card)</td>
+<td><a href="/docs/self-hosting/platforms/railway/">Install Simple Host</a></td>
 </tr>
 <tr>
-<td>Vercel, Netlify, shared PHP hosting</td>
-<td></td>
-<td>not as-is: a 4.5 MB request limit (smaller than a site upload), no disk that keeps files, no always-on process</td>
+<td>Render</td>
+<td><a href="/docs/self-hosting/platforms/render/">Install Simple Host</a></td>
 </tr>
 </tbody>
 </table>
-<p>One diagram per layout, at the top of each guide:
-<a href="https://simple-host.app/diagrams/upcloud.svg">UpCloud, DigitalOcean and any Ubuntu server</a> ·
-<a href="https://simple-host.app/diagrams/fly.svg">Fly.io</a> ·
-<a href="https://simple-host.app/diagrams/render.svg">Render</a> ·
-<a href="https://simple-host.app/diagrams/coolify.svg">Coolify</a> ·
-<a href="https://simple-host.app/diagrams/railway.svg">Railway</a>.
-Enterprise on AWS has <a href="https://simple-host.app/diagrams/enterprise-aws.svg">its own</a>.
-Enterprise on DigitalOcean Kubernetes installs from a Helm chart, which a 1-Click wraps:
-<a href="https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md">its guide</a>.</p>
-<p>Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
-manual order also work on small-box path installs. The public person page opens
-the selected site’s usual URL; the owner dashboard keeps its own origin. No
-whole-space domain is included. See <a href="https://github.com/vineetu/simple-host/blob/main/docs/your-home-page.md">Your home page</a>.</p>
-<p>The shared app pages include Simple Host’s approved film landing, blue ink theme and readable selected controls in the verified v0.7.22 small-box release. Light/dark still follows the system and shared override; uploaded sites keep their own styles. Existing pinned releases keep their shipped UI.</p>
+<p>Vercel, Netlify and shared PHP hosting do not provide the persistent disk and
+always-on process this installation needs.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">
@@ -670,7 +640,7 @@ whole-space domain is included. See <a href="https://github.com/vineetu/simple-h
 		<span class="astro-b5raizh3">
 			Next
 			<br class="astro-b5raizh3">
-			<span class="link-title astro-b5raizh3">Run the small box on Coolify</span>
+			<span class="link-title astro-b5raizh3">Install Simple Host on Coolify</span>
 		</span>
 	</a>
 </div>

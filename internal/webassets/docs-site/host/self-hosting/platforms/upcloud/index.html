@@ -2,7 +2,7 @@
 <html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz">
 	<head>
 		<!--sh:head-->
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Run the small box on UpCloud | Simple Host</title><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.10"/><meta property="og:title" content="Run the small box on UpCloud"/><meta property="og:type" content="article"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="Simple Host"/><meta name="twitter:card" content="summary_large_image"/>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Install Simple Host on UpCloud | Simple Host</title><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.10"/><meta property="og:title" content="Install Simple Host on UpCloud"/><meta property="og:type" content="article"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="Simple Host"/><meta name="twitter:card" content="summary_large_image"/>
 		
 		
 		<link rel="stylesheet" href="/docs/_astro/print.C9eyqPGL.css" media="print">
@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="19dnjjr" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1im7ay9" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -433,32 +433,32 @@
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/coolify/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Coolify</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Coolify</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/digitalocean/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on DigitalOcean</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on DigitalOcean</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/fly/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Fly.io</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Fly.io</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/railway/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Railway</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Railway</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/render/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on Render</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on Render</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/upcloud/" aria-current="page" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Run the small box on UpCloud</span>
+				<span class="astro-rmhv4bp6">Install Simple Host on UpCloud</span>
 				
 			</a>
 	</li>
@@ -597,20 +597,15 @@
 					
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<h1 id="_top" class="astro-bebwqqxs">Run the small box on UpCloud</h1>
+								<h1 id="_top" class="astro-bebwqqxs">Install Simple Host on UpCloud</h1>
 								</div>
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p><img src="/diagrams/upcloud.svg" alt="Simple Host on UpCloud, or any Ubuntu server: two DNS A records point at the server; one Ubuntu server runs the installer’s docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let’s Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database"></p>
-<p>UpCloud is where we recommend running a small box, and where we test it. The
-smallest server (1 CPU, 1 GB, Ubuntu 24.04) runs Simple Host comfortably with
-the standard installer: no special image and no changes.</p>
-<p>Tested end to end on 2026-09-28 from the setup page’s own output: server
-created in about a minute, installer done in 50 seconds, about 3.5 minutes from
-prompt to a working box with HTTPS. Admin sign-in, publish, saved data and
-<code>/internal/*</code> hidden all checked. Then everything was deleted.</p>
-<p><a href="https://signup.upcloud.com/?promo=JF2WCV">Create your UpCloud account — $25 in credits</a>
+								<div class="sl-markdown-content"><p><img src="/diagrams/upcloud.svg" alt="Simple Host deployment on an Ubuntu server"></p>
+<p>The smallest server (1 CPU, 1 GB, Ubuntu 24.04) runs Simple Host with
+the standard installer. You can use the same steps on any Ubuntu VPS.</p>
+<p><a href="https://signup.upcloud.com/?promo=JF2WCV">Create your UpCloud account ($25 in credits)</a>
 (referral link. New accounts through this link get $25 of UpCloud credit;
 their terms apply.)</p>
 <h2 id="cost">Cost</h2>
@@ -636,7 +631,7 @@ there is nothing else to pay for. The $25 credit covers about six months.</p>
 <ol>
 <li>Create your UpCloud account.</li>
 <li>In the UpCloud control panel, create an <strong>API token</strong> (Account → API
-tokens; it can have an expiry and an IP allow-list) or an <strong>API user</strong> (a
+tokens. It can have an expiry and an IP allow-list) or an <strong>API user</strong> (a
 sub-account with API access and only the server permissions it needs).</li>
 <li>Answer the questions at <a href="https://simple-host.app/setup?product=small-box">https://simple-host.app/setup?product=small-box</a>,
 with <strong>UpCloud</strong> as where it runs.</li>
@@ -652,8 +647,8 @@ in that terminal, or close it.</li>
 <p>The setup page never asks for or accepts UpCloud credentials.</p>
 <h2 id="by-hand">By hand</h2>
 <ol>
-<li>In the UpCloud control panel, deploy a server: any zone, plan
-<code>STARTER-1xCPU-1GB</code>, template <strong>Ubuntu Server 24.04 LTS</strong>, and your SSH key.</li>
+<li>In the UpCloud control panel, deploy a server in any zone with plan
+<code>STARTER-1xCPU-1GB</code>. Choose <strong>Ubuntu Server 24.04 LTS</strong> and add your SSH key.</li>
 <li>At your DNS provider, add two A records pointing at the server’s public
 IPv4 address: your domain, and <code>*.&lt;your domain&gt;</code>.</li>
 <li>Answer the questions at <a href="https://simple-host.app/setup?product=small-box">https://simple-host.app/setup?product=small-box</a>
@@ -680,7 +675,7 @@ two DNS records. Nothing else was created.</p>
 		<span class="astro-b5raizh3">
 			Previous
 			<br class="astro-b5raizh3">
-			<span class="link-title astro-b5raizh3">Run the small box on Render</span>
+			<span class="link-title astro-b5raizh3">Install Simple Host on Render</span>
 		</span>
 	</a>
 	<a href="/docs/self-hosting/operations/certificates/" rel="next" class="astro-b5raizh3">

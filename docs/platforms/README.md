@@ -1,33 +1,22 @@
 # Where it runs
 
-The small box needs three things: a process that is always on, a disk that
-keeps its files, and Postgres. Anywhere that gives all three can run it.
+- Simple Hack on one server: [install on your own server](simple-hack-standalone.md).
+- Simple Host on one server: [UpCloud or any Ubuntu VPS](upcloud.md), or use the [setup helper](https://simple-host.app/setup).
+- Kubernetes / Enterprise: use [Kubernetes](../kubernetes.md) and the [Enterprise guide](https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md).
 
-| Where | How | Status |
-|---|---|---|
-| UpCloud (recommended) | [this guide](upcloud.md): the installer on the smallest server | tested 2026-09-28, about $4/month; [$25 in credits](https://signup.upcloud.com/?promo=JF2WCV) (referral link) |
-| Any other Ubuntu VPS | the installer, [simple-host.app/setup](https://simple-host.app/setup) | the same installer |
-| Hostinger VPS | the installer | an Ubuntu VPS like any other |
-| DigitalOcean | [this guide](digitalocean.md): the 1-Click droplet, or the installer on the $6 droplet | tested 2026-10-01, about $6/month |
-| Fly.io | [this guide](fly.md) | tested 2026-09-28, about $4.50/month |
-| Render | [this guide](render.md) | tested 2026-09-28, about $13.55/month (needs a card) |
-| Coolify | [this guide](coolify.md) | tested 2026-10-01 on Coolify 4.3.23 (resource made through its API) |
-| Railway | [this guide](railway.md): a GitHub-repo template, Railway Postgres and a volume | built and run locally 2026-10-27 with the exact image, env vars and volume layout (no Railway account available); the real deploy is tracked in a Linear ticket, about $5–15/month (needs a card) |
-| Vercel, Netlify, shared PHP hosting | | not as-is: a 4.5 MB request limit (smaller than a site upload), no disk that keeps files, no always-on process |
+Simple Host needs a process that stays on, persistent disk and Postgres.
+Choose a provider guide below.
 
-One diagram per layout, at the top of each guide:
-[UpCloud, DigitalOcean and any Ubuntu server](https://simple-host.app/diagrams/upcloud.svg) ·
-[Fly.io](https://simple-host.app/diagrams/fly.svg) ·
-[Render](https://simple-host.app/diagrams/render.svg) ·
-[Coolify](https://simple-host.app/diagrams/coolify.svg) ·
-[Railway](https://simple-host.app/diagrams/railway.svg).
-Enterprise on AWS has [its own](https://simple-host.app/diagrams/enterprise-aws.svg).
-Enterprise on DigitalOcean Kubernetes installs from a Helm chart, which a 1-Click wraps:
-[its guide](https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md).
+| Provider | Guide |
+|---|---|
+| UpCloud or any Ubuntu VPS | [Install Simple Host](upcloud.md) |
+| DigitalOcean | [Install Simple Host](digitalocean.md) |
+| Coolify | [Install Simple Host](coolify.md) |
+| Fly.io | [Install Simple Host](fly.md) |
+| Railway | [Install Simple Host](railway.md) |
+| Render | [Install Simple Host](render.md) |
+| Coolify | [Install Simple Hack](simple-hack-coolify.md) |
+| DigitalOcean | [Install Simple Hack](simple-hack-digitalocean.md) |
 
-Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
-manual order also work on small-box path installs. The public person page opens
-the selected site’s usual URL; the owner dashboard keeps its own origin. No
-whole-space domain is included. See [Your home page](../your-home-page.md).
-
-The shared app pages include Simple Host’s approved film landing, blue ink theme and readable selected controls in the verified v0.7.22 small-box release. Light/dark still follows the system and shared override; uploaded sites keep their own styles. Existing pinned releases keep their shipped UI.
+Vercel, Netlify and shared PHP hosting do not provide the persistent disk and
+always-on process this installation needs.

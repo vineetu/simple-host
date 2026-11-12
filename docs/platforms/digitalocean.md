@@ -1,37 +1,6 @@
-# Run the small box on DigitalOcean
+# Install Simple Host on DigitalOcean
 
-Verified 2026-10-31 in local Docker containers (no DigitalOcean token configured on the release host) with the published v0.7.22 image: a v0.7.21 box with a site and a KV value upgraded to v0.7.22 by a bare `migrate` re-run, kept its site, KV value and admin key, and applied the 7 new migrations once. `/healthz`, the home page and `/.well-known/mcp/server-card.json` answered correctly, `docker compose config` parsed, and the published image's binary reports `v0.7.22 (commit 3a097ad)`. The droplet-specific 1-Click/Packer image itself was not rebuilt or re-verified live in this pass — only its pins were updated to match.
-
-Verified 2026-10-24 on a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`, a `<ip>.nip.io` name, a Let's Encrypt certificate) with the published v0.7.21 image: a v0.7.20 box with a site, a KV value and a records SQLite resource upgraded to v0.7.21 by re-running the installer with no flags (no new migrations: this release is a Go 1.27.3 toolchain and dependency bump only). The box kept its addresses, admin key, site, KV value and records row. `/healthz`, the home page and `/.well-known/mcp/server-card.json` answered correctly, `docker compose config` parsed, and the published image's binary reports `go1.27.3`. The droplet was deleted.
-
-Verified 2026-10-24 on two real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`, `<ip>.nip.io` names, Let's Encrypt certificates) with the published v0.7.20 image: a fresh install, and a v0.7.19 box with a site, a public KV value and a records SQLite resource upgraded to v0.7.20 by re-running the installer with no flags. Both boxes kept their addresses, admin key, site and KV value, applied `zg-oidc-signin.sql`, `zh-site-notifications.sql`, `zi-site-search-summary.sql` and `zj-hack-notifications.sql` once, and generated `PASSCODE_ENC_KEY` on the upgrade, then kept the same key byte-for-byte on a second bare re-run. `/healthz`, the home page, `/.well-known/mcp/server-card.json`, `/auth.md` and an MCP `initialize` call all answered correctly, and `docker compose config` parsed. Both droplets were deleted.
-
-Verified 2026-10-15 on two real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`, `<ip>.nip.io` names, Let's Encrypt certificates) with the published v0.7.19 image: a fresh install; a v0.7.17 box with a site, a public KV value and a records SQLite resource upgraded straight to v0.7.19 by re-running the installer with no flags; and a v0.7.17 box taken through v0.7.18 to v0.7.19 the same way. Every box kept its addresses, the site, the KV value and the presets, applied `ze-spam-checked-posts.sql` and `zf-signup-detail.sql` once, refused the comments preset with `spam_check_unavailable` until Turnstile keys were added to `.env` (then accepted it, and a re-run kept the keys), and named itself, never simple-host.app, in robots.txt, Get started, llms.txt and the connector's instructions. Both droplets were deleted.
-
-Verified 2026-10-10 with the published v0.7.17 image in disposable native arm64 containers: fresh install and an actual v0.7.16 upgrade through the installer's compose file (the image's `migrate`, as install.sh runs it) preserve the site list, KV values and resource policies across the swap; the storage-presets migration applies once and nothing is left pending; existing resources show their preset (an open write-anyone resource as `legacy`), and a preset with per-table rules, the row edit route and an R1 refusal answer as designed.
-
-Verified 2026-10-10 with the published v0.7.16 image in disposable native arm64 containers: fresh install and an actual v0.7.15 upgrade through the installer's compose file (the image's `migrate`, as install.sh runs it) preserve the site list, KV values and resource policies across the swap; the new migration applies once and nothing is left pending, and the named-viewers and visitor-lookup routes answer. All four binary checksums pass, and both CPU images are published (arm64 run). This check used localhost HTTP against the app, without Caddy; earlier evidence below remains dated to its tested versions.
-
-Verified 2026-10-10 with the published v0.7.15 image in disposable native arm64 containers: fresh install and an actual v0.7.14 upgrade through the installer's compose file preserve the site list, KV values and resource policies across the swap, and the click-to-play landing and its film files (206 ranges, video/mp4, video/webm, image/jpeg) serve through Caddy. Both Linux binary checksums pass, and both CPU images are published (arm64 run, amd64 binary inspected). This check used localhost HTTP against the API; earlier cloud and TLS evidence below remains dated to its tested versions.
-
-Verified 2026-10-09 with the published v0.7.12 image in disposable native arm64 containers: fresh install and an actual v0.7.11 upgrade through Caddy preserve site files, KV, SQLite, file objects and existing full policies across restart. Add/own schemas, a 150-photo gallery, NFC uploads and the separate file pool pass. Generate and status return 404, and the AI API tag and model settings are absent. All four published binary checksums and anonymous pulls of both CPU images pass. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to its tested versions.
-
-
-Verified 2026-10-09 with the published v0.7.11 image in disposable native arm64 containers: fresh install and an actual v0.7.10 upgrade through Caddy preserve site files, KV, SQLite, file objects and existing full policies across restart. Add/own schemas, a 150-photo gallery, NFC uploads and the separate file pool pass. Removed endpoints return 404; setup generators and settings remain available. All four binary checksums and anonymous pulls of both CPU images pass. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to its tested versions.
-
-
-Verified 2026-10-06 with the published v0.7.10 image in disposable local containers: fresh installation and an actual v0.7.9 upgrade through Caddy preserved site files, KV, SQLite, file objects and full-mode policies; add/own order schemas, 150 public photos, NFC upload names, the separate file pool and restart persistence passed. This check used native arm64 and localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
-
-Verified 2026-10-05 with the published v0.7.9 image in disposable local containers: a fresh schema and an actual v0.7.4 upgrade through Caddy preserved site content and passed home selection/clearing, showcase fallback, bio, pins/order, live feed and restart persistence. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
-
-![Simple Host on UpCloud or any Ubuntu server, a DigitalOcean droplet included: two DNS A records point at the server; one Ubuntu server runs the installer's docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let's Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database](https://simple-host.app/diagrams/upcloud.svg)
-
-Tested 2026-10-01 on DigitalOcean (nyc3): the 1-Click image from
-[`deploy/digitalocean/droplet/`](../../deploy/digitalocean/droplet/) built in
-about 7.5 minutes (3.2 GB snapshot) and passed DigitalOcean's image check; on a
-$6 droplet, first-login setup installed v0.7.4 in under a minute, a site deployed
-and served over Let's Encrypt, and `upgrade.sh` kept the addresses. Until it is
-listed in the Marketplace, build it into your own account (below).
+![Simple Host deployment on DigitalOcean](https://simple-host.app/diagrams/upcloud.svg)
 
 A droplet is an Ubuntu server like any other, so the small box runs on it with
 the standard installer: the same layout as on UpCloud. Start from the Simple
@@ -49,6 +18,8 @@ installer yourself.
 The database, the web server and the sites all run on that one droplet. The
 $4 droplet has 512 MB, which is below what the small box needs. Weekly backups
 are optional and add 20%.
+
+Until the image is listed in the Marketplace, build it into your own account.
 
 ## With the 1-Click droplet
 
@@ -88,7 +59,7 @@ read -rsp 'DigitalOcean API token: ' DIGITALOCEAN_API_TOKEN && echo && export DI
 The build provisions a temporary `s-1vcpu-1gb` droplet in `nyc3` with Docker
 and the release's images, runs DigitalOcean's cleanup and image checks on it,
 and saves it as a snapshot named `simple-host-24-04-snapshot-<time>`. Packer
-deletes the droplet afterwards. No admin key, password, certificate or database is in the image; the
+deletes the droplet afterwards. No admin key, password, certificate or database is in the image. The
 installer makes them on the droplet at first login.
 
 ## By hand
@@ -123,8 +94,3 @@ https://simple-host.app/setup?product=small-box#help.
 Destroy the droplet in the DigitalOcean control panel (Destroy → Destroy
 Droplet), with its backups and snapshots if you made any, then remove the DNS
 records. Nothing else was created.
-
-Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
-manual order also work on small-box path installs. The public person page opens
-the selected site’s usual URL; the owner dashboard keeps its own origin. No
-whole-space domain is included. See [Your home page](../your-home-page.md).

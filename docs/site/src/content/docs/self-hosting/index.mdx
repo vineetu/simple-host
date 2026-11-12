@@ -6,6 +6,15 @@ import { Steps, Tabs, TabItem, LinkCard, CardGrid, LinkButton } from '@astrojs/s
 import What from '@docs/What.astro';
 import Instance from '@docs/Instance.astro';
 
-Run your own copy of the server, or run Simple Host Enterprise on your own infrastructure; read [Enterprise](/enterprise) for that. These pages are generated from the current settings and runbooks:
+{/* brand:hack */}
+- Simple Hack on one server: [install on your own server](/docs/self-hosting/platforms/simple-hack-standalone/).
+{/* /brand */}
+- Simple Host on one server: [UpCloud or any Ubuntu VPS](/docs/self-hosting/platforms/upcloud/), or use the [setup helper](https://simple-host.app/setup).
+{/* brand:hack */}
+- Kubernetes / Enterprise: [Kubernetes](/docs/self-hosting/kubernetes/) and the [Enterprise guide](/enterprise).
+{/* /brand */}
+{/* brand:host */}
+- Kubernetes / Enterprise: the [Enterprise guide](/enterprise).
+{/* /brand */}
 
 {/* The page list below is appended at build time by scripts/docs-repo-pages.py's generate(), as plain Markdown bullets (brand-specific, since Host skips the Simple Hack files). */}

@@ -586,6 +586,11 @@ func chromePageRaw(name string, d ChromeData) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if name == "setup-helper.html" && d.Hack {
+		raw = bytes.ReplaceAll(raw, []byte("Set up Simple Host"), []byte("Set up Simple Hack"))
+		raw = bytes.Replace(raw, []byte(`data-setup-product="small"`), []byte(`data-setup-product="hack"`), 1)
+		raw = bytes.Replace(raw, []byte(`<p class="lede">Answer a few questions and get what to run: the install command and settings for a small box, or the configuration for Simple Host Enterprise on Kubernetes. Anything you skip keeps its default.</p>`), []byte(`<p class="lede">Answer a few questions and get the steps to set up Simple Hack on your own server.</p>`), 1)
+	}
 	if name == "hack-get-started.html" {
 		raw = expandConnectSteps(raw)
 	}
