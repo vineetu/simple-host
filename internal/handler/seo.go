@@ -72,6 +72,10 @@ func serveRobotsTxt(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
 // sitemapURLLimit is variable so index mode can be exercised without 50,001 fixtures.
 var sitemapURLLimit = 50000
 
+// sitemapTTL is short so a site that gains a passcode, named viewers, goes
+// offline or is deleted leaves the sitemap within minutes.
+const sitemapTTL = 2 * time.Minute
+
 type sitemapURL struct {
 	Loc     string `xml:"loc"`
 	Lastmod string `xml:"lastmod,omitempty"`
@@ -196,7 +200,7 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 				urls = append(urls, sitemapURL{address, lastmod})
 			}
 		}
-		cached = cachedSitemaps{time.Now().Add(10 * time.Minute), buildSitemaps(base, sitemapPages(base, hack), urls)}
+		cached = cachedSitemaps{time.Now().Add(sitemapTTL), buildSitemaps(base, sitemapPages(base, hack), urls)}
 		if h.sitemaps.byBrand == nil {
 			h.sitemaps.byBrand = make(map[string]cachedSitemaps)
 		}
@@ -238,7 +242,7 @@ func siteAllowsIndexing(dir string) bool {
 					content = strings.ToLower(a.Val)
 				}
 			}
-			if (name == "robots" || name == "googlebot") && strings.Contains(content, "noindex") {
+			if (name == "robots" || name == "googlebot") && (strings.Contains(content, "noindex") || strings.Contains(content, "none")) {
 				return false
 			}
 		}
@@ -260,12 +264,13 @@ func robotsDisallowRoot(body string) bool {
 				star = false
 				rules = false
 			}
-			if value == "*" {
+			// A group for every crawler or for Google's applies to us.
+			if v := strings.ToLower(value); v == "*" || v == "googlebot" {
 				star = true
 			}
 		} else {
 			rules = true
-			if star && key == "disallow" && value == "/" {
+			if star && key == "disallow" && (value == "/" || value == "/*" || value == "*") {
 				return true
 			}
 		}

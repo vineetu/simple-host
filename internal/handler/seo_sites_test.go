@@ -64,6 +64,9 @@ func TestSiteIndexingPreferences(t *testing.T) {
 		{"meta case", "", `<META CONTENT="NOINDEX, follow" NAME="RoBoTs">`, false},
 		{"googlebot", "", `<meta content='noindex' name='googlebot'/>`, false},
 		{"other meta", "", `<meta name='description' content='noindex'>`, true},
+		{"googlebot group", "User-agent: Googlebot\nDisallow: /\n", "hello", false},
+		{"robots wildcard", "User-agent: *\nDisallow: /*\n", "hello", false},
+		{"meta none", "", `<meta name="robots" content="none">`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -215,10 +218,11 @@ func TestHostedSitemapSites(t *testing.T) {
 	if r := read("GET"); r.Code != 200 || strings.Contains(r.Body.String(), "https://open."+handle) {
 		t.Fatalf("self-hosted enumeration: %d %s", r.Code, r.Body)
 	}
-	// Expiry is ten minutes, with one cache per brand.
+	// Expiry is sitemapTTL (short, so a newly gated site leaves soon), with
+	// one cache per brand.
 	for _, cache := range a.sites.sitemaps.byBrand {
-		if time.Until(cache.expires) < 9*time.Minute {
-			t.Fatal("short cache")
+		if left := time.Until(cache.expires); left > sitemapTTL || left < sitemapTTL-time.Minute {
+			t.Fatalf("cache expiry %v, want about %v", left, sitemapTTL)
 		}
 	}
 }
@@ -256,6 +260,17 @@ func TestHostedHackSitemapOnlyTeamSites(t *testing.T) {
 		if strings.Contains(r.Body.String(), "https://"+name+"."+handle+".") {
 			t.Errorf("included %s", name)
 		}
+	}
+	// An organiser take-down on the team keeps the site out, even when the
+	// site row itself was never marked (a take-down while it was in trash).
+	if _, err := a.database.Exec(`UPDATE event_teams SET site_taken_down_at = now() WHERE event_id = $1 AND slug = 'team'`, eventID); err != nil {
+		t.Fatal(err)
+	}
+	h.sitemaps.byBrand = nil
+	r = httptest.NewRecorder()
+	h.serveSitemap(r, httptest.NewRequest("GET", "https://simple-hack.app/sitemap.xml", nil))
+	if r.Code != 200 || strings.Contains(r.Body.String(), "https://team."+handle+".") {
+		t.Fatalf("taken-down team site listed: %d %s", r.Code, r.Body)
 	}
 	// A company install with Hack branding and its own base never enumerates teams.
 	h.assets = newAssetPipeline(h.ed, "https://company.example.org")

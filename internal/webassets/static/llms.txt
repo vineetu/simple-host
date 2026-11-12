@@ -1,6 +1,6 @@
 # Simple Host
 
-Site setting: List on my profile (public = on, unlisted = off, new sites start off). On shows the site on its owner’s profile page; off leaves it off. Every open site can be found by search engines on every address. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex. Hosted sitemaps include eligible open sites regardless of this setting. Simple Hack event listing is separate and unchanged.
+Search engines: every open site can be found by search engines, whatever its List on my profile setting (public = on, unlisted = off, off for new sites), which only decides whether the site shows on the owner's profile page. A passcode, named viewers, taking the site offline, or the site's own robots.txt or noindex keeps it out.
 
 Simple Host hosts static websites, each with a small backend for saved data and uploads. Build the site the person asks for, publish it with the MCP connector or the API with the owner's key, and give them the live link. Use this quickstart for the operating rules and follow the linked recipes for setup and page code.
 

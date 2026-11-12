@@ -17,6 +17,8 @@ func ListSitemapSites(ctx context.Context, q *sql.DB, teamsOnly bool) ([]Site, e
  WHERE s.deleted_at IS NULL AND s.offline_at IS NULL
    AND s.suspended_at IS NULL AND u.suspended_at IS NULL
    AND s.passcode_enc IS NULL AND s.access='anyone' AND s.expires_at IS NULL
+   AND NOT EXISTS (SELECT 1 FROM events e JOIN event_teams t ON t.event_id=e.id
+                   WHERE e.account_id=s.user_id AND t.slug=s.name AND t.site_taken_down_at IS NOT NULL)
    AND (NOT $1 OR EXISTS (SELECT 1 FROM events e JOIN event_teams t ON t.event_id=e.id
                          WHERE e.account_id=s.user_id AND t.slug=s.name))
  ORDER BY s.id`, teamsOnly)

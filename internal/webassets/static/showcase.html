@@ -3527,7 +3527,7 @@ function parseAnalyticsSummary(data) {
         if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next === 'public' ? 'On profile' : 'Not on profile'; }
         var site = ownerSite(name);
         if (site) site.visibility = next;
-        toast(next === 'public' ? name + ' is now listed on your profile' : name + ' is no longer on your profile. Anyone with the link can still open it', 'success');
+        toast(next === 'public' ? name + ' is now listed on your profile' : name + ' is no longer on your profile', 'success');
         return { ok: true };
       } catch (e) {
         toast('Could not change List on my profile', 'error');
