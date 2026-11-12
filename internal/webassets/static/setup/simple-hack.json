@@ -5,12 +5,15 @@
       "text": "Use a Linux server with Docker. Point `{DOMAIN}` and `*.{DOMAIN}` at it."
     },
     {
+      "title": "Download and unpack the release",
       "code": "VERSION=0.8.20\ncurl -fLO https://github.com/vineetu/simple-host/releases/download/hack-v$VERSION/simple-hack-$VERSION.tar.gz\ntar xzf simple-hack-$VERSION.tar.gz\ncd simple-hack-$VERSION"
     },
     {
+      "title": "Create the configuration file",
       "code": "umask 077; cp deploy/hack/standalone/.env.example /tmp/sh.env\ncat >> /tmp/sh.env <<'EOF'\n{SETTINGS}\nEOF"
     },
     {
+      "title": "Run the installer",
       "code": "sudo bash deploy/hack/standalone/install.sh --config /tmp/sh.env && rm /tmp/sh.env"
     },
     {
@@ -19,6 +22,6 @@
   ],
   "after": [
     "Sign in to the server admin page at `https://{DOMAIN}/admin` with the key from `sudo grep ADMIN_API_KEY /opt/simple-hack/.env`.",
-    "Connect an AI app (ChatGPT, Claude, ...) to `https://{DOMAIN}/mcp` (never the hosted service)."
+    "Connect an AI app (ChatGPT, Claude and others) to `https://{DOMAIN}/mcp`."
   ]
 }

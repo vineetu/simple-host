@@ -431,7 +431,7 @@
     var steps = el('ol', { class: 'steps' });
     data.steps.forEach(function (step) {
       var li = el('li');
-      li.appendChild(step.code != null ? block('Run', hackSubstitute(step.code)) : hackText(hackSubstitute(step.text)));
+      li.appendChild(step.code != null ? block(step.title, hackSubstitute(step.code)) : hackText(hackSubstitute(step.text)));
       steps.appendChild(li);
     });
     card.appendChild(steps);
