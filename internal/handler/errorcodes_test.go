@@ -24,6 +24,7 @@ func TestRefusalsCarryACode(t *testing.T) {
 		status             int
 		code               string
 	}{
+		{"invalid redirects", "PUT", "/v1/sites/blog/files", map[string]any{"files": map[string]string{"index.html": "x", "_redirects": "/a /a"}}, key, http.StatusBadRequest, "redirects_invalid"},
 		{"create over an existing site", "POST", "/v1/sites/blog/files", files, key, http.StatusConflict, "site_exists"},
 		{"rename onto an existing site", "PATCH", "/v1/sites/blog", map[string]string{"name": "notes"}, key, http.StatusConflict, "site_exists"},
 		{"reserved name", "POST", "/v1/sites/admin/files", files, key, http.StatusBadRequest, "name_reserved"},

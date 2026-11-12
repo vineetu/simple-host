@@ -1623,6 +1623,8 @@ func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *model.User, res
 		var gateErr *sites.GateError
 		var siteErr *sites.Error
 		switch {
+		case errors.As(err, &siteErr) && siteErr.Code == "redirects_invalid":
+			writeJSON(w, 400, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 		case errors.As(err, &siteErr) && siteErr.Code == "unauthorized":
 			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		case errors.As(err, &gateErr):
@@ -1728,6 +1730,8 @@ func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Reques
 	switch {
 	case errors.As(err, &gateErr):
 		writeRollbackGateError(w, gateErr)
+	case errors.As(err, &siteErr) && siteErr.Code == "redirects_invalid":
+		writeJSON(w, 400, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 	case errors.As(err, &siteErr) && siteErr.Code == "deploy_site_not_found":
 		writeDeploySiteNotFound(w, r, siteName)
 	case errors.As(err, &siteErr) && siteErr.Code == "patch_too_large":

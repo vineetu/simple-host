@@ -44,6 +44,11 @@ Conventions:
 
 ## 1. Sites and deploy <a id="sites-and-deploy"></a>
 
+**Redirects and plain addresses** <a id="redirects-and-plain-addresses"></a>
+
+Publish root `_redirects` rules for old paths, splats, placeholders and query links; 301/302 redirects or local 404/410 pages, with `!` to override content. Rules are validated with line errors and run after access gates on every site address, including Hack sites. The file is never served. `/faq` serves `faq.html` with 200; directory-only pages retain the slash redirect. Default limits: 1000 rules, 128 KiB per file, 2048 bytes per line. [Guide](/docs/guides/redirects/).
+
+
 Upload a static site (tar.gz/zip or inline JSON files); versions, rollback, rename, delete,
 export, public/unlisted listing. An unlisted site (the default for new sites) is hidden from the
 owner's showcase page, and from search engines unless the site has its own domain or name. An

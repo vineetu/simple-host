@@ -68,3 +68,7 @@ comment: the spam check stops automated posts, which is expected. Show the live 
 their domain with `connect_domain` (WordPress.com DNS clicks: `references/move-a-site.md` section 7).
 Later edits to a big imported site: `read_site_file` the page, then `update_site` with
 `keep_other_files: true` and only the changed files.
+
+## Keep old links working
+
+Use the old site's address list to write a root `_redirects` file: `/old /new 301`, `/old-section/* /new-section/:splat 301`, or `/ p=123 /posts/title/ 301!` for WordPress query links. Preserve paths where possible. Publish the file with the site, then fix any `redirects_invalid` errors at the reported line numbers and retry. Test old links on the returned address.

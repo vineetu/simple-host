@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-12: Keep old links working with a root `_redirects` file, checked on publish and applied after access gates. Plain `/faq` addresses serve `faq.html` directly; directory-only pages keep their trailing slash redirect (SIM-440).
+
 2026-11-12: Simple Hack participants can browse submitted entries from Judging onward. Organisers can show the same submissions on the public event page and custom website feed with a new setting, off by default (SIM-442).
 
 2026-11-12: Announcements support clickable http(s) addresses, labelled links, bold, bullets and line breaks. Standalone Zoom, Meet, Teams and YouTube links become cards without fetching linked pages. Organisers can preview before posting and pin one announcement, replacing the previous pin; it appears first for participants and judges. Email carries matching HTML buttons and full addresses in plain text.

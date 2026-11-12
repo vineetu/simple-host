@@ -867,6 +867,34 @@
       "publish-idle-cleanup"
      ],
      "evidence": "FEATURES.md \u00a71 L185-221 (IDLE_CLEANUP default off, 90 + 30 days, Keep it and Restore it links, confirm page + POST, exemptions, 50 emails per run, 90 days of visit records required); Pages row (Keep for good, idle warning with its date); PARITY row 'Idle-site cleanup' (Enterprise IDLE_CLEANUP_DAYS, dashboard Not used lately); FEATURES.md \u00a715 L1836-1839 and L2015 (EVENT_SITES_KEEP_DAYS 30, EVENT_REMOVAL_WARN_DAYS 14). Token hashing and transaction ordering covered silently. Not rendered."
+    },
+    {
+     "id": "redirects-and-plain-addresses",
+     "name": "Redirects and plain addresses",
+     "line": "Keep old links working when pages move.",
+     "who": "Anyone moving or reorganising a site.",
+     "how": "Publish a root _redirects file with paths, splats, placeholders and query rules. Rules run after access gates; existing content wins unless forced.",
+     "example": "/old/* /articles/:splat 301 sends old blog links to their new pages.",
+     "where": "The root _redirects file sent with your site.",
+     "limits": "1000 rules by default; 128 KiB file; 2048 bytes per line. Supports 301, 302, 404 and 410.",
+     "editions": {
+      "host": "yes",
+      "hack": "yes",
+      "enterprise": "no",
+      "smallbox": "yes"
+     },
+     "editions_note": "Enterprise port pending.",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "Redirects guide",
+       "href": "/docs/guides/redirects/"
+      }
+     ],
+     "covers": [
+      "redirects-and-plain-addresses"
+     ]
     }
    ]
   },

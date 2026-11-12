@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-11-12 (SIM-440): Redirect rules and plain addresses — small box: same; Enterprise: port pending. Host and Hack share validation, gates and serving.
+
 2026-11-09 (SIM-353): Simple Hack's event page Look (`events.theme`, five whole-page styles plus Classic, organiser-only, same rule as `accent_color`) is hosted hackathon-only. Enterprise has no hackathon UI, so no parity action is needed.
 
 2026-11-07 (SIM-388/SIM-393 slice 1): Hack navigation, shared REST/MCP destination map, membership abilities and organiser judge access apply to hosted and full self-hosted Hack. Enterprise has no Hack event UI; no Enterprise port. Checklist storage and APIs remain a later slice.
@@ -401,3 +403,5 @@ SIM-393 (2026-11-07): Hack role/stage checklist server, optional-item marks and 
 2026-11-11: Hack co-organiser invitation links are reusable until revoked, replaced, expired or the event ends; removing a co-organiser revokes the current link. Enterprise has no Hack workflow; no port needed.
 
 SIM-444 (2026-11-12): Hosted and self-hosted Hack share announcement links, call/video cards, preview, matching email and one pinned update; app, REST, MCP, Ask, docs and atlas use the same server renderer.
+
+| Redirects and plain addresses (SIM-440) | Root `_redirects`, 301/302/404/410, plain `.html` addresses | small box: same; Enterprise: port pending |

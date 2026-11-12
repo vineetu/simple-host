@@ -17098,6 +17098,7 @@ components:
             another site or person), invalid_name (400: not 1-63 lowercase
             letters, digits and hyphens), name_reserved (400: reserved by the
             platform), invalid_domain (400: not a domain that can be connected),
+            redirects_invalid (400: root _redirects has invalid rules; fix the listed line numbers),
             site_quota_reached (403), append_only (409: public list items cannot
             be edited; the owner may still delete them), custom_domain_required (409: the site needs
             its own address first), not_an_object (409: the saved value is not a

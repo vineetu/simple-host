@@ -78,6 +78,8 @@ Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies requi
 without a configured hostname it serves only setup and exits after configuration so the supervisor
 can restart it. See `cmd/server/main.go:main` and [deployment profiles](docs/operations/deployment-profiles.md).
 
+Root `_redirects` is parsed by the pure `internal/redirects` package. `app/sites` validates the final file map before creating a version; `storage.UpdateCurrent` retains the file in versions and writes a sibling `redirects` marker instead of serving it. `handler/redirects.go` caches marker parses (including failures), applies rules after `siteGate` in `serveSiteFile`, and supports legacy `current/_redirects`. Shared exports restore the file from the marker, including account/trash exports. Proxy templates send rule-bearing sites to this same gated path. `serveDirFile` tries an exact file, then a sibling `.html` for plain addresses, then a directory; directory-only pages retain their slash redirect.
+
 ## Hosts and how a request flows
 
 Hosted nginx proxies app requests to the configured Go listener (normally `127.0.0.1:8090`)

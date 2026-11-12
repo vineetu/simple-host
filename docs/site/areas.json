@@ -118,5 +118,16 @@
       "/docs/start/join/",
       "/docs/start/judge/"
     ]
+  },
+  "redirects": {
+    "title": "Redirects and plain addresses",
+    "guide": true,
+    "brands": [
+      "host",
+      "hack"
+    ],
+    "pages": [
+      "/docs/guides/redirects/"
+    ]
   }
 }

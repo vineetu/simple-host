@@ -107,3 +107,7 @@ skill). The domain stays registered where it is; only its DNS records change. On
 then **Add record** again, type **TXT**, Name `_simple-host`, value the token. The new A record
 replaces WordPress.com's default ones on its own. Suggest keeping the old site and plan until the
 new one has run for a week.
+
+## Keep old links working
+
+Use the old site's address list to write a root `_redirects` file: `/old /new 301`, `/old-section/* /new-section/:splat 301`, or `/ p=123 /posts/title/ 301!` for WordPress query links. Preserve paths where possible. Publish the file with the site, then fix any `redirects_invalid` errors at the reported line numbers and retry. Test old links on the returned address.

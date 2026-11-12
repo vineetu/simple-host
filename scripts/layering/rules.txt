@@ -4,7 +4,7 @@
 [final]
 @/cmd/server -> /** !testdb !geoip/geoiptest @/db @/db/migrations
 {handler,hackhttp} -> app/** auth httpx edition model webassets buildinfo workers
-handler -> mcp
+handler -> mcp redirects
 auth -> app/accounts httpx edition model rules/auth rules/sites
 hackhttp -> rules/sites
 mcp -> app/** edition model httpx buildinfo brain webassets workers
@@ -12,7 +12,7 @@ httpx -> app/errors model edition
 app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
 app/hack/{events,teams,members,entries} -> app/errors model edition workers repository/sqlkit
 app/accounts -> repository/{accounts,sites,hackevents} rules/{auth,hackevents} oauth email geoip
-app/sites -> app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball wpimport eventdns capacity
+app/sites -> redirects app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball wpimport eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rules/{storage,auth} sitelocks
 app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackentries,auth} storage capacity llm
@@ -29,8 +29,9 @@ storage -> model
 {analytics,netusage,papermetrics} -> model workers
 geoip -> workers
 {app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
-{brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,wpimport,testdb,geoip/geoiptest} -> -
-llm -> -
+{brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,testdb,geoip/geoiptest} -> -
+wpimport -> redirects
+{llm,redirects} -> -
 # Permanent module-specific packages and command rows.
 @/cmd/analytics-rebuild -> analytics config
 @/cmd/ip-country-load -> -

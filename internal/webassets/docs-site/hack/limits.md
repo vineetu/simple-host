@@ -4,6 +4,7 @@
 
 | Limit | Value or action |
 |---|---|
+| Redirect rules | Root `_redirects`: 1000 rules by default (`REDIRECTS_MAX_RULES`), 128 KiB per file, 2048 bytes per line; `redirects_invalid` reports line errors |
 | Archive entries | 50,000 entries |
 | Deleted sites | Recently deleted for 7 days |
 | Preview links | A preview link stops working after an hour |

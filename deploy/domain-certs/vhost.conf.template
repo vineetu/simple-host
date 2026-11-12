@@ -49,7 +49,10 @@ server {
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/suspended) { rewrite ^ /internal/suspended last; }
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/offline) { rewrite ^ /internal/offline last; }
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/passcode) { rewrite ^ /internal/passcode$uri last; }
-        try_files $uri $uri/ =404;
+        # Rules are applied by the app after access gates, including legacy files.
+        if (-f /srv/simple-host/sites/domains/__DOMAIN__/redirects) { rewrite ^ /internal/passcode$uri last; }
+        if (-f /srv/simple-host/sites/domains/__DOMAIN__/current/_redirects) { rewrite ^ /internal/passcode$uri last; }
+        try_files $uri $uri.html $uri/ =404;
     }
 }
 

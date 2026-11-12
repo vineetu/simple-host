@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/redirects"
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 	rules "github.com/vsriram/simple-host/internal/rules/sites"
@@ -75,6 +77,7 @@ type Deps struct {
 	SyncRedirect            func(context.Context, string)
 	DeployEnabled           bool
 	NormalizePatch          func(map[string][]byte, []string) (map[string]bool, error)
+	RedirectsMaxRules       int
 	MaxFilesPerSite         int
 	PhotoLimits             func(context.Context, *model.User) (int64, bool)
 	ResponseState           func(model.Site, int, bool, bool) any
@@ -182,6 +185,9 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	var handle string
 	if in.User.Handle.Valid {
 		handle = in.User.Handle.String
+	}
+	if err := s.validateRedirects(in.Files); err != nil {
+		return CreateResult{Site: site}, err
 	}
 	const versionNumber = 1
 	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, site.Name, versionNumber)
@@ -843,6 +849,9 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		return UpdateResult{}, err
 	}
 	path := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, in.Name, n)
+	if err := s.validateRedirects(in.Files); err != nil {
+		return UpdateResult{}, err
+	}
 	version, err := repo.CreateVersion(ctx, tx, site.ID, n, path, in.ArchiveSHA, in.Author)
 	if err != nil {
 		return UpdateResult{}, err
@@ -1213,5 +1222,44 @@ func nextPhotoPath(ctx context.Context, occupied map[string]bool, name string) (
 			base = base[:60-len(suffix)]
 		}
 		path = "images/" + base + suffix + ext
+	}
+}
+
+func (s *Service) validateRedirects(files map[string][]byte) error {
+	if data, ok := files["_redirects"]; ok {
+		max := s.deps.RedirectsMaxRules
+		if max == 0 {
+			max = 1000
+		}
+		if _, err := redirects.ParseWith(data, redirects.Options{MaxRules: max, Exists: filesResolve(files)}); err != nil {
+			return &Error{Code: "redirects_invalid", Message: "_redirects: " + err.Error()}
+		}
+	}
+	return nil
+}
+
+// filesResolve reports whether a decoded site path serves content in files
+// (a file, path.html, or a folder holding a file): a non-forced redirect rule
+// is shadowed there, so a chain of rules stops at it.
+func filesResolve(files map[string][]byte) func(string) bool {
+	dirs := map[string]bool{"": true}
+	for name := range files {
+		for d := path.Dir(name); d != "." && d != "/" && !dirs[d]; d = path.Dir(d) {
+			dirs[d] = true
+		}
+	}
+	return func(p string) bool {
+		name := strings.Trim(path.Clean("/"+p), "/")
+		if name == "_redirects" {
+			return false
+		}
+		if dirs[name] {
+			return true
+		}
+		if _, ok := files[name]; ok {
+			return true
+		}
+		_, ok := files[name+".html"]
+		return ok && !strings.HasSuffix(p, "/")
 	}
 }

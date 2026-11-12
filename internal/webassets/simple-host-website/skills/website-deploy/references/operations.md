@@ -182,7 +182,7 @@ lists only the drafts that have never been live. Discard a draft nobody will use
 (it is final, so confirm with the person first; connector: `discard_version`):
 
 ```bash
-curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.108"
+curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.109"
 ```
 
 200 answers `discarded_version` and `active_version`; 404 `version_not_found`; 409
@@ -195,9 +195,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.108"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.109"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.108"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.109"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

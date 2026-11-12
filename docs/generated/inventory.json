@@ -3,7 +3,7 @@
     {
       "method": "ANY",
       "path": "/",
-      "feature_id": "sites-and-deploy",
+      "feature_id": "redirects-and-plain-addresses",
       "source": "internal/handler/setup.go:60",
       "package": "internal/handler",
       "dynamic": false
@@ -491,7 +491,7 @@
     {
       "method": "GET",
       "path": "/",
-      "feature_id": "sites-and-deploy",
+      "feature_id": "redirects-and-plain-addresses",
       "source": "internal/handler/ui.go:264",
       "package": "internal/handler",
       "dynamic": false
@@ -1291,7 +1291,7 @@
     {
       "method": "GET",
       "path": "/robots.txt",
-      "feature_id": "sites-and-deploy",
+      "feature_id": "redirects-and-plain-addresses",
       "source": "internal/handler/ui.go:149",
       "package": "internal/handler",
       "dynamic": false
@@ -3547,7 +3547,7 @@
     {
       "method": "POST",
       "path": "/",
-      "feature_id": "sites-and-deploy",
+      "feature_id": "redirects-and-plain-addresses",
       "source": "internal/handler/ui.go:263",
       "package": "internal/handler",
       "dynamic": false

@@ -26,8 +26,9 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		CanSetRetention: func(ctx context.Context, user *model.User) bool {
 			return h.limits.CanSetKeepVersions(accountHandles(ctx, h.database, user)...)
 		},
-		MaxFilesPerSite: h.limits.MaxFilesPerSite,
-		NormalizePatch:  normalizeFilePatch,
+		MaxFilesPerSite:   h.limits.MaxFilesPerSite,
+		RedirectsMaxRules: h.limits.RedirectsMaxRules,
+		NormalizePatch:    normalizeFilePatch,
 
 		MaxSites:   func(ctx context.Context, user *model.User) int { return h.maxSitesFor(ctx, h.database, user) },
 		WantMarker: h.wantUnlistedMarker, SiteURL: h.siteURLFor,

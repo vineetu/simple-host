@@ -1,5 +1,7 @@
 # Sites and deploy
 
+For old links and extension-free page addresses, see [Redirects and plain addresses](/docs/guides/redirects.md).
+
 ## Publish a site
 [What this is](/features.html#deploy-inline-files)
 

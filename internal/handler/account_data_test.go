@@ -88,6 +88,11 @@ func TestAccountExport(t *testing.T) {
 	markReady(t, dir, oh)
 	const apex = pcSiteDomain
 	okey := map[string]string{"X-API-Key": olive.key}
+	for _, site := range []string{"shop", "old"} {
+		if r := a.at(t, "PUT", apex, "/v1/sites/"+site+"/files?keep=1", map[string]any{"files": map[string]string{"_redirects": "/before /after"}}, okey); r.status != 200 {
+			t.Fatal(r.status, string(r.body))
+		}
+	}
 	// A site in Recently deleted comes along, in its own folder.
 	if _, err := a.database.Exec(`UPDATE sites SET state = '{"kept":true}' WHERE id = $1`, a.siteID(t, olive, "old")); err != nil {
 		t.Fatal(err)
@@ -125,7 +130,7 @@ func TestAccountExport(t *testing.T) {
 	}
 	files := zipFiles(t, r.body)
 	for _, want := range []string{"/README.txt", "/account.json", "/keys.json", "/connected_apps.json", "/visitor.json",
-		"/sites/shop/state.json", "/sites/shop/collections.json", "/sites/shop/files/index.html",
+		"/sites/shop/state.json", "/sites/shop/collections.json", "/sites/shop/files/index.html", "/sites/shop/files/_redirects", "/recently-deleted/old/files/_redirects",
 		"/recently-deleted/old/deleted.json", "/recently-deleted/old/files/index.html"} {
 		fileUnder(t, files, want)
 	}

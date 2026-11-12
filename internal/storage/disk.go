@@ -257,6 +257,23 @@ func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) (er
 		return fmt.Errorf("copy version %d to temp current: %w", versionNum, err)
 	}
 
+	// Root rules remain in versions, but never in the served tree: their
+	// bytes go to the redirects marker next to `current` once the new tree
+	// is live (a folder named _redirects is ordinary content).
+	rulesPath := filepath.Join(tmpDir, "_redirects")
+	var rules []byte
+	hasRules := false
+	if st, err := os.Lstat(rulesPath); err == nil && st.Mode().IsRegular() {
+		if rules, err = os.ReadFile(rulesPath); err != nil {
+			return err
+		}
+		if err := os.Remove(rulesPath); err != nil {
+			return err
+		}
+		hasRules = true
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	// Swap into place. The window where `current` is absent is now just a
 	// remove + rename (fast metadata ops) rather than the full copy duration.
 	// `current` lands as a fresh directory at the same path each deploy — the
@@ -266,6 +283,9 @@ func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) (er
 	}
 	if err := os.Rename(tmpDir, currentDir); err != nil {
 		return fmt.Errorf("promote temp current dir: %w", err)
+	}
+	if err := d.writeRedirectsMarker(siteDir, rules, hasRules); err != nil {
+		return fmt.Errorf("redirects marker: %w", err)
 	}
 
 	// Legacy per-name subdomain (<siteName>.<domain>) is deprecated: we no longer
@@ -871,4 +891,46 @@ func (d *DiskStorage) IsUnlisted(userID, siteName string) bool {
 	}
 	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), unlistedMarker))
 	return err == nil
+}
+
+// RedirectsFile returns the marker path, or an empty path for invalid keys.
+func (d *DiskStorage) RedirectsFile(userID, siteName string) string {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return ""
+	}
+	return filepath.Join(d.SiteDir(userID, siteName), "redirects")
+}
+
+// writeRedirectsMarker puts the live version's rules next to `current`
+// (temp file + rename), or removes the marker when it has none.
+func (d *DiskStorage) writeRedirectsMarker(siteDir string, rules []byte, has bool) error {
+	marker := filepath.Join(siteDir, "redirects")
+	if !has {
+		if err := os.Remove(marker); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	tmp, err := os.CreateTemp(siteDir, ".redirects-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(rules); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), marker)
+}
+
+// ReadRedirects returns the live rules (the marker's bytes).
+func (d *DiskStorage) ReadRedirects(userID, siteName string) ([]byte, error) {
+	return os.ReadFile(d.RedirectsFile(userID, siteName))
 }

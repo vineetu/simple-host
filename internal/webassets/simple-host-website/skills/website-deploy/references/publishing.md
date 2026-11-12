@@ -108,7 +108,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.108`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.109`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -316,3 +316,9 @@ that still needs a human.
 Owner create POSTs for sites (archive or /files, including ?create=1), photos, domain bindings, viewers, export-link, versions/<n>/preview-link, notifications and storage file download-link accept optional Idempotency-Key. Reuse a unique key with the exact same body, account, path and query to replay the original status and body for 24 hours, including errors; a different body returns 409 idempotency_key_reused. Concurrent duplicates wait. The cache is in process memory and clears on restart; authentication and rate limits still apply. Replays keep a link's original expiry; use a new key for a new link. Responses through the IP limiter carry RateLimit and RateLimit-Policy plus RateLimit-Limit (capacity), RateLimit-Remaining (whole tokens after this request), RateLimit-Reset (seconds rounded up to the next token when empty, otherwise 0); policy token-bucket names q=capacity, w=empty-to-full refill seconds rounded up, refill=exact tokens/second, not a fixed window. On rejection, respect Retry-After.
 
 Storage table row POSTs also accept Idempotency-Key for an owner or signed-in visitor, scoped to the resolved site; anonymous writes ignore it. Current storage permissions are checked on every replay.
+
+## Redirects and plain addresses
+
+Publish a root `_redirects` text file with `FROM [key=value ...] TO [STATUS]`, one rule per line. Paths, `:name` segments and final `*` splats are supported; use `:splat` in targets. Targets are local paths or absolute HTTP(S) URLs with a literal host. Status is 301 by default, or 302, 404 or 410; append `!` to override existing content. 404/410 serve a local page. First match wins; matching ignores trailing slashes. Rules run after site access gates. Query strings carry over only without query conditions or a target query.
+
+The file is validated on publish and never served. Limits: 128 KiB, 2048 bytes per line, 1000 rules by default (`REDIRECTS_MAX_RULES` on self-hosted installs). Fix publish errors at their reported line numbers. `/faq` serves `faq.html` directly with 200; directory-only `faq/index.html` keeps the 301 to `/faq/` for relative links.

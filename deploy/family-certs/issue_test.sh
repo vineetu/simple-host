@@ -169,6 +169,7 @@ check "fam.test: served, ready written" "served fam.test && [ -f '$T/state/ready
 check "fam.test: ready is prefix, cert, expires, reserved" "[ \"\$(cat '$T/state/ready/fam.test')\" = \"\$(printf 'prefix=voucher-\ncert=fam.test\nexpires=$exp_fam\nreserved=www api')\" ]"
 check "fam.test: no placeholder left" "! grep -q '__' '${A}fam.test'"
 check "fam.test: suffix regex escaped" "grep -qF '\\.fam\\.test\$\";' '${A}fam.test'"
+check "fam.test: rules marker and plain HTML" "grep -qF 'voucher-\$sh_label/redirects) { rewrite ^ /internal/passcode\$uri last; }' '${A}fam.test' && grep -qF 'try_files \$uri \$uri.html \$uri/' '${A}fam.test'"
 check "fam.test: prefix in root and checks" "grep -qF 'root /srv/simple-host/sites/families/fam.test/voucher-\$sh_label/current;' '${A}fam.test' && grep -qF 'families/fam.test/voucher-\$sh_label/passcode) { rewrite ^ /internal/passcode\$uri last; }' '${A}fam.test'"
 check "fam.test: reserved labels block kept, markers removed" "grep -qF 'if (\$sh_label ~ \"^(?:www|api)\$\") { return 404; }' '${A}fam.test' && ! grep -q __RESERVED '${A}fam.test'"
 check "fam.test: certificate lineage named" "grep -qF 'ssl_certificate     /etc/letsencrypt/live/fam.test/fullchain.pem;' '${A}fam.test'"

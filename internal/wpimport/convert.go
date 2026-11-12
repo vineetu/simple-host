@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/redirects"
 	xhtml "golang.org/x/net/html"
 	"net/url"
 	"path"
@@ -131,6 +132,29 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 				continue
 			}
 			i.Path = c.permalink(i, map[string]bool{})
+			// Both importers preserve ordinary permalink paths. Only changed paths
+			// (notably WordPress plain ?p= links) need redirect rules.
+			if old, e := url.Parse(i.Link); e == nil {
+				from := old.EscapedPath()
+				if from == "" {
+					from = "/"
+				}
+				conditions := ""
+				for _, key := range []string{"p", "page_id"} {
+					if id := old.Query().Get(key); id != "" {
+						conditions += " " + key + "=" + url.QueryEscape(id)
+					}
+				}
+				if conditions != "" || cleanPath(old.Path) != i.Path {
+					if !strings.ContainsAny(from+i.Path+conditions, "\r\n\t") {
+						status := "301"
+						if conditions != "" {
+							status = "301!"
+						}
+						c.result.Files["_redirects"] = append(c.result.Files["_redirects"], []byte(from+conditions+" "+i.Path+" "+status+"\n")...)
+					}
+				}
+			}
 			c.published = append(c.published, i)
 			if i.Type == "post" {
 				c.posts = append(c.posts, i)
@@ -404,6 +428,14 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	}
 	c.fitBudget()
 	c.dropUnsafePaths()
+	// Publishing refuses an invalid _redirects; an import never fails on its
+	// own rules, so they are left out instead (the pages still move).
+	if data, ok := c.result.Files["_redirects"]; ok {
+		if _, err := redirects.ParseWith(data, redirects.Options{MaxRules: 1000, SkipLoopCheck: true}); err != nil || len(data) > redirects.MaxFileBytes {
+			delete(c.result.Files, "_redirects")
+			c.warn("Left out the redirects from old addresses, because they did not fit the rules file. Old links may not reach the new pages.")
+		}
+	}
 	return c.result, nil
 }
 func (c *converter) squarespace() bool {

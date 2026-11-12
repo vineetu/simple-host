@@ -78,6 +78,7 @@ prices-and-sources
 publish-file-limits
 publish-idle-cleanup
 publish-wordpress-import
+redirects-and-plain-addresses
 registration-tracks-and-challenges
 reminder-times
 results-show-what-each-team-built

@@ -55,7 +55,10 @@ server {
         if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/offline) { rewrite ^ /internal/offline last; }
         if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/passcode) { rewrite ^ /internal/passcode$uri last; }
         if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/lives-elsewhere) { rewrite ^ /internal/family$uri last; }
-        try_files $uri $uri/ @sh_family;
+        # Rules are applied by the app after access gates, including legacy files.
+        if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/redirects) { rewrite ^ /internal/passcode$uri last; }
+        if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/current/_redirects) { rewrite ^ /internal/passcode$uri last; }
+        try_files $uri $uri.html $uri/ @sh_family;
     }
     location @sh_family {
         proxy_pass http://127.0.0.1:8090;

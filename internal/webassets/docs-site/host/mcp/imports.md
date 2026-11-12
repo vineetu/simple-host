@@ -17,7 +17,7 @@ Move a WordPress site here from the export the person downloads from WordPress t
 
 <div data-tool="get_import_report"></div>
 
-Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages.
+Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages. Write root _redirects rules from the old address list for any changed paths (including wildcards and ?p=123 query links); fix publish errors at their line numbers.
 
 **Parameters:**
 

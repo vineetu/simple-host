@@ -191,6 +191,10 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 		return
 	}
 	h.ownerFrameGuard(w, r, userID)
+	// Redirect rules (_redirects), only once every gate above has passed.
+	if h.applyRedirect(w, r, userID, siteName, rel, publicPath) {
+		return
+	}
 	h.serveDirFile(w, r, h.disk.SiteDir(userID, siteName)+"/current", rel, publicPath)
 }
 
@@ -208,14 +212,35 @@ func (h *SiteHandler) serveDirFile(w http.ResponseWriter, r *http.Request, dir, 
 	if name == "" {
 		name = "."
 	}
-	f, err := root.Open(name)
-	if err != nil {
-		h.siteNotFound(w, r, root)
-		return
+	// The root _redirects file (rules) is never served; a folder of that
+	// name is ordinary content.
+	if name == "_redirects" {
+		if st, err := root.Stat(name); err != nil || !st.IsDir() {
+			h.siteNotFound(w, r, root)
+			return
+		}
 	}
-	st, err := f.Stat()
+	f, err := root.Open(name)
+	var st os.FileInfo
+	if err == nil {
+		st, err = f.Stat()
+	}
+	if (err != nil || st.IsDir()) && !strings.HasSuffix(r.URL.Path, "/") && !strings.HasSuffix(name, ".html") {
+		if candidate, e := root.Open(name + ".html"); e == nil {
+			if info, e := candidate.Stat(); e == nil && info.Mode().IsRegular() {
+				if f != nil {
+					f.Close()
+				}
+				f, st, err = candidate, info, nil
+			} else {
+				candidate.Close()
+			}
+		}
+	}
 	if err != nil {
-		f.Close()
+		if f != nil {
+			f.Close()
+		}
 		h.siteNotFound(w, r, root)
 		return
 	}

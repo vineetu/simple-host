@@ -25,6 +25,7 @@ import (
 // description) formats it from that same copy, so changing a knob changes
 // the words too.
 type Limits struct {
+	RedirectsMaxRules           int // REDIRECTS_MAX_RULES
 	NotifyMaxPerSite            int
 	NotifyPerMinute             int
 	NotifyPerDay                int
@@ -327,6 +328,7 @@ const day = 24 * time.Hour
 // they became settings.
 func DefaultLimits() Limits {
 	return Limits{
+		RedirectsMaxRules:           1000,
 		NotifyMaxPerSite:            10,
 		NotifyPerMinute:             60,
 		NotifyPerDay:                5000,
@@ -810,6 +812,7 @@ func Knobs() []Knob {
 			l.SiteTotalCapFrom = t.UTC().Format(time.RFC3339)
 			return nil
 		}},
+		intKnob("REDIRECTS_MAX_RULES", "rules", 1, 100000, func(l *Limits) *int { return &l.RedirectsMaxRules }),
 		intKnob("MAX_FILES_PER_SITE", "files", 100, 50_000, func(l *Limits) *int { return &l.MaxFilesPerSite }),
 		durKnob("PREVIEW_LINK_TTL_MINUTES", "minutes", m, 5, 7*24*60, func(l *Limits) *time.Duration { return &l.PreviewLinkTTL }),
 		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),

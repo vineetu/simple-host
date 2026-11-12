@@ -1050,6 +1050,20 @@
       "small_box": true
     },
     {
+      "name": "REDIRECTS_MAX_RULES",
+      "group": "sites",
+      "description": "Maximum root _redirects rules per site; default 1000. File limit 128 KiB, line limit 2048 bytes.",
+      "type": "int",
+      "default": "1000",
+      "min": 1,
+      "max": 100000,
+      "unit": "rules",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "MAX_FILES_PER_SITE",
       "group": "sites",
       "description": "Files in one upload. It can only be lowered.",

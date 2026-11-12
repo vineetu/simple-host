@@ -129,6 +129,9 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-12 (owner, SIM-440). Redirect rules and plain addresses.** Directory-only pages keep the 301 to a trailing slash so existing relative links work; a sibling `faq.html` serves `/faq` with 200. Root `_redirects` rules run after all access gates. Versions retain the file, but `current` omits it; the `redirects` marker beside `current` holds its bytes. External absolute HTTP(S) targets are allowed only with a literal host. No opt-in setting.
+
+
 - **2026-11-09 (owner). Judging locks follow the stage.** Remove the separate Lock judging and Unlock controls: Judging opens scoring, Finish judging (Results) locks it, and moving back to Judging or earlier clears the lock. Archived retains its lock. Supersedes the 2026-10-31 rule that Results → Judging kept the lock. Reason: a separate lock confuses organisers.
 - **2026-11-09 (owner). Move stages and publish only from Home on the website.** Home contains preview, final tie order, confirmation and the announcement offer, including republishing after End. Judging and Results keep their operational views. REST and MCP stage/publish tools stay available. Reason: moving an event forward from scattered screens is confusing.
 

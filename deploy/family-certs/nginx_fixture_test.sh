@@ -67,10 +67,13 @@ F=$T/families
 mkdir -p "$F/by-id/$U"
 ln -s "by-id/$U" "$F/fam.test"
 site() { mkdir -p "$F/by-id/$U/$1/current"; echo "file:$1" > "$F/by-id/$U/$1/current/index.html"; }
-for s in voucher-meera voucher-www voucher-down voucher-off voucher-lock voucher-moved voucher-xn--abc meera; do site "$s"; done
+for s in voucher-rules voucher-legacy voucher-meera voucher-www voucher-down voucher-off voucher-lock voucher-moved voucher-xn--abc meera; do site "$s"; done
 mkdir -p "$F/by-id/$U/voucher-meera/current/sub"; echo "page:sub" > "$F/by-id/$U/voucher-meera/current/sub/page.html"
 touch "$F/by-id/$U/voucher-down/suspended" "$F/by-id/$U/voucher-off/offline" \
       "$F/by-id/$U/voucher-lock/passcode" "$F/by-id/$U/voucher-moved/lives-elsewhere"
+
+touch "$F/by-id/$U/voucher-rules/redirects" "$F/by-id/$U/voucher-legacy/current/_redirects"
+echo 'plain faq' > "$F/by-id/$U/voucher-meera/current/faq.html"
 
 # The "app": answers 200 with the path and Host it was asked for.
 python3 - "$UP" >/dev/null 2>&1 <<'PY' &
@@ -119,6 +122,10 @@ get() { curl -sk --resolve "$1:$HTTPS:127.0.0.1" -w ' %{http_code}' "https://$1:
 expect() { local r; r=$(get "$2" "$3"); if [ "$r" = "$4" ]; then ok "$1"; else bad "$1: got '$r', want '$4'"; fi; }
 
 expect "meera.fam.test serves voucher-meera from disk" meera.fam.test / "file:voucher-meera
+ 200"
+expect "rules marker reaches gated app" rules.fam.test '/old?x=1' "app:/internal/passcode/old?x=1 host=rules.fam.test 200"
+expect "legacy rules reach gated app" legacy.fam.test '/_redirects' "app:/internal/passcode/_redirects host=legacy.fam.test 200"
+expect "plain HTML address" meera.fam.test '/faq' "plain faq
  200"
 expect "a nested file from disk" meera.fam.test /sub/page.html "page:sub
  200"

@@ -59,6 +59,9 @@ func TestExportLinkEndToEnd(t *testing.T) {
 	const apex = "simple-host.test"
 	a.deploy(t, ann, "blog")
 	a.deploy(t, bob, "blog")
+	if r := a.at(t, "PUT", apex, "/v1/sites/blog/files?keep=1", map[string]any{"files": map[string]string{"_redirects": "/before /after"}}, map[string]string{"X-API-Key": ann.key}); r.status != 200 {
+		t.Fatal(r.status, string(r.body))
+	}
 
 	r := a.at(t, "POST", apex, "/v1/sites/blog/export-link", nil, map[string]string{"X-API-Key": ann.key})
 	if r.status != http.StatusOK {
@@ -77,7 +80,7 @@ func TestExportLinkEndToEnd(t *testing.T) {
 		t.Fatalf("download: %d %v %s", r.status, r.header, r.body)
 	}
 	names := tarNames(t, r.body)
-	if !names["blog/state.json"] || !names["blog/files/index.html"] {
+	if !names["blog/state.json"] || !names["blog/files/index.html"] || !names["blog/files/_redirects"] {
 		t.Errorf("archive holds %v", names)
 	}
 	annID, _ := a.userID(t, ann)

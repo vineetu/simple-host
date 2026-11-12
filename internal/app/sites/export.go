@@ -87,6 +87,11 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 	if _, err := os.Stat(current); err != nil {
 		return nil // nothing published yet; saved and runtime data still export
 	}
+	if data, err := os.ReadFile(filepath.Join(filepath.Dir(current), "redirects")); err == nil {
+		if err := putBytes(put, prefix+"/files/_redirects", data); err != nil {
+			return err
+		}
+	}
 	return filepath.WalkDir(current, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil

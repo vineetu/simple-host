@@ -14,3 +14,9 @@ Before deploying, check the size of every file and the whole output folder. Read
 For personal photos, call `create_upload_link` (a photo picker in the chat, or `photos_url` to give the person); the page shrinks them. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
 
 If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
+
+## Redirects and plain addresses
+
+Publish a root `_redirects` text file with `FROM [key=value ...] TO [STATUS]`, one rule per line. Paths, `:name` segments and final `*` splats are supported; use `:splat` in targets. Targets are local paths or absolute HTTP(S) URLs with a literal host. Status is 301 by default, or 302, 404 or 410; append `!` to override existing content. 404/410 serve a local page. First match wins; matching ignores trailing slashes. Rules run after site access gates. Query strings carry over only without query conditions or a target query.
+
+The file is validated on publish and never served. Limits: 128 KiB, 2048 bytes per line, 1000 rules by default (`REDIRECTS_MAX_RULES` on self-hosted installs). Fix publish errors at their reported line numbers. `/faq` serves `faq.html` directly with 200; directory-only `faq/index.html` keeps the 301 to `/faq/` for relative links.

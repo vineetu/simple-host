@@ -31,7 +31,7 @@ func importTools() []Tool {
 				"next_steps":  outArray("Feature setup steps and live address handoff.", outString("Step.")),
 			}, "state", "message", "site", "site_url", "started_at", "finished_at", "next_steps"),
 			Name: "get_import_report", Title: "Read the WordPress import report",
-			Description: "Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages.",
+			Description: "Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages. Write root _redirects rules from the old address list for any changed paths (including wildcards and ?p=123 query links); fix publish errors at their line numbers.",
 			InputSchema: object(map[string]any{"import_id": str("The import_id returned by create_import_link.")}, "import_id"),
 			Annotations: readOnly(), run: getImportReport,
 		},

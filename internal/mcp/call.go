@@ -206,6 +206,7 @@ var selfExplainedCodes = map[string]bool{
 // append-only list or an existing site), so the code decides the hint; the
 // status only fills in when a refusal carries no code this table knows.
 var codeHints = map[string]string{
+	"redirects_invalid":              "Fix the listed _redirects line errors and publish again.",
 	"site_exists":                    "A site of that name already exists in this account. Use update_site to publish a new version of it, or pick another name.",
 	"recently_deleted":               "That name belongs to a site in Recently deleted. Ask the person whether to bring it back with restore_site, or pick another name.",
 	"site_not_deleted":               "That site is live, not deleted; nothing to restore.",

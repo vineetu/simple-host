@@ -205,7 +205,7 @@ func siteTools(limits Limits) []Tool {
 			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
 				"When the person says \"my site\", \"our site\", or \"my salon site\", call list_sites first: if they already have that site, add to it with update_site instead of making a new one. " +
 				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because a site can be served under a path as well as at a root. " +
-				"The site is public to anyone with the returned URL as soon as this returns. " + deployFormTip + deploySizeTips,
+				"The site is public to anyone with the returned URL as soon as this returns. A root _redirects file holds redirect rules, is validated on publish and is never served. " + deployFormTip + deploySizeTips,
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc + " Pick a short, descriptive name."),
 				"files":        filesSchema(),
@@ -228,7 +228,7 @@ func siteTools(limits Limits) []Tool {
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. " +
 				"For a small change (hours, a price, a line of text), send edits instead: each {path, find, replace} replaces text that occurs exactly once in the live file; if a find is missing or repeated, nothing is published. " +
 				"`index.html` is required unless keeping other files; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
-				deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(limits.PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy. `author` names who made the version in list_versions.",
+				"A root _redirects file holds redirect rules, is validated on publish and is never served. " + deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(limits.PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy. `author` names who made the version in list_versions.",
 			InputSchema: object(map[string]any{
 				"site":             str(siteDesc),
 				"files":            filesSchema(),

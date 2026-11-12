@@ -348,6 +348,16 @@ func (h *SiteHandler) siteHasPath(userID, siteName, rel string) bool {
 	if name == "" {
 		return true
 	}
+	if name == "_redirects" {
+		if st, err := root.Stat(name); err != nil || !st.IsDir() {
+			return false
+		}
+	}
+	if !strings.HasSuffix(rel, "/") && !strings.HasSuffix(name, ".html") {
+		if st, e := root.Stat(name + ".html"); e == nil && st.Mode().IsRegular() {
+			return true
+		}
+	}
 	_, err = root.Stat(name)
 	return err == nil
 }

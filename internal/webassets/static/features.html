@@ -132,7 +132,7 @@
       <div class="tree">
         <div class="root"><b>Simple Host</b><span>Hosting for the sites your AI made</span></div>
         <ol class="branches">
-          <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">25</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
+          <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">26</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
           <li><a class="node" href="#addresses"><b>Domains and addresses</b><span class="n">13</span><span class="l">Where a site answers: its own address from the first minute, a short free name, your own domain, or one wildcard for every site you own.</span></a></li>
           <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">28</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
           <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">21</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
@@ -516,6 +516,21 @@
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Simple Hack team sites are removed 30 days after an event is archived, with one warning 14 days before; Enterprise sets the idle period itself and shows a Not used lately card instead of emailing only.</p>
           <p class="meta"><span class="status"><b>Status:</b> off by default. Off by default; the operator turns it on.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy">FEATURES: Sites and deploy</a> <a href="/terms">Terms</a> <a href="/docs/guides/publish/">Docs</a></span></p>
+        </div>
+      </details>
+      <details class="feat" id="redirects-and-plain-addresses">
+        <summary><span class="fname">Redirects and plain addresses</span><span class="fline">Keep old links working when pages move.</span></summary>
+        <div class="fbody">
+          <p class="how">Publish a root _redirects file with paths, splats, placeholders and query rules. Rules run after access gates; existing content wins unless forced.</p>
+          <p class="ex"><b>Example.</b> /old/* /articles/:splat 301 sends old blog links to their new pages.</p>
+          <dl class="fm">
+            <dt>Who</dt><dd>Anyone moving or reorganising a site.</dd>
+            <dt>Where</dt><dd>The root _redirects file sent with your site.</dd>
+            <dt>Limits</dt><dd class="lim">1000 rules by default; 128 KiB file; 2048 bytes per line. Supports 301, 302, 404 and 410.</dd>
+          </dl>
+          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
+          <p class="ednote">Enterprise port pending.</p>
+          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/docs/guides/redirects/">Redirects guide</a></span></p>
         </div>
       </details>
       </div>

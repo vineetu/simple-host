@@ -155,6 +155,7 @@ var knobDocs = map[string]knobDoc{
 	"EVENT_MAX_CLAIMS":                       {"domains", "Event hostnames one account may hold at once.", false, false},
 	"EVENT_LIMIT_EXEMPT":                     {"events", "Comma-separated sign-in emails and whole domains (@domain.org), case-insensitive with spaces trimmed; no subdomain matching. Empty by default. Admins and EVENT_LIMIT_EXEMPT accounts are never limited by EVENT_CREATE_PER_DAY (default 20) or EVENT_MAX_ACTIVE_PER_ORGANISER (no limit by default; 0 = no limit for either).", false, false},
 	"EVENT_CREATE_PER_DAY":                   {"events", "Hosted events (EVENTS=hosted): events one account may create in a rolling day (default 20; 0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.", false, false},
+	"REDIRECTS_MAX_RULES":                    {"sites", "Maximum root _redirects rules per site; default 1000. File limit 128 KiB, line limit 2048 bytes.", false, false},
 	"EVENT_MAX_ACTIVE_PER_ORGANISER":         {"events", "Hosted events: events one account may run at once (every stage but archived); no limit by default (0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.", false, false},
 	"EVENT_APPLY_PENDING_PER_EVENT":          {"events", "Hosted events: applications one event may have waiting for a decision at once, apart from the per-account pending cap.", false, false},
 	"EVENT_TEAM_SIZE_DEFAULT":                {"events", "Hosted events: the team size cap a new event starts with; the organiser changes it.", false, false},

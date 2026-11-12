@@ -68,6 +68,7 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 | `MAX_ACCOUNT_MB` | `0` | 0–1000000 MB | All account website files and kept versions, including Recently deleted sites and the separate live copies, after deploy and pruning. 0: no cap. Saved data and storage resources do not count. |
 | `KEEP_VERSIONS_SELF_SET` | none | handles | Handles allowed to change per-site version counts, comma-separated; current and old handles match. Unset: anyone may set their count. Other accounts use the default even if a site previously had its own setting. |
 | `SITE_TOTAL_CAP_FROM` | none | RFC3339 | RFC3339 creation cutoff for MAX_SITE_TOTAL_MB. Earlier sites are grandfathered. Unset: no site total cap. |
+| `REDIRECTS_MAX_RULES` | `1000` | 1–100000 rules | Maximum root _redirects rules per site; default 1000. File limit 128 KiB, line limit 2048 bytes. |
 | `MAX_FILES_PER_SITE` | `50000` | 100–50000 files | Files in one upload. It can only be lowered. |
 | `PREVIEW_LINK_TTL_MINUTES` | `60` | 5–10080 minutes | How long a preview link to a stored version works. **Security-sensitive.** |
 | `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site or event archive download link works (it can hold private data). **Security-sensitive.** |
