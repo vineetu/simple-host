@@ -100,4 +100,4 @@ terminal after migration. It only updates sites without summaries.
 The Apps flags default off. Dashboard also needs My sites, and preview still
 requires a client and site headers that permit framing.
 
-Release notes: [the changelog](../../CHANGELOG.md).
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

@@ -80,7 +80,7 @@ the address is `hack.example.com`, with participant sites on
 - **Upgrade:** set the new `SIMPLE_HOST_VERSION` in the `Dockerfile` and push.
   The Pre-Deploy Command runs the new release's migrations first. If they fail,
   the deploy stops and the old version keeps running. A redeploy with nothing
-  new logs `database is up to date. Nothing to apply`. With a disk there is no
+  new logs `database is up to date; nothing to apply`. With a disk there is no
   zero-downtime deploy: the old instance stops before the new one starts. Sites can answer 502 during the deploy.
 - **Restart:** choose **Manual Deploy > Restart service** on the service page. Sites,
   saved data and accounts all survive. Expect a short interruption.
@@ -129,4 +129,4 @@ the address is `hack.example.com`, with participant sites on
   Command (`/usr/local/bin/start.sh release`) runs on its own rather than
   being handed to an entrypoint.
 
-Release notes: [the changelog](../../CHANGELOG.md).
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

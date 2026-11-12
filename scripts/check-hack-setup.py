@@ -28,6 +28,9 @@ def main():
     installer_pin = re.search(r"if not values.get\('SIMPLE_HACK_IMAGE'\): values\['SIMPLE_HACK_IMAGE'\] = 'ghcr.io/vineetu/simple-hack:(\d+\.\d+\.\d+)'", installer)
     check(compose_pin and installer_pin and data['version'] == compose_pin[1] == installer_pin[1],
           'simple-hack.json version, compose.yaml image pin and install.sh default image tag must match')
+    for step in data['steps']:
+        for pin in re.findall(r'VERSION=(\S+)', step.get('code', '')):
+            check(pin == data['version'], f'simple-hack.json step downloads VERSION={pin}, not the pinned {data["version"]}')
     domain = 'hack.example.com'
     rendered = [step['code'].replace('{SETTINGS}', 'SITE_DOMAIN=' + domain).replace('{DOMAIN}', domain)
                 for step in data['steps'] if 'code' in step]
@@ -62,7 +65,7 @@ def main():
         check(re.search(r'^\s*#?\s*' + key + '=', example, re.M), f'.env.example missing setting {key}')
         check(environment and re.search(r'^    ' + key + ':', environment[1], re.M),
               f'compose.yaml environment map missing setting {key}')
-    history = re.compile(r'release status|checked on|verified on|tested 20|verified 20', re.I)
+    history = re.compile(r'release status|checked on|verified on|tested on|tested 20|verified 20|clean-install test', re.I)
     for path in sorted((ROOT / 'docs/platforms').glob('*.md')):
         for number, line in enumerate(path.read_text().splitlines(), 1):
             match = history.search(line)

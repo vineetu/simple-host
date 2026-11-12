@@ -697,7 +697,8 @@ Do not downgrade a migrated database. Restore a matching backup instead.</p>
 <p>The <code>db</code> and <code>data</code> volumes hold Postgres, team site files and certificates.
 Keep both. Use a logical Postgres dump plus a copy of the data volume, as described
 in the <a href="/docs/self-hosting/platforms/simple-hack-standalone/#back-up">standalone guide</a>, using your Service’s
-Compose project and environment file paths.</p>
+Compose project and environment file paths. If you used the service template, use its
+generated Postgres user (<code>SERVICE_USER_POSTGRES</code>) in place of <code>simplehack</code>.</p>
 <h2 id="troubleshooting">Troubleshooting</h2>
 <ul>
 <li>Check the platform, event and nested team DNS records and certificate capacity.</li>

@@ -340,9 +340,10 @@
   function checkHackBasics() {
     var b = S.basic.hack, errors = {};
     HACK_FIELDS.forEach(function (key) {
+      if (!b.assistant && key.indexOf('ASSISTANT_') === 0) return;
       var v = b[key];
-      if (/[\x00-\x1f\x7f-\x9f]/.test(v) || /^["']/.test(v) || (key !== 'MAIL_FROM' && /\s/.test(v))) {
-        errors[key] = 'Use one line, without control characters, a leading quote or spaces (spaces are allowed in Mail from).';
+      if (/[\x00-\x1f\x7f-\x9f\u2028\u2029$]/.test(v) || /^["']/.test(v) || (key !== 'MAIL_FROM' && /\s/.test(v))) {
+        errors[key] = 'Use one line, without control characters, $, a leading quote or spaces (spaces are allowed in Mail from).';
       }
     });
     b.SITE_DOMAIN = b.SITE_DOMAIN.toLowerCase();

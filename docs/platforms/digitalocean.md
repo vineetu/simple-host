@@ -95,4 +95,4 @@ Destroy the droplet in the DigitalOcean control panel (Destroy → Destroy
 Droplet), with its backups and snapshots if you made any, then remove the DNS
 records. Nothing else was created.
 
-Release notes: [the changelog](../../CHANGELOG.md).
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

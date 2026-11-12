@@ -6,7 +6,7 @@ People use password accounts without email.
 ## What you need
 
 - A Linux server with Docker Engine and the Compose plugin, Python 3, OpenSSL and `flock`.
-- About 1 GB RAM and 10 GB disk is enough. The v0.8.20 clean-install test measured about 200 MB RAM and 0.7 GB disk while running.
+- About 1 GB RAM and 10 GB disk is enough. While running, it uses about 200 MB RAM and 0.7 GB disk.
 - Your own domain. Point `hack.<domain>` and `*.hack.<domain>` at the server. Check that event and nested team addresses resolve there. Remove AAAA records unless you also configure and verify IPv6.
 - Ports 80 and 443 free and reachable from the internet.
 
@@ -16,7 +16,7 @@ One wildcard certificate for `*.hack.<domain>` does not cover team addresses suc
 
 ## Install
 
-1. Use a Linux server with Docker. Point `hack.example.com` and `*.hack.example.com` at it.
+1. Use a Linux server with Docker and its Compose plugin. Point `hack.example.com` and `*.hack.example.com` at it.
 2. Download and unpack the release:
 
    ```sh
@@ -66,7 +66,8 @@ Your server's `/get-started` page has the same steps. Always use your own server
 
 Add these settings in step 3, or change them later: write only the lines you change
 to a new file and re-run the installer with it. They are kept across upgrades.
-There is no event limit by default.
+There is no event limit by default. For a setting not listed in `.env.example`, add it to
+the environment map in `/opt/simple-hack/compose.yaml`; upgrades replace that file, so add it again after each upgrade.
 
 ```sh
 umask 077; echo 'SUPPORT_EMAIL=help@example.org' > /tmp/sh.env
@@ -94,6 +95,12 @@ The upgrade keeps your domain, credentials, database and files, and saves the pr
 settings as `/opt/simple-hack/.env.previous`. It stops the app while applying migrations.
 If a migration fails, fix the cause and rerun the upgrade. Do not downgrade a migrated database;
 restore a matching backup instead.
+
+If your previous release did not include `zi-site-search-summary.sql`, run this once after upgrading:
+
+```sh
+sudo docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env run --rm --no-deps -T app site-summary-backfill
+```
 
 ## Back up
 

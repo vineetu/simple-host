@@ -2,7 +2,7 @@
   "version": "0.8.20",
   "steps": [
     {
-      "text": "Use a Linux server with Docker. Point `{DOMAIN}` and `*.{DOMAIN}` at it."
+      "text": "Use a Linux server with Docker and its Compose plugin. Point `{DOMAIN}` and `*.{DOMAIN}` at it."
     },
     {
       "title": "Download and unpack the release",

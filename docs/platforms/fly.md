@@ -147,4 +147,4 @@ participant sites on `sites.hack.example.com`.
 - **`sites.<domain>/healthz` is a 404.** Only the main address answers it,
   as on a VPS.
 
-Release notes: [the changelog](../../CHANGELOG.md).
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

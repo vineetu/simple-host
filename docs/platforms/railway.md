@@ -183,4 +183,4 @@ reference table. This is the walkthrough.
   Render's, do not let root signal another user's processes. `start.sh` hands `/data` to
   the server's user and then runs everything as that user.
 
-Release notes: [the changelog](../../CHANGELOG.md).
+Release notes: [the changelog](https://github.com/vineetu/simple-host/blob/main/CHANGELOG.md).

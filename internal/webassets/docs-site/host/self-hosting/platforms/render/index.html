@@ -749,7 +749,7 @@ and hand out their keys, as on any small box.</p>
 <li><strong>Upgrade:</strong> set the new <code>SIMPLE_HOST_VERSION</code> in the <code>Dockerfile</code> and push.
 The Pre-Deploy Command runs the new release’s migrations first. If they fail,
 the deploy stops and the old version keeps running. A redeploy with nothing
-new logs <code>database is up to date. Nothing to apply</code>. With a disk there is no
+new logs <code>database is up to date; nothing to apply</code>. With a disk there is no
 zero-downtime deploy: the old instance stops before the new one starts. Sites can answer 502 during the deploy.</li>
 <li><strong>Restart:</strong> choose <strong>Manual Deploy &gt; Restart service</strong> on the service page. Sites,
 saved data and accounts all survive. Expect a short interruption.</li>
