@@ -6,15 +6,16 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/html"
-	"net/http"
-	"strings"
-	"time"
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/model"
@@ -193,6 +194,13 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 				if address == "" {
 					continue
 				}
+				// Simple Hack serves team sites only at a host root: a path
+				// fallback (certificate not ready yet) does not serve the site.
+				if hack {
+					if u, err := url.Parse(address); err != nil || (u.Path != "" && u.Path != "/") {
+						continue
+					}
+				}
 				lastmod := ""
 				if s.LastDeployedAt.Valid {
 					lastmod = s.LastDeployedAt.Time.UTC().Format(time.RFC3339)
@@ -223,7 +231,7 @@ func siteAllowsIndexing(dir string) bool {
 	if b, err := os.ReadFile(filepath.Join(dir, "robots.txt")); err == nil && robotsDisallowRoot(string(b)) {
 		return false
 	}
-	z := html.NewTokenizer(io.LimitReader(f, 64*1024))
+	z := html.NewTokenizer(io.LimitReader(f, 512*1024))
 	for {
 		switch z.Next() {
 		case html.ErrorToken:
