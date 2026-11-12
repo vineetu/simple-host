@@ -93,7 +93,7 @@ with tempfile.TemporaryDirectory(prefix='notify-install-test-') as tmp:
             for n in ('OIDC_ISSUER','OIDC_CLIENT_ID','OIDC_CLIENT_SECRET','OIDC_LABEL','OIDC_INSECURE_ALLOWED','ALLOWED_EMAIL_DOMAINS','EMAIL_SIGNIN'):
                 assert app_env[n] == '${' + n + ':-}', path + ': ' + n
             for n in compose['services']['app']['environment']:
-                if n.startswith('NOTIFY_'):
+                if n.startswith('NOTIFY_') or n == 'WEB_PUSH_ACCOUNTS':
                     assert app_env[n] == '${' + n + ':-}', path + ': ' + n
 
 print('PASS: installer generates and preserves PASSCODE_ENC_KEY, upgrades existing .env, passes the key through compose, and replaces .env privately and atomically')
