@@ -35,16 +35,15 @@ For a new route or tool, include these documentation changes:
    including `x-audience`; regenerate `openapi.json` as in [frontend.md](frontend.md).
 4. Update applicable llms.txt, skills and dashboard/showcase presentation.
    Skill edits require a plugin version bump and the sync script.
-5. Update FEATURES.md, CHANGELOG.md (newest first) and PARITY.md for feature
-   changes. New public feature sections/bold leads also need a
+5. Update FEATURES.md and CHANGELOG.md (newest first) for feature
+   changes (PARITY.md is frozen history since 2026-11-12). New public feature sections/bold leads also need a
    `static/features.json` row and regenerated `features.html`.
 
 Enforcement is specific: `scripts/check-features.sh` runs inventory checking
 and OpenAPI coverage. `scripts/inventory/main.go:run` rejects stale generated
 files, unplaced routes/tools and invalid feature-ID registries.
 `check-docs-sync.sh` checks registered `/v1` paths against OpenAPI, parsed
-YAML/JSON equality, feature-page coverage, settings/profile docs, local parity
-coverage and atlas consistency. Its llms/skill capability checks are warnings.
+YAML/JSON equality, feature-page coverage, settings/profile docs and atlas consistency. Its llms/skill capability checks are warnings.
 CHANGELOG prose and the relevance of UI/skill edits still require review;
 these checks do not infer a complete feature description from code.
 
@@ -137,7 +136,7 @@ The lifecycle ownership contract is in [target.md §5](target.md#5-transactions-
 builds all Go packages, runs vet and the disposable integration suite, then
 runs Node UI fixtures, HTML nesting, import layering, docs-sync and plugin
 freshness. It also exercises certificate issuers, nginx configuration
-scripts, network/uptime/parity watcher scripts, installer/standalone fixtures,
+scripts, network/uptime watcher scripts, installer/standalone fixtures,
 DigitalOcean pin checks and fresh-install/upgrade SQL. The price-age check
 warns without failing. See `Makefile:check` for the current complete list.
 
@@ -148,10 +147,7 @@ needs local tools/Postgres, and Docker can need an initial image download.
 
 `make check-release` runs `scripts/check-release.sh`:
 
-- Verify the setup page's Enterprise chart pin against the published chart,
-  or an explicitly supplied SH_ENTERPRISE_REPO checkout.
-- Compare Enterprise settings from the published source, or ENTERPRISE_REPO;
-  compare parity with another checkout only when PARITY_OTHER is supplied.
+- Compare Enterprise settings from the published source, or ENTERPRISE_REPO.
 - Run nginx HTTP fixtures using nginx/curl/openssl/Python, and the Caddy
   Docker fixture after fetching its required images.
 

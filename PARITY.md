@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+Frozen 2026-11-12: the Enterprise repo is frozen and Enterprise will be rebuilt in this repo as add-ons (INTENT.md, 2026-11-12); this file is kept as history and is no longer updated or checked.
+
 2026-11-12 (SIM-440): Redirect rules and plain addresses — small box: same; Enterprise: port pending. Host and Hack share validation, gates and serving.
 
 2026-11-09 (SIM-353): Simple Hack's event page Look (`events.theme`, five whole-page styles plus Classic, organiser-only, same rule as `accent_color`) is hosted hackathon-only. Enterprise has no hackathon UI, so no parity action is needed.

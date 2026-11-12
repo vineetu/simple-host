@@ -52,10 +52,9 @@ https://simple-host.app and runs in production for real users.
   binary refuses to start if a column it reads is missing), then
   `simple-host migrate -mark <file>` (or just `simple-host migrate`); `migrate -status` lists
   what is pending.
-- Parity with Simple Host Enterprise (`PARITY.md`, identical in both repos): any security fix in
-  one repo is checked against the other the same day (note it in PARITY.md). A new or changed
-  feature updates PARITY.md in the same commit. `scripts/check-parity.sh` (in
-  `check-docs-sync.sh`) fails if a `## N.` section of FEATURES.md has no PARITY.md row.
+- `PARITY.md` (Host vs Enterprise) is frozen history as of 2026-11-12: the separate Enterprise
+  repo is frozen and Enterprise will be rebuilt here as add-ons (INTENT 2026-11-12). Do not add
+  rows to it or check changes against the Enterprise repo.
 - Docs: a change to openapi.yaml, MCP tool text, CHANGELOG.md, docs/site or the
   self-hosting docs (docs/advanced, platforms, operations, configuration.md, kubernetes.md) needs
   `bash scripts/build-docs-site.sh` (Node 22.23.4; on this box it finds
@@ -96,7 +95,7 @@ sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirec
 ```
 
 After a hosted deploy, refresh the owner's product knowledge (`/brain/mcp`) so a change to
-PARITY.md, an INTENT or a CHANGELOG reaches it now rather than within the hour:
+an INTENT or a CHANGELOG reaches it now rather than within the hour:
 `sudo systemctl start sh-brain-sync` (it fetches origin/main of both repos and builds with the
 installed binary; FEATURES.md "Owner product knowledge").
 

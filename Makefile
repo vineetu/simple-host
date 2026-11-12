@@ -2,7 +2,7 @@
 # local postgres superuser (it creates and drops a throwaway database).
 # check-prices-age.sh only warns: the cost calculator's prices are checked monthly.
 # check-release needs network access, Docker and nginx; it holds publication,
-# cross-repo settings/parity and HTTP/server fixture checks.
+# the Enterprise settings comparison and HTTP/server fixture checks.
 #
 # `test` is the fast loop: go test ./... with no database, so the ~15 DB-backed
 # fixtures (see scripts/test-integration.sh) skip. `test-integration` gives
@@ -53,7 +53,6 @@ check:
 	bash deploy/prod/nginx-analytics-logformat-apply_test.sh
 	bash deploy/prod/sh-network-watch_test.sh
 	bash deploy/prod/sh-uptime-watch_test.sh
-	bash deploy/prod/sh-parity-watch_test.sh
 	bash deploy/install/install_test.sh
 	bash deploy/hack/standalone/tests/install_test.sh
 	bash deploy/digitalocean/droplet/test/pins_test.sh

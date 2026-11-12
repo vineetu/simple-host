@@ -13,34 +13,8 @@ fi
 [ "$#" -eq 0 ] || { echo "usage: $0 [--mcpjam]"; exit 1; }
 fail=0
 
-echo "== the setup page pins the Enterprise Helm chart =="
-js=internal/webassets/static/setup/setup.js
-ent_version=$(sed -n "s/^ *var ENT_CHART_VERSION = '\([0-9.]*\)';.*/\1/p" "$js")
 release_tmp=$(mktemp -d)
-chart="$release_tmp/Chart.yaml"
 trap 'rm -rf "$release_tmp"' EXIT
-if [ -z "$ent_version" ]; then
-  echo "  FAIL: $js has no ENT_CHART_VERSION"; fail=1
-elif [ -n "${SH_ENTERPRISE_REPO:-}" ]; then
-  if ! cp "$SH_ENTERPRISE_REPO/deploy/helm/simple-host-enterprise/Chart.yaml" "$chart"; then
-    echo "  FAIL: cannot read Enterprise chart from SH_ENTERPRISE_REPO"; fail=1
-  fi
-else
-  url="https://raw.githubusercontent.com/vineetu/simple-host-enterprise/chart-v${ent_version}/deploy/helm/simple-host-enterprise/Chart.yaml"
-  if ! status=$(curl -sSL --connect-timeout 10 --max-time 30 -o "$chart" -w '%{http_code}' "$url"); then
-    echo "  FAIL: Enterprise chart publication could not be checked: network unavailable or request failed ($url)"; fail=1
-  elif [ "$status" != 200 ]; then
-    echo "  FAIL: published Enterprise chart unavailable: HTTP $status ($url)"; fail=1
-  fi
-fi
-if [ "$fail" -eq 0 ]; then
-  chart_version=$(sed -n 's/^version: //p' "$chart")
-  if [ "$chart_version" != "$ent_version" ]; then
-    echo "  FAIL: setup pins chart $ent_version, checked chart has '$chart_version' (publish the chart first)"; fail=1
-  else
-    echo "  ok Enterprise chart $ent_version (${SH_ENTERPRISE_REPO:-published chart tag})"
-  fi
-fi
 
 # Offline docs-sync runs settings_docs.py --check --local-only.
 # Supply a known Enterprise source here for the cross-repo comparison.
@@ -70,20 +44,13 @@ fi
 # configured model. Only when ASSISTANT_BASE_URL/ASSISTANT_MODEL are
 # already in the environment (there is no default endpoint to check
 # against, and this never invents or prints credentials) -- same
-# conditional-on-having-credentials shape as the Enterprise checks above,
+# conditional-on-having-credentials shape as the Enterprise settings check above,
 # not the hard run_fixture requirement below.
 if [ -n "${ASSISTANT_BASE_URL:-}" ] && [ -n "${ASSISTANT_MODEL:-}" ]; then
   echo "== hack organiser assistant eval (SIM-394) =="
   bash scripts/check-hack-assistant-eval.sh || fail=1
 else
   echo "SKIPPED: organiser assistant eval (set ASSISTANT_BASE_URL/MODEL/API_KEY to run)"
-fi
-
-# Only compare another checkout when explicitly supplied; there is no default
-# path to a developer's machine or implicit second checkout in CI.
-if [ -n "${PARITY_OTHER:-}" ]; then
-  echo "== parity with the other repository =="
-  python3 scripts/parity_compare.py PARITY.md "$PARITY_OTHER" || fail=1
 fi
 
 # Existing fixtures may exit zero when prerequisites disappear. Release checks

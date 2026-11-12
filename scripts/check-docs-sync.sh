@@ -335,10 +335,6 @@ echo "== settings docs (local only) =="
 python3 scripts/settings_docs.py --check --local-only || fail=1
 bash scripts/check-profiles.sh || fail=1
 
-# ── PARITY.md covers every FEATURES.md section ──
-# Cross-repo parity comparison belongs to check-release, even if the caller sets PARITY_OTHER.
-env -u PARITY_OTHER bash scripts/check-parity.sh || fail=1
-
 # ── the public /features page (features.json) covers every FEATURES.md section and bold lead ──
 python3 scripts/check-features-page.py || fail=1
 
