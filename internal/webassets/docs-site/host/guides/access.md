@@ -38,7 +38,7 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 1. In the site's Manage menu, choose **Who can open**.
 2. For named people, add their exact email addresses. Through the API, use `POST /v1/sites/{sitename}/viewers` with `{"emails":["person@example.com"]}`.
 3. For a shared passcode, use the site's Passcode controls in the dashboard. Keep the passcode out of chat.
-4. Confirm before removing either restriction. Use named viewers or a passcode, not both; do not use Unlisted as an access lock.
+4. Confirm before removing either restriction. Use named viewers or a passcode, not both; List on my profile only controls your profile page.
 
 
 ## Errors you may see
@@ -53,3 +53,5 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 ## Next
 - [Storage and saved data](/docs/guides/storage.md)
 - [Agents and MCP](/docs/guides/agents.md)
+
+Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.

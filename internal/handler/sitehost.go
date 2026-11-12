@@ -253,11 +253,11 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		h.paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
+		markRestrictedSite(w, site)
 		escaped := r.URL.EscapedPath()
 		if escaped == "" {
 			escaped = "/"
 		}
-		h.markUnlisted(w, user.ID, site.Name) // unlisted.go
 		// Pinned to the content host: it lives at its path URL there.
 		if contentHostOnlySites[user.Handle.String+"/"+site.Name] {
 			w.Header().Set("Cache-Control", "no-store")

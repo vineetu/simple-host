@@ -43,3 +43,5 @@ With an existing account key, send `POST /v1/me/keys` with `{"name":"laptop"}`. 
 ## Next
 - [Storage and saved data](/docs/guides/storage.md)
 - [Agents and MCP](/docs/guides/agents.md)
+
+Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.

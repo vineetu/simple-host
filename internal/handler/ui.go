@@ -147,7 +147,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	}
 
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) { serveRobotsTxt(w, r, sh.ed.Routes().HostedEvents) })
-	mux.HandleFunc("GET /sitemap.xml", func(w http.ResponseWriter, r *http.Request) { serveSitemapXML(w, r, sh.ed.Routes().HostedEvents) })
+	mux.HandleFunc("GET /sitemap.xml", sh.serveSitemap)
+	mux.HandleFunc("GET /sitemap-pages.xml", sh.serveSitemap)
+
 	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument(assets, sh.ed.Presentation().HackAssets, "ard.json", "application/json", publicBaseURL))
 	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(assets, sh.ed.Presentation().HackAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
 	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) {
@@ -261,7 +263,14 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// that user's owner app; everything else is the landing page / static files.
 	// Unknown POST endpoints are absent, even though static pages use a GET catch-all.
 	mux.Handle("POST /", http.NotFoundHandler())
-	mux.Handle("GET /", assets.adminUICSP(sh.ownerAppOrStatic(assets.chromeFileServer(handlerOnly, fileServer))))
+	fallback := assets.adminUICSP(sh.ownerAppOrStatic(assets.chromeFileServer(handlerOnly, fileServer)))
+	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/sitemap-sites-") && strings.HasSuffix(r.URL.Path, ".xml") {
+			sh.serveSitemap(w, r)
+			return
+		}
+		fallback.ServeHTTP(w, r)
+	}))
 }
 
 // iconFiles maps the icon addresses every page links to the physical file

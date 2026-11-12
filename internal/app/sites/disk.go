@@ -14,7 +14,6 @@ type Disk interface {
 	HasPasscodeMarker(userID, siteName string) bool
 	IsOffline(userID, siteName string) bool
 	IsSuspended(userID, siteName string) bool
-	IsUnlisted(userID, siteName string) bool
 	RemoveHandleLink(handle string) error
 	RemoveHandleLinkOf(handle, userID string) error
 	SetOffline(userID, siteName string, on bool) error
@@ -31,7 +30,6 @@ type Disk interface {
 	RestoreSite(userID, siteName, siteID string) error
 	SetSuspended(userID, siteName string, on bool) error
 	SetTrashedSuspended(userID, siteID string, on bool) error
-	SetUnlisted(userID, siteName string, on bool) error
 	SiteFootprint(userID, name string) (model.FileFootprint, error)
 	TrashSite(userID, siteName, siteID string) error
 	UnbindDomainOf(domain, userID, siteName string) (bool, error)

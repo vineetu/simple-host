@@ -9,6 +9,7 @@
 # missing file and the bare root; and that
 # /internal/* from outside is 404 on every host. Skipped without Docker.
 #   bash deploy/compose/Caddyfile_test.sh
+[ -n "${BASH_VERSION:-}" ] || exec bash "$0" "$@"
 set -euo pipefail
 cd "$(dirname "$0")"
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
@@ -111,7 +112,7 @@ expect "a taken-down site answers the take-down page"  $C /alice/down/          
 expect "an offline site answers the offline page (over passcode)" $C /alice/off/ 200 "APP /internal/offline"
 expect "a locked site goes to the passcode gate"       $C /alice/locked/        200 "APP /internal/passcode/alice/locked/"
 expect "the gate gets the path and query"              $C "/alice/locked/sub/p.html?a=1&b=2" 200 "APP /internal/passcode/alice/locked/sub/p.html?a=1&b=2"
-expect "an unlisted site's files come from the app"   $C "/alice/hidden/robots.txt?x=1" 200 "APP /internal/passcode/alice/hidden/robots.txt?x=1"
+expect "a stale unlisted marker is inert" $C /alice/hidden/ 200 "HIDDEN PAGE"
 expect "a locked site's file is never served"          $C /alice/locked/index.html 200 "APP /internal/passcode/alice/locked/index.html"
 expect "/<handle> is the person page"                  $C /alice                200 "APP /internal/showcase/alice"
 expect "/<handle>/ too"                                $C /alice/               200 "APP /internal/showcase/alice"

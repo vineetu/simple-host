@@ -75,9 +75,10 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   signs in on the site with that email. "With a code" or "a password": `set_site_passcode` with
   no passcode argument to open the passcode screen or get a dashboard link. The person sets it
   there, never types it into chat, and never sees it in chat. Use `generate: true` if asked to make one.
-  Neither: ask which. Unlisted (`set_visibility`)
-  hides a site from their public page, and from search engines unless the site has its own
-  domain or name; it is not privacy.
+  Neither: ask which. List on my profile (`set_visibility`, public = on, unlisted = off)
+  only controls the profile page. Every open site can be found by search engines.
+  New sites start off. To keep a site out, use a passcode or named viewers, take it offline,
+  or ship your own robots.txt / noindex.
 - **A page only the owner uses** (notes, a log, a list of entries). Topic `private` (`admin` to
   manage visitors' entries). The owner signs in on the page with their account email through the
   same sign-in box. Other jobs: the topic from the table.

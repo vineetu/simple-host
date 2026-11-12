@@ -730,20 +730,20 @@
     },
     {
      "id": "site-visibility",
-     "name": "Public or unlisted",
-     "line": "A public site is listed on your showcase page; an unlisted one is hidden there and from search engines, but opens for anyone with the link.",
-     "who": "Anyone with drafts, client work, or personal pages they do not want on a public list.",
-     "how": "New sites start unlisted. Make public lists the site on your showcase page and lets search engines index it. Make unlisted takes it off the showcase and asks search engines to stay away, unless the site has its own domain or name, which is read as a wish to be found.",
-     "example": "A designer keeps client drafts unlisted while they are reviewed and makes the finished portfolio pieces public.",
-     "where": "Make unlisted and Make public under Manage on your sites page, or ask your AI app.",
-     "limits": "Unlisted is not private; anyone with the link can open it. Search engines are asked not to index it, and a site that ships its own robots.txt keeps that file. An unlisted site with its own domain or name is not hidden from search engines.",
+     "name": "List on my profile",
+     "line": "On shows the site on your profile page; off leaves it off. New sites start off.",
+     "who": "Anyone choosing which projects to show on their profile page.",
+     "how": "Turn List on my profile on to show the site on your profile page, or off to remove it. Every open site can be found by search engines.",
+     "example": "A designer shows finished portfolio pieces on their profile page.",
+     "where": "List on my profile under Manage on your sites page, or ask your AI app.",
+     "limits": "To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.",
      "editions": {
       "host": "yes",
       "hack": "yes",
       "enterprise": "partial",
       "smallbox": "yes"
      },
-     "editions_note": "Enterprise decides who can open a site with access levels instead of a public or unlisted switch.",
+     "editions_note": "Enterprise keeps its access levels; listed means internal company directory and search discovery.",
      "status": "live",
      "status_note": "",
      "docs": [
@@ -761,7 +761,7 @@
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-visibility (Where said 'on your sites page only'; FEATURES.md lists set_visibility and PUT /v1/sites/{sitename}/visibility, so the AI app can do it too, FEATURES.md wins); FEATURES.md \u00a71 lead (unlisted default, X-Robots-Tag, robots.txt, own domain or name exempt); PARITY row 'Who can open a site' for Enterprise access levels. Hack: set_visibility exists; not stated for Hack showcase. Not rendered."
+     "evidence": "features.html #site-visibility (Where said 'on your sites page only'; FEATURES.md lists set_visibility and PUT /v1/sites/{sitename}/visibility, so the AI app can do it too, FEATURES.md wins); FEATURES.md \u00a71 lead (List on my profile, default off, every open site indexable); PARITY row 'Who can open a site' for Enterprise access levels. Hack: set_visibility exists; not stated for Hack showcase. Not rendered."
     },
     {
      "id": "site-notfound-page",
@@ -3994,7 +3994,7 @@
      "name": "Your sites page",
      "line": "At simple-host.app/your-handle, one page manages every site: address, versions, domain, saved data, analytics, keys, and connected apps.",
      "who": "Every owner with a handle; signing in takes you here.",
-     "how": "Each site card shows Open and Manage. Manage is one menu: visibility, offline, passcode, who can open, versions, storage, rename, domain, download, keep for good, then Delete last in red. Delete asks in a dialog that names how long Recently deleted keeps it; lowering kept versions asks you to type how many go; opening a storage preset to more readers asks first. Three tabs separate Sites, Analytics, and Settings. Sites opens by default with Your sites and Recently deleted when it has items. Analytics starts with totals and the range selector. Settings holds Your address with Home page, Your showcase, Sign-in, Password when available on a small box, Connected apps, Keys, Notifications, Address families when available, and Your data, with Delete account last. Empty Connected apps offers a Connect your AI app link. Tab and section links open the right panel; site-control links open Sites. All three tabs fit one row on phones. Sites sort by Recently updated by default, with Recently created, Name, and Most viewed (people, 30 days) as alternatives, remembered per browser. Every question is asked in the page itself, never in a browser pop-up, so an AI browsing agent can read and answer it.",
+     "how": "Each site card shows Open and Manage. Manage is one menu: List on my profile, offline, passcode, who can open, versions, storage, rename, domain, download, keep for good, then Delete last in red. Delete asks in a dialog that names how long Recently deleted keeps it; lowering kept versions asks you to type how many go; opening a storage preset to more readers asks first. Three tabs separate Sites, Analytics, and Settings. Sites opens by default with Your sites and Recently deleted when it has items. Analytics starts with totals and the range selector. Settings holds Your address with Home page, Your showcase, Sign-in, Password when available on a small box, Connected apps, Keys, Notifications, Address families when available, and Your data, with Delete account last. Empty Connected apps offers a Connect your AI app link. Tab and section links open the right panel; site-control links open Sites. All three tabs fit one row on phones. Sites sort by Recently updated by default, with Recently created, Name, and Most viewed (people, 30 days) as alternatives, remembered per browser. Every question is asked in the page itself, never in a browser pop-up, so an AI browsing agent can read and answer it.",
      "example": "A design studio with twelve client sites searches the list, opens Manage on one, rolls it back a version, and checks the week's visitors on the Analytics tab.",
      "where": "`simple-host.app/your-handle`; the header's Your sites link.",
      "limits": "Search appears from 10 sites. Classic lists and page data fold into one closed section.",
@@ -4120,10 +4120,10 @@
     {
      "id": "dashboard-webmcp",
      "name": "Page tools for a browsing agent",
-     "line": "Your sites page and Add photos offer a browsing agent in the same tab a few tools: list sites, open one, change visibility, add photos.",
+     "line": "Your sites page and Add photos offer browsing agents tools to list sites, open one, set List on my profile, and add photos.",
      "who": "Anyone driving the dashboard with an AI browser agent rather than clicking.",
-     "how": "Once the page confirms you are the signed-in owner, it registers tools with the browser's model context. On your sites page: list your sites, read a site's link, open a site, and set its visibility (marked consequential, so a compliant agent asks before changing it). On Add photos: list your sites, choose the site for photos, and add photos through the page's own save, waiting for the real result.",
-     "example": "A consultant tells their browser agent \"make the Q3 report site unlisted\"; the agent asks once, then does it on the page.",
+     "how": "Once the page confirms you are the signed-in owner, it registers tools with the browser's model context. On your sites page: list your sites, read a site's link, open a site, and set List on my profile (marked consequential, so a compliant agent asks before changing it). On Add photos: list your sites, choose the site for photos, and add photos through the page's own save, waiting for the real result.",
+     "example": "A consultant tells their browser agent \"turn List on my profile off for the Q3 report site\"; the agent asks once, then does it on the page.",
      "where": "Automatic on your sites page and Add photos when you are signed in.",
      "limits": "A signed-out visit, an admin on someone else's page, and a photo link register nothing. Add photos through the tool is capped at 30 photos with the same size limits as the picker. Your browser has to support WebMCP.",
      "editions": {
@@ -4306,7 +4306,7 @@
      "how": "The page lists your public sites, each linked at its own address, with your bio above them in the order you set. Old `sites.simple-host.app/<handle>` links redirect to it. If you chose a site as your home page, that site opens at the address instead.",
      "example": "A photographer shares one link with a gallery; it lists her wedding portfolio, her price list, and a client proofing page.",
      "where": "The link is shown to you on your sites page, under Your public showcase.",
-     "limits": "Only public sites appear. Unlisted sites, sites with a passcode, offline sites, taken-down sites, deleted sites, and every site of a suspended account are left out, even when pinned.",
+     "limits": "Only sites with List on my profile on appear. Sites with it off, sites with a passcode, offline sites, taken-down sites, deleted sites, and every site of a suspended account are left out, even when pinned.",
      "editions": {
       "host": "yes",
       "hack": "no",
@@ -4334,7 +4334,7 @@
      "name": "Pin, order, and a short bio",
      "line": "Pin the sites you want seen first, set the order of the rest, and write a plain-text bio that sits above them.",
      "who": "Anyone whose showcase is a first impression: a freelancer, a studio, a founder with several products.",
-     "how": "In Your showcase, save a short plain-text bio, pin projects and set their order. Pinned projects come first, then smaller order numbers, with creation time breaking ties. Unlisted stays hidden even when pinned. The page and the public feed use the same order. Connector `set_bio` and `set_showcase_site`; REST `GET/PUT /v1/me/bio` and `GET/PUT /v1/sites/{site}/showcase`.",
+     "how": "In Your showcase, save a short plain-text bio, pin projects and set their order. Pinned projects come first, then smaller order numbers, with creation time breaking ties. Sites with List on my profile off stay off the profile even when pinned. The page and the public feed use the same order. Connector `set_bio` and `set_showcase_site`; REST `GET/PUT /v1/me/bio` and `GET/PUT /v1/sites/{site}/showcase`.",
      "example": "A product studio pins its two flagship apps, orders the client work beneath them, and writes one line about what it takes on.",
      "where": "Your showcase on your sites page, or ask your AI app.",
      "limits": "The bio is plain text and defaults to 280 characters; the operator can set it anywhere from 1 to 2000. Order numbers run from 0 to 1,000,000. Full owner sign-in or the connector only; deploy-only keys cannot change it.",
@@ -5037,7 +5037,7 @@
      "name": "Take-down and suspension",
      "line": "The operator can take a site down or suspend an account, reversibly, with the reason shown and nothing deleted.",
      "who": "Visitors and owners of a site the operator has acted on, and operators handling an abuse report.",
-     "how": "A taken-down site answers 'This site has been taken down' on every address it had (its site host, its person path, its claimed name, and its custom domain). The owner sees the reason on their dashboard. The owner's key can still read and export the site; deploys, renames, visibility changes, and data writes are refused. A suspended person's key, connected apps, and visitor sessions stop working with the reason, sign-in is refused, and their sites go down. Nothing is deleted. Restore or re-enable reverses it; a site taken down on its own stays down when its owner is re-enabled.",
+     "how": "A taken-down site answers 'This site has been taken down' on every address it had (its site host, its person path, its claimed name, and its custom domain). The owner sees the reason on their dashboard. The owner's key can still read and export the site; deploys, renames, changes to List on my profile, and data writes are refused. A suspended person's key, connected apps, and visitor sessions stop working with the reason, sign-in is refused, and their sites go down. Nothing is deleted. Restore or re-enable reverses it; a site taken down on its own stays down when its owner is re-enabled.",
      "example": "A page impersonating a bank is reported on a Sunday; the operator takes it down within the hour, the owner sees the reason, and nothing is lost if the appeal succeeds.",
      "where": "The take-down page a visitor sees; the reason on the owner's dashboard and site cards.",
      "limits": "A suspended site keeps everything and is kept past the Recently deleted window. The take-down page loads nothing and carries no link. Appeals are read by a person within 30 days (see Terms, privacy, and support).",

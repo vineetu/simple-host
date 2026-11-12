@@ -221,9 +221,9 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
   on the site's own address alike. Do not set `visitor_id` from caller-supplied values anywhere
   else in that path; the owner's raw `storage_sql_execute`/`execute` SQL console is a separate,
   pre-existing, unrestricted door and is not where this check runs.
-- Site gates include suspension/offline, passcodes or named viewers; unlisted is listing/robots
-  policy, not an access lock. Reads are not universally public (`handler/passcode.go:siteGate`,
-  `viewers.go`, `unlisted.go`, `internal/app/storage/access.go`). A shared site-wide passcode and
+- Site gates include suspension/offline, passcodes or named viewers; List on my profile only controls the profile page
+  and does not grant access. Reads are not universally public (`handler/passcode.go:siteGate`,
+  `viewers.go`, `seo.go`, `internal/app/storage/access.go`). A shared site-wide passcode and
   named viewers are mutually exclusive; named viewers sign in on the site origin. There is no per-page lock.
 - Normal site requests redirect to their verified own address with 302, so disconnection takes
   effect; version previews are an explicit exception (`handler/sitehost.go:SiteHosts`).

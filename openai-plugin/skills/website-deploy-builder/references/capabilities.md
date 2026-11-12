@@ -62,7 +62,7 @@ that needs a server.
 | Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
 | Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
 | Only these people should see it (emails given) | named viewers (`grant_site_viewer` with those emails, after asking) |
-| Only family, a class or a team should see it | ask: named viewers by email (each signs in) or one shared passcode set in the trusted Simple Host dashboard, never entered in chat; not unlisted |
+| Only family, a class or a team should see it | ask: named viewers by email (each signs in) or one shared passcode set in the trusted Simple Host dashboard, never entered in chat; List on my profile only controls the profile page |
 | Small shop | product list in the page, cart in `localStorage`, “Each person's records” SQLite pattern, plus owner review |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |

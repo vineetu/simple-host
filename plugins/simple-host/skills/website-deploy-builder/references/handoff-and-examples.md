@@ -36,7 +36,7 @@ If the home is offline or taken down the showcase appears; rename follows the
 site and deleting it clears the choice. The dashboard's Your address panel also
 sets it. Available on Simple Host with person addresses, outside hosted events.
 "Show my projects on my home page" can mean keeping the default public showcase
-or building a site and making it home; unlisted sites stay off the showcase.
+or building a site and making it home; List on my profile off keeps sites off the profile.
 
 For "build me a home page that shows my projects", fetch the public live feed,
 render with `textContent`, then choose that site as home. For example:
@@ -54,7 +54,7 @@ fetch('https://simple-host.app/v1/u/YOUR_HANDLE/showcase.json', {credentials:'om
 ```
 
 Substitute the signed-in person's handle. The feed includes only the public
-showcase's entries (never unlisted, offline, passcode or taken-down sites), plus
+showcase's entries (never sites with List on my profile off, offline, passcode or taken-down sites), plus
 `bio`, `updated_at`, `pinned` and `order`. It allows cross-origin reads without
 credentials, caches for 30 seconds and uses the public read rate limits.
 
@@ -63,7 +63,7 @@ To curate the default showcase, use connector `set_bio` with `{"bio":"I make thi
 Owner REST clients use `GET/PUT /v1/me/bio` and `GET/PUT /v1/sites/{name}/showcase`.
 Both refuse deploy-only keys. Pin/order may be changed separately; order is an
 integer from 0 to 1000000. Pinned projects come first, then smaller order numbers,
-then creation order for ties. Unlisted sites stay hidden even when pinned.
+then creation order for ties. Sites with List on my profile off stay off the profile even when pinned.
 The plain-text bio's limit is returned as `max_length`; it defaults to 280 characters
 and is configured by `SHOWCASE_BIO_MAX_LENGTH`. Render it with `textContent`.
 The dashboard's Your showcase has the same controls. Hosted events are excluded.

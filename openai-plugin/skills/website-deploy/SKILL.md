@@ -61,8 +61,8 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   domain ("orbit-notes") is a short `<name>.simple-host.app`: one `connect_domain` call, live at
   once. `rename_site` never makes an address shorter. More: the `connect-domain` skill.
 - **Only some people may open it.** Emails given: `grant_site_viewer` with exactly those; each
-  signs in on the site with that email. "With a code" or "a password": direct the person to set it in the Simple Host dashboard. Do not ask for or repeat a passcode in chat. Neither: ask which. Unlisted (`set_visibility`)
-  only hides a site from their public page; it is not privacy.
+  signs in on the site with that email. "With a code" or "a password": direct the person to set it in the Simple Host dashboard. Do not ask for or repeat a passcode in chat. Neither: ask which. List on my profile (`set_visibility`, public = on, unlisted = off)
+  only controls the profile page. Every open site can be found by search engines; new sites start off.
 - **A page only the owner uses** (notes, a log, a list of entries). Topic `private` (`admin` to
   manage visitors' entries). The owner signs in on the page with their account email through the
   same sign-in box. Other jobs: the topic from the table.

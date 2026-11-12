@@ -637,15 +637,14 @@ func siteTools(limits Limits) []Tool {
 			policy: toolPolicy{hackSite: hackSiteSetVisibility},
 			OutputSchema: outObject(map[string]any{
 				"site":       outString(outSiteName),
-				"visibility": outEnum("public: listed on the account's public page; unlisted: left off it, and out of search engines unless the site has its own domain or name (still public to anyone with the address).", "public", "unlisted"),
+				"visibility": outEnum("List on my profile: public = on; unlisted = off. Every open site can be found by search engines.", "public", "unlisted"),
 			}, "site", "visibility"),
-			Name:  "set_visibility",
-			Title: "Show or hide a site on my public page",
-			Description: "Choose whether a site is listed on the account's public page (https://<handle>.simple-host.app/). An unlisted site is also kept out of search engines unless it has its own domain or claimed name (noindex on every address; its own robots.txt, if it ships one, is kept). " +
-				"This is NOT privacy: an unlisted site is still public to anyone with its address; never describe unlisted as private. To ask visitors for a passcode on the whole site, use set_site_passcode.",
+			Name:        "set_visibility",
+			Title:       "List on my profile",
+			Description: "List on my profile: on shows the site on the owner's profile page (https://<handle>.simple-host.app/); off leaves it off. New sites start off. Every open site can be found by search engines. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
-				"visibility": map[string]any{"type": "string", "enum": []string{"public", "unlisted"}, "description": "`public` lists it on the public page; `unlisted` leaves it off, and out of search engines unless the site has its own domain or name (still reachable by its address)."},
+				"visibility": map[string]any{"type": "string", "enum": []string{"public", "unlisted"}, "description": "List on my profile: `public` = on; `unlisted` = off. Does not affect search engines."},
 			}, "site", "visibility"),
 			// Adds a site to, or removes it from, a public listing page.
 			Annotations: writes(true, true, true),

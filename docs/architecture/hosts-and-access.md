@@ -182,7 +182,7 @@ mutually exclusive (409 on conflicting configuration). Named-viewer access `spec
 owner and the explicitly named email identities after visitor sign-in on the site's own origin;
 a suspended account is refused. Owner/admin account API authority is handled separately
 (`handler/viewers.go:viewerAllowed`, `viewersLetIn`, owner access routes in `viewers.go` and `passcode.go`).
-There is no per-page view lock. Unlisted controls listing/robots rather than granting access.
+There is no per-page view lock. List on my profile only controls the profile page.
 
 Host grandfathered APIs run through `internal/app/legacy`; storage resources have their own
 policy in `internal/app/storage/access.go`. Hosted Hack returns 410 for state/collection/declared-data,
@@ -236,3 +236,15 @@ from that snapshot. The policy window is empty-to-full refill time, not a fixed 
 Analytics exclude query strings from the access log, since queries can carry emails or tokens
 (`deploy/prod/nginx-analytics-logformat.conf`); local GeoIP and hashed/truncated analytics identity
 rules remain in [ARCHITECTURE.md](../../ARCHITECTURE.md#invariants-and-traps).
+
+### Profile listing and search engines
+
+List on my profile (`sites.visibility`: `public` = on, `unlisted` = off, default off)
+only controls the owner's profile page. Every open site can be found by search engines
+on every address. Go and disk servers add no indexing restriction for this setting.
+Missing robots.txt is 404; a site's own robots.txt and meta tags are served as supplied.
+Passcode, named viewers, offline, taken-down, deleted and preview responses retain noindex.
+Hosted sitemaps enumerate eligible open sites with one repository query and disk checks,
+cached ten minutes per brand. Own domains (including claimed names) win, then canonical
+families, then the normal platform address; redirecting aliases are omitted. Self-hosted
+instances enumerate only marketing and docs pages.

@@ -1178,7 +1178,7 @@
 </table>
 <h2 id="set_visibility">set_visibility</h2>
 <div data-tool="set_visibility"></div>
-<p>Choose whether a site is listed on the account’s public page (https://&lt;handle&gt;.simple-host.app/). An unlisted site is also kept out of search engines unless it has its own domain or claimed name (noindex on every address; its own robots.txt, if it ships one, is kept). This is NOT privacy: an unlisted site is still public to anyone with its address; never describe unlisted as private. To ask visitors for a passcode on the whole site, use set_site_passcode.</p>
+<p>List on my profile: on shows the site on the owner’s profile page (https://&lt;handle&gt;.simple-host.app/); off leaves it off. New sites start off. Every open site can be found by search engines. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1200,7 +1200,7 @@
 <td>visibility</td>
 <td>string, one of <code>public</code>, <code>unlisted</code></td>
 <td>yes</td>
-<td><code>public</code> lists it on the public page; <code>unlisted</code> leaves it off, and out of search engines unless the site has its own domain or name (still reachable by its address).</td>
+<td>List on my profile: <code>public</code> = on; <code>unlisted</code> = off. Does not affect search engines.</td>
 </tr>
 </tbody>
 </table>

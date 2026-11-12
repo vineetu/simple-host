@@ -163,14 +163,6 @@ services:
                     rewrite * /internal/passcode{uri}
                     import app
                   }
-                  @unlisted file {
-                    root /data/sites/handles
-                    try_files /{re.site.1}/{re.site.2}/unlisted
-                  }
-                  route @unlisted {
-                    rewrite * /internal/passcode{uri}
-                    import app
-                  }
                   @redirects file {
                     root /data/sites/handles
                     try_files /{re.site.1}/{re.site.2}/redirects

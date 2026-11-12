@@ -198,7 +198,7 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 |---|---|
 | "a landing page / portfolio / CV" | static only |
 | "only mom@example.com and dad@example.com should see it" | static + named viewers (`grant_site_viewer` with those emails, after asking) |
-| "only my family / class / team should see it" | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`); not unlisted |
+| "only my family / class / team should see it" | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`); List on my profile only controls the profile page |
 | "a guestbook" | static + a SQLite table with preset `comments` (`get_page_recipe` topic `comments`; anyone posts after a spam check, optional approve-first), or `wall` when posters should sign in and take back their own. An existing guestbook using public Submissions can keep them. |
 | "a waitlist / quote request / contact / signup form" | SQLite with preset `inbox` (`get_page_recipe` topic `inbox`): anyone sends without signing in, only the owner reads. An event RSVP people check later is `records`; `board` for a sheet people edit together, `wall` for a public who's-coming list. |
 | "take orders / bookings / reservations / appointments" | SQLite with preset `records` (topic `booking` for bookings and reservations: the customer signs in when they book and sees the status; “Each person's records” pattern below for orders; `admin` recipe for an owner page); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |

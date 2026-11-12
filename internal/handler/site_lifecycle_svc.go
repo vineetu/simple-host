@@ -18,8 +18,8 @@ func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sit
 			return h.captureSiteResponseState(site, version, preview, footprint)
 		},
 		LockSite: h.lockSite, DeletedRetention: h.limits.DeletedRetention,
-		ImageScanEnabled: h.imageScan != nil, Marker: h.syncUnlistedMarker,
-		HasLiveFamilies: h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect,
+		ImageScanEnabled: h.imageScan != nil,
+		HasLiveFamilies:  h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect,
 		RequestCert: h.RequestSiteCert, CancelDomainCert: h.cancelDomainCert,
 		ExportSQLiteMaxMemory: storageSQLiteMaxMemory,
 		ExportResources: func(ctx context.Context, siteID string) ([]map[string]any, error) {

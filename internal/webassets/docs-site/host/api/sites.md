@@ -547,9 +547,7 @@ Owner only. The person's next request is refused. Access does not change: removi
 
 <div data-operation="PUT /v1/sites/{sitename}/visibility"></div>
 
-Set whether this site is listed on the owner's account page at https://&lt;handle&gt;.simple-host.app/. `public` = listed there; `unlisted` = hidden from it. New sites are created `unlisted` — listing is an explicit act, not a side effect of deploying.
-
-An unlisted site is hidden from the showcase, and from search engines unless the site has its own domain or name (a custom domain, an address-family address, or a claimed free name): every address of an unlisted site without one answers with `X-Robots-Tag: noindex, nofollow`, and its `/robots.txt` says `Disallow: /` unless the site ships its own robots.txt (the site's file wins; the header still applies). A public site, or an unlisted one with its own domain or name, gets neither, on every address. The change applies on the next request. Both values are equally reachable by anyone with the URL: `unlisted` is not privacy and must never be described as such. Owner only (API key).
+List on my profile: `public` = on, the site shows on the owner's profile page at https://&lt;handle&gt;.simple-host.app/; `unlisted` = off, it does not. New sites start off. Existing values stay unchanged. Every open site can be found by search engines, on every address. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex. Owner only (API key).
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 

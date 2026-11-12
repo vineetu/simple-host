@@ -17,7 +17,7 @@
 1. In Settings, find the showcase controls and choose a site you want to show.
 2. Tick **Pin to top** and set its order number. Put smaller numbers first among pinned sites, then among the remaining sites.
 3. With the API, send `PUT /v1/sites/{sitename}/showcase` with `{"pinned":true,"order":10}`.
-4. Update the site's title and description with the site's editing controls if its card text needs changing. Check its visibility before looking for it on the public page; unlisted sites are omitted.
+4. Update the site's title and description with the site's editing controls if its card text needs changing. Check its visibility before looking for it on the public page; sites with List on my profile off are omitted.
 
 
 ## Choose a home page
@@ -51,3 +51,5 @@
 ## Next
 - [Sites and deploy](/docs/guides/publish.md)
 - [Traffic and analytics](/docs/guides/analytics.md)
+
+Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.

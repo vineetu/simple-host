@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-12: Every open site can now be found by search engines (SIM-441). The listed/unlisted switch is renamed List on my profile and only decides whether a site shows on your profile page; it is still off for new sites and every site keeps its current setting. Sites with a passcode or named viewers, offline, taken-down and deleted sites stay out of search engines, and a site's own robots.txt or noindex is respected. The simple-host.app and simple-hack.app sitemaps now list every open site's address. Old API and AI-app calls that set visibility keep working.
+
 2026-11-12: Keep old links working with a root `_redirects` file, checked on publish and applied after access gates. Plain `/faq` addresses serve `faq.html` directly; directory-only pages keep their trailing slash redirect (SIM-440).
 
 2026-11-12: Simple Hack participants can browse submitted entries from Judging onward. Organisers can show the same submissions on the public event page and custom website feed with a new setting, off by default (SIM-442).

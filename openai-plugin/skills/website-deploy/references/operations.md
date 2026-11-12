@@ -12,7 +12,7 @@ Moved here from SKILL.md unchanged.
 | Publish a new site | `create_site` |
 | Change an existing site | `update_site` (read its files first; `edits` for a small change) |
 | Versions, a preview link, undo a bad publish, how many to keep | `list_versions`, `preview_version`, `rollback_site`, `set_keep_versions` |
-| Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
+| Rename, List on my profile, delete | `rename_site`, `set_visibility`, `delete_site` |
 | Take offline or back online (keeps everything) | `set_site_offline` |
 | Only named people can open a whole site (by email) | `grant_site_viewer`, `list_site_viewers`, `revoke_site_viewer`, `set_site_access` |
 | Set, change, or view a site passcode | Direct the person to the trusted Simple Host dashboard; never request or repeat the passcode in chat |

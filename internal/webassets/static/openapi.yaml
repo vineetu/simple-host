@@ -2600,25 +2600,14 @@ paths:
       x-audience: ["public-host"]
       tags: ["Sites"]
       operationId: putSitesBySitenameVisibility
-      summary: Set showcase visibility
+      summary: List on my profile
       description: >-
-        Set whether this site is listed on the owner's account page at
-        https://<handle>.simple-host.app/. `public` = listed there; `unlisted` =
-        hidden from it. New sites are created `unlisted` — listing is an
-        explicit act, not a side effect of deploying.
-
-
-        An unlisted site is hidden from the showcase, and from search engines
-        unless the site has its own domain or name (a custom domain, an
-        address-family address, or a claimed free name): every address of an
-        unlisted site without one answers with `X-Robots-Tag: noindex,
-        nofollow`, and its `/robots.txt` says `Disallow: /` unless the site
-        ships its own robots.txt (the site's file wins; the header still
-        applies). A public site, or an unlisted one with its own domain or
-        name, gets neither, on every address. The change applies on the next request. Both
-        values are equally reachable by anyone with the URL: `unlisted` is
-        not privacy and must never be described as such. Owner only (API
-        key).
+        List on my profile: `public` = on, the site shows on the owner's profile
+        page at https://<handle>.simple-host.app/; `unlisted` = off, it does not.
+        New sites start off. Existing values stay unchanged.
+        Every open site can be found by search engines, on every address.
+        To keep a site out, use a passcode or named viewers, take it offline,
+        or ship your own robots.txt / noindex. Owner only (API key).
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
       requestBody:
@@ -7246,7 +7235,7 @@ paths:
                               domain_status: { type: string, description: "The custom domain's state (pending, active, ...); empty without one" }
                               created_at: { type: string, format: date-time }
                               deployed_at: { type: string, format: date-time, nullable: true, description: When the live version went up; null before the first deploy }
-                              visibility: { type: string, enum: [public, unlisted] }
+                              visibility: { type: string, enum: [public, unlisted], description: "List on my profile: public = on; unlisted = off (default). Does not affect search engines." }
                               offline: { type: boolean, description: The owner has taken it offline }
                               suspended: { type: boolean }
                               suspended_reason: { type: string }
@@ -13329,7 +13318,7 @@ paths:
       x-audience: ["public-host"]
       tags: ["Showcase"]
       summary: Live public showcase feed
-      description: Exactly the public showcase projection. Unlisted, passcode-protected, offline, taken-down and deleted sites are omitted, as are sites of suspended accounts. Independent of the chosen home. Public without a key, CORS wildcard without credentials, cached 30 seconds and rate limited like public reads. Hosted events excluded.
+      description: Exactly the public showcase projection. Sites with List on my profile off, passcode-protected, offline, taken-down and deleted sites are omitted, as are sites of suspended accounts. Independent of the chosen home. Public without a key, CORS wildcard without credentials, cached 30 seconds and rate limited like public reads. Hosted events excluded.
       security: []
       parameters:
         - { name: handle, in: path, required: true, schema: { type: string } }
@@ -13420,7 +13409,7 @@ paths:
       x-audience: ["public-host"]
       tags: ["Account"]
       summary: Pin or manually order an owned site on the showcase
-      description: Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first, then ascending order, with creation time breaking ties. Unlisted and unavailable sites stay hidden in HTML and JSON, even when pinned. Preferences follow rename and restore. Owner key or connector only, never deploy-only keys; hosted events excluded.
+      description: Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first, then ascending order, with creation time breaking ties. Sites with List on my profile off and unavailable sites stay off the profile in HTML and JSON, even when pinned. Preferences follow rename and restore. Owner key or connector only, never deploy-only keys; hosted events excluded.
       security: [{ apiKey: [] }]
       requestBody:
         required: true
@@ -15982,7 +15971,7 @@ components:
         site_url: { type: string, nullable: true, description: "The link to share: https://<site>.<handle>.simple-host.app/ (briefly https://<handle>.simple-host.app/<site>/ for a brand-new account), or the site's domain when it has one", example: https://my-cool-site.jane.simple-host.app/ }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-        visibility: { type: string, enum: [public, unlisted] }
+        visibility: { type: string, enum: [public, unlisted], description: "List on my profile: public = on; unlisted = off (default). Does not affect search engines." }
         custom_domain: { type: string, description: "The site's free <name>.simple-host.app address or its own domain, when it has one" }
         domain_status: { type: string, enum: [pending, active, error] }
         deployed_at: { type: string, format: date-time, description: "When the newest version went live (site list only)" }

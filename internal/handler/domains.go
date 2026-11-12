@@ -549,7 +549,7 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	h.markUnlisted(w, user.ID, site.Name)
+	markRestrictedSite(w, site)
 	// Only a proven domain (or a live family address): a pending one may not
 	// serve anything yet.
 	info, ok, err := h.siteOwnAddress(r.Context(), site.ID)

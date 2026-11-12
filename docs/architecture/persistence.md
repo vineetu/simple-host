@@ -107,7 +107,6 @@ by-id/<user-id>/<site>/
   runtime/files/          bucket objects
   domain-redirect        custom-address redirect marker
   suspended              suspension marker
-  unlisted               no-own-address, unlisted marker
 handles/<handle>         symlink to ../by-id/<user-id>
 domains/<domain>         symlink to ../by-id/<user-id>/<site>
 ```
@@ -127,14 +126,11 @@ Evidence: `internal/storage/disk.go` (`RenameSite`, `DeleteSite`),
 
 The suspension marker mirrors site or owner suspension and is reconciled at
 boot. Go checks it when serving; nginx and Caddy check it when reading disk and
-route to `/internal/suspended`. The `unlisted` marker applies only to an unlisted
-site without a proven custom, claimed or family address. Go adds
-`X-Robots-Tag: noindex, nofollow` and supplies a missing `/robots.txt` denying
-crawls. Caddy sends these sites through `/internal/passcode`; nginx's own-address
-vhosts need no such check. Visibility/address changes refresh the marker, and
-startup reconciles it. Evidence: `internal/handler/unlisted.go`,
-`syncDomainRedirect` in `internal/handler/platformsubdomain.go`, suspension handlers and
-`deploy/prod/nginx-suspended-marker.sh`.
+route to `/internal/suspended`. List on my profile is stored in sites.visibility (`public` = on, `unlisted` = off, default off).
+It only controls the profile page. Legacy unlisted marker files are inert and removed once
+when disk storage opens, including in Recently deleted; missing files are tolerated and the
+count is logged. Every open site can be found by search engines. Evidence:
+`internal/storage/disk.go`, `internal/handler/seo.go`.
 
 ## Publication and rollback
 

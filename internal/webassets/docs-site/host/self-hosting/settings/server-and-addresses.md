@@ -115,7 +115,7 @@ rate limits. The Website Deploy skill includes a small example.
 
 The default showcase is yours to curate. In **Your showcase**, save a plain-text
 bio, pin projects and give each public site an order number. Pinned projects come
-first, then smaller order numbers; ties retain creation order. Unlisted sites
+first, then smaller order numbers; ties retain creation order. Sites with List on my profile off
 stay hidden even when pinned. The feed uses this same order and bio.
 
 Owner REST: `GET/PUT /v1/me/bio` with `{"bio":"I make things"}` (empty clears),
@@ -146,7 +146,7 @@ A custom home can fetch `GET /v1/u/{handle}/showcase.json` from the API origin
 without credentials. Its `handle`, `bio` and `sites` include each visible site's
 `name`, `url`, `title`, `description`, `created_at`, `updated_at`, `pinned` and
 `order`. The feed uses the public showcase filter, CORS without credentials and
-a 30-second cache. Unlisted, offline, passcode-protected, named-viewers-only and taken-down sites
+a 30-second cache. Sites with List on my profile off, offline, passcode-protected, named-viewers-only and taken-down sites
 stay hidden.
 
 On hosted Simple Host, the selected site serves at the person-host root and keeps its normal URL; sign-in and data on that origin cover the selected site only. On a small-box install, including Droplet 1-Click and Coolify, the default path model remains: `https://sites.<domain>/<handle>` opens the selected site's normal URL. The owner dashboard remains `https://<domain>/<handle>`. No wildcard DNS or extra certificate is required for path-model home selection. Person-host installations keep the hosted behavior when configured. A domain for a whole personal space has not shipped; existing per-site domains remain.
@@ -161,3 +161,5 @@ only. `MCP_PASSCODE_SCREEN_TTL_SECONDS` sets its single-use session lifetime (60
 seconds by default). Installer forwarding for these two settings is not included.
 
 `MCP_APP_MY_SITES` and `MCP_APP_DASHBOARD` are read from the server process environment on each request. Both default to `off`; `on` enables all eligible connections, and `accounts:alice,bob` limits them to authenticated handles. Dashboard requires My sites.
+
+Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.

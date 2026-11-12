@@ -831,7 +831,7 @@ credentials; it allows any origin, caches for 30 seconds and uses public-read
 rate limits. The Website Deploy skill includes a small example.</p>
 <p>The default showcase is yours to curate. In <strong>Your showcase</strong>, save a plain-text
 bio, pin projects and give each public site an order number. Pinned projects come
-first, then smaller order numbers; ties retain creation order. Unlisted sites
+first, then smaller order numbers; ties retain creation order. Sites with List on my profile off
 stay hidden even when pinned. The feed uses this same order and bio.</p>
 <p>Owner REST: <code>GET/PUT /v1/me/bio</code> with <code>{"bio":"I make things"}</code> (empty clears),
 and <code>GET/PUT /v1/sites/{sitename}/showcase</code> with <code>{"pinned":true,"order":10}</code>;
@@ -857,7 +857,7 @@ The bio limit is <code>SHOWCASE_BIO_MAX_LENGTH</code> (280 characters; range 1�
 without credentials. Its <code>handle</code>, <code>bio</code> and <code>sites</code> include each visible site’s
 <code>name</code>, <code>url</code>, <code>title</code>, <code>description</code>, <code>created_at</code>, <code>updated_at</code>, <code>pinned</code> and
 <code>order</code>. The feed uses the public showcase filter, CORS without credentials and
-a 30-second cache. Unlisted, offline, passcode-protected, named-viewers-only and taken-down sites
+a 30-second cache. Sites with List on my profile off, offline, passcode-protected, named-viewers-only and taken-down sites
 stay hidden.</p>
 <p>On hosted Simple Host, the selected site serves at the person-host root and keeps its normal URL; sign-in and data on that origin cover the selected site only. On a small-box install, including Droplet 1-Click and Coolify, the default path model remains: <code>https://sites.&lt;domain&gt;/&lt;handle&gt;</code> opens the selected site’s normal URL. The owner dashboard remains <code>https://&lt;domain&gt;/&lt;handle&gt;</code>. No wildcard DNS or extra certificate is required for path-model home selection. Person-host installations keep the hosted behavior when configured. A domain for a whole personal space has not shipped; existing per-site domains remain.</p>
 <h2 id="mcp-apps-in-installed-copies">MCP Apps in installed copies</h2>
@@ -867,6 +867,7 @@ process as <code>on</code> or <code>accounts:alice,bob</code>. It defaults off a
 only. <code>MCP_PASSCODE_SCREEN_TTL_SECONDS</code> sets its single-use session lifetime (600
 seconds by default). Installer forwarding for these two settings is not included.</p>
 <p><code>MCP_APP_MY_SITES</code> and <code>MCP_APP_DASHBOARD</code> are read from the server process environment on each request. Both default to <code>off</code>; <code>on</code> enables all eligible connections, and <code>accounts:alice,bob</code> limits them to authenticated handles. Dashboard requires My sites.</p>
+<p>Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

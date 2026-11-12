@@ -6,7 +6,7 @@ Public feed of a person’s showcased sites.
 
 <div data-operation="GET /v1/u/{handle}/showcase.json"></div>
 
-Exactly the public showcase projection. Unlisted, passcode-protected, offline, taken-down and deleted sites are omitted, as are sites of suspended accounts. Independent of the chosen home. Public without a key, CORS wildcard without credentials, cached 30 seconds and rate limited like public reads. Hosted events excluded.
+Exactly the public showcase projection. Sites with List on my profile off, passcode-protected, offline, taken-down and deleted sites are omitted, as are sites of suspended accounts. Independent of the chosen home. Public without a key, CORS wildcard without credentials, cached 30 seconds and rate limited like public reads. Hosted events excluded.
 
 No authentication required.
 

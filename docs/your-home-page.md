@@ -14,7 +14,7 @@ A custom home can fetch `GET /v1/u/{handle}/showcase.json` from the API origin
 without credentials. Its `handle`, `bio` and `sites` include each visible site's
 `name`, `url`, `title`, `description`, `created_at`, `updated_at`, `pinned` and
 `order`. The feed uses the public showcase filter, CORS without credentials and
-a 30-second cache. Unlisted, offline, passcode-protected, named-viewers-only and taken-down sites
+a 30-second cache. Sites with List on my profile off, offline, passcode-protected, named-viewers-only and taken-down sites
 stay hidden.
 
 On hosted Simple Host, the selected site serves at the person-host root and
@@ -26,3 +26,5 @@ No wildcard DNS or extra certificate is required for path-model home selection.
 Person-host installations keep the hosted behavior when configured. A domain
 for a whole personal space has not shipped; existing per-site domains remain.
 Simple Hack accounts own no personal sites, so this feature does not apply.
+
+Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.

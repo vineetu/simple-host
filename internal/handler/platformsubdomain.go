@@ -187,9 +187,6 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 	if h.siteGate(w, r, userID, siteName, rel) {
 		return
 	}
-	if h.unlistedSite(userID, siteName) && h.serveUnlistedRobots(w, r, userID, siteName) {
-		return
-	}
 	h.ownerFrameGuard(w, r, userID)
 	// Redirect rules (_redirects), only once every gate above has passed.
 	if h.applyRedirect(w, r, userID, siteName, rel, publicPath) {
@@ -336,10 +333,4 @@ func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
 	}
 	// Its family addresses redirect only to a domain of its own.
 	h.syncLivesElsewhere(ctx, siteID, userID, name)
-	// An own address exempts an unlisted site from noindex (unlisted.go).
-	if site, err := h.opsSitesSvc().GetSiteByUser(ctx, userID, name); err == nil {
-		if err := h.syncUnlistedMarker(ctx, site); err != nil {
-			log.Printf("unlisted: marker for %s/%s: %v", userID, name, err)
-		}
-	}
 }

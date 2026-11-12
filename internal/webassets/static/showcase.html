@@ -805,7 +805,8 @@
         <div class="section" id="owner-showcase-curation" hidden>
           <div class="section-num"><h2>Your showcase</h2><span class="line"></span></div>
           <form id="bio-form" class="addr-form"><label for="bio-input">A short bio</label><textarea id="bio-input" rows="3" style="width:100%;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--border-hi);padding:10px"></textarea><small id="bio-limit" class="conn-note"></small><button type="submit" class="btn btn-primary btn-small">Save bio</button><span id="bio-msg" aria-live="polite"></span></form>
-          <p class="conn-note">Pin projects to the top. Smaller order numbers come first; pinned projects come first. Unlisted sites stay hidden.</p>
+          <p class="conn-note">Every open site can be found by search engines. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex. New sites start with List on my profile off.</p>
+          <p class="conn-note">Pin projects to the top. Smaller order numbers come first; pinned projects come first. Sites with List on my profile off stay off this page.</p>
           <div id="showcase-order-list"></div>
         </div>
         <div class="section" id="owner-signin" hidden>
@@ -1373,7 +1374,7 @@ function parseAnalyticsSummary(data) {
         newSite.target = '_self';
       }
       var sub = document.getElementById('profile-sub');
-      if (sub) sub.textContent = 'Your full site inventory, including unlisted sites.';
+      if (sub) sub.textContent = 'All your sites, including those not on your profile.';
       loadConnections();
       // The skill-install block is revealed by updateOnboarding() (called from
       // renderInventory once the owner's site count is known), not here.
@@ -2890,7 +2891,7 @@ function parseAnalyticsSummary(data) {
       return '<div class="inv-row" data-site="' + name + '">' +
         '<div class="inv-main">' +
           '<div class="inv-id">' +
-            '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span>' + (s.passcode_protected ? ' <span class="vis-badge unlisted">passcode</span>' : '') + (s.access === 'specific' ? ' <span class="vis-badge unlisted">named viewers</span>' : '') + dom + '</h3>' +
+            '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + (vis === 'public' ? 'On profile' : 'Not on profile') + '</span>' + (s.passcode_protected ? ' <span class="vis-badge unlisted">passcode</span>' : '') + (s.access === 'specific' ? ' <span class="vis-badge unlisted">named viewers</span>' : '') + dom + '</h3>' +
             '<div class="inv-path"><a href="' + openUrl + '" target="_blank" rel="noopener">' + esc(url.replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</a></div>' +
             '<div class="inv-meta">' + meta + '</div>' +
             (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
@@ -3518,19 +3519,19 @@ function parseAnalyticsSummary(data) {
         var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/visibility', { visibility: next });
         if (!res.ok) {
           var err = await res.json().catch(function () { return null; });
-          var message = (err && err.error) || 'Could not change visibility';
+          var message = (err && err.error) || 'Could not change List on my profile';
           toast(message, 'error');
           return { ok: false, error: message };
         }
         var badge = document.querySelector('[data-vis-badge="' + cssEsc(name) + '"]');
-        if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next; }
+        if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next === 'public' ? 'On profile' : 'Not on profile'; }
         var site = ownerSite(name);
         if (site) site.visibility = next;
-        toast(next === 'public' ? name + ' is now public: listed on your showcase page, and search engines may index it' : name + ' is now unlisted: hidden from your showcase page, and from search engines unless the site has its own domain or name. Anyone with the link can still open it', 'success');
+        toast(next === 'public' ? name + ' is now listed on your profile' : name + ' is no longer on your profile. Anyone with the link can still open it', 'success');
         return { ok: true };
       } catch (e) {
-        toast('Could not change visibility', 'error');
-        return { ok: false, error: 'Could not change visibility' };
+        toast('Could not change List on my profile', 'error');
+        return { ok: false, error: 'Could not change List on my profile' };
       }
     }
 
@@ -3543,7 +3544,7 @@ function parseAnalyticsSummary(data) {
       function listed(entry) { return entry.visibility === 'public' ? 'public' : 'unlisted'; }
       window.SHWebMCP.registerTool({
         name: 'list_my_sites',
-        description: 'List the signed-in owner\'s sites on this page, with visibility and the address each one opens at.',
+        description: 'List the signed-in owner\'s sites on this page, with List on my profile and the address each one opens at.',
         inputSchema: empty,
         annotations: { readOnlyHint: true },
         execute: function () {
@@ -3577,12 +3578,12 @@ function parseAnalyticsSummary(data) {
       });
       window.SHWebMCP.registerTool({
         name: 'set_site_visibility',
-        description: 'Make one of the owner\'s sites public or unlisted. A compliant agent asks the person before calling this.',
+        description: 'List on my profile: public = on, unlisted = off. Every open site can be found by search engines. A compliant agent asks the person before calling this.',
         inputSchema: {
           type: 'object',
           properties: {
             site: { type: 'string' },
-            visibility: { type: 'string', enum: ['public', 'unlisted'] }
+            visibility: { type: 'string', enum: ['public', 'unlisted'], description: 'List on my profile: public = on; unlisted = off. New sites start off.' }
           },
           required: ['site', 'visibility']
         },
@@ -3598,9 +3599,9 @@ function parseAnalyticsSummary(data) {
             if (current === visibility) return { ok: true, unchanged: true };
             var result = await toggleVis(name, current);
             if (result && result.ok) return { ok: true };
-            return { ok: false, error: (result && result.error) || 'Could not change visibility' };
+            return { ok: false, error: (result && result.error) || 'Could not change List on my profile' };
           } catch (e) {
-            return { ok: false, error: 'Could not change visibility' };
+            return { ok: false, error: 'Could not change List on my profile' };
           }
         }
       });
@@ -4306,7 +4307,7 @@ function parseAnalyticsSummary(data) {
       var n = ' data-name="' + escAttr(s.name) + '"';
       var ver = Number(s.active_version) || 0;
       var items = [];
-      items.push(miItem(vis === 'public' ? 'Make unlisted' : 'Make public', ' data-act="toggleVis"' + n + ' data-vis="' + vis + '"'));
+      items.push(miItem(vis === 'public' ? 'Remove from my profile' : 'List on my profile', ' data-act="toggleVis"' + n + ' data-vis="' + vis + '"'));
       items.push(miItem(s.offline ? 'Put back online' : 'Take offline', ' data-act="toggleOffline"' + n + ' data-offline="' + (s.offline ? '1' : '') + '"'));
       items.push(miItem('Passcode', ' data-act="openPasscode"' + n, s.passcode_protected ? 'on' : 'off'));
       items.push(miItem('Who can open', ' data-act="openViewers"' + n, s.access === 'specific' ? 'named people' : 'anyone'));

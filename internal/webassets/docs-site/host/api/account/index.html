@@ -1808,7 +1808,7 @@
 </table>
 <h2 id="put-v1sitessitenameshowcase">PUT /v1/sites/{sitename}/showcase</h2>
 <div data-operation="PUT /v1/sites/{sitename}/showcase"></div>
-<p>Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first, then ascending order, with creation time breaking ties. Unlisted and unavailable sites stay hidden in HTML and JSON, even when pinned. Preferences follow rename and restore. Owner key or connector only, never deploy-only keys; hosted events excluded.</p>
+<p>Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first, then ascending order, with creation time breaking ties. Sites with List on my profile off and unavailable sites stay off the profile in HTML and JSON, even when pinned. Preferences follow rename and restore. Owner key or connector only, never deploy-only keys; hosted events excluded.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>

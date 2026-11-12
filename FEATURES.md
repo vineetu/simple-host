@@ -50,20 +50,12 @@ Publish root `_redirects` rules for old paths, splats, placeholders and query li
 
 
 Upload a static site (tar.gz/zip or inline JSON files); versions, rollback, rename, delete,
-export, public/unlisted listing. An unlisted site (the default for new sites) is hidden from the
-owner's showcase page, and from search engines unless the site has its own domain or name. An
-unlisted site with no own address (no proven custom domain, claimed `<name>.simple-host.app` or
-address-family address) answers on every address (site host, person path, legacy content-host
-link) with `X-Robots-Tag: noindex, nofollow`, and `/robots.txt` at its own host says
-`Disallow: /` unless the site ships its own robots.txt, which wins (the header still applies). An
-unlisted site with its own domain or name, and every public site, get neither, on every address:
-connecting a domain is a sign the owner wants to be found. An empty `unlisted` marker in the site
-folder, present only for an unlisted site with no own address, carries it; it is rewritten on a
-visibility change and on every address change (domain verified or removed, name claimed or
-released, family added or removed, rename, restore), and re-synced at boot (`h/unlisted.go`).
-Self-hosted Caddy hands a marked site's requests to the app through the passcode path
-(`/internal/passcode/...`); nginx's custom-domain and family vhosts need no check, since a site
-they serve always has an own address. Anyone with the link can still open an unlisted site. Delete is recoverable: the site goes offline at once and stays in
+export, and **List on my profile** (`public` = on, `unlisted` = off, default off).
+On shows the site on the owner's profile page; off leaves it off. Every open site can be
+found by search engines on every address. To keep a site out, use a passcode or named
+viewers, take it offline, or ship your own robots.txt / noindex. Missing robots.txt is 404;
+site files are served as supplied. Old unlisted markers are inert and removed once at boot.
+Delete is recoverable: the site goes offline at once and stays in
 Recently deleted for 7 days (row kept with `deleted_at`, files moved to `DATA_DIR/deleted/<user>/<site_id>`,
 name, saved data, collections and claimed names kept), `restore` brings it back whole, and an
 hourly in-process sweep purges it after the window (except a taken-down site, or one of a suspended account: kept until the operator acts). Deleting a whole account (the person, or the admin) is immediate (§7).
@@ -1785,7 +1777,7 @@ today, over 7 and 30 days and this month, split pages / API (`/v1`), with the 10
 month and their owners), **Users**
 (searchable table newest first with Source; every admin search box takes several words, all must match, and a `-word` hides rows that match it; a row opens that person's sites and **New key**,
 Suspend / Re-enable, Delete), **Sites** (every site in one sortable, searchable table with its live size and size on disk, 50 rows a page,
-filters All / Taken down / Has custom domain / Unlisted, default most recently updated; a sort picker for Recently created, Recently updated, Size (largest total footprint first), and Most views (people, last 30 days), with total size in MB and views on every row; sorting, search, filters and pagination run server-side; sizes reuse the single-flight usage cache; a "⋯" menu per
+filters All / Taken down / Has custom domain / Not on profile, default most recently updated; a sort picker for Recently created, Recently updated, Size (largest total footprint first), and Most views (people, last 30 days), with total size in MB and views on every row; sorting, search, filters and pagination run server-side; sizes reuse the single-flight usage cache; a "⋯" menu per
 row with Open, Analytics, Versions (and Make active), Data (lists, rows, CSV), Connect / Disconnect
 domain, Take down / Restore, Delete), **API** (Growth: a 7 days / 14 days / 30 days / 6 months
 picker; API calls (`/v1/*` and `/mcp`) per day stacked by kind (deploy & sites, saved data, sign-in &
@@ -1972,7 +1964,7 @@ Go: `h/home.go`, `internal/db/home.go`; migration `z9-home-page.sql`.
 Skill: website-deploy and website-deploy-builder §Your home page; docs: server-and-addresses.
 
 
-Public page listing a person's `public` sites (each linked at its own address; sites taken down, offline or with a passcode are left out) at
+Public profile page listing a person's sites with List on my profile on (`public`) (each linked at its own address; sites taken down, offline or with a passcode are left out) at
 `<handle>.simple-host.app/` (person host); old `sites.simple-host.app/<handle>` links 302 there
 (`/internal/site-redirect/{handle}`; `/internal/showcase/{handle}` still renders it for
 instances without person hosts). **Status: live.** See §2 and §10 for
@@ -2433,7 +2425,7 @@ Routes: `/v1/hack/events/{slug}/assistant`.
 - Every compiled page in the Host and Hack sitemaps carries `lastmod` from
   `buildinfo.BuildTime`. Release, Docker, and documented operator builds stamp UTC
   build time; plain Go builds fall back to embedded VCS revision time. Unstamped
-  development builds omit dates. The sitemap contains no user sites.
+  development builds omit dates. On hosted Host and Hack the sitemap also lists eligible open sites (Hack team sites only), regardless of profile listing, cached ten minutes. Self-hosted sitemaps contain no user sites.
 
 Static audience pages shared as direct links. **Status: live.**
 
@@ -2448,7 +2440,7 @@ Static audience pages shared as direct links. **Status: live.**
 | `GET /enterprise/architecture` | `st/enterprise-architecture.html` |
 | `GET /architecture.html` | `st/architecture.html` (file server) |
 | `GET /hackathons` | see §15 |
-| `GET /robots.txt`, `GET /sitemap.xml` | `h/seo.go`: host-aware (Host-prefix check, same as `chromeDataFor`); the sitemap lists the brand's own marketing pages only, never a user handle, site or custom domain. Another server names its own `SITE_DOMAIN` (2026-10-15), never the request's Host |
+| `GET /robots.txt`, `GET /sitemap.xml`, `GET /sitemap-pages.xml`, `GET /sitemap-sites-1.xml` | `h/seo.go`: host-aware (Host-prefix check, same as `chromeDataFor`); the sitemap lists marketing and docs pages, plus eligible open hosted sites using their canonical address (including custom domains). Over 50,000 URLs it becomes an index with pages and numbered site shards (`/sitemap-sites-N.xml`, 50,000 each); child routes work in either mode. Another server names its own `SITE_DOMAIN` (2026-10-15), never the request's Host |
 | `GET /setup` | `st/setup-helper.html` + `st/setup/setup.js` (the setup helper, below); `GET /setup/{$}` redirects to it |
 | `GET /costs` | `st/costs.html` + `st/costs/calc.js`, `st/costs/costs.js`, `st/costs/prices.json` (the cost calculator, below) |
 | `GET /diagrams/{name}.svg` | `st/diagrams/` (file server): one architecture diagram per place Simple Host runs (`fly`, `render`, `upcloud`, `enterprise-aws`), shown at the top of each GitHub guide (`docs/platforms/*.md`, the enterprise repo's `docs/cloud/aws.md`); `diagrams_test.go` checks each is served as `image/svg+xml` with a `<title>` and `<desc>` |

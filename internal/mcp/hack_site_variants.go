@@ -44,7 +44,7 @@ func hackSiteStorageSqlSchema(tool Tool, limits Limits) Tool {
 }
 
 func hackSiteSetVisibility(tool Tool, limits Limits) Tool {
-	tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted also keeps it out of search engines unless it has its own domain or name, and is still reachable by anyone with its address; it does not make the site or any storage resource private."
+	tool.Description = "List on my profile: on shows the team website on its owner account profile page; off leaves it off. New sites start off. Every open site can be found by search engines. To keep it out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex."
 	return tool
 }
 

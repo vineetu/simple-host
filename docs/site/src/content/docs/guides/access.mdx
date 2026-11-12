@@ -60,7 +60,7 @@ import Instance from '@docs/Instance.astro';
 1. In the site's Manage menu, choose **Who can open**.
 2. For named people, add their exact email addresses. Through the API, use `POST /v1/sites/{sitename}/viewers` with `{"emails":["person@example.com"]}`.
 3. For a shared passcode, use the site's Passcode controls in the dashboard. Keep the passcode out of chat.
-4. Confirm before removing either restriction. Use named viewers or a passcode, not both; do not use Unlisted as an access lock.
+4. Confirm before removing either restriction. Use named viewers or a passcode, not both; List on my profile only controls your profile page.
 
 </Steps>
 {/* /brand */}
@@ -79,3 +79,5 @@ import Instance from '@docs/Instance.astro';
 <LinkCard title="Storage and saved data" href="/docs/guides/storage/" />
 <LinkCard title="Agents and MCP" href="/docs/guides/agents/" />
 </CardGrid>
+
+Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.

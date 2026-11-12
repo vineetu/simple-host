@@ -37,16 +37,6 @@ func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
 			}
 			n++
 		}
-		// And unlisted (unlisted.go).
-		if want, err := svc.deps.WantMarker(ctx, s); err != nil {
-			ReportWorkerFailure(ctx, "sync site markers", err)
-		} else if want != svc.disk.IsUnlisted(s.UserID, s.Name) {
-			if err := svc.disk.SetUnlisted(s.UserID, s.Name, want); err != nil {
-				ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
-			}
-			n++
-		}
 		// And a passcode (passcode.go).
 		if (s.Passcode || s.NamedViewers) != svc.disk.HasPasscodeMarker(s.UserID, s.Name) {
 			if err := svc.disk.SetPasscodeMarker(s.UserID, s.Name, s.Passcode || s.NamedViewers); err != nil {

@@ -352,13 +352,13 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 		http.Redirect(w, r, "/"+seg+"/"+query, http.StatusMovedPermanently)
 		return
 	}
+	markRestrictedSite(w, site)
 	// A preview of one of its versions (preview.go), before any redirect
 	// to the site's own host or domain.
 	if _, tail, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/"); strings.HasPrefix(tail, previewPathSegment+"/") && h.personAddressFor(handle, site.Name) {
 		h.servePreview(w, r, site, strings.TrimPrefix(tail, previewPathSegment+"/"), "/"+site.Name+"/"+previewPathSegment+"/")
 		return
 	}
-	h.markUnlisted(w, user.ID, site.Name) // unlisted.go
 	if contentHostOnlySites[handle+"/"+site.Name] {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, h.contentBaseURL()+"/"+handle+"/"+site.Name+"/"+escTail+query, http.StatusFound)
@@ -439,7 +439,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		h.renderNotFound(w, r, "/"+handle+"/"+name)
 		return
 	}
-	h.markUnlisted(w, user.ID, site.Name)
+	markRestrictedSite(w, site)
 	if info, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, "https://"+info.Domain+rest+query, http.StatusFound)

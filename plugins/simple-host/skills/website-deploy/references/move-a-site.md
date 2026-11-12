@@ -87,7 +87,7 @@ Never fake a feature: a form that shows "sent" must have saved. Visitors' text i
   call `create_upload_link` with `archive: true` and the site name, and run the one-line `curl` it returns. The link
   works once, for that site, for 15 minutes. The answer has `site_url`. Never put the link in a
   page or in chat for others.
-- New sites start unlisted. Leave them that way while the person checks the copy.
+- New sites start with List on my profile off; they are still open to search engines.
 
 ## 6. Check, then hand over
 

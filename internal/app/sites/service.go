@@ -50,7 +50,6 @@ type Deps struct {
 	DefaultRetention        int
 	LockSite                func(string, string) func()
 	MaxSites                func(context.Context, *model.User) int
-	WantMarker              func(context.Context, model.Site) (bool, error)
 	SiteURL                 func(model.Site) string
 	RenameURL               func(string, string) string
 	LockAccount             func(string) func()
@@ -71,7 +70,6 @@ type Deps struct {
 	Retention               func(context.Context, *model.User, model.Site) (int, error)
 	Summarize               func(map[string][]byte) model.SiteSummary
 	Conflict                func(context.Context, string, string) (string, bool)
-	Marker                  func(context.Context, model.Site) error
 	RequestCert             func(string)
 	HasLiveFamilies         func() bool
 	SyncRedirect            func(context.Context, string)
@@ -208,9 +206,6 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if err := tx.Commit(); err != nil {
 		return CreateResult{Site: site}, err
 	}
-	if err := s.deps.Marker(ctx, site); err != nil {
-		log.Printf("createSite: unlisted marker %s: %v", site.Name, err)
-	}
 	if err := s.disk.UpdateCurrent(site.UserID, site.Name, 1); err != nil {
 		log.Printf("createSite: promote %s v%d after commit: %v", site.Name, 1, err)
 		return CreateResult{Site: site}, err
@@ -332,16 +327,6 @@ func (s *Service) SetVisibility(ctx context.Context, in VisibilityInput) error {
 			return &Error{Code: "not_found", Message: "site not found"}
 		}
 		return err
-	}
-	// The marker carries the change to every address at once (unlisted.go).
-	site.Visibility = visibility
-	want, err := s.deps.WantMarker(ctx, site)
-	if err == nil {
-		err = s.disk.SetUnlisted(site.UserID, site.Name, want)
-	}
-	if err != nil {
-		log.Printf("visibility: marker for site %s: %v", site.ID, err)
-		return &Error{Code: "marker_failed", Message: "saved, but the site's files could not be marked; try again"}
 	}
 	return nil
 }

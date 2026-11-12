@@ -518,7 +518,7 @@ Owner key or connector only, never deploy-only keys. Available on hosted Simple 
 
 <div data-operation="PUT /v1/sites/{sitename}/showcase"></div>
 
-Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first, then ascending order, with creation time breaking ties. Unlisted and unavailable sites stay hidden in HTML and JSON, even when pinned. Preferences follow rename and restore. Owner key or connector only, never deploy-only keys; hosted events excluded.
+Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first, then ascending order, with creation time breaking ties. Sites with List on my profile off and unavailable sites stay off the profile in HTML and JSON, even when pinned. Preferences follow rename and restore. Owner key or connector only, never deploy-only keys; hosted events excluded.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 

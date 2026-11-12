@@ -119,7 +119,7 @@ rate limits. The Website Deploy skill includes a small example.
 
 The default showcase is yours to curate. In **Your showcase**, save a plain-text
 bio, pin projects and give each public site an order number. Pinned projects come
-first, then smaller order numbers; ties retain creation order. Unlisted sites
+first, then smaller order numbers; ties retain creation order. Sites with List on my profile off
 stay hidden even when pinned. The feed uses this same order and bio.
 
 Owner REST: `GET/PUT /v1/me/bio` with `{"bio":"I make things"}` (empty clears),
@@ -150,7 +150,7 @@ A custom home can fetch `GET /v1/u/{handle}/showcase.json` from the API origin
 without credentials. Its `handle`, `bio` and `sites` include each visible site's
 `name`, `url`, `title`, `description`, `created_at`, `updated_at`, `pinned` and
 `order`. The feed uses the public showcase filter, CORS without credentials and
-a 30-second cache. Unlisted, offline, passcode-protected, named-viewers-only and taken-down sites
+a 30-second cache. Sites with List on my profile off, offline, passcode-protected, named-viewers-only and taken-down sites
 stay hidden.
 
 On hosted Simple Host, the selected site serves at the person-host root and
@@ -186,3 +186,5 @@ including company sign-in. For hosted Hack, set them in simple-hack's own servic
 environment. The standalone Hack Compose file forwards them from its `.env`.
 The Hack screen uses existing team and organiser permissions; it offers no photo
 picker or preview even if those separate Host flags are enabled.
+
+Every open site can be found by search engines, whatever List on my profile says. New sites start off. To keep a site out of search engines, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.

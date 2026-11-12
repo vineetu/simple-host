@@ -24,7 +24,6 @@ type SiteDisk interface {
 	HasPasscodeMarker(userID, siteName string) bool
 	IsOffline(userID, siteName string) bool
 	IsSuspended(userID, siteName string) bool
-	IsUnlisted(userID, siteName string) bool
 	MarkChanged()
 	PurgeTrashedSite(userID, siteID string) error
 	PurgeTrashedSiteLinks(userID, siteName, domain string) error
@@ -38,7 +37,6 @@ type SiteDisk interface {
 	SetPasscodeMarker(userID, siteName string, on bool) error
 	SetSuspended(userID, siteName string, on bool) error
 	SetTrashedSuspended(userID, siteID string, on bool) error
-	SetUnlisted(userID, siteName string, on bool) error
 	SiteDir(userID, siteName string) string
 	SiteFootprint(userID, name string) (model.FileFootprint, error)
 	TrashDir(userID, siteID string) string

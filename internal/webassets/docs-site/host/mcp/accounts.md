@@ -28,7 +28,7 @@ Set the short plain-text bio shown on the person's public page (https://&lt;hand
 
 <div data-tool="set_showcase_site"></div>
 
-Pin a site to the top of the person's public page (the showcase of their sites), or set its position. Pinned sites come first, then smaller order numbers. Unlisted, offline, and passcode-protected sites never appear there, pinned or not. Supply pinned, order, or both.
+Pin a site to the top of the person's public page (the showcase of their sites), or set its position. Pinned sites come first, then smaller order numbers. Sites with List on my profile off, offline sites, and passcode-protected sites never appear there, pinned or not. Supply pinned, order, or both.
 
 **Parameters:**
 

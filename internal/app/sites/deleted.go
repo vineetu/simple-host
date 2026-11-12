@@ -135,10 +135,6 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (r
 	if err := s.disk.SetSuspended(site.UserID, site.Name, site.Suspended()); err != nil {
 		log.Printf("restore site %s: suspend marker: %v", site.ID, err)
 	}
-	// Its addresses may have changed meanwhile (unlisted.go).
-	if err := s.deps.Marker(ctx, site); err != nil {
-		log.Printf("restore site %s: unlisted marker: %v", site.ID, err)
-	}
 	return site, nil
 }
 

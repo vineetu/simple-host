@@ -1,20 +1,28 @@
 package handler
 
 import (
+	"encoding/xml"
+	"fmt"
+	"io"
+	"log"
 	"net"
+	"os"
+	"path/filepath"
+	"strconv"
+	"sync"
+
+	"golang.org/x/net/html"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // hostSitemapPaths and hackSitemapPaths are the platform's own public
-// marketing pages, one list per brand — the same binary answers both domains,
-// told apart the same way chromeDataFor does. User showcases and sites live
-// on their own hosts or handle paths and are not enumerated here; Google
-// discovers those from their own links, same as any other user-generated page.
+// marketing pages, one list per brand, followed by docs and eligible hosted sites.
 var (
 	hostSitemapPaths = []string{
 		"/", "/features", "/pricing", "/install.html", "/hackathons",
@@ -61,27 +69,214 @@ func serveRobotsTxt(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
 	_, _ = w.Write([]byte("User-agent: *\nAllow: /\nSitemap: " + base + "/sitemap.xml\n"))
 }
 
+// sitemapURLLimit is variable so index mode can be exercised without 50,001 fixtures.
+var sitemapURLLimit = 50000
+
+type sitemapURL struct {
+	Loc     string `xml:"loc"`
+	Lastmod string `xml:"lastmod,omitempty"`
+}
+
+type sitemapCache struct {
+	mu      sync.Mutex
+	byBrand map[string]cachedSitemaps
+}
+type cachedSitemaps struct {
+	expires time.Time
+	files   map[string][]byte
+}
+
+// serveSitemapXML preserves the pages-only helper used by standalone callers.
 func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
 	base, hack := sitemapBase(r, hostedEvents)
+	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, hack), nil))
+}
+
+func sitemapPages(base string, hack bool) []sitemapURL {
 	paths := hostSitemapPaths
 	if hack {
 		paths = hackSitemapPaths
 	}
 	paths = append(append([]string{}, paths...), webassets.DocsPaths(hack)...)
-	var b strings.Builder
-	// These are all compiled pages, not user sites. A release's build stamp
-	// dates every entry; source revision time is the plain-go-build fallback.
-	// An unstamped development binary has no honest lastmod to report.
 	lastmod := ""
 	if built, err := time.Parse(time.RFC3339, buildinfo.BuildTime); err == nil {
-		lastmod = "<lastmod>" + built.UTC().Format(time.RFC3339) + "</lastmod>"
+		lastmod = built.UTC().Format(time.RFC3339)
 	}
-	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
-	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+	out := make([]sitemapURL, 0, len(paths))
 	for _, p := range paths {
-		b.WriteString("  <url><loc>" + base + p + "</loc>" + lastmod + "</url>\n")
+		out = append(out, sitemapURL{base + p, lastmod})
 	}
-	b.WriteString("</urlset>\n")
+	return out
+}
+
+func xmlDocument(v any) []byte {
+	body, _ := xml.Marshal(v)
+	return append([]byte(xml.Header), body...)
+}
+func urlset(urls []sitemapURL) []byte {
+	return xmlDocument(struct {
+		XMLName xml.Name     `xml:"urlset"`
+		XMLNS   string       `xml:"xmlns,attr"`
+		URLs    []sitemapURL `xml:"url"`
+	}{XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: urls})
+}
+func buildSitemaps(base string, pages, sites []sitemapURL) map[string][]byte {
+	files := map[string][]byte{"/sitemap-pages.xml": urlset(pages)}
+	var children []sitemapURL
+	children = append(children, sitemapURL{Loc: base + "/sitemap-pages.xml"})
+	// The first site shard exists even when there are no eligible sites.
+	for i := 0; i < len(sites) || i == 0; i += sitemapURLLimit {
+		end := min(i+sitemapURLLimit, len(sites))
+		path := fmt.Sprintf("/sitemap-sites-%d.xml", i/sitemapURLLimit+1)
+		files[path] = urlset(sites[i:end])
+		children = append(children, sitemapURL{Loc: base + path})
+	}
+	if len(pages)+len(sites) <= sitemapURLLimit {
+		files["/sitemap.xml"] = urlset(append(append([]sitemapURL{}, pages...), sites...))
+	} else {
+		files["/sitemap.xml"] = xmlDocument(struct {
+			XMLName xml.Name     `xml:"sitemapindex"`
+			XMLNS   string       `xml:"xmlns,attr"`
+			Maps    []sitemapURL `xml:"sitemap"`
+		}{XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9", Maps: children})
+	}
+	return files
+}
+func serveSitemapFile(w http.ResponseWriter, r *http.Request, files map[string][]byte) {
+	body, ok := files[r.URL.Path]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	_, _ = w.Write([]byte(b.String()))
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	if r.Method != http.MethodHead {
+		_, _ = w.Write(body)
+	}
+}
+
+func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
+	base, hack := sitemapBase(r, h.ed.Routes().HostedEvents)
+	h.sitemaps.mu.Lock()
+	cached, ok := h.sitemaps.byBrand[base]
+	if !ok || time.Now().After(cached.expires) {
+		var urls []sitemapURL
+		if h.pipeline().hostedOwner() != "" {
+			sites, err := h.sitesSvc().ListSitemapSites(r.Context(), hack)
+			if err != nil {
+				log.Printf("sitemap: %v", err)
+				h.sitemaps.mu.Unlock()
+				http.Error(w, "sitemap unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			for _, s := range sites {
+				if h.disk.IsSuspended(s.UserID, s.Name) || h.disk.IsOffline(s.UserID, s.Name) || h.disk.HasPasscodeMarker(s.UserID, s.Name) {
+					continue
+				}
+				if !siteAllowsIndexing(filepath.Join(h.disk.SiteDir(s.UserID, s.Name), "current")) {
+					continue
+				}
+				address := h.siteURLFor(s)
+				// Match serving's own-domain > canonical-family > platform priority;
+				// never enumerate platform addresses that redirect to an own address.
+				if s.CustomDomain.String != "" && s.DomainVerifiedAt.Valid {
+					address = "https://" + s.CustomDomain.String + "/"
+				} else if s.CustomDomain.String != "" && s.PreviousDomain != "" {
+					address = "https://" + s.PreviousDomain + "/"
+				} else if host, ok := h.siteFamilyAddress(s.UserID, s.Name); ok {
+					address = "https://" + host + "/"
+				}
+				if address == "" {
+					continue
+				}
+				lastmod := ""
+				if s.LastDeployedAt.Valid {
+					lastmod = s.LastDeployedAt.Time.UTC().Format(time.RFC3339)
+				}
+				urls = append(urls, sitemapURL{address, lastmod})
+			}
+		}
+		cached = cachedSitemaps{time.Now().Add(10 * time.Minute), buildSitemaps(base, sitemapPages(base, hack), urls)}
+		if h.sitemaps.byBrand == nil {
+			h.sitemaps.byBrand = make(map[string]cachedSitemaps)
+		}
+		h.sitemaps.byBrand[base] = cached
+	}
+	h.sitemaps.mu.Unlock()
+	serveSitemapFile(w, r, cached.files)
+}
+
+func siteAllowsIndexing(dir string) bool {
+	f, err := os.Open(filepath.Join(dir, "index.html"))
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || !st.Mode().IsRegular() {
+		return false
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "robots.txt")); err == nil && robotsDisallowRoot(string(b)) {
+		return false
+	}
+	z := html.NewTokenizer(io.LimitReader(f, 64*1024))
+	for {
+		switch z.Next() {
+		case html.ErrorToken:
+			return true
+		case html.StartTagToken, html.SelfClosingTagToken:
+			t := z.Token()
+			if t.Data != "meta" {
+				continue
+			}
+			name, content := "", ""
+			for _, a := range t.Attr {
+				if a.Key == "name" {
+					name = strings.ToLower(a.Val)
+				}
+				if a.Key == "content" {
+					content = strings.ToLower(a.Val)
+				}
+			}
+			if (name == "robots" || name == "googlebot") && strings.Contains(content, "noindex") {
+				return false
+			}
+		}
+	}
+}
+
+func robotsDisallowRoot(body string) bool {
+	star, rules := false, false
+	for _, line := range strings.Split(body, "\n") {
+		line, _, _ = strings.Cut(line, "#")
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		key = strings.ToLower(strings.TrimSpace(key))
+		value = strings.TrimSpace(value)
+		if key == "user-agent" {
+			if rules {
+				star = false
+				rules = false
+			}
+			if value == "*" {
+				star = true
+			}
+		} else {
+			rules = true
+			if star && key == "disallow" && value == "/" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// markRestrictedSite preserves noindex before an address redirect can return;
+// the file-serving gates retain their own headers, including disk-only gates.
+func markRestrictedSite(w http.ResponseWriter, site model.Site) {
+	if site.Passcode || site.NamedViewers || site.Offline || site.Suspended() {
+		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+	}
 }

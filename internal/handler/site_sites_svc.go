@@ -30,8 +30,8 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		RedirectsMaxRules: h.limits.RedirectsMaxRules,
 		NormalizePatch:    normalizeFilePatch,
 
-		MaxSites:   func(ctx context.Context, user *model.User) int { return h.maxSitesFor(ctx, h.database, user) },
-		WantMarker: h.wantUnlistedMarker, SiteURL: h.siteURLFor,
+		MaxSites: func(ctx context.Context, user *model.User) int { return h.maxSitesFor(ctx, h.database, user) },
+		SiteURL:  h.siteURLFor,
 		RenameURL: func(handle, name string) string {
 			url := h.SiteURL(handle, name)
 			if url == "" {
@@ -89,7 +89,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		Retention: func(ctx context.Context, user *model.User, site model.Site) (int, error) {
 			keep, _, err := accountRetention(ctx, h.database, user.ID, site.KeepVersions, h.limits)
 			return keep, err
-		}, LockAccount: h.lockAccountFiles, Summarize: ExtractSiteSummary, Conflict: h.deletedNameConflict, Marker: h.syncUnlistedMarker, RequestCert: h.RequestSiteCert, HasLiveFamilies: h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect, DeployEnabled: h.deployScript != ""})
+		}, LockAccount: h.lockAccountFiles, Summarize: ExtractSiteSummary, Conflict: h.deletedNameConflict, RequestCert: h.RequestSiteCert, HasLiveFamilies: h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect, DeployEnabled: h.deployScript != ""})
 }
 
 // writeSitesError maps site workflow failures to their existing HTTP responses.
