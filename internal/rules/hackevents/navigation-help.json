@@ -10,7 +10,7 @@
         "navigation-data.js",
         "tour.js"
       ],
-      "explains": "Follow the next step, review setup and attention items, and share joining links.",
+      "explains": "Follow the next step, review setup and attention items, and share joining links. Each team that wrote to you gets a line here; Read and reply opens that team’s thread, and opening it clears the line.",
       "when": "Check what needs attention during the event.",
       "related": [
         "stage",
@@ -2328,7 +2328,7 @@
         "screens/organiser-teams.js",
         "screens/_team-message-dialog.js"
       ],
-      "explains": "Send a private message to one team or Message selected teams, and read what a team wrote back in the same thread on that team's page. This is separate from a public announcement.",
+      "explains": "Send a private message to one team or Message selected teams, and read what a team wrote in the same thread on that team's page. Teams that wrote to you show on Home, each with Read and reply; opening the thread clears that line. This is separate from a public announcement.",
       "when": "Contact teams privately before End.",
       "controls": [
         "tm-text",
@@ -2337,7 +2337,7 @@
       "effects": [
         "Shows on the team's Overview. Teammates with email updates on also get an email.",
         "Messages clear from the team’s Overview when the stage changes; organiser message history stays. No sends after End.",
-        "Any team member can write back from Team. The thread is one per team, shared by every organiser and the team. Home shows a line for each team with messages you have not opened; opening the team’s page clears it, and it never blocks a stage move. You get an email about a new team message only if Email me when something waits on me is on in your Account."
+        "Any team member can write back from Team. The thread is one per team, shared by every organiser and the team. The Home line never blocks a stage move. You get an email about a new team message only if Email me when something waits on me is on in your Account."
       ],
       "limits": [
         "Message: 1–1,000 characters. Select 1–25 teams. At most 50 team-message rows per event per rolling hour; each recipient team counts as one row. A team can write at most 10 messages per rolling hour."
@@ -2518,7 +2518,7 @@
         "button:Unpin"
       ],
       "effects": [
-        "Editing does not resend email. Deleting removes the announcement. No posting, editing or deletion after End.",
+        "Deleting removes the announcement. No posting, editing or deletion after End.",
         "Editing it later never sends another email.",
         "Saving changes doesn't email anyone again.",
         "It disappears from your page and from everyone's app. Emails already sent stay sent.",
@@ -3439,15 +3439,10 @@
         "screens/organiser-judging.js",
         "screens/organiser-judging-assignments.js"
       ],
-      "explains": "Assign the shared judge list to teams in Manual mode. Automatic coverage accounts for conflicts. Panel mode assigns judges by track; teams need a track.",
+      "explains": "Panel mode assigns judges by track; teams need a track. Judging, Results and End make the grid read-only.",
       "when": "Set up during Entries closed; locked during Judging.",
       "controls": [
         "button:Save judging access"
-      ],
-      "effects": [
-        "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces assignments, never deletes scores and respects conflicts.",
-        "In Automatic and Manual, a current judge’s scores for a team stop counting when their assignment is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
-        "Manual assignments require Manual mode; track panels use Panel mode. Judging, Results and End block changes; the grid is read-only then."
       ],
       "keywords": [
         "assignment grid",
@@ -3499,7 +3494,7 @@
         "screens/organiser-event-page.js",
         "screens/participant-submissions.js"
       ],
-      "explains": "From Judging, participants see other teams' submitted entries in Submissions; on, so do visitors.",
+      "explains": "Off by default. From Judging, participants see other teams' submitted entries in Submissions; on, visitors do too.",
       "controls": [
         "submissions-public-toggle"
       ]
