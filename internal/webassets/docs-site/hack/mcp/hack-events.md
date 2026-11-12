@@ -571,7 +571,7 @@ Replace sponsors, FAQ and schedule with the supplied REST content body. Ask befo
 
 <div data-tool="hack_get_announcements"></div>
 
-Read event announcements. Organiser only.
+Read event announcements as any member, pinned first; body_html is safe server-rendered HTML.
 
 **Parameters:**
 
@@ -583,14 +583,14 @@ Read event announcements. Organiser only.
 
 <div data-tool="hack_edit_announcement"></div>
 
-Edit title and body. Editing does not send a new email. Organiser only.
+Edit title and body, or pinned boolean alone to pin/unpin. Pinning replaces the previous pin. The body takes the same formatting as hack_post_announcement. Editing does not send a new email. Organiser only.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | announcement | string | yes | REST path parameter: announcement. |
-| body | object | yes | title and body. Editing does not send a new email. The REST route validates each field and returns its own errors. |
+| body | object | yes | Provide title and body together, or pinned alone. The REST route validates this. |
 | slug | string | yes | REST path parameter: slug. |
 
 ## hack_delete_announcement
@@ -610,13 +610,13 @@ Delete an announcement. Ask first. Organiser only.
 
 <div data-tool="hack_post_announcement"></div>
 
-Post an event announcement. Body includes text and optional email flag; email sends it to every approved participant with an email-shaped username, plus a copy to the posting organiser when their own username is email-shaped (one delivery, never duplicated if they are also a participant). The response's emails_queued is the real count actually queued, not an estimate; organiser_copied says whether one of those is the organiser's own copy. Ask the person before posting or emailing. Organiser only.
+Post an event announcement; optional pinned replaces the previous pin. Supports labelled links [label](https://...), **bold**, - bullets and line breaks; only http/https links. A Zoom/Meet/Teams/YouTube address on its own line shows as a card. Body includes text and optional email flag; email sends it to every approved participant with an email-shaped username, plus a copy to the posting organiser when their own username is email-shaped (one delivery, never duplicated if they are also a participant). The response's emails_queued is the real count actually queued, not an estimate; organiser_copied says whether one of those is the organiser's own copy. Ask the person before posting or emailing. Organiser only.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| body | object | yes | title, body, and optional email_participants boolean. When true, email goes to every approved participant with an email-shaped username, plus one copy to the posting organiser if their own username is email-shaped too (never a duplicate if they are also a participant). The REST route validates each field and returns its own errors. |
+| body | object | yes |  |
 | slug | string | yes | REST path parameter: slug. |
 
 ## hack_get_registration

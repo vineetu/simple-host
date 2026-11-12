@@ -590,6 +590,7 @@ const FOCUSABLE_SEL = 'a[href],button,input,select,textarea,[tabindex]'
 function focusablesIn(box) {
   return Array.from(box.querySelectorAll(FOCUSABLE_SEL)).filter(el => !el.disabled && el.tabIndex !== -1 && !el.hidden)
 }
+let dialogSequence = 0
 export function dialog({ title, body, buttons, escapeValue = false, focus = 0 }) {
   return new Promise(resolve => {
     const previous = document.activeElement
@@ -600,15 +601,15 @@ export function dialog({ title, body, buttons, escapeValue = false, focus = 0 })
     box.setAttribute('role', 'dialog')
     box.setAttribute('aria-modal', 'true')
     const h2 = document.createElement('h2')
-    h2.id = 'dialog-title'
+    h2.id = 'dialog-title-' + (++dialogSequence)
     h2.textContent = title
-    box.setAttribute('aria-labelledby', 'dialog-title')
+    box.setAttribute('aria-labelledby', h2.id)
     box.append(h2)
     const nodes = body == null ? []
       : Array.isArray(body) ? body
       : body instanceof Node ? [body]
-      : [Object.assign(document.createElement('p'), { id: 'dialog-body', textContent: body })]
-    if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute('aria-describedby', 'dialog-body')
+      : [Object.assign(document.createElement('p'), { id: h2.id + '-body', textContent: body })]
+    if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute('aria-describedby', h2.id + '-body')
     box.append(...nodes)
     const acts = document.createElement('div')
     acts.className = 'acts'
@@ -627,6 +628,9 @@ export function dialog({ title, body, buttons, escapeValue = false, focus = 0 })
     function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); previous?.focus(); resolve(value) }
     function primaryButton() { return els.find(b => b.classList.contains('primary')) || els[els.length - 1] }
     function keydown(e) {
+      // Add link can open over Edit announcement; only the top dialog
+      // handles keys, so Enter never saves the underlying edit.
+      if ([...document.querySelectorAll('.scrim')].at(-1) !== scrim) return
       if (e.key === 'Escape') { e.preventDefault(); done(escapeValue); return }
       if (e.key === 'Tab') {
         const list = focusablesIn(box)

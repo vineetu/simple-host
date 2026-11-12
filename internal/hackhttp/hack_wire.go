@@ -123,7 +123,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			for _, announcement := range announcements {
 				p.Announcements = append(p.Announcements, hackAnnouncementView{
 					Title: announcement.Title, Body: announcement.Body,
-					CreatedAt: announcement.CreatedAt,
+					CreatedAt: announcement.CreatedAt, Pinned: announcement.Pinned, BodyHTML: announcement.BodyHTML,
 				})
 			}
 		}

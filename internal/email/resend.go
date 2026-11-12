@@ -134,6 +134,17 @@ func (s *ResendSender) SendNoticeCtx(ctx context.Context, toEmail, subject, text
 	return s.sendWithCtx(ctx, toEmail, "", subject, text, html)
 }
 
+// SendRichNoticeCtx delivers a notice with its own HTML part (already built
+// and escaped by the caller) next to the text part. Used for announcements,
+// whose HTML carries buttons for calls and videos.
+func (s *ResendSender) SendRichNoticeCtx(ctx context.Context, toEmail, subject, text, html string) error {
+	if s.apiKey == "" {
+		s.mailResult("failed", "reason=missing_key")
+		return errors.New("RESEND_API_KEY not configured")
+	}
+	return s.sendWithCtx(ctx, toEmail, "", subject, text, html)
+}
+
 // CanSendNotice reports whether this sender has the credential needed for notices.
 func (s *ResendSender) CanSendNotice() bool { return s.apiKey != "" }
 

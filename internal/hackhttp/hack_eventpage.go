@@ -66,6 +66,8 @@ type hackEventPage struct {
 type hackAnnouncementView struct {
 	Title, Body string
 	CreatedAt   time.Time
+	Pinned      bool
+	BodyHTML    string
 }
 type hackSponsorView struct {
 	Name, Tier, URL string
@@ -344,7 +346,13 @@ type hackEventView struct {
 
 // hackAnnouncementLine is one announcement as the page shows it: the date
 // already formatted in the event's own time zone.
-type hackAnnouncementLine struct{ Title, Body, When string }
+type hackAnnouncementLine struct {
+	Title, Body, When string
+	// BodyHTML is the body rendered by rules.AnnouncementHTML, which escapes
+	// every character of the organiser's text, so it is safe to trust here.
+	BodyHTML template.HTML
+	Pinned   bool
+}
 
 // renderHackEventPage writes the whole response (status 200, or 410 when TakenDown).
 func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage, pages *HackEventPages) {
@@ -383,7 +391,7 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 // responses look like the same product to a browser's network panel.
 func hackEventPageCSP(app, nonce string) string {
 	return fmt.Sprintf(
-		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data:; font-src %s data:; connect-src %s; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data: https://i.ytimg.com; font-src %s data:; connect-src %s; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
 		nonce, app, app, app, app)
 }
 
@@ -533,7 +541,8 @@ func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, erro
 	v.RulesCollapsed = effStage == "results" || effStage == "archived"
 
 	for i, a := range p.Announcements {
-		view := hackAnnouncementLine{Title: a.Title, Body: a.Body, When: a.CreatedAt.In(loc).Format("2 Jan 2006")}
+		view := hackAnnouncementLine{Title: a.Title, Body: a.Body, When: a.CreatedAt.In(loc).Format("2 Jan 2006"), Pinned: a.Pinned,
+			BodyHTML: template.HTML(events.RenderAnnouncement(a.Body))}
 		if i < 3 {
 			v.AnnouncementLines = append(v.AnnouncementLines, view)
 		} else {

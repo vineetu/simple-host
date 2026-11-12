@@ -19,6 +19,11 @@ type EventAnnouncement struct {
 	Body       string    `json:"body"`
 	CreatedAt  time.Time `json:"created_at"`
 	EmailsSent int64     `json:"emails_sent"`
+	// Pinned is true for the one announcement an organiser keeps at the top.
+	Pinned bool `json:"pinned"`
+	// BodyHTML is Body rendered for display (links, cards, bold, bullets),
+	// filled by the service on reads; it is never stored.
+	BodyHTML string `json:"body_html"`
 }
 
 // EventMail is a shared Hack record.

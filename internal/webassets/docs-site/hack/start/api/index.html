@@ -614,7 +614,8 @@
 		
 	</span>
 	<svg aria-hidden="true" class="icon rtl:flip astro-zaaezwya astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>
-</div></div>
+</div>
+<p>Announcement POST accepts optional <code>pinned</code>; PUT accepts <code>pinned</code> alone to pin/unpin or title and body together to edit. GET and the public event feed return <code>body_html</code> (safe HTML to insert as-is) and <code>pinned</code>, pinned first. The organiser-only POST <code>/v1/hack/events/{slug}/announcements/preview</code> takes body and returns body_html without saving. The MCP equivalents are <code>hack_post_announcement</code>, <code>hack_edit_announcement</code> and <code>hack_get_announcements</code>, using a body object for writes. Text supports labelled links <code>[label](https://...)</code>, bold, bullets and line breaks; only http/https links. Standalone Zoom, Meet, Teams and YouTube addresses become cards. YouTube thumbnails come from i.ytimg.com.</p></div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">
 		

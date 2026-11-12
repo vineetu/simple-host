@@ -72,6 +72,7 @@ func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.Handler
 	mux.Handle("PUT /v1/hack/events/{slug}/content", wrap(h.putContent))
 	mux.Handle("GET /v1/hack/events/{slug}/announcements", wrap(h.getAnnouncements))
 	mux.Handle("POST /v1/hack/events/{slug}/announcements", wrap(h.postAnnouncement))
+	mux.Handle("POST /v1/hack/events/{slug}/announcements/preview", wrap(h.previewAnnouncement))
 }
 
 func readHackContent(ctx context.Context, q *sql.DB, eventID string) (hackContent, error) {
@@ -251,6 +252,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 		Title             string `json:"title"`
 		Body              string `json:"body"`
 		EmailParticipants bool   `json:"email_participants"`
+		Pinned            bool   `json:"pinned"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -274,12 +276,33 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	item, queued, organiserCopied, err := h.eventsSvc().PostAnnouncement(r.Context(), a.event.ID, req.Title, req.Body, req.EmailParticipants, a.user.ID)
+	item, queued, organiserCopied, err := h.eventsSvc().PostAnnouncement(r.Context(), a.event.ID, req.Title, req.Body, req.EmailParticipants, req.Pinned, a.user.ID)
 	if err != nil {
 		writeContentError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"announcement": item, "emails_queued": queued, "organiser_copied": organiserCopied})
+}
+
+// previewAnnouncement renders announcement text exactly as participants will
+// see it, so the composer never carries a second renderer. Nothing is stored.
+func (h *HackHandler) previewAnnouncement(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser"); !ok {
+		return
+	}
+	var req struct {
+		Body string `json:"body"`
+	}
+	if !decodeHackJSON(w, r, &req) {
+		return
+	}
+	// The same text rules as posting, except that an empty message previews
+	// as nothing.
+	body, valid := checkHackText(w, req.Body, "body", 0, 3000)
+	if !valid {
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"body_html": events.RenderAnnouncement(body)})
 }
 
 // queueReceipt records the team's first submission. A later edit, or a
@@ -387,22 +410,34 @@ func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Title string `json:"title"`
-		Body  string `json:"body"`
+		Title  *string `json:"title"`
+		Body   *string `json:"body"`
+		Pinned *bool   `json:"pinned"`
 	}
+	title, body := "", ""
 	if r.Method == http.MethodPut {
 		if !decodeHackJSON(w, r, &req) {
 			return
 		}
-		var valid bool
-		if req.Title, valid = checkHackLine(w, req.Title, "title", 1, 120); !valid {
-			return
-		}
-		if req.Body, valid = checkHackText(w, req.Body, "body", 1, 3000); !valid {
-			return
+		// A change that only sets pinned (no title and no body) pins or
+		// unpins without touching the text.
+		if req.Pinned == nil || req.Title != nil || req.Body != nil {
+			var valid bool
+			if req.Title != nil {
+				title = *req.Title
+			}
+			if req.Body != nil {
+				body = *req.Body
+			}
+			if title, valid = checkHackLine(w, title, "title", 1, 120); !valid {
+				return
+			}
+			if body, valid = checkHackText(w, body, "body", 1, 3000); !valid {
+				return
+			}
 		}
 	}
-	if err := h.eventsSvc().ChangeAnnouncement(r.Context(), a.event.ID, id, req.Title, req.Body, r.Method == http.MethodDelete); err != nil {
+	if err := h.eventsSvc().ChangeAnnouncement(r.Context(), a.event.ID, id, title, body, req.Pinned, r.Method == http.MethodDelete); err != nil {
 		writeContentError(w, err)
 		return
 	}

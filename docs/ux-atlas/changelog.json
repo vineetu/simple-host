@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-12",
+    "what": "SIM-444: Announcement links, call and video cards, preview and one pinned update across the app, public page and email."
+  },
+  {
+    "date": "2026-11-12",
     "what": "SIM-443: Any team member can message the organisers from Team. Both sides see one shared thread. Organiser Home links unread team messages to Read and reply; opening the team clears the line for that organiser."
   },
   {

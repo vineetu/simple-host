@@ -225,7 +225,7 @@ Read recent event announcements as a member (EVENTS=hosted only)
 
 | Status | Description |
 | --- | --- |
-| 200 | Up to 50 announcements, newest first |
+| 200 | Up to 50 announcements, pinned first then newest |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 404 | event_not_found for a non-member |
 
@@ -249,6 +249,7 @@ Post an event announcement, optionally email participants (organiser; until arch
 | --- | --- | --- | --- |
 | body | string | yes |  |
 | email_participants | boolean |  |  |
+| pinned | boolean |  | Pin to top replacing the previous pin. |
 | title | string | yes |  |
 
 **Responses:**
@@ -262,11 +263,40 @@ Post an event announcement, optionally email participants (organiser; until arch
 | 409 | event_ended |
 | 503 | email_unavailable when email is requested without a sender |
 
+## POST /v1/hack/events/{slug}/announcements/preview
+
+<div data-operation="POST /v1/hack/events/{slug}/announcements/preview"></div>
+
+Preview announcement formatting without storing or sending (organiser)
+
+**Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| slug | path | string | yes |  |
+
+**Request body:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| body | string | yes |  |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 200 | Safe server-rendered announcement HTML |
+| 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
+| 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
+| 404 | event_not_found for a non-organiser |
+
 ## PUT /v1/hack/events/{slug}/announcements/{announcement}
 
 <div data-operation="PUT /v1/hack/events/{slug}/announcements/{announcement}"></div>
 
-Editing does not send a new email.
+Editing does not send a new email. Send pinned alone to pin or unpin without editing; pinning replaces the previous pin. Otherwise title and body are both required.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -281,8 +311,9 @@ Editing does not send a new email.
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| body | string | yes |  |
-| title | string | yes |  |
+| body | string |  |  |
+| pinned | boolean |  |  |
+| title | string |  |  |
 
 **Responses:**
 

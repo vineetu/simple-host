@@ -90,7 +90,7 @@ func (s *Service) AnnouncementTimes(ctx context.Context, eventID string) ([]stri
 
 // EventAnnouncements forwards the ListEventAnnouncements lookup.
 func (s *Service) EventAnnouncements(ctx context.Context, eventID string) ([]model.EventAnnouncement, error) {
-	return eventrepo.ListEventAnnouncements(ctx, s.db, eventID)
+	return s.ListAnnouncements(ctx, eventID)
 }
 
 // EventPeople forwards the ListEventPeople lookup.

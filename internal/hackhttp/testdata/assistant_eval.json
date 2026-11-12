@@ -1,5 +1,65 @@
 [
  {
+  "area": "announcements",
+  "question": "How do I add a labelled kickoff call link or YouTube video card to an announcement?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=announcements"
+  ],
+  "expect_all": [
+   [
+    "add link"
+   ],
+   [
+    "label"
+   ],
+   [
+    "address"
+   ],
+   [
+    "line"
+   ]
+  ]
+ },
+ {
+  "area": "announcements",
+  "question": "Can I preview an announcement before sending?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=announcements"
+  ],
+  "expect_all": [
+   [
+    "preview"
+   ],
+   [
+    "message"
+   ]
+  ]
+ },
+ {
+  "area": "announcements",
+  "question": "How do I pin an announcement for participants and judges?",
+  "expect_href_any": [
+   "/e/{slug}/manage?s=announcements"
+  ],
+  "expect_all": [
+   [
+    "row menu"
+   ],
+   [
+    "pin to top"
+   ],
+   [
+    "replaces",
+    "replace",
+    "only one",
+    "one at a time"
+   ],
+   [
+    "judges"
+   ]
+  ]
+ },
+ {
   "area": "event page",
   "question": "Where do I set prizes for 1st, 2nd and 3rd on winner cards?",
   "expect_href_any": ["/e/{slug}/manage?s=event-page&tab=about"],

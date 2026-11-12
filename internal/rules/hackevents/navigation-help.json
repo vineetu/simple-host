@@ -2506,7 +2506,16 @@
         "sa-title",
         "sa-body",
         "sa-email",
-        "button:Post"
+        "button:Post",
+        "button:Add link",
+        "al-label",
+        "al-address",
+        "ann-link",
+        "ann-preview",
+        "ea-link",
+        "ea-preview",
+        "button:Pin to top",
+        "button:Unpin"
       ],
       "effects": [
         "Editing does not resend email. Deleting removes the announcement. No posting, editing or deletion after End.",
@@ -2515,14 +2524,28 @@
         "It disappears from your page and from everyone's app. Emails already sent stay sent.",
         "When nobody has an email address yet, the disabled email option says: No participant has an email address yet.",
         "If you asked to email and no emails were queued, it says: Posted. Nobody had an email address on file, so no email was sent.",
-        "If you asked to email and emails were queued, the screen says Posted and emailed to the queued number of people, adding (including a copy to you) when you were copied."
+        "If you asked to email and emails were queued, the screen says Posted and emailed to the queued number of people, adding (including a copy to you) when you were copied.",
+        "Add link beside Message opens Label and Address; bare hosts get https://. A Zoom, Google Meet, Microsoft Teams or YouTube address on its own line becomes a call or video card. Only http/https links; bold, bullets and line breaks are supported.",
+        "Preview below Message shows the participant view before posting, also when editing.",
+        "Announcements → row menu → Pin to top pins one announcement. Pinning another replaces the previous pin. The pinned one shows first for participants and judges. Use Unpin in its row menu to remove the pin."
       ],
       "limits": [
         "Title: 1–120 characters. Message: 1–3,000."
       ],
       "keywords": [
         "broadcast",
-        "participant emails"
+        "participant emails",
+        "labelled link",
+        "add link",
+        "Zoom",
+        "Meet",
+        "Teams",
+        "YouTube",
+        "call card",
+        "video card",
+        "preview",
+        "pin",
+        "unpin"
       ],
       "related": [
         "announcement.stage",

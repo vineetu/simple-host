@@ -67,6 +67,24 @@ func (s trackedContentSender) SendNoticeCtx(ctx context.Context, to, subject, bo
 	return nil
 }
 
+// SendRichNoticeCtx sends a notice with an HTML part when the underlying
+// sender supports one, and the text alone otherwise.
+func (s trackedContentSender) SendRichNoticeCtx(ctx context.Context, to, subject, text, html string) error {
+	rich, ok := s.notice.(interface {
+		SendRichNoticeCtx(context.Context, string, string, string, string) error
+	})
+	if !ok {
+		return s.SendNoticeCtx(ctx, to, subject, text)
+	}
+	if err := rich.SendRichNoticeCtx(ctx, to, subject, text, html); err != nil {
+		err = contentMailError(err)
+		s.tracker.Fail("send mail", err)
+		return err
+	}
+	s.tracker.Progress()
+	return nil
+}
+
 // Mail errors may echo recipients or provider credentials; expose only known causes.
 func contentMailError(err error) error {
 	if errors.Is(err, context.Canceled) {

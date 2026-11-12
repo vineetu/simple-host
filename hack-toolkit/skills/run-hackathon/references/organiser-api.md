@@ -157,3 +157,5 @@ teams/{team}/requests` · `POST team/invites` {user_id} · `POST requests/{id}/{
 (accept or decline) · `DELETE requests/{id}` · `DELETE team/members/{user_id}` · `POST
 teams/fill` {apply, size}. `GET /v1/hack/team-links/{code}` is public and never joins. Lists
 never appear on the public event page. A locked or full team cannot accept or invite.
+
+Announcements: `hack_post_announcement` accepts `body.pinned`; `hack_edit_announcement` accepts `body.pinned` alone to pin/unpin, or title and body together to edit. Only one pin; another replaces it. `hack_get_announcements` returns `pinned` and safe server-rendered `body_html`, pinned first. Text supports `[label](https://...)`, `**bold**`, `- ` bullets and line breaks, with only http/https links. A Zoom/Meet/Teams/YouTube address alone on a line shows as a card; email includes buttons and full addresses in text. In the website composer, Add link takes Label and Address; Preview shows the participant view.

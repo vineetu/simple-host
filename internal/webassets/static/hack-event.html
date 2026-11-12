@@ -28,7 +28,9 @@
   /* Multi-line organiser text keeps its line breaks (fixes: FAQ answers and
      announcement bodies were losing them; schedule descriptions already get
      this from kit.css's .sched .what>span). */
-  .announcement-body,#faq details p{white-space:pre-wrap}
+  #faq details p{white-space:pre-wrap}
+  #announcements .ann-body{margin-top:8px}
+
   /* Result cards (build-plan §4.6): kit.css's .result-entry/.re-head/
      .re-body/.ec-links already exist for this (moved over with slice 1's
      kit-next.css merge, unused until now); these few rules are the page-
@@ -511,13 +513,13 @@
 <section class="card" id="announcements">
   <h2>Announcements</h2>
   <div class="stack">
-    {{range .AnnouncementLines}}<div><b>{{.Title}}</b><p class="small muted">{{.When}}</p><p class="announcement-body">{{.Body}}</p></div>{{end}}
+    {{range .AnnouncementLines}}<div><b>{{.Title}}</b>{{if .Pinned}} <span class="pill">Pinned</span>{{end}}<p class="small muted">{{.When}}</p><div class="ann-body">{{.BodyHTML}}</div></div>{{end}}
   </div>
   {{if .AnnouncementLinesMore}}
   <details>
     <summary>Show {{len .AnnouncementLinesMore}} older announcement{{if ne (len .AnnouncementLinesMore) 1}}s{{end}}</summary>
     <div class="stack" style="margin-top:10px">
-      {{range .AnnouncementLinesMore}}<div><b>{{.Title}}</b><p class="small muted">{{.When}}</p><p class="announcement-body">{{.Body}}</p></div>{{end}}
+      {{range .AnnouncementLinesMore}}<div><b>{{.Title}}</b>{{if .Pinned}} <span class="pill">Pinned</span>{{end}}<p class="small muted">{{.When}}</p><div class="ann-body">{{.BodyHTML}}</div></div>{{end}}
     </div>
   </details>
   {{end}}

@@ -41,7 +41,7 @@ func RegisterHackUI(mux *http.ServeMux, pages hackPages, sitesBase string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(httpx.StampNonce(r, body))
 	})
-	page := assets.AdminUICSP(app)
+	page := assets.AdminUICSP(announcementImages(app))
 	votePage := assets.AdminUICSP(assets.ServeStaticPage("hack-voting.html"))
 	mux.Handle("GET /e/{slug}/vote", votePage)
 	mux.Handle("GET /e/{slug}/voting-settings", votePage)
@@ -76,9 +76,21 @@ func hackAppCSP(assets hackPages, next http.Handler, sitesBase string) http.Hand
 		src += " https://*." + base
 	}
 	src += " " + strings.Join(videoFrameOrigins, " ")
-	return assets.UICSP(next, src)
+	return assets.UICSP(announcementImages(next), src)
 }
 
 // hackFrameBase is a plain DNS name with at least one dot, so nothing odd
 // (a space, a ';' or a bare TLD) ever reaches the CSP header.
 var hackFrameBase = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
+
+// announcementImages lets the Hack app shell show YouTube thumbnails on
+// announcement cards (SIM-444): img-src gains https://i.ytimg.com and nothing
+// else. Every route of the shell gets it, since the app moves between them
+// without reloading; Simple Host pages keep the shared policy unchanged.
+func announcementImages(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		csp := w.Header().Get("Content-Security-Policy")
+		w.Header().Set("Content-Security-Policy", strings.Replace(csp, "img-src 'self' data:", "img-src 'self' data: https://i.ytimg.com", 1))
+		next.ServeHTTP(w, r)
+	})
+}

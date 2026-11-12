@@ -580,6 +580,9 @@
 		<a href="#post-v1hackeventsslugannouncements" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/announcements</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1hackeventsslugannouncementspreview" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/announcements/preview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#put-v1hackeventsslugannouncementsannouncement" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">PUT /v1/hack/events/{slug}/announcements/{announcement}</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -1051,6 +1054,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#post-v1hackeventsslugannouncements" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/announcements</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#post-v1hackeventsslugannouncementspreview" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/hack/events/{slug}/announcements/preview</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#put-v1hackeventsslugannouncementsannouncement" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">PUT /v1/hack/events/{slug}/announcements/{announcement}</span></a>
@@ -2112,7 +2118,7 @@
 <tbody>
 <tr>
 <td>200</td>
-<td>Up to 50 announcements, newest first</td>
+<td>Up to 50 announcements, pinned first then newest</td>
 </tr>
 <tr>
 <td>401</td>
@@ -2173,6 +2179,12 @@
 <td></td>
 </tr>
 <tr>
+<td>pinned</td>
+<td>boolean</td>
+<td></td>
+<td>Pin to top replacing the previous pin.</td>
+</tr>
+<tr>
 <td>title</td>
 <td>string</td>
 <td>yes</td>
@@ -2215,9 +2227,80 @@
 </tr>
 </tbody>
 </table>
+<h2 id="post-v1hackeventsslugannouncementspreview">POST /v1/hack/events/{slug}/announcements/preview</h2>
+<div data-operation="POST /v1/hack/events/{slug}/announcements/preview"></div>
+<p>Preview announcement formatting without storing or sending (organiser)</p>
+<p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>slug</td>
+<td>path</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Request body:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>body</td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Responses:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>Safe server-rendered announcement HTML</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body’s code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).</td>
+</tr>
+<tr>
+<td>404</td>
+<td>event_not_found for a non-organiser</td>
+</tr>
+</tbody>
+</table>
 <h2 id="put-v1hackeventsslugannouncementsannouncement">PUT /v1/hack/events/{slug}/announcements/{announcement}</h2>
 <div data-operation="PUT /v1/hack/events/{slug}/announcements/{announcement}"></div>
-<p>Editing does not send a new email.</p>
+<p>Editing does not send a new email. Send pinned alone to pin or unpin without editing; pinning replaces the previous pin. Otherwise title and body are both required.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -2261,13 +2344,19 @@
 <tr>
 <td>body</td>
 <td>string</td>
-<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>pinned</td>
+<td>boolean</td>
+<td></td>
 <td></td>
 </tr>
 <tr>
 <td>title</td>
 <td>string</td>
-<td>yes</td>
+<td></td>
 <td></td>
 </tr>
 </tbody>

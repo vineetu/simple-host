@@ -9384,7 +9384,7 @@ paths:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:
         '200':
-          description: Up to 50 announcements, newest first
+          description: Up to 50 announcements, pinned first then newest
           content:
             application/json:
               schema:
@@ -9413,6 +9413,7 @@ paths:
               properties:
                 title: { type: string }
                 body: { type: string }
+                pinned: { type: boolean, default: false, description: Pin to top replacing the previous pin. }
                 email_participants: { type: boolean, default: false }
       responses:
         '201':
@@ -9430,6 +9431,37 @@ paths:
         '404': { description: event_not_found for a non-organiser, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: event_ended, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '503': { description: email_unavailable when email is requested without a sender, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/announcements/preview:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: previewHackAnnouncement
+      summary: Preview announcement formatting without storing or sending (organiser)
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, maxLength: 3000 }
+      responses:
+        '200':
+          description: Safe server-rendered announcement HTML
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  body_html: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: event_not_found for a non-organiser }
 
   /v1/hack/events/{slug}/key:
     get:
@@ -10280,7 +10312,7 @@ paths:
       - Hosted events
       operationId: putHackAnnouncement
       summary: Edit announcement
-      description: Editing does not send a new email.
+      description: Editing does not send a new email. Send pinned alone to pin or unpin without editing; pinning replaces the previous pin. Otherwise title and body are both required.
       security:
       - apiKey: []
       parameters:
@@ -10301,10 +10333,11 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-              - title
-              - body
+              anyOf:
+              - required: [title, body]
+              - required: [pinned]
               properties:
+                pinned: { type: boolean }
                 title:
                   type: string
                   maxLength: 120
@@ -12395,6 +12428,7 @@ paths:
               schema:
                 type: object
                 properties:
+                  announcements: { type: array, description: Pinned first then newest; body_html is safe server-rendered HTML., items: { $ref: '#/components/schemas/HackEventAnnouncement' } }
                   overall_prizes: { type: array, maxItems: 3, items: { type: string }, description: "Prizes for 1st, 2nd, 3rd by index; always an array." }
                   results:
                     type: array
@@ -16352,11 +16386,14 @@ components:
             now: { type: boolean, description: True during the row's window, or within 15 minutes of a moment. }
             text: { type: string, example: "Kickoff is now. Open sign-up?" }
     HackEventAnnouncement:
+      description: Text supports labelled http(s) links, bare web addresses, bold, bullets and line breaks. Standalone Zoom, Meet, Teams and YouTube links become cards. No raw HTML is rendered. body_html is safe to insert as-is; YouTube thumbnails use i.ytimg.com.
       type: object
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         body: { type: string }
+        body_html: { type: string, description: Safe server-rendered HTML. }
+        pinned: { type: boolean }
         created_at: { type: string, format: date-time }
         emails_sent: { type: integer, description: "Deliveries actually sent for this announcement so far, not merely queued." }
     HackTeamMessage:

@@ -53,6 +53,12 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 			}
 			if route.body {
 				args["body"] = map[string]any{"sample": "unchanged"}
+				if route.name == "hack_post_announcement" {
+					args["body"] = map[string]any{"title": "Kickoff", "body": "https://zoom.us/j/1", "pinned": true}
+				}
+				if route.name == "hack_edit_announcement" {
+					args["body"] = map[string]any{"pinned": false}
+				}
 			}
 			up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
 			up.ans[route.method+" "+path] = func(w http.ResponseWriter, _ *http.Request) {
@@ -67,6 +73,10 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
+				if route.name == "hack_get_announcements" {
+					_, _ = w.Write([]byte(`{"announcements":[{"id":"a", "title":"Kickoff", "body":"https://zoom.us/j/1", "body_html":"<p>Safe HTML</p>", "pinned":true,"created_at":"2026-11-12T00:00:00Z", "emails_sent":0}]}`))
+					return
+				}
 				_, _ = w.Write([]byte(`{"ok":true}`))
 			}
 			s := newTestServer(up)
@@ -82,7 +92,8 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 			if last.method != route.method || last.path != path || last.key != "user-key" {
 				t.Fatalf("forwarded %s %s key %s", last.method, last.path, last.key)
 			}
-			if route.body && last.body != `{"sample":"unchanged"}` {
+			expectedBody, _ := json.Marshal(args["body"])
+			if route.body && last.body != string(expectedBody) {
 				t.Fatalf("body %s", last.body)
 			}
 			if !route.body && last.body != "" {

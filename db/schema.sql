@@ -1187,9 +1187,11 @@ CREATE TABLE IF NOT EXISTS event_announcements (
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   body TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  pinned_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS event_announcements_event_idx ON event_announcements (event_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS event_announcements_pinned_idx ON event_announcements (event_id) WHERE pinned_at IS NOT NULL;
 CREATE TABLE IF NOT EXISTS event_announcement_deliveries (
   announcement_id UUID NOT NULL REFERENCES event_announcements(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -201,7 +201,7 @@ async function announcementsCard(api, ui, allHref, scheduleHref, slug, ev) {
     if (!items.length) return ''
     const esc = ui.esc
     const rows = items.slice(0, 2).map(a =>
-      `<h3>${esc(a.title)}</h3><p class="small muted">${esc(ui.dateTime(a.created_at, ev, { timeStyle: undefined }))}</p><p>${esc(a.body)}</p>`
+      `<h3>${esc(a.title)}</h3><p class="small muted">${esc(ui.dateTime(a.created_at, ev, { timeStyle: undefined }))}${a.pinned ? ' <span class="pill">Pinned</span>' : ''}</p><div class="ann-body">${a.body_html || ''}</div>`
     ).join('<hr class="rule">')
     return `<div class="card"><h2>Latest announcements</h2>${rows}<div class="row-flex"><a class="btn" href="${esc(allHref)}">All announcements</a><a class="btn quiet" href="${esc(scheduleHref)}">Schedule</a></div></div>`
   } catch (e) { return '' }

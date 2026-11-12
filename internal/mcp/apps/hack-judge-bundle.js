@@ -472,6 +472,7 @@
   function focusablesIn(box) {
     return Array.from(box.querySelectorAll(FOCUSABLE_SEL)).filter((el2) => !el2.disabled && el2.tabIndex !== -1 && !el2.hidden);
   }
+  var dialogSequence = 0;
   function dialog({ title: title5, body, buttons, escapeValue = false, focus = 0 }) {
     return new Promise((resolve2) => {
       const previous = document.activeElement;
@@ -482,12 +483,12 @@
       box.setAttribute("role", "dialog");
       box.setAttribute("aria-modal", "true");
       const h2 = document.createElement("h2");
-      h2.id = "dialog-title";
+      h2.id = "dialog-title-" + ++dialogSequence;
       h2.textContent = title5;
-      box.setAttribute("aria-labelledby", "dialog-title");
+      box.setAttribute("aria-labelledby", h2.id);
       box.append(h2);
-      const nodes = body == null ? [] : Array.isArray(body) ? body : body instanceof Node ? [body] : [Object.assign(document.createElement("p"), { id: "dialog-body", textContent: body })];
-      if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute("aria-describedby", "dialog-body");
+      const nodes = body == null ? [] : Array.isArray(body) ? body : body instanceof Node ? [body] : [Object.assign(document.createElement("p"), { id: h2.id + "-body", textContent: body })];
+      if (!Array.isArray(body) && !(body instanceof Node) && body != null) box.setAttribute("aria-describedby", h2.id + "-body");
       box.append(...nodes);
       const acts = document.createElement("div");
       acts.className = "acts";
@@ -513,6 +514,7 @@
         return els.find((b) => b.classList.contains("primary")) || els[els.length - 1];
       }
       function keydown(e) {
+        if ([...document.querySelectorAll(".scrim")].at(-1) !== scrim) return;
         if (e.key === "Escape") {
           e.preventDefault();
           done(escapeValue);

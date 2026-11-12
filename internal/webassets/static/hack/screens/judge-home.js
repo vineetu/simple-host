@@ -56,13 +56,14 @@ export async function render(ctx) {
   bindDismiss(main, client, ui, slug, () => { if (ctx.alive()) ctx.refresh() })
   const body = main.querySelector('#jh-body')
 
-  let queueRes, confRes, preview, checklistRes
+  let queueRes, confRes, preview, checklistRes, announcementsRes
   try {
-    ;[queueRes, confRes, preview, checklistRes] = await Promise.all([
+    ;[queueRes, confRes, preview, checklistRes, announcementsRes] = await Promise.all([
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/queue`),
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts?mine=1`),
       previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null),
-      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/checklist?role=judge`)
+      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/checklist?role=judge`),
+      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/announcements`)
     ])
   } catch (e) {
     if (client.isSignedOut(e)) return
@@ -124,7 +125,9 @@ export async function render(ctx) {
   // &walkthrough=1, which forces the guided tour open even if it was
   // dismissed before. tour.js itself checks judge_walkthrough_done.
   const openWalk = ctx.params.get('walkthrough') === '1'
-  body.innerHTML = top + judgeDangerZone(ui, preview, ev, detail.role === 'organiser')
+  const pinned = announcementsRes.ok && (announcementsRes.data.announcements || []).find(a => a.pinned)
+  const announcement = pinned ? `<section class="card"><h2>Pinned announcement</h2><h3>${ui.esc(pinned.title)}</h3><div class="ann-body">${pinned.body_html || ''}</div></section>` : ''
+  body.innerHTML = announcement + top + judgeDangerZone(ui, preview, ev, detail.role === 'organiser')
 
   if (checklistRes.ok) {
     const checklist = checklistRes.data.checklist

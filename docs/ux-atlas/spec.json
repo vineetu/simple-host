@@ -1820,7 +1820,7 @@
       "user_moment": "Saturday morning of the live weekend. Mentor office hours moved, and Amara, on her phone, has to tell 148 participants now, by email too.",
       "purpose": "Post updates to everyone in the event, and fix or remove ones already posted.",
       "primary_action": "Post (bottom-right of the composer). It reads 'Post and email 148 people' while the email box is ticked, where 148 counts only participants with an email address on file; the result after posting always reports the server's real delivery count instead.",
-      "layout": "page.narrow column: page header, the composer card at the top (always open, since posting is why you came), then 'Posted · n' and a .list.editable of announcements, newest first.",
+      "layout": "page.narrow column: page header, the composer card at the top (always open, since posting is why you came), then 'Posted · n' and a .list.editable of announcements, pinned first then newest.",
       "sections": [
         {
           "name": "New announcement",
@@ -1834,6 +1834,11 @@
             {
               "label": "Post / Post and email 148 people",
               "kind": "primary",
+              "confirm": null
+            },
+            {
+              "label": "Add link",
+              "kind": "quiet",
               "confirm": null
             }
           ]
@@ -1855,7 +1860,18 @@
               "label": "Delete (row menu)",
               "kind": "danger",
               "confirm": "Delete “<title>”? It disappears from your page and from everyone's app. (If emailed:) It was emailed to 148 people, and those emails stay sent. [Cancel] [Delete announcement]"
+            },
+            {
+              "label": "Pin to top / Unpin (row menu)",
+              "kind": "quiet",
+              "confirm": null
             }
+          ]
+        },
+        {
+          "name": "Announcement links and pin (SIM-444)",
+          "contents": [
+            "Message has Add link (Label and http(s) Address dialog) and a debounced server Preview, including in Edit. Row summaries omit markup. Row menu offers Pin to top / Unpin without confirmation; one pin replaces the previous pin, shows a Pinned pill and comes first."
           ]
         }
       ],
@@ -3799,6 +3815,12 @@
               "confirm": "Withdraw your application? Your application to Generation Girl Online Hack 2026 and your answers will be removed. You can apply again while sign-up is open. [Cancel] [Withdraw application]"
             }
           ]
+        },
+        {
+          "name": "Announcement links and pin (SIM-444)",
+          "contents": [
+            "Latest announcements keeps API order, first two, Pinned pill and safe server body_html with call/video cards."
+          ]
         }
       ],
       "states": [
@@ -4222,6 +4244,12 @@
             "Welcome! -- 28 Oct 2026 -- We're glad you're here. Check the schedule tab for what's next, and reach out if you have questions."
           ],
           "actions": []
+        },
+        {
+          "name": "Announcement links and pin (SIM-444)",
+          "contents": [
+            "Render safe server body_html with links, bold, bullets, line breaks and standalone call/video cards; Pinned pill, pinned first then newest. Seen timestamp uses newest creation time."
+          ]
         }
       ],
       "states": [
@@ -5444,6 +5472,12 @@
               "kind": "danger",
               "confirm": "Leave Jakarta Women in Tech Hack? You'll lose access to judging. Your scores for 4 teams stay and still count in the results. You can come back with the judge link until results are published. [Cancel] [Leave event]"
             }
+          ]
+        },
+        {
+          "name": "Announcement links and pin (SIM-444)",
+          "contents": [
+            "Near the top show Pinned announcement with title and safe server body_html when one exists."
           ]
         }
       ],
@@ -7128,6 +7162,12 @@
               "confirm": null,
               "target": "AppURL/report"
             }
+          ]
+        },
+        {
+          "name": "Announcement cards and pin",
+          "contents": [
+            "Safe server-rendered body_html with bold, bullets, line breaks, labelled links and standalone Zoom/Meet/Teams/YouTube cards. One Pinned pill; pinned first then newest. YouTube thumbnail from i.ytimg.com."
           ]
         }
       ],

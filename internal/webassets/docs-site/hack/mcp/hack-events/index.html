@@ -2453,7 +2453,7 @@
 </table>
 <h2 id="hack_get_announcements">hack_get_announcements</h2>
 <div data-tool="hack_get_announcements"></div>
-<p>Read event announcements. Organiser only.</p>
+<p>Read event announcements as any member, pinned first; body_html is safe server-rendered HTML.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -2475,7 +2475,7 @@
 </table>
 <h2 id="hack_edit_announcement">hack_edit_announcement</h2>
 <div data-tool="hack_edit_announcement"></div>
-<p>Edit title and body. Editing does not send a new email. Organiser only.</p>
+<p>Edit title and body, or pinned boolean alone to pin/unpin. Pinning replaces the previous pin. The body takes the same formatting as hack_post_announcement. Editing does not send a new email. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -2497,7 +2497,7 @@
 <td>body</td>
 <td>object</td>
 <td>yes</td>
-<td>title and body. Editing does not send a new email. The REST route validates each field and returns its own errors.</td>
+<td>Provide title and body together, or pinned alone. The REST route validates this.</td>
 </tr>
 <tr>
 <td>slug</td>
@@ -2537,7 +2537,7 @@
 </table>
 <h2 id="hack_post_announcement">hack_post_announcement</h2>
 <div data-tool="hack_post_announcement"></div>
-<p>Post an event announcement. Body includes text and optional email flag; email sends it to every approved participant with an email-shaped username, plus a copy to the posting organiser when their own username is email-shaped (one delivery, never duplicated if they are also a participant). The response’s emails_queued is the real count actually queued, not an estimate; organiser_copied says whether one of those is the organiser’s own copy. Ask the person before posting or emailing. Organiser only.</p>
+<p>Post an event announcement; optional pinned replaces the previous pin. Supports labelled links <a href="https://...">label</a>, <strong>bold</strong>, - bullets and line breaks; only http/https links. A Zoom/Meet/Teams/YouTube address on its own line shows as a card. Body includes text and optional email flag; email sends it to every approved participant with an email-shaped username, plus a copy to the posting organiser when their own username is email-shaped (one delivery, never duplicated if they are also a participant). The response’s emails_queued is the real count actually queued, not an estimate; organiser_copied says whether one of those is the organiser’s own copy. Ask the person before posting or emailing. Organiser only.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -2553,7 +2553,7 @@
 <td>body</td>
 <td>object</td>
 <td>yes</td>
-<td>title, body, and optional email_participants boolean. When true, email goes to every approved participant with an email-shaped username, plus one copy to the posting organiser if their own username is email-shaped too (never a duplicate if they are also a participant). The REST route validates each field and returns its own errors.</td>
+<td></td>
 </tr>
 <tr>
 <td>slug</td>

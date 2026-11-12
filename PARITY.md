@@ -398,3 +398,5 @@ SIM-393 (2026-11-07): Hack role/stage checklist server, optional-item marks and 
 2026-11-10 (SIM-426): Hack event copy, checklist readiness and grouping, judging-opening notices, stage messages, judging coverage, member menus, Schedule and winner cards corrected. Enterprise has no Hack workflow; no port needed.
 
 2026-11-11: Hack co-organiser invitation links are reusable until revoked, replaced, expired or the event ends; removing a co-organiser revokes the current link. Enterprise has no Hack workflow; no port needed.
+
+SIM-444 (2026-11-12): Hosted and self-hosted Hack share announcement links, call/video cards, preview, matching email and one pinned update; app, REST, MCP, Ask, docs and atlas use the same server renderer.

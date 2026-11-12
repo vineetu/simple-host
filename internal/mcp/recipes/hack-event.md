@@ -68,10 +68,13 @@ function draw(event) {
   if (next) add(page, 'p', next.title + ' · ' + date(next.start_at));
   if (event.announcements?.length) {
     const area = section(page, 'Announcements');
-    for (const row of event.announcements) {
+    for (const row of [...event.announcements].sort((a, b) => Number(b.pinned) - Number(a.pinned))) {
       const item = add(area, 'article');
       add(item, 'h3', row.title);
-      add(item, 'p', row.body);
+      if (row.pinned) add(item, 'span', 'Pinned');
+      const body = add(item, 'div');
+      body.className = 'ann-body';
+      body.innerHTML = row.body_html; // Safe server-rendered HTML; insert as-is.
       add(item, 'time', date(row.created_at));
     }
   }
@@ -136,3 +139,5 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 </script>
 </html>
 ```
+
+Announcements carry `body_html` (safe server-rendered HTML to insert as-is) and `pinned`. Show the pinned one first. Style `.ann-body` and `.ann-card` for links and cards; YouTube thumbnails are images from `https://i.ytimg.com` (allow this origin in img-src when using a CSP). Never render the original body as HTML.

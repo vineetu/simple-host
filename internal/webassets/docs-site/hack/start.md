@@ -21,3 +21,5 @@ Account → **Connected AI apps** lists your connections and lets you disconnect
 Home offers **Close entries** even without an entry deadline.
 
 In **Event page → About → Prizes**, set optional **Prize for 1st / 2nd / 3rd** values to show the place and prize on winner cards. Places with prizes appear in winners-only results, including when ranks are hidden.
+
+In **Announcements**, press **Add link** beside Message, enter a Label and Address, and check **Preview** before posting. Announcements support clickable http(s) addresses, labelled links, bold, bullets and line breaks. Standalone Zoom, Meet, Teams and YouTube links become cards without fetching linked pages. Organisers can preview before posting and pin one announcement, replacing the previous pin; it appears first for participants and judges. Email carries matching HTML buttons and full addresses in plain text. Use the row menu → **Pin to top** or **Unpin**. Editing never resends email.

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"html"
 	"log"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
+	rules "github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // PutContent stores the content after locking and checking the event.
@@ -35,7 +37,7 @@ func (s *Service) PutContent(ctx context.Context, id string, c model.EventConten
 }
 
 // PostAnnouncement publishes an announcement and queues its mail.
-func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, email bool, userID string) (model.EventAnnouncement, int64, bool, error) {
+func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, email, pin bool, userID string) (model.EventAnnouncement, int64, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.EventAnnouncement{}, 0, false, err
@@ -52,12 +54,23 @@ func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, 
 	if err != nil {
 		return item, queued, copied, err
 	}
-	err = tx.Commit()
-	return item, queued, copied, err
+	if pin {
+		if _, err = hackevents.SetAnnouncementPin(ctx, tx, id, item.ID, true); err != nil {
+			return item, queued, copied, err
+		}
+		item.Pinned = true
+	}
+	if err = tx.Commit(); err != nil {
+		return item, queued, copied, err
+	}
+	item.BodyHTML = rules.AnnouncementHTML(item.Body)
+	return item, queued, copied, nil
 }
 
-// ChangeAnnouncement edits or deletes an announcement under the event lock.
-func (s *Service) ChangeAnnouncement(ctx context.Context, eventID, id, title, body string, remove bool) error {
+// ChangeAnnouncement edits, pins or unpins, or deletes an announcement under
+// the event lock. A change with no title and body but a pinned value only
+// pins or unpins; an edit leaves the pin alone unless pinned is given.
+func (s *Service) ChangeAnnouncement(ctx context.Context, eventID, id, title, body string, pinned *bool, remove bool) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -70,13 +83,20 @@ func (s *Service) ChangeAnnouncement(ctx context.Context, eventID, id, title, bo
 	if stage == "archived" {
 		return &Error{Code: "event_ended", Message: "this event has ended"}
 	}
-	result, err := hackevents.ChangeAnnouncement(ctx, tx, eventID, id, title, body, remove)
-	if err != nil {
-		return err
+	var n int64
+	if remove || title != "" || pinned == nil {
+		result, err := hackevents.ChangeAnnouncement(ctx, tx, eventID, id, title, body, remove)
+		if err != nil {
+			return err
+		}
+		if n, err = result.RowsAffected(); err != nil {
+			return err
+		}
 	}
-	n, err := result.RowsAffected()
-	if err != nil {
-		return err
+	if !remove && pinned != nil {
+		if n, err = hackevents.SetAnnouncementPin(ctx, tx, eventID, id, *pinned); err != nil {
+			return err
+		}
 	}
 	if n == 0 {
 		return &Error{Code: "announcement_not_found", Message: "announcement not found"}
@@ -96,8 +116,15 @@ func ReadContent(ctx context.Context, q sqlkit.Querier, id string) (model.EventC
 
 // ListAnnouncements reads the event announcements.
 func (s *Service) ListAnnouncements(ctx context.Context, id string) ([]model.EventAnnouncement, error) {
-	return hackevents.ListEventAnnouncements(ctx, s.db, id)
+	items, err := hackevents.ListEventAnnouncements(ctx, s.db, id)
+	for i := range items {
+		items[i].BodyHTML = rules.AnnouncementHTML(items[i].Body)
+	}
+	return items, err
 }
+
+// RenderAnnouncement renders announcement text as participants will see it.
+func RenderAnnouncement(body string) string { return rules.AnnouncementHTML(body) }
 
 // QueueReceipt queues the first submitted entry receipt.
 func (s *Service) QueueReceipt(ctx context.Context, ev model.Event, teamID, userID string) {
@@ -146,10 +173,12 @@ func (s *Service) deliverContentMailOne(ctx context.Context, sender NoticeSender
 		log.Printf("hack: content mail: %v", err)
 		return false, 0, err
 	}
-	var subject, body string
+	var subject, body, htmlBody string
 	if m.Kind == "announcement" {
 		subject = m.EventTitle + ": " + m.Title
-		body = m.Body + "\n\nEvent page: https://" + m.EventSlug + "." + siteDomain + "/\n"
+		page := "https://" + m.EventSlug + "." + siteDomain + "/"
+		body = rules.AnnouncementText(m.Body) + "\n\nEvent page: " + page + "\n"
+		htmlBody = announcementEmailDocument(m.EventTitle, m.Title, m.Body, page)
 	} else {
 		subject = m.EventTitle + ": entry received"
 		body = fmt.Sprintf("Your team's entry for %s was received.\n\nTeam: %s\nReview it at %s/e/%s/team\n", m.EventTitle, m.TeamName, publicBaseURL, m.EventSlug)
@@ -159,7 +188,14 @@ func (s *Service) deliverContentMailOne(ctx context.Context, sender NoticeSender
 	if !stopCancel() || ctx.Err() != nil {
 		return false, 0, ctx.Err()
 	}
-	sendErr := sendMailNotice(ctx, sender, m.Recipient, subject, body)
+	var sendErr error
+	if rich, ok := sender.(interface {
+		SendRichNoticeCtx(context.Context, string, string, string, string) error
+	}); ok && htmlBody != "" {
+		sendErr = rich.SendRichNoticeCtx(ctx, m.Recipient, subject, body, htmlBody)
+	} else {
+		sendErr = sendMailNotice(ctx, sender, m.Recipient, subject, body)
+	}
 	ctx, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancelFinish()
 	stopFinish := context.AfterFunc(ctx, cancelTx)
@@ -203,4 +239,20 @@ func sendMailNotice(ctx context.Context, sender NoticeSender, to, subject, body 
 		return s.SendNoticeCtx(ctx, to, subject, body)
 	}
 	return sender.SendNotice(to, subject, body)
+}
+
+// announcementEmailDocument is the HTML part of an announcement email: the
+// event name, the title, the body rendered with buttons for calls and videos,
+// and a link to the event page. Every piece of text is escaped.
+func announcementEmailDocument(eventTitle, title, body, page string) string {
+	const font = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"
+	esc := html.EscapeString
+	return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
+		`<body style="margin:0;padding:0;background:#f4efdf;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:24px 12px;">` +
+		`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border-radius:12px;"><tr><td style="padding:28px 28px 8px;` + font + `">` +
+		`<div style="font-size:13px;color:#615b51;margin:0 0 6px;">` + esc(eventTitle) + `</div>` +
+		`<h1 style="font-size:21px;line-height:1.3;margin:0 0 18px;color:#1a1a1a;">` + esc(title) + `</h1>` +
+		rules.AnnouncementEmailHTML(body) +
+		`</td></tr><tr><td style="padding:4px 28px 28px;` + font + `font-size:13px;color:#615b51;">` +
+		`<a href="` + esc(page) + `" style="color:#a33f31;">Event page</a></td></tr></table></td></tr></table></body></html>`
 }

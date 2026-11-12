@@ -105,7 +105,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	aa := make([]any, 0, len(announcements))
 	for _, a := range announcements {
-		aa = append(aa, map[string]any{"title": a.Title, "body": a.Body, "created_at": a.CreatedAt.UTC().Format(time.RFC3339)})
+		aa = append(aa, map[string]any{"title": a.Title, "body": a.Body, "body_html": a.BodyHTML, "pinned": a.Pinned, "created_at": a.CreatedAt.UTC().Format(time.RFC3339)})
 	}
 	out["announcements"] = aa
 	if h.sites != nil && hackGalleryPublic(ev, h.sites.TeamSitesReady) {

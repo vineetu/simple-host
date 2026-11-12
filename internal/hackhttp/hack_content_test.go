@@ -11,7 +11,7 @@ import (
 )
 
 type contentMailSink struct {
-	notices []struct{ to, subject, body string }
+	notices []struct{ to, subject, body, html string }
 }
 
 type failingContentSink struct {
@@ -31,7 +31,7 @@ func (s *failingContentSink) SendNotice(to, subject, body string) error {
 
 func (*contentMailSink) SendSignInCode(string, string, string) error { return nil }
 func (s *contentMailSink) SendNotice(to, subject, body string) error {
-	s.notices = append(s.notices, struct{ to, subject, body string }{to, subject, body})
+	s.notices = append(s.notices, struct{ to, subject, body, html string }{to, subject, body, ""})
 	return nil
 }
 
@@ -460,4 +460,15 @@ func (s *cancelAfterAcceptedSink) SendNoticeCtx(ctx context.Context, to, subject
 	err := s.contentMailSink.SendNotice(to, subject, body)
 	s.cancel()
 	return err
+}
+
+func (s *contentMailSink) SendRichNoticeCtx(_ context.Context, to, subject, body, html string) error {
+	s.notices = append(s.notices, struct{ to, subject, body, html string }{to, subject, body, html})
+	return nil
+}
+func (s *failingContentSink) SendRichNoticeCtx(ctx context.Context, to, subject, body, html string) error {
+	if s.failNext {
+		return s.SendNotice(to, subject, body)
+	}
+	return s.contentMailSink.SendRichNoticeCtx(ctx, to, subject, body, html)
 }

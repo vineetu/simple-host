@@ -1006,13 +1006,13 @@ func TestHackEventPageFAQAndAnnouncementsKeepLineBreaks(t *testing.T) {
 	body := renderHackEvent(t, p).Body.String()
 	// The newline is in the HTML either way; what keeps it visible is the
 	// pre-wrap rule for these two blocks.
-	if !regexp.MustCompile(`\.announcement-body,#faq details p\{white-space:pre-wrap\}`).MatchString(body) {
-		t.Error("FAQ answers and announcement bodies lost their pre-wrap rule")
+	if !regexp.MustCompile(`#faq details p\{white-space:pre-wrap\}`).MatchString(body) {
+		t.Error("FAQ answers lost their pre-wrap rule")
 	}
 	if !strings.Contains(body, "Yes.\nJust sign up.") {
 		t.Error("FAQ answer lost its line break")
 	}
-	if !strings.Contains(body, "Line one.\nLine two.") {
+	if !strings.Contains(body, "Line one.<br>Line two.") {
 		t.Error("announcement body lost its line break")
 	}
 }
@@ -1568,5 +1568,15 @@ func TestOverallPrizesWinners(t *testing.T) {
 				t.Errorf("prize pills missing without cards (full=%v, ranks=%v)", full, ranks)
 			}
 		}
+	}
+}
+
+func TestAnnouncementPublicPageSafeCards(t *testing.T) {
+	p := testHackEvent()
+	p.Announcements = []hackAnnouncementView{{Title: "Kickoff", Body: "<script>alert(1)</script>\nhttps://zoom.us/j/123", Pinned: true}}
+	r := renderHackEvent(t, p)
+	body := r.Body.String()
+	if strings.Contains(body, "<script>alert(1)</script>") || !strings.Contains(body, "&lt;script&gt;") || !strings.Contains(body, "ann-card ann-call") || !strings.Contains(body, ">Pinned</span>") {
+		t.Fatal(body)
 	}
 }

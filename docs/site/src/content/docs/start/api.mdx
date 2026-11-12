@@ -46,3 +46,7 @@ import Instance from '@docs/Instance.astro';
 </Steps>
 
 <LinkCard title="API reference" href="/docs/api/" />
+
+{/* brand:hack */}
+Announcement POST accepts optional `pinned`; PUT accepts `pinned` alone to pin/unpin or title and body together to edit. GET and the public event feed return `body_html` (safe HTML to insert as-is) and `pinned`, pinned first. The organiser-only POST `/v1/hack/events/{slug}/announcements/preview` takes body and returns body_html without saving. The MCP equivalents are `hack_post_announcement`, `hack_edit_announcement` and `hack_get_announcements`, using a body object for writes. Text supports labelled links `[label](https://...)`, bold, bullets and line breaks; only http/https links. Standalone Zoom, Meet, Teams and YouTube addresses become cards. YouTube thumbnails come from i.ytimg.com.
+{/* /brand */}

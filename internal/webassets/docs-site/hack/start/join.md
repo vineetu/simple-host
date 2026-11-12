@@ -7,3 +7,5 @@
 
 
 - [Sites and deploy](/docs/guides/publish.md)
+
+Announcements show links, call and video cards, bold text and bullet lists. The pinned update appears first, including in Home’s latest announcements. Open a call with **Join the call**, or a video with **Watch the video**.

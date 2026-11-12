@@ -3794,6 +3794,14 @@
     },
     {
       "method": "POST",
+      "path": "/v1/hack/events/{slug}/announcements/preview",
+      "feature_id": "event-administration",
+      "source": "internal/hackhttp/hack_content.go:75",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
       "path": "/v1/hack/events/{slug}/applications/{user_id}/decision",
       "feature_id": "hack-voting",
       "source": "internal/hackhttp/hack_registration.go:15",

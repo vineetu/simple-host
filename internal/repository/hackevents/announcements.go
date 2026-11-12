@@ -37,9 +37,10 @@ type EventAnnouncement = model.EventAnnouncement
 // optimistic count of what was requested.
 func ListEventAnnouncements(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventAnnouncement, error) {
 	rows, err := queryContext(ctx, q, `SELECT a.id, a.title, a.body, a.created_at,
-		(SELECT COUNT(*) FROM event_announcement_deliveries d WHERE d.announcement_id = a.id AND d.sent_at IS NOT NULL)
+		(SELECT COUNT(*) FROM event_announcement_deliveries d WHERE d.announcement_id = a.id AND d.sent_at IS NOT NULL),
+		a.pinned_at IS NOT NULL
 		FROM event_announcements a
-		WHERE a.event_id = $1 ORDER BY a.created_at DESC, a.id DESC LIMIT 50`, eventID)
+		WHERE a.event_id = $1 ORDER BY (a.pinned_at IS NULL), a.created_at DESC, a.id DESC LIMIT 50`, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func ListEventAnnouncements(ctx context.Context, q sqlkit.Querier, eventID strin
 	out := []EventAnnouncement{}
 	for rows.Next() {
 		var a EventAnnouncement
-		if err := rows.Scan(&a.ID, &a.Title, &a.Body, &a.CreatedAt, &a.EmailsSent); err != nil {
+		if err := rows.Scan(&a.ID, &a.Title, &a.Body, &a.CreatedAt, &a.EmailsSent, &a.Pinned); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -106,6 +107,30 @@ func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, bo
 		FROM event_announcement_deliveries WHERE announcement_id = $1`, a.ID, organiserUserID).
 		Scan(&queued, &organiserCopied)
 	return a, queued, organiserCopied, err
+}
+
+// SetAnnouncementPin pins or unpins one announcement. An event has at most one
+// pinned announcement, so pinning replaces whichever was pinned before; the
+// caller holds the event row lock (LockContentStage). It reports the rows
+// matched, which is 0 when the announcement is not this event's.
+func SetAnnouncementPin(ctx context.Context, tx *sql.Tx, eventID, id string, pinned bool) (int64, error) {
+	if pinned {
+		if _, err := tx.ExecContext(ctx, `UPDATE event_announcements SET pinned_at = NULL
+			WHERE event_id = $1 AND id <> $2 AND pinned_at IS NOT NULL`, eventID, id); err != nil {
+			return 0, err
+		}
+		res, err := tx.ExecContext(ctx, `UPDATE event_announcements SET pinned_at = COALESCE(pinned_at, now())
+			WHERE event_id = $1 AND id = $2`, eventID, id)
+		if err != nil {
+			return 0, err
+		}
+		return res.RowsAffected()
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE event_announcements SET pinned_at = NULL WHERE event_id = $1 AND id = $2`, eventID, id)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 func QueueEntryReceipt(ctx context.Context, q sqlkit.Querier, eventID, teamID, userID string) error {
