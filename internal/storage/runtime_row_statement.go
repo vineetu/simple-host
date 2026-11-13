@@ -18,12 +18,18 @@ const (
 )
 
 // RunRowStatement prepares, binds and executes a single SQLite row write.
-func RunRowStatement(conn *sqlite3.Conn, query string, params []json.RawMessage, returning bool) (int64, RowStatementStage, error) {
+func RunRowStatement(conn *sqlite3.Conn, query string, params []json.RawMessage, returning bool, resultID *int64, hooks ...func(string)) (int64, RowStatementStage, error) {
 	stmt, tail, err := conn.Prepare(query)
 	if err != nil || stmt == nil || strings.TrimSpace(tail) != "" {
 		return 0, RowStatementPrepare, err
 	}
 	defer stmt.Close()
+	stage := func(name string) {
+		for _, hook := range hooks {
+			hook(name)
+		}
+	}
+	stage("after_prepare")
 	if len(params) != stmt.BindCount() {
 		return 0, RowStatementBind, nil
 	}
@@ -36,11 +42,15 @@ func RunRowStatement(conn *sqlite3.Conn, query string, params []json.RawMessage,
 	if returning {
 		if stmt.Step() {
 			id = stmt.ColumnInt64(0)
+			if resultID != nil {
+				*resultID = id
+			}
 			stmt.Step()
 		}
 	} else {
 		stmt.Step()
 	}
+	stage("after_step")
 	if err = stmt.Err(); err == nil {
 		err = stmt.Close()
 	}

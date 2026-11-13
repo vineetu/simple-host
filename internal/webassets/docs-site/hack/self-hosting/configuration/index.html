@@ -560,6 +560,9 @@
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#settings-by-area" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Settings by area</span></a>
 		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#sqlite-row-admission" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">SQLite row admission</span></a>
+		
 	</li>
 </ul></div>
 		</details>
@@ -582,6 +585,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#settings-by-area" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Settings by area</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#sqlite-row-admission" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">SQLite row admission</span></a>
 		
 	</li>
 </ul>
@@ -637,6 +643,19 @@ your install needs; see the linked areas for details.</p>
 and <a href="/docs/self-hosting/settings/#operational-times-and-limits">Operational times and limits</a>
 for startup validation, promised dates and served documentation.</p>
 <p>Password accounts: <code>PASSWORD_SIGNIN=on</code> enables username/password sign-in; the binary default is <code>off</code>. <code>PASSWORD_SELF_SIGNUP=on</code> (default) permits public account creation; <code>off</code> leaves creation to the admin. <code>EMAIL_SIGNIN=off</code> accepts either company sign-in or password sign-in as the alternative. See <a href="/docs/self-hosting/settings/accounts-and-sign-in/">accounts and sign-in</a>.</p>
+<h2 id="sqlite-row-admission">SQLite row admission</h2>
+<p><code>SITE_STORAGE_SITE_INFLIGHT</code> limits concurrent SQLite table-row operations per site
+across all its resources (default <code>1</code>, allowed <code>1</code>–<code>4</code>). Each row operation takes
+its site slot before the process-wide <code>SITE_STORAGE_SQL_CONCURRENCY</code> gate.
+<code>SITE_STORAGE_ACQUIRE_WAIT_MS</code> covers both waits together; exhaustion returns
+503 <code>storage_busy</code> with <code>Retry-After</code>. Writes take the site write lock first.
+Set the limit in the Compose <code>.env</code> file and restart the app, or set
+<code>storageSiteInflight</code> in the Helm values file and run <code>helm upgrade</code>.</p>
+<p>A recovered SQLite out-of-memory panic or <code>SQLITE_NOMEM</code> error returns 422
+<code>query_too_expensive</code>; another panic before commit returns 500 <code>storage_failed</code>.
+After a successful commit, a checkpoint or close panic is logged and the success
+response is retained, including the inserted row ID. Recovery cannot catch Go
+fatal errors such as concurrent map writes or the Go runtime running out of memory.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

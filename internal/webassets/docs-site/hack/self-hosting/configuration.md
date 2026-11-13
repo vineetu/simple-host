@@ -41,3 +41,19 @@ and [Operational times and limits](/docs/self-hosting/settings.md#operational-ti
 for startup validation, promised dates and served documentation.
 
 Password accounts: `PASSWORD_SIGNIN=on` enables username/password sign-in; the binary default is `off`. `PASSWORD_SELF_SIGNUP=on` (default) permits public account creation; `off` leaves creation to the admin. `EMAIL_SIGNIN=off` accepts either company sign-in or password sign-in as the alternative. See [accounts and sign-in](/docs/self-hosting/settings/accounts-and-sign-in.md).
+
+## SQLite row admission
+
+`SITE_STORAGE_SITE_INFLIGHT` limits concurrent SQLite table-row operations per site
+across all its resources (default `1`, allowed `1`–`4`). Each row operation takes
+its site slot before the process-wide `SITE_STORAGE_SQL_CONCURRENCY` gate.
+`SITE_STORAGE_ACQUIRE_WAIT_MS` covers both waits together; exhaustion returns
+503 `storage_busy` with `Retry-After`. Writes take the site write lock first.
+Set the limit in the Compose `.env` file and restart the app, or set
+`storageSiteInflight` in the Helm values file and run `helm upgrade`.
+
+A recovered SQLite out-of-memory panic or `SQLITE_NOMEM` error returns 422
+`query_too_expensive`; another panic before commit returns 500 `storage_failed`.
+After a successful commit, a checkpoint or close panic is logged and the success
+response is retained, including the inserted row ID. Recovery cannot catch Go
+fatal errors such as concurrent map writes or the Go runtime running out of memory.

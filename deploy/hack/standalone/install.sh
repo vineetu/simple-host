@@ -60,7 +60,7 @@ if config:
             raise SystemExit('Upgrade configuration must retain existing '+key+'.')
     values.update(supplied)
 if initial:
-    for key in ('SITE_DOMAIN', 'RESEND_API_KEY', 'MAIL_FROM', 'OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET',
+    for key in ('SITE_STORAGE_SITE_INFLIGHT', 'SITE_DOMAIN', 'RESEND_API_KEY', 'MAIL_FROM', 'OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET',
                 'ALLOWED_EMAIL_DOMAINS', 'OIDC_LABEL', 'OIDC_INSECURE_ALLOWED', 'EMAIL_SIGNIN', 'PASSWORD_SIGNIN', 'PASSWORD_SELF_SIGNUP',
                 'MCP_APP_PHOTO_PICKER', 'MCP_APP_MY_SITES', 'MCP_APP_DASHBOARD', 'MCP_APP_SITE_PREVIEW'):
         if os.environ.get(key): values[key] = os.environ[key]

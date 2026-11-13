@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 13:** Limit SQLite table-row work per site, with a short retry response when busy. Recover SQLite panics per request and preserve successful writes if cleanup panics (R1-S3a).
+
 - **Nov 12:** Create a site private from the first request, with only you and the viewers you name able to open it. Send access specific and optional viewer emails in the create call; the default stays anyone with the address. Available on Simple Host, including self-hosted installs with visitor sign-in and per-site addresses.
 
 - **Nov 12:** Every open site can now be found by search engines. The listed/unlisted switch is renamed List on my profile and only decides whether a site shows on your profile page; it is still off for new sites and every site keeps its current setting. Sites with a passcode or named viewers, offline, taken-down and deleted sites stay out of search engines, and a site's own robots.txt or noindex is respected. The simple-host.app and simple-hack.app sitemaps now list every open site's address. Old API and AI-app calls that set visibility keep working.

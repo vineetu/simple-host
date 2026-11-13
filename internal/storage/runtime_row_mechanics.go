@@ -15,13 +15,13 @@ func PrimaryKeyColumns(conn *sqlite3.Conn, table string) (map[string]bool, error
 	if err != nil {
 		return nil, err
 	}
+	defer info.Close()
 	for info.Step() {
 		if info.ColumnInt(5) > 0 {
 			pk[info.ColumnText(1)] = true
 		}
 	}
-	info.Close()
-	return pk, nil
+	return pk, info.Err()
 }
 
 // CheckpointRows truncates the SQLite write-ahead log after a commit.

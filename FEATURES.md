@@ -2860,6 +2860,12 @@ internal certificate checks.
 Routes: `/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`.
 MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `storage_file_download_link`, `storage_get_usage`, `storage_list_file_objects`, `storage_list_kv_keys`.
 
+SQLite table-row operations share a per-site concurrency limit across resources
+(default one, configurable from one to four). Waiting for the site slot and global
+gate shares one timeout and returns `storage_busy` with `Retry-After` when full.
+Recoverable SQLite panics fail only that request; an already committed write keeps
+its success response and inserted row ID even if checkpointing or closing panics.
+
 **Access presets (2026-10-10; owner decision D1 and "Simple Hack uses storage access presets too", INTENT.md).** Every KV namespace, file <a id="storage-presets"></a>
 bucket and SQLite table has an access matrix: four actions (read, add, edit, delete), each one of
 `nobody`, `owner`, `own` (the signed-in person who added the entry), `signed-in` or `anyone`. Seven

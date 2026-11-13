@@ -78,6 +78,8 @@ type SiteHandler struct {
 	// lazy-build pattern.
 	sqlite          *sqliteGate
 	sqliteOnce      sync.Once
+	sqliteSites     *appstorage.SiteSlots
+	sqliteSitesOnce sync.Once
 	storageBindings appstorage.BindingProvider
 
 	notifyOnce    sync.Once

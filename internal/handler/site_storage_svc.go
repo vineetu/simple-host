@@ -29,8 +29,9 @@ func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
 
 func (h *SiteHandler) storageDeps() appstorage.Deps {
 	deps := appstorage.Deps{
-		Bindings: h.storageBindings,
-		Locks:    &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
+		Bindings:  h.storageBindings,
+		SiteSlots: h.siteSlotsFor(),
+		Locks:     &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
 		SiteLimit: os.Getenv("SITE_STORAGE_MAX_BYTES"), FilesLimit: os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"),
 		SpamCheckedMaxBytes: h.limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.limits.SpamCheckedMaxLinks,
 		VisitorSessionIdle: h.limits.VisitorSessionIdle,
@@ -127,4 +128,11 @@ func writeStorageRefusals(w http.ResponseWriter, refusals []*appstorage.Error) {
 			storageError(w, 403, e.Code, message)
 		}
 	}
+}
+
+func (h *SiteHandler) siteSlotsFor() *appstorage.SiteSlots {
+	h.sqliteSitesOnce.Do(func() {
+		h.sqliteSites = appstorage.NewSiteSlots(h.limits.StorageSiteInflight, h.sqliteGateFor(), h.limits.StorageAcquireWait)
+	})
+	return h.sqliteSites
 }

@@ -58,7 +58,7 @@ type TableResult struct {
 // openTableConn opens the per-site database and translates runtime errors.
 // Write callers pass their bounded lock context so quota measurement and the
 // connection share the same deadline as the rest of the mutation.
-func (s *Service) openTableConn(ctx context.Context, c Call, write bool) (*sqlite3.Conn, func(), error) {
+func (s *Service) openTableConn(ctx context.Context, c Call, write bool, transitionalGated ...bool) (*sqlite3.Conn, func(), error) {
 	timeout := s.deps.SQLiteTimeout
 	var remaining func() (int64, error)
 	if write {
@@ -68,7 +68,17 @@ func (s *Service) openTableConn(ctx context.Context, c Call, write bool) (*sqlit
 			return SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool) - s.BudgetUsed(u), err
 		}
 	}
-	conn, done, err := runtime.OpenTableConn(ctx, s.deps.SQLitePath, write, s.deps.SQLiteGate, timeout, s.deps.SQLiteMaxMemory, remaining)
+	var conn *sqlite3.Conn
+	var done func()
+	var err error
+	if len(transitionalGated) != 0 && transitionalGated[0] {
+		conn, done, err = runtime.OpenTableConnGated(ctx, s.deps.SQLitePath, write, s.deps.SQLiteGate, timeout, s.deps.SQLiteMaxMemory, remaining)
+	} else {
+		conn, done, err = runtime.OpenTableConn(ctx, s.deps.SQLitePath, write, timeout, s.deps.SQLiteMaxMemory, remaining)
+	}
+	if e := sqliteFailure(err); e != err {
+		return nil, nil, e
+	}
 	switch err {
 	case nil:
 		return conn, done, nil
@@ -97,7 +107,7 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 	var err error
 	m.cols, m.order, err = runtime.TableInfo(conn, table)
 	if err != nil {
-		return m, &Error{Code: "invalid_rows", Message: "invalid row request"}
+		return m, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 	}
 	if !c.Owner && len(m.cols) > 100 {
 		return m, &Error{Code: "invalid_rows", Message: "too many columns"}
@@ -115,7 +125,7 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 	}
 	m.rowid, err = runtime.RowID(conn, table, m.cols)
 	if err != nil {
-		return m, &Error{Code: "invalid_rows", Message: "invalid row request"}
+		return m, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 	}
 	m.hold = c.Resource.Holds(table)
 	if m.hold && m.cols["approved_at"] != "TEXT" {
@@ -156,67 +166,75 @@ func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, err
 	if !allowed {
 		return out, nil
 	}
-	conn, done, err := s.openTableConn(ctx, c, false)
-	if err != nil {
-		return out, err
-	}
-	defer done()
-	invalid := func() (TableResult, error) { return out, &Error{Code: "invalid_rows", Message: "invalid row request"} }
-	meta, err := tableMetadata(conn, c, in.Table, filter)
-	if err != nil {
-		return out, err
-	}
-	order, rowid, hold := meta.order, meta.rowid, meta.hold
-	query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table) + " WHERE " + rowid + " = ?"
-	params := []any{in.ID}
-	if filter != "" {
-		query += " AND visitor_id = ?"
-		params = append(params, filter)
-	}
-	if hold && !c.Owner && !c.OwnerOnSite {
-		query += " AND approved_at IS NOT NULL"
-	}
-	err = rowReadAuthorizer(conn, c.Owner)
-	if err != nil {
-		return out, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	stmt, _, err := conn.Prepare(query)
-	if err != nil || stmt == nil {
-		return invalid()
-	}
-	defer stmt.Close()
-	if len(params) != stmt.BindCount() {
-		return invalid()
-	}
-	for i, v := range params {
-		raw, _ := json.Marshal(v)
-		if runtime.BindStorageParam(stmt, i+1, raw) != nil {
-			return invalid()
+	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
+		conn, done, err := s.openTableConn(ctx, c, false)
+		if err != nil {
+			return err
 		}
-	}
-	if !stmt.Step() {
-		if stmt.Err() != nil {
-			return out, &Error{Code: "invalid_rows", Message: "query failed"}
+		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
+		s.sqliteStage("after_open")
+		invalid := func(err error) error {
+			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 		}
-		return out, &Error{Code: "row_not_found", Message: "row not found"}
-	}
-	row := make([]any, len(order))
-	mine := false
-	for i, name := range order {
-		row[i] = runtime.StorageColumn(stmt, i)
-		if name == "visitor_id" {
-			id, _ := row[i].(string)
-			mine = id != "" && c.VisitorID != "" && id == c.VisitorID
-			if !c.Owner && !c.OwnerOnSite && !mine {
-				row[i] = nil
+		meta, err := tableMetadata(conn, c, in.Table, filter)
+		if err != nil {
+			return err
+		}
+		order, rowid, hold := meta.order, meta.rowid, meta.hold
+		query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table) + " WHERE " + rowid + " = ?"
+		params := []any{in.ID}
+		if filter != "" {
+			query += " AND visitor_id = ?"
+			params = append(params, filter)
+		}
+		if hold && !c.Owner && !c.OwnerOnSite {
+			query += " AND approved_at IS NOT NULL"
+		}
+		err = rowReadAuthorizer(conn, c.Owner)
+		if err != nil {
+			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+		}
+		stmt, _, err := conn.Prepare(query)
+		if err != nil || stmt == nil {
+			return invalid(err)
+		}
+		defer stmt.Close()
+		s.sqliteStage("after_prepare")
+		if len(params) != stmt.BindCount() {
+			return invalid(err)
+		}
+		for i, v := range params {
+			raw, _ := json.Marshal(v)
+			if err := runtime.BindStorageParam(stmt, i+1, raw); err != nil {
+				return invalid(err)
 			}
 		}
-	}
-	out.Body = map[string]any{"columns": order, "row": row}
-	if !c.Owner && !c.OwnerOnSite {
-		out.Body["mine"] = mine
-	}
-	return out, nil
+		if !stmt.Step() {
+			if stmt.Err() != nil {
+				return sqliteRowFailure(stmt.Err(), &Error{Code: "invalid_rows", Message: "query failed"})
+			}
+			return &Error{Code: "row_not_found", Message: "row not found"}
+		}
+		s.sqliteStage("after_step")
+		row := make([]any, len(order))
+		mine := false
+		for i, name := range order {
+			row[i] = runtime.StorageColumn(stmt, i)
+			if name == "visitor_id" {
+				id, _ := row[i].(string)
+				mine = id != "" && c.VisitorID != "" && id == c.VisitorID
+				if !c.Owner && !c.OwnerOnSite && !mine {
+					row[i] = nil
+				}
+			}
+		}
+		out.Body = map[string]any{"columns": order, "row": row}
+		if !c.Owner && !c.OwnerOnSite {
+			out.Body["mine"] = mine
+		}
+		return nil
+	})
+	return out, err
 }
 
 // TableList authorizes and lists SQLite table rows.
@@ -227,181 +245,187 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 	if !allowed {
 		return out, nil
 	}
-	conn, done, err := s.openTableConn(ctx, c, false)
-	if err != nil {
-		return out, err
-	}
-	defer done()
-	meta, err := tableMetadata(conn, c, in.Table, filter)
-	if err != nil {
-		return out, err
-	}
-	cols, orderCols, rowid, hold := meta.cols, meta.order, meta.rowid, meta.hold
-	q := in.Query
-	after := q.Get("after")
-	limit := 100
-	ok := true
-	if v := q.Get("limit"); v != "" {
-		n, e := strconv.Atoi(v)
-		if e != nil || n < 1 || n > 500 {
-			ok = false
-		} else {
-			limit = n
+	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
+		conn, done, err := s.openTableConn(ctx, c, false)
+		if err != nil {
+			return err
 		}
-	}
-	if !ok {
-		return out, &Error{Code: "invalid_rows", Message: "invalid limit"}
-	}
-	order := q.Get("order")
-	if order == "" {
-		order = rowid
-	}
-	if _, ok := cols[order]; !ok && order != rowid || order == "visitor_id" && !(c.Owner || c.OwnerOnSite) {
-		return out, &Error{Code: "invalid_rows", Message: "invalid row request"}
-	}
-	desc := q.Get("desc")
-	if desc != "" && desc != "0" && desc != "1" {
-		return out, &Error{Code: "invalid_rows", Message: "desc is 0 or 1"}
-	}
-	page := &rowPage{limit: limit, order: order, desc: desc == "1", orderIndex: -1}
-	for i, name := range orderCols {
-		if name == order {
-			page.orderIndex = i
+		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
+		s.sqliteStage("after_open")
+		meta, err := tableMetadata(conn, c, in.Table, filter)
+		if err != nil {
+			return err
 		}
-	}
-	where := []string{}
-	params := []json.RawMessage{}
-	bind := func(v any) { params = append(params, rowJSON(v)) }
-	if filter != "" {
-		where = append(where, "visitor_id = ?")
-		bind(filter)
-	}
-	if hold && !c.Owner && !c.OwnerOnSite {
-		where = append(where, "approved_at IS NOT NULL")
-	}
-	// Equality filters on real columns only, bound as values.
-	keys := []string{}
-	for k := range q {
-		if strings.HasPrefix(k, "where.") {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	if len(keys) > 3 {
-		return out, &Error{Code: "invalid_rows", Message: "at most 3 where filters"}
-	}
-	for _, k := range keys {
-		col := strings.TrimPrefix(k, "where.")
-		if _, ok := cols[col]; !ok || col == "visitor_id" && !(c.Owner || c.OwnerOnSite) {
-			return out, &Error{Code: "invalid_rows", Message: "invalid row request"}
-		}
-		where = append(where, runtime.Quote(col)+" = ?")
-		bind(q.Get(k))
-	}
-	direction, op := " ASC", ">"
-	if page.desc {
-		direction, op = " DESC", "<"
-	}
-
-	if after != "" {
-		b, e := base64.RawURLEncoding.DecodeString(after)
-		var cur rowCursor
-		if e != nil || json.Unmarshal(b, &cur) != nil || cur.Order != order || cur.Desc != page.desc || cur.Value == nil || !runtime.StorageScalar(cur.Value) {
-			return out, &Error{Code: "invalid_rows", Message: "invalid after"}
-		}
-		// SQLite sorts NULL first in ascending order; include them when descending.
-		qo := runtime.Quote(order)
-		if order == rowid {
-			qo = rowid
-		}
-		if string(cur.Value) == "null" {
-			if page.desc {
-				where = append(where, "("+qo+" IS NULL AND "+rowid+op+"?)")
+		cols, orderCols, rowid, hold := meta.cols, meta.order, meta.rowid, meta.hold
+		q := in.Query
+		after := q.Get("after")
+		limit := 100
+		ok := true
+		if v := q.Get("limit"); v != "" {
+			n, e := strconv.Atoi(v)
+			if e != nil || n < 1 || n > 500 {
+				ok = false
 			} else {
-				where = append(where, "("+qo+" IS NOT NULL OR ("+qo+" IS NULL AND "+rowid+op+"?))")
+				limit = n
 			}
-			bind(cur.ID)
-		} else {
-			nulls := ""
-			if page.desc {
-				nulls = qo + " IS NULL OR "
-			}
-			where = append(where, "("+nulls+qo+op+"? OR ("+qo+" = ? AND "+rowid+op+"?))")
-			params = append(params, cur.Value, cur.Value)
-			bind(cur.ID)
 		}
-	}
-	query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table)
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
-	}
-	orderSQL := runtime.Quote(order)
-	if order == rowid {
-		orderSQL = rowid
-	}
-	query += " ORDER BY " + orderSQL + direction + ", " + rowid + direction + " LIMIT ?"
-	bind(limit + 1)
-	if err := rowReadAuthorizer(conn, c.Owner); err != nil {
-		return out, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	stmt, _, err := conn.Prepare(query)
-	if err != nil || stmt == nil {
-		return out, &Error{Code: "invalid_rows", Message: "invalid row request"}
-	}
-	defer stmt.Close()
-	if err = rowBindAll(stmt, params); err != nil {
-		return out, &Error{Code: "invalid_rows", Message: "invalid row request"}
-	}
-	rows := make([][]any, 0)
-	mine := make([]bool, 0)
-	next := ""
-	hasMore := false
-	resultCols := orderCols
-	encodedCols, _ := json.Marshal(resultCols)
-	resultBytes := len(encodedCols) + 64
-	for stmt.Step() {
-		if len(rows) >= page.limit {
-			hasMore = true
-			break
+		if !ok {
+			return &Error{Code: "invalid_rows", Message: "invalid limit"}
 		}
-		raw := make([]any, len(resultCols))
-		for i := range resultCols {
-			raw[i] = runtime.StorageColumn(stmt, i)
+		order := q.Get("order")
+		if order == "" {
+			order = rowid
 		}
-		cursor := page.cursor(raw, stmt.ColumnInt64(len(resultCols)))
-		row := make([]any, len(orderCols))
-		m := false
+		if _, ok := cols[order]; !ok && order != rowid || order == "visitor_id" && !(c.Owner || c.OwnerOnSite) {
+			return &Error{Code: "invalid_rows", Message: "invalid row request"}
+		}
+		desc := q.Get("desc")
+		if desc != "" && desc != "0" && desc != "1" {
+			return &Error{Code: "invalid_rows", Message: "desc is 0 or 1"}
+		}
+		page := &rowPage{limit: limit, order: order, desc: desc == "1", orderIndex: -1}
 		for i, name := range orderCols {
-			row[i] = runtime.StorageColumn(stmt, i)
-			if name == "visitor_id" {
-				id, _ := row[i].(string)
-				m = id != "" && c.VisitorID != "" && id == c.VisitorID
-				if !c.Owner && !c.OwnerOnSite && !m {
-					row[i] = nil
+			if name == order {
+				page.orderIndex = i
+			}
+		}
+		where := []string{}
+		params := []json.RawMessage{}
+		bind := func(v any) { params = append(params, rowJSON(v)) }
+		if filter != "" {
+			where = append(where, "visitor_id = ?")
+			bind(filter)
+		}
+		if hold && !c.Owner && !c.OwnerOnSite {
+			where = append(where, "approved_at IS NOT NULL")
+		}
+		// Equality filters on real columns only, bound as values.
+		keys := []string{}
+		for k := range q {
+			if strings.HasPrefix(k, "where.") {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		if len(keys) > 3 {
+			return &Error{Code: "invalid_rows", Message: "at most 3 where filters"}
+		}
+		for _, k := range keys {
+			col := strings.TrimPrefix(k, "where.")
+			if _, ok := cols[col]; !ok || col == "visitor_id" && !(c.Owner || c.OwnerOnSite) {
+				return &Error{Code: "invalid_rows", Message: "invalid row request"}
+			}
+			where = append(where, runtime.Quote(col)+" = ?")
+			bind(q.Get(k))
+		}
+		direction, op := " ASC", ">"
+		if page.desc {
+			direction, op = " DESC", "<"
+		}
+
+		if after != "" {
+			b, e := base64.RawURLEncoding.DecodeString(after)
+			var cur rowCursor
+			if e != nil || json.Unmarshal(b, &cur) != nil || cur.Order != order || cur.Desc != page.desc || cur.Value == nil || !runtime.StorageScalar(cur.Value) {
+				return &Error{Code: "invalid_rows", Message: "invalid after"}
+			}
+			// SQLite sorts NULL first in ascending order; include them when descending.
+			qo := runtime.Quote(order)
+			if order == rowid {
+				qo = rowid
+			}
+			if string(cur.Value) == "null" {
+				if page.desc {
+					where = append(where, "("+qo+" IS NULL AND "+rowid+op+"?)")
+				} else {
+					where = append(where, "("+qo+" IS NOT NULL OR ("+qo+" IS NULL AND "+rowid+op+"?))")
+				}
+				bind(cur.ID)
+			} else {
+				nulls := ""
+				if page.desc {
+					nulls = qo + " IS NULL OR "
+				}
+				where = append(where, "("+nulls+qo+op+"? OR ("+qo+" = ? AND "+rowid+op+"?))")
+				params = append(params, cur.Value, cur.Value)
+				bind(cur.ID)
+			}
+		}
+		query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table)
+		if len(where) > 0 {
+			query += " WHERE " + strings.Join(where, " AND ")
+		}
+		orderSQL := runtime.Quote(order)
+		if order == rowid {
+			orderSQL = rowid
+		}
+		query += " ORDER BY " + orderSQL + direction + ", " + rowid + direction + " LIMIT ?"
+		bind(limit + 1)
+		if err := rowReadAuthorizer(conn, c.Owner); err != nil {
+			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+		}
+		stmt, _, err := conn.Prepare(query)
+		if err != nil || stmt == nil {
+			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
+		}
+		defer stmt.Close()
+		s.sqliteStage("after_prepare")
+		if err = rowBindAll(stmt, params); err != nil {
+			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
+		}
+		rows := make([][]any, 0)
+		mine := make([]bool, 0)
+		next := ""
+		hasMore := false
+		resultCols := orderCols
+		encodedCols, _ := json.Marshal(resultCols)
+		resultBytes := len(encodedCols) + 64
+		for stmt.Step() {
+			s.sqliteStage("after_step")
+			if len(rows) >= page.limit {
+				hasMore = true
+				break
+			}
+			raw := make([]any, len(resultCols))
+			for i := range resultCols {
+				raw[i] = runtime.StorageColumn(stmt, i)
+			}
+			cursor := page.cursor(raw, stmt.ColumnInt64(len(resultCols)))
+			row := make([]any, len(orderCols))
+			m := false
+			for i, name := range orderCols {
+				row[i] = runtime.StorageColumn(stmt, i)
+				if name == "visitor_id" {
+					id, _ := row[i].(string)
+					m = id != "" && c.VisitorID != "" && id == c.VisitorID
+					if !c.Owner && !c.OwnerOnSite && !m {
+						row[i] = nil
+					}
 				}
 			}
+			encoded, e := json.Marshal(row)
+			if e != nil || resultBytes+len(encoded) > ResultLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES")) {
+				return &Error{Code: "result_too_large", Message: "query result is too large"}
+			}
+			resultBytes += len(encoded)
+			rows = append(rows, row)
+			mine = append(mine, m)
+			next = cursor
 		}
-		encoded, e := json.Marshal(row)
-		if e != nil || resultBytes+len(encoded) > ResultLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES")) {
-			return out, &Error{Code: "result_too_large", Message: "query result is too large"}
+		if stmt.Err() != nil {
+			return sqliteRowFailure(stmt.Err(), &Error{Code: "invalid_rows", Message: "query failed"})
 		}
-		resultBytes += len(encoded)
-		rows = append(rows, row)
-		mine = append(mine, m)
-		next = cursor
-	}
-	if stmt.Err() != nil {
-		return out, &Error{Code: "invalid_rows", Message: "query failed"}
-	}
-	if !hasMore {
-		next = ""
-	}
-	result := map[string]any{"columns": resultCols, "rows": rows, "next_after": next}
-	if !(c.Owner || c.OwnerOnSite) {
-		result["mine"] = mine
-	}
-	out.Body = result
-	return out, nil
+		if !hasMore {
+			next = ""
+		}
+		result := map[string]any{"columns": resultCols, "rows": rows, "next_after": next}
+		if !(c.Owner || c.OwnerOnSite) {
+			result["mine"] = mine
+		}
+		out.Body = result
+		return nil
+	})
+	return out, err
 }
 
 type rowPage struct {
@@ -457,4 +481,10 @@ func rowReadAuthorizer(conn *sqlite3.Conn, owner bool) error {
 		}
 		return sqlite3.AUTH_DENY
 	})
+}
+
+func (s *Service) sqliteStage(stage string) {
+	if s.sqliteHook != nil {
+		s.sqliteHook(stage)
+	}
 }

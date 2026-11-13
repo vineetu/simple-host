@@ -158,7 +158,7 @@ func (s *Service) sqliteRowVisitors(ctx context.Context, c Call) ([]string, erro
 			continue
 		}
 		path := filepath.Join(c.RuntimeDir, "sqlite", r.Name+".sqlite")
-		conn, done, err := runtime.OpenTableConn(ctx, path, false, s.deps.SQLiteGate, s.deps.SQLiteTimeout, s.deps.SQLiteMaxMemory, nil)
+		conn, done, err := runtime.OpenTableConnGated(ctx, path, false, s.deps.SQLiteGate, s.deps.SQLiteTimeout, s.deps.SQLiteMaxMemory, nil)
 		if err != nil {
 			continue // a resource busy or briefly unreadable does not fail the whole list
 		}

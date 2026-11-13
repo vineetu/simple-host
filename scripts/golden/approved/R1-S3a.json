@@ -1,0 +1,407 @@
+{
+  "slice": "R1-S3a",
+  "entries": [
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Register the per-site SQLite row admission limit SITE_STORAGE_SITE_INFLIGHT with default 1 and range 1 to 4.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "      | 1",
+        "      \"\"\",",
+        "      \"description\": \"Concurrent SQLite row operations per site (1 to 4); the site slot and global gate share one acquire wait.\",",
+        "      \"group\": \"storage\",",
+        "      \"max\": 4,",
+        "      \"min\": 1,",
+        "      \"name\": \"SITE_STORAGE_SITE_INFLIGHT\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": true,",
+        "      \"type\": \"int\",",
+        "      \"unit\": \"operations\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"\"\""
+      ]
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Register the per-site SQLite row admission limit SITE_STORAGE_SITE_INFLIGHT with default 1 and range 1 to 4.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "      | 1",
+        "      \"\"\",",
+        "      \"description\": \"Concurrent SQLite row operations per site (1 to 4); the site slot and global gate share one acquire wait.\",",
+        "      \"group\": \"storage\",",
+        "      \"max\": 4,",
+        "      \"min\": 1,",
+        "      \"name\": \"SITE_STORAGE_SITE_INFLIGHT\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": true,",
+        "      \"type\": \"int\",",
+        "      \"unit\": \"operations\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"\"\""
+      ]
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[249].default",
+      "old": "0",
+      "new": "1"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[250].default",
+      "old": "250",
+      "new": "0"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[251].default",
+      "old": "2000",
+      "new": "250"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[252].default",
+      "old": "5000",
+      "new": "2000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[253].default",
+      "old": "2000",
+      "new": "5000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[254].default",
+      "old": "1000",
+      "new": "2000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[255].default",
+      "old": "120,100ms",
+      "new": "1000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[258].default",
+      "old": "25",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[259].default",
+      "old": "5",
+      "new": "25"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[260].default",
+      "old": "30",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[261].default",
+      "old": "5",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[262].default",
+      "old": "false",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[263].default",
+      "old": "./data/sites",
+      "new": "false"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[264].default",
+      "old": "10000000",
+      "new": "./data/sites"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[266].default",
+      "old": "1000000",
+      "new": "10000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[268].default",
+      "old": "200",
+      "new": "1000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[269].default",
+      "old": "100",
+      "new": "200"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[270].default",
+      "old": "10240",
+      "new": "100"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[271].default",
+      "old": "75",
+      "new": "10240"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[272].default",
+      "old": "60",
+      "new": "75"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[273].default",
+      "old": "20",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[274].default",
+      "old": "",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[249].default",
+      "old": "0",
+      "new": "1"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[250].default",
+      "old": "250",
+      "new": "0"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[251].default",
+      "old": "2000",
+      "new": "250"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[252].default",
+      "old": "5000",
+      "new": "2000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[253].default",
+      "old": "2000",
+      "new": "5000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[254].default",
+      "old": "1000",
+      "new": "2000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[255].default",
+      "old": "120,100ms",
+      "new": "1000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[258].default",
+      "old": "25",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[259].default",
+      "old": "5",
+      "new": "25"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[260].default",
+      "old": "30",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[261].default",
+      "old": "5",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[262].default",
+      "old": "false",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[263].default",
+      "old": "./data/sites",
+      "new": "false"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[264].default",
+      "old": "10000000",
+      "new": "./data/sites"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[266].default",
+      "old": "1000000",
+      "new": "10000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[268].default",
+      "old": "200",
+      "new": "1000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[269].default",
+      "old": "100",
+      "new": "200"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[270].default",
+      "old": "10240",
+      "new": "100"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[271].default",
+      "old": "75",
+      "new": "10240"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[272].default",
+      "old": "60",
+      "new": "75"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[273].default",
+      "old": "20",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Adding SITE_STORAGE_SITE_INFLIGHT shifts this existing setting index; pin its JSON-valued default string as required by the golden text-rendering correction in NOTES.md.",
+      "at": "body.settings[274].default",
+      "old": "",
+      "new": "20"
+    }
+  ]
+}

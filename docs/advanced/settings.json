@@ -3265,6 +3265,20 @@
       "small_box": true
     },
     {
+      "name": "SITE_STORAGE_SITE_INFLIGHT",
+      "group": "storage",
+      "description": "Concurrent SQLite row operations per site (1 to 4); the site slot and global gate share one acquire wait.",
+      "type": "int",
+      "default": "1",
+      "min": 1,
+      "max": 4,
+      "unit": "operations",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "SITE_STORAGE_SQL_CONCURRENCY",
       "group": "storage",
       "description": "Concurrent SQLite executions across the process; defaults to the CPU count.",

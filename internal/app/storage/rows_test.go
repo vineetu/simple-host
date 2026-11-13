@@ -21,7 +21,7 @@ func TestGetRowVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn.Close()
-	s := New(nil, Deps{SQLitePath: path, SQLiteGate: NewSQLiteGate(1, time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536, ViewersAllow: func() bool { return true }})
+	s := New(nil, Deps{SQLitePath: path, SiteSlots: NewSiteSlots(1, NewSQLiteGate(1, time.Second), time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536, ViewersAllow: func() bool { return true }})
 	c := Call{VisitorID: "visitor", Resource: rules.Resource{Read: rules.WhoAnyone}}
 	got, err := s.TableGet(context.Background(), TableInput{Call: c, Table: "notes", ID: 1})
 	if err != nil || got.Authorization != nil {
@@ -52,7 +52,7 @@ func TestListRowsPaginationAndVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn.Close()
-	s := New(nil, Deps{SQLitePath: path, SQLiteGate: NewSQLiteGate(1, time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536, ViewersAllow: func() bool { return true }})
+	s := New(nil, Deps{SQLitePath: path, SiteSlots: NewSiteSlots(1, NewSQLiteGate(1, time.Second), time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536, ViewersAllow: func() bool { return true }})
 	c := Call{VisitorID: "visitor", Resource: rules.Resource{Read: rules.WhoAnyone}}
 	in := TableInput{Call: c, Table: "notes", Query: url.Values{"limit": {"1"}}}
 	first, err := s.TableList(context.Background(), in)

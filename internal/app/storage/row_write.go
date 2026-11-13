@@ -24,38 +24,46 @@ func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput, 
 		return 0, err
 	}
 	defer unlock()
-	c.Context = ctx
-	conn, done, err := s.openTableConn(ctx, c, true)
-	if err != nil {
-		return 0, err
-	}
-	defer done()
-	if c.OwnerFor != "" {
-		// Lazy, same-locked-window upgrade (review fix, SIM-358): an
-		// existing records/personal table gets written_by on its first
-		// for use, not only on a resaved preset. authorizeTable already
-		// refused for on anything but an own-read table, so this never
-		// touches a wall/board/etc. table.
-		if err := runtime.EnsureWrittenByColumn(conn, in.Table); err != nil {
-			if errors.Is(err, runtime.ErrWrittenBySchemaLocked) {
-				return 0, &Error{Code: "written_by_blocked", Message: "a trigger or view on this table may depend on its exact columns; remove or recreate it before adding a row with for"}
-			}
-			return 0, &Error{Code: "internal_error", Message: "internal server error"}
+	var id int64
+	err = s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
+		c.Context = ctx
+		conn, done, err := s.openTableConn(ctx, c, true)
+		if err != nil {
+			return err
 		}
-	}
-	meta, err := tableMetadata(conn, c, in.Table, filter)
-	if err != nil {
-		return 0, err
-	}
-	return s.addTableRow(conn, c, in, meta)
+		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
+		s.sqliteStage("after_open")
+		if c.OwnerFor != "" {
+			// Lazy, same-locked-window upgrade (review fix, SIM-358): an
+			// existing records/personal table gets written_by on its first
+			// for use, not only on a resaved preset. authorizeTable already
+			// refused for on anything but an own-read table, so this never
+			// touches a wall/board/etc. table.
+			if err := runtime.EnsureWrittenByColumn(conn, in.Table); err != nil {
+				if errors.Is(err, runtime.ErrWrittenBySchemaLocked) {
+					return &Error{Code: "written_by_blocked", Message: "a trigger or view on this table may depend on its exact columns; remove or recreate it before adding a row with for"}
+				}
+				return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+			}
+		}
+		meta, err := tableMetadata(conn, c, in.Table, filter)
+		if err != nil {
+			return err
+		}
+		return s.addTableRow(conn, c, in, meta, a, &id)
+	})
+	return id, err
 }
 
 // runTableWrite preserves the row-write error classification for table workflows.
-func runTableWrite(conn *sqlite3.Conn, table string, owner bool, kind sqlite3.AuthorizerActionCode, query string, params []json.RawMessage, returning bool) (int64, error) {
+func runTableWrite(conn *sqlite3.Conn, table string, owner bool, kind sqlite3.AuthorizerActionCode, query string, params []json.RawMessage, returning bool, resultID *int64, hooks ...func(string)) (int64, error) {
 	if err := runtime.SetRowAuthorizer(conn, table, owner, kind); err != nil {
-		return 0, &Error{Code: "internal_error", Message: "internal server error"}
+		return 0, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
-	id, stage, err := runtime.RunRowStatement(conn, query, params, returning)
+	id, stage, err := runtime.RunRowStatement(conn, query, params, returning, resultID, hooks...)
+	if errors.Is(err, sqlite3.NOMEM) {
+		return 0, sqliteFailure(err)
+	}
 	if stage == runtime.RowStatementPrepare {
 		return 0, &Error{Code: "forbidden", Message: "this change would touch other tables; pages cannot make it, only the owner's tools"}
 	}
@@ -125,30 +133,36 @@ func rowReferenceError(status int, err error) error {
 		return nil
 	}
 	if status == 404 {
-		return &Error{Code: "invalid_reference", Message: "referenced row not found"}
+		return sqliteRowFailure(err, &Error{Code: "invalid_reference", Message: "referenced row not found"})
 	}
-	return &Error{Code: "invalid_rows", Message: "cannot check references"}
+	return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "cannot check references"})
 }
 
 // finishTableWrite commits before checkpointing; a checkpoint failure cannot
 // turn an already committed change into a failed response.
-func (s *Service) finishTableWrite(conn *sqlite3.Conn, c Call, commit func() error) error {
+func (s *Service) finishTableWrite(conn *sqlite3.Conn, c Call, commit func() error, a *Admission) error {
 	if err := conn.SetAuthorizer(nil); err != nil {
-		return &Error{Code: "internal_error", Message: "internal server error"}
+		return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
+	s.sqliteStage("before_commit")
 	if err := commit(); err != nil {
 		if errors.Is(err, sqlite3.CONSTRAINT_FOREIGNKEY) {
-			return &Error{Code: "invalid_reference", Message: "referenced row not found"}
+			return sqliteRowFailure(err, &Error{Code: "invalid_reference", Message: "referenced row not found"})
 		}
-		return &Error{Code: "invalid_rows", Message: "cannot commit the change"}
+		return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "cannot commit the change"})
 	}
+	a.Committed()
+	// These remain mandatory even when checkpointing panics after a durable write.
+	defer s.deps.MarkChanged()
+	defer func() {
+		if s.deps.Committed != nil {
+			s.deps.Committed(c.Context)
+		}
+	}()
+	s.sqliteStage("after_commit")
 	if err := runtime.CheckpointRows(conn); err != nil {
 		log.Printf("storage: site %s %s: checkpoint after commit: %v", c.SiteID, c.ResourceName, err)
 	}
-	if s.deps.Committed != nil {
-		s.deps.Committed(c.Context)
-	}
-	s.deps.MarkChanged()
 	return nil
 }
 
@@ -157,7 +171,7 @@ func (s *Service) finishTableWrite(conn *sqlite3.Conn, c Call, commit func() err
 func beginTableWrite(conn *sqlite3.Conn) (func() error, func(), error) {
 	commit, rollback, err := runtime.BeginRowWrite(conn)
 	if err != nil {
-		return nil, nil, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly", NoRetryAfter: true}
+		return nil, nil, sqliteRowFailure(err, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly", NoRetryAfter: true})
 	}
 	return commit, rollback, nil
 }
@@ -247,33 +261,33 @@ func stampInsertValues(cols map[string]string, values map[string]json.RawMessage
 
 // addTableRow keeps the insert, reference check and commit in one transaction.
 // Its caller must have authorized the operation and acquired the site lock.
-func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta rowMetadata) (int64, error) {
+func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta rowMetadata, a *Admission, resultID *int64) error {
 	// Check IDs before stamping, as the original workflow did.
 	if !c.Owner {
 		supplied, err := runtime.InsertSuppliesID(conn, in.Table, in.Values)
 		if err != nil {
-			return 0, &Error{Code: "invalid_rows", Message: "invalid row request"}
+			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 		}
 		if supplied {
-			return 0, &Error{Code: "invalid_rows", Message: "the server assigns ids"}
+			return &Error{Code: "invalid_rows", Message: "the server assigns ids"}
 		}
 	}
 	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID), OwnerFor: c.OwnerFor})
 	query, params, err := runtime.PrepareInsert(in.Table, meta.rowid, meta.cols, in.Values, !c.Owner)
 	if err != nil {
-		return 0, &Error{Code: "invalid_rows", Message: "invalid row request"}
+		return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 	}
 	commit, rollback, err := beginTableWrite(conn)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer rollback()
-	id, err := runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_INSERT, query, params, true)
+	id, err := runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_INSERT, query, params, true, resultID, s.sqliteStage)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	if err = checkRowReferences(conn, c, in.Table, meta.rowid, id); err != nil {
-		return 0, err
+		return err
 	}
 	if c.OwnerFor != "" {
 		// A trigger the owner's own (otherwise unrestricted) schema route
@@ -284,13 +298,13 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 		// transaction, before committing; a mismatch rolls the whole add
 		// back rather than ship a row that looks like the visitor's own.
 		if err = verifyOwnerForRow(conn, in.Table, meta.rowid, id, c.OwnerFor); err != nil {
-			return 0, err
+			return err
 		}
 	}
-	if err = s.finishTableWrite(conn, c, commit); err != nil {
-		return 0, err
+	if err = s.finishTableWrite(conn, c, commit, a); err != nil {
+		return err
 	}
-	return id, nil
+	return nil
 }
 
 // verifyOwnerForRow confirms an on-behalf-of insert's own values survived
@@ -299,15 +313,15 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 func verifyOwnerForRow(conn *sqlite3.Conn, table, rowid string, id int64, target string) error {
 	stmt, _, err := conn.Prepare(`SELECT visitor_id, written_by FROM ` + runtime.Quote(table) + ` WHERE ` + rowid + ` = ?`)
 	if err != nil {
-		return &Error{Code: "internal_error", Message: "internal server error"}
+		return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
 	defer stmt.Close()
 	if err := stmt.BindInt64(1, id); err != nil {
-		return &Error{Code: "internal_error", Message: "internal server error"}
+		return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
 	if !stmt.Step() {
 		if err := stmt.Err(); err != nil {
-			return &Error{Code: "internal_error", Message: "internal server error"}
+			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 		}
 		return &Error{Code: "written_by_tampered", Message: "a trigger on this table removed the row before the add could be verified; the add was rolled back"}
 	}
@@ -330,74 +344,81 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 		return TableResult{}, err
 	}
 	defer unlock()
-	c.Context = ctx
-	conn, done, err := s.openTableConn(ctx, c, true)
-	if err != nil {
-		return TableResult{}, err
-	}
-	defer done()
-	meta, err := tableMetadata(conn, c, in.Table, filter)
-	if err != nil {
-		return TableResult{}, err
-	}
-	pk, err := runtime.PrimaryKeyColumns(conn, in.Table)
-	if err != nil {
-		return TableResult{}, &Error{Code: "invalid_rows", Message: "invalid row request"}
-	}
-	names := make([]string, 0, len(values))
-	for name := range values {
-		lower := strings.ToLower(name)
-		if lower == "visitor_id" || lower == "written_by" || lower == "created_at" || lower == "updated_at" || lower == "rowid" || lower == "_rowid_" || lower == "oid" || pk[name] || meta.hold && !c.Owner && !c.OwnerOnSite && strings.EqualFold(name, "approved_at") {
-			return TableResult{}, &Error{Code: "server_column", Message: "id, visitor_id, written_by, created_at, and updated_at are set by the server"}
+	var out TableResult
+	err = s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
+		c.Context = ctx
+		conn, done, err := s.openTableConn(ctx, c, true)
+		if err != nil {
+			return err
 		}
-		if _, ok := meta.cols[name]; !ok {
-			return TableResult{}, &Error{Code: "invalid_rows", Message: "invalid row request"}
+		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
+		s.sqliteStage("after_open")
+		meta, err := tableMetadata(conn, c, in.Table, filter)
+		if err != nil {
+			return err
 		}
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	if _, ok := meta.cols["updated_at"]; ok {
-		names = append(names, "updated_at")
-		values["updated_at"] = rowJSON(time.Now().UTC().Format(time.RFC3339Nano))
-	}
-	query, params := runtime.RowUpdateStatement(in.Table, meta.rowid, names, values, rowJSON(in.ID), filter, c.Owner, meta.hold && !c.Owner && !c.OwnerOnSite)
-	commit, rollback, err := beginTableWrite(conn)
+		pk, err := runtime.PrimaryKeyColumns(conn, in.Table)
+		if err != nil {
+			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
+		}
+		names := make([]string, 0, len(values))
+		for name := range values {
+			lower := strings.ToLower(name)
+			if lower == "visitor_id" || lower == "written_by" || lower == "created_at" || lower == "updated_at" || lower == "rowid" || lower == "_rowid_" || lower == "oid" || pk[name] || meta.hold && !c.Owner && !c.OwnerOnSite && strings.EqualFold(name, "approved_at") {
+				return &Error{Code: "server_column", Message: "id, visitor_id, written_by, created_at, and updated_at are set by the server"}
+			}
+			if _, ok := meta.cols[name]; !ok {
+				return &Error{Code: "invalid_rows", Message: "invalid row request"}
+			}
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		if _, ok := meta.cols["updated_at"]; ok {
+			names = append(names, "updated_at")
+			values["updated_at"] = rowJSON(time.Now().UTC().Format(time.RFC3339Nano))
+		}
+		query, params := runtime.RowUpdateStatement(in.Table, meta.rowid, names, values, rowJSON(in.ID), filter, c.Owner, meta.hold && !c.Owner && !c.OwnerOnSite)
+		commit, rollback, err := beginTableWrite(conn)
+		if err != nil {
+			return err
+		}
+		defer rollback()
+		before := conn.TotalChanges()
+		if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_UPDATE, query, params, false, nil, s.sqliteStage); err != nil {
+			return err
+		}
+		if conn.Changes() == 0 {
+			return &Error{Code: "row_not_found", Message: "row not found"}
+		}
+		if !c.Owner && conn.TotalChanges()-before != 1 {
+			return &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
+		}
+		if err = checkRowReferences(conn, c, in.Table, meta.rowid, in.ID); err != nil {
+			return err
+		}
+		_ = conn.SetAuthorizer(nil)
+		// filter=="" means no per-actor ownership was enforced on this write:
+		// the owner's key/connector (filter is always "" for c.Owner), the
+		// owner signed in on their own site (D1, OwnerOnSite), or a visitor
+		// acting under a shared signed_in/anyone write grant that is not
+		// scoped to their own rows -- any of these may have touched a row
+		// that is not the actor's own, so it is looked up directly rather
+		// than assumed to be c.VisitorID. Only when filter actually named
+		// c.VisitorID (the own-preset case) is the actor known to be the
+		// row's own visitor_id for free, with no extra query. Editing
+		// visitor_id itself is disallowed above, so the value is the same
+		// before and after this write.
+		rowVisitorID := c.VisitorID
+		if filter == "" {
+			rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
+		}
+		out = TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(c, in.Table, "record.changed", "edited", in.ID, values, rowVisitorID)}
+		return s.finishTableWrite(conn, c, commit, a)
+	})
 	if err != nil {
 		return TableResult{}, err
 	}
-	defer rollback()
-	before := conn.TotalChanges()
-	if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_UPDATE, query, params, false); err != nil {
-		return TableResult{}, err
-	}
-	if conn.Changes() == 0 {
-		return TableResult{}, &Error{Code: "row_not_found", Message: "row not found"}
-	}
-	if !c.Owner && conn.TotalChanges()-before != 1 {
-		return TableResult{}, &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
-	}
-	if err = checkRowReferences(conn, c, in.Table, meta.rowid, in.ID); err != nil {
-		return TableResult{}, err
-	}
-	if err = s.finishTableWrite(conn, c, commit); err != nil {
-		return TableResult{}, err
-	}
-	// filter=="" means no per-actor ownership was enforced on this write:
-	// the owner's key/connector (filter is always "" for c.Owner), the
-	// owner signed in on their own site (D1, OwnerOnSite), or a visitor
-	// acting under a shared signed_in/anyone write grant that is not
-	// scoped to their own rows -- any of these may have touched a row
-	// that is not the actor's own, so it is looked up directly rather
-	// than assumed to be c.VisitorID. Only when filter actually named
-	// c.VisitorID (the own-preset case) is the actor known to be the
-	// row's own visitor_id for free, with no extra query. Editing
-	// visitor_id itself is disallowed above, so the value is the same
-	// before and after this write.
-	rowVisitorID := c.VisitorID
-	if filter == "" {
-		rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
-	}
-	return TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(c, in.Table, "record.changed", "edited", in.ID, values, rowVisitorID)}, nil
+	return out, nil
 }
 
 // lookupRowVisitorID reads one row's own visitor_id column directly: used
@@ -516,47 +537,51 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 		return out, err
 	}
 	defer unlock()
-	c.Context = ctx
-	conn, done, err := s.openTableConn(ctx, c, true)
+	err = s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
+		c.Context = ctx
+		conn, done, err := s.openTableConn(ctx, c, true)
+		if err != nil {
+			return err
+		}
+		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
+		s.sqliteStage("after_open")
+		meta, err := tableMetadata(conn, c, in.Table, filter)
+		if err != nil {
+			return err
+		}
+		// Read before the row is gone: filter=="" (the owner's key/connector,
+		// D1's OwnerOnSite, or a visitor under a shared signed_in/anyone
+		// delete grant not scoped to their own rows) means this delete may
+		// have removed any visitor's row, not necessarily the actor's own, so
+		// it is looked up directly while the row still exists; only when
+		// filter actually named c.VisitorID is the actor known for free to be
+		// the row's own visitor_id.
+		rowVisitorID := c.VisitorID
+		if filter == "" {
+			rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
+		}
+		query, params := runtime.RowDeleteStatement(in.Table, meta.rowid, rowJSON(in.ID), filter, meta.hold && !c.Owner && !c.OwnerOnSite)
+		commit, rollback, err := beginTableWrite(conn)
+		if err != nil {
+			return err
+		}
+		defer rollback()
+		before := conn.TotalChanges()
+		if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_DELETE, query, params, false, nil, s.sqliteStage); err != nil {
+			return err
+		}
+		if conn.Changes() == 0 {
+			return &Error{Code: "row_not_found", Message: "row not found"}
+		}
+		if !c.Owner && conn.TotalChanges()-before != 1 {
+			return &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
+		}
+		out.Body = map[string]any{"deleted": true}
+		out.Notify = s.rowNotification(c, in.Table, "record.changed", "deleted", in.ID, nil, rowVisitorID)
+		return s.finishTableWrite(conn, c, commit, a)
+	})
 	if err != nil {
-		return out, err
+		return TableResult{}, err
 	}
-	defer done()
-	meta, err := tableMetadata(conn, c, in.Table, filter)
-	if err != nil {
-		return out, err
-	}
-	// Read before the row is gone: filter=="" (the owner's key/connector,
-	// D1's OwnerOnSite, or a visitor under a shared signed_in/anyone
-	// delete grant not scoped to their own rows) means this delete may
-	// have removed any visitor's row, not necessarily the actor's own, so
-	// it is looked up directly while the row still exists; only when
-	// filter actually named c.VisitorID is the actor known for free to be
-	// the row's own visitor_id.
-	rowVisitorID := c.VisitorID
-	if filter == "" {
-		rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
-	}
-	query, params := runtime.RowDeleteStatement(in.Table, meta.rowid, rowJSON(in.ID), filter, meta.hold && !c.Owner && !c.OwnerOnSite)
-	commit, rollback, err := beginTableWrite(conn)
-	if err != nil {
-		return out, err
-	}
-	defer rollback()
-	before := conn.TotalChanges()
-	if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_DELETE, query, params, false); err != nil {
-		return out, err
-	}
-	if conn.Changes() == 0 {
-		return out, &Error{Code: "row_not_found", Message: "row not found"}
-	}
-	if !c.Owner && conn.TotalChanges()-before != 1 {
-		return out, &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
-	}
-	if err = s.finishTableWrite(conn, c, commit); err != nil {
-		return out, err
-	}
-	out.Body = map[string]any{"deleted": true}
-	out.Notify = s.rowNotification(c, in.Table, "record.changed", "deleted", in.ID, nil, rowVisitorID)
 	return out, nil
 }

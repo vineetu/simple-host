@@ -38,15 +38,15 @@ func TestRunTableWrite(t *testing.T) {
 	if err := conn.Exec(`CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT UNIQUE)`); err != nil {
 		t.Fatal(err)
 	}
-	id, err := runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, []json.RawMessage{json.RawMessage(`"hello"`)}, true)
+	id, err := runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, []json.RawMessage{json.RawMessage(`"hello"`)}, true, nil)
 	if err != nil || id != 1 {
 		t.Fatalf("insert: %d, %v", id, err)
 	}
-	_, err = runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, []json.RawMessage{json.RawMessage(`"hello"`)}, true)
+	_, err = runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, []json.RawMessage{json.RawMessage(`"hello"`)}, true, nil)
 	if e, ok := err.(*Error); !ok || e.Code != "row_conflict" {
 		t.Fatalf("duplicate: %v", err)
 	}
-	_, err = runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, nil, true)
+	_, err = runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, nil, true, nil)
 	if e, ok := err.(*Error); !ok || e.Code != "invalid_rows" {
 		t.Fatalf("bind: %v", err)
 	}
@@ -104,10 +104,10 @@ func TestFinishTableWrite(t *testing.T) {
 	defer conn.Close()
 	var events []string
 	s := New(nil, Deps{Committed: func(context.Context) { events = append(events, "metric") }, MarkChanged: func() { events = append(events, "changed") }})
-	if err := s.finishTableWrite(conn, Call{}, func() error { return errors.New("commit failed") }); err == nil || err.(*Error).Code != "invalid_rows" || len(events) != 0 {
+	if err := s.finishTableWrite(conn, Call{}, func() error { return errors.New("commit failed") }, &Admission{}); err == nil || err.(*Error).Code != "invalid_rows" || len(events) != 0 {
 		t.Fatalf("failed commit: error %v, events %v", err, events)
 	}
-	if err := s.finishTableWrite(conn, Call{}, func() error { return nil }); err != nil || len(events) != 2 || events[0] != "metric" || events[1] != "changed" {
+	if err := s.finishTableWrite(conn, Call{}, func() error { return nil }, &Admission{}); err != nil || len(events) != 2 || events[0] != "metric" || events[1] != "changed" {
 		t.Fatalf("successful commit: error %v, events %v", err, events)
 	}
 }
@@ -131,11 +131,12 @@ func TestAddTableRowCommitAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := TableInput{Table: "child", Values: map[string]json.RawMessage{"parent_id": json.RawMessage(`1`)}}
-	if _, err := s.addTableRow(conn, c, in, meta); err == nil || err.(*Error).Code != "invalid_reference" || marks != 0 {
+	var id int64
+	if err := s.addTableRow(conn, c, in, meta, &Admission{}, &id); err == nil || err.(*Error).Code != "invalid_reference" || marks != 0 {
 		t.Fatalf("inaccessible parent: %v, marks %d", err, marks)
 	}
 	in.Values = map[string]json.RawMessage{"parent_id": json.RawMessage(`2`)}
-	id, err := s.addTableRow(conn, c, in, meta)
+	err = s.addTableRow(conn, c, in, meta, &Admission{}, &id)
 	if err != nil || id != 1 || marks != 1 {
 		t.Fatalf("accessible parent: id %d, error %v, marks %d", id, err, marks)
 	}
@@ -158,7 +159,8 @@ func TestAddTableRowRejectsClientIDWithoutWriting(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := TableInput{Table: "notes", Values: map[string]json.RawMessage{"id": json.RawMessage(`42`), "body": json.RawMessage(`"hello"`)}}
-	if _, err := s.addTableRow(conn, c, in, meta); err == nil || err.(*Error).Message != "the server assigns ids" {
+	var id int64
+	if err := s.addTableRow(conn, c, in, meta, &Admission{}, &id); err == nil || err.(*Error).Message != "the server assigns ids" {
 		t.Fatalf("client id: %v", err)
 	}
 	if marks != 0 || conn.TotalChanges() != 0 {
@@ -184,7 +186,8 @@ func TestAddTableRowRejectsTriggerWritingAnotherTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.addTableRow(conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta)
+	var id int64
+	err = s.addTableRow(conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta, &Admission{}, &id)
 	if e, ok := err.(*Error); !ok || e.Code != "forbidden" || marks != 0 || conn.TotalChanges() != 0 {
 		t.Fatalf("trigger insert: error %v, marks %d, changes %d", err, marks, conn.TotalChanges())
 	}
@@ -208,7 +211,8 @@ func TestAddTableRowOwnerMayUseTrigger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := s.addTableRow(conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta)
+	var id int64
+	err = s.addTableRow(conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta, &Admission{}, &id)
 	if err != nil || id != 1 || marks != 1 || conn.TotalChanges() != 2 {
 		t.Fatalf("owner trigger insert: id %d, error %v, marks %d, changes %d", id, err, marks, conn.TotalChanges())
 	}
@@ -221,6 +225,15 @@ func TestTableWriteAuthorizesBeforeReplay(t *testing.T) {
 		result := s.AuthorizeTableWrite(context.Background(), TableInput{Call: c, Table: "notes"}, action)
 		if result.Allowed() || result.Authorization == nil || result.Authorization.Code != "site_locked" {
 			t.Fatalf("%s: %#v", action, result)
+		}
+	}
+}
+
+func TestRowReferenceMemoryError(t *testing.T) {
+	for _, status := range []int{400, 404} {
+		err := rowReferenceError(status, sqlite3.NOMEM)
+		if e, ok := err.(*Error); !ok || e.Code != "query_too_expensive" {
+			t.Fatalf("status %d: %v", status, err)
 		}
 	}
 }

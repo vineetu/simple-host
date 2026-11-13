@@ -245,3 +245,6 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 priorityClassName: ""
+
+# Per-site concurrent SQLite row operations (1 to 4). Restart via helm upgrade.
+storageSiteInflight: 1

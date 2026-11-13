@@ -187,6 +187,7 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_VISITOR":                    {"accounts", "Finishing a visitor sign-in and signing out, per address.", true, true},
 	"RATE_LIMIT_UPLOAD":                     {"sites", "Uploads and deploys per client.", false, true},
 	"SITE_STORAGE_FILES_MAX_OBJECTS":        {"storage", "Maximum committed file objects per bucket, including empty files; overwrites do not add an object.", false, true},
+	"SITE_STORAGE_SITE_INFLIGHT":            {"storage", "Concurrent SQLite row operations per site (1 to 4); the site slot and global gate share one acquire wait.", false, true},
 	"SITE_STORAGE_SQL_CONCURRENCY":          {"storage", "Concurrent SQLite executions across the process; defaults to the CPU count.", false, true},
 	"SITE_STORAGE_ACQUIRE_WAIT_MS":          {"storage", "Wait for a SQLite execution slot before returning 503 with Retry-After.", false, true},
 	"SITE_STORAGE_WRITE_LOCK_WAIT_MS":       {"storage", "Wait for the site write/deploy lock before returning 503 with Retry-After.", false, true},

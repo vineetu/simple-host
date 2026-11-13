@@ -14,7 +14,7 @@ type Inspection struct{ conn *sqlite3.Conn }
 // OpenInspection opens a bounded storage inspection session. SQLite connections
 // stay inside the service; transports consume the session's catalog interface.
 func (s *Service) OpenInspection(ctx context.Context, c Call, write bool) (*Inspection, func(), error) {
-	conn, done, err := s.openTableConn(ctx, c, write)
+	conn, done, err := s.openTableConn(ctx, c, write, true)
 	if err != nil {
 		return nil, nil, err
 	}

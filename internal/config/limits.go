@@ -171,6 +171,7 @@ type Limits struct {
 	SpamCheckedMaxBytes        int           // SPAM_CHECKED_POST_MAX_BYTES
 	SpamCheckedMaxLinks        int           // SPAM_CHECKED_POST_MAX_LINKS
 	StorageFileObjects         int           // SITE_STORAGE_FILES_MAX_OBJECTS per bucket
+	StorageSiteInflight        int           // SITE_STORAGE_SITE_INFLIGHT per site
 	StorageSQLConcurrency      int           // SITE_STORAGE_SQL_CONCURRENCY process-wide
 	StorageAcquireWait         time.Duration // SITE_STORAGE_ACQUIRE_WAIT_MS
 	StorageWriteLockWait       time.Duration // SITE_STORAGE_WRITE_LOCK_WAIT_MS
@@ -443,6 +444,7 @@ func DefaultLimits() Limits {
 		SpamCheckedMaxLinks:        2,
 		StorageFileObjects:         1000,
 		StorageSQLConcurrency:      0,
+		StorageSiteInflight:        1,
 		StorageAcquireWait:         250 * time.Millisecond,
 		StorageWriteLockWait:       2 * time.Second,
 		StorageOwnerTimeout:        5 * time.Second,
@@ -957,6 +959,7 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_UPLOAD", func(l *Limits) *Rate { return &l.RateUpload }),
 		intKnob("VISITOR_AI_WRITES_PER_DAY", "writes", 1, 100000, func(l *Limits) *int { return &l.VisitorAIWritesPerDay }),
 		intKnob("SITE_STORAGE_FILES_MAX_OBJECTS", "objects", 1, 100000, func(l *Limits) *int { return &l.StorageFileObjects }),
+		intKnob("SITE_STORAGE_SITE_INFLIGHT", "operations", 1, 4, func(l *Limits) *int { return &l.StorageSiteInflight }),
 		intKnob("SITE_STORAGE_SQL_CONCURRENCY", "queries", 0, 1024, func(l *Limits) *int { return &l.StorageSQLConcurrency }),
 		durKnob("SITE_STORAGE_ACQUIRE_WAIT_MS", "milliseconds", time.Millisecond, 1, 5000, func(l *Limits) *time.Duration { return &l.StorageAcquireWait }),
 		durKnob("SITE_STORAGE_WRITE_LOCK_WAIT_MS", "milliseconds", time.Millisecond, 1, 10000, func(l *Limits) *time.Duration { return &l.StorageWriteLockWait }),

@@ -17,6 +17,7 @@ type Deps struct {
 	SpamCheckAvailable                       bool
 	SQLitePath                               string
 	SQLiteGate                               *SQLiteGate
+	SiteSlots                                *SiteSlots
 	SQLiteTimeout                            time.Duration
 	SQLiteMaxMemory                          int64
 	Locks                                    *sync.Map
@@ -43,9 +44,10 @@ type Deps struct {
 
 // Service owns site storage workflows.
 type Service struct {
-	accounts *accountapp.Service
-	db       *sql.DB
-	deps     Deps
+	accounts   *accountapp.Service
+	db         *sql.DB
+	deps       Deps
+	sqliteHook func(string) // injected only by package tests
 }
 
 // New constructs a storage service.

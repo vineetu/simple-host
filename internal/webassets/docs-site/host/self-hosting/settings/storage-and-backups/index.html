@@ -633,6 +633,12 @@ knows.</p>
 <td>Maximum committed file objects per bucket, including empty files; overwrites do not add an object.</td>
 </tr>
 <tr>
+<td><code>SITE_STORAGE_SITE_INFLIGHT</code></td>
+<td><code>1</code></td>
+<td>1–4 operations</td>
+<td>Concurrent SQLite row operations per site (1 to 4); the site slot and global gate share one acquire wait.</td>
+</tr>
+<tr>
 <td><code>SITE_STORAGE_SQL_CONCURRENCY</code></td>
 <td><code>0</code></td>
 <td>0–1024 queries</td>

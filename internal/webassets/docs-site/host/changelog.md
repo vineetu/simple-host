@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 13:** Limit SQLite table-row work per site, with a short retry response when busy. Recover SQLite panics per request and preserve successful writes if cleanup panics (R1-S3a).
+
 - **Nov 12:** Create a site private from the first request, with only you and the viewers you name able to open it. Send access specific and optional viewer emails in the create call; the default stays anyone with the address. Available on Simple Host, including self-hosted installs with visitor sign-in and per-site addresses.
 
 - **Nov 12:** Keep old links working with a root `_redirects` file, checked on publish and applied after access gates. Plain `/faq` addresses serve `faq.html` directly; directory-only pages keep their trailing slash redirect.

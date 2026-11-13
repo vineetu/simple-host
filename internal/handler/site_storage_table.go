@@ -190,7 +190,9 @@ func writeTableError(w http.ResponseWriter, e *appstorage.Error) {
 		status = http.StatusConflict
 	case "site_full":
 		status = http.StatusInsufficientStorage
-	case "internal_error":
+	case "query_too_expensive":
+		status = http.StatusUnprocessableEntity
+	case "internal_error", "storage_failed":
 		status = http.StatusInternalServerError
 	}
 	storageError(w, status, e.Code, e.Message)

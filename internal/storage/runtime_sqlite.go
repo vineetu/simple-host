@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -36,7 +37,10 @@ func SQLTables(conn *sqlite3.Conn) (map[string]bool, error) {
 // TableColumns provides the existing runtime storage helper.
 func TableColumns(conn *sqlite3.Conn, table string) (map[string]string, error) {
 	tables, err := SQLTables(conn)
-	if err != nil || !tables[table] {
+	if err != nil {
+		return nil, err
+	}
+	if !tables[table] {
 		return nil, fmt.Errorf("unknown table")
 	}
 	stmt, _, err := conn.Prepare("PRAGMA table_info(" + Quote(table) + ")")
@@ -305,6 +309,7 @@ func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access f
 	if err != nil {
 		return 400, err
 	}
+	defer stmt.Close()
 	type reference struct {
 		table    string
 		from, to []string
@@ -327,6 +332,9 @@ func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access f
 	}
 	for _, ref := range refs {
 		parent, err := TableColumns(conn, ref.table)
+		if errors.Is(err, sqlite3.NOMEM) {
+			return 400, err
+		}
 		if err != nil {
 			return 404, fmt.Errorf("referenced row not found")
 		}
@@ -339,6 +347,7 @@ func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access f
 			if err != nil {
 				return 400, err
 			}
+			defer info.Close()
 			primary := map[int]string{}
 			for info.Step() {
 				if pos := info.ColumnInt(5); pos > 0 {
@@ -379,6 +388,7 @@ func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access f
 		if err != nil {
 			return 404, err
 		}
+		defer check.Close()
 		if err = check.BindInt64(1, id); err != nil {
 			check.Close()
 			return 404, err
@@ -409,9 +419,7 @@ var (
 
 // OpenTableConn opens the database for one table route: read-only
 // for reads, and for writes with the site's allowance as the page cap.
-func OpenTableConn(parent context.Context, dbPath string, write bool, gate interface {
-	Acquire(context.Context) (func(), error)
-}, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
+func OpenTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
 	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 	var remaining int64
 	var currentDBBytes int64
@@ -436,56 +444,73 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, gate inter
 			return nil, nil, ErrTableInternal
 		}
 	}
-	release, err := gate.Acquire(parent)
-	if err != nil {
-		return nil, nil, ErrSQLiteBusy
-	}
 	ctx, cancel := context.WithTimeout(parent, timeout)
+	opened := false
+	defer func() {
+		if !opened {
+			cancel()
+		}
+	}()
 	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), uri)
 	if err != nil {
 		cancel()
-		release()
-		return nil, nil, ErrTableInternal
+		return nil, nil, err
 	}
-	done := func() { conn.Close(); cancel(); release() }
+	done := func() { defer cancel(); conn.Close() }
+	// Setup also owns the connection until the successful return. A panic in a
+	// pragma must not strand a connection before the caller can defer its close.
+	ready := false
+	defer func() {
+		if !ready {
+			closeTableConn(done)
+		}
+	}()
 	conn.SetInterrupt(ctx)
-	fail := func() (*sqlite3.Conn, func(), error) {
-		done()
+	fail := func(err error) (*sqlite3.Conn, func(), error) {
+		if errors.Is(err, sqlite3.NOMEM) {
+			return nil, nil, err
+		}
 		return nil, nil, ErrTableInternal
 	}
-	if conn.Exec("PRAGMA foreign_keys=ON") != nil {
-		return fail()
+	if err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		return fail(err)
 	}
 	if _, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
-		return fail()
+		return fail(err)
 	}
 	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
 	_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
 	if write {
-		if conn.Exec("PRAGMA journal_mode=WAL") != nil {
-			return fail()
+		if err := conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
+			return fail(err)
 		}
 		page, _, e := conn.Prepare("PRAGMA page_size")
-		if e != nil || !page.Step() {
+		if e != nil || page == nil {
+			return fail(e)
+		}
+		defer page.Close()
+		if !page.Step() {
+			e = page.Err()
 			if page != nil {
 				page.Close()
 			}
-			return fail()
+			return fail(e)
 		}
 		pageSize := page.ColumnInt64(0)
 		page.Close()
 		if pageSize <= 0 {
-			return fail()
+			return fail(err)
 		}
 		maxPages := (remaining + currentDBBytes) / pageSize
 		if maxPages < 1 {
-			done()
 			return nil, nil, ErrTableFull
 		}
-		if conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)) != nil {
-			return fail()
+		if err := conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)); err != nil {
+			return fail(err)
 		}
 	}
+	ready = true
+	opened = true
 	return conn, done, nil
 }
 
@@ -505,4 +530,35 @@ func TableInfo(conn *sqlite3.Conn, table string) (map[string]string, []string, e
 		order[i] = stmt.ColumnName(i)
 	}
 	return cols, order, nil
+}
+
+// OpenTableConnGated is transitional until R1-S3b migrates people and inspection.
+func OpenTableConnGated(ctx context.Context, path string, write bool, gate interface {
+	Acquire(context.Context) (func(), error)
+}, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
+	release, err := gate.Acquire(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	transferred := false
+	defer func() {
+		if !transferred {
+			release()
+		}
+	}()
+	conn, done, err := OpenTableConn(ctx, path, write, timeout, maxMemory, budget)
+	if err != nil {
+		return nil, nil, err
+	}
+	transferred = true
+	return conn, func() { defer release(); done() }, nil
+}
+
+func closeTableConn(done func()) {
+	defer func() {
+		if recover() != nil {
+			log.Print("storage: recovered SQLite setup close panic")
+		}
+	}()
+	done()
 }

@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "hack.labels" . | nindent 4 }}
 data:
+  SITE_STORAGE_SITE_INFLIGHT: {{ .Values.storageSiteInflight | quote }}
   # The platform: the hackathon product on this hostname.
   SITE_DOMAIN: {{ .Values.host | quote }}
   PUBLIC_BASE_URL: {{ printf "https://%s" .Values.host | quote }}
