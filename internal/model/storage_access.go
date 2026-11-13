@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -198,6 +199,7 @@ func OldFields(m AccessMatrix) (read, write, mode string, ok bool) {
 
 // TableRule is one SQLite table's own matrix.
 type TableRule struct {
+	Rules      json.RawMessage
 	Matrix     AccessMatrix
 	PresetBase string
 }
@@ -252,6 +254,8 @@ func ValidPolicy(p string) bool { return p == "anyone" || p == "signed-in" || p 
 
 // Resource holds storage policy fields used by access rules.
 type Resource struct {
+	// Nil rules and conversion history represent SQL NULL.
+	Rules, ConvertedFrom                                         json.RawMessage
 	Name, Kind, Read, Write, SitePasscode, WriteMode, PresetBase string
 	Access                                                       *AccessMatrix
 	Tables                                                       map[string]TableRule
@@ -349,9 +353,32 @@ func (x Resource) Holds(table string) bool {
 	return x.ApproveFirst && x.Kind == "sqlite" && x.Access != nil && x.TableMatrix(table).Add == WhoChecked
 }
 
+// RulesStatus checks only the stored shape, not policy syntax or bindings.
+func (x Resource) RulesStatus() string {
+	if x.Rules == nil && x.PresetBase != "rules" {
+		return "preset"
+	}
+	deny := AccessMatrix{WhoNobody, WhoNobody, WhoNobody, WhoNobody}
+	if x.Rules == nil || x.Access == nil || *x.Access != deny ||
+		x.Read != WhoOwner || x.Write != WhoOwner || x.WriteMode != "add" ||
+		x.PresetBase != "rules" || x.ApproveFirst {
+		return "invalid"
+	}
+	valid := true
+	x.tableRange(func(_ string, t TableRule) {
+		if t.Rules == nil || t.Matrix != deny || t.PresetBase != "rules" {
+			valid = false
+		}
+	})
+	if !valid {
+		return "invalid"
+	}
+	return "rules"
+}
+
 // Fingerprint compares two loads of the same resource (storageWriteLock).
 func (x Resource) Fingerprint() string {
-	parts := []string{x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, x.PresetBase, fmt.Sprint(x.ApproveFirst)}
+	parts := []string{x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, x.PresetBase, fmt.Sprint(x.ApproveFirst), fmt.Sprint(x.Rules != nil), string(x.Rules)}
 	if x.Access != nil {
 		parts = append(parts, x.Access.Read, x.Access.Add, x.Access.Edit, x.Access.Delete)
 	} else {
@@ -362,7 +389,7 @@ func (x Resource) Fingerprint() string {
 	sort.Strings(names)
 	for _, n := range names {
 		r, _ := x.tableLookup(n)
-		parts = append(parts, n, r.Matrix.Read, r.Matrix.Add, r.Matrix.Edit, r.Matrix.Delete, r.PresetBase)
+		parts = append(parts, n, r.Matrix.Read, r.Matrix.Add, r.Matrix.Edit, r.Matrix.Delete, r.PresetBase, fmt.Sprint(r.Rules != nil), string(r.Rules))
 	}
 	return strings.Join(parts, "\x00")
 }

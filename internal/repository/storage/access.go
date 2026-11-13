@@ -18,15 +18,17 @@ type Querier interface {
 type Resource = rules.Resource
 
 // ResourceColumns is the ordered list of columns read by ScanResource.
-const ResourceColumns = `name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first`
+const ResourceColumns = `name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first,rules,rules_converted_from`
 
 // ScanResource scans the resource columns from a row.
 func ScanResource(scan func(...any) error) (Resource, error) {
 	var x Resource
 	var r, a, e, d sql.NullString
-	if err := scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode, &r, &a, &e, &d, &x.PresetBase, &x.ApproveFirst); err != nil {
+	var rawRules, convertedFrom []byte
+	if err := scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode, &r, &a, &e, &d, &x.PresetBase, &x.ApproveFirst, &rawRules, &convertedFrom); err != nil {
 		return x, err
 	}
+	x.Rules, x.ConvertedFrom = rawRules, convertedFrom
 	if r.Valid && a.Valid && e.Valid && d.Valid {
 		x.Access = &rules.AccessMatrix{Read: r.String, Add: a.String, Edit: e.String, Delete: d.String}
 	}
@@ -39,7 +41,7 @@ func LoadResource(ctx context.Context, q Querier, siteID, name string) (Resource
 	if err != nil {
 		return x, err
 	}
-	if x.Kind == "sqlite" && x.Access != nil {
+	if x.Kind == "sqlite" && (x.Access != nil || x.Rules != nil) {
 		x.Tables, err = LoadTables(ctx, q, siteID, name)
 	}
 	return x, err
@@ -47,7 +49,7 @@ func LoadResource(ctx context.Context, q Querier, siteID, name string) (Resource
 
 // LoadTables reads the per-table access rules for a resource.
 func LoadTables(ctx context.Context, q Querier, siteID, name string) (map[string]rules.TableRule, error) {
-	rows, err := q.QueryContext(ctx, `SELECT table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base FROM site_storage_tables WHERE site_id=$1 AND resource_name=$2`, siteID, name)
+	rows, err := q.QueryContext(ctx, `SELECT table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base,rules FROM site_storage_tables WHERE site_id=$1 AND resource_name=$2`, siteID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -56,9 +58,11 @@ func LoadTables(ctx context.Context, q Querier, siteID, name string) (map[string
 	for rows.Next() {
 		var n string
 		var t rules.TableRule
-		if err := rows.Scan(&n, &t.Matrix.Read, &t.Matrix.Add, &t.Matrix.Edit, &t.Matrix.Delete, &t.PresetBase); err != nil {
+		var rawRules []byte
+		if err := rows.Scan(&n, &t.Matrix.Read, &t.Matrix.Add, &t.Matrix.Edit, &t.Matrix.Delete, &t.PresetBase, &rawRules); err != nil {
 			return nil, err
 		}
+		t.Rules = rawRules
 		out[n] = t
 	}
 	return out, rows.Err()

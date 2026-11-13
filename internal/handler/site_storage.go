@@ -23,15 +23,16 @@ var storageNameRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 // is the preset matrix, nil on a resource saved before presets (legacy
 // rules, storageLegacyMatrix). Tables are SQLite per-table matrices.
 type storageResource struct {
-	Name         string
-	Kind         string
-	Read         string
-	Write        string
-	SitePasscode string
-	WriteMode    string
-	Access       *storageAccessMatrix
-	PresetBase   string
-	Tables       map[string]storageTableRule
+	Rules, ConvertedFrom json.RawMessage
+	Name                 string
+	Kind                 string
+	Read                 string
+	Write                string
+	SitePasscode         string
+	WriteMode            string
+	Access               *storageAccessMatrix
+	PresetBase           string
+	Tables               map[string]storageTableRule
 	// ApproveFirst: SQLite posts added through the spam check (add
 	// checked) stay hidden from visitors until the owner approves them.
 	ApproveFirst bool

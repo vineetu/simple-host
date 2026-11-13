@@ -1453,6 +1453,12 @@ ALTER TABLE site_storage_resources ADD CONSTRAINT site_storage_resources_acc_add
 ALTER TABLE site_storage_tables DROP CONSTRAINT IF EXISTS site_storage_tables_acc_add_check;
 ALTER TABLE site_storage_tables ADD CONSTRAINT site_storage_tables_acc_add_check CHECK (acc_add IN ('nobody','owner','signed-in','checked','anyone'));
 ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS approve_first BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- R2-S1: nullable rule sets and the original configuration retained by conversion.
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS rules JSONB;
+ALTER TABLE site_storage_tables ADD COLUMN IF NOT EXISTS rules JSONB;
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS rules_converted_from JSONB;
+
 CREATE TABLE IF NOT EXISTS site_notifications (
  id TEXT PRIMARY KEY,
  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,

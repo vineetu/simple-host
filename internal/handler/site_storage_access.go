@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"regexp"
 	"strings"
@@ -64,6 +65,7 @@ func storageOldFields(m storageAccessMatrix) (string, string, string, bool) {
 }
 
 type storageTableRule struct {
+	Rules      json.RawMessage
 	Matrix     storageAccessMatrix
 	PresetBase string
 }
@@ -124,18 +126,18 @@ func storageResourceJSON(x storageResource) map[string]any {
 }
 
 func (x storageResource) rulesResource() model.Resource {
-	r := model.Resource{Name: x.Name, Kind: x.Kind, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst}
+	r := model.Resource{Name: x.Name, Kind: x.Kind, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst, Rules: x.Rules, ConvertedFrom: x.ConvertedFrom}
 	if x.Access != nil {
 		m := model.AccessMatrix(*x.Access)
 		r.Access = &m
 	}
 	r.TableLookup = func(n string) (model.TableRule, bool) {
 		t, ok := x.Tables[n]
-		return model.TableRule{Matrix: model.AccessMatrix(t.Matrix), PresetBase: t.PresetBase}, ok
+		return model.TableRule{Matrix: model.AccessMatrix(t.Matrix), PresetBase: t.PresetBase, Rules: t.Rules}, ok
 	}
 	r.TableRange = func(visit func(string, model.TableRule)) {
 		for n, t := range x.Tables {
-			visit(n, model.TableRule{Matrix: model.AccessMatrix(t.Matrix), PresetBase: t.PresetBase})
+			visit(n, model.TableRule{Matrix: model.AccessMatrix(t.Matrix), PresetBase: t.PresetBase, Rules: t.Rules})
 		}
 	}
 	return r
@@ -154,7 +156,7 @@ func (x storageResource) holds(t string) bool          { return x.rulesResource(
 func (x storageResource) fingerprint() string          { return x.rulesResource().Fingerprint() }
 
 func fromRulesResource(r model.Resource) storageResource {
-	x := storageResource{Name: r.Name, Kind: r.Kind, Read: r.Read, Write: r.Write, SitePasscode: r.SitePasscode, WriteMode: r.WriteMode, PresetBase: r.PresetBase, ApproveFirst: r.ApproveFirst}
+	x := storageResource{Name: r.Name, Kind: r.Kind, Read: r.Read, Write: r.Write, SitePasscode: r.SitePasscode, WriteMode: r.WriteMode, PresetBase: r.PresetBase, ApproveFirst: r.ApproveFirst, Rules: r.Rules, ConvertedFrom: r.ConvertedFrom}
 	if r.Access != nil {
 		m := storageAccessMatrix(*r.Access)
 		x.Access = &m
@@ -162,7 +164,7 @@ func fromRulesResource(r model.Resource) storageResource {
 	if r.Tables != nil {
 		x.Tables = make(map[string]storageTableRule, len(r.Tables))
 		for n, t := range r.Tables {
-			x.Tables[n] = storageTableRule{Matrix: storageAccessMatrix(t.Matrix), PresetBase: t.PresetBase}
+			x.Tables[n] = storageTableRule{Matrix: storageAccessMatrix(t.Matrix), PresetBase: t.PresetBase, Rules: t.Rules}
 		}
 	}
 	return x

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 )
@@ -33,7 +34,7 @@ func ListResources(ctx context.Context, db *sql.DB, siteID string) ([]Resource, 
 		return nil, err
 	}
 	for i := range out {
-		if out[i].Kind == "sqlite" && out[i].Access != nil {
+		if out[i].Kind == "sqlite" && (out[i].Access != nil || out[i].Rules != nil) {
 			if out[i].Tables, err = LoadTables(ctx, db, siteID, out[i].Name); err != nil {
 				return nil, err
 			}
@@ -50,7 +51,7 @@ func ClearResourceWriters(ctx context.Context, tx *sql.Tx, table, siteID, name s
 // UpsertResource saves a resource without changing an existing resource's kind.
 func UpsertResource(ctx context.Context, tx *sql.Tx, siteID string, x rules.Resource) (sql.Result, error) {
 	m := x.Access
-	return tx.ExecContext(ctx, `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first WHERE site_storage_resources.kind=EXCLUDED.kind`, siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase, x.ApproveFirst)
+	return tx.ExecContext(ctx, `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first,rules,rules_converted_from) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first,rules=EXCLUDED.rules,rules_converted_from=EXCLUDED.rules_converted_from WHERE site_storage_resources.kind=EXCLUDED.kind`, siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase, x.ApproveFirst, nullableJSON(x.Rules), nullableJSON(x.ConvertedFrom))
 }
 
 // DeleteResourceTables removes the existing per-table rules.
@@ -60,11 +61,19 @@ func DeleteResourceTables(ctx context.Context, tx *sql.Tx, siteID, name string) 
 
 // InsertResourceTable saves one per-table rule.
 func InsertResourceTable(ctx context.Context, tx *sql.Tx, siteID, name, table string, t rules.TableRule) (sql.Result, error) {
-	return tx.ExecContext(ctx, `INSERT INTO site_storage_tables(site_id,resource_name,table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, siteID, name, table, t.Matrix.Read, t.Matrix.Add, t.Matrix.Edit, t.Matrix.Delete, t.PresetBase)
+	return tx.ExecContext(ctx, `INSERT INTO site_storage_tables(site_id,resource_name,table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base,rules) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, siteID, name, table, t.Matrix.Read, t.Matrix.Add, t.Matrix.Edit, t.Matrix.Delete, t.PresetBase, nullableJSON(t.Rules))
 }
 
 // DeleteResource removes a resource within its transaction.
 func DeleteResource(ctx context.Context, tx *sql.Tx, siteID, name string) error {
 	_, err := tx.ExecContext(ctx, `DELETE FROM site_storage_resources WHERE site_id=$1 AND name=$2`, siteID, name)
 	return err
+}
+
+// A typed nil byte slice is an empty JSON parameter to lib/pq, not SQL NULL.
+func nullableJSON(raw json.RawMessage) any {
+	if raw == nil {
+		return nil
+	}
+	return string(raw)
 }
