@@ -1,0 +1,33 @@
+route hack ANY /
+route hack POST /
+route hack POST /mcp
+route hack POST /v1/admin/users
+route hack POST /v1/auth
+route hack POST /v1/auth/verify
+route hack POST /v1/hack/events
+route hack POST /v1/me/keys
+route host ANY /
+route host POST /
+route host POST /mcp
+route host POST /v1/admin/users
+route host POST /v1/me/keys
+route host POST /v1/site-signin
+route host POST /v1/site-unlock
+route host POST /v1/visitor/logout
+tool hack hack_event_storage_list_resources
+tool hack hack_get_event
+tool hack hack_get_event_website
+tool hack hack_get_rubric
+tool hack hack_show_organiser
+tool hack list_notifications
+tool host find_tools
+tool host get_import_report
+tool host get_page_recipe
+tool host list_notifications
+tool host list_site_viewers
+tool host list_sites
+tool host list_versions
+tool host passcode_screen
+tool host run_tool
+tool host storage_get_kv
+tool host who_am_i

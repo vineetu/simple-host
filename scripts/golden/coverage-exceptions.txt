@@ -1,0 +1,312 @@
+route hack DELETE /brain/mcp | Owner knowledge connector requires a configured knowledge source; this replay has no external peers.
+route hack DELETE /mcp | MCP session deletion has no session state in this stateless request replay.
+route hack DELETE /v1/me | Destructive account action would invalidate credentials used by subsequent replay requests.
+route hack HEAD /v1/push/sw.js | The GET response for this same fixed path is already recorded.
+route hack PATCH /v1/hack/preferences | Preference updates are outside the seeded event and submission lifecycle.
+route hack PATCH /v1/me | Additional state-changing account configuration is outside the seeded publishing and Hack lifecycle replay.
+route hack POST /brain/mcp | Owner knowledge connector requires a configured knowledge source; this replay has no external peers.
+route hack POST /oauth/authorize/decision | Connector registration and token lifecycle are outside this API-key replay.
+route hack POST /oauth/register | Connector registration and token lifecycle are outside this API-key replay.
+route hack POST /oauth/reviewer-signin | Connector registration and token lifecycle are outside this API-key replay.
+route hack POST /oauth/revoke | Connector registration and token lifecycle are outside this API-key replay.
+route hack POST /oauth/token | Connector registration and token lifecycle are outside this API-key replay.
+route hack POST /report | Abuse-report submission is an additional moderation workflow; no report mail is sent by this replay.
+route hack POST /v1/admin/password-users | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route hack POST /v1/auth/password | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route hack POST /v1/auth/password/signup | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route hack POST /v1/data-notify/stop | Signed email-link action requires a retention or notification workflow outside the fixed replay.
+route hack POST /v1/events | Subscription mutation needs delivery or streaming client state outside this request-response replay.
+route hack POST /v1/idle/keep | Signed email-link action requires a retention or notification workflow outside the fixed replay.
+route hack POST /v1/idle/restore | Signed email-link action requires a retention or notification workflow outside the fixed replay.
+route hack POST /v1/me/address-families | Address-family creation needs DNS and certificate provisioning outside this local replay.
+route hack POST /v1/me/api-key/rotate | Destructive account action would invalidate credentials used by subsequent replay requests.
+route hack POST /v1/me/email | Account email-change verification and undo are outside the replay; seeded account emails stay fixed.
+route hack POST /v1/me/email/undo | Account email-change verification and undo are outside the replay; seeded account emails stay fixed.
+route hack POST /v1/me/email/verify | Account email-change verification and undo are outside the replay; seeded account emails stay fixed.
+route hack POST /v1/me/password | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route hack POST /v1/me/sign-out | Destructive account action would invalidate credentials used by subsequent replay requests.
+route hack POST /v1/photo-links | Photo-upload link creation needs an upload workflow outside the seeded text-site replay.
+route hack POST /v1/setup/finish | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route hack POST /v1/setup/free-name | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route hack POST /v1/setup/own-domain | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route hack POST /v1/setup/verify | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route hack POST /v1/site-signin | Hack does not offer named-viewer access; Host records this form with emailed-code sign-in on the private site.
+route hack POST /v1/site-signout | Named-viewer sign-out form is unavailable on Hack; Host records the JSON visitor logout route.
+route hack POST /v1/site-unlock | Passcode unlock is exercised on Host; Hack does not seed a passcode-protected team site.
+route hack POST /v1/sso/consent | Apex SSO consent/session/sign-out navigation is outside the replay; site-local emailed-code sessions are recorded on Host.
+route hack POST /v1/sso/session | Apex SSO consent/session/sign-out navigation is outside the replay; site-local emailed-code sessions are recorded on Host.
+route hack POST /v1/sso/signed-out | Apex SSO consent/session/sign-out navigation is outside the replay; site-local emailed-code sessions are recorded on Host.
+route hack POST /v1/visitor/logout | Hack does not seed a site-local visitor session; Host records emailed-code visitor logout.
+route hack PUT /v1/me/bio | Profile biography updates are outside the profile-listing scenario.
+route hack PUT /v1/me/home | Selecting a home site is outside the profile-listing scenario.
+route host DELETE /brain/mcp | Owner knowledge connector requires a configured knowledge source; this replay has no external peers.
+route host DELETE /mcp | MCP session deletion has no session state in this stateless request replay.
+route host DELETE /v1/me | Destructive account action would invalidate credentials used by subsequent replay requests.
+route host HEAD /v1/push/sw.js | The GET response for this same fixed path is already recorded.
+route host PATCH /v1/hack/preferences | Preference updates are outside the seeded event and submission lifecycle.
+route host PATCH /v1/me | Additional state-changing account configuration is outside the seeded publishing and Hack lifecycle replay.
+route host POST /brain/mcp | Owner knowledge connector requires a configured knowledge source; this replay has no external peers.
+route host POST /oauth/authorize/decision | Connector registration and token lifecycle are outside this API-key replay.
+route host POST /oauth/register | Connector registration and token lifecycle are outside this API-key replay.
+route host POST /oauth/reviewer-signin | Connector registration and token lifecycle are outside this API-key replay.
+route host POST /oauth/revoke | Connector registration and token lifecycle are outside this API-key replay.
+route host POST /oauth/token | Connector registration and token lifecycle are outside this API-key replay.
+route host POST /report | Abuse-report submission is an additional moderation workflow; no report mail is sent by this replay.
+route host POST /v1/admin/password-users | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route host POST /v1/auth | Account emailed-code sign-in is outside the replay; accounts are seeded through the local admin API, and Host records site-local emailed-code sign-in.
+route host POST /v1/auth/password | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route host POST /v1/auth/password/signup | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route host POST /v1/auth/verify | Account emailed-code sign-in is outside the replay; accounts are seeded through the local admin API, and Host records site-local emailed-code sign-in.
+route host POST /v1/data-notify/stop | Signed email-link action requires a retention or notification workflow outside the fixed replay.
+route host POST /v1/events | Subscription mutation needs delivery or streaming client state outside this request-response replay.
+route host POST /v1/hack/events | Event creation belongs to hosted Hack; Host records its public Hack surfaces only.
+route host POST /v1/idle/keep | Signed email-link action requires a retention or notification workflow outside the fixed replay.
+route host POST /v1/idle/restore | Signed email-link action requires a retention or notification workflow outside the fixed replay.
+route host POST /v1/me/address-families | Address-family creation needs DNS and certificate provisioning outside this local replay.
+route host POST /v1/me/api-key/rotate | Destructive account action would invalidate credentials used by subsequent replay requests.
+route host POST /v1/me/email | Account email-change verification and undo are outside the replay; seeded account emails stay fixed.
+route host POST /v1/me/email/undo | Account email-change verification and undo are outside the replay; seeded account emails stay fixed.
+route host POST /v1/me/email/verify | Account email-change verification and undo are outside the replay; seeded account emails stay fixed.
+route host POST /v1/me/password | Password account creation or credential changes are outside the replay; accounts are seeded through the local admin API.
+route host POST /v1/me/sign-out | Destructive account action would invalidate credentials used by subsequent replay requests.
+route host POST /v1/photo-links | Photo-upload link creation needs an upload workflow outside the seeded text-site replay.
+route host POST /v1/setup/finish | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route host POST /v1/setup/free-name | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route host POST /v1/setup/own-domain | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route host POST /v1/setup/verify | Setup mutation applies to an unconfigured installation; the replay boots configured instances.
+route host POST /v1/site-signout | Additional named-viewer sign-out form; the replay ends the emailed-code session through POST /v1/visitor/logout.
+route host POST /v1/sso/consent | Apex SSO consent/session/sign-out navigation is outside the replay; site-local emailed-code sessions are recorded on Host.
+route host POST /v1/sso/session | Apex SSO consent/session/sign-out navigation is outside the replay; site-local emailed-code sessions are recorded on Host.
+route host POST /v1/sso/signed-out | Apex SSO consent/session/sign-out navigation is outside the replay; site-local emailed-code sessions are recorded on Host.
+route host PUT /v1/me/bio | Profile biography updates are outside the profile-listing scenario.
+route host PUT /v1/me/home | Selecting a home site is outside the profile-listing scenario.
+tool hack hack_accept_organiser_invite | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_accept_team_request | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_acknowledge_checklist_item | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_app_create_organiser_invite | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_applications | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_assignments | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_conflicts | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_judge_queue | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_judge_scores | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_judging_dashboard | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_judging_settings | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_my_conflicts | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_people | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_registration | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_results | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_rubric | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_get_teams | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_preview_results | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_publish_results | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_regenerate_code | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_set_event_stage | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_app_set_judging_ends_at | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_application_status | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_apply_to_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_ask_to_join | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_check_event_name | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_choose_track | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_clear_event_icon | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_create_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_create_organiser_invite | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_create_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_create_team_key | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_decide_application | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_declare_my_conflict | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_decline_team_request | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_delete_announcement | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_delete_entry_screenshot | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_delete_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_delete_former_judge_scores | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_delete_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_dismiss_notices | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_edit_announcement | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_event_storage_delete_file | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_delete_kv | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_delete_resource | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_file_download_link | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_get_kv | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_get_usage | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_list_file_objects | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_list_kv_keys | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_put_file | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_put_kv | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_set_resource | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_sql_execute | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_sql_query | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_event_storage_sql_schema | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_export_entries | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_export_own_team_archive | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_export_participants | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_export_projects_archive | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_export_results | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_export_scores | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_export_teams | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_fill_teams | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_generate_assignments | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_announcements | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_applications | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_assignments | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_checklist | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_conflicts | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_content | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_directory | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_entries | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_entry | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_entry_rules | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_entry_screenshot | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_judge_queue | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_judge_scores | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_judging_dashboard | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_judging_settings | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_my_conflicts | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_my_results | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_my_team_messages | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_my_teams | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_my_todos | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_my_vote | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_navigation | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_page_recipe | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool hack hack_get_panels | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_people | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_preferences | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_public_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_public_results | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_registration | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_reminder_settings | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_submissions | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_team_key | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_team_messages | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_team_screenshot | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_team_status | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_teams | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_tracks | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_usage | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_get_voting | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_get_voting_settings | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_invite_to_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_join_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_join_judge | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_join_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_leave_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_leave_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_list_events | Direct run_tool is absent on Hack and refuses; hack_get_event covers the hack-events family.
+tool hack hack_list_open_teams | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_lock_my_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_lock_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_message_organisers | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_message_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_move_member | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_new_my_team_link | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_new_team_link | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_post_announcement | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_preview_application | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_preview_join | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_preview_judge | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_preview_judging_assignments | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_preview_leave_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_preview_organiser_invite | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_preview_team_link | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_publish_event_website | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool hack hack_publish_results | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_regenerate_code | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_remove_judge_conflict | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_remove_my_conflict | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_remove_organiser | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_remove_person | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_remove_team_member | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_remove_teammate | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_rename_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_restore_team_site | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_revoke_organiser_invite | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_revoke_person_key | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_revoke_team_key | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_score_team | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_select_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_assignments | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_checklist_not_needed | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_content | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_directory_listing | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_email_updates | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_entry_excluded | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_entry_rules | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_entry_screenshot | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_event_icon | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_event_stage | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_event_website_mode | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool hack hack_set_judge_conflict | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_judging_settings | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_looking | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_panels | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_preferences | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_registration | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_reminder_settings | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_results_view | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_rubric | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_set_team_admin | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_team_deadline | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_teammate_admin | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_tracks | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_set_voting_settings | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_show_judge | Additional hack-app-only operation; the replay calls hack_show_organiser.
+tool hack hack_submit_entry | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_take_down_team_site | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_unsubmit_entry | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_update_entry | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_update_event | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_update_my_team | Additional hack-events operation; the replay calls hack_get_event.
+tool hack hack_vote | Additional hack-entries operation; the replay calls hack_get_rubric.
+tool hack hack_withdraw_team_request | Additional hack-events operation; the replay calls hack_get_event.
+tool hack remove_notification | Additional notifications operation; the replay calls list_notifications.
+tool host connect_domain | Additional access operation; the replay calls list_site_viewers.
+tool host create_import_link | Additional imports operation; the replay calls get_import_report.
+tool host create_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host create_upload_link | Additional imports operation; the replay calls get_import_report.
+tool host delete_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host discard_version | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host domain_status | Additional access operation; the replay calls list_site_viewers.
+tool host export_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host get_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host get_site_passcode | Additional access operation; the replay calls list_site_viewers.
+tool host grant_site_viewer | Additional access operation; the replay calls list_site_viewers.
+tool host keep_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host list_deleted_sites | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host preview_version | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host read_site_file | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host remove_domain | Additional access operation; the replay calls list_site_viewers.
+tool host remove_notification | Additional notifications operation; the replay calls list_notifications.
+tool host remove_site_passcode | Additional access operation; the replay calls list_site_viewers.
+tool host rename_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host restore_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host revoke_site_viewer | Additional access operation; the replay calls list_site_viewers.
+tool host rollback_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host set_bio | Additional accounts operation; the replay calls who_am_i.
+tool host set_home_page | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host set_keep_versions | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host set_showcase_site | Additional accounts operation; the replay calls who_am_i.
+tool host set_site_access | Additional access operation; the replay calls list_site_viewers.
+tool host set_site_offline | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host set_site_passcode | Additional access operation; the replay calls list_site_viewers.
+tool host set_visibility | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host sign_out_site_visitors | Additional access operation; the replay calls list_site_viewers.
+tool host site_analytics | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host storage_delete_file | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_delete_kv | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_delete_resource | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_file_download_link | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_get_usage | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_list_file_objects | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_list_kv_keys | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_list_resources | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_put_file | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_put_kv | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_set_resource | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_sql_execute | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_sql_query | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_sql_schema | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host storage_visitor_emails | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host update_site | Additional sites operation; the replay calls list_sites or hack_get_event_website.
+tool host visitor_add_entry | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host visitor_change_entry | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
+tool host visitor_read_site | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.

@@ -169,18 +169,14 @@ both aggregate targets and skips if the directory is unreadable.
 ## Golden API comparisons
 
 [scripts/golden/README.md](../../scripts/golden/README.md) documents the
-cleanup's checked-in REST/MCP snapshots. The harness starts Host and Hack
-instances of a candidate binary against two disposable databases, seeds via
-API and captures normalized status/headers/bodies and request sequence.
-It needs Node 20+, psql and a reachable disposable Postgres server configured
-as that README describes. It is separate from the Makefile targets above.
-
-Run `node scripts/golden/run.mjs BINARY OUT.json`, then
-`node scripts/golden/diff.mjs scripts/golden/baseline.json OUT.json`, using
-actual local binary/output paths. A difference requires investigation;
-changing the baseline to hide a regression is not a passing comparison.
-The harness normalizes specified nondeterministic values, not arbitrary
-response changes. Its README describes coverage and normalization limits.
+folder-based REST/MCP recordings. The harness needs Node 22, psql, openssl and a
+disposable local Postgres. Record the supplied reference with
+`node scripts/golden/run.mjs --host /tmp/reference.bin --out /tmp/reference` and
+the candidate with `node scripts/golden/run.mjs --host /tmp/candidate.bin --out /tmp/candidate`.
+Then run `node scripts/golden/coverage.mjs /tmp/candidate` and compare with
+`node scripts/golden/diff.mjs /tmp/reference /tmp/candidate --slice <slice id>`.
+There is no checked-in response baseline. Differences require investigation and
+review; the README documents normalization, scenarios and the real-inventory gate.
 
 ## Migration rules
 
