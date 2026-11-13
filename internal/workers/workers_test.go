@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -59,4 +60,45 @@ func TestEveryImmediateCancellation(t *testing.T) {
 	r.Stop()
 	r.Go(context.Background(), func(context.Context) { t.Error("started after Stop") })
 	r.Wait()
+}
+
+type namedOwner struct{ names []string }
+
+func (namedOwner) Start(context.Context) {}
+func (namedOwner) Stop()                 {}
+func (namedOwner) Wait()                 {}
+func (o namedOwner) Status() []Status {
+	var out []Status
+	for _, name := range o.names {
+		out = append(out, Status{Name: name})
+	}
+	return out
+}
+
+func TestSetOrder(t *testing.T) {
+	var set Set
+	if len(set.Order()) != 0 {
+		t.Fatal("empty set has names")
+	}
+	set.Add(namedOwner{[]string{"z", "y"}})
+	disabled := []string{"d", "c"}
+	set.AddDisabled(disabled...)
+	set.Add(namedOwner{[]string{"a"}})
+	disabled[0] = "changed"
+	want := []string{"y", "z", "d", "c", "a"}
+	got := set.Order()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Order = %v, want %v", got, want)
+	}
+	got[0] = "changed"
+	if !reflect.DeepEqual(set.Order(), want) {
+		t.Fatal("Order exposes its stored names")
+	}
+	var sorted []string
+	for _, status := range set.Status() {
+		sorted = append(sorted, status.Name)
+	}
+	if !reflect.DeepEqual(sorted, []string{"a", "c", "d", "y", "z"}) {
+		t.Fatalf("Status names = %v", sorted)
+	}
 }

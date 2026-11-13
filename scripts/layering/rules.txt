@@ -4,7 +4,8 @@
 [final]
 # A product may import the platform and itself; no platform row may list a product.
 @/products/hack/** -> /** @/products/hack/** @/db @/db/migrations
-@/cmd/server -> /** !testdb !geoip/geoiptest @/db @/db/migrations
+server -> /** !testdb !geoip/geoiptest @/db @/db/migrations
+@/cmd/server -> server
 {handler,hackhttp} -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp redirects
 auth -> app/accounts httpx edition model rules/auth rules/sites

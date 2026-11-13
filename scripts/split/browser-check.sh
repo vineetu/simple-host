@@ -7,7 +7,7 @@ checks=(
 'hack-navigation|./internal/hackhttp|TestServeHackNavigationBrowser|HACK_NAVIGATION_FIXTURE|hack-navigation'
 'hack-checklists|./internal/hackhttp|TestServeHackNavigationBrowser|HACK_NAVIGATION_FIXTURE|hack-checklists'
 'hack-forms|./internal/hackhttp|TestServeHackFormsBrowser|HACK_FORMS_FIXTURE|hack-forms'
-'hack-presets|./cmd/server|TestServeHackPresetsBrowser|HACK_PRESETS_FIXTURE|hack-presets'
+'hack-presets|./internal/server|TestServeHackPresetsBrowser|HACK_PRESETS_FIXTURE|hack-presets'
 'named-viewers|./internal/handler|TestServeVisitorRecordsBrowser|VISITOR_RECORDS_FIXTURE|named-viewers'
 'signin-card||||signin-card'
 'owner-dashboard||||owner-dashboard'

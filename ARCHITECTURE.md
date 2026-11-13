@@ -8,8 +8,8 @@ its planned packages are not all present yet.
 
 ## What runs
 
-`cmd/server/main.go:main` wires one Go binary around one `http.ServeMux`, Postgres and a local
-site directory. Hosted Simple Host and Simple Hack run separate instances of that binary,
+`internal/server/build.go:Build` wires one Go binary around one `http.ServeMux`, Postgres and a local
+site directory. `cmd/server/main.go` passes arguments to `server.Run`, which owns CLI dispatch and the process lifecycle. Hosted Simple Host and Simple Hack run separate instances of that binary,
 with separate databases and file roots. Self-hosted installations use the same implementation.
 
 Main calls `edition.New(cfg)` once, after the schema check and before registering routes.
@@ -30,7 +30,7 @@ Source: `internal/edition/{routes,presentation,identity,storage,notifications}.g
 
 | Component | Responsibility and source |
 |---|---|
-| Go service | HTTP pages/API, site-host files, OAuth/MCP, background work; `cmd/server/main.go` |
+| Go service | HTTP pages/API, site-host files, OAuth/MCP, background work; `internal/server/build.go` |
 | Postgres | Accounts, site metadata, resources/KV, Hack state, sessions, outboxes and aggregates; `db/schema.sql` |
 | Local disk | Deployment versions, links/markers, runtime SQLite and raw files; `internal/storage` |
 | TLS reverse proxy | Hosted nginx routes hosts and serves some files directly; self-hosted Caddy configurations are in `deploy/` |
@@ -71,12 +71,12 @@ Main starts certificate requests, Hack reconciliation/entry settling, event rete
 trash/idle cleanup, legacy retention, submission emails, notification delivery, address-family
 verification, network sampling, image scans and paper metrics. Enabled providers/settings determine
 which loops do work. Background owners satisfy `workers.Owner` and are registered in
-`cmd/server/workers.go`; `GET /v1/admin/usage` exposes their `workers` status array.
+`internal/server/workers.go`; `GET /v1/admin/usage` exposes their `workers` status array.
 HTTP drains before the worker set stops and waits, with a separate worker context.
 
 Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies required schema;
 without a configured hostname it serves only setup and exits after configuration so the supervisor
-can restart it. See `cmd/server/main.go:main` and [deployment profiles](docs/operations/deployment-profiles.md).
+can restart it. See `internal/server/build.go:Build` and [deployment profiles](docs/operations/deployment-profiles.md).
 
 Root `_redirects` is parsed by the pure `internal/redirects` package. `app/sites` validates the final file map before creating a version; `storage.UpdateCurrent` retains the file in versions and writes a sibling `redirects` marker instead of serving it. `handler/redirects.go` caches marker parses (including failures), applies rules after `siteGate` in `serveSiteFile`, and supports legacy `current/_redirects`. Shared exports restore the file from the marker, including account/trash exports. Proxy templates send rule-bearing sites to this same gated path. `serveDirFile` tries an exact file, then a sibling `.html` for plain addresses, then a directory; directory-only pages retain their slash redirect.
 
@@ -86,7 +86,7 @@ Hosted nginx proxies app requests to the configured Go listener (normally `127.0
 and blocks public `/internal/` access. Some content/custom-domain/family files bypass Go;
 the matching proxy templates and disk markers are part of the request path.
 
-The dispatch order in `cmd/server/main.go:main` is:
+The dispatch order in `internal/server/build.go:Build` is:
 
 ```text
 FamilyHosts → SiteBaseHosts → BoundSubdomains → SiteHosts → PersonHosts
@@ -167,7 +167,7 @@ target map do not exist yet. Shared lock maps are injected by existing wiring
 Follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
 
 Outside `internal/`: `db/schema.sql` and `db/migrations` define fresh/install upgrades;
-`cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools; `cmd/server/reviewaccount.go`
+`cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools; `internal/server/reviewaccount.go`
 manages reviewer accounts. `handler/instancehost.go` rewrites instance hostnames in assets.
 `openai-plugin/` is the ChatGPT package. `deploy/` holds proxy,
 issuer and deployment templates; `scripts/` holds checks/generators/ops. Website skills live in

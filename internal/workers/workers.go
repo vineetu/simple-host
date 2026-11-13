@@ -152,14 +152,46 @@ type Owner interface {
 type Set struct {
 	owners   []Owner
 	disabled []Status
+	order    []registration
 }
 
-func (s *Set) Add(o Owner) { s.owners = append(s.owners, o) }
+// A registration is one Add or AddDisabled call, including multi-name owners.
+type registration struct {
+	owner    Owner
+	disabled []string
+}
+
+func (s *Set) Add(o Owner) {
+	s.owners = append(s.owners, o)
+	s.order = append(s.order, registration{owner: o})
+}
 func (s *Set) AddDisabled(names ...string) {
 	for _, name := range names {
 		s.disabled = append(s.disabled, Status{Name: name})
 	}
+	s.order = append(s.order, registration{disabled: append([]string(nil), names...)})
 }
+
+// Order returns names in Add/AddDisabled registration order. A single owner can
+// report several names; those are sorted because its Status may iterate a map.
+// Disabled names keep the order supplied to AddDisabled.
+func (s *Set) Order() []string {
+	var out []string
+	for _, entry := range s.order {
+		if entry.owner == nil {
+			out = append(out, entry.disabled...)
+			continue
+		}
+		var names []string
+		for _, status := range entry.owner.Status() {
+			names = append(names, status.Name)
+		}
+		sort.Strings(names)
+		out = append(out, names...)
+	}
+	return out
+}
+
 func (s *Set) Start(ctx context.Context) {
 	for _, o := range s.owners {
 		o.Start(ctx)
