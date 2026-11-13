@@ -10,7 +10,7 @@
 # fails if any of them still skip -- that's what `check` runs. `test-db` is the
 # same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5
-.PHONY: check check-release inventory test test-rules test-integration test-db
+.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -44,6 +44,10 @@ check:
 	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs scripts/tests/hack-stage-announce.test.mjs scripts/tests/hack-publish-results.test.mjs scripts/tests/hack-event-times.test.mjs scripts/tests/hack-navigation.test.mjs scripts/golden/tests/*.test.mjs
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh
+	bash scripts/split/check-all_test.sh
+	bash scripts/split/move_test.sh
+	go run ./scripts/split/sqlcheck -warn -report -
+	go run ./scripts/split/sqlcheck -migrations
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh
 	bash deploy/cert-issuers/runtime_test.sh
@@ -71,3 +75,18 @@ check-release:
 
 inventory:
 	go run ./scripts/inventory write
+
+# Report only, deliberately outside check. Reuse a golden recording with
+# GOLDEN_TEXT_DIR=/path/to/run/text/host; otherwise record the current program
+# using only the caller's disposable TEST_PG_URL. No shared baseline is saved.
+boundary-report:
+	bash scripts/split/namescan.sh
+	@if [ -n "$${GOLDEN_TEXT_DIR:-}" ]; then \
+		bash scripts/check-public-text.sh "$$GOLDEN_TEXT_DIR"; \
+	else \
+		set -eu; : "$${TEST_PG_URL:?set TEST_PG_URL or GOLDEN_TEXT_DIR for boundary-report}"; \
+		work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; \
+		go build -o "$$work/server" ./cmd/server; \
+		GOLDEN_PG_URL="$$TEST_PG_URL" node scripts/golden/run.mjs --host "$$work/server" --out "$$work/recording" --scenario all; \
+		bash scripts/check-public-text.sh "$$work/recording/text/host"; \
+	fi

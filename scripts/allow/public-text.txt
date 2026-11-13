@@ -1,0 +1,3 @@
+# Repository-relative asset path or logical text/host path glob | regexp | reason
+# Mask only a configured domain field, not a whole line or every brand URL.
+text/host/*.txt | "domain":\s*"simple-hack\.app" | Configured event-address domain; decision 8 exempts domains users configure.

@@ -1,0 +1,5 @@
+# Repository-relative path glob | regexp matching only the exempt name | reason
+# Strings are not Go identifiers; retain these explicit reserved-name exceptions
+# for the boundary's policy even though the identifier scan does not flag literals.
+internal/rules/sites/sites.go | ^simple-hack$ | Reserved site name prevents impersonating the product.
+internal/rules/sites/sites.go | ^simplehack$ | Reserved site name prevents impersonating the product.
