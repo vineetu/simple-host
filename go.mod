@@ -15,11 +15,14 @@ require (
 	golang.org/x/net v0.61.0
 	golang.org/x/oauth2 v0.30.0
 	golang.org/x/text v0.43.0
+	golang.org/x/tools v0.51.0
 )
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )

@@ -1,0 +1,15 @@
+CREATE TABLE users (id int, event_account boolean);
+CREATE TABLE sites (id int REFERENCES users(id));
+CREATE TABLE events (id int REFERENCES users(id));
+CREATE TABLE event_teams (id int REFERENCES events(id));
+CREATE TABLE rubric_criteria (id int REFERENCES events(id));
+CREATE TABLE derived (id int REFERENCES rubric_criteria(id));
+CREATE TABLE undecided (id int REFERENCES events(id), owner int REFERENCES users(id));
+CREATE TABLE event_domains (id int REFERENCES events(id));
+CREATE TABLE site_notifications (events text[]);
+CREATE TABLE oauth_grants (id int);
+ALTER TABLE oauth_grants ADD COLUMN selected_team_id int;
+CREATE FUNCTION revoke_hack_notifications() RETURNS trigger AS $body$ BEGIN DELETE FROM site_notifications; RETURN NULL; END; $body$ LANGUAGE plpgsql;
+CREATE TRIGGER hack_members_notifications AFTER DELETE ON event_teams FOR EACH ROW EXECUTE FUNCTION revoke_hack_notifications();
+CREATE FUNCTION platform_hook() RETURNS trigger AS $$ BEGIN DELETE FROM event_teams; RETURN NULL; END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER platform_trigger AFTER DELETE ON sites FOR EACH ROW EXECUTE PROCEDURE platform_hook();

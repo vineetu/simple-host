@@ -1,0 +1,52 @@
+# Authority: proposed from db/schema.sql and checked against the D1-S6 ownership rules.
+# Explicitly NOT Hack:
+# site_events, site_event_deliveries: MCP Events tables.
+# event_domains: platform feature.
+# paper_run: platform metrics run metadata.
+# image_scan_*: platform scanning.
+# users.event_account: platform holding-account flag (decision 12).
+table | event_announcement_deliveries | D3-S5c | Hack table
+table | event_announcements | D3-S5c | Hack table
+table | event_assignments | D3-S5c | Hack table
+table | event_checklist_acknowledgements | D3-S5c | Hack table
+table | event_checklist_dismissals | D3-S5c | Hack table
+table | event_conflicts | D3-S5c | Hack table
+table | event_content | D3-S5c | Hack table
+table | event_create_log | D3-S5c | Hack table
+table | event_entries | D3-S5c | Hack table
+table | event_entry_receipts | D3-S5c | Hack table
+table | event_entry_reminders | D3-S5c | Hack table
+table | event_former_judges | D3-S5c | Hack table
+table | event_judge_reminders | D3-S5c | Hack table
+table | event_members | D3-S5c | Hack table
+table | event_notices | D3-S5c | Hack table
+table | event_organiser_invites | D3-S5c | Hack table
+table | event_results | D3-S5c | Hack table
+table | event_scores | D3-S5c | Hack table
+table | event_team_keys | D3-S5c | Hack table
+table | event_team_messages | D3-S5c | Hack table
+table | event_team_requests | D3-S5c | Hack table
+table | event_teams | D3-S5c | Hack table
+table | event_track_panels | D3-S5c | Hack table
+table | event_tracks | D3-S5c | Hack table
+table | event_used_names | D3-S5c | Hack table
+table | event_votes | D3-S5c | Hack table
+table | events | D3-S5c | root Hack event records
+table | hack_account_preferences | D3-S5c | Hack table
+table | hack_assistant_spend | D3-S5c | Hack table
+table | hack_assistant_usage | D3-S5c | Hack table
+table | paper_hack_daily | D3-S5c | Hack table
+table | paper_hack_event | D3-S5c | Hack table
+table | paper_hack_key | D3-S5c | Hack table
+table | paper_hack_latency | D3-S5c | Hack table
+table | paper_hack_minute | D3-S5c | Hack table
+table | paper_hack_phase | D3-S5c | Hack table
+table | rubric_criteria | D3-S5c | foreign keys reach only Hack tables: events
+trigger | event_members_team_admin_follows_team | D3-S5c | attached to event_members; executes hack_clear_team_admin_on_team_change
+trigger | hack_members_clear_former_judge | D3-S5c | attached to event_members; executes clear_hack_former_judge
+trigger | hack_members_notifications | D3-S5c | attached to event_members; executes revoke_hack_notifications
+function | clear_hack_former_judge | D3-S5c | executed by Hack table trigger
+function | hack_clear_team_admin_on_team_change | D3-S5c | executed by Hack table trigger
+function | revoke_hack_notifications | D3-S5c | executed by Hack table trigger
+
+column | oauth_grants.selected_team_id | D3-S5b | added by z6-hack-connector-selected-team.sql for the connector's selected team; D2-S6 moves the data, D3-S5b stops the platform reading it

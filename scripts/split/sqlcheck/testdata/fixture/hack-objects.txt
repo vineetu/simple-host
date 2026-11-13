@@ -1,0 +1,4 @@
+table | events | D3-S5c | event records
+table | event_teams | D3-S5c | teams
+table | rubric_criteria | D3-S5c | FK to events
+column | oauth_grants.selected_team_id | D3-S5b | Hack selection

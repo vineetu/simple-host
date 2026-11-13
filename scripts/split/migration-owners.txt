@@ -1,0 +1,129 @@
+# Who owns each migration file: platform, hack, or mixed (D1-S6). D3-S5c moves every hack and mixed file to the product.
+# Proposed by `go run ./scripts/split/sqlcheck -propose-migrations`, then every line confirmed by hand on 2026-11-13 (D1-S6).
+# Ownership follows purpose, not only the table named: see the three rules in the D1-S6 slice text. Check with `go run ./scripts/split/sqlcheck -migrations`.
+# Order: Baseline files first (applied by hand, mutually unordered), then migrations.Tracked() order; 0c2-diskmove.sh follows 0c1-handles.sql.
+# Lines starting "#   mixed:" are generated (`-migrations -fix`).
+0b-legacy-hostnames.sql | platform | creates legacy_hostnames; writes legacy_hostnames; reads sites, users
+0c1-handles.sql | platform | alters users; writes users
+0c2-diskmove.sh | platform | moves site versions to by-id paths and updates versions.disk_path using sites
+0e-per-user-names.sql | platform | alters sites; writes sites; reads sites, users
+1a-custom-domain-cols.sql | platform | alters sites
+analytics-geo.sql | platform | alters site_visitor_hourly; creates ip_country_ranges; creates site_geo_daily; reads ip_country_ranges, site_geo_daily, sites
+analytics-v2.sql | platform | creates site_view_hourly; creates site_visitor_hourly; reads site_view_hourly, site_visitor_hourly, sites
+analytics.sql | platform | creates analytics_ingest_state; creates site_view_daily; creates site_visitor_daily; reads analytics_ingest_state, site_view_daily, site_visitor_daily, sites
+api-analytics.sql | platform | creates api_ip_daily; creates api_request_daily; creates ip_geo; reads api_ip_daily, api_request_daily
+auth-token-purpose.sql | platform | alters auth_tokens; reads sites
+display-name.sql | platform | alters users
+domain-bound-at.sql | platform | alters sites; writes sites
+event-domains.sql | platform | creates event_domains; reads users
+handle-aliases.sql | platform | creates handle_aliases; reads users
+hash-api-keys-drop-plaintext.sql | platform | alters users; writes api_keys
+hash-api-keys.sql | platform | alters users; creates api_keys; writes api_keys; reads users
+instance-config.sql | platform | creates instance_config
+local-geo.sql | platform | comment-only retirement advice for ip_geo; no SQL executed
+oauth-connector.sql | platform | alters auth_tokens; creates oauth_clients; creates oauth_codes; creates oauth_grants; creates oauth_tokens; reads oauth_clients, oauth_grants, users
+private-collections.sql | platform | alters collection_items; creates collection_settings; reads collection_settings, sites, users
+prod-0b-legacy-hostnames.sql | platform | creates legacy_hostnames; writes legacy_hostnames; reads sites, users
+prod-0e-per-user-names.sql | platform | alters sites; writes sites; reads users
+truncate-api-ip.sql | platform | writes api_ip_daily
+unify-identities.sql | platform | alters oauth_states; creates oauth_identities; creates visitor_establish_tokens; creates visitor_sessions; drops visitor_establish_tokens; drops visitor_sessions; drops visitors; reads sites, users, visitor_sessions
+visitor-grants.sql | platform | grants service access to visitor_sessions and visitor_establish_tokens
+visitor-oauth.sql | platform | alters sites; creates oauth_states; creates visitor_establish_tokens; creates visitor_sessions; creates visitors; reads sites, visitor_sessions
+visitor-signin-nonce.sql | platform | alters oauth_states; alters visitor_establish_tokens
+ask-daily-count.sql | platform | creates ask_daily
+cp-domains-custom-domain-certs.sql | platform | alters legacy_hostnames; alters sites; reads sites
+cp-gdpr-retired-handles.sql | platform | alters handle_aliases
+cp-int-previous-domain-checks.sql | platform | alters sites
+cp-keys-key-names.sql | platform | alters api_keys
+cp-ops-schema-migrations.sql | platform | creates schema_migrations
+cp-ops-suspend.sql | platform | alters sites; alters users
+cp-proof-domain-ownership.sql | platform | alters sites; creates domain_cert_requests; writes sites; reads users
+cp-recover-recently-deleted.sql | platform | alters sites
+hack1-events.sql | hack | creates event_create_log (hack); creates event_members (hack); creates event_teams (hack); creates events (hack); reads users
+hack10-event-icons.sql | hack | alters events (hack)
+hack11-account-preferences.sql | hack | creates hack_account_preferences (hack); reads users
+hack2-team-sites.sql | hack | alters event_teams (hack); alters events (hack); creates event_entries (hack); creates event_team_keys (hack); creates event_used_names (hack); writes event_used_names (hack); reads api_keys, users
+hack3-judging.sql | hack | alters events (hack); creates event_assignments (hack); creates event_conflicts (hack); creates event_results (hack); creates event_scores (hack); creates rubric_criteria (hack); reads users
+hack4-administration.sql | hack | creates event_organiser_invites (hack); reads users
+hack5-content.sql | hack | creates event_announcement_deliveries (hack); creates event_announcements (hack); creates event_content (hack); creates event_entry_receipts (hack); reads users
+hack6-registration.sql | hack | alters event_members (hack); alters event_teams (hack); alters events (hack); creates event_tracks (hack); reads users
+hack7-mail-retries.sql | hack | alters event_announcement_deliveries (hack); alters event_entry_receipts (hack)
+hack7-voting-directory.sql | hack | alters events (hack); creates event_votes (hack)
+hack8-judging-options.sql | hack | alters events (hack); creates event_track_panels (hack); reads users
+hack9-event-websites.sql | hack | alters events (hack)
+knobs-promised-dates.sql | platform | alters sites
+sd1-saved-data-safety.sql | platform | alters collection_items; alters sites; creates data_history; creates data_watch; creates idempotency_keys; reads collection_items, sites, users
+sd1-saved-data-safety2-limits.sql | platform | alters data_history; alters idempotency_keys; alters sites; creates sh_items_live_bytes; creates sh_sites_state_bytes; creates trigger on collection_items; creates trigger on sites; drops trigger on collection_items; drops trigger on sites; writes sites; reads collection_items, sites
+sd1-saved-data-safety3-history-bytes.sql | platform | alters sites; creates sh_history_bytes; creates trigger on data_history; drops trigger on data_history; writes sites; reads data_history
+sd2-saved-data-kinds.sql | platform | alters collection_settings; alters sites; creates index on collection_items; creates site_savers; reads sites
+sd3-saved-data-personal-board.sql | platform | alters collection_items
+sd3-saved-data-personal-private.sql | platform | writes collection_settings
+v061-setup-check-daily.sql | platform | creates setup_check_daily
+v071-event-account-flag.sql | platform | adds users.event_account holding-account flag; backfills from api_keys named event account
+v072-notify-last-id.sql | platform | alters collection_settings
+v073-setup-assist-daily.sql | platform | creates setup_assist_daily
+v075-signup-source.sql | platform | alters users; writes users; reads oauth_clients, oauth_grants, oauth_identities
+v075-site-keep-versions.sql | platform | alters sites
+v076-site-passcode.sql | platform | alters sites
+v077-address-families.sql | platform | creates address_families; creates family_cert_requests; reads users
+v078-api-growth.sql | platform | creates api_growth_daily
+v079-api-self-calls.sql | platform | creates api_self_daily; corrects api_growth_daily and api_request_daily counts; events appears only in a route regex
+w2-account-signin-email.sql | platform | alters users; creates email_changes; creates signin_alerts_sent; reads users
+w2-addr-idle-cleanup.sql | platform | alters sites
+w2-signin-email-undo.sql | platform | alters email_changes; creates email_change_undos; reads users
+w2-sites-offline.sql | platform | alters sites
+w2-sites-old-names.sql | platform | creates site_name_aliases; reads sites, users
+w3-analytics-pages-referrers.sql | platform | creates site_page_daily; creates site_referrer_daily; reads sites
+w3-connection-device.sql | platform | alters oauth_codes; alters oauth_grants
+w3-keys-scope-expiry.sql | platform | alters api_keys
+w3-network-usage.sql | platform | creates net_counter_state; creates net_usage_daily; creates site_traffic_daily; creates traffic_daily; reads sites
+z6-hack-connector-selected-team.sql | hack | adds oauth_grants.selected_team_id solely for the Hack connector selected team
+z7-site-storage.sql | platform | creates site_storage_kv; creates site_storage_resources; reads site_storage_resources, sites
+z8-hack-ink-color.sql | hack | alters events (hack)
+z9-home-page.sql | platform | alters users; reads sites
+za-showcase-curation.sql | platform | alters sites; alters users
+zb-storage-story.sql | platform | alters site_storage_kv; alters site_storage_resources; creates site_storage_files; reads site_storage_resources
+zc-site-named-viewers.sql | platform | alters sites; creates site_viewers; creates site_visitor_signins; writes site_visitor_signins; reads site_storage_files, site_storage_kv, sites, users, visitor_sessions
+zd-storage-access-presets.sql | platform | alters site_storage_files; alters site_storage_kv; alters site_storage_resources; creates site_storage_tables; reads site_storage_resources
+ze-spam-checked-posts.sql | platform | alters site_storage_resources; alters site_storage_tables
+zf-signup-detail.sql | platform | alters users
+zg-oidc-signin.sql | platform | alters oauth_identities; alters oauth_states
+zh-site-notifications.sql | platform | creates site_notifications, site_events and site_event_deliveries with indexes; events is a subscription column
+zi-site-search-summary.sql | platform | alters sites
+zj-hack-notifications.sql | hack | creates revoke_hack_notifications and hack_members_notifications on event_members; deletes site_notifications on Hack membership loss
+zk-hack-directory-opt-in.sql | hack | alters events (hack)
+zk-hack-team-removal-notice.sql | hack | alters event_members (hack)
+zl-hack-team-finding.sql | hack | alters event_members (hack); alters event_teams (hack); alters events (hack); creates event_team_requests (hack); reads users
+zn-sso-hop.sql | platform | alters visitor_sessions; creates sso_consents; creates sso_hops; creates sso_passes; creates sso_signouts; reads api_keys, sites, sso_passes, users
+zn-visitor-ai.sql | platform | alters data_history; alters oauth_grants; creates visitor_ai_daily; writes data_history; reads sites, users
+zo-sso-signout-confirm.sql | platform | alters sso_signouts
+zp-hack-applications.sql | hack | alters event_members (hack); alters events (hack)
+zq-hack-leave-event.sql | hack | creates clear_hack_former_judge (hack); creates event_former_judges (hack); creates trigger on event_members (hack); writes event_former_judges (hack); writes event_scores (hack); reads users
+zr-hack-team-kept-after-leave.sql | hack | alters event_teams (hack)
+zr-paper-metrics.sql | platform | creates paper_class_daily, paper_daily, paper_latency_daily, paper_process_sample, paper_site_footprint
+zs-hack-paper-metrics.sql | mixed | creates platform paper_run provenance and Hack paper_hack_key, paper_hack_event, paper_hack_minute, paper_hack_latency, paper_hack_phase, paper_hack_daily
+#   mixed: platform objects created: paper_run; later platform files that mention them: none
+zt-hack-teams-redesign.sql | hack | alters event_members (hack); alters event_teams (hack); alters events (hack); creates hack_clear_team_admin_on_team_change (hack); creates trigger on event_members (hack); writes event_members (hack); writes event_teams (hack); writes events (hack); reads users
+zv-hack-entry-summary.sql | hack | alters event_entries (hack); alters events (hack); writes event_entries (hack); writes events (hack); reads users
+zw-hack-wait-notices.sql | hack | alters event_notices (hack); alters hack_account_preferences (hack); creates event_notices (hack); reads users
+zw-sim-152-version-author.sql | platform | alters versions
+zx-hack-entry-reminders.sql | hack | alters event_notices (hack); creates event_entry_reminders (hack)
+zx-sim-151-owner-visitor-marks.sql | platform | creates owner_visitor_marks; reads users
+zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_scan_matches; creates image_scan_queue
+0001-hack-judging-event-fk.sql | hack | alters event_conflicts (hack); alters event_scores (hack); writes event_conflicts (hack); writes event_scores (hack)
+0002-password-sign-in.sql | platform | creates account_passwords; reads users
+0003-hack-notices-judges-messages.sql | hack | alters event_entry_reminders (hack); alters event_notices (hack); alters events (hack); creates event_judge_reminders (hack); creates event_team_messages (hack); reads users
+0004-password-login.sql | platform | alters account_passwords; writes account_passwords; reads users
+0005-hack-entry-rules-chosen.sql | hack | alters events (hack)
+0006-hack-one-name.sql | hack | backfills users.display_name from event_members and event_former_judges for Hack one-name migration
+0007-web-push.sql | platform | alters site_notifications; alters site_push_rules; creates site_push_rules; writes site_notifications; reads sites
+0008-web-push-round-2.sql | platform | alters site_events; alters site_notifications
+0009-hack-checklists.sql | hack | creates event_checklist_acknowledgements (hack); creates event_checklist_dismissals (hack); reads users
+0010-hack-audience-optional.sql | hack | writes events (hack)
+0011-hack-event-theme.sql | hack | alters events (hack)
+0012-hack-assistant-usage.sql | hack | creates hack_assistant_spend (hack); creates hack_assistant_usage (hack); reads users
+0013-hack-organiser-judges.sql | hack | alters events (hack); writes events (hack)
+0014-hack-overall-prizes.sql | hack | alters events (hack)
+0015-hack-team-to-organiser-messages.sql | hack | alters event_notices (hack); alters event_team_messages (hack)
+0016-hack-announcement-pin.sql | hack | alters event_announcements (hack)
+0017-hack-submissions-public.sql | hack | alters events (hack)

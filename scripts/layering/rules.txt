@@ -33,6 +33,7 @@ geoip -> workers
 wpimport -> redirects
 {llm,redirects} -> -
 # Permanent module-specific packages and command rows.
+@/scripts/split/sqlcheck -> @/db/migrations
 @/cmd/analytics-rebuild -> analytics config
 @/cmd/ip-country-load -> -
 @/scripts/layering -> -
