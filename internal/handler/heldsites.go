@@ -4,15 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/model"
 )
+
+// GroupRef identifies a group and its holding account.
+type GroupRef struct{ ID, Slug, AccountID string }
 
 // Team sites on the hackathon platform (EVENTS=hosted, M2;
 // docs/designs/simple-hack-platform.md).
@@ -25,19 +26,6 @@ import (
 // Every deploy, upload and rollback checks the team's deadline inside its
 // transaction, holding the team row FOR SHARE, so the deadline pin
 // (db.PinDueTeams) sees exactly what was let in before the deadline.
-
-// hackNoPersonalSites refuses a new site on the hackathon platform unless the
-// caller is a team credential (or the admin); false after writing the answer.
-func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *model.User) bool {
-	if h.ed.Identity().PersonalSites || user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
-		return true
-	}
-	writeJSON(w, http.StatusForbidden, errorResponse{
-		Error: "team sites belong to an event: select your team in the Simple Hack connection before publishing",
-		Code:  "no_personal_sites",
-	})
-	return false
-}
 
 // teamSitesReady: *.<event>.<SITE_DOMAIN> is served with its certificate. A
 // pure check: certificates are asked for only for events that are open,
@@ -87,19 +75,19 @@ func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
 // PublishEventWebsite sends an organiser's upload through the same validated,
 // versioned deploy path as a team site. The holding account is visible only to
 // this scoped internal request; the transaction gate rechecks membership at commit.
-func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, ev model.Event, organiserID string, files bool) {
+func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, g GroupRef, organiserID string, files bool) {
 	if r.URL.Query().Get("publish") == "false" {
 		writeHackErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")
 		return
 	}
-	holder, err := h.storeAccounts().GetUserByID(r.Context(), ev.AccountID)
+	holder, err := h.storeAccounts().GetUserByID(r.Context(), g.AccountID)
 	if err != nil || holder.Suspended {
-		hackSitesEventNotFound(w)
+		heldSiteNotFound(w)
 		return
 	}
-	holder.EventWebsite = &model.EventWebsiteIdentity{EventID: ev.ID, EventSlug: ev.Slug, OrganiserID: organiserID}
+	holder.EventWebsite = &model.EventWebsiteIdentity{EventID: g.ID, EventSlug: g.Slug, OrganiserID: organiserID}
 	r = r.WithContext(auth.WithUser(r.Context(), &holder))
-	r.SetPathValue("sitename", ev.ID)
+	r.SetPathValue("sitename", g.ID)
 	if files {
 		h.updateSiteFiles(w, r)
 	} else {
@@ -214,145 +202,22 @@ func (h *SiteHandler) SyncAccountMarkers(ctx context.Context, accountID string) 
 	return first
 }
 
-// hackPinnedFloor lowers a prune threshold so a team's deadline version is
-// kept whatever the retention.
-func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
-	if !h.ed.Identity().TeamKeys {
-		return keepFrom
-	}
-	v, ok, err := h.hackSiteSvc().SitePinnedVersion(ctx, userID, siteName)
-	if err != nil {
-		log.Printf("prune versions for %s: pinned version: %v", siteName, err)
-		return 0 // keep everything rather than guess
-	}
-	if ok && v < keepFrom {
-		return v
-	}
-	return keepFrom
-}
-
-// StartHackSweep pins teams whose deadline has passed and moves sites whose
-// team is gone to Recently deleted, now and then every interval.
-func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, alsoFn func(context.Context)) {
-	o := h.siteLoop("sites.hack_sweep")
-	o.once.Do(func() {
-		if o.enabled() {
-			h.startHackSweep(ctx, every, alsoFn)
-		}
-	})
-}
-func (h *SiteHandler) startHackSweep(ctx context.Context, every time.Duration, alsoFn func(context.Context)) {
-	if !h.ed.Identity().TeamKeys {
-		return
-	}
-	h.siteLoop("sites.hack_sweep").Go(ctx, func(ctx context.Context) {
-		ctx = sites.WithWorkerReport(ctx, h.siteLoop("sites.hack_sweep").tracker)
-		t := time.NewTicker(every)
-		defer t.Stop()
-		for n := 0; ; n++ {
-			h.siteLoop("sites.hack_sweep").tracker.Attempt()
-			h.hackSweep(ctx)
-			// Take-down markers follow the database again every ten rounds
-			// (a marker write that failed after a take-down is retried).
-			if n%10 == 9 {
-				h.SyncSuspendMarkers(ctx)
-			}
-			if alsoFn != nil {
-				alsoFn(ctx)
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-			}
-		}
-	})
-}
-
-// HackSweepForTest is hackSweep, exported as a test hook (cleanup 3.2 slice
-// 3): the moved hack_m2_test.go runs one sweep on demand
-// (TestHackM2ReviewRound2) instead of waiting on StartHackSweep's ticker.
-func (h *SiteHandler) HackSweepForTest(ctx context.Context) { h.hackSweep(ctx) }
-
-func (h *SiteHandler) hackSweep(ctx context.Context) {
-	h.hackSiteSvc().SweepSites(ctx, h.TrashTeamSite, func() { sites.ReportWorkerProgress(ctx) }, func(op string, err error) { sites.ReportWorkerFailure(ctx, op, err) })
-}
-
-// hackTLSHostExists bounds on-demand certificates to actual platform names.
-// A real archived or taken-down host still needs HTTPS to show its page or
-// notice; arbitrary names and deleted projects must not consume certificates.
-// Used by the Caddy on-demand TLS gate (domains.go tlsAsk); a Kubernetes
-// install with a static *.<base> wildcard never calls this.
-func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
-	if host == strings.ToLower(h.contentHost) {
-		return true
-	}
-	for _, base := range h.servedBases() {
-		if host == base || host == "www."+base {
-			return true
-		}
-		if !strings.HasSuffix(host, "."+base) {
-			continue
-		}
-		label := strings.TrimSuffix(host, "."+base)
-		if h.teamSiteFlatHostsOn() && h.flatLabelConfirmedNotAHandle(ctx, label) {
-			if team, event, ok := sites.TeamSiteHostLabels(label); ok {
-				return h.hackTeamSiteExists(ctx, event, team)
-			}
-		}
-		labels := strings.Split(label, ".")
-		if len(labels) < 1 || len(labels) > 2 {
-			return false
-		}
-		if _, err := h.hackSiteSvc().SiteEventBySlug(ctx, labels[len(labels)-1]); err != nil {
-			return false
-		}
-		if len(labels) == 1 {
-			return true
-		}
-		return h.hackTeamSiteExists(ctx, labels[1], labels[0])
-	}
-	return false
-}
-
-// hackTeamSiteExists reports whether team is a real team of event with a
-// live site: the on-demand TLS allowlist's team-site check, shared by the
-// two-level (<team>.<event>.<base>) and flat (<team>--<event>.<base>) host
-// shapes.
-func (h *SiteHandler) hackTeamSiteExists(ctx context.Context, eventSlug, teamSlug string) bool {
-	ev, err := h.hackSiteSvc().SiteEventBySlug(ctx, eventSlug)
-	if err != nil {
-		return false
-	}
-	if _, err := h.hackSiteSvc().TeamBySlug(ctx, ev.ID, teamSlug); err != nil {
-		return false
-	}
-	site, err := h.sitesSvc().GetSiteByUser(ctx, ev.AccountID, teamSlug)
-	return err == nil && site.ActiveVersion > 0
-}
-
-func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, member model.User, teamID string) {
-	id, err := h.hackSiteSvc().SiteTeamIdentity(r.Context(), member.ID, teamID)
-	if err != nil {
-		hackSitesEventNotFound(w)
-		return
-	}
+func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, id model.TeamIdentity, refusal func(context.Context) (status int, code, msg string, err error)) {
 	holder, err := h.storeAccounts().GetUserByID(r.Context(), id.AccountID)
 	if err != nil || holder.Suspended {
-		hackSitesEventNotFound(w)
+		heldSiteNotFound(w)
 		return
 	}
 	holder.IsAdmin = false
 	holder.Team = &id
 	r = r.WithContext(auth.WithUser(r.Context(), &holder))
 	r.SetPathValue("sitename", id.TeamSlug)
-	st, err := h.hackSiteSvc().WriteState(r.Context(), teamID)
+	status, code, msg, err := refusal(r.Context())
 	if err != nil {
 		writeInternal(w)
 		return
 	}
-	if code := st.WriteRefusal(); code != "" {
-		status, msg := auth.TeamRefusal(code)
+	if code != "" {
 		writeJSON(w, status, errorResponse{Error: msg, Code: code})
 		return
 	}
@@ -370,4 +235,9 @@ func (h *SiteHandler) TeamSitesFrameBase() string {
 		return ""
 	}
 	return h.handoutBase()
+}
+
+// heldSiteNotFound preserves the event API response for an unavailable holding account.
+func heldSiteNotFound(w http.ResponseWriter) {
+	writeJSON(w, http.StatusNotFound, errorResponse{Error: "event not found", Code: "event_not_found"})
 }

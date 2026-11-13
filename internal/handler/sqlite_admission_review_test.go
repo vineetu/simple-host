@@ -276,7 +276,7 @@ func TestExportAdmissionTimeoutAbortsHTTP(t *testing.T) {
 				// checks a broken HTTP body rather than only a pre-header EOF.
 				w = flushExportWriter{w}
 				if tc.name == "event" {
-					h.ExportEventProjects(w, r, ev, "")
+					h.ExportEventProjects(w, r, GroupRef{ID: ev.ID, Slug: ev.Slug, AccountID: ev.AccountID}, []string{"shop"}, "")
 				} else {
 					s.a.srv.Config.Handler.ServeHTTP(w, r)
 				}

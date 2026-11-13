@@ -10,16 +10,17 @@ import (
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
+	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
 type eventWebsitePublisher interface {
-	PublishEventWebsite(http.ResponseWriter, *http.Request, model.Event, string, bool)
+	PublishEventWebsite(http.ResponseWriter, *http.Request, handler.GroupRef, string, bool)
 }
 
 type eventWebsiteStorage interface {
-	ServeEventWebsiteStorage(http.ResponseWriter, *http.Request, model.Event, string)
+	ServeEventWebsiteStorage(http.ResponseWriter, *http.Request, handler.GroupRef, string)
 }
 
 func (h *HackHandler) registerEventWebsite(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
@@ -55,7 +56,7 @@ func (h *HackHandler) eventWebsiteStorage(w http.ResponseWriter, r *http.Request
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "storage route not found")
 		return
 	}
-	storage.ServeEventWebsiteStorage(w, r, a.event, a.user.ID)
+	storage.ServeEventWebsiteStorage(w, r, groupRef(a.event), a.user.ID)
 }
 
 func (h *HackHandler) eventWebsiteState(ctx context.Context, ev model.Event) (map[string]any, error) {
@@ -166,7 +167,7 @@ func (h *HackHandler) putEventWebsite(w http.ResponseWriter, r *http.Request, fi
 	// Buffer the small deployment response until the event host's switch has
 	// committed. Visitors never see an old mode after a successful upload.
 	rec := httptest.NewRecorder()
-	sites.PublishEventWebsite(rec, r, a.event, a.user.ID, files)
+	sites.PublishEventWebsite(rec, r, groupRef(a.event), a.user.ID, files)
 	res := rec.Result()
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusOK || res.StatusCode == http.StatusCreated {
@@ -204,4 +205,8 @@ func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev model.Event) in
 
 func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev model.Event) string {
 	return h.websiteSitesSvc().WebsiteUploadLimits(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
+}
+
+func groupRef(ev model.Event) handler.GroupRef {
+	return handler.GroupRef{ID: ev.ID, Slug: ev.Slug, AccountID: ev.AccountID}
 }

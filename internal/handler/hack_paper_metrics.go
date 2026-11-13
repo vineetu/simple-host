@@ -50,3 +50,20 @@ func paperHackTeamState(r *http.Request, user *model.User, stage string) {
 }
 
 func paperHackWrite(r *http.Request) { paperRecorder(r.Context()).HackWriteCommitted(r.Context()) }
+
+// hackSitesPaperUser is hack.go's paperHackUser (moved there from
+// hack_paper_metrics.go), duplicated here for site_storage.go's
+// storage-request telemetry, which is not Hack-event-API code.
+func hackSitesPaperUser(r *http.Request, user *model.User) {
+	if user == nil {
+		return
+	}
+	member := user.ID
+	if user.Team != nil {
+		member = user.Team.MemberID
+	}
+	if user.EventWebsite != nil {
+		member = user.EventWebsite.OrganiserID
+	}
+	paperRecorder(r.Context()).HackMember(r.Context(), member)
+}

@@ -530,11 +530,27 @@ func (h *HackHandler) putTeamSiteArchive(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	sites, ok := h.sites.(interface {
-		PublishTeamArchive(http.ResponseWriter, *http.Request, model.User, string)
+		PublishTeamArchive(http.ResponseWriter, *http.Request, model.TeamIdentity, func(context.Context) (int, string, string, error))
 	})
 	if !ok {
 		httpx.WriteError(w, 503, "website_unavailable", "team website publishing is unavailable")
 		return
 	}
-	sites.PublishTeamArchive(w, r, *a.user, team.ID)
+	id, err := h.teamsSvc().SiteTeamIdentity(r.Context(), a.user.ID, team.ID)
+	if err != nil {
+		writeEventNotFound(w)
+		return
+	}
+	sites.PublishTeamArchive(w, r, id, func(ctx context.Context) (int, string, string, error) {
+		st, err := h.teamsSvc().WriteState(ctx, team.ID)
+		if err != nil {
+			return 0, "", "", err
+		}
+		code := st.WriteRefusal()
+		if code == "" {
+			return 0, "", "", nil
+		}
+		status, msg := auth.TeamRefusal(code)
+		return status, code, msg, nil
+	})
 }

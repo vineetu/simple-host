@@ -15,27 +15,15 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 )
 
-// Site-side of Hack administration exports (cleanup 3.2 slice 1c): these are
-// *SiteHandler methods, split out of hack_administration.go so that file's
-// *HackHandler methods can move into internal/hackhttp as one unit. They
-// stay in handler because they walk the shared disk layout that SiteHandler
-// already owns. hackAdministrationSites (hack_administration.go) is the
-// narrow interface the moving code calls these through.
-
 // ExportEventProjects is called only after event/own-team authorization. It
-// selects this event's teams and holding account; no instance-wide export is used.
-func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request, ev model.Event, ownSlug string) {
-	teams, err := h.hackSiteSvc().SiteTeams(r.Context(), ev.ID)
-	if err != nil {
-		writeInternal(w)
-		return
-	}
+// exports only the supplied team names from the group's holding account.
+func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request, g GroupRef, teamSlugs []string, ownSlug string) {
 	var sites []model.Site
-	for _, team := range teams {
-		if ownSlug != "" && team.Slug != ownSlug {
+	for _, slug := range teamSlugs {
+		if ownSlug != "" && slug != ownSlug {
 			continue
 		}
-		site, err := h.sitesSvc().GetSiteByUser(r.Context(), ev.AccountID, team.Slug)
+		site, err := h.sitesSvc().GetSiteByUser(r.Context(), g.AccountID, slug)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
@@ -49,9 +37,9 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 		writeHackErr(w, 404, "no_project", "your team has not published a project")
 		return
 	}
-	name := ev.Slug + "-projects"
+	name := g.Slug + "-projects"
 	if ownSlug != "" {
-		name = ev.Slug + "-" + ownSlug
+		name = g.Slug + "-" + ownSlug
 	}
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Cache-Control", "no-store")
@@ -68,10 +56,10 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 	finishSiteTar(tw, gz)
 }
 
-func (h *SiteHandler) EventFileBytes(ctx context.Context, ev model.Event) (int64, error) {
+func (h *SiteHandler) EventFileBytes(ctx context.Context, accountID string) (int64, error) {
 	var total int64
 	for _, area := range []string{"by-id", "deleted"} {
-		root := filepath.Join(h.disk.DataDir(), area, ev.AccountID)
+		root := filepath.Join(h.disk.DataDir(), area, accountID)
 		err := filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil

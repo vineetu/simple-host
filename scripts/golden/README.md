@@ -617,7 +617,7 @@ pending values remain `<n>` and null pending remains null.
 | `operations.geoip_watch` | `internal/geoip/geoip.go:WatchWorker` (minute; initial missing-file error is retained) |
 | `operations.saved_data_sweep` | `internal/handler/saveddata.go:Start` (empty startup scan, later periodic maintenance) |
 | `hack.event_cleanup` | `products/hack/hackhttp/event_cleanup_workers.go:Start` (ten-minute initial delay) |
-| `sites.hack_sweep` | `internal/handler/hack_sites.go:startHackSweep` (empty startup scan, then minute ticks) |
+| `sites.hack_sweep` | `internal/handler/hack_mode.go:startHackSweep` (empty startup scan, then minute ticks) |
 | `sites.address_families`, `sites.domain_checks`, `sites.idle_cleanup`, `sites.preview_expiry` | `internal/handler/familyhost.go`, `domaincheck.go`, `idle.go`, `site.go` (delayed scans; disabled in base) |
 
 Other reported tasks retain their status nullness. `notifications.retention` sweeps synchronously

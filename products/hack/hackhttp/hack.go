@@ -121,8 +121,8 @@ type HackHandler struct {
 	// imageScan checks event icons and entry screenshots (imagescan.go);
 	// nil (the zero value: SetImageScan was never called) until
 	// PHOTODNA_API_KEY is set. A narrow interface, not *ImageScan directly
-	// (cleanup 3.2 slice 1c): hackhttp must never import handler, even
-	// though ImageScan is exported. Callers must check h.imageScan != nil
+	// (cleanup 3.2 slice 1c), keeping the field limited to scanner operations.
+	// Callers must check h.imageScan != nil
 	// themselves (hack_icons.go, hack_entries.go) — a nil hackImageScanner
 	// is a true nil interface, unlike the old nil-receiver-safe *ImageScan,
 	// so calling a method on it directly would panic.

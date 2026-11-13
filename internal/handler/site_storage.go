@@ -77,8 +77,8 @@ func storageError(w http.ResponseWriter, status int, code, message string) {
 // ServeEventWebsiteStorage is called only after the Hack handler has checked
 // current organiser membership on the event. It maps the public event slug to
 // the holding account's immutable event-ID site before using the shared routes.
-func (h *SiteHandler) ServeEventWebsiteStorage(w http.ResponseWriter, r *http.Request, ev model.Event, organiserID string) {
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), ev.AccountID, ev.ID)
+func (h *SiteHandler) ServeEventWebsiteStorage(w http.ResponseWriter, r *http.Request, g GroupRef, organiserID string) {
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), g.AccountID, g.ID)
 	if err != nil {
 		storageError(w, 404, "site_not_found", "publish the custom event website first")
 		return
@@ -86,14 +86,14 @@ func (h *SiteHandler) ServeEventWebsiteStorage(w http.ResponseWriter, r *http.Re
 	// A private mux keeps the route mapping identical to team and Host storage.
 	mux := http.NewServeMux()
 	h.registerStorageRoutes(mux)
-	prefix := "/v1/hack/events/" + ev.Slug + "/website/storage/"
+	prefix := "/v1/hack/events/" + g.Slug + "/website/storage/"
 	rest, ok := strings.CutPrefix(r.URL.Path, prefix)
 	if !ok || rest == "" {
 		storageError(w, 404, "not_found", "storage route not found")
 		return
 	}
-	copy := r.Clone(context.WithValue(r.Context(), eventStorageContextKey{}, eventStorageScope{site.ID, ev.AccountID, ev.ID, organiserID}))
-	copy.URL.Path = "/v1/sites/" + ev.ID + "/storage/" + rest
+	copy := r.Clone(context.WithValue(r.Context(), eventStorageContextKey{}, eventStorageScope{site.ID, g.AccountID, g.ID, organiserID}))
+	copy.URL.Path = "/v1/sites/" + g.ID + "/storage/" + rest
 	copy.URL.RawPath = ""
 	mux.ServeHTTP(w, copy)
 }

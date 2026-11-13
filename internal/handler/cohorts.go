@@ -141,3 +141,9 @@ func signupGroups(present map[string]bool) []signupGroup {
 func (h *SiteHandler) cohort(r *http.Request, group string) ([]operations.CohortAccount, operations.CohortFunnel, []signupGroup, error) {
 	return h.reporting.Cohort(r.Context(), group, cohortSources())
 }
+
+// formatRFC3339 is hack.go's rfc3339Time, kept here for cohorts.go's signup
+// export, which is not Hack-specific. Same formatting (UTC, RFC 3339).
+func formatRFC3339(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
+}

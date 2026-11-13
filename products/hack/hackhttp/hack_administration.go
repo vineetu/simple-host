@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
@@ -290,8 +291,8 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 }
 
 type hackAdministrationSites interface {
-	ExportEventProjects(http.ResponseWriter, *http.Request, model.Event, string)
-	EventFileBytes(context.Context, model.Event) (int64, error)
+	ExportEventProjects(http.ResponseWriter, *http.Request, handler.GroupRef, []string, string)
+	EventFileBytes(context.Context, string) (int64, error)
 }
 
 func (h *HackHandler) exportProjects(w http.ResponseWriter, r *http.Request) {
@@ -304,7 +305,7 @@ func (h *HackHandler) exportProjects(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	sites.ExportEventProjects(w, r, a.event, "")
+	h.exportEventProjects(w, r, sites, a.event, "")
 }
 func (h *HackHandler) exportOwnTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
@@ -320,7 +321,7 @@ func (h *HackHandler) exportOwnTeam(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	sites.ExportEventProjects(w, r, a.event, team.Slug)
+	h.exportEventProjects(w, r, sites, a.event, team.Slug)
 }
 func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
@@ -337,7 +338,7 @@ func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	u.FileBytes, err = sites.EventFileBytes(r.Context(), a.event)
+	u.FileBytes, err = sites.EventFileBytes(r.Context(), a.event.AccountID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -345,7 +346,16 @@ func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, u)
 }
 
-// ExportEventProjects and EventFileBytes (the *SiteHandler side of Hack
-// administration exports) moved to hack_administration_sites.go (cleanup
-// 3.2 slice 1c): they stay in handler while this file's *HackHandler
-// methods move to internal/hackhttp.
+// exportEventProjects resolves product-owned team names after authorization.
+func (h *HackHandler) exportEventProjects(w http.ResponseWriter, r *http.Request, sites hackAdministrationSites, ev model.Event, ownSlug string) {
+	teams, err := h.teamsSvc().SiteTeams(r.Context(), ev.ID)
+	if err != nil {
+		httpx.WriteInternal(w)
+		return
+	}
+	slugs := make([]string, 0, len(teams))
+	for _, team := range teams {
+		slugs = append(slugs, team.Slug)
+	}
+	sites.ExportEventProjects(w, r, groupRef(ev), slugs, ownSlug)
+}

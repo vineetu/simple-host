@@ -6,10 +6,14 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"log"
 	"net/http"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -127,4 +131,158 @@ func HackAccountDeleteBlock(ctx context.Context, q accounts.DeletionQueries, use
 
 func HackHoldingAccount(ctx context.Context, q accounts.DeletionQueries, userID string, holdingAccounts bool) (bool, error) {
 	return accounts.HoldingAccount(ctx, q, userID, holdingAccounts)
+}
+
+// hackNoPersonalSites refuses a new site on the hackathon platform unless the
+// caller is a team credential (or the admin); false after writing the answer.
+func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *model.User) bool {
+	if h.ed.Identity().PersonalSites || user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
+		return true
+	}
+	writeJSON(w, http.StatusForbidden, errorResponse{
+		Error: "team sites belong to an event: select your team in the Simple Hack connection before publishing",
+		Code:  "no_personal_sites",
+	})
+	return false
+}
+
+// hackPinnedFloor lowers a prune threshold so a team's deadline version is
+// kept whatever the retention.
+func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
+	if !h.ed.Identity().TeamKeys {
+		return keepFrom
+	}
+	v, ok, err := h.hackSiteSvc().SitePinnedVersion(ctx, userID, siteName)
+	if err != nil {
+		log.Printf("prune versions for %s: pinned version: %v", siteName, err)
+		return 0 // keep everything rather than guess
+	}
+	if ok && v < keepFrom {
+		return v
+	}
+	return keepFrom
+}
+
+// StartHackSweep pins teams whose deadline has passed and moves sites whose
+// team is gone to Recently deleted, now and then every interval.
+func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, alsoFn func(context.Context)) {
+	o := h.siteLoop("sites.hack_sweep")
+	o.once.Do(func() {
+		if o.enabled() {
+			h.startHackSweep(ctx, every, alsoFn)
+		}
+	})
+}
+func (h *SiteHandler) startHackSweep(ctx context.Context, every time.Duration, alsoFn func(context.Context)) {
+	if !h.ed.Identity().TeamKeys {
+		return
+	}
+	h.siteLoop("sites.hack_sweep").Go(ctx, func(ctx context.Context) {
+		ctx = sites.WithWorkerReport(ctx, h.siteLoop("sites.hack_sweep").tracker)
+		t := time.NewTicker(every)
+		defer t.Stop()
+		for n := 0; ; n++ {
+			h.siteLoop("sites.hack_sweep").tracker.Attempt()
+			h.hackSweep(ctx)
+			// Take-down markers follow the database again every ten rounds
+			// (a marker write that failed after a take-down is retried).
+			if n%10 == 9 {
+				h.SyncSuspendMarkers(ctx)
+			}
+			if alsoFn != nil {
+				alsoFn(ctx)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+		}
+	})
+}
+
+// HackSweepForTest is hackSweep, exported as a test hook (cleanup 3.2 slice
+// 3): the moved hack_m2_test.go runs one sweep on demand
+// (TestHackM2ReviewRound2) instead of waiting on StartHackSweep's ticker.
+func (h *SiteHandler) HackSweepForTest(ctx context.Context) { h.hackSweep(ctx) }
+
+func (h *SiteHandler) hackSweep(ctx context.Context) {
+	h.hackSiteSvc().SweepSites(ctx, h.TrashTeamSite, func() { sites.ReportWorkerProgress(ctx) }, func(op string, err error) { sites.ReportWorkerFailure(ctx, op, err) })
+}
+
+// hackTLSHostExists bounds on-demand certificates to actual platform names.
+// A real archived or taken-down host still needs HTTPS to show its page or
+// notice; arbitrary names and deleted projects must not consume certificates.
+// Used by the Caddy on-demand TLS gate (domains.go tlsAsk); a Kubernetes
+// install with a static *.<base> wildcard never calls this.
+func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
+	if host == strings.ToLower(h.contentHost) {
+		return true
+	}
+	for _, base := range h.servedBases() {
+		if host == base || host == "www."+base {
+			return true
+		}
+		if !strings.HasSuffix(host, "."+base) {
+			continue
+		}
+		label := strings.TrimSuffix(host, "."+base)
+		if h.teamSiteFlatHostsOn() && h.flatLabelConfirmedNotAHandle(ctx, label) {
+			if team, event, ok := sites.TeamSiteHostLabels(label); ok {
+				return h.hackTeamSiteExists(ctx, event, team)
+			}
+		}
+		labels := strings.Split(label, ".")
+		if len(labels) < 1 || len(labels) > 2 {
+			return false
+		}
+		if _, err := h.hackSiteSvc().SiteEventBySlug(ctx, labels[len(labels)-1]); err != nil {
+			return false
+		}
+		if len(labels) == 1 {
+			return true
+		}
+		return h.hackTeamSiteExists(ctx, labels[1], labels[0])
+	}
+	return false
+}
+
+// hackTeamSiteExists reports whether team is a real team of event with a
+// live site: the on-demand TLS allowlist's team-site check, shared by the
+// two-level (<team>.<event>.<base>) and flat (<team>--<event>.<base>) host
+// shapes.
+func (h *SiteHandler) hackTeamSiteExists(ctx context.Context, eventSlug, teamSlug string) bool {
+	ev, err := h.hackSiteSvc().SiteEventBySlug(ctx, eventSlug)
+	if err != nil {
+		return false
+	}
+	if _, err := h.hackSiteSvc().TeamBySlug(ctx, ev.ID, teamSlug); err != nil {
+		return false
+	}
+	site, err := h.sitesSvc().GetSiteByUser(ctx, ev.AccountID, teamSlug)
+	return err == nil && site.ActiveVersion > 0
+}
+
+// hackSitesGallerySlug is hack_wire.go's hackGallerySlug: one label,
+// lowercase letters, digits and hyphens, at most 30 characters, not
+// starting or ending with a hyphen.
+var hackSitesGallerySlugRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+func hackSitesGallerySlug(s string) bool {
+	return len(s) <= 30 && hackSitesGallerySlugRe.MatchString(s)
+}
+
+// hackSitesScreenshotPath is hack_wire.go's hackScreenshotPath, kept here
+// for hack_mode.go's event-host routing, which needs it to recognize
+// /screenshots/<team> before dispatching to the Hack-side hook.
+func hackSitesScreenshotPath(p string) (string, bool) {
+	const prefix = "/screenshots/"
+	if !strings.HasPrefix(p, prefix) {
+		return "", false
+	}
+	slug := p[len(prefix):]
+	if !hackSitesGallerySlug(slug) {
+		return "", false
+	}
+	return slug, true
 }

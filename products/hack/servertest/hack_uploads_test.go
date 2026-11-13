@@ -106,3 +106,26 @@ func TestHackArchiveValidationReasons(t *testing.T) {
 		t.Fatalf("missing raw zip error: %s", rec.Body.String())
 	}
 }
+
+func TestHackTeamPublishSuspendedHolderBeforeClosedTeam(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, participant := a.newPerson(t, "order-org"), a.newPerson(t, "order-member")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, participant, org)
+	a.startTeam(t, slug, "Order team", participant)
+	markReady(t, a.certDir, slug)
+	base := "/v1/hack/events/" + slug
+	wantTS(t, "close", a.api(t, "POST", base+"/stage", map[string]string{"stage": "closed"}, org.key), 200, "")
+	publish := func() resp {
+		return a.api(t, "PUT", base+"/site?create=1", "PKbroken", participant.key)
+	}
+	wantTS(t, "closed before archive parsing", publish(), 409, "submissions_closed")
+	if _, err := a.database.Exec(`UPDATE users SET suspended_at=now() WHERE id=(SELECT account_id FROM events WHERE slug=$1)`, slug); err != nil {
+		t.Fatal(err)
+	}
+	wantTS(t, "holding account before closed team", publish(), 404, "event_not_found")
+	if _, err := a.database.Exec(`UPDATE users SET suspended_at=NULL WHERE id=(SELECT account_id FROM events WHERE slug=$1)`, slug); err != nil {
+		t.Fatal(err)
+	}
+	wantTS(t, "closed after holder restored", publish(), 409, "submissions_closed")
+}

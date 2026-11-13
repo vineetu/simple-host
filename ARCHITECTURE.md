@@ -112,7 +112,7 @@ host/TLS hand-offs, identity, view locks, legacy access and request accounting a
 | `<handle>.simple-host.app` | Public site listing/home page and legacy `/<site>/` fallback; `/v1/` binds to that person's sites. Own addresses get 302 redirects; site-host redirects also require canonical mode and readiness. `handler/personhost.go:PersonHosts`. |
 | Legacy `sites.simple-host.app/<handle>/<site>/` | nginx redirects through `/internal/domain-redirect` or `/internal/site-redirect`; same path/query, 302 with no-store. `/v1/` remains; canonical person-host mode requires keys for shared-host writes, without visitor sign-in. `personhost.go:contentHostRedirect`, `domains.go`. |
 | Hack `<event>.simple-hack.app` | `PersonHosts` selects `handler/hack_mode.go:serveHackEventHost`: event page/gallery screenshot, or custom event website. Only a custom website's own storage/visitor API allowlist is served here; event management stays apex-only. |
-| Hack `<team>.<event>.simple-hack.app` | Site-host dispatch with the event holding account and team site. Scoped credentials authorize website management; visitor sessions cover that website. `handler/sitehost.go`, `hack_sites.go`, `auth/scope.go`. |
+| Hack `<team>.<event>.simple-hack.app` | Site-host dispatch with the event holding account and team site. Scoped credentials authorize website management; visitor sessions cover that website. `handler/sitehost.go`, `heldsites.go`, `auth/scope.go`. |
 
 Host modes retain the path model when off; canonical site URLs wait for certificate readiness
 when a hand-off directory is configured. Without that directory the app treats certificates as
@@ -130,7 +130,7 @@ The following packages exist today; Hack-only packages live under `products/hack
 | Package (under `internal/` unless prefixed) | Responsibility |
 |---|---|
 | `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, asset presentation, remaining workers |
-| `products/hack/hackhttp` | Hack HTTP/pages and transport mapping; no production import of `handler` |
+| `products/hack/hackhttp` | Hack HTTP/pages and transport mapping; held-site interfaces use the platform's `handler.GroupRef` |
 | `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events; refusal codes (`call.go`: `codedError`/`CodedError`, `codeHints`) let a converted error site carry an AgentCat-visible code instead of the generic `tool_error`, and `server.go`'s `resolveArgAlias` accepts a sibling tool family's name for the same argument before the schema's additionalProperties check runs (SIM-359) |
 | `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |
 | `webassets` | Embedded static pages, Hack modules and Host/Hack skill/download bundles; no internal dependencies |

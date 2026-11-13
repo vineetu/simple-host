@@ -132,5 +132,5 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 		httpx.WriteInternal(w)
 		return
 	}
-	sites.ExportEventProjects(w, r, ev, teamSlug)
+	h.exportEventProjects(w, r, sites, ev, teamSlug)
 }

@@ -156,7 +156,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/organiser-invite",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/hack_administration.go:23",
+      "source": "products/hack/hackhttp/hack_administration.go:24",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -164,7 +164,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/organisers/{user_id}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:24",
+      "source": "products/hack/hackhttp/hack_administration.go:25",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -228,7 +228,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_websites.go:34",
+      "source": "products/hack/hackhttp/hack_websites.go:35",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1908,7 +1908,7 @@
       "method": "GET",
       "path": "/v1/hack/archive",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:35",
+      "source": "products/hack/hackhttp/hack_administration.go:36",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2044,7 +2044,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/entries.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:30",
+      "source": "products/hack/hackhttp/hack_administration.go:31",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2052,7 +2052,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/participants.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:28",
+      "source": "products/hack/hackhttp/hack_administration.go:29",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2060,7 +2060,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/projects.tar.gz",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:31",
+      "source": "products/hack/hackhttp/hack_administration.go:32",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2084,7 +2084,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/teams.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:29",
+      "source": "products/hack/hackhttp/hack_administration.go:30",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2252,7 +2252,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/team/export.tar.gz",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:32",
+      "source": "products/hack/hackhttp/hack_administration.go:33",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2308,7 +2308,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/usage",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:36",
+      "source": "products/hack/hackhttp/hack_administration.go:37",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2332,7 +2332,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_websites.go:26",
+      "source": "products/hack/hackhttp/hack_websites.go:27",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2356,7 +2356,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_websites.go:30",
+      "source": "products/hack/hackhttp/hack_websites.go:31",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2404,7 +2404,7 @@
       "method": "GET",
       "path": "/v1/hack/organiser/{code}",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/hack_administration.go:25",
+      "source": "products/hack/hackhttp/hack_administration.go:26",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3412,7 +3412,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/teams/{team}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:27",
+      "source": "products/hack/hackhttp/hack_administration.go:28",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3420,7 +3420,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_websites.go:27",
+      "source": "products/hack/hackhttp/hack_websites.go:28",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3436,7 +3436,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_websites.go:33",
+      "source": "products/hack/hackhttp/hack_websites.go:34",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3916,7 +3916,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/export/own-team-link",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:34",
+      "source": "products/hack/hackhttp/hack_administration.go:35",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3924,7 +3924,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/export/projects-link",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_administration.go:33",
+      "source": "products/hack/hackhttp/hack_administration.go:34",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3972,7 +3972,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/organiser-invite",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/hack_administration.go:22",
+      "source": "products/hack/hackhttp/hack_administration.go:23",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4148,7 +4148,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_websites.go:32",
+      "source": "products/hack/hackhttp/hack_websites.go:33",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4172,7 +4172,7 @@
       "method": "POST",
       "path": "/v1/hack/organiser/{code}",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/hack_administration.go:26",
+      "source": "products/hack/hackhttp/hack_administration.go:27",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4932,7 +4932,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_websites.go:28",
+      "source": "products/hack/hackhttp/hack_websites.go:29",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4940,7 +4940,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/website/files",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_websites.go:29",
+      "source": "products/hack/hackhttp/hack_websites.go:30",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4948,7 +4948,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_websites.go:31",
+      "source": "products/hack/hackhttp/hack_websites.go:32",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
