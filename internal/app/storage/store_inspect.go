@@ -7,18 +7,20 @@ import (
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
-// Inspection holds a resource connection opened under its storage budget and deadline.
-// The caller must run the release function returned by OpenInspection.
+// Inspection exposes a catalog only for the duration of Inspect's callback.
 type Inspection struct{ conn *sqlite3.Conn }
 
-// OpenInspection opens a bounded storage inspection session. SQLite connections
-// stay inside the service; transports consume the session's catalog interface.
-func (s *Service) OpenInspection(ctx context.Context, c Call, write bool) (*Inspection, func(), error) {
-	conn, done, err := s.openTableConn(ctx, c, write, true)
-	if err != nil {
-		return nil, nil, err
-	}
-	return &Inspection{conn: conn}, done, nil
+// Inspect runs a bounded inspection inside the site's shared admission slot.
+func (s *Service) Inspect(ctx context.Context, c Call, write bool, fn func(*Inspection) error) error {
+	return s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
+		conn, done, err := s.openTableConn(ctx, c, write)
+		if err != nil {
+			return err
+		}
+		defer closeSQLite(func() { defer done(); s.sqliteStage("close") })
+		s.sqliteStage("after_open")
+		return fn(&Inspection{conn: conn})
+	})
 }
 
 // Tables lists the resource's application tables.

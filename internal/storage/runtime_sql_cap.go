@@ -10,9 +10,16 @@ import (
 // SetLegacySQLiteLimit applies and verifies the page cap used by legacy SQL writes.
 func SetLegacySQLiteLimit(conn *sqlite3.Conn, available int64) error {
 	page, _, err := conn.Prepare("PRAGMA page_size")
-	if err != nil || !page.Step() {
+	if err != nil {
+		return err
+	}
+	defer page.Close()
+	if !page.Step() {
 		if page != nil {
 			page.Close()
+		}
+		if err := page.Err(); err != nil {
+			return err
 		}
 		return errors.New("page size unavailable")
 	}
@@ -29,9 +36,16 @@ func SetLegacySQLiteLimit(conn *sqlite3.Conn, available int64) error {
 		return err
 	}
 	capStmt, _, err := conn.Prepare("PRAGMA max_page_count")
-	if err != nil || !capStmt.Step() {
+	if err != nil {
+		return err
+	}
+	defer capStmt.Close()
+	if !capStmt.Step() {
 		if capStmt != nil {
 			capStmt.Close()
+		}
+		if err := capStmt.Err(); err != nil {
+			return err
 		}
 		return errors.New("page cap unavailable")
 	}

@@ -15,6 +15,13 @@ func OpenLegacySQLite(ctx context.Context, uri string, maxMemory int64, write bo
 	if err != nil {
 		return nil, err
 	}
+	ready := false
+	defer func() {
+		if !ready {
+			closeTableConn(func() { defer conn.Close(); sqliteStage(ctx, "close") })
+		}
+	}()
+	sqliteStage(ctx, "after_open")
 	conn.SetInterrupt(ctx)
 	if err = conn.Exec("PRAGMA foreign_keys=ON"); err == nil {
 		_, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true)
@@ -26,7 +33,11 @@ func OpenLegacySQLite(ctx context.Context, uri string, maxMemory int64, write bo
 			err = conn.Exec("PRAGMA journal_mode=WAL")
 		}
 	}
-	return conn, err
+	if err != nil {
+		return nil, err
+	}
+	ready = true
+	return conn, nil
 }
 
 // LegacySQLiteSize reports the current database size and whether it is new.

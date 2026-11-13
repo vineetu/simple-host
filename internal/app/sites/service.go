@@ -93,6 +93,7 @@ type Deps struct {
 	ImageScanEnabled        bool
 	CancelDomainCert        func(string)
 	ExportResources         func(context.Context, string) ([]map[string]any, error)
+	AdmitSQLite             func(context.Context, string, func(context.Context) error) error
 	ExportSQLiteMaxMemory   int64
 	DeletedTransaction      func(*sql.Tx) error
 	IdleArchive             IdleArchiveDeps

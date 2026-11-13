@@ -58,7 +58,7 @@ type TableResult struct {
 // openTableConn opens the per-site database and translates runtime errors.
 // Write callers pass their bounded lock context so quota measurement and the
 // connection share the same deadline as the rest of the mutation.
-func (s *Service) openTableConn(ctx context.Context, c Call, write bool, transitionalGated ...bool) (*sqlite3.Conn, func(), error) {
+func (s *Service) openTableConn(ctx context.Context, c Call, write bool) (*sqlite3.Conn, func(), error) {
 	timeout := s.deps.SQLiteTimeout
 	var remaining func() (int64, error)
 	if write {
@@ -68,14 +68,7 @@ func (s *Service) openTableConn(ctx context.Context, c Call, write bool, transit
 			return SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool) - s.BudgetUsed(u), err
 		}
 	}
-	var conn *sqlite3.Conn
-	var done func()
-	var err error
-	if len(transitionalGated) != 0 && transitionalGated[0] {
-		conn, done, err = runtime.OpenTableConnGated(ctx, s.deps.SQLitePath, write, s.deps.SQLiteGate, timeout, s.deps.SQLiteMaxMemory, remaining)
-	} else {
-		conn, done, err = runtime.OpenTableConn(ctx, s.deps.SQLitePath, write, timeout, s.deps.SQLiteMaxMemory, remaining)
-	}
+	conn, done, err := runtime.OpenTableConn(ctx, s.deps.SQLitePath, write, timeout, s.deps.SQLiteMaxMemory, remaining)
 	if e := sqliteFailure(err); e != err {
 		return nil, nil, e
 	}

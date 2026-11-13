@@ -50,10 +50,11 @@ func (h *SiteHandler) writeExport(w http.ResponseWriter, r *http.Request, site m
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, site.Name))
 
 	gz := gzip.NewWriter(w)
-	defer gz.Close()
 	tw := tar.NewWriter(gz)
-	defer tw.Close()
-	_ = h.writeSiteTar(r.Context(), tw, site.Name, site)
+	if err := h.writeSiteTar(r.Context(), tw, site.Name, site); err != nil {
+		panic(http.ErrAbortHandler)
+	}
+	finishSiteTar(tw, gz)
 }
 
 // exportAll streams every site on the instance as one .tar.gz, each under
@@ -72,9 +73,7 @@ func (h *SiteHandler) exportAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="all-entries-%s.tar.gz"`, time.Now().UTC().Format("2006-01-02")))
 	gz := gzip.NewWriter(w)
-	defer gz.Close()
 	tw := tar.NewWriter(gz)
-	defer tw.Close()
 	for _, s := range sites {
 		owner := s.OwnerHandle
 		if owner == "" {
@@ -84,8 +83,20 @@ func (h *SiteHandler) exportAll(w http.ResponseWriter, r *http.Request) {
 		// one plain segment whatever they hold.
 		owner = strings.NewReplacer("/", "_", "\\", "_", "..", "_").Replace(owner)
 		if err := h.writeSiteTar(r.Context(), tw, owner+"/"+s.Name, s); err != nil {
-			return // the client went away, or the stream broke
+			panic(http.ErrAbortHandler)
 		}
+	}
+	finishSiteTar(tw, gz)
+}
+
+// finishSiteTar finalizes only complete exports. Aborting without closing the
+// archive writers prevents a failed export from becoming a valid partial backup.
+func finishSiteTar(tw *tar.Writer, gz *gzip.Writer) {
+	if err := tw.Close(); err != nil {
+		panic(http.ErrAbortHandler)
+	}
+	if err := gz.Close(); err != nil {
+		panic(http.ErrAbortHandler)
 	}
 }
 

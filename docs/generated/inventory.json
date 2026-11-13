@@ -364,7 +364,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/push/devices",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:620",
+      "source": "internal/handler/notify_push.go:621",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -372,7 +372,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/push/devices/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:627",
+      "source": "internal/handler/notify_push.go:628",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2580,7 +2580,7 @@
       "method": "GET",
       "path": "/v1/push/sw.js",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:605",
+      "source": "internal/handler/notify_push.go:606",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2780,7 +2780,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/devices",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:619",
+      "source": "internal/handler/notify_push.go:620",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2788,7 +2788,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/rules",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:628",
+      "source": "internal/handler/notify_push.go:629",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2796,7 +2796,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/vapid-key",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:614",
+      "source": "internal/handler/notify_push.go:615",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3164,7 +3164,7 @@
       "method": "HEAD",
       "path": "/v1/push/sw.js",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:606",
+      "source": "internal/handler/notify_push.go:607",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4476,7 +4476,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/mute",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:617",
+      "source": "internal/handler/notify_push.go:618",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4484,7 +4484,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/subscribe",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:615",
+      "source": "internal/handler/notify_push.go:616",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4492,7 +4492,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/unsubscribe",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:616",
+      "source": "internal/handler/notify_push.go:617",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -5068,7 +5068,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/push/rules",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:629",
+      "source": "internal/handler/notify_push.go:630",
       "package": "internal/handler",
       "dynamic": false
     },

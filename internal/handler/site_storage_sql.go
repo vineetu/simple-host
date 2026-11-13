@@ -29,26 +29,18 @@ func storageTableInfo(c storageInspection, table string) (map[string]string, []s
 	return c.TableInfo(table)
 }
 
-// openStorageTableConn opens the database for one table route.
-func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Request, c storageCall, write bool) (storageInspection, func(), bool) {
-	svc := h.storageRequestSvc(r, c)
-	conn, done, err := svc.OpenInspection(r.Context(), h.storageServiceCall(c), write)
+// inspectStorage runs catalog work while the storage service holds admission.
+func (h *SiteHandler) inspectStorage(w http.ResponseWriter, r *http.Request, c storageCall, write bool, fn func(storageInspection) error) bool {
+	err := h.storageRequestSvc(r, c).Inspect(r.Context(), h.storageServiceCall(c), write, func(i *appstorage.Inspection) error { return fn(i) })
 	if err == nil {
-		return conn, done, true
+		return true
 	}
-	e := err.(*appstorage.Error)
-	switch e.Code {
-	case "invalid_rows":
-		storageError(w, 400, e.Code, e.Message)
-	case "site_full":
-		storageError(w, 507, e.Code, e.Message)
-	case "storage_busy":
-		storageBusy(w)
-	default:
+	if e, ok := err.(*appstorage.Error); ok {
+		writeTableError(w, e)
+	} else {
 		storageError(w, 500, "internal_error", "internal server error")
 	}
-
-	return nil, nil, false
+	return false
 }
 
 func (h *SiteHandler) storageRuntimeDir(c storageCall) string {
@@ -132,7 +124,9 @@ func (h *SiteHandler) sqliteGateFor() *sqliteGate {
 func writeLegacySQLError(w http.ResponseWriter, e *appstorage.Error) {
 	status := 400
 	switch e.Code {
-	case "internal_error":
+	case "query_too_expensive":
+		status = 422
+	case "internal_error", "storage_failed":
 		status = 500
 	case "site_full", "sqlite_full":
 		status = 507

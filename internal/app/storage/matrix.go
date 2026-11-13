@@ -27,16 +27,15 @@ func (s *Service) prepareResourceMatrix(ctx context.Context, call Call, resource
 	if err != nil {
 		return existing, err
 	}
-	release, err := s.deps.SQLiteGate.Acquire(ctx)
-	if err != nil {
-		return existing, err
-	}
-	defer release()
-	existing, err = runtime.PrepareMatrixDatabase(ctx, path, s.deps.SQLiteMaxMemory, SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool), s.BudgetUsed(usage), fi.Size(), requireEmpty, clearIDs, resource.OwnTables(), resource.Holds, func(err error) {
-		log.Printf("storage: site %s %s: checkpoint after preset: %v", call.SiteID, resource.Name, err)
-	}, s.deps.MarkChanged)
-	if err != nil {
-		return existing, err
-	}
-	return existing, nil
+	err = s.deps.SiteSlots.Admit(ctx, call.SiteID, func(ctx context.Context, a *Admission) error {
+		var err error
+		existing, err = runtime.PrepareMatrixDatabase(ctx, path, s.deps.SQLiteMaxMemory, SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool), s.BudgetUsed(usage), fi.Size(), requireEmpty, clearIDs, resource.OwnTables(), resource.Holds, func(err error) {
+			log.Printf("storage: site %s %s: checkpoint after preset: %v", call.SiteID, resource.Name, err)
+		}, s.deps.MarkChanged, func(tables map[string]bool) {
+			existing = tables
+			a.Committed()
+		})
+		return err
+	})
+	return existing, err
 }

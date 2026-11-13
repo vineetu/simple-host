@@ -9,13 +9,14 @@ import (
 )
 
 // PrepareMatrixDatabase applies the SQLite changes needed for a resource matrix.
-func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs bool, ownTables, holdTables func(string) bool, checkpoint func(error), markChanged func()) (map[string]bool, error) {
+func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs bool, ownTables, holdTables func(string) bool, checkpoint func(error), markChanged func(), committed func(map[string]bool)) (map[string]bool, error) {
 	existing := map[string]bool{}
 	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), path)
 	if err != nil {
 		return existing, err
 	}
-	defer conn.Close()
+	defer closeTableConn(func() { defer conn.Close(); sqliteStage(ctx, "close") })
+	sqliteStage(ctx, "after_open")
 	conn.SetInterrupt(ctx)
 	if err = conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		return existing, err
@@ -24,10 +25,13 @@ func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, u
 	if err != nil {
 		return existing, err
 	}
+	defer page.Close()
+	sqliteStage(ctx, "after_prepare")
 	if !page.Step() {
 		page.Close()
 		return existing, fmt.Errorf("page size unavailable")
 	}
+	sqliteStage(ctx, "after_step")
 	size := page.ColumnInt64(0)
 	page.Close()
 	maxPages := (limit - (used - fileSize)) / size
@@ -50,6 +54,7 @@ func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, u
 			if e != nil {
 				return existing, e
 			}
+			defer check.Close()
 			hasRows := check.Step()
 			e = check.Err()
 			check.Close()
@@ -86,12 +91,15 @@ func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, u
 	if err = EnsureHoldTables(conn, holdTables); err != nil {
 		return existing, err
 	}
+	sqliteStage(ctx, "before_commit")
 	if err = conn.Exec("COMMIT"); err != nil {
 		return existing, err
 	}
+	committed(existing)
+	defer markChanged()
+	sqliteStage(ctx, "after_commit")
 	if _, _, err = conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE); err != nil {
 		checkpoint(err)
 	}
-	markChanged()
 	return existing, nil
 }

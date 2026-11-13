@@ -57,16 +57,15 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, name))
 	gz := gzip.NewWriter(w)
-	defer gz.Close()
 	tw := tar.NewWriter(gz)
-	defer tw.Close()
 	for _, site := range sites {
 		// Walk an actual version directory: WalkDir does not follow a root symlink.
 		current := h.disk.VersionDir(site.UserID, site.Name, site.ActiveVersion)
 		if err := h.writeSiteArchive(r.Context(), tarPut(tw), site.Name, site.ID, current); err != nil {
-			return
+			panic(http.ErrAbortHandler)
 		}
 	}
+	finishSiteTar(tw, gz)
 }
 
 func (h *SiteHandler) EventFileBytes(ctx context.Context, ev model.Event) (int64, error) {

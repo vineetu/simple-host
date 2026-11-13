@@ -175,7 +175,9 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 			return nil
 		}
 		if strings.HasSuffix(p, ".sqlite") {
-			if e := storage.CheckpointExportSQLite(ctx, p, s.deps.ExportSQLiteMaxMemory); e != nil {
+			if e := s.deps.AdmitSQLite(ctx, siteID, func(ctx context.Context) error {
+				return storage.CheckpointExportSQLite(ctx, p, s.deps.ExportSQLiteMaxMemory)
+			}); e != nil {
 				return e
 			}
 		}

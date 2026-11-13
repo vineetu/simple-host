@@ -158,14 +158,19 @@ func (s *Service) sqliteRowVisitors(ctx context.Context, c Call) ([]string, erro
 			continue
 		}
 		path := filepath.Join(c.RuntimeDir, "sqlite", r.Name+".sqlite")
-		conn, done, err := runtime.OpenTableConnGated(ctx, path, false, s.deps.SQLiteGate, s.deps.SQLiteTimeout, s.deps.SQLiteMaxMemory, nil)
+		var ids []string
+		err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
+			conn, done, err := runtime.OpenTableConn(ctx, path, false, s.deps.SQLiteTimeout, s.deps.SQLiteMaxMemory, nil)
+			if err != nil {
+				return err
+			}
+			defer closeSQLite(func() { defer done(); s.sqliteStage("close") })
+			s.sqliteStage("after_open")
+			ids, err = distinctRowVisitors(conn, r)
+			return err
+		})
 		if err != nil {
-			continue // a resource busy or briefly unreadable does not fail the whole list
-		}
-		ids, err := distinctRowVisitors(conn, r)
-		done()
-		if err != nil {
-			continue
+			continue // a busy or briefly unreadable resource does not fail the whole list
 		}
 		for _, id := range ids {
 			if id != "" && !seen[id] {
@@ -198,6 +203,7 @@ func distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]string, error)
 		if err != nil {
 			continue
 		}
+		defer stmt.Close()
 		for stmt.Step() {
 			out = append(out, stmt.ColumnText(0))
 		}

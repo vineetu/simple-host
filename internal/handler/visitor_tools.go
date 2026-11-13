@@ -354,47 +354,45 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 		c := storageCall{siteID: siteID, ownerID: ownerID, siteName: siteName, resourceName: x.Name, resource: x}
 		if x.Kind == "sqlite" {
 			rec := httptest.NewRecorder()
-			conn, done, ok := h.openStorageTableConn(rec, r, c, false)
+			ok := h.inspectStorage(rec, r, c, false, func(conn storageInspection) error {
+				tables, err := storageSQLTables(conn)
+				if err != nil {
+					return err
+				}
+				names := []string{}
+				for name := range tables {
+					names = append(names, name)
+				}
+				sort.Strings(names)
+				for _, table := range names {
+					m := x.tableMatrix(table)
+					if !visitorHasRights(m) {
+						continue
+					}
+					rights := visitorRights(m)
+					entry := map[string]any{"resource": x.Name, "kind": x.Kind, "table": table, "preset": storagePresetName(m), "rights": rights}
+					if rights["read"] == true || rights["add"] == true {
+						cols, _, err := storageTableInfo(conn, table)
+						if err != nil {
+							return err
+						}
+						columns := make(map[string]string, len(cols))
+						for name, typ := range cols {
+							name, err = h.visitorStructuralName(r, name)
+							if err != nil {
+								return err
+							}
+							columns[name] = typ
+						}
+						entry["columns"] = visitorStructure{columns}
+					}
+					list = append(list, entry)
+				}
+				return nil
+			})
 			if !ok {
 				return nil, visitorResponseError(rec)
 			}
-			tables, err := storageSQLTables(conn)
-			if err != nil {
-				done()
-				return nil, err
-			}
-			names := []string{}
-			for name := range tables {
-				names = append(names, name)
-			}
-			sort.Strings(names)
-			for _, table := range names {
-				m := x.tableMatrix(table)
-				if !visitorHasRights(m) {
-					continue
-				}
-				rights := visitorRights(m)
-				entry := map[string]any{"resource": x.Name, "kind": x.Kind, "table": table, "preset": storagePresetName(m), "rights": rights}
-				if rights["read"] == true || rights["add"] == true {
-					cols, _, err := storageTableInfo(conn, table)
-					if err != nil {
-						done()
-						return nil, err
-					}
-					columns := make(map[string]string, len(cols))
-					for name, typ := range cols {
-						name, err = h.visitorStructuralName(r, name)
-						if err != nil {
-							done()
-							return nil, err
-						}
-						columns[name] = typ
-					}
-					entry["columns"] = visitorStructure{columns}
-				}
-				list = append(list, entry)
-			}
-			done()
 		} else if x.Kind == "kv" {
 			m := x.matrix()
 			list = append(list, map[string]any{"resource": x.Name, "kind": x.Kind, "preset": storagePresetName(m), "rights": visitorRights(m)})

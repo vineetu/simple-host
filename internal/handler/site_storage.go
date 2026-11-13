@@ -318,7 +318,9 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 			storageError(w, 409, e.Code, e.Message)
 		case "site_full":
 			storageError(w, 507, e.Code, e.Message)
-		case "internal_error":
+		case "query_too_expensive":
+			storageError(w, 422, e.Code, e.Message)
+		case "internal_error", "storage_failed":
 			storageError(w, 500, e.Code, e.Message)
 		default:
 			storageError(w, 400, e.Code, e.Message)

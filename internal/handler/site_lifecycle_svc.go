@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -21,6 +22,9 @@ func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sit
 		ImageScanEnabled: h.imageScan != nil,
 		HasLiveFamilies:  h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect,
 		RequestCert: h.RequestSiteCert, CancelDomainCert: h.cancelDomainCert,
+		AdmitSQLite: func(ctx context.Context, siteID string, fn func(context.Context) error) error {
+			return h.siteSlotsFor().Admit(ctx, siteID, func(ctx context.Context, _ *appstorage.Admission) error { return fn(ctx) })
+		},
 		ExportSQLiteMaxMemory: storageSQLiteMaxMemory,
 		ExportResources: func(ctx context.Context, siteID string) ([]map[string]any, error) {
 			list, err := h.listStorageResourceRows(ctx, siteID)

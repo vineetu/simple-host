@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"log"
 	"net/http"
 	"regexp"
@@ -1102,29 +1103,26 @@ func (h *SiteHandler) pushRuleBodyColumnValid(r *http.Request, site model.Site, 
 	}
 	call := storageCall{siteID: site.ID, ownerID: site.UserID, siteName: site.Name, resourceName: resource.Name, resource: resource, owner: true}
 	svc := h.storageRequestSvc(r, call)
-	insp, done, err := svc.OpenInspection(r.Context(), h.storageServiceCall(call), false)
-	if err != nil {
-		// Best-effort: a storage-layer hiccup (the resource busy, a
-		// transient open failure) never blocks saving the rule itself;
-		// the blacklist above already ran, and a nonexistent column
-		// still only ever falls back to generic text at render time.
-		return true
-	}
-	defer done()
-	tables, err := insp.Tables()
-	if err != nil {
-		return true
-	}
-	for table := range tables {
-		cols, _, err := insp.TableInfo(table)
+	found := false
+	err := svc.Inspect(r.Context(), h.storageServiceCall(call), false, func(insp *appstorage.Inspection) error {
+		tables, err := insp.Tables()
 		if err != nil {
-			continue
+			return err
 		}
-		if _, ok := cols[column]; ok {
-			return true
+		for table := range tables {
+			cols, _, err := insp.TableInfo(table)
+			if err != nil {
+				continue
+			}
+			if _, ok := cols[column]; ok {
+				found = true
+				break
+			}
 		}
-	}
-	return false
+		return nil
+	})
+	// A busy or briefly unreadable resource keeps the existing best-effort save.
+	return err != nil || found
 }
 
 // ownerSiteOr404 resolves {sitename} for an authMiddleware-wrapped owner

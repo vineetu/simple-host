@@ -153,175 +153,201 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 			return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
 		}
 	}
-	release, err := s.deps.SQLiteGate.Acquire(ctx)
-	if err != nil {
-		return LegacySQLResult{}, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
-	}
-	defer release()
-	timeout := s.deps.SQLiteTimeout
-	if !c.Owner {
-		timeout = s.deps.SQLiteTimeout
-		if mode != "query" {
-			timeout = s.deps.WriteTimeout
-		}
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	conn, err := storage.OpenLegacySQLite(ctx, uri, s.deps.SQLiteMaxMemory, mode != "query")
-	if conn != nil {
-		defer conn.Close()
-	}
-	if err != nil {
-		return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	if mode != "query" {
-		err = storage.SetLegacySQLiteLimit(conn, SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)-(s.BudgetUsed(usage)-currentDBBytes))
-		if errors.Is(err, storage.ErrTableFull) {
-			return LegacySQLResult{}, &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
-		}
-		if err != nil {
-			return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
-		}
-	}
-	var before map[string]bool
-	// Every table that uses own (all of a legacy read-own database) keeps
-	// the server-owned visitor_id column.
-	ownSchema := mode == "schema" && (c.Resource.Read == "own" || c.Resource.Access != nil)
-	if ownSchema {
-		var e error
-		before, e = storage.SQLTables(conn)
-		if e != nil || conn.Exec("BEGIN IMMEDIATE") != nil {
-			return LegacySQLResult{}, &Error{Code: "storage_busy", Message: "could not start the schema change because the database is busy; call once more in a second"}
-		}
-		defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
-	}
-	var authorizerState storage.LegacyAuthorizerState
-	// denial keeps the first rule the authorizer applied, so a refused
-	// statement can say which one; writeTable names the table a write
-	// targets, for a foreign key failure.
-	var denial *sqlRefusal
-	deny := func(why *sqlRefusal) sqlite3.AuthorizerReturnCode {
-		if denial == nil {
-			denial = why
-		}
-		return sqlite3.AUTH_DENY
-	}
-	err = storage.LegacyAuthorizer(conn, mode, c.Resource.Read, c.VisitorID, c.Owner, &authorizerState, deny, sqlAuthorizerDenial, sqlVisitorReadDenial)
-	if err != nil {
-		return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	fail := func(err error) error {
-		return sqlFailure(ctx, conn, err, c.Owner, sql, authorizerState.WriteTable, authorizerState.WriteAction, timeout)
-	}
-	stmt, tail, err := storage.PrepareLegacyStatement(conn, sql)
-	if err != nil || stmt == nil {
-		switch {
-		case denial != nil:
-			return LegacySQLResult{}, denial
-		case err != nil:
-			return LegacySQLResult{}, fail(err)
-		default:
-			return LegacySQLResult{}, &Error{Code: "sql_request", Message: "sql holds no statement (only blank space or comments): send one SQL statement"}
-		}
-	}
-	defer storage.CloseLegacyStatement(stmt)
-	if second := sqlSecondStatement(tail); second != "" {
-		return LegacySQLResult{}, sqlMultipleStatements(second)
-	}
-	bindCount, readOnly := storage.LegacyStatementInfo(stmt)
-	if len(params) != bindCount {
-		return LegacySQLResult{}, sqlParamCount(bindCount, len(params))
-	}
-	// CREATE TRIGGER IF NOT EXISTS on a trigger that already exists compiles to
-	// a read-only no-op, so the authorizer never sees a schema change (tables
-	// and views still report theirs; an existing index compiles as a write and
-	// stays refused); the owner's setup is meant to be rerunnable, so that
-	// no-op passes the schema route.
-	noopCreate := mode == "schema" && !authorizerState.DidSchema && !authorizerState.DidWrite && readOnly && storage.CreateIfNotExists(sql)
-	if refusal := sqlRouteMismatch(mode, sql, readOnly, authorizerState.DidWrite, authorizerState.DidSchema, noopCreate); refusal != nil {
-		return LegacySQLResult{}, refusal
-	}
-	if i := storage.BindLegacyStatement(stmt, params); i >= 0 {
-		return LegacySQLResult{}, &Error{Code: "sql_params", Message: fmt.Sprintf("params[%d] could not be used: each param must be a string, a number that fits in 64 bits, true, false or null", i)}
-	}
-	if mode == "query" {
-		result, err := storage.LegacyQueryResult(stmt, in.ResultLimit)
-		switch err {
-		case storage.ErrLegacyQueryRows:
-			return LegacySQLResult{}, &Error{Code: "result_too_large", Message: "query returned more than 500 rows"}
-		case storage.ErrLegacyQuerySize:
-			return LegacySQLResult{}, &Error{Code: "result_too_large", Message: "query result is too large"}
-		case nil:
-		default:
-			return LegacySQLResult{}, fail(err)
-		}
-		return LegacySQLResult{Query: true, Columns: result.Columns, Rows: result.Rows}, nil
-	}
-	err = storage.ExecuteLegacyStatement(stmt)
-	if err != nil {
-		if errors.Is(err, sqlite3.FULL) {
-			return LegacySQLResult{}, &Error{Code: "sqlite_full", Message: "SQLite cannot allocate more storage or row IDs"}
-		}
-		return LegacySQLResult{}, fail(err)
-	}
-	var notes []string
-	if ownSchema {
-		if err = storage.CloseLegacyStatement(stmt); err == nil {
-			err = conn.SetAuthorizer(nil)
-		}
-		// A table with its own preset must not lose it to a rename: the new
-		// name would fall back to the database's preset, which may be wider.
-		var after map[string]bool
-		if err == nil && c.Resource.Access != nil {
-			if after, err = storage.SQLTables(conn); err == nil {
-				renamed, added := storage.SchemaTableChanges(before, after, func(t string) bool {
-					_, ruled := c.Resource.Tables[strings.ToLower(t)]
-					return ruled
-				})
-				if renamed && len(added) > 0 {
-					return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own preset; give the new name its preset first (storage_set_resource tables), then rename"}
-				}
-				for _, t := range added {
-					m := c.Resource.TableMatrix(t)
-					if _, ruled := c.Resource.Tables[strings.ToLower(t)]; ruled {
-						notes = append(notes, "new table "+t+" uses the preset saved for it ("+rules.PresetName(m)+")")
-					} else if m != (rules.AccessMatrix{Read: "owner", Add: "owner", Edit: "owner", Delete: "owner"}) {
-						notes = append(notes, "new table "+t+" uses the database's preset ("+rules.PresetName(m)+"); give it its own with storage_set_resource tables if it should be narrower")
-					}
+	resultErr = s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
+		var err error
+		result, err = func() (LegacySQLResult, error) {
+			timeout := s.deps.SQLiteTimeout
+			if !c.Owner {
+				timeout = s.deps.SQLiteTimeout
+				if mode != "query" {
+					timeout = s.deps.WriteTimeout
 				}
 			}
-		}
-		if err == nil {
-			err = storage.EnsureOwnTables(conn, before, c.Resource.OwnTables())
-		}
-		if err == nil {
-			err = storage.EnsureHoldTables(conn, c.Resource.Holds)
-		}
-		if err != nil {
-			return LegacySQLResult{}, &Error{Code: "visitor_id_required", Message: "every table whose preset uses own or lets visitors add must keep its visitor_id TEXT column; only new tables receive it automatically, so do not drop or rename it"}
-		}
-		if err = conn.Exec("COMMIT"); err != nil {
-			return LegacySQLResult{}, fail(err)
-		}
-	}
-	if authorizerState.DidWrite || authorizerState.DidSchema {
-		s.deps.Committed(ctx)
-	}
-	successful = true
-	if err = storage.CloseLegacyStatement(stmt); err != nil {
-		return LegacySQLResult{}, &Error{Code: "internal_error", Message: "SQL commit failed"}
-	}
-	// Committed already: a failed checkpoint must not read as a failed
-	// change (a retried INSERT would be a duplicate).
-	if err = storage.CheckpointLegacySQLite(conn); err != nil {
-		log.Printf("storage: site %s %s: checkpoint after commit: %v", c.SiteID, c.ResourceName, err)
-	}
-	s.deps.MarkChanged()
-	unlock()
-	if mode == "schema" {
-		return LegacySQLResult{Schema: true, Changes: conn.Changes(), Notes: notes}, nil
-	}
-	return LegacySQLResult{Changes: conn.Changes(), LastInsertID: conn.LastInsertRowID()}, nil
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			conn, err := storage.OpenLegacySQLite(ctx, uri, s.deps.SQLiteMaxMemory, mode != "query")
+			if conn != nil {
+				defer closeSQLite(func() { defer conn.Close(); s.sqliteStage("close") })
+			}
+			if err != nil {
+				return LegacySQLResult{}, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+			}
+			s.sqliteStage("after_open")
+			if mode != "query" {
+				err = storage.SetLegacySQLiteLimit(conn, SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)-(s.BudgetUsed(usage)-currentDBBytes))
+				if errors.Is(err, storage.ErrTableFull) {
+					return LegacySQLResult{}, &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
+				}
+				if err != nil {
+					return LegacySQLResult{}, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+				}
+			}
+			var before map[string]bool
+			// Every table that uses own (all of a legacy read-own database) keeps
+			// the server-owned visitor_id column.
+			ownSchema := mode == "schema" && (c.Resource.Read == "own" || c.Resource.Access != nil)
+			if ownSchema {
+				var e error
+				before, e = storage.SQLTables(conn)
+				if e != nil || conn.Exec("BEGIN IMMEDIATE") != nil {
+					return LegacySQLResult{}, &Error{Code: "storage_busy", Message: "could not start the schema change because the database is busy; call once more in a second"}
+				}
+				defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
+			}
+			var authorizerState storage.LegacyAuthorizerState
+			// denial keeps the first rule the authorizer applied, so a refused
+			// statement can say which one; writeTable names the table a write
+			// targets, for a foreign key failure.
+			var denial *sqlRefusal
+			deny := func(why *sqlRefusal) sqlite3.AuthorizerReturnCode {
+				if denial == nil {
+					denial = why
+				}
+				return sqlite3.AUTH_DENY
+			}
+			err = storage.LegacyAuthorizer(conn, mode, c.Resource.Read, c.VisitorID, c.Owner, &authorizerState, deny, sqlAuthorizerDenial, sqlVisitorReadDenial)
+			if err != nil {
+				return LegacySQLResult{}, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+			}
+			fail := func(err error) error {
+				if errors.Is(err, sqlite3.NOMEM) {
+					return sqliteFailure(err)
+				}
+				return sqlFailure(ctx, conn, err, c.Owner, sql, authorizerState.WriteTable, authorizerState.WriteAction, timeout)
+			}
+			stmt, tail, err := storage.PrepareLegacyStatement(conn, sql)
+			if err != nil || stmt == nil {
+				switch {
+				case denial != nil:
+					return LegacySQLResult{}, denial
+				case err != nil:
+					return LegacySQLResult{}, fail(err)
+				default:
+					return LegacySQLResult{}, &Error{Code: "sql_request", Message: "sql holds no statement (only blank space or comments): send one SQL statement"}
+				}
+			}
+			defer storage.CloseLegacyStatement(stmt)
+			s.sqliteStage("after_prepare")
+			if second := sqlSecondStatement(tail); second != "" {
+				return LegacySQLResult{}, sqlMultipleStatements(second)
+			}
+			bindCount, readOnly := storage.LegacyStatementInfo(stmt)
+			if len(params) != bindCount {
+				return LegacySQLResult{}, sqlParamCount(bindCount, len(params))
+			}
+			// CREATE TRIGGER IF NOT EXISTS on a trigger that already exists compiles to
+			// a read-only no-op, so the authorizer never sees a schema change (tables
+			// and views still report theirs; an existing index compiles as a write and
+			// stays refused); the owner's setup is meant to be rerunnable, so that
+			// no-op passes the schema route.
+			noopCreate := mode == "schema" && !authorizerState.DidSchema && !authorizerState.DidWrite && readOnly && storage.CreateIfNotExists(sql)
+			if refusal := sqlRouteMismatch(mode, sql, readOnly, authorizerState.DidWrite, authorizerState.DidSchema, noopCreate); refusal != nil {
+				return LegacySQLResult{}, refusal
+			}
+			if i := storage.BindLegacyStatement(stmt, params); i >= 0 {
+				return LegacySQLResult{}, &Error{Code: "sql_params", Message: fmt.Sprintf("params[%d] could not be used: each param must be a string, a number that fits in 64 bits, true, false or null", i)}
+			}
+			if mode == "query" {
+				result, err := storage.LegacyQueryResult(stmt, in.ResultLimit)
+				switch err {
+				case storage.ErrLegacyQueryRows:
+					return LegacySQLResult{}, &Error{Code: "result_too_large", Message: "query returned more than 500 rows"}
+				case storage.ErrLegacyQuerySize:
+					return LegacySQLResult{}, &Error{Code: "result_too_large", Message: "query result is too large"}
+				case nil:
+				default:
+					return LegacySQLResult{}, fail(err)
+				}
+				s.sqliteStage("after_step")
+				return LegacySQLResult{Query: true, Columns: result.Columns, Rows: result.Rows}, nil
+			}
+			// Non-schema writes use SQLite's implicit commit in Exec. Record success
+			// immediately afterwards, before any checkpoint or cleanup can panic.
+			if !ownSchema {
+				s.sqliteStage("before_commit")
+			}
+			err = storage.ExecuteLegacyStatement(stmt)
+			if err != nil {
+				if errors.Is(err, sqlite3.FULL) {
+					return LegacySQLResult{}, &Error{Code: "sqlite_full", Message: "SQLite cannot allocate more storage or row IDs"}
+				}
+				return LegacySQLResult{}, fail(err)
+			}
+			result = LegacySQLResult{Changes: conn.Changes(), LastInsertID: conn.LastInsertRowID(), Schema: mode == "schema"}
+			commitSucceeded := func() {
+				a.Committed()
+				successful = true
+			}
+			if !ownSchema {
+				commitSucceeded()
+			}
+			defer func() {
+				if successful {
+					s.deps.MarkChanged()
+					if (authorizerState.DidWrite || authorizerState.DidSchema) && s.deps.Committed != nil {
+						s.deps.Committed(ctx)
+					}
+				}
+			}()
+			s.sqliteStage("after_step")
+			var notes []string
+			if ownSchema {
+				if err = storage.CloseLegacyStatement(stmt); err == nil {
+					err = conn.SetAuthorizer(nil)
+				}
+				// A table with its own preset must not lose it to a rename: the new
+				// name would fall back to the database's preset, which may be wider.
+				var after map[string]bool
+				if err == nil && c.Resource.Access != nil {
+					if after, err = storage.SQLTables(conn); err == nil {
+						renamed, added := storage.SchemaTableChanges(before, after, func(t string) bool {
+							_, ruled := c.Resource.Tables[strings.ToLower(t)]
+							return ruled
+						})
+						if renamed && len(added) > 0 {
+							return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own preset; give the new name its preset first (storage_set_resource tables), then rename"}
+						}
+						for _, t := range added {
+							m := c.Resource.TableMatrix(t)
+							if _, ruled := c.Resource.Tables[strings.ToLower(t)]; ruled {
+								notes = append(notes, "new table "+t+" uses the preset saved for it ("+rules.PresetName(m)+")")
+							} else if m != (rules.AccessMatrix{Read: "owner", Add: "owner", Edit: "owner", Delete: "owner"}) {
+								notes = append(notes, "new table "+t+" uses the database's preset ("+rules.PresetName(m)+"); give it its own with storage_set_resource tables if it should be narrower")
+							}
+						}
+					}
+				}
+				if err == nil {
+					err = storage.EnsureOwnTables(conn, before, c.Resource.OwnTables())
+				}
+				if err == nil {
+					err = storage.EnsureHoldTables(conn, c.Resource.Holds)
+				}
+				if err != nil {
+					return LegacySQLResult{}, &Error{Code: "visitor_id_required", Message: "every table whose preset uses own or lets visitors add must keep its visitor_id TEXT column; only new tables receive it automatically, so do not drop or rename it"}
+				}
+				result.Changes = conn.Changes()
+				result.Notes = notes
+				s.sqliteStage("before_commit")
+				if err = conn.Exec("COMMIT"); err != nil {
+					return LegacySQLResult{}, fail(err)
+				}
+				commitSucceeded()
+			}
+			s.sqliteStage("after_commit")
+			if err = storage.CloseLegacyStatement(stmt); err != nil {
+				return LegacySQLResult{}, &Error{Code: "internal_error", Message: "SQL commit failed"}
+			}
+			// Committed already: a failed checkpoint must not read as a failed
+			// change (a retried INSERT would be a duplicate).
+			if err = storage.CheckpointLegacySQLite(conn); err != nil {
+				log.Printf("storage: site %s %s: checkpoint after commit: %v", c.SiteID, c.ResourceName, err)
+			}
+			return result, nil
+		}()
+		return err
+	})
+	return result, resultErr
 }
 
 var errLegacyBodyTooLarge = errors.New("legacy SQL body too large")

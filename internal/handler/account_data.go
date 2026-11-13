@@ -196,17 +196,16 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, root))
 	zw := zip.NewWriter(w)
-	defer zw.Close()
 	put := zipPut(zw)
 	for _, d := range docs {
 		if err := putBytes(put, root+"/"+d.name, d.body); err != nil {
-			return
+			panic(http.ErrAbortHandler)
 		}
 	}
 	for _, s := range sites {
 		current := filepath.Join(h.disk.SiteDir(s.UserID, s.Name), "current")
 		if err := h.writeSiteArchive(ctx, put, root+"/sites/"+s.Name, s.ID, current); err != nil {
-			return // the client went away, or the stream broke
+			panic(http.ErrAbortHandler)
 		}
 	}
 	// Sites in Recently deleted, in their own folder so nobody mistakes one
@@ -217,12 +216,15 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 			"site": d.Name, "deleted_at": d.DeletedAt.UTC(), "removed_for_good_at": d.PurgeAt(h.limits.DeletedRetention).UTC(),
 		}, "", "  ")
 		if err := putBytes(put, prefix+"/deleted.json", info); err != nil {
-			return
+			panic(http.ErrAbortHandler)
 		}
 		current := filepath.Join(h.disk.TrashDir(d.UserID, d.ID), "current")
 		if err := h.writeSiteArchive(ctx, put, prefix, d.ID, current); err != nil {
-			return
+			panic(http.ErrAbortHandler)
 		}
+	}
+	if err := zw.Close(); err != nil {
+		panic(http.ErrAbortHandler)
 	}
 }
 

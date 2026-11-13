@@ -89,6 +89,7 @@ func EnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(strin
 		if e != nil {
 			return e
 		}
+		defer index.Close()
 		_ = index.BindText(1, "sh_visitor_"+table)
 		correct := index.Step() && index.ColumnText(0) == table
 		index.Close()
@@ -96,6 +97,7 @@ func EnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(strin
 		if e != nil {
 			return e
 		}
+		defer info.Close()
 		correct = correct && info.Step() && info.ColumnText(2) == "visitor_id"
 		info.Close()
 		if !correct {
@@ -196,6 +198,7 @@ func EnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
 			if e != nil {
 				return e
 			}
+			defer stmt.Close()
 			_ = stmt.BindText(1, time.Now().UTC().Format(time.RFC3339Nano))
 			e = stmt.Exec()
 			stmt.Close()
@@ -456,7 +459,7 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 		cancel()
 		return nil, nil, err
 	}
-	done := func() { defer cancel(); conn.Close() }
+	done := func() { defer cancel(); defer conn.Close(); sqliteStage(ctx, "close") }
 	// Setup also owns the connection until the successful return. A panic in a
 	// pragma must not strand a connection before the caller can defer its close.
 	ready := false
@@ -465,6 +468,7 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 			closeTableConn(done)
 		}
 	}()
+	sqliteStage(ctx, "after_open")
 	conn.SetInterrupt(ctx)
 	fail := func(err error) (*sqlite3.Conn, func(), error) {
 		if errors.Is(err, sqlite3.NOMEM) {
@@ -489,6 +493,7 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 			return fail(e)
 		}
 		defer page.Close()
+		sqliteStage(ctx, "after_prepare")
 		if !page.Step() {
 			e = page.Err()
 			if page != nil {
@@ -496,6 +501,7 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 			}
 			return fail(e)
 		}
+		sqliteStage(ctx, "after_step")
 		pageSize := page.ColumnInt64(0)
 		page.Close()
 		if pageSize <= 0 {
@@ -532,28 +538,6 @@ func TableInfo(conn *sqlite3.Conn, table string) (map[string]string, []string, e
 	return cols, order, nil
 }
 
-// OpenTableConnGated is transitional until R1-S3b migrates people and inspection.
-func OpenTableConnGated(ctx context.Context, path string, write bool, gate interface {
-	Acquire(context.Context) (func(), error)
-}, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
-	release, err := gate.Acquire(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	transferred := false
-	defer func() {
-		if !transferred {
-			release()
-		}
-	}()
-	conn, done, err := OpenTableConn(ctx, path, write, timeout, maxMemory, budget)
-	if err != nil {
-		return nil, nil, err
-	}
-	transferred = true
-	return conn, func() { defer release(); done() }, nil
-}
-
 func closeTableConn(done func()) {
 	defer func() {
 		if recover() != nil {
@@ -561,4 +545,19 @@ func closeTableConn(done func()) {
 		}
 	}()
 	done()
+}
+
+// sqliteStageKey is used only by package tests to inject failures at ownership boundaries.
+type sqliteStageKey struct{}
+
+// WithSQLiteStageHook injects failures at SQLite ownership boundaries in service
+// tests. Ordinary request contexts carry no hook.
+func WithSQLiteStageHook(ctx context.Context, hook func(string)) context.Context {
+	return context.WithValue(ctx, sqliteStageKey{}, hook)
+}
+
+func sqliteStage(ctx context.Context, stage string) {
+	if hook, ok := ctx.Value(sqliteStageKey{}).(func(string)); ok {
+		hook(stage)
+	}
 }

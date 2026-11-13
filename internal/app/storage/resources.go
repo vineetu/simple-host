@@ -207,6 +207,9 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 			}
 		}
 		if err != nil {
+			if e, ok := err.(*Error); ok {
+				return ResourceResult{}, e
+			}
 			if errors.Is(err, runtime.ErrSQLiteBusy) {
 				return ResourceResult{}, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
 			}
