@@ -9,7 +9,7 @@ root = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser()
 parser.add_argument('--check', action='store_true')
 args = parser.parse_args()
-data = json.loads((root / 'internal/rules/hackevents/navigation.json').read_text())
+data = json.loads((root / 'products/hack/rules/hackevents/navigation.json').read_text())
 ids = [t['id'] for t in data['targets']]
 assert len(ids) == len(set(ids)), 'duplicate navigation target'
 screens = {s['id']: s for s in data['screens']}
@@ -472,7 +472,7 @@ def check_help_scanner():
 
 
 check_help_scanner()
-help_map = json.loads((root / 'internal/rules/hackevents/navigation-help.json').read_text())
+help_map = json.loads((root / 'products/hack/rules/hackevents/navigation-help.json').read_text())
 errors = help_errors(help_map, data)
 if errors:
     raise SystemExit('Navigation help parity failed:\n- ' + '\n- '.join(errors))

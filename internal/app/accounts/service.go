@@ -9,8 +9,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
-	events "github.com/vsriram/simple-host/internal/repository/hackevents"
 	authrules "github.com/vsriram/simple-host/internal/rules/auth"
+	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 type Service struct{ database *sql.DB }

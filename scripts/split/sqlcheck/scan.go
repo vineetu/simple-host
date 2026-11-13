@@ -34,9 +34,9 @@ type scanResult struct {
 	ProseCounts map[string]int
 }
 
-// These are the product's own packages, before and after the planned move.
+// Product-owned packages live under products/ after the D1-S4 move.
 // A file named hack_*.go in any other package remains platform code.
-var productPrefixes = []string{"internal/hackhttp", "internal/app/hack", "internal/repository/hackevents", "internal/repository/hackteams", "internal/repository/hackentries", "internal/rules/hackevents", "internal/rules/hackteams", "internal/rules/hackentries", "products"}
+var productPrefixes = []string{"products"}
 
 func productPath(p string) bool {
 	for _, v := range productPrefixes {

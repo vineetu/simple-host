@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// HACK_FORMS_FIXTURE=/tmp/hack-forms.json TEST_PKGS=./internal/hackhttp bash scripts/test-integration.sh -run '^TestServeHackFormsBrowser$' -timeout 35m
+// HACK_FORMS_FIXTURE=/tmp/hack-forms.json TEST_PKGS=./products/hack/hackhttp bash scripts/test-integration.sh -run '^TestServeHackFormsBrowser$' -timeout 35m
 // PLAYWRIGHT_DIR=/tmp/tsx/node_modules node scripts/e2e-hack-forms.mjs /tmp/hack-forms.json
 import fs from 'node:fs'
 import assert from 'node:assert/strict'

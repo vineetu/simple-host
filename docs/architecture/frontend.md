@@ -20,7 +20,7 @@ file server and explicit page routes. `chrome.go:chromePage` composes page
 partials, theme/chrome and instance text; CSP middleware stamps script nonces.
 Files needing this pipeline must not bypass it through raw file serving.
 
-Hack pages live in `internal/hackhttp`, which receives the asset pipeline
+Hack pages live in `products/hack/hackhttp`, which receives the asset pipeline
 through `hack.go:hackPages` and `HackHandler.ShareAssets`. The embedded tree
 belongs to `internal/webassets`; presentation and instance rewriting remain in
 `handler`. Hack reads bundles through `webassets` and does not import `handler`
@@ -279,4 +279,4 @@ The reviewed Hack skill source is `internal/webassets/hack-toolkit/skills`.
 the published GitHub install address working; `check-claude-plugin.sh` checks
 that compatibility copy. Embedded and downloaded bytes retain their existing paths.
 
-The shared destination map lives in `internal/rules/hackevents/navigation.json`. Run `python3 scripts/build-hack-navigation.py` for `hack/navigation-data.js`; docs-sync checks it. Atlas build.py projects the same role navigation. Settings editors live in focused `_settings-*` modules, Tracks in `_event-tracks.js`; activity screens retain operations and exports.
+The shared destination map lives in `products/hack/rules/hackevents/navigation.json`. Run `python3 scripts/build-hack-navigation.py` for `hack/navigation-data.js`; docs-sync checks it. Atlas build.py projects the same role navigation. Settings editors live in focused `_settings-*` modules, Tracks in `_event-tracks.js`; activity screens retain operations and exports.

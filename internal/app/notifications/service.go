@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"github.com/vsriram/simple-host/internal/model"
-	events "github.com/vsriram/simple-host/internal/repository/hackevents"
 	repo "github.com/vsriram/simple-host/internal/repository/notifications"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"time"
 )
 

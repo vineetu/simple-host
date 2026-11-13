@@ -18,7 +18,7 @@
 // never showing for a participant or judge; and, at 390px, the button not
 // overlapping a phone sticky save bar.
 //
-//   HACK_NAVIGATION_FIXTURE=/tmp/sim394-assistant-fixture.json TEST_PKGS=./internal/hackhttp \
+//   HACK_NAVIGATION_FIXTURE=/tmp/sim394-assistant-fixture.json TEST_PKGS=./products/hack/hackhttp \
 //     bash scripts/test-integration.sh -run TestServeHackNavigationBrowser   # separate shell, stays up
 //   node scripts/e2e-hack-assistant.mjs /tmp/sim394-assistant-fixture.json
 import fs from 'node:fs'

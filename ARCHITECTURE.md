@@ -12,8 +12,9 @@ its planned packages are not all present yet.
 site directory. `cmd/server/main.go` passes arguments to `server.Run`, which owns CLI dispatch and the process lifecycle. Hosted Simple Host and Simple Hack run separate instances of that binary,
 with separate databases and file roots. Self-hosted installations use the same implementation.
 
-Main calls `edition.New(cfg)` once, after the schema check and before registering routes.
-`EVENTS=hosted` selects Hack; other values select Host (`internal/edition/edition.go:New`).
+`cmd/server` passes `hack.Extension()` from `products/hack` when `EVENTS=hosted`;
+`server.Build` selects its edition after the schema check and before registering routes.
+Without an extension the server uses the Host edition.
 The injected `*edition.Edition` holds fixed route, presentation, identity, storage, notification
 and limit policies; event stages and deadlines remain database state.
 
@@ -124,12 +125,12 @@ different routes; the [access guide](docs/architecture/hosts-and-access.md) spec
 Current flow: HTTP/MCP transport → application services → rules and repositories/disk mechanics.
 Services own extracted workflows and transactions; rules make pure decisions; repositories execute
 SQL. This is an ongoing boundary, not a claim that transport is already free of SQL or disk calls.
-The following packages exist today (verified with `go list ./internal/...`):
+The following packages exist today; Hack-only packages live under `products/hack/`.
 
-| Package under `internal/` | Responsibility |
+| Package (under `internal/` unless prefixed) | Responsibility |
 |---|---|
 | `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, asset presentation, remaining workers |
-| `hackhttp` | Hack HTTP/pages and transport mapping; no production import of `handler` |
+| `products/hack/hackhttp` | Hack HTTP/pages and transport mapping; no production import of `handler` |
 | `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events; refusal codes (`call.go`: `codedError`/`CodedError`, `codeHints`) let a converted error site carry an AgentCat-visible code instead of the generic `tool_error`, and `server.go`'s `resolveArgAlias` accepts a sibling tool family's name for the same argument before the schema's additionalProperties check runs (SIM-359) |
 | `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |
 | `webassets` | Embedded static pages, Hack modules and Host/Hack skill/download bundles; no internal dependencies |
@@ -137,17 +138,17 @@ The following packages exist today (verified with `go list ./internal/...`):
 | `httpx` | Shared HTTP responses, limits, signed links and route metadata |
 | `auth` | Account credential/context and scope middleware, with injected account authorization |
 | `app/accounts` | Principal/session resolution, scoped team authority and sign-in country decisions |
-| `app/hack/events` | Event lifecycle/content, organisers, settings and public directory |
-| `app/hack/teams` | Team lifecycle/admin/links and team finding |
-| `app/hack/members` | Registration, applications, tracks and leaving |
-| `app/hack/entries` | Entry writes/settling, judging, assignments, scoring, voting and results |
+| `products/hack/app/events` | Event lifecycle/content, organisers, settings and public directory |
+| `products/hack/app/teams` | Team lifecycle/admin/links and team finding |
+| `products/hack/app/members` | Registration, applications, tracks and leaving |
+| `products/hack/app/entries` | Entry writes/settling, judging, assignments, scoring, voting and results |
 | `app/sites` | Deploy/publication, versions, addresses, site/account file lifecycle and exports |
 | `app/storage` | KV, SQLite and runtime-file workflows, quotas and access decisions |
 | `app/legacy` | Host saved-data compatibility adapter, including cutoff/access rules |
 | `rules/{auth,sites,storage}` | Pure grant/name/storage decisions |
-| `rules/{hackevents,hackteams,hackentries}` | Pure event codes, team decisions, eligibility, judging and result arithmetic |
+| `products/hack/rules/{hackevents,hackteams,hackentries}` | Pure event codes, team decisions, eligibility, judging and result arithmetic |
 | `repository/{accounts,sites,storage,legacy}` | Extracted account/site/storage/legacy SQL |
-| `repository/{hackevents,hackteams,hackentries}` | Extracted Hack SQL |
+| `products/hack/repository/{hackevents,hackteams,hackentries}` | Extracted Hack SQL |
 | `repository/sqlkit` | Shared Querier and transaction-opening primitives |
 | `app/notifications`, `repository/notifications` | Subscription and outbox delivery workflows; notification SQL |
 | `model` | Shared records without SQL or transport |
@@ -161,12 +162,16 @@ The following packages exist today (verified with `go list ./internal/...`):
 | `testdb`, `geoip/geoiptest` | Test fixtures |
 
 `scripts/check-layering.sh` checks Go imports, including test imports, against the final allowlist
-in `scripts/layering/rules.txt`; step 5.4 removed all transitional edges. `sitelocks` from the
+in `scripts/layering/rules.txt`. The product split records each remaining platform-to-Hack
+edge in `[transitional]` with the slice that removes it. Platform server tests use
+`internal/server/servertest` from `package server_test`; Hack integration tests and
+their own isolated database fixture live in `products/hack/servertest`. `sitelocks` from the
 target map do not exist yet. Shared lock maps are injected by existing wiring
 (`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
 Follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
 
-Outside `internal/`: `db/schema.sql` and `db/migrations` define fresh/install upgrades;
+Outside `internal/`: `products/hack` owns its extension, HTTP, app, repository and rule
+packages (including the navigation embeds); `db/schema.sql` and `db/migrations` define fresh/install upgrades;
 `cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools; `internal/server/reviewaccount.go`
 manages reviewer accounts. `handler/instancehost.go` rewrites instance hostnames in assets.
 `openai-plugin/` is the ChatGPT package. `deploy/` holds proxy,

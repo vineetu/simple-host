@@ -612,11 +612,11 @@ pending values remain `<n>` and null pending remains null.
 | `accounts.connector_sweep` | `internal/handler/connector.go:SweepWorker` (hourly) |
 | `accounts.visitor_auth` | `internal/app/accounts/visitor_auth_worker.go:Start` (first expiry after 30 seconds) |
 | `http.connector.caches`, `http.oauth.caches`, `http.site.caches`, `http.user.caches` | `internal/handler/http_caches.go:Start` (periodic eviction) |
-| `http.hack.limiters` | `internal/hackhttp/limiter_workers.go:Start` (ten minutes) |
+| `http.hack.limiters` | `products/hack/hackhttp/limiter_workers.go:Start` (ten minutes) |
 | `mail.submissions`, `notifications.delivery` | `internal/handler/kinds.go:SubmissionEmailOwner`, `internal/handler/notify.go:Start`; `app/notifications` delivery trackers (periodic queue claims) |
 | `operations.geoip_watch` | `internal/geoip/geoip.go:WatchWorker` (minute; initial missing-file error is retained) |
 | `operations.saved_data_sweep` | `internal/handler/saveddata.go:Start` (empty startup scan, later periodic maintenance) |
-| `hack.event_cleanup` | `internal/hackhttp/event_cleanup_workers.go:Start` (ten-minute initial delay) |
+| `hack.event_cleanup` | `products/hack/hackhttp/event_cleanup_workers.go:Start` (ten-minute initial delay) |
 | `sites.hack_sweep` | `internal/handler/hack_sites.go:startHackSweep` (empty startup scan, then minute ticks) |
 | `sites.address_families`, `sites.domain_checks`, `sites.idle_cleanup`, `sites.preview_expiry` | `internal/handler/familyhost.go`, `domaincheck.go`, `idle.go`, `site.go` (delayed scans; disabled in base) |
 

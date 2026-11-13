@@ -324,7 +324,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	})
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())
-	oauthHandler := handler.NewOAuthHandler(db, accountsService, oauthSettings(cfg, accountsService), ed)
+	oauthHandler := handler.NewOAuthHandler(db, accountsService, OAuthSettings(cfg, accountsService), ed)
 	oauthHandler.ShareAssets(siteHandler)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 
-const navigation = JSON.parse(fs.readFileSync('internal/rules/hackevents/navigation.json', 'utf8'))
+const navigation = JSON.parse(fs.readFileSync('products/hack/rules/hackevents/navigation.json', 'utf8'))
 const navSource = fs.readFileSync('internal/webassets/static/hack/nav.js', 'utf8')
   .replace(/^import .*\n/gm, '').replace(/^export \{.*\n/gm, '').replaceAll('export ', '')
 const ctx = vm.createContext({ navigation, URL, URLSearchParams, location: { origin: 'https://simple-hack.test' } })

@@ -9,7 +9,8 @@ import (
 	"github.com/vsriram/simple-host/internal/oauth"
 )
 
-func oauthSettings(cfg config.Config, service *accounts.Service) handler.OAuthSettings {
+// OAuthSettings adapts configured sign-in providers for the HTTP transport.
+func OAuthSettings(cfg config.Config, service *accounts.Service) handler.OAuthSettings {
 	return handler.OAuthSettings{
 		PublicBaseURL: cfg.PublicBaseURL, SiteDomain: cfg.SiteDomain, ContentHost: cfg.ContentHost, CNAMETarget: cfg.CNAMETarget, CustomDomainIP: cfg.CustomDomainIP, CustomDomainIPAlso: cfg.CustomDomainIPAlso, OIDCLabel: cfg.OIDCLabel, EmailEnabled: cfg.EmailSignInEnabled(), PasswordEnabled: cfg.PasswordSignIn == "on", PasswordSelfSignup: cfg.PasswordSelfSignup != "off",
 		SignIn: configuredProviderSignIn(service, cfg),

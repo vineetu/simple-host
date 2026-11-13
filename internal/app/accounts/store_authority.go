@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/vsriram/simple-host/internal/model"
-	events "github.com/vsriram/simple-host/internal/repository/hackevents"
+	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 func (s *Service) HackSiteOwnerOnSite(ctx context.Context, siteID, userID string) (bool, error) {

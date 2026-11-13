@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// HACK_EVENT_LIVE_FIXTURE=/tmp/hack-event-live.json TEST_PKGS=./cmd/server bash scripts/test-integration.sh -run '^TestServeHackEventLiveBrowser$' -timeout 35m
+// HACK_EVENT_LIVE_FIXTURE=/tmp/hack-event-live.json TEST_PKGS=./products/hack/servertest bash scripts/test-integration.sh -run '^TestServeHackEventLiveBrowser$' -timeout 35m
 // PLAYWRIGHT_DIR=/tmp/tsx/node_modules node scripts/e2e-hack-event-live.mjs /tmp/hack-event-live.json
 import fs from 'node:fs'
 import assert from 'node:assert/strict'

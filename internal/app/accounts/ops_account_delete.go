@@ -3,7 +3,7 @@ package accounts
 import (
 	"context"
 	"database/sql"
-	events "github.com/vsriram/simple-host/internal/repository/hackevents"
+	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 type DeletionQueries interface {

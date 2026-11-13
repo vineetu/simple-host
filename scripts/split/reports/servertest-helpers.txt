@@ -1,0 +1,100 @@
+D1-S4 helper and test-file inventory
+
+Source: git ls-tree at b90ab830bc52e0dd835fa2bfd6125c104c2cb95c.
+Counts include tests and embedded files:
+  internal/hackhttp/: 97 files
+  internal/app/hack/: 68 files
+  internal/repository/hackevents/: 29 files
+  internal/repository/hackteams/: 13 files
+  internal/repository/hackentries/: 11 files
+  internal/rules/hackevents/: 22 files
+  internal/rules/hackteams/: 4 files
+  internal/rules/hackentries/: 11 files
+  internal/server/hack_*_test.go: 52 files
+
+Helpers used by the moved Hack tests from outside their moved files:
+  main_test.go: testHackPages -> products/hack/servertest/main_test.go (product template cache).
+  main_test.go: isolateQueueTest -> products/hack/servertest/main_test.go (fresh queue database).
+  acct_oauth.go: oauthSettings -> server.OAuthSettings; same implementation, exported for hack_sso_test.go.
+  selfhosted_pages_test.go defines no helper; its sole Hack test is now in hack_get_started_test.go.
+
+Program boot helpers (previously in cmd/server/wiring_test.go after D1-S2):
+  buildWiring -> internal/server/servertest.Build, takes extensions explicitly and calls server.Build.
+  wiringConfig -> internal/server/servertest.Config, takes a caller-owned disposable DSN.
+  route/worker assertions -> internal/server/servertest.CheckWiring (original snapshots unchanged).
+  checkWiringSnapshot -> private helper in that same package.
+  Hack transport fixtures newHackApp/newTeamSiteAppMailer and their helpers stay product-owned:
+  they construct partial handler graphs and expose Hack handlers, rather than booting the program.
+
+Test-file kinds after the split:
+  internal/server/main_test.go: package server, per-package testdb.Main.
+  internal/server/acct_oauth_seam_test.go: package server, white-box signInProvider test.
+  internal/server/wiring_test.go: package server, Run/Build tests; never imports servertest.
+  internal/server/wiring_external_test.go: package server_test, shared fixture, Host wiring.
+  internal/server/extension_external_test.go: package server_test, shared config, generic extension ordering/errors.
+  cmd/server/wiring_test.go and hack_extension_test.go: split into the above platform files
+    and products/hack/servertest/{wiring,extension}_test.go.
+  internal/server/selfhosted_pages_test.go: Hack assertion extracted into product hack_get_started_test.go.
+  products/hack/servertest/main_test.go: package servertest, own testdb.Main and Hack helpers.
+  products/hack/servertest/{wiring,extension}_test.go: package servertest, shared platform fixture.
+  products/hack/servertest/transport_fixture_test.go: package servertest, Hack transport fixtures.
+  products/hack/servertest/hack_administration_test.go: package servertest, product test.
+  products/hack/servertest/hack_apps_judge_test.go: package servertest, product test.
+  products/hack/servertest/hack_apps_organiser_test.go: package servertest, product test.
+  products/hack/servertest/hack_apps_test.go: package servertest, product test.
+  products/hack/servertest/hack_batch_test.go: package servertest, product test.
+  products/hack/servertest/hack_chrome_test.go: package servertest, product test.
+  products/hack/servertest/hack_companies_test.go: package servertest, product test.
+  products/hack/servertest/hack_connector_rehearsal_test.go: package servertest, product test.
+  products/hack/servertest/hack_connector_test.go: package servertest, product test.
+  products/hack/servertest/hack_delete_test.go: package servertest, product test.
+  products/hack/servertest/hack_discovery_test.go: package servertest, product test.
+  products/hack/servertest/hack_entry_reminders_test.go: package servertest, product test.
+  products/hack/servertest/hack_event_live_browser_test.go: package servertest, product test.
+  products/hack/servertest/hack_exportlink_test.go: package servertest, product test.
+  products/hack/servertest/hack_finding_test.go: package servertest, product test.
+  products/hack/servertest/hack_gallery_test.go: package servertest, product test.
+  products/hack/servertest/hack_get_started_test.go: package servertest, product test.
+  products/hack/servertest/hack_home_test.go: package servertest, product test.
+  products/hack/servertest/hack_imagescan_test.go: package servertest, product test.
+  products/hack/servertest/hack_ink_browser_test.go: package servertest, product test.
+  products/hack/servertest/hack_instance_test.go: package servertest, product test.
+  products/hack/servertest/hack_m2_test.go: package servertest, product test.
+  products/hack/servertest/hack_member_connector_test.go: package servertest, product test.
+  products/hack/servertest/hack_next_web_test.go: package servertest, product test.
+  products/hack/servertest/hack_notices_judges_messages_test.go: package servertest, product test.
+  products/hack/servertest/hack_notifications_test.go: package servertest, product test.
+  products/hack/servertest/hack_notify_site_events_test.go: package servertest, product test.
+  products/hack/servertest/hack_one_name_test.go: package servertest, product test.
+  products/hack/servertest/hack_organiser_connector_test.go: package servertest, product test.
+  products/hack/servertest/hack_output_schemas_test.go: package servertest, product test.
+  products/hack/servertest/hack_presets_browser_test.go: package servertest, product test.
+  products/hack/servertest/hack_registration_test.go: package servertest, product test.
+  products/hack/servertest/hack_rehearsal_test.go: package servertest, product test.
+  products/hack/servertest/hack_results_card_test.go: package servertest, product test.
+  products/hack/servertest/hack_site_status_test.go: package servertest, product test.
+  products/hack/servertest/hack_sso_test.go: package servertest, product test.
+  products/hack/servertest/hack_storage_only_review_test.go: package servertest, product test.
+  products/hack/servertest/hack_storage_presets_test.go: package servertest, product test.
+  products/hack/servertest/hack_storage_review_test.go: package servertest, product test.
+  products/hack/servertest/hack_storage_test.go: package servertest, product test.
+  products/hack/servertest/hack_story_test.go: package servertest, product test.
+  products/hack/servertest/hack_team_to_organisers_test.go: package servertest, product test.
+  products/hack/servertest/hack_tls_test.go: package servertest, product test.
+  products/hack/servertest/hack_ui_next_test.go: package servertest, product test.
+  products/hack/servertest/hack_ui_test.go: package servertest, product test.
+  products/hack/servertest/hack_upload_link_test.go: package servertest, product test.
+  products/hack/servertest/hack_uploads_test.go: package servertest, product test.
+  products/hack/servertest/hack_video_test.go: package servertest, product test.
+  products/hack/servertest/hack_voting_test.go: package servertest, product test.
+  products/hack/servertest/hack_wait_notices_test.go: package servertest, product test.
+  products/hack/servertest/hack_watch_test.go: package servertest, product test.
+  products/hack/servertest/hack_web_mcp_test.go: package servertest, product test.
+
+Additional file splits not covered by the supplied move map:
+  cmd/server/{wiring,hack_extension}_test.go and internal/server/selfhosted_pages_test.go.
+  Their assertions were extracted by file creation/deletion; move.sh was not rerun.
+
+Existing rules/hack* allowances in platform rows had no actual imports at this revision;
+they were removed rather than made stale transitional entries. All nine remaining
+platform/command-to-product edges are listed individually with their removal slices.

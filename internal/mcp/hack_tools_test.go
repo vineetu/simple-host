@@ -2,7 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/products/hack/app/events"
 	"io"
 	"net/http"
 	"net/http/httptest"

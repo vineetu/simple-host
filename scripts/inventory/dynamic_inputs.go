@@ -37,7 +37,7 @@ func validateDynamicInputs(root string) error {
 	ui := dynamicSites["internal/handler/ui.go:RegisterUIRoutes"]
 	connector := dynamicSites["internal/handler/connector.go:Register"]
 	skills := patternInputs(ui[5:6], "GET /skills/", "")
-	hackVersions := dynamicSites["internal/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
+	hackVersions := dynamicSites["products/hack/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
 	inputs := []dynamicInput{
 		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
 		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
@@ -46,9 +46,9 @@ func validateDynamicInputs(root string) error {
 		{"internal/handler/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
 		{"internal/handler/connector.go", "museClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
 		{"internal/handler/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
-		{"internal/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["internal/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
-		{"internal/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
-		{"internal/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
+		{"products/hack/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["products/hack/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
+		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
+		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
 		{"internal/handler/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
 	}
 	for registration := 4; registration <= 7; registration++ {

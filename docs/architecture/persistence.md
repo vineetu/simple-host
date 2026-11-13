@@ -248,7 +248,7 @@ Delivery runs through `internal/app/notifications/delivery.go` (`Deliver`,
 
 Hack also has persisted mail work (announcements, receipts, notices and reminders),
 not a second site-webhook engine. See [Hack domain](hack-domain.md) and
-`internal/repository/hackevents/notice_delivery.go` for its claims and the
+`products/hack/repository/hackevents/notice_delivery.go` for its claims and the
 person/kind transaction advisory lock used for notice batches.
 
 ## Schema installation and upgrades

@@ -4,32 +4,43 @@
 [final]
 # A product may import the platform and itself; no platform row may list a product.
 @/products/hack/** -> /** @/products/hack/** @/db @/db/migrations
-server -> /** !testdb !geoip/geoiptest !hackhttp !app/hack/** !repository/{hackevents,hackteams,hackentries} !rules/{hackevents,hackteams,hackentries} @/db @/db/migrations
+server -> /** !testdb !geoip/geoiptest !server/servertest @/db @/db/migrations
 server -> extension
 extension -> config edition email handler storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
-@/cmd/server -> server extension config edition hackhttp app/hack/** handler llm model papermetrics repository/sqlkit workers webassets
-{handler,hackhttp} -> app/** auth httpx edition model webassets buildinfo workers
+@/cmd/server -> server extension config
+handler -> app/** auth httpx edition model webassets buildinfo workers
+@/products/hack/hackhttp -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp redirects
 auth -> app/accounts httpx edition model rules/auth rules/sites
-hackhttp -> rules/sites
+@/products/hack/hackhttp -> rules/sites
 mcp -> app/** edition model httpx buildinfo brain webassets workers
 httpx -> app/errors model edition
 app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
-app/hack/{events,teams,members,entries} -> app/errors model edition workers repository/sqlkit
-app/accounts -> repository/{accounts,sites,hackevents} rules/{auth,hackevents} oauth email geoip
+@/products/hack/app/events -> app/errors model edition workers repository/sqlkit
+@/products/hack/app/teams -> app/errors model edition workers repository/sqlkit
+@/products/hack/app/members -> app/errors model edition workers repository/sqlkit
+@/products/hack/app/entries -> app/errors model edition workers repository/sqlkit
+app/accounts -> repository/{accounts,sites} rules/auth oauth email geoip
 app/sites -> redirects app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball wpimport eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/storage -> @/host/storage/rules
 app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rules/{storage,auth} sitelocks
-app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackentries,auth} storage capacity llm
-app/hack/{teams,members} -> app/{accounts,sites,storage,notifications} app/hack/{events,entries} repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackteams,sites,auth}
-app/hack/entries -> app/{accounts,sites,storage,notifications} repository/{hackentries,hackevents,hackteams,sites} rules/{hackentries,hackevents} storage
-app/notifications -> app/accounts repository/{notifications,accounts,hackevents,hackentries,legacy} email rules/{hackevents,hackentries}
-app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,hackevents,hackentries,legacy} storage analytics netusage papermetrics geoip imagescan email capacity buildinfo
-repository/{accounts,sites,storage,legacy,hackevents,hackteams,hackentries,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage,hackevents,hackteams,hackentries}
-repository/hackteams -> repository/hackevents
-repository/hackevents -> repository/hackentries
-rules/{auth,sites,storage,hackevents,hackteams,hackentries} -> model
+@/products/hack/app/events -> app/{accounts,sites,storage,notifications} @/products/hack/app/entries repository/{accounts,sites} @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/auth @/products/hack/rules/hackevents @/products/hack/rules/hackentries storage capacity llm
+@/products/hack/app/teams -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries repository/{accounts,sites} @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
+@/products/hack/app/members -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries repository/{accounts,sites} @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
+@/products/hack/app/entries -> app/{accounts,sites,storage,notifications} repository/sites @/products/hack/repository/hackentries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/rules/hackentries @/products/hack/rules/hackevents storage
+app/notifications -> app/accounts repository/{notifications,accounts,legacy} email
+app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,legacy} storage analytics netusage papermetrics geoip imagescan email capacity buildinfo
+repository/{accounts,sites,storage,legacy,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage}
+@/products/hack/repository/hackevents -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
+@/products/hack/repository/hackteams -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
+@/products/hack/repository/hackentries -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
+@/products/hack/repository/hackteams -> @/products/hack/repository/hackevents
+@/products/hack/repository/hackevents -> @/products/hack/repository/hackentries
+rules/{auth,sites,storage} -> model
+@/products/hack/rules/hackevents -> model
+@/products/hack/rules/hackteams -> model
+@/products/hack/rules/hackentries -> model
 edition -> config
 storage -> model
 storage -> @/host/storage/rules
@@ -46,18 +57,25 @@ wpimport -> redirects
 @/scripts/layering -> -
 @/scripts/inventory -> mcp webassets
 mcp/apps/gentool -> mcp/apps/bundlegen
+server/servertest -> server config extension
 [test]
 handler -> @/host/storage/rules
 /** -> testdb geoip/geoiptest
 @/** -> testdb geoip/geoiptest
-{handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email llm
+{handler,auth,mcp} -> config repository/** storage sitelocks email llm
+@/products/hack/hackhttp -> config repository/** storage sitelocks email llm
 mcp -> mcp/apps/bundlegen
+server -> server/servertest
+server/servertest -> testdb
+@/products/hack/servertest -> server/servertest
 [transitional]
-# Syntax: <from> -> <to> production|test # removal step <slice id>; platform-to-product edges go here one by one, naming the slice that removes each.
-# handler -> @/products/hack/app/teams production # removal step D2-S4b
-server -> hackhttp test # removal step D1-S4
-server -> app/hack/events test # removal step D1-S4
-server -> app/hack/entries test # removal step D1-S4
-server -> repository/hackevents test # removal step D1-S4
-server -> repository/hackteams test # removal step D1-S4
-server -> app/hack/teams test # removal step D1-S4
+# Each edge names the slice that removes its final caller.
+@/cmd/server -> @/products/hack production # removal step D3-S6b
+app/accounts -> @/products/hack/repository/hackevents production # removal step D2-S9; D2-S4c, D2-S5a, D2-S6, D2-S7 and D2-S8 remove earlier callers
+app/notifications -> @/products/hack/repository/hackevents production # removal step D2-S1
+app/operations -> @/products/hack/repository/hackevents production # removal step D2-S2
+app/operations -> @/products/hack/repository/hackentries production # removal step D2-S2
+handler -> @/products/hack/app/teams production # removal step D2-S4c; D2-S4b removes earlier callers
+handler -> @/products/hack/app/members production # removal step D2-S8
+mcp -> @/products/hack/app/events test # removal step D3-S1c
+mcp -> @/products/hack/app/entries test # removal step D3-S1c

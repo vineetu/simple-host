@@ -37,7 +37,7 @@ def main():
     mode.add_argument("--publish", action="store_true", help="build and publish")
     args = parser.parse_args()
     spec, feats = load("spec.json"), load("features.json")
-    map_path = os.path.join(HERE, "../../internal/rules/hackevents/navigation.json")
+    map_path = os.path.join(HERE, "../../products/hack/rules/hackevents/navigation.json")
     try:
         with open(map_path) as f:
             navigation = json.load(f)

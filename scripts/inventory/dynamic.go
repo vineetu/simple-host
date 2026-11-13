@@ -17,10 +17,10 @@ var dynamicSites = dynamicTable{
 		{`"GET /skills/" + dir`, skillPatterns("")},
 		{`"GET /skills/" + dir + "/references/{file}"`, skillPatterns("/references/{file}")},
 	},
-	"internal/hackhttp/hack_ui.go:RegisterHackUI": {
+	"products/hack/hackhttp/hack_ui.go:RegisterHackUI": {
 		{`p`, []string{"GET /signin", "GET /account", "GET /events", "GET /events/new", "GET /e/{slug}/team", "GET /e/{slug}/manage", "GET /e/{slug}/apply", "GET /join/{code}", "GET /judge/{code}", "GET /organiser/{code}", "GET /team/{code}"}},
 	},
-	"internal/hackhttp/hack_get_started.go:RegisterHackGetStarted": {
+	"products/hack/hackhttp/hack_get_started.go:RegisterHackGetStarted": {
 		{`"GET /simple-hack-skills-only-" + version + ".zip"`, versionPatterns([]string{"0.2.0", "0.2.1", "0.2.2", "0.2.3", "0.2.4", "0.2.5"})},
 		{`"GET /simple-hack-skills-only-" + version + ".zip"`, versionPatterns([]string{"0.2.6", "0.2.7", "0.2.8", "0.2.9", "0.2.10", "0.2.11", "0.2.12", "0.2.13"})},
 	},

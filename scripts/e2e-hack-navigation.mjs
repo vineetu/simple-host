@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// HACK_NAVIGATION_FIXTURE=/tmp/slice1-fixture.json TEST_PKGS=./internal/hackhttp ... scripts/test-integration.sh -run TestServeHackNavigationBrowser
+// HACK_NAVIGATION_FIXTURE=/tmp/slice1-fixture.json TEST_PKGS=./products/hack/hackhttp ... scripts/test-integration.sh -run TestServeHackNavigationBrowser
 // PLAYWRIGHT_DIR=/tmp/tsx/node_modules node scripts/e2e-hack-navigation.mjs /tmp/slice1-fixture.json
 import fs from 'node:fs'
 import assert from 'node:assert/strict'
@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 const require = createRequire('/tmp/tsx/node_modules/')
 const { chromium } = require('playwright')
 const info = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))
-const map = JSON.parse(fs.readFileSync('internal/rules/hackevents/navigation.json', 'utf8'))
+const map = JSON.parse(fs.readFileSync('products/hack/rules/hackevents/navigation.json', 'utf8'))
 const shots = process.env.NAVIGATION_SHOTS || '.shots/slice1'
 fs.mkdirSync(shots, { recursive: true })
 const browser = await chromium.launch({ executablePath: '/usr/local/bin/chromium', headless: true, args: ['--no-sandbox'] })

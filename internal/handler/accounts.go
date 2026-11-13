@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/app/hack/members"
+	"github.com/vsriram/simple-host/products/hack/app/members"
 	"log"
 	"net/http"
 	"strconv"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SIM-394: runs the real organiser-assistant eval set
-# (internal/hackhttp/testdata/assistant_eval.json) against the real
+# (products/hack/hackhttp/testdata/assistant_eval.json) against the real
 # configured model, through a disposable Postgres
-# (scripts/test-integration.sh runs internal/hackhttp's TestAssistantEval).
+# (scripts/test-integration.sh runs products/hack/hackhttp's TestAssistantEval).
 # Fails the build on any case failure; "I'm not sure" plus a real link is a
 # pass (owner requirement). Never prints a secret: ASSISTANT_API_KEY is
 # only ever passed through as an environment variable, never echoed.
@@ -41,7 +41,7 @@ fi
 report=$(mktemp)
 trap 'rm -f "$report"' EXIT
 
-TEST_PKGS=./internal/hackhttp \
+TEST_PKGS=./products/hack/hackhttp \
   ASSISTANT_EVAL=1 \
   ASSISTANT_EVAL_REPORT="$report" \
   ASSISTANT_BASE_URL="$ASSISTANT_BASE_URL" \

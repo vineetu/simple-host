@@ -56,6 +56,7 @@ func TestScan(t *testing.T) {
 		t.Errorf("section %d missing %s %q\n%s", section, decl, part, text)
 	}
 	has(1, "Plain", "event_teams")
+	has(1, "OldProductPath", "old-product-path")
 	has(1, "UpperQuery", "FROM EVENTS")
 	has(1, "MixedQuery", "FROM Events")
 	has(1, "JoinedConstant", "SELECT * FROM events")

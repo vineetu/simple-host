@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// HACK_NAVIGATION_FIXTURE=/tmp/reflow-fixture.json TEST_PKGS=./internal/hackhttp scripts/test-integration.sh -run TestServeHackNavigationBrowser
+// HACK_NAVIGATION_FIXTURE=/tmp/reflow-fixture.json TEST_PKGS=./products/hack/hackhttp scripts/test-integration.sh -run TestServeHackNavigationBrowser
 // PLAYWRIGHT_DIR=/tmp/tsx/node_modules/ node scripts/e2e-hack-reflow.mjs /tmp/reflow-fixture.json
 // REFLOW_SHOTS=.shots/reflow REFLOW_BEFORE=/tmp/baseline REFLOW_WIDTHS=390,1280 REFLOW_ONLY=judge REFLOW_STATES=building,judging,results
 // Seeds its own event; local fixtures only. KEEP_NAVIGATION_FIXTURE=1 leaves the fixture running.

@@ -15,14 +15,16 @@ planned extraction is already complete.
 
 | Change | Current direction |
 |---|---|
-| Hack endpoint | Registration/HTTP mapping in `internal/hackhttp`; workflows in `internal/app/hack/*`; pure decisions in `internal/rules/*`; SQL in `internal/repository/*` |
+| Hack endpoint | Registration/HTTP mapping in `products/hack/hackhttp`; workflows in `products/hack/app/*`; pure decisions in `products/hack/rules/*`; SQL in `products/hack/repository/*` |
 | MCP tool | Its capability family registrar and the shared registry in `internal/mcp`; retain service/REST authorization and error mapping |
 | Host sites/storage | `internal/app/{sites,storage}`, rules/repositories and `internal/storage` primitives; old contracts through `app/legacy` |
 | Browser screen / shared MCP screen | [Frontend guide](frontend.md); update the atlas before implementing Hack UX |
 | Background worker | An explicit owner; preserve start conditions, stop/join ordering and transaction boundaries |
 
 `scripts/check-layering.sh` checks imports against
-`scripts/layering/rules.txt`. Step 5.4 removed all transitional exceptions.
+`scripts/layering/rules.txt`. The product split lists remaining platform-to-product imports as transitional edges,
+each naming its removal slice. Shared server fixtures live in
+`internal/server/servertest`; Hack server tests live in `products/hack/servertest`.
 It is not proof that every workflow has reached the target layout.
 
 For a new route or tool, include these documentation changes:

@@ -26,7 +26,8 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 	// env read is the already registered DB_DSN) and cmd/analytics-rebuild
 	// (an operator CLI with no env reads).
 	// testdb and geoiptest contain test-only database/GeoIP fixture helpers.
-	for _, root := range []string{"..", "../../cmd/server"} {
+	// Product extensions are part of the server and share its settings registry.
+	for _, root := range []string{"..", "../../cmd/server", "../../products"} {
 		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err

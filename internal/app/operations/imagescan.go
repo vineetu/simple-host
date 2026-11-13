@@ -22,13 +22,13 @@ import (
 	"github.com/vsriram/simple-host/internal/imagescan"
 	"github.com/vsriram/simple-host/internal/model"
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
-	entries "github.com/vsriram/simple-host/internal/repository/hackentries"
-	events "github.com/vsriram/simple-host/internal/repository/hackevents"
 	db "github.com/vsriram/simple-host/internal/repository/operations"
 	sites "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/workers"
+	entries "github.com/vsriram/simple-host/products/hack/repository/hackentries"
+	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 // Image matching (SIM-200). Images that reach the box (site files from a

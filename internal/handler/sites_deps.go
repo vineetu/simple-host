@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
+	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
 // signInMailer is the outbound capability consumed by visitor sign-in.
