@@ -1,14 +1,20 @@
 package handler
 
 import (
+	"context"
 	"encoding/xml"
-	"github.com/vsriram/simple-host/internal/edition"
+	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	repo "github.com/vsriram/simple-host/internal/repository/sites"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/internal/testdb"
 )
 
 func TestSitemapShards(t *testing.T) {
@@ -47,6 +53,71 @@ func TestSitemapShards(t *testing.T) {
 	serveSitemapFile(r, httptest.NewRequest("GET", "/sitemap-sites-99.xml", nil), files)
 	if r.Code != 404 {
 		t.Fatal(r.Code)
+	}
+}
+
+func TestSitemapFilterErrorIsNotCached(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	old := instanceIsHostedService
+	instanceIsHostedService = true
+	t.Cleanup(func() { instanceIsHostedService = old })
+	owner := a.newPerson(t, "sitemap-filter")
+	a.deploy(t, owner, "open")
+	calls := 0
+	fail := true
+	a.sites.SetSitemapFilter(func(ctx context.Context, q sqlkit.Querier, sites []repo.Site) ([]repo.Site, error) {
+		calls++
+		if q != a.database || len(sites) == 0 {
+			t.Fatal("filter did not receive the database and candidate sites")
+		}
+		if fail {
+			return sites, errors.New("test sitemap filter failure")
+		}
+		return sites, nil
+	})
+	for i, method := range []string{"GET", "HEAD"} {
+		w := httptest.NewRecorder()
+		a.sites.serveSitemap(w, httptest.NewRequest(method, "https://simple-host.app/sitemap.xml", nil))
+		if w.Code != http.StatusServiceUnavailable || w.Body.String() != "sitemap unavailable\n" || calls != i+1 || len(a.sites.sitemaps.byBrand) != 0 {
+			t.Fatalf("filter error: status=%d body=%q calls=%d cached=%d", w.Code, w.Body.String(), calls, len(a.sites.sitemaps.byBrand))
+		}
+	}
+	fail = false
+	for _, method := range []string{"GET", "HEAD"} {
+		w := httptest.NewRecorder()
+		a.sites.serveSitemap(w, httptest.NewRequest(method, "https://simple-host.app/sitemap.xml", nil))
+		if w.Code != http.StatusOK || calls != 3 || len(a.sites.sitemaps.byBrand) != 1 {
+			t.Fatalf("recovered filter: status=%d calls=%d cached=%d", w.Code, calls, len(a.sites.sitemaps.byBrand))
+		}
+	}
+}
+
+func TestPlatformSitemapNoProductQueries(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	owner := a.newPerson(t, "sitemap-platform")
+	a.deploy(t, owner, "open")
+	db, recorder := testdb.OpenRecording(os.Getenv("DB_DSN"))
+	t.Cleanup(func() { db.Close() })
+	a.sites.database = db
+	sites, err := a.sites.sitesSvc().ListSitemapSites(t.Context())
+	if err != nil || len(sites) == 0 {
+		t.Fatalf("platform sitemap: %d sites, %v", len(sites), err)
+	}
+	if len(recorder.Statements()) != 1 || !recorder.Names("sites") {
+		t.Fatalf("expected one platform query, got %v", recorder.Statements())
+	}
+	objects, err := os.ReadFile("../../scripts/split/hack-objects.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(objects), "\n") {
+		fields := strings.Split(line, "|")
+		if len(fields) < 2 || strings.TrimSpace(fields[0]) != "table" {
+			continue
+		}
+		if name := strings.TrimSpace(fields[1]); recorder.Names(name) {
+			t.Errorf("platform sitemap queried product table %s", name)
+		}
 	}
 }
 
@@ -224,61 +295,5 @@ func TestHostedSitemapSites(t *testing.T) {
 		if left := time.Until(cache.expires); left > sitemapTTL || left < sitemapTTL-time.Minute {
 			t.Fatalf("cache expiry %v, want about %v", left, sitemapTTL)
 		}
-	}
-}
-
-func TestHostedHackSitemapOnlyTeamSites(t *testing.T) {
-	a, certDir := newSiteApp(t, "canonical")
-	owner := a.newPerson(t, "sitemap-event")
-	uid, handle := a.userID(t, owner)
-	markReady(t, certDir, handle)
-	for _, name := range []string{"team", "event-page", "orphan"} {
-		a.deploy(t, owner, name)
-	}
-	var eventID string
-	if err := a.database.QueryRow(`INSERT INTO events (slug,account_id,title,organiser_name,contact_email,join_code,judge_code)
- VALUES ($1,$2,'Sitemap','Test','test@example.org',$1,$1 || '-judge') RETURNING id`, handle, uid).Scan(&eventID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := a.database.Exec(`INSERT INTO event_teams (event_id,slug,name,code) VALUES ($1,'team','Team',$2)`, eventID, handle); err != nil {
-		t.Fatal(err)
-	}
-	h := chromeTestHandler(edition.Hack)
-	h.database = a.database
-	h.disk = a.sites.disk
-	h.siteDomain = a.sites.siteDomain
-	h.contentHost = a.sites.contentHost
-	h.personHosts = a.sites.personHosts
-	h.siteHosts = a.sites.siteHosts
-	h.siteCertDir = a.sites.siteCertDir
-	r := httptest.NewRecorder()
-	h.serveSitemap(r, httptest.NewRequest("GET", "https://simple-hack.app/sitemap.xml", nil))
-	if r.Code != 200 || !strings.Contains(r.Body.String(), "https://team."+handle+".") {
-		t.Fatalf("team sitemap: %d %s", r.Code, r.Body)
-	}
-	for _, name := range []string{"event-page", "orphan"} {
-		if strings.Contains(r.Body.String(), "https://"+name+"."+handle+".") {
-			t.Errorf("included %s", name)
-		}
-	}
-	// An organiser take-down on the team keeps the site out, even when the
-	// site row itself was never marked (a take-down while it was in trash).
-	if _, err := a.database.Exec(`UPDATE event_teams SET site_taken_down_at = now() WHERE event_id = $1 AND slug = 'team'`, eventID); err != nil {
-		t.Fatal(err)
-	}
-	h.sitemaps.byBrand = nil
-	r = httptest.NewRecorder()
-	h.serveSitemap(r, httptest.NewRequest("GET", "https://simple-hack.app/sitemap.xml", nil))
-	if r.Code != 200 || strings.Contains(r.Body.String(), "https://team."+handle+".") {
-		t.Fatalf("taken-down team site listed: %d %s", r.Code, r.Body)
-	}
-	// A company install with Hack branding and its own base never enumerates teams.
-	h.assets = newAssetPipeline(h.ed, "https://company.example.org")
-	h.assetsOnce.Do(func() {})
-	h.sitemaps.byBrand = nil
-	r = httptest.NewRecorder()
-	h.serveSitemap(r, httptest.NewRequest("GET", "https://company.example.org/sitemap.xml", nil))
-	if r.Code != 200 || strings.Contains(r.Body.String(), "https://team."+handle+".") {
-		t.Fatalf("company enumeration: %d %s", r.Code, r.Body)
 	}
 }

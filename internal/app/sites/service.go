@@ -43,6 +43,7 @@ type Service struct {
 
 // Deps holds collaborators shared by site workflows.
 type Deps struct {
+	Sitemap                 SitemapFilter
 	SiteViewersMax          int
 	PlatformDomains         []string
 	ContentHost, SiteDomain string

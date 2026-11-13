@@ -12,6 +12,7 @@ import (
 
 func (h *SiteHandler) sitesSvc() *sites.Service {
 	return sites.New(h.database, h.disk, h.previewAccounts, h.previewTTL, sites.Deps{
+		Sitemap:        h.sitemapFilter,
 		SiteViewersMax: h.limits.SiteViewersMax, ContentHost: h.contentHost, SiteDomain: h.siteDomain, PersonalSitesEnabled: h.ed.Identity().PersonalSites,
 		LockSite:         h.lockSite,
 		DeleteViewerPush: h.deletePushForEmail,

@@ -245,8 +245,13 @@ only controls the owner's profile page. Every open site can be found by search e
 on every address. Go and disk servers add no indexing restriction for this setting.
 Missing robots.txt is 404; a site's own robots.txt and meta tags are served as supplied.
 Passcode, named viewers, offline, taken-down, deleted and preview responses retain noindex.
-Hosted sitemaps enumerate eligible open sites with one repository query and disk checks,
-cached ten minutes per brand. Own domains (including claimed names) win, then canonical
+Hosted sitemaps enumerate eligible open sites with a platform repository query.
+Hack's `Hooks.Sitemap` filter then limits those rows to team sites without an organiser
+take-down, preserving their order; the platform-only path makes no product query.
+The filter runs before disk checks and per-brand caching; an error returns 503 and caches nothing.
+The two database reads are outside a transaction, so a concurrent take-down can appear
+in one cached sitemap, as it already can during the cache lifetime.
+Own domains (including claimed names) win, then canonical
 families, then the normal platform address; redirecting aliases are omitted. Self-hosted
 instances enumerate only marketing and docs pages.
 

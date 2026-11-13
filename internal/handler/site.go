@@ -56,6 +56,7 @@ func init() {
 
 type SiteHandler struct {
 	sitemaps        sitemapCache
+	sitemapFilter   sites.SitemapFilter
 	savedWorkerOnce sync.Once
 	savedWorker     *savedDataWorker
 	httpCaches      HTTPCaches

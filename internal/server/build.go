@@ -442,6 +442,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 			return nil, fmt.Errorf("wire extension %s: %w", ext.Name, err)
 		}
 	}
+	siteHandler.SetSitemapFilter(parts.Hooks.Sitemap)
 
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
 	// least one domain are configured, so a self-hosted instance never tries to

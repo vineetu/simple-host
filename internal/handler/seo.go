@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/webassets"
@@ -160,6 +161,11 @@ func serveSitemapFile(w http.ResponseWriter, r *http.Request, files map[string][
 	}
 }
 
+// SetSitemapFilter installs the product filter before serving requests.
+func (h *SiteHandler) SetSitemapFilter(filter sites.SitemapFilter) {
+	h.sitemapFilter = filter
+}
+
 func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 	base, hack := sitemapBase(r, h.ed.Routes().HostedEvents)
 	h.sitemaps.mu.Lock()
@@ -167,7 +173,7 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 	if !ok || time.Now().After(cached.expires) {
 		var urls []sitemapURL
 		if h.pipeline().hostedOwner() != "" {
-			sites, err := h.sitesSvc().ListSitemapSites(r.Context(), hack)
+			sites, err := h.sitesSvc().ListSitemapSites(r.Context())
 			if err != nil {
 				log.Printf("sitemap: %v", err)
 				h.sitemaps.mu.Unlock()

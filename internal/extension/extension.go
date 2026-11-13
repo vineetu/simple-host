@@ -10,6 +10,7 @@ import (
 	"github.com/vsriram/simple-host/db/migrations"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
@@ -70,4 +71,6 @@ type Parts struct {
 	Hooks         Hooks
 }
 
-type Hooks struct{}
+type Hooks struct {
+	Sitemap sites.SitemapFilter
+}
