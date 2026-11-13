@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reviewed golden differences",
+  "type": "object",
+  "properties": {
+    "slice": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "Must equal the filename without .json (checked by diff.mjs)."
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "product": {
+                "enum": [
+                  "host",
+                  "hack"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\s*TODO)[\\s\\S]*\\S[\\s\\S]*$"
+              },
+              "request": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "at": {
+                "type": "string",
+                "pattern": "^(?:status|method|path|body_kind|headers(?:\\.[A-Za-z_$][\\w$]*|\\[\"(?:[^\"\\\\\\x00-\\x1f]|\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4}))*\"\\])|body(?:\\.[A-Za-z_$][\\w$]*|\\[(?:[0-9]+|\"(?:[^\"\\\\\\x00-\\x1f]|\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4}))*\")\\])*)(?![\\s\\S])"
+              },
+              "old": {},
+              "new": {}
+            },
+            "required": [
+              "product",
+              "reason",
+              "request",
+              "at",
+              "old",
+              "new"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "product": {
+                "enum": [
+                  "host",
+                  "hack"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\s*TODO)[\\s\\S]*\\S[\\s\\S]*$"
+              },
+              "request": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "at": {
+                "const": "text"
+              },
+              "removed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "added": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "product",
+              "reason",
+              "request",
+              "at",
+              "removed",
+              "added"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "product": {
+                "enum": [
+                  "host",
+                  "hack"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\s*TODO)[\\s\\S]*\\S[\\s\\S]*$"
+              },
+              "request": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "at": {
+                "type": "string",
+                "pattern": "^body(?:\\.[A-Za-z_$][\\w$]*|\\[(?:[0-9]+|\\*|\"(?:[^\"\\\\\\x00-\\x1f]|\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4}))*\")\\])*\\[\\*\\](?:\\.[A-Za-z_$][\\w$]*|\\[(?:[0-9]+|\\*|\"(?:[^\"\\\\\\x00-\\x1f]|\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4}))*\")\\])*(?![\\s\\S])"
+              },
+              "replace": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "product",
+              "reason",
+              "request",
+              "at",
+              "replace"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "product": {
+                "enum": [
+                  "host",
+                  "hack"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\s*TODO)[\\s\\S]*\\S[\\s\\S]*$"
+              },
+              "request": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "change": {
+                "enum": [
+                  "added",
+                  "removed"
+                ]
+              }
+            },
+            "required": [
+              "product",
+              "reason",
+              "request",
+              "change"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "product": {
+                "enum": [
+                  "host",
+                  "hack"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\s*TODO)[\\s\\S]*\\S[\\s\\S]*$"
+              },
+              "scenario": {
+                "type": "string",
+                "description": "Whole-scenario approval: added requires absence from the reference recording; removed requires absence from the candidate. If both record it, compare request by request. Record candidate with --scenario all and reference with --scenario all plus --skip-scenario for each scenario added by the selected slices while the reference program cannot run it.",
+                "pattern": "^(?!base$)[A-Za-z0-9][A-Za-z0-9._-]*$"
+              },
+              "change": {
+                "enum": [
+                  "added",
+                  "removed"
+                ]
+              }
+            },
+            "required": [
+              "product",
+              "reason",
+              "scenario",
+              "change"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "slice",
+    "entries"
+  ],
+  "additionalProperties": false
+}
