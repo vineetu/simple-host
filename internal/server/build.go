@@ -17,7 +17,6 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/analytics"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	events "github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
@@ -26,18 +25,15 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/eventdns"
+	"github.com/vsriram/simple-host/internal/extension"
 	"github.com/vsriram/simple-host/internal/geoip"
-	"github.com/vsriram/simple-host/internal/hackhttp"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/imagescan"
-	"github.com/vsriram/simple-host/internal/llm"
 	"github.com/vsriram/simple-host/internal/mcp"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/workers"
 )
@@ -53,7 +49,15 @@ type App struct {
 
 // Build constructs the program in startup order. Close releases its dependencies;
 // on failure Build releases every dependency it has already opened.
-func Build(cfg config.Config) (_ *App, err error) {
+func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
+	if len(exts) > 1 {
+		return nil, fmt.Errorf("at most one extension is supported")
+	}
+	var ext *extension.Extension
+	if len(exts) == 1 {
+		ext = exts[0]
+	}
+
 	if changed := cfg.Limits.Changed(); len(changed) > 0 {
 		log.Printf("limits changed from the defaults: %s", strings.Join(changed, " "))
 	}
@@ -108,7 +112,10 @@ func Build(cfg config.Config) (_ *App, err error) {
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
 	// registered, because the dashboard, the chrome and the host dispatch read it.
-	ed := edition.New(cfg)
+	ed := edition.ForKindWithLimits(edition.Host, cfg.Limits)
+	if ext != nil && ext.Edition != nil {
+		ed = ext.Edition(cfg.Limits)
+	}
 	hosted := ed.Routes().HostedEvents
 	// hackInstanceURL is this Hack instance's own public address (the asset
 	// pipeline's inkBaseURL, assets.go): captured here, before setup mode
@@ -121,6 +128,11 @@ func Build(cfg config.Config) (_ *App, err error) {
 		}
 		hackInstanceURL = cfg.PublicBaseURL
 		log.Printf("hosted events: on (the hackathon platform at %s)", cfg.PublicBaseURL)
+	}
+
+	if ext != nil && ext.Early != nil {
+		// EarlyHooks is empty until the accounts hook slices add their fields.
+		ext.Early(extension.EarlyDeps{DB: db, Config: cfg, Edition: ed})
 	}
 
 	// A box installed from a provider's catalog boots knowing nothing about
@@ -325,7 +337,11 @@ func Build(cfg config.Config) (_ *App, err error) {
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(siteHandler.HackLegacyStorageGate(auth.ScopeGate(accountsService, mux, ed.Identity().TeamKeys, ed.Limits().KeyIdleExpiry))), cfg.PublicBaseURL)
+	scoped := auth.ScopeGate(accountsService, mux, ed.Identity().TeamKeys, ed.Limits().KeyIdleExpiry)
+	if ext != nil && ext.Gate != nil {
+		scoped = ext.Gate(extension.GateDeps{Site: siteHandler, Edition: ed})(scoped)
+	}
+	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(scoped), cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents, ed)
@@ -356,75 +372,6 @@ func Build(cfg config.Config) (_ *App, err error) {
 	}
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
-	var hackSweep func(context.Context)
-	var hackEvents *hackhttp.HackHandler
-	if hosted {
-		hack := hackhttp.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
-		hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-			return accountsService.GetUserByAPIKey(ctx, key, idle)
-		})
-		hack.ShareAssets(siteHandler.Pages())
-		hack.SetHandleChecker(func(ctx context.Context, q sqlkit.Querier, name string) (hackhttp.HandleVerdict, error) {
-			v, err := handler.JudgeHandle(ctx, q, "", name)
-			return hackhttp.HandleVerdict{Status: v.Status, Code: v.Code}, err
-		})
-		// handler.SiteLimit() already reflects any MAX_ARCHIVE_MB override
-		// (applied from site.go's init before main runs), so this matches
-		// the per-site default HackHandler.siteLimitFor used to read off
-		// handler's shared limitSet (cleanup 3.2 slice 1c).
-		hack.SetSiteArchiveDefault(handler.SiteLimit())
-		hack.SetMailer(mailer)
-		hackEvents = hack
-		if cfg.EventNamePeer != "" {
-			peer, zone := handler.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
-			hack.SetNamePeer(func(ctx context.Context, name string) (bool, error) { return peer(ctx, zone, name) })
-			log.Printf("hosted events: event names checked with %s", cfg.EventNamePeer)
-		}
-		hack.SetInstanceUsage(handler.DirUsage(cfg.DataDir))
-		// Team sites (M2): member keys act on one team site; the sweep pins
-		// teams at their deadline, removes sites of removed teams and asks
-		// for open events' certificates.
-		hack.SetSites(siteHandler)
-		connector.SetHackTeams(true)
-		// SIM-394 organiser assistant: off unless both are set. Built here
-		// (not in hackhttp) because the client needs internal/llm and the
-		// docs text needs internal/webassets, neither of which hackhttp may
-		// import (scripts/layering/rules.txt).
-		if cfg.AssistantBaseURL != "" && cfg.AssistantModel != "" {
-			assistantLLM := llm.New(llm.Config{
-				BaseURL:         cfg.AssistantBaseURL,
-				Model:           cfg.AssistantModel,
-				APIKey:          cfg.AssistantAPIKey,
-				ReasoningEffort: cfg.AssistantReasoningEffort,
-				MaxTokens:       events.AssistantMaxTokens,
-			})
-			hack.SetAssistant(events.NewAssistant(db, assistantLLM, events.AssistantConfig{
-				BaseURL:               cfg.AssistantBaseURL,
-				Model:                 cfg.AssistantModel,
-				APIKey:                cfg.AssistantAPIKey,
-				ReasoningEffort:       cfg.AssistantReasoningEffort,
-				MonthlyBudgetUSD:      cfg.AssistantMonthlyBudgetUSD,
-				DailyQuestions:        cfg.AssistantDailyQuestions,
-				PriceInputPerMTokUSD:  cfg.AssistantPriceInputPerMTokUSD,
-				PriceOutputPerMTokUSD: cfg.AssistantPriceOutputPerMTokUSD,
-			}, newAssistantDocsTextFunc()))
-		}
-		hackSweep = func(ctx context.Context) {
-			hack.RequestOpenEventCerts(ctx)
-			hack.SettleDueEntries(ctx)
-		}
-		hack.Register(mux, authMW)
-		hack.RegisterDemo(mux, os.Getenv("HACK_DEMO_EVENT_SLUG"))
-		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
-			return hack.NameTaken(ctx, name)
-		})
-		hackPages := hackhttp.NewHackEventPages(handler.EmbeddedStatic())
-		siteHandler.SetHackEventPage(hackhttp.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages))
-		siteHandler.SetHackScreenshot(hackhttp.HackScreenshot(db, siteHandler.TeamSitesReady, hack))
-		hackhttp.RegisterHackHome(mux, siteHandler.Pages())
-		hackhttp.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages)
-		hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
-	}
 
 	// Image matching (SIM-200): uploaded images are checked against known
 	// abuse hash sets through PhotoDNA. Nothing is built while the key is
@@ -469,13 +416,7 @@ func Build(cfg config.Config) (_ *App, err error) {
 		}
 		imageScan = operations.NewImageScan(db, diskStorage, client, reporter, mailer, scanCfg)
 		siteHandler.SetImageScan(imageScan)
-		if hackEvents != nil {
-			hackEvents.SetImageScan(imageScan)
-			// The reverse edge (take-down markers on a match): HackHandler's
-			// SetImageScan only takes the narrow enqueue interface (cleanup
-			// 3.2 slice 1c), so this wires the other direction directly.
-			imageScan.SetHackTakeDownSync(hackEvents.SyncEventMarkers)
-		}
+
 		handler.SetImageScanOn(true)
 		reports := "reports from the admin page"
 		if reporter == nil {
@@ -488,6 +429,18 @@ func Build(cfg config.Config) (_ *App, err error) {
 			alerts = "no alert address (log only)"
 		}
 		log.Printf("image matching on (photodna); %s; %s; evidence in %s", reports, alerts, scanCfg.EvidenceDir)
+	}
+
+	var parts extension.Parts
+	if ext != nil && ext.Wire != nil {
+		parts, err = ext.Wire(extension.Deps{
+			DB: db, Disk: diskStorage, Mail: mailer, Accounts: accountsService,
+			Site: siteHandler, Connector: connector, ImageScan: imageScan,
+			AuthMW: authMW, Mux: mux, Config: cfg, Edition: ed,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("wire extension %s: %w", ext.Name, err)
+		}
 	}
 
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
@@ -547,8 +500,8 @@ func Build(cfg config.Config) (_ *App, err error) {
 			apex = append(apex, u.Hostname())
 		}
 		paper = papermetrics.New(db, cfg.DataDir, apex...).WithRunConfig(paperConfig).WithCommit(buildinfo.Commit)
-		if hackEvents != nil {
-			paper.WithHack()
+		if parts.PaperHack != nil {
+			parts.PaperHack(paper)
 		}
 		mux.Handle("GET /v1/admin/paper-metrics", authMW(paper.Export(func(r *http.Request) (bool, bool) {
 			u := auth.GetUser(r.Context())
@@ -590,7 +543,10 @@ func Build(cfg config.Config) (_ *App, err error) {
 	// Codex round 2).
 	served := siteHandler.FamilyHosts(app, siteHandler.SiteBaseHosts(siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app))))))
 	if paper != nil {
-		served = paper.Wrap(handler.WithPaperRecorder(hackhttp.WithPaperRecorder(served, papermetrics.RequestRecorder{}), papermetrics.RequestRecorder{}))
+		if parts.PaperRecorder != nil {
+			served = parts.PaperRecorder(served)
+		}
+		served = paper.Wrap(handler.WithPaperRecorder(served, papermetrics.RequestRecorder{}))
 	}
 
 	var paperWorker *operations.PaperMetrics
@@ -601,7 +557,7 @@ func Build(cfg config.Config) (_ *App, err error) {
 	if ingester != nil {
 		analyticsWorker = operations.NewAnalyticsIngest(ingester, 5*time.Minute)
 	}
-	workerSet := registerWorkers(workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paperWorker, metrics: apiMetrics.APIMetrics, geo: geo, analytics: analyticsWorker, eventDomains: eventDomains, hackSweep: hackSweep})
+	workerSet := registerWorkers(workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, productWorkers: parts.Workers, image: imageScan, paper: paperWorker, metrics: apiMetrics.APIMetrics, geo: geo, analytics: analyticsWorker, eventDomains: eventDomains, siteSweep: parts.SiteSweep})
 	siteHandler.SetWorkerStatus(workerSet.Status)
 	return &App{Mux: mux, Handler: served, Workers: workerSet, Close: closeDeps}, nil
 }

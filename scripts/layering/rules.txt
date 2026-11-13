@@ -4,8 +4,10 @@
 [final]
 # A product may import the platform and itself; no platform row may list a product.
 @/products/hack/** -> /** @/products/hack/** @/db @/db/migrations
-server -> /** !testdb !geoip/geoiptest @/db @/db/migrations
-@/cmd/server -> server
+server -> /** !testdb !geoip/geoiptest !hackhttp !app/hack/** !repository/{hackevents,hackteams,hackentries} !rules/{hackevents,hackteams,hackentries} @/db @/db/migrations
+server -> extension
+extension -> config edition email handler storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
+@/cmd/server -> server extension config edition hackhttp app/hack/** handler llm model papermetrics repository/sqlkit workers webassets
 {handler,hackhttp} -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp redirects
 auth -> app/accounts httpx edition model rules/auth rules/sites
@@ -52,3 +54,9 @@ mcp -> mcp/apps/bundlegen
 [transitional]
 # Syntax: <from> -> <to> production|test # removal step <slice id>; platform-to-product edges go here one by one, naming the slice that removes each.
 # handler -> @/products/hack/app/teams production # removal step D2-S4b
+server -> hackhttp test # removal step D1-S4
+server -> app/hack/events test # removal step D1-S4
+server -> app/hack/entries test # removal step D1-S4
+server -> repository/hackevents test # removal step D1-S4
+server -> repository/hackteams test # removal step D1-S4
+server -> app/hack/teams test # removal step D1-S4

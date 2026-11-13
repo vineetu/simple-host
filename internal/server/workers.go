@@ -6,24 +6,23 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/geoip"
-	"github.com/vsriram/simple-host/internal/hackhttp"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
 type workerDependencies struct {
-	site         *handler.SiteHandler
-	user         *handler.UserHandler
-	oauth        *handler.OAuthHandler
-	connector    *handler.ConnectorHandler
-	hack         *hackhttp.HackHandler
-	image        *operations.ImageScan
-	paper        *operations.PaperMetrics
-	metrics      *operations.APIMetrics
-	geo          *geoip.DB
-	analytics    *operations.AnalyticsIngest
-	eventDomains *handler.EventDomainHandler
-	hackSweep    func(context.Context)
+	site           *handler.SiteHandler
+	user           *handler.UserHandler
+	oauth          *handler.OAuthHandler
+	connector      *handler.ConnectorHandler
+	productWorkers []workers.Owner
+	image          *operations.ImageScan
+	paper          *operations.PaperMetrics
+	metrics        *operations.APIMetrics
+	geo            *geoip.DB
+	analytics      *operations.AnalyticsIngest
+	eventDomains   *handler.EventDomainHandler
+	siteSweep      func(context.Context)
 }
 
 // registerWorkers is the single registry of process background owners.
@@ -35,10 +34,10 @@ func registerWorkers(d workerDependencies) *workers.Set {
 	s.Add(d.oauth.HTTPCaches())
 	s.Add(d.connector.HTTPCaches())
 	s.Add(d.oauth.VisitorAuthWorkers())
-	if d.hack != nil {
-		s.Add(d.hack.LimiterWorkers())
-		s.Add(d.hack.EventCleanupOwner())
-		s.Add(d.hack.ContentDeliveryOwner())
+	if len(d.productWorkers) > 0 {
+		for _, owner := range d.productWorkers {
+			s.Add(owner)
+		}
 	} else {
 		s.AddDisabled("http.hack.limiters", "hack.event_cleanup", "hack.content_delivery")
 	}
@@ -55,7 +54,7 @@ func registerWorkers(d workerDependencies) *workers.Set {
 	} else {
 		s.AddDisabled("operations.analytics_ingest")
 	}
-	s.Add(d.site.SiteWorkers(d.hackSweep))
+	s.Add(d.site.SiteWorkers(d.siteSweep))
 	s.Add(d.site.SavedDataWorker())
 	s.Add(d.site.SubmissionEmailOwner())
 	s.Add(d.site.NotificationOwner())

@@ -586,6 +586,12 @@ func loadServerPersonHosts(cfg *Config) error {
 	return nil
 }
 
+// EventsHosted reports whether the composition root should include hosted events.
+// loadEvents still validates the setting when the full configuration is loaded.
+func EventsHosted() bool {
+	return strings.ToLower(strings.TrimSpace(os.Getenv("EVENTS"))) == "hosted"
+}
+
 func loadEvents(cfg *Config) error {
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("EVENTS"))); mode {
 	case "off", "hosted":

@@ -12,11 +12,12 @@ import (
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/extension"
 	"github.com/vsriram/simple-host/internal/geoip"
 )
 
 // Run is the whole program. Failures return a code without exiting the process.
-func Run(args []string) int {
+func Run(args []string, exts []*extension.Extension) int {
 	if len(args) > 0 {
 		for _, cmd := range commands {
 			if args[0] == cmd.name {
@@ -30,7 +31,7 @@ func Run(args []string) int {
 		log.Printf("load config: %v", err)
 		return 1
 	}
-	app, err := Build(cfg)
+	app, err := Build(cfg, exts)
 	if err != nil {
 		log.Print(err)
 		return 1
