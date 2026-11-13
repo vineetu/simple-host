@@ -27,7 +27,9 @@ func Extension() *extension.Extension {
 	return &extension.Extension{
 		Name:    "simple-hack",
 		Edition: func(limits config.Limits) *edition.Edition { return edition.ForKindWithLimits(edition.Hack, limits) },
-		Gate:    func(d extension.GateDeps) func(http.Handler) http.Handler { return d.Site.HackLegacyStorageGate },
+		Gate: func(d extension.GateDeps) func(http.Handler) http.Handler {
+			return hackhttp.LegacyStorageGate(d.Edition, handler.LegacyStoragePath)
+		},
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition
 			siteHandler, mux, authMW := d.Site, d.Mux, d.AuthMW

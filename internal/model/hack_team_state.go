@@ -50,16 +50,6 @@ func (s TeamWriteState) WriteRefusal() string {
 	return ""
 }
 
-// TeamIdentity is a shared Hack record.
-type TeamIdentity struct {
-	EventID   string
-	EventSlug string
-	TeamID    string
-	TeamSlug  string // the one site name the credential may act on
-	AccountID string // the event's holding account (the site's owner)
-	MemberID  string // the person whose credential it is
-}
-
 // TeamKeyInfo is a shared Hack record.
 type TeamKeyInfo struct {
 	KeyID      string

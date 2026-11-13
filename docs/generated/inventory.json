@@ -1068,7 +1068,7 @@
       "method": "GET",
       "path": "/internal/names/taken",
       "feature_id": "hack-voting",
-      "source": "internal/handler/hack_mode.go:149",
+      "source": "internal/handler/namepeer.go:34",
       "package": "internal/handler",
       "dynamic": false
     },

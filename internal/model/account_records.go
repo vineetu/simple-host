@@ -38,6 +38,16 @@ type User struct {
 	EventWebsite *EventWebsiteIdentity
 }
 
+// TeamIdentity is a shared Hack record.
+type TeamIdentity struct {
+	EventID   string
+	EventSlug string
+	TeamID    string
+	TeamSlug  string // the one site name the credential may act on
+	AccountID string // the event's holding account (the site's owner)
+	MemberID  string // the person whose credential it is
+}
+
 // EventWebsiteIdentity records the account identity.
 type EventWebsiteIdentity struct {
 	EventID     string

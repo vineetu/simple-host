@@ -12,7 +12,7 @@ const legacyStorageClosedCode = "legacy_storage_closed"
 
 // LegacyStorageCutoffGate refuses the old saved-data routes for sites created
 // on or after LEGACY_STORAGE_CUTOFF. It wraps both public requests and the
-// MCP's in-process calls. Empty/off cutoff, Hack mode (HackLegacyStorageGate
+// MCP's in-process calls. Empty/off cutoff, Hack mode (the product gate
 // already answers), OPTIONS, and the instance-wide notify/watch paths pass
 // through. Resolution errors and missing sites pass through so the real
 // handler answers as today.

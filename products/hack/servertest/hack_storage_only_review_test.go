@@ -167,7 +167,7 @@ func TestHackRegisteredDocsReview(t *testing.T) {
 		t.Fatal("Hack OpenAPI has no paths")
 	}
 	for path := range paths {
-		if handler.HackLegacyStoragePath(path) {
+		if handler.LegacyStoragePath(path) {
 			t.Errorf("retired path in Hack OpenAPI: %s", path)
 		}
 	}

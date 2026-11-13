@@ -1,27 +1,9 @@
 package handler
 
-import (
-	"net/http"
-	"strings"
-)
+import "strings"
 
-// HackLegacyStorageGate removes the old saved-data API from hosted Simple Hack.
-// It wraps both public requests and the in-process REST calls made by MCP.
-// Simple Host keeps the existing routes and stored data is never changed here.
-func (h *SiteHandler) HackLegacyStorageGate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !h.ed.Storage().LegacyRoutes && HackLegacyStoragePath(r.URL.Path) {
-			writeJSON(w, http.StatusGone, errorResponse{
-				Error: "Simple Hack website storage now uses KV, SQLite and files under /v1/sites/{site}/storage",
-				Code:  "legacy_storage_removed",
-			})
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func HackLegacyStoragePath(path string) bool {
+// LegacyStoragePath reports whether path names an old saved-data route.
+func LegacyStoragePath(path string) bool {
 	return parseLegacyStoragePath(path).match
 }
 
@@ -36,14 +18,14 @@ func parseLegacyStoragePath(path string) legacyStoragePath {
 	parts := strings.Split(path, "/")
 	// /v1/sites/{site}/{legacy...}
 	if len(parts) >= 5 && parts[1] == "v1" && parts[2] == "sites" && parts[3] != "" {
-		if hackLegacySiteSegment(parts[4]) {
+		if legacySiteSegment(parts[4]) {
 			return legacyStoragePath{match: true, site: parts[3]}
 		}
 		return legacyStoragePath{}
 	}
 	// /v1/u/{handle}/sites/{site}/{legacy...}
 	if len(parts) >= 7 && parts[1] == "v1" && parts[2] == "u" && parts[3] != "" && parts[4] == "sites" && parts[5] != "" {
-		if hackLegacySiteSegment(parts[6]) {
+		if legacySiteSegment(parts[6]) {
 			return legacyStoragePath{match: true, handle: parts[3], site: parts[5]}
 		}
 		return legacyStoragePath{}
@@ -63,7 +45,7 @@ type legacyStoragePath struct {
 	adminID string
 }
 
-func hackLegacySiteSegment(segment string) bool {
+func legacySiteSegment(segment string) bool {
 	switch segment {
 	case "state", "collections", "data", "savers", "history", "allowed-origins", "allow-anonymous-writes":
 		return true

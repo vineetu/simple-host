@@ -666,7 +666,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.Register(mux, authMW)
 	a.sites.SetHackEventPage(hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages))
 	a.sites.SetHackScreenshot(hackhttp.HackScreenshot(database, a.sites.TeamSitesReady))
-	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(accountapp.New(database), mux, true, 180*24*time.Hour)))
+	gated := a.sites.LegacyStorageCutoffGate(hackhttp.LegacyStorageGate(ed, handler.LegacyStoragePath)(auth.ScopeGate(accountapp.New(database), mux, true, 180*24*time.Hour)))
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)

@@ -305,7 +305,7 @@ MCP reuse this adapter; there is no separate MCP legacy persistence engine.
 Host keeps these APIs because live sites can depend on their versions, origin
 checks, privacy and undo behavior. Cutoff eligibility is centralized in
 `app/legacy/cutoff.go`. Hack rejects the classified old site/handle/admin paths
-with `410 legacy_storage_removed` through `handler/hack_legacy_storage.go`,
+with `410 legacy_storage_removed` through `products/hack/hackhttp/legacy_storage.go`,
 including connector REST replay, while preserving historical records in owner
 recovery exports. The rejection gate does not delete data.
 

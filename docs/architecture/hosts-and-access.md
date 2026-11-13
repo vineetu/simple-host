@@ -187,7 +187,7 @@ There is no per-page view lock. List on my profile only controls the profile pag
 Host grandfathered APIs run through `internal/app/legacy`; storage resources have their own
 policy in `internal/app/storage/access.go`. Hosted Hack returns 410 for state/collection/declared-data,
 saver/history routes on site and handle aliases, and serves only the narrower storage/visitor
-allowlist on custom event hosts (`handler/hack_legacy_storage.go`, `hack_mode.go:hackEventAPIAllowed`).
+allowlist on custom event hosts (`products/hack/hackhttp/legacy_storage.go`, `hack_mode.go:hackEventAPIAllowed`).
 
 | Legacy operation | Access contract |
 |---|---|

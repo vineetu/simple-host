@@ -93,7 +93,7 @@ The dispatch order in `internal/server/build.go:Build` is:
 FamilyHosts → SiteBaseHosts → BoundSubdomains → SiteHosts → PersonHosts
             → LegacyHostRedirect → app
 app = SecurityHeaders(CORS(apiMetrics(BearerAuth(gated))))
-gated = APIErrors(LegacyStorageCutoffGate(HackLegacyStorageGate(ScopeGate(mux))))
+gated = APIErrors(LegacyStorageCutoffGate(hackhttp.LegacyStorageGate(ScopeGate(mux))))
 ```
 
 A matched host can serve files directly or send API requests to `app`; this is not one universal

@@ -10,50 +10,6 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 )
 
-func TestHackLegacyStorageGate(t *testing.T) {
-	paths := []string{
-		"/v1/sites/team/state", "/v1/sites/team/state/history/1",
-		"/v1/sites/team/collections/entries/items/1", "/v1/sites/team/data/name/kind",
-		"/v1/sites/team/savers/block", "/v1/sites/team/history",
-		"/v1/sites/team/allowed-origins", "/v1/sites/team/allow-anonymous-writes",
-		"/v1/u/owner/sites/team/state", "/v1/u/owner/sites/team/collections/entries",
-		"/v1/u/owner/sites/team/data/name/history/1", "/v1/u/owner/sites/team/history",
-		"/v1/admin/sites/id/collections/private/export.csv", "/v1/admin/data-watch",
-		"/v1/data-notify/stop",
-	}
-	for _, path := range paths {
-		if !HackLegacyStoragePath(path) {
-			t.Errorf("legacy path missed: %s", path)
-		}
-	}
-	for _, path := range []string{
-		"/v1/sites/team/storage/resources", "/v1/sites/team/storage/kv/settings/keys/theme",
-		"/v1/sites/team/visitor/auth", "/v1/sites/team/me", "/v1/sites/team/lock",
-		"/v1/hack/events/event/website/storage/resources", "/v1/hack/events/event/state",
-		"/v1/admin/sites/id/versions", "/v1/visitor/establish",
-	} {
-		if HackLegacyStoragePath(path) {
-			t.Errorf("current route blocked: %s", path)
-		}
-	}
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	h := &SiteHandler{ed: edition.ForKind(edition.Hack)}
-	gate := h.HackLegacyStorageGate(next)
-	for _, path := range paths {
-		r := httptest.NewRecorder()
-		gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, path, nil))
-		if r.Code != http.StatusGone || !strings.Contains(r.Body.String(), "legacy_storage_removed") {
-			t.Errorf("Hack %s: %d %s", path, r.Code, r.Body.String())
-		}
-	}
-	h.ed = edition.ForKind(edition.Host)
-	r := httptest.NewRecorder()
-	gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, paths[0], nil))
-	if r.Code != http.StatusNoContent {
-		t.Errorf("Host legacy route: %d", r.Code)
-	}
-}
-
 func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	source, err := embeddedStatic.ReadFile("static/openapi.json")
 	if err != nil {
@@ -73,7 +29,7 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 		t.Fatal("Hack OpenAPI has no paths")
 	}
 	for path := range spec.Paths {
-		if HackLegacyStoragePath(path) {
+		if LegacyStoragePath(path) {
 			t.Errorf("retired Hack path in public OpenAPI: %s", path)
 		}
 	}

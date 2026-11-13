@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/extension"
 	"github.com/vsriram/simple-host/internal/server"
@@ -18,6 +19,8 @@ func TestExtensionGateExactlyOnce(t *testing.T) {
 	for _, product := range []string{"host", "hack"} {
 		t.Run(product, func(t *testing.T) {
 			cfg := platformtest.Config(t, testdb.Fresh(t))
+			// Hack's refusal must still win when Host's legacy cutoff is on.
+			cfg.LegacyStorageCutoff = time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)
 			ext := hack.Extension()
 			if product == "host" {
 				// A counting gate on the default edition also proves that the
