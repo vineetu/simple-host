@@ -6,6 +6,8 @@
 @/products/hack/** -> /** @/products/hack/** @/db @/db/migrations
 server -> /** !testdb !geoip/geoiptest !server/servertest @/db @/db/migrations
 server -> extension
+@/db -> @/db/migrations
+extension -> @/db/migrations
 extension -> config edition email handler storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
 @/cmd/server -> server extension config
 handler -> app/** auth httpx edition model webassets buildinfo workers

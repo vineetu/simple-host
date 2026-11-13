@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/vsriram/simple-host/db/migrations"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/config"
@@ -21,6 +22,10 @@ import (
 type Extension struct {
 	Name    string
 	Edition func(config.Limits) *edition.Edition
+	// Migrations and MigrationOrder supply the product catalogue and the frozen
+	// combined order of platform and product unnumbered migrations.
+	Migrations     *migrations.Catalog
+	MigrationOrder []string
 	// Gate runs once before connector construction. Its middleware sits inside
 	// LegacyStorageCutoffGate and outside ScopeGate.
 	Gate func(GateDeps) func(http.Handler) http.Handler

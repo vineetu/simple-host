@@ -50,7 +50,7 @@ func migrationOrder(root string) ([]string, map[string]bool, error) {
 		}
 	}
 	out = withShell
-	for _, n := range migrations.Tracked() {
+	for _, n := range (migrations.Set{Platform: migrations.Embedded()}).Tracked() {
 		if present[n] {
 			out = append(out, n)
 			delete(present, n)

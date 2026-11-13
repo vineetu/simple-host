@@ -97,7 +97,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 			return nil, fmt.Errorf("migrate on start: database not reachable: %v", err)
 		}
 		migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), 15*time.Minute)
-		migrateErr := migrateDatabase(migrateCtx, db, true, log.Printf)
+		migrateErr := migrateDatabase(migrateCtx, db, migrationSet(exts), true, log.Printf)
 		cancelMigrate()
 		if migrateErr != nil {
 			return nil, fmt.Errorf("migrate on start: %v", migrateErr)

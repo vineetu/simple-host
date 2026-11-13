@@ -18,8 +18,12 @@ import (
 
 // Run is the whole program. Failures return a code without exiting the process.
 func Run(args []string, exts []*extension.Extension) int {
+	if len(exts) > 1 {
+		log.Print("at most one extension is supported")
+		return 1
+	}
 	if len(args) > 0 {
-		for _, cmd := range commands {
+		for _, cmd := range commands(exts) {
 			if args[0] == cmd.name {
 				return cmd.run(args[1:])
 			}

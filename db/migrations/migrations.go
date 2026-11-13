@@ -61,8 +61,52 @@ import (
 //go:embed *.sql
 var embedded embed.FS
 
-// files is where migrations are read from; tests point it elsewhere.
-var files fs.ReadFileFS = embedded
+// Catalog owns a schema and its migration files.
+type Catalog struct {
+	FS       fs.ReadFileFS
+	Legacy   []string        // frozen apply order of this catalogue's unnumbered files
+	Baseline map[string]bool // historical files: never run, never recorded
+	Schema   string
+}
+
+// Set combines the platform with zero or one product catalogue.
+type Set struct {
+	Platform Catalog
+	Product  *Catalog
+	// ProductOrder is the frozen combined order of both catalogues' unnumbered files.
+	ProductOrder []string
+}
+
+// Embedded returns the platform's migration catalogue. The db package supplies
+// its schema. Until the ownership split, this catalogue still holds every file.
+func Embedded() Catalog {
+	return Catalog{FS: embedded, Legacy: Legacy, Baseline: Baseline}
+}
+
+func (s Set) catalogs() []Catalog {
+	catalogs := []Catalog{s.Platform}
+	if s.Product != nil {
+		catalogs = append(catalogs, *s.Product)
+	}
+	return catalogs
+}
+
+func (s Set) files() map[string]fs.ReadFileFS {
+	files := map[string]fs.ReadFileFS{}
+	for _, catalog := range s.catalogs() {
+		entries, _ := fs.ReadDir(catalog.FS, ".")
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+				files[e.Name()] = catalog.FS
+			}
+		}
+	}
+	return files
+}
+
+func (s Set) baseline(name string) bool {
+	return s.Platform.Baseline[name] || (s.Product != nil && s.Product.Baseline[name])
+}
 
 // Baseline is the fixed list of historical, hand-applied files. Never extend it.
 var Baseline = map[string]bool{
@@ -200,16 +244,19 @@ func number(name string) int {
 
 // Tracked returns the files the tool manages (everything but the baseline), in
 // apply order.
-func Tracked() []string {
-	entries, _ := fs.ReadDir(files, ".")
+func (s Set) Tracked() []string {
 	present := map[string]bool{}
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") && !Baseline[e.Name()] {
-			present[e.Name()] = true
+	for name := range s.files() {
+		if !s.baseline(name) {
+			present[name] = true
 		}
 	}
+	legacy := s.Platform.Legacy
+	if s.Product != nil {
+		legacy = s.ProductOrder
+	}
 	var names, numbered, other []string
-	for _, n := range Legacy {
+	for _, n := range legacy {
 		if present[n] {
 			names = append(names, n)
 			delete(present, n)
@@ -232,6 +279,7 @@ type Entry struct {
 	Name      string
 	State     string // "applied", "pending" or "baseline"
 	AppliedAt time.Time
+	Unknown   bool // recorded in the ledger but absent from this program
 }
 
 type querier interface {
@@ -266,21 +314,25 @@ func applied(ctx context.Context, q querier) (map[string]time.Time, error) {
 }
 
 // Status lists every embedded file with its state. It writes nothing.
-func Status(ctx context.Context, db *sql.DB) ([]Entry, error) {
+func (s Set) Status(ctx context.Context, db *sql.DB) ([]Entry, error) {
 	done, err := applied(ctx, db)
 	if err != nil {
 		return nil, err
 	}
 
-	entries, _ := fs.ReadDir(files, ".")
-	var out []Entry
-	for _, e := range entries {
-		if !e.IsDir() && Baseline[e.Name()] {
-			out = append(out, Entry{Name: e.Name(), State: "baseline"})
-			delete(done, e.Name())
+	var baselines []string
+	for name := range s.files() {
+		if s.baseline(name) {
+			baselines = append(baselines, name)
 		}
 	}
-	for _, n := range Tracked() {
+	sort.Strings(baselines)
+	var out []Entry
+	for _, name := range baselines {
+		out = append(out, Entry{Name: name, State: "baseline"})
+		delete(done, name)
+	}
+	for _, n := range s.Tracked() {
 		if at, ok := done[n]; ok {
 			out = append(out, Entry{Name: n, State: "applied", AppliedAt: at})
 		} else {
@@ -294,7 +346,7 @@ func Status(ctx context.Context, db *sql.DB) ([]Entry, error) {
 	}
 	sort.Strings(unknown)
 	for _, n := range unknown {
-		out = append(out, Entry{Name: n, State: "applied", AppliedAt: done[n]})
+		out = append(out, Entry{Name: n, State: "applied", AppliedAt: done[n], Unknown: true})
 	}
 	return out, nil
 }
@@ -320,7 +372,7 @@ func locked(ctx context.Context, db *sql.DB, fn func(*sql.Conn) error) error {
 // Apply runs every pending file, in order, each once. It returns the names it
 // applied; on failure it stops at the failing file, which is rolled back and
 // left pending, and reports the files applied before it.
-func Apply(ctx context.Context, db *sql.DB, logf func(string, ...any)) ([]string, error) {
+func (s Set) Apply(ctx context.Context, db *sql.DB, logf func(string, ...any)) ([]string, error) {
 	var ran []string
 	err := locked(ctx, db, func(conn *sql.Conn) error {
 		// Read under the lock: a run that waited on another sees its work.
@@ -331,7 +383,7 @@ func Apply(ctx context.Context, db *sql.DB, logf func(string, ...any)) ([]string
 		// Every recorded name counts, including ones this build does not
 		// embed (applied by another branch or a newer build), and a pending
 		// file in the same slot is refused too.
-		tracked := Tracked()
+		tracked := s.Tracked()
 		var newest string
 		for name := range done {
 			if number(name) > number(newest) {
@@ -343,11 +395,12 @@ func Apply(ctx context.Context, db *sql.DB, logf func(string, ...any)) ([]string
 				return fmt.Errorf("pending %s is not above applied %s; renumber the new file above the newest applied one", name, newest)
 			}
 		}
+		files := s.files()
 		for _, name := range tracked {
 			if _, ok := done[name]; ok {
 				continue
 			}
-			body, err := files.ReadFile(name)
+			body, err := files[name].ReadFile(name)
 			if err != nil {
 				return err
 			}
@@ -387,15 +440,15 @@ func applyOne(ctx context.Context, conn *sql.Conn, name, body string) error {
 
 // Mark records a file as applied without running it: for a database where the
 // SQL was applied by hand (hosted production).
-func Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
+func (s Set) Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
 	known := false
-	for _, n := range Tracked() {
+	for _, n := range s.Tracked() {
 		if n == name {
 			known = true
 		}
 	}
 	if !known {
-		if Baseline[name] {
+		if s.baseline(name) {
 			return false, fmt.Errorf("%s is a historical file; it is never tracked", name)
 		}
 		return false, fmt.Errorf("%s is not a migration file in this build", name)
@@ -414,14 +467,14 @@ func Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
 	return added, err
 }
 
-// Init builds an empty database from schema (db/schema.sql, embedded by the
-// db package) and reports whether it did. A database that already has the
+// Init builds an empty database from the platform then product schema in
+// one transaction and reports whether it did. A database that already has the
 // users table is left alone, so running it on every start is safe; it takes
 // the same advisory lock as Apply, so two pods starting at once never both
 // build the schema (the second waits, then sees the table and does nothing).
 // Call Apply afterwards: schema.sql is current, so Apply only records each
 // tracked file as applied.
-func Init(ctx context.Context, db *sql.DB, schema string, logf func(string, ...any)) (bool, error) {
+func (s Set) Init(ctx context.Context, db *sql.DB, logf func(string, ...any)) (bool, error) {
 	built := false
 	err := locked(ctx, db, func(conn *sql.Conn) error {
 		var empty bool
@@ -437,9 +490,11 @@ func Init(ctx context.Context, db *sql.DB, schema string, logf func(string, ...a
 		if _, err := conn.ExecContext(ctx, `BEGIN`); err != nil {
 			return err
 		}
-		if _, err := conn.ExecContext(ctx, schema); err != nil {
-			conn.ExecContext(context.Background(), `ROLLBACK`)
-			return fmt.Errorf("schema.sql: %w (rolled back)", err)
+		for _, catalog := range s.catalogs() {
+			if _, err := conn.ExecContext(ctx, catalog.Schema); err != nil {
+				conn.ExecContext(context.Background(), `ROLLBACK`)
+				return fmt.Errorf("schema.sql: %w (rolled back)", err)
+			}
 		}
 		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
 			return err

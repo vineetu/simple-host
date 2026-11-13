@@ -4,7 +4,11 @@
 // server. The file stays the one source of truth; nothing here edits it.
 package schema
 
-import _ "embed"
+import (
+	_ "embed"
+
+	"github.com/vsriram/simple-host/db/migrations"
+)
 
 // SQL is the whole of db/schema.sql: plain SQL with no psql meta-commands, so
 // one Exec on a lib/pq connection runs it (the migrations test does exactly
@@ -12,3 +16,10 @@ import _ "embed"
 //
 //go:embed schema.sql
 var SQL string
+
+// Catalog returns the platform schema and migration files.
+func Catalog() migrations.Catalog {
+	catalog := migrations.Embedded()
+	catalog.Schema = SQL
+	return catalog
+}

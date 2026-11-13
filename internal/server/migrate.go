@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	schema "github.com/vsriram/simple-host/db"
 	"github.com/vsriram/simple-host/db/migrations"
 	"github.com/vsriram/simple-host/internal/buildinfo"
+	"github.com/vsriram/simple-host/internal/extension"
 	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 )
 
@@ -32,7 +34,7 @@ Reads DB_DSN from the environment. The server itself never migrates on start
 unless MIGRATE_ON_START=true, which runs the -init form before it listens; on a
 small box, re-running the install command runs this.`
 
-func runMigrateCommand(args []string) int {
+func runMigrateCommand(args []string, set migrations.Set) int {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprintln(os.Stderr, migrateUsage) }
 	status := fs.Bool("status", false, "")
@@ -65,26 +67,15 @@ func runMigrateCommand(args []string) int {
 
 	switch {
 	case *status:
-		entries, err := migrations.Status(ctx, database)
+		entries, err := set.Status(ctx, database)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
-		pending := 0
-		for _, e := range entries {
-			when := ""
-			if e.State == "applied" {
-				when = e.AppliedAt.UTC().Format(time.RFC3339)
-			}
-			if e.State == "pending" {
-				pending++
-			}
-			fmt.Printf("%-9s %-45s %s\n", e.State, e.Name, when)
-		}
-		fmt.Printf("%d pending\n", pending)
+		writeMigrationStatus(os.Stdout, entries)
 		return 0
 	case *mark != "":
-		added, err := migrations.Mark(ctx, database, *mark)
+		added, err := set.Mark(ctx, database, *mark)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
@@ -98,7 +89,7 @@ func runMigrateCommand(args []string) int {
 	}
 
 	fmt.Println(buildinfo.String())
-	if err := migrateDatabase(ctx, database, *initSchema, func(f string, a ...any) { fmt.Printf(f+"\n", a...) }); err != nil {
+	if err := migrateDatabase(ctx, database, set, *initSchema, func(f string, a ...any) { fmt.Printf(f+"\n", a...) }); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
@@ -110,9 +101,9 @@ func runMigrateCommand(args []string) int {
 // asked, apply every pending migration file, then check the database has
 // everything this build reads. The server runs it before listening when
 // MIGRATE_ON_START=true.
-func migrateDatabase(ctx context.Context, database *sql.DB, initSchema bool, logf func(string, ...any)) error {
+func migrateDatabase(ctx context.Context, database *sql.DB, set migrations.Set, initSchema bool, logf func(string, ...any)) error {
 	if initSchema {
-		built, err := migrations.Init(ctx, database, schema.SQL, logf)
+		built, err := set.Init(ctx, database, logf)
 		if err != nil {
 			return fmt.Errorf("init failed: %w", err)
 		}
@@ -120,7 +111,7 @@ func migrateDatabase(ctx context.Context, database *sql.DB, initSchema bool, log
 			logf("built the schema from db/schema.sql")
 		}
 	}
-	ran, err := migrations.Apply(ctx, database, logf)
+	ran, err := set.Apply(ctx, database, logf)
 	if err != nil {
 		return fmt.Errorf("migrate failed: %w", err)
 	}
@@ -147,13 +138,44 @@ func waitForDB(database *sql.DB, limit time.Duration) error {
 
 // runVersionCommand prints the release and commit. It needs no configuration
 // and no database, so it works on a box whose database is down.
-func runVersionCommand() int {
+func runVersionCommand(set migrations.Set) int {
 	fmt.Println(buildinfo.String())
-	tracked := migrations.Tracked()
+	tracked := set.Tracked()
 	latest := "none"
 	if len(tracked) > 0 {
 		latest = tracked[len(tracked)-1]
 	}
 	fmt.Printf("migrations in this build: %d (last: %s); `simple-host migrate -status` compares them with the database\n", len(tracked), latest)
 	return 0
+}
+
+func migrationSet(exts []*extension.Extension) migrations.Set {
+	set := migrations.Set{Platform: schema.Catalog()}
+	if len(exts) == 1 && exts[0] != nil {
+		set.Product = exts[0].Migrations
+		set.ProductOrder = exts[0].MigrationOrder
+	}
+	return set
+}
+
+func writeMigrationStatus(w io.Writer, entries []migrations.Entry) {
+	pending, unknown := 0, 0
+	for _, e := range entries {
+		if e.Unknown {
+			unknown++
+			continue
+		}
+		when := ""
+		if e.State == "applied" {
+			when = e.AppliedAt.UTC().Format(time.RFC3339)
+		}
+		if e.State == "pending" {
+			pending++
+		}
+		fmt.Fprintf(w, "%-9s %-45s %s\n", e.State, e.Name, when)
+	}
+	fmt.Fprintf(w, "%d pending\n", pending)
+	if unknown > 0 {
+		fmt.Fprintf(w, "%d recorded files are not part of this program\n", unknown)
+	}
 }

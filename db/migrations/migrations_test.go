@@ -19,6 +19,7 @@ import (
 // Every file that is not historical must be picked up with no code change, and
 // no historical file may ever be.
 func TestTrackedSkipsBaseline(t *testing.T) {
+	set := Set{Platform: Embedded()}
 	all, err := fs.Glob(embedded, "*.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +33,7 @@ func TestTrackedSkipsBaseline(t *testing.T) {
 			t.Errorf("baseline names %s, which is not in db/migrations", name)
 		}
 	}
-	tracked := Tracked()
+	tracked := set.Tracked()
 	for _, n := range tracked {
 		if Baseline[n] {
 			t.Errorf("historical %s would be run", n)
@@ -48,7 +49,8 @@ func TestTrackedSkipsBaseline(t *testing.T) {
 // which already has its effect. This is a cheap text check; the database test
 // below runs them for real.
 func TestTrackedFilesArePlainSQL(t *testing.T) {
-	for _, n := range Tracked() {
+	set := Set{Platform: Embedded()}
+	for _, n := range set.Tracked() {
 		body, _ := embedded.ReadFile(n)
 		for _, line := range strings.Split(string(body), "\n") {
 			if strings.HasPrefix(strings.TrimSpace(line), `\`) {
@@ -76,9 +78,9 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func pending(t *testing.T, db *sql.DB) []string {
+func pending(t *testing.T, set Set, db *sql.DB) []string {
 	t.Helper()
-	entries, err := Status(context.Background(), db)
+	entries, err := set.Status(context.Background(), db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +94,16 @@ func pending(t *testing.T, db *sql.DB) []string {
 }
 
 func TestMigrateAgainstPostgres(t *testing.T) {
+	set := Set{Platform: Embedded()}
 	db := openTestDB(t)
+	t.Run("catalogues", func(t *testing.T) { testCatalogsAgainstPostgres(t, db) })
 	ctx := context.Background()
 	schema, err := os.ReadFile("../schema.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	set.Platform.Schema = string(schema)
 
 	// An empty database is built by Init, which is what a container with no
 	// psql runs (`migrate -init`, MIGRATE_ON_START). Two pods starting at once
@@ -110,7 +116,7 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 		initWG.Add(1)
 		go func(i int) {
 			defer initWG.Done()
-			built[i], initErrs[i] = Init(ctx, db, string(schema), nil)
+			built[i], initErrs[i] = set.Init(ctx, db, nil)
 		}(i)
 	}
 	initWG.Wait()
@@ -120,23 +126,25 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 	if built[0] == built[1] {
 		t.Fatalf("racing Init built %v and %v; want the schema built exactly once", built[0], built[1])
 	}
-	if again, err := Init(ctx, db, "THIS IS NEVER RUN", nil); err != nil || again {
+	alreadyBuilt := set
+	alreadyBuilt.Platform.Schema = "THIS IS NEVER RUN"
+	if again, err := alreadyBuilt.Init(ctx, db, nil); err != nil || again {
 		t.Errorf("Init on a built database: built %v, err %v; want a no-op", again, err)
 	}
 
 	// A fresh database from schema.sql: every tracked file runs once as a
 	// no-op (they are idempotent), then nothing is pending.
-	ran, err := Apply(ctx, db, nil)
+	ran, err := set.Apply(ctx, db, nil)
 	if err != nil {
 		t.Fatalf("fresh database: %v", err)
 	}
-	if len(ran) != len(Tracked()) {
+	if len(ran) != len(set.Tracked()) {
 		t.Errorf("fresh database ran %v, want every tracked file", ran)
 	}
-	if p := pending(t, db); len(p) != 0 {
+	if p := pending(t, set, db); len(p) != 0 {
 		t.Errorf("pending after migrate: %v", p)
 	}
-	if ran, err := Apply(ctx, db, nil); err != nil || len(ran) != 0 {
+	if ran, err := set.Apply(ctx, db, nil); err != nil || len(ran) != 0 {
 		t.Errorf("second run: ran %v, err %v; want a no-op", ran, err)
 	}
 
@@ -144,20 +152,19 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 	if _, err := db.Exec(`DROP TABLE schema_migrations`); err != nil {
 		t.Fatal(err)
 	}
-	if p := pending(t, db); len(p) != len(Tracked()) {
+	if p := pending(t, set, db); len(p) != len(set.Tracked()) {
 		t.Errorf("untracked database: pending %v, want every tracked file", p)
 	}
-	if ran, err := Apply(ctx, db, nil); err != nil || len(ran) != len(Tracked()) {
+	if ran, err := set.Apply(ctx, db, nil); err != nil || len(ran) != len(set.Tracked()) {
 		t.Errorf("untracked database: ran %v, err %v", ran, err)
 	}
 
 	// An older release's database missing a column that a newer file adds:
 	// applied once, even with two runs racing, then a no-op. One file wraps
 	// itself in BEGIN/COMMIT, as some hand-written files do.
-	saved := files
-	t.Cleanup(func() { files = saved })
+	saved := set.Platform.FS
 	mapped := fstest.MapFS{}
-	for _, n := range Tracked() {
+	for _, n := range set.Tracked() {
 		body, _ := saved.ReadFile(n)
 		mapped[n] = &fstest.MapFile{Data: body}
 	}
@@ -169,7 +176,7 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 	for n, f := range extra {
 		mapped[n] = f
 	}
-	files = mapped
+	set.Platform.FS = mapped
 	t.Cleanup(func() {
 		db.Exec(`ALTER TABLE users DROP COLUMN IF EXISTS zz_test_a, DROP COLUMN IF EXISTS zz_test_b`)
 		db.Exec(`DELETE FROM instance_config WHERE key = 'zz-test-a'`)
@@ -182,7 +189,7 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			results[i], errs[i] = Apply(ctx, db, nil)
+			results[i], errs[i] = set.Apply(ctx, db, nil)
 		}(i)
 	}
 	wg.Wait()
@@ -204,15 +211,15 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 			t.Errorf("column %s was not added", col)
 		}
 	}
-	if ran, err := Apply(ctx, db, nil); err != nil || len(ran) != 0 {
+	if ran, err := set.Apply(ctx, db, nil); err != nil || len(ran) != 0 {
 		t.Errorf("third run: ran %v, err %v; want a no-op", ran, err)
 	}
 
 	// A failing file is rolled back, stays pending, and stops the run.
-	files = fstest.MapFS{
+	set.Platform.FS = fstest.MapFS{
 		"zz-test-c.sql": {Data: []byte("ALTER TABLE users ADD COLUMN zz_test_c TEXT;\nSELECT no_such_function();")},
 	}
-	if _, err := Apply(ctx, db, nil); err == nil || !strings.Contains(err.Error(), "zz-test-c.sql") {
+	if _, err := set.Apply(ctx, db, nil); err == nil || !strings.Contains(err.Error(), "zz-test-c.sql") {
 		t.Errorf("failing file: err %v", err)
 	}
 	var ok bool
@@ -220,18 +227,18 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 	if ok {
 		t.Error("failed file's column survived; it was not rolled back")
 	}
-	if p := pending(t, db); len(p) != 1 || p[0] != "zz-test-c.sql" {
+	if p := pending(t, set, db); len(p) != 1 || p[0] != "zz-test-c.sql" {
 		t.Errorf("after a failure, pending = %v", p)
 	}
 
 	// -mark records without running.
-	if added, err := Mark(ctx, db, "zz-test-c.sql"); err != nil || !added {
+	if added, err := set.Mark(ctx, db, "zz-test-c.sql"); err != nil || !added {
 		t.Errorf("mark: added %v, err %v", added, err)
 	}
-	if p := pending(t, db); len(p) != 0 {
+	if p := pending(t, set, db); len(p) != 0 {
 		t.Errorf("after mark, pending = %v", p)
 	}
-	if _, err := Mark(ctx, db, "no-such.sql"); err == nil {
+	if _, err := set.Mark(ctx, db, "no-such.sql"); err == nil {
 		t.Error("marking an unknown file succeeded")
 	}
 }
@@ -239,7 +246,7 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 // TestZPHackApplicationsMigratesPreExistingRows is Codex 6: a migration test
 // against genuinely pre-migration schema state (not just a missing
 // schema_migrations row, as the "untracked database" case above covers),
-// reusing TestMigrateAgainstPostgres's fresh-schema.sql + Apply() pattern.
+// reusing TestMigrateAgainstPostgres's fresh-schema.sql + Apply pattern.
 // zp-hack-applications.sql's own effect is undone first -- CASCADE drops its
 // CHECK constraints and partial indexes along with the columns -- so running
 // it here is not a no-op: it must backfill exactly what an existing,
@@ -256,6 +263,7 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 // fail on a database it already built, and that failure would say nothing
 // about this test.
 func TestZPHackApplicationsMigratesPreExistingRows(t *testing.T) {
+	set := Set{Platform: Embedded()}
 	db := openTestDB(t)
 	ctx := context.Background()
 	var schemaApplied bool
@@ -315,7 +323,7 @@ func TestZPHackApplicationsMigratesPreExistingRows(t *testing.T) {
 		db.Exec(`DELETE FROM users WHERE id IN ($1, $2)`, accountID, memberID)
 	})
 
-	if _, err := Apply(ctx, db, nil); err != nil {
+	if _, err := set.Apply(ctx, db, nil); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
 
@@ -336,7 +344,7 @@ func TestZPHackApplicationsMigratesPreExistingRows(t *testing.T) {
 	}
 
 	// The file is idempotent and now recorded: a second run is a no-op.
-	if ran, err := Apply(ctx, db, nil); err != nil || len(ran) != 0 {
+	if ran, err := set.Apply(ctx, db, nil); err != nil || len(ran) != 0 {
 		t.Errorf("second run: ran %v, err %v; want a no-op", ran, err)
 	}
 }
@@ -398,14 +406,13 @@ func TestMigrationNames(t *testing.T) {
 }
 
 func TestNumberedGuard(t *testing.T) {
+	set := Set{Platform: Embedded()}
 	db := openTestDB(t)
 	ctx := context.Background()
-	saved := files
 	t.Cleanup(func() {
-		files = saved
 		db.Exec(`DELETE FROM schema_migrations WHERE name IN ('0001-test.sql','0002-test.sql','0002-elsewhere.sql')`)
 	})
-	files = fstest.MapFS{
+	set.Platform.FS = fstest.MapFS{
 		"0001-test.sql":     {Data: []byte("SELECT 1")},
 		"0002-test.sql":     {Data: []byte("SELECT 1")},
 		"zz-test-guard.sql": {Data: []byte("SELECT 1")},
@@ -421,7 +428,7 @@ func TestNumberedGuard(t *testing.T) {
 	if _, err := db.Exec(`INSERT INTO schema_migrations (name) VALUES ('0002-elsewhere.sql') ON CONFLICT DO NOTHING`); err != nil {
 		t.Fatal(err)
 	}
-	ran, err := Apply(ctx, db, nil)
+	ran, err := set.Apply(ctx, db, nil)
 	if err == nil || !strings.Contains(err.Error(), "0001-test.sql") || !strings.Contains(err.Error(), "0002-elsewhere.sql") || len(ran) != 0 {
 		t.Fatalf("guard: ran %v, error %v", ran, err)
 	}
@@ -432,6 +439,7 @@ func TestNumberedGuard(t *testing.T) {
 }
 
 func TestUpgradeFromHackV0813(t *testing.T) {
+	set := Set{Platform: Embedded()}
 	oldDSN, newDSN := os.Getenv("MIGRATE_UPGRADE_OLD_DSN"), os.Getenv("MIGRATE_UPGRADE_NEW_DSN")
 	if oldDSN == "" || newDSN == "" {
 		t.Skip("MIGRATE_UPGRADE_OLD_DSN and MIGRATE_UPGRADE_NEW_DSN not set")
@@ -463,7 +471,9 @@ func TestUpgradeFromHackV0813(t *testing.T) {
 		db     *sql.DB
 		schema string
 	}{{old, string(oldSchema)}, {fresh, string(current)}} {
-		built, err := Init(ctx, setup.db, setup.schema, nil)
+		catalog := set
+		catalog.Platform.Schema = setup.schema
+		built, err := catalog.Init(ctx, setup.db, nil)
 		if err != nil || !built {
 			t.Fatalf("Init: built %v: %v", built, err)
 		}
@@ -478,27 +488,26 @@ func TestUpgradeFromHackV0813(t *testing.T) {
 		}
 		filtered[n] = &fstest.MapFile{Data: data}
 	}
-	saved := files
-	t.Cleanup(func() { files = saved })
-	files = filtered
-	if ran, err := Apply(ctx, old, nil); err != nil || len(ran) != len(recorded) {
+	saved := set.Platform.FS
+	set.Platform.FS = filtered
+	if ran, err := set.Apply(ctx, old, nil); err != nil || len(ran) != len(recorded) {
 		t.Fatalf("release Apply ran %v: %v", ran, err)
 	}
-	files = saved
+	set.Platform.FS = saved
 	var want []string
-	for _, n := range Tracked() {
+	for _, n := range set.Tracked() {
 		if !recorded[n] {
 			want = append(want, n)
 		}
 	}
-	ran, err := Apply(ctx, old, nil)
+	ran, err := set.Apply(ctx, old, nil)
 	if err != nil {
 		t.Fatalf("upgrade applied %v: %v", ran, err)
 	}
 	if !reflect.DeepEqual(ran, want) {
 		t.Errorf("upgrade applied %v; want %v", ran, want)
 	}
-	if _, err := Apply(ctx, fresh, nil); err != nil {
+	if _, err := set.Apply(ctx, fresh, nil); err != nil {
 		t.Fatalf("fresh Apply: %v", err)
 	}
 	queries := map[string]string{
