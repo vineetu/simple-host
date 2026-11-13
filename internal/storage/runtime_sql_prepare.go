@@ -10,8 +10,24 @@ import (
 )
 
 // OpenLegacySQLite opens and configures a legacy SQL connection.
-func OpenLegacySQLite(ctx context.Context, uri string, maxMemory int64, write bool) (*sqlite3.Conn, error) {
-	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), uri)
+func OpenLegacySQLite(ctx context.Context, uri string, maxMemory, writeBytes int64, write bool) (*sqlite3.Conn, error) {
+	size := writeBytes // database size plus the remaining pool, capped at the site limit
+	if !write {
+		size = 0
+		var err error
+		if uri != ":memory:" {
+			u, parseErr := url.Parse(uri)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			size, err = sqliteReadSize(u.Path)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	ctx, cache := sqliteMemoryContext(ctx, size, maxMemory)
+	conn, err := sqlite3.OpenContext(ctx, uri)
 	if err != nil {
 		return nil, err
 	}
@@ -23,6 +39,9 @@ func OpenLegacySQLite(ctx context.Context, uri string, maxMemory int64, write bo
 	}()
 	sqliteStage(ctx, "after_open")
 	conn.SetInterrupt(ctx)
+	if err = configureSQLiteMemory(conn, cache); err != nil {
+		return nil, err
+	}
 	if err = conn.Exec("PRAGMA foreign_keys=ON"); err == nil {
 		_, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true)
 	}

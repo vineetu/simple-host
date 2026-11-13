@@ -7,7 +7,13 @@ import (
 
 // CheckpointExportSQLite folds the WAL into a SQLite file before it is exported.
 func CheckpointExportSQLite(ctx context.Context, path string, maxMemory int64) (err error) {
-	conn, e := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), path)
+	// A checkpoint grows no logical data; size it for the existing DB and WAL.
+	size, e := sqliteReadSize(path)
+	if e != nil {
+		return e
+	}
+	ctx, cache := sqliteMemoryContext(ctx, size, maxMemory)
+	conn, e := sqlite3.OpenContext(ctx, path)
 	if e != nil {
 		return e
 	}
@@ -21,6 +27,9 @@ func CheckpointExportSQLite(ctx context.Context, path string, maxMemory int64) (
 	})
 	sqliteStage(ctx, "after_open")
 	conn.SetInterrupt(ctx)
+	if e = configureSQLiteMemory(conn, cache); e != nil {
+		return e
+	}
 	sqliteStage(ctx, "before_checkpoint")
 	_, _, e = conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE)
 	return e

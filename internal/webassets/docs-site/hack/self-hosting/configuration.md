@@ -57,3 +57,24 @@ A recovered SQLite out-of-memory panic or `SQLITE_NOMEM` error returns 422
 After a successful commit, a checkpoint or close panic is logged and the success
 response is retained, including the inserted row ID. Recovery cannot catch Go
 fatal errors such as concurrent map writes or the Go runtime running out of memory.
+
+## SQLite connection memory
+
+Each connection uses a cap calculated at open. For a read, `D` is the database
+file size plus its WAL size. For a write, `D` is the database size plus the
+remaining pooled storage budget, capped at the site limit. Export checkpoints
+use the existing database plus WAL size because they add no logical data.
+
+- `cache = clamp(D / 4, 256 KiB, 2 MiB)`
+- `temp = max(2 * D, 1 MiB)`
+- `cap = min(ceil_MiB(3 MiB + cache + temp), 4096 MiB)`
+
+The 4,096 MiB ceiling is the maximum accepted by the pinned
+`go-sqlite3 v0.35.6` driver. SQLite's page cache uses the calculated cache size
+and temporary tables stay in memory (`temp_store=MEMORY`).
+
+This bounds SQLite's own allocations for one connection. The sum across open
+connections is at most `SITE_STORAGE_SQL_CONCURRENCY` times the largest cap
+(`0` concurrency means the CPU count). It does not bound the Go heap, result
+buffers, exports or other program memory. It is not the whole-install memory
+target measured separately for the self-hosted install.

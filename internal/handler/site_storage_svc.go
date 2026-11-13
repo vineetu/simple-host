@@ -71,7 +71,6 @@ func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstor
 	if c.owner {
 		deps.SQLiteTimeout = h.limits.StorageOwnerTimeout
 	}
-	deps.SQLiteMaxMemory = storageSQLiteMaxMemory
 	deps.PasscodeAllows = func() bool { return h.PasscodeLetsIn(r, c.siteID) }
 	deps.ViewersAllow = func() bool { return h.ViewersLetIn(r, c.siteID) }
 	deps.WriteLockWait = h.limits.StorageWriteLockWait

@@ -11,13 +11,17 @@ import (
 // PrepareMatrixDatabase applies the SQLite changes needed for a resource matrix.
 func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs bool, ownTables, holdTables func(string) bool, checkpoint func(error), markChanged func(), committed func(map[string]bool)) (map[string]bool, error) {
 	existing := map[string]bool{}
-	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), path)
+	ctx, cache := sqliteMemoryContext(ctx, min(limit, fileSize+limit-used), maxMemory)
+	conn, err := sqlite3.OpenContext(ctx, path)
 	if err != nil {
 		return existing, err
 	}
 	defer closeTableConn(func() { defer conn.Close(); sqliteStage(ctx, "close") })
 	sqliteStage(ctx, "after_open")
 	conn.SetInterrupt(ctx)
+	if err = configureSQLiteMemory(conn, cache); err != nil {
+		return existing, err
+	}
 	if err = conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		return existing, err
 	}

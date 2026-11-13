@@ -13,10 +13,6 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 )
 
-// Keep the previous 4096-page (256 MiB) per-connection memory ceiling after
-// moving from the wazero interpreter to the compiled-Go SQLite engine.
-const storageSQLiteMaxMemory = 4096 * 65536
-
 // storageInspection is the catalog surface needed by the visitor-tool transport.
 // The storage service owns its connection, deadline, budget and release function.
 type storageInspection interface {

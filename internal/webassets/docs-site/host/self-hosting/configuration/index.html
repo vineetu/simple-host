@@ -553,6 +553,9 @@
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#sqlite-row-admission" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">SQLite row admission</span></a>
 		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#sqlite-connection-memory" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">SQLite connection memory</span></a>
+		
 	</li>
 </ul></div>
 		</details>
@@ -578,6 +581,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#sqlite-row-admission" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">SQLite row admission</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#sqlite-connection-memory" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">SQLite connection memory</span></a>
 		
 	</li>
 </ul>
@@ -646,6 +652,24 @@ Set the limit in the Compose <code>.env</code> file and restart the app, or set
 After a successful commit, a checkpoint or close panic is logged and the success
 response is retained, including the inserted row ID. Recovery cannot catch Go
 fatal errors such as concurrent map writes or the Go runtime running out of memory.</p>
+<h2 id="sqlite-connection-memory">SQLite connection memory</h2>
+<p>Each connection uses a cap calculated at open. For a read, <code>D</code> is the database
+file size plus its WAL size. For a write, <code>D</code> is the database size plus the
+remaining pooled storage budget, capped at the site limit. Export checkpoints
+use the existing database plus WAL size because they add no logical data.</p>
+<ul>
+<li><code>cache = clamp(D / 4, 256 KiB, 2 MiB)</code></li>
+<li><code>temp = max(2 * D, 1 MiB)</code></li>
+<li><code>cap = min(ceil_MiB(3 MiB + cache + temp), 4096 MiB)</code></li>
+</ul>
+<p>The 4,096 MiB ceiling is the maximum accepted by the pinned
+<code>go-sqlite3 v0.35.6</code> driver. SQLite’s page cache uses the calculated cache size
+and temporary tables stay in memory (<code>temp_store=MEMORY</code>).</p>
+<p>This bounds SQLite’s own allocations for one connection. The sum across open
+connections is at most <code>SITE_STORAGE_SQL_CONCURRENCY</code> times the largest cap
+(<code>0</code> concurrency means the CPU count). It does not bound the Go heap, result
+buffers, exports or other program memory. It is not the whole-install memory
+target measured separately for the self-hosted install.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

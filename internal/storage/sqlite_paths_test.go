@@ -139,7 +139,7 @@ func TestSQLiteOpenPathsPanicCleanup(t *testing.T) {
 							closeTableConn(done)
 						}
 					case "legacy":
-						c, err := OpenLegacySQLite(ctx, path, 256<<20, true)
+						c, err := OpenLegacySQLite(ctx, path, 256<<20, 1<<20, true)
 						got = err
 						if c != nil {
 							closeTableConn(func() { defer c.Close(); sqliteStage(ctx, "close") })

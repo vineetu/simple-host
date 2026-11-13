@@ -292,16 +292,23 @@ func TestRowAdmissionMetadataMemoryLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range 100 {
-		if err := seed.Exec(fmt.Sprintf("CREATE TABLE metadata_%d (%s)", i,
-			"c0 TEXT, c1 TEXT, c2 TEXT, c3 TEXT, c4 TEXT, c5 TEXT, c6 TEXT, c7 TEXT, c8 TEXT, c9 TEXT")); err != nil {
-			t.Fatal(err)
-		}
+	// cache_size now loads the schema during setup. Use a wide table so the
+	// schema fits, but TableInfo's SELECT * LIMIT 0 needs more memory to prepare
+	// its result columns. No row data is needed to exhaust the cap.
+	columns := []string{"id INTEGER PRIMARY KEY", "body TEXT"}
+	for i := range 1000 {
+		columns = append(columns, fmt.Sprintf("c%d TEXT", i))
+	}
+	if err := seed.Exec("DROP TABLE notes; CREATE TABLE notes (" + strings.Join(columns, ",") + ")"); err != nil {
+		t.Fatal(err)
+	}
+	if _, order, err := runtime.TableInfo(seed, "notes"); err != nil || len(order) != len(columns) {
+		t.Fatalf("uncapped metadata: columns=%d err=%v", len(order), err)
 	}
 	if err := seed.Close(); err != nil {
 		t.Fatal(err)
 	}
-	s.deps.SQLiteMaxMemory = 384 << 10
+	s.deps.SQLiteMaxMemory = 512 << 10
 	// Prove this cap allows connection setup and fails while loading metadata,
 	// before any row statement is prepared or any large row is read.
 	metadataReached := false
@@ -326,6 +333,44 @@ func TestRowAdmissionMetadataMemoryLimit(t *testing.T) {
 	_, err = runAdmissionRowContext(ctx, s, c, "get")
 	if e, ok := err.(*Error); !ok || e.Code != "query_too_expensive" {
 		t.Fatalf("metadata memory cap: %v", err)
+	}
+	checkClosed()
+	checkAdmissionIdle(t, s.deps.SiteSlots)
+}
+
+func TestRowAdmissionSetupMemoryLimit(t *testing.T) {
+	s, c := admissionFixture(t, nil)
+	seed, err := sqlite3.Open(s.deps.SQLitePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 100 {
+		if err := seed.Exec(fmt.Sprintf("CREATE TABLE metadata_%d (%s)", i,
+			"c0 TEXT, c1 TEXT, c2 TEXT, c3 TEXT, c4 TEXT, c5 TEXT, c6 TEXT, c7 TEXT, c8 TEXT, c9 TEXT")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := seed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s.deps.SQLiteMaxMemory = 384 << 10
+	ctx, checkClosed := observeAdmissionConnection(t)
+	setupCompleted := false
+	err = s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
+		_, done, err := runtime.OpenTableConn(ctx, s.deps.SQLitePath, false,
+			time.Second, s.deps.SQLiteMaxMemory, nil)
+		if err != nil {
+			return err
+		}
+		defer done()
+		setupCompleted = true
+		return nil
+	})
+	if setupCompleted {
+		t.Fatal("expected memory exhaustion while configuring the connection")
+	}
+	if e, ok := err.(*Error); !ok || e.Code != "query_too_expensive" {
+		t.Fatalf("setup memory cap: %v", err)
 	}
 	checkClosed()
 	checkAdmissionIdle(t, s.deps.SiteSlots)

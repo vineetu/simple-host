@@ -25,7 +25,6 @@ func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sit
 		AdmitSQLite: func(ctx context.Context, siteID string, fn func(context.Context) error) error {
 			return h.siteSlotsFor().Admit(ctx, siteID, func(ctx context.Context, _ *appstorage.Admission) error { return fn(ctx) })
 		},
-		ExportSQLiteMaxMemory: storageSQLiteMaxMemory,
 		ExportResources: func(ctx context.Context, siteID string) ([]map[string]any, error) {
 			list, err := h.listStorageResourceRows(ctx, siteID)
 			if err != nil {

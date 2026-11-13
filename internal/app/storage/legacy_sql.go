@@ -165,7 +165,9 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 			}
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
-			conn, err := storage.OpenLegacySQLite(ctx, uri, s.deps.SQLiteMaxMemory, mode != "query")
+			limit := SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
+			writeBytes := min(limit, currentDBBytes+limit-s.BudgetUsed(usage))
+			conn, err := storage.OpenLegacySQLite(ctx, uri, s.deps.SQLiteMaxMemory, writeBytes, mode != "query")
 			if conn != nil {
 				defer closeSQLite(func() { defer conn.Close(); s.sqliteStage("close") })
 			}

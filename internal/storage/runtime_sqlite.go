@@ -420,6 +420,57 @@ var (
 	ErrTableFull     = errors.New("table full")
 )
 
+// sqliteMemoryCeiling is the largest WithMaxMemory value accepted by
+// github.com/ncruces/go-sqlite3 v0.35.6 (wrap.go): 65,536 WebAssembly pages.
+const sqliteMemoryCeiling int64 = 4096 << 20
+
+func sqliteMemory(size int64) (cap, cache int64) {
+	cache = min(max(size/4, 256<<10), 2<<20)
+	temp := max(2*size, 1<<20)
+	cap = min(((3<<20)+cache+temp+(1<<20)-1)/(1<<20)*(1<<20), sqliteMemoryCeiling)
+	return cap, cache
+}
+
+// sqliteReadSize includes uncheckpointed pages; a missing file is an empty DB.
+func sqliteReadSize(path string) (int64, error) {
+	var size int64
+	for _, suffix := range []string{"", "-wal"} {
+		fi, err := os.Stat(path + suffix)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return 0, err
+		}
+		size += fi.Size()
+	}
+	return size, nil
+}
+
+type sqliteMemoryKey struct{}
+
+// SQLiteMemoryLimit reports the allocation cap to a connection observation hook
+// installed with sqlite3.AutoExtension. It is not a process-memory measurement.
+func SQLiteMemoryLimit(ctx context.Context) int64 {
+	cap, _ := ctx.Value(sqliteMemoryKey{}).(int64)
+	return cap
+}
+
+func sqliteMemoryContext(ctx context.Context, size, ceiling int64) (context.Context, int64) {
+	cap, cache := sqliteMemory(size)
+	// A smaller explicit ceiling is used by the injected-OOM tests. Production
+	// leaves it zero so the database size alone determines the cap.
+	if ceiling > 0 {
+		cap = min(cap, ceiling)
+	}
+	ctx = context.WithValue(ctx, sqliteMemoryKey{}, cap)
+	return sqlite3.WithMaxMemory(ctx, cap), cache
+}
+
+func configureSQLiteMemory(conn *sqlite3.Conn, cache int64) error {
+	return conn.Exec(fmt.Sprintf("PRAGMA cache_size=-%d; PRAGMA temp_store=MEMORY", cache/1024))
+}
+
 // OpenTableConn opens the database for one table route: read-only
 // for reads, and for writes with the site's allowance as the page cap.
 func OpenTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
@@ -447,14 +498,23 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 			return nil, nil, ErrTableInternal
 		}
 	}
+	size := currentDBBytes + remaining // budget excludes this DB and cannot exceed the site limit
+	if !write {
+		var err error
+		size, err = sqliteReadSize(dbPath)
+		if err != nil {
+			return nil, nil, ErrTableInternal
+		}
+	}
 	ctx, cancel := context.WithTimeout(parent, timeout)
+	ctx, cache := sqliteMemoryContext(ctx, size, maxMemory)
 	opened := false
 	defer func() {
 		if !opened {
 			cancel()
 		}
 	}()
-	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), uri)
+	conn, err := sqlite3.OpenContext(ctx, uri)
 	if err != nil {
 		cancel()
 		return nil, nil, err
@@ -475,6 +535,9 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 			return nil, nil, err
 		}
 		return nil, nil, ErrTableInternal
+	}
+	if err := configureSQLiteMemory(conn, cache); err != nil {
+		return fail(err)
 	}
 	if err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		return fail(err)
