@@ -1,0 +1,6 @@
+# Format: <step id> | <test name or *> | <owner slice or pre-existing> | <first line of the failure>
+# Names use per-component percent-encoding; paste printed identities here to match.
+# One line per known failure. The slice that fixes it removes the entry.
+# Nobody adds an entry to get a new failure through: failures must equal entries exactly.
+# Once this file has no entries, the browser gate (gate 3) requires every browser check to pass.
+browser:owner-dashboard | no-fixture | pre-existing | scripts/e2e-owner-dashboard.mjs needs a hand-built server (account owner with 174 sites, account bee-01); nothing in the repo builds it

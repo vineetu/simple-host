@@ -1,0 +1,27 @@
+gofmt	ok	0	1	
+go build	ok	0	3	
+go vet	ok	0	3	
+scripts/test-integration.sh	ok	0	537	
+node --test	ok	0	2	
+scripts/check-html.sh	ok	0	1	
+scripts/check-layering.sh	ok	0	3	
+scripts/check-docs-sync.sh	ok	0	15	
+scripts/check-claude-plugin.sh	ok	0	0	
+deploy/cert-issuers/runtime_test.sh	ok	0	2	
+deploy/cert-issuers/requeue_test.py	ok	0	0	
+deploy/cert-issuers/watch_test.sh	ok	0	0	
+deploy/cert-issuers/fallback_test.sh	ok	0	3	
+deploy/cert-issuers/google_pacing_test.py	ok	0	0	
+deploy/domain-certs/issue_test.sh	ok	0	11	
+deploy/family-certs/issue_test.sh	ok	0	10	
+deploy/prod/family-adopt_test.sh	ok	0	4	
+deploy/site-certs/site-certs_test.sh	ok	0	4	
+deploy/prod/nginx-suspended-marker_test.sh	ok	0	3	
+deploy/prod/nginx-analytics-logformat-apply_test.sh	ok	0	0	
+deploy/prod/sh-network-watch_test.sh	ok	0	0	
+deploy/prod/sh-uptime-watch_test.sh	ok	0	0	
+deploy/install/install_test.sh	ok	0	1	
+deploy/hack/standalone/tests/install_test.sh	ok	0	1	
+deploy/digitalocean/droplet/test/pins_test.sh	ok	0	0	
+scripts/check-fresh-install.sh	ok	0	16	
+scripts/check-prices-age.sh	ok	0	0	

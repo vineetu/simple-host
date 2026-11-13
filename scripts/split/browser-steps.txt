@@ -1,0 +1,8 @@
+# Explicit step ids: browser:<name> := <command>
+browser:hack-navigation := bash scripts/split/browser-check.sh hack-navigation
+browser:hack-checklists := bash scripts/split/browser-check.sh hack-checklists
+browser:hack-forms := bash scripts/split/browser-check.sh hack-forms
+browser:hack-presets := bash scripts/split/browser-check.sh hack-presets
+browser:named-viewers := bash scripts/split/browser-check.sh named-viewers
+browser:signin-card := bash scripts/split/browser-check.sh signin-card
+browser:owner-dashboard := bash scripts/split/browser-check.sh owner-dashboard

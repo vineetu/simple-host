@@ -1,0 +1,17 @@
+label	command	start_utc	exit	wall_seconds	cgroup_peak_bytes	load_min_mean_max	load_before_1m	load_after_1m
+test-integration-alone	bash scripts/test-integration.sh	2026-11-13T00:24:49Z	0	518	not sampled	not sampled	0.91	2.85
+checkall-1	bash scripts/split/check-all.sh --quiet (as first committed, no golden)	2026-11-13T00:33:49Z	0	620	630439936	2.39 / 4.11 / 8.08	2.38	4.73
+make-test	make test (nothing cached; box overloaded; TestMatrixAuthorArchivesGroupPostsOnce failed)	2026-11-13T00:44:46Z	2	73	776146944	17.11 / 32.87 / 49.38	17.11	49.38
+make-check	FRESH_DB=sh_freshcheck_d0s4 make check	2026-11-13T00:52:43Z	0	623	485474304	3.53 / 5.19 / 8.28	7.06	5.20
+make-test-2	make test (results cached)	2026-11-13T01:03:18Z	0	22	428797952	5.91 / 7.20 / 7.92	5.99	7.38
+fast-pkg-nocache	go build ./... && go vet ./... && go test -count=1 ./internal/handler/ (no database)	2026-11-13T01:04:44Z	0	18	346988544	4.66 / 4.95 / 5.25	4.66	4.84
+make-test-nocache	go test -count=1 ./... (no database; what make test runs, uncached)	2026-11-13T01:05:02Z	0	29	563744768	4.84 / 6.06 / 6.69	4.84	6.32
+static-steps	check-all.sh with every step except test-integration and check-fresh-install	2026-11-13T01:03:44Z	0	53	350232576	5.07 / 6.21 / 7.74	7.19	5.07
+build-bin	CGO_ENABLED=0 go build ./cmd/server (warm cache)	2026-11-13T01:05:40Z	0	3	194670592	5.73 / 5.73 / 5.73	6.05	5.73
+golden-run	node scripts/golden/run.mjs BIN OUT.json (harness at ea1f87b1)	2026-11-13T01:05:55Z	0	10	191447040	6.87 / 6.96 / 7.04	7.12	7.04
+test-integration-alone-2	bash scripts/test-integration.sh	2026-11-13T01:07:40Z	0	675	465747968	3.25 / 11.69 / 34.09	5.05	6.20
+final-gate	bash scripts/split/check-all.sh --quiet (after review round 1; capped by default)	2026-11-13T01:34Z	0	638	not sampled	not sampled	15.29	12.97
+final-browser	bash scripts/split/check-all.sh --browser --quiet (after review round 1)	2026-11-13T01:45Z	0	205	not sampled	not sampled	12.97	14.97
+final2-gate	bash scripts/split/check-all.sh --quiet (as committed)	2026-11-13T02:02Z	0	878	not sampled	not sampled	1.78	22.85
+final2-browser	bash scripts/split/check-all.sh --browser --quiet (as committed)	2026-11-13T02:17Z	0	341	not sampled	not sampled	22.85	18.40
+browser-first	bash scripts/split/check-all.sh --browser --quiet (first version)	2026-11-13T00:49Z	1	228	not sampled	not sampled	20.98	8.92
