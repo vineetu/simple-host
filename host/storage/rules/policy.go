@@ -168,6 +168,3 @@ type ConvertOutput struct {
 	Tables  map[string]PolicySet
 	Manual  []string
 }
-
-// Convert is implemented by R2-S6. An unfinished converter converts nothing.
-func Convert(ConvertInput) ConvertOutput { return ConvertOutput{Manual: []string{"not built yet"}} }
