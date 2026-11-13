@@ -197,9 +197,12 @@ func muxReceiver(e ast.Expr) bool {
 func scanRoutes(root string, table dynamicTable) ([]route, error) {
 	var routes []route
 	seen := map[string]int{}
-	for _, dir := range []string{"cmd", "internal"} {
+	for _, dir := range []string{"cmd", "internal", "products"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
+				if path == filepath.Join(root, dir) && os.IsNotExist(err) {
+					return nil
+				}
 				return err
 			}
 			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {

@@ -1,0 +1,9 @@
+# Paths are relative to internal/; @/ prefixes module-root paths.
+[final]
+@/cmd/app -> alpha @/db
+{alpha,storage} -> storage !buildinfo @/host/storage/rules
+buildinfo -> -
+[test]
+alpha -> @/db
+[transitional]
+alpha -> storage test  # removal step fixture

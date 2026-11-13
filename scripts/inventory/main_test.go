@@ -223,3 +223,23 @@ func Register() {
 		}
 	}
 }
+
+func TestRoutesUnderProducts(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "products", "hack")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "routes.go"), []byte(`package hack
+func Register() { mux.Handle("GET /products", nil) }
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := scanRoutes(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 1 || routes[0].Path != "/products" || routes[0].Source != "products/hack/routes.go:2" {
+		t.Fatalf("products routes: %+v", routes)
+	}
+}

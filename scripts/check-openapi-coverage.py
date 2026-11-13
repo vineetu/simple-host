@@ -32,7 +32,7 @@ for path, item in spec['paths'].items():
             assert operation.get('deprecated'), f'{key}: legacy API must be marked deprecated'
 
 registered = set()
-for root in ('internal', 'cmd'):
+for root in ('internal', 'cmd', 'products'):
     for file in Path(root).rglob('*.go'):
         if file.name.endswith('_test.go'):
             continue

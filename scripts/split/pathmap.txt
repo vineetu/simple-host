@@ -1,0 +1,15 @@
+internal/hackhttp products/hack/hackhttp
+internal/app/hack/events products/hack/app/events
+internal/app/hack/teams products/hack/app/teams
+internal/app/hack/members products/hack/app/members
+internal/app/hack/entries products/hack/app/entries
+internal/app/hack/storagebind products/hack/app/storagebind
+internal/repository/hackevents products/hack/repository/hackevents
+internal/repository/hackteams products/hack/repository/hackteams
+internal/repository/hackentries products/hack/repository/hackentries
+internal/rules/hackevents products/hack/rules/hackevents
+internal/rules/hackteams products/hack/rules/hackteams
+internal/rules/hackentries products/hack/rules/hackentries
+cmd/server/hack_extension.go products/hack/extension.go
+internal/server/hack_*_test.go products/hack/servertest/
+internal/server/transport_fixture_test.go products/hack/servertest/transport_fixture_test.go
