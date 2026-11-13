@@ -2,6 +2,8 @@
 # Each row is FROM -> space-separated TO patterns. Braces are alternatives; /** includes the package and descendants. - means none.
 # A !pattern excludes destinations from that row; other matching rows still apply.
 [final]
+# A product may import the platform and itself; no platform row may list a product.
+@/products/hack/** -> /** @/products/hack/** @/db @/db/migrations
 @/cmd/server -> /** !testdb !geoip/geoiptest @/db @/db/migrations
 {handler,hackhttp} -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp redirects
@@ -45,3 +47,5 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 {handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email llm
 mcp -> mcp/apps/bundlegen
 [transitional]
+# Syntax: <from> -> <to> production|test # removal step <slice id>; platform-to-product edges go here one by one, naming the slice that removes each.
+# handler -> @/products/hack/app/teams production # removal step D2-S4b

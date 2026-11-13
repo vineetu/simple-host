@@ -31,7 +31,7 @@ test-db:
 	TEST_PKGS='$(PKGS)' TEST_COUNT='$(COUNT)' bash scripts/test-integration.sh $(if $(RUN),-run '$(RUN)')
 
 check:
-	@test -z "$$(gofmt -l internal/ cmd/ db/)" || { echo "gofmt: $$(gofmt -l internal/ cmd/ db/)"; exit 1; }
+	@test -z "$$(gofmt -l internal/ cmd/ db/ $$(if [ -d products/ ]; then echo products/; fi))" || { echo "gofmt: $$(gofmt -l internal/ cmd/ db/ $$(if [ -d products/ ]; then echo products/; fi))"; exit 1; }
 	go build ./...
 	go vet ./...
 	bash scripts/test-integration.sh

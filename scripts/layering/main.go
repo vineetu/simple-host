@@ -113,16 +113,11 @@ func allowed(rs []rule, from, to string) bool {
 	}
 	return false
 }
-func readRules() (map[string][]rule, map[edge]bool, error) {
-	f, err := os.Open(rulesFile)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer f.Close()
+func readRules(reader io.Reader) (map[string][]rule, map[edge]string, error) {
 	sections := map[string][]rule{}
-	trans := map[edge]bool{}
+	trans := map[edge]string{}
 	section := ""
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(reader)
 	line := 0
 	for scanner.Scan() {
 		line++
@@ -144,14 +139,14 @@ func readRules() (map[string][]rule, map[edge]bool, error) {
 			return nil, nil, fmt.Errorf("%s:%d: missing destination", rulesFile, line)
 		}
 		if section == "transitional" {
-			if len(tos) != 2 || (tos[1] != "production" && tos[1] != "test") || !strings.Contains(raw, "# removal step ") {
+			if len(tos) != 2 || (tos[1] != "production" && tos[1] != "test") || (!strings.Contains(raw, "# removal step ") || strings.TrimSpace(strings.SplitN(raw, "# removal step ", 2)[1]) == "") {
 				return nil, nil, fmt.Errorf("%s:%d: invalid transitional rule", rulesFile, line)
 			}
 			e := edge{parts[0], tos[0], tos[1]}
-			if trans[e] {
+			if _, exists := trans[e]; exists {
 				return nil, nil, fmt.Errorf("%s:%d: duplicate transitional rule", rulesFile, line)
 			}
-			trans[e] = true
+			trans[e] = strings.TrimSpace(strings.SplitN(raw, "# removal step ", 2)[1])
 		} else if section == "final" || section == "test" {
 			sections[section] = append(sections[section], rule{parts[0], tos})
 		} else {
@@ -160,12 +155,46 @@ func readRules() (map[string][]rule, map[edge]bool, error) {
 	}
 	return sections, trans, scanner.Err()
 }
-func run() error {
-	rules, trans, err := readRules()
+
+// evaluate applies the import contract independently of package discovery.
+func evaluate(rules map[string][]rule, trans map[edge]string, edges map[edge]bool) (issues, lines []string) {
+	normal := func(e edge) bool {
+		return allowed(rules["final"], e.from, e.to) ||
+			(e.kind == "test" && allowed(rules["test"], e.from, e.to))
+	}
+	for e := range edges {
+		_, transitional := trans[e]
+		if !normal(e) && !transitional {
+			issues = append(issues, fmt.Sprintf("%s imports %s (%s) — not in %s; see docs/architecture/target.md §2", display(e.from), display(e.to), e.kind, rulesFile))
+		}
+	}
+	for e, step := range trans {
+		detail := fmt.Sprintf("%s imports %s (%s), removal step %s", display(e.from), display(e.to), e.kind, step)
+		if !edges[e] || normal(e) {
+			line := "transitional edge no longer needed: " + detail + "; delete this line from rules.txt"
+			lines = append(lines, line)
+			issues = append(issues, line)
+		} else {
+			lines = append(lines, "transitional edge in use: "+detail)
+		}
+	}
+	sort.Strings(issues)
+	sort.Strings(lines)
+	return issues, lines
+}
+
+func run(dir string, out io.Writer) error {
+	f, err := os.Open(filepath.Join(dir, rulesFile))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	rules, trans, err := readRules(f)
 	if err != nil {
 		return err
 	}
 	cmd := exec.Command("go", "list", "-test", "-json", "./...")
+	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	data, err := cmd.Output()
 	if err != nil {
@@ -211,33 +240,24 @@ func run() error {
 			}
 		}
 	}
-	var issues []string
-	for e := range edges {
-		ok := allowed(rules["final"], e.from, e.to)
-		if e.kind == "test" {
-			ok = ok || allowed(rules["test"], e.from, e.to)
-		}
-		if !ok && !trans[e] {
-			issues = append(issues, fmt.Sprintf("%s imports %s (%s) — not in %s; see docs/architecture/target.md §2", display(e.from), display(e.to), e.kind, rulesFile))
-		}
-	}
-	for e := range trans {
-		if !edges[e] {
-			issues = append(issues, fmt.Sprintf("%s imports %s (%s): stale transitional edge; delete this line from rules.txt", display(e.from), display(e.to), e.kind))
-		}
+	issues, lines := evaluate(rules, trans, edges)
+	for _, line := range lines {
+		fmt.Fprintln(out, line)
 	}
 	sort.Strings(issues)
 	if len(issues) > 0 {
 		for _, s := range issues {
-			fmt.Println(s)
+			if !strings.HasPrefix(s, "transitional edge no longer needed: ") {
+				fmt.Fprintln(out, s)
+			}
 		}
 		return fmt.Errorf("layering violations")
 	}
-	fmt.Printf("layering ok: %d packages, %d edges checked, %d transitional edges remaining\n", len(packages), len(edges), len(trans))
+	fmt.Fprintf(out, "layering ok: %d packages, %d edges checked, %d transitional edges remaining\n", len(packages), len(edges), len(trans))
 	return nil
 }
 func main() {
-	if err := run(); err != nil {
+	if err := run(".", os.Stdout); err != nil {
 		if err.Error() != "layering violations" {
 			fmt.Fprintln(os.Stderr, err)
 		}
