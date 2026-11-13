@@ -171,10 +171,7 @@ func TestSetLimits(t *testing.T) {
 		}
 	}
 }
-func TestValuesAndUnbuiltCompiler(t *testing.T) {
-	if _, errs := Compile(PolicySet{}, Table{}, nil, DefaultLimits()); len(errs) != 1 || errs[0].Message != "not built yet" {
-		t.Fatal(errs)
-	}
+func TestValues(t *testing.T) {
 	items := []string{"a"}
 	v := List(items...)
 	items[0] = "b"

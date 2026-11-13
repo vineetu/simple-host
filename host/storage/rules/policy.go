@@ -156,13 +156,6 @@ const (
 	Unknown
 )
 
-// Plan and Compile are placeholders for R1-S2a. No runtime caller uses them yet.
-type Plan struct{}
-
-func Compile(PolicySet, Table, BindingSchema, Limits) (*Plan, []RuleError) {
-	return nil, []RuleError{*refusal("shape", -1, "not built yet")}
-}
-
 type Matrix struct{ Read, Add, Edit, Delete string }
 type ConvertInput struct {
 	Default      Matrix

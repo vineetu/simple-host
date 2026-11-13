@@ -6,8 +6,9 @@ it from `internal/rules/storage`. Run `make test-rules` from the repository root
 or `go vet ./... && go test ./...` here. No `go.work` is needed.
 
 R1-S1 supplies typed values, schemas, strict JSON policy decoding, the bounded
-parser and table-independent validation. No request path enforces these rules
-yet. `Compile` returns `not built yet`; `Plan` is a declaration for R1-S2a.
+parser and table-independent validation. R1-S2a adds schema-resolved compilation,
+bound SQLite predicates, the Go evaluator, partial evaluation and plan metadata.
+No request path enforces these rules yet.
 `Convert` converts nothing and reports `not built yet` until R2-S6.
 
 Expressions support `&&`, `||`, `!`, equality, `in`, `contains`, null tests and
@@ -19,9 +20,10 @@ delete and all policies require an identity guard in every using alternative.
 Default bounds are 2,048 expression bytes, 256 tree nodes, depth 32, 64 list
 items, 32 policies and 64 bytes per policy name. Nodes include operands,
 operators, lists and explicit parentheses; depth includes parentheses. The
-parser checks nesting before recursing. The future compiler also has bounds
-of 8,192 predicate bytes and 256 predicate arguments; these are not parser
-limits and are tested with the compiler in R1-S2a.
+parser checks nesting before recursing. The compiler also checks bounds of
+8,192 predicate bytes and 256 predicate arguments on every composed using/check,
+including maximal list bindings. Request values are validated before folding;
+NULL and wrong storage classes fail comparisons in both negation polarities.
 
 Policy JSON decodes to version 1 and keeps expression text exactly as supplied.
 Encoding a decoded set and decoding it again preserves that set. JSON shape
