@@ -10,7 +10,7 @@
 # fails if any of them still skip -- that's what `check` runs. `test-db` is the
 # same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5
-.PHONY: check check-release inventory test test-integration test-db
+.PHONY: check check-release inventory test test-rules test-integration test-db
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -20,6 +20,10 @@
 # calling shell would silently turn this back into a DB-backed run.
 test:
 	DB_DSN= MIGRATE_TEST_DSN= go test ./...
+	$(MAKE) test-rules
+
+test-rules:
+	cd host/storage/rules && go vet ./... && go test ./...
 
 test-integration:
 	bash scripts/test-integration.sh
@@ -31,9 +35,11 @@ test-db:
 	TEST_PKGS='$(PKGS)' TEST_COUNT='$(COUNT)' bash scripts/test-integration.sh $(if $(RUN),-run '$(RUN)')
 
 check:
-	@test -z "$$(gofmt -l internal/ cmd/ db/ $$(if [ -d products/ ]; then echo products/; fi))" || { echo "gofmt: $$(gofmt -l internal/ cmd/ db/ $$(if [ -d products/ ]; then echo products/; fi))"; exit 1; }
+	@test -z "$$(gofmt -l internal/ cmd/ db/ host/ $$(if [ -d products/ ]; then echo products/; fi))" || { echo "gofmt: $$(gofmt -l internal/ cmd/ db/ host/ $$(if [ -d products/ ]; then echo products/; fi))"; exit 1; }
 	go build ./...
+	cd host/storage/rules && go build ./...
 	go vet ./...
+	$(MAKE) test-rules
 	bash scripts/test-integration.sh
 	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs scripts/tests/hack-stage-announce.test.mjs scripts/tests/hack-publish-results.test.mjs scripts/tests/hack-event-times.test.mjs scripts/tests/hack-navigation.test.mjs scripts/golden/tests/*.test.mjs
 	bash scripts/check-html.sh

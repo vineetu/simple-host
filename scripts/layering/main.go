@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -193,7 +194,7 @@ func run(dir string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("go", "list", "-test", "-json", "./...")
+	cmd := exec.Command("go", "list", "-buildvcs=false", "-test", "-json", "./...")
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	data, err := cmd.Output()
@@ -256,8 +257,50 @@ func run(dir string, out io.Writer) error {
 	fmt.Fprintf(out, "layering ok: %d packages, %d edges checked, %d transitional edges remaining\n", len(packages), len(edges), len(trans))
 	return nil
 }
+
+// Root go list ./... does not walk nested modules. Check every engine file,
+// including tests and files for other build targets, separately.
+func checkRulesModule() error {
+	cmd := exec.Command("go", "list", "std")
+	data, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+	standard := map[string]bool{}
+	for _, name := range strings.Fields(string(data)) {
+		standard[name] = true
+	}
+	const engine = module + "host/storage/rules"
+	return filepath.WalkDir("host/storage/rules", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range f.Imports {
+			name, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return err
+			}
+			if !standard[name] && name != engine && !strings.HasPrefix(name, engine+"/") {
+				return fmt.Errorf("%s: rules engine imports %s; only the standard library and itself are allowed", path, name)
+			}
+		}
+		return nil
+	})
+}
+
 func main() {
-	if err := run(".", os.Stdout); err != nil {
+	err := checkRulesModule()
+	if err == nil {
+		err = run(".", os.Stdout)
+	}
+	if err != nil {
 		if err.Error() != "layering violations" {
 			fmt.Fprintln(os.Stderr, err)
 		}

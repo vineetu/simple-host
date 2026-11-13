@@ -11,6 +11,7 @@ import (
 
 // Deps holds the storage service configuration.
 type Deps struct {
+	Bindings                                 BindingProvider
 	VisitorEmail                             func(context.Context, string) (string, error)
 	Disk                                     interface{ SiteDir(string, string) string }
 	SpamCheckAvailable                       bool

@@ -33,6 +33,9 @@ jobs:
 
       # No cgo anywhere in this module, so every target cross-compiles on one
       # runner. No emulation, no per-architecture runner.
+      - name: rules engine module
+        run: make test-rules
+
       - name: build
         run: |
           mkdir -p dist

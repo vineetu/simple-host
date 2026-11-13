@@ -21,6 +21,7 @@ import (
 	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/model"
@@ -75,8 +76,9 @@ type SiteHandler struct {
 	// sized from h.limits. NewSiteHandler builds it; a bare &SiteHandler{}
 	// (tests) gets one on first use via sqliteGateFor, matching pipeline()'s
 	// lazy-build pattern.
-	sqlite     *sqliteGate
-	sqliteOnce sync.Once
+	sqlite          *sqliteGate
+	sqliteOnce      sync.Once
+	storageBindings appstorage.BindingProvider
 
 	notifyOnce    sync.Once
 	notifications *notificationEngine

@@ -15,12 +15,28 @@ func (h *SiteHandler) storageSvc() *appstorage.Service {
 	return appstorage.New(h.database, h.storageDeps())
 }
 
+// SetStorageBindings is called once at startup. A malformed product schema is a
+// programming/configuration error and stops startup before any request is served.
+func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
+	if _, err := appstorage.MergeBindingSchema(h.turnstile != nil, p); err != nil {
+		panic(err)
+	}
+	if p == nil {
+		p = appstorage.DefaultProvider{DB: h.database}
+	}
+	h.storageBindings = p
+}
+
 func (h *SiteHandler) storageDeps() appstorage.Deps {
 	deps := appstorage.Deps{
-		Locks: &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
+		Bindings: h.storageBindings,
+		Locks:    &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
 		SiteLimit: os.Getenv("SITE_STORAGE_MAX_BYTES"), FilesLimit: os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"),
 		SpamCheckedMaxBytes: h.limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.limits.SpamCheckedMaxLinks,
 		VisitorSessionIdle: h.limits.VisitorSessionIdle,
+	}
+	if deps.Bindings == nil {
+		deps.Bindings = appstorage.DefaultProvider{DB: h.database}
 	}
 	deps.VisitorEmail = func(ctx context.Context, id string) (string, error) { return visitorEmail(ctx, h.database, id) }
 	deps.OpenFileToken = func(token string) ([]byte, error) { return httpx.OpenLink(h.exportKey, "site storage file v1", token) }

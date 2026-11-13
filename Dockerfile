@@ -4,8 +4,10 @@
 FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
+COPY host/storage/rules/go.mod ./host/storage/rules/go.mod
 RUN go mod download
 COPY . .
+RUN cd host/storage/rules && go vet ./... && go test ./...
 ARG TARGETOS
 ARG TARGETARCH
 # Release and commit, shown by `simple-host version`, the startup log and the
