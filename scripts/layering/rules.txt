@@ -32,6 +32,7 @@ repository/hackevents -> repository/hackentries
 rules/{auth,sites,storage,hackevents,hackteams,hackentries} -> model
 edition -> config
 storage -> model
+storage -> @/host/storage/rules
 {analytics,netusage,papermetrics} -> model workers
 geoip -> workers
 {app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
