@@ -254,7 +254,7 @@ type hackSiteHooks interface {
 	TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (model.TeamSite, model.Site, error)
 	TeamPreviewLink(ctx context.Context, accountID, eventSlug, teamSlug string, n int) (string, time.Time, bool)
 	TeamPreviewLinkFor(site model.Site, eventSlug string, n int) (string, bool)
-	SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error
+	SuspendHeldSite(context.Context, appsites.HeldSiteSuspension) error
 	TrashTeamSite(ctx context.Context, accountID, name string) error
 	RequestSiteCert(handle string)
 	RemoveAccountFiles(userID, handle string) error

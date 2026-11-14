@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -743,7 +744,7 @@ func (entrySiteStub) TeamSiteInfo(context.Context, string, string) (model.TeamSi
 func (entrySiteStub) TeamPreviewLink(_ context.Context, _, eventSlug, teamSlug string, n int) (string, time.Time, bool) {
 	return "https://preview.example/" + eventSlug + "/" + teamSlug + "/v" + strconv.Itoa(n), time.Time{}, true
 }
-func (entrySiteStub) SetTeamSiteTakenDown(context.Context, string, string, string, bool, string) error {
+func (entrySiteStub) SuspendHeldSite(context.Context, sites.HeldSiteSuspension) error {
 	return nil
 }
 func (entrySiteStub) TrashTeamSite(context.Context, string, string) error { return nil }

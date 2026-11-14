@@ -149,15 +149,9 @@ func (h *SiteHandler) TeamPreviewLinkFor(site model.Site, eventSlug string, n in
 	return link, ok
 }
 
-// SetTeamSiteTakenDown takes a team's site down for the organiser, or brings
-// it back: the team row records it (deploys and entry edits stop) and the
-// site, when there is one, gets the site take-down (sites.suspended_at), so
-// every address shows the take-down page and saves stop. One transaction,
-// site row before team row (the order a deploy takes them).
-func (h *SiteHandler) SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error {
-	return h.sitesSvc().SetTeamSiteTakenDown(ctx, sites.TeamSiteTakedownInput{
-		AccountID: accountID, TeamID: teamID, TeamSlug: teamSlug, On: on, Reason: reason,
-	})
+// SuspendHeldSite applies the platform half of a product's site suspension.
+func (h *SiteHandler) SuspendHeldSite(ctx context.Context, in sites.HeldSiteSuspension) error {
+	return h.sitesSvc().SuspendHeldSite(ctx, in)
 }
 
 // TrashTeamSite moves the holding account's site of that name to Recently

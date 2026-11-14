@@ -2,7 +2,6 @@ package accounts
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/model"
@@ -32,10 +31,6 @@ func (s *Service) TeamWriteState(ctx context.Context, id string) (model.TeamWrit
 	return events.TeamWriteStateFor(ctx, s.database, id, false)
 }
 
-// TeamWriteStateInTx holds FOR SHARE in the caller's transaction; it never opens another transaction.
-func (s *Service) TeamWriteStateInTx(ctx context.Context, tx *sql.Tx, id string) (model.TeamWriteState, error) {
-	return events.TeamWriteStateFor(ctx, tx, id, true)
-}
 func (s *Service) FileLinkScopeAllows(ctx context.Context, site model.Site, kind, id, memberID string) bool {
 	switch kind {
 	case "team":

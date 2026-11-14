@@ -21,6 +21,7 @@ import (
 	"github.com/vsriram/simple-host/internal/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
+	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -115,6 +116,7 @@ func Extension() *extension.Extension {
 					Sitemap:       hackevents.FilterSitemapSites,
 					Notifications: NotificationGroups{},
 					GroupHosts:    groupHosts,
+					GroupGate:     teams.SiteGate{TeamSitesReady: siteHandler.TeamSitesReady, RequestCert: siteHandler.RequestSiteCert, PaperSite: siteHandler.RecordGateSite, PaperState: siteHandler.RecordGateState},
 				},
 				PaperHack: func(paper *papermetrics.Collector) { hackmetrics.Install(paper) },
 				PaperRecorder: func(next http.Handler) http.Handler {

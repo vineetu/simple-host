@@ -221,17 +221,7 @@ func runTestHackStoragePresetsTeamSite(t *testing.T) {
 	}
 
 	// The organiser's take-down stops every page request, the owner's too.
-	var teamID string
-	if err := a.database.QueryRow(`SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id WHERE e.slug=$1 AND t.slug=$2`, slug, team).Scan(&teamID); err != nil {
-		t.Fatal(err)
-	}
-	var accountID string
-	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug=$1`, slug).Scan(&accountID); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.sites.SetTeamSiteTakenDown(context.Background(), accountID, teamID, team, true, "test"); err != nil {
-		t.Fatal(err)
-	}
+	wantTS(t, "take down team site", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/"+team+"/takedown", map[string]string{"reason": "test"}, org.key), 200, "")
 	if got := asMember("GET", base+"/sqlite/orders/tables/orders/rows", nil); got.status == 200 {
 		t.Fatalf("taken down, member read: %d %s", got.status, got.body)
 	}

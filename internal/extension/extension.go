@@ -78,4 +78,5 @@ type Hooks struct {
 	Sitemap       sites.SitemapFilter
 	Notifications notifications.GroupSites
 	GroupHosts    handler.GroupHosts
+	GroupGate     sites.GroupGate
 }

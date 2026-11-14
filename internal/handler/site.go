@@ -260,6 +260,7 @@ type SiteHandler struct {
 	// Thinning is skipped for them until the history grows by thinMargin.
 	thinStuck  sync.Map // site id -> int64
 	groupHosts GroupHosts
+	groupGate  sites.GroupGate
 
 	// geoBlock gates a visitor's email-code sign-in on a site by the
 	// request's country (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See

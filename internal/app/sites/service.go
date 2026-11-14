@@ -58,10 +58,7 @@ type Deps struct {
 	AccountRetention        func(context.Context, string, int) (int, error)
 	RetainedFloor           func([]model.Version, int, int, int) int
 	PinnedFloor             func(context.Context, string, string, int) int
-	TeamKeys                bool
-	TeamSitesReady          func(string) bool
-	PaperSite               func(context.Context, *model.User, string)
-	PaperState              func(context.Context, *model.User, string)
+	GroupGate               GroupGate
 	Assign                  func(context.Context, *model.User)
 	NotifyCreate            func(context.Context, *model.User, model.Site, map[string][]byte)
 	NotifyRollback          func(string, int, int)

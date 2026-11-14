@@ -52,15 +52,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 			return floor
 		},
 		PinnedFloor: h.groupPinnedFloor,
-		TeamKeys:    h.ed.Identity().TeamKeys, TeamSitesReady: h.teamSitesReady,
-		PaperSite: func(ctx context.Context, user *model.User, name string) {
-			if h.ed.Identity().PaperMetrics {
-				paperRecorder(ctx).ResolveSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
-			}
-		},
-		PaperState: func(ctx context.Context, user *model.User, stage string) {
-			paperRecorder(ctx).ResolveGroup(ctx, user.Team.EventSlug, stage, user.Team.MemberID)
-		},
+		GroupGate:   h.groupGate,
 		NotifyUpdate: func(ctx context.Context, user *model.User, site model.Site, n, prev int, published bool, files map[string][]byte) {
 			if published {
 				h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)

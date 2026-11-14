@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	model "github.com/vsriram/simple-host/internal/model"
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
@@ -300,12 +301,15 @@ func (s *Service) ActiveSiteVersion(ctx context.Context, siteID string) (model.V
 
 // TeamSiteChanger updates the site's organiser takedown state.
 type TeamSiteChanger interface {
-	SetTeamSiteTakenDown(context.Context, string, string, string, bool, string) error
+	SuspendHeldSite(context.Context, sites.HeldSiteSuspension) error
 }
 
 // SetSiteTakenDown changes a site's state and sends the existing team notices.
-func (s *Service) SetSiteTakenDown(ctx context.Context, sites TeamSiteChanger, event model.Event, team model.EventTeam, down bool, reason string) error {
-	if err := sites.SetTeamSiteTakenDown(ctx, event.AccountID, team.ID, team.Slug, down, reason); err != nil {
+func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger, event model.Event, team model.EventTeam, down bool, reason string) error {
+	if err := changer.SuspendHeldSite(ctx, sites.HeldSiteSuspension{
+		AccountID: event.AccountID, Name: team.Slug, Prefix: "Taken down by the event organiser", Reason: reason, On: down,
+		Also: func(tx *sql.Tx) error { return hackteams.SetTeamSiteTakedown(ctx, tx, team.ID, down, reason) },
+	}); err != nil {
 		return err
 	}
 	if down || team.SiteTakenDownAt.Valid {

@@ -448,6 +448,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 
 	siteHandler.SetNotificationGroups(parts.Hooks.Notifications)
 	siteHandler.SetGroupHosts(parts.Hooks.GroupHosts)
+	siteHandler.SetGroupGate(parts.Hooks.GroupGate)
 
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
 	// least one domain are configured, so a self-hosted instance never tries to
