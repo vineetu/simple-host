@@ -63,11 +63,12 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 server/servertest -> server config extension
 [test]
 handler -> @/host/storage/rules
+app/sites -> @/host/storage/rules
 /** -> testdb geoip/geoiptest
 @/** -> testdb geoip/geoiptest
 {handler,auth,mcp} -> config repository/** storage sitelocks email llm
 @/products/hack/hackhttp -> config repository/** storage sitelocks email llm
-mcp -> mcp/apps/bundlegen
+mcp -> mcp/apps/bundlegen @/host/storage/rules
 server -> server/servertest
 server/servertest -> testdb
 @/products/hack/servertest -> server/servertest

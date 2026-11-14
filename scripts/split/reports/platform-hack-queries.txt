@@ -111,6 +111,6 @@ internal/repository/operations/schemacheck.go:184 | hackColumns | event_votes | 
 internal/repository/operations/schemacheck.go:186 | hackColumns | event_former_judges | event_former_judges
 internal/rules/sites/sites.go:100 | reservedSubdomainLabels | events (also the platform column site_notifications.events) | events
 
-7. Other text (136)
+7. Other text (143)
 internal/mcp/hack_entry_tools.go:287 | hackOrganiserEntryRoutes | event_members | enabled, opens_at, closes_at, eligibility (all_signed_in, event_members or participants).
-events: 135 other-text strings (use -prose to list)
+events: 142 other-text strings (use -prose to list)

@@ -33,9 +33,10 @@ type call struct {
 
 // upstreamResult is one in-process REST answer.
 type upstreamResult struct {
-	status int
-	header http.Header
-	body   []byte
+	status       int
+	header       http.Header
+	body         []byte
+	resourceKind string // known from the storage request, for kind-specific wording
 }
 
 func (u upstreamResult) ok() bool { return u.status >= 200 && u.status < 300 }
@@ -127,7 +128,7 @@ func restError(tool string, u upstreamResult) error {
 	if msg == "" {
 		msg = http.StatusText(u.status)
 	}
-	hint := instanceText(codeHint(payload.Code))
+	hint := instanceText(resourceCodeHint(payload.Code, u.resourceKind))
 	if supportContact != "" {
 		hint = strings.ReplaceAll(hint, "support@simple-host.app", supportContact)
 	}
@@ -303,7 +304,35 @@ var codeHints = map[string]string{
 	"unknown_tool":                   "No tool of that name exists on this connector. Call find_tools with the job, or pick one of the closest tools named above, instead of guessing the name again.",
 }
 
-func codeHint(code string) string { return codeHints[code] }
+func codeHint(code string) string {
+	return resourceCodeHint(code, "")
+}
+
+func resourceCodeHint(code, kind string) string {
+	if kind != "files" && storageRulesEnabled() {
+		// Shared codes also occur on files and non-storage requests. Only
+		// replace their existing hints when the request is known to use data rules.
+		_, shared := codeHints[code]
+		if hint, ok := storageRulesCodeHints[code]; ok && (!shared || kind == "sqlite" || kind == "kv") {
+			return hint
+		}
+	}
+	return codeHints[code]
+}
+
+var storageRulesCodeHints = map[string]string{
+	"invalid_resource":      "The resource settings were refused. For SQLite and key-value access supply rules, without file-bucket access fields; file buckets keep their existing preset fields. Read storage_list_resources before changing settings.",
+	"invalid_rules":         "The rules save was refused. Correct the rules using the error message above, then save again. Do not combine rules with preset, read, add, edit, delete, write, write_mode or approve_first.",
+	"rules_unavailable":     "Rules are unavailable on this install or this namespace's store. Tell the owner; do not silently replace them with different access settings.",
+	"rules_required":        "This SQLite or key-value resource needs rules before visitors can use it. Ask the owner who should read and write which data, then save rules with storage_set_resource.",
+	"rules_invalid":         "The stored rules no longer compile. The owner can inspect rules_errors with storage_list_resources and repair the named column, binding or clause; owner tools still work.",
+	"visitor_id_required":   "Existing rows lack visitor identity. Keep the current rules or use a new resource for rows belonging to signed-in visitors; do not guess authors.",
+	"invalid_reference":     "The referenced parent row is missing or hidden by its read rules. Read the visible parent rows before choosing a reference.",
+	"fixed_routes_required": "Visitors cannot send SQL: use SH.storage.sqlite(name).table(t).list/get/add/edit/delete. Owner tools storage_sql_query and storage_sql_execute bypass row rules.",
+	"query_too_expensive":   "The query exceeded its work limit. Narrow the filters or page size before trying again.",
+	"storage_busy":          "This site's storage is busy. Wait a few seconds and call once more; do not retry in a loop.",
+	"storage_failed":        "The storage operation could not finish. Read the current data before retrying a write; tell the owner if it keeps failing.",
+}
 
 // supportContact replaces the hosted support address in hints on another
 // install (Config.SupportContact; "" keeps it).

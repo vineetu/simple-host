@@ -88,52 +88,57 @@ func TestFlatHostList(t *testing.T) {
 }
 
 func TestFlatInstructionsAndDescriptionIsolation(t *testing.T) {
-	for _, cfg := range []Config{{}, {NoSpamCheck: true}, {SelfHosted: true}, {NoSpamCheck: true, SelfHosted: true, Rewrite: productionHostRewrite(strings.Repeat("long", 40) + ".example")}} {
-		s := NewServer(cfg)
-		before, _, _ := s.forCaller(Caller{AppName: "Claude"})
-		encodedBefore, _ := json.Marshal(before)
-		for _, app := range []string{"ChatGPT", "OpenAI", "Codex"} {
-			text := s.instructionsFor(Caller{AppName: app})
-			for _, avoid := range []string{"find_tools", "run_tool", "unasked", "never mailto:", "offer to tell"} {
-				if strings.Contains(text, avoid) {
-					t.Errorf("instructions contain %q", avoid)
-				}
-			}
-			if len([]rune(text)) >= 2000 || !strings.Contains(text, "listed individually") || !strings.Contains(text, "When they say yes") {
-				t.Fatalf("incorrect instructions (%d characters): %s", len([]rune(text)), text)
-			}
-			full, _, _ := s.forCaller(Caller{AppName: app})
-			for _, tool := range full {
-				for _, avoid := range []string{"even before they mention photos", "After building a records form, offer", "never use a mailto:"} {
-					if strings.Contains(tool.Description, avoid) {
-						t.Errorf("%s contains %q", tool.Name, avoid)
+	for _, flag := range []string{"off", "on"} {
+		t.Run(flag, func(t *testing.T) {
+			t.Setenv("STORAGE_RULES", flag)
+			for _, cfg := range []Config{{}, {NoSpamCheck: true}, {SelfHosted: true}, {NoSpamCheck: true, SelfHosted: true, Rewrite: productionHostRewrite(strings.Repeat("long", 40) + ".example")}} {
+				s := NewServer(cfg)
+				before, _, _ := s.forCaller(Caller{AppName: "Claude"})
+				encodedBefore, _ := json.Marshal(before)
+				for _, app := range []string{"ChatGPT", "OpenAI", "Codex"} {
+					text := s.instructionsFor(Caller{AppName: app})
+					for _, avoid := range []string{"find_tools", "run_tool", "unasked", "never mailto:", "offer to tell"} {
+						if strings.Contains(text, avoid) {
+							t.Errorf("instructions contain %q", avoid)
+						}
+					}
+					if len([]rune(text)) >= 2000 || !strings.Contains(text, "listed individually") || !strings.Contains(text, "When they say yes") {
+						t.Fatalf("incorrect instructions (%d characters): %s", len([]rune(text)), text)
+					}
+					full, _, _ := s.forCaller(Caller{AppName: app})
+					for _, tool := range full {
+						for _, avoid := range []string{"even before they mention photos", "After building a records form, offer", "never use a mailto:"} {
+							if strings.Contains(tool.Description, avoid) {
+								t.Errorf("%s contains %q", tool.Name, avoid)
+							}
+						}
+						if tool.Name == "create_upload_link" && !strings.Contains(tool.Description, "when the person wants") {
+							t.Error("missing photo intent")
+						}
+						if tool.Name == "get_page_recipe" && !strings.Contains(tool.Description, "If they ask to be told") {
+							t.Error("missing notification intent")
+						}
 					}
 				}
-				if tool.Name == "create_upload_link" && !strings.Contains(tool.Description, "when the person wants") {
-					t.Error("missing photo intent")
+				after, _, _ := s.forCaller(Caller{AppName: "Claude"})
+				encodedAfter, _ := json.Marshal(after)
+				if string(encodedBefore) != string(encodedAfter) {
+					t.Fatal("changed cached Claude descriptions")
 				}
-				if tool.Name == "get_page_recipe" && !strings.Contains(tool.Description, "If they ask to be told") {
-					t.Error("missing notification intent")
+				if s.instructionsFor(Caller{AppName: "Claude"}) != instanceText(s.hostInstructions(Instructions())) {
+					t.Fatal("changed Claude instructions")
+				}
+				for _, mode := range []string{CallerModeEvents, CallerModeHackSite} {
+					before, _, _ := s.forCaller(Caller{Mode: mode})
+					after, _, _ := s.forCaller(Caller{Mode: mode, AppName: "ChatGPT"})
+					a, _ := json.Marshal(before)
+					b, _ := json.Marshal(after)
+					if string(a) != string(b) || s.instructionsFor(Caller{Mode: mode}) != s.instructionsFor(Caller{Mode: mode, AppName: "ChatGPT"}) {
+						t.Fatal("changed Hack inventory or instructions")
+					}
 				}
 			}
-		}
-		after, _, _ := s.forCaller(Caller{AppName: "Claude"})
-		encodedAfter, _ := json.Marshal(after)
-		if string(encodedBefore) != string(encodedAfter) {
-			t.Fatal("changed cached Claude descriptions")
-		}
-		if s.instructionsFor(Caller{AppName: "Claude"}) != instanceText(s.hostInstructions(Instructions())) {
-			t.Fatal("changed Claude instructions")
-		}
-		for _, mode := range []string{CallerModeEvents, CallerModeHackSite} {
-			before, _, _ := s.forCaller(Caller{Mode: mode})
-			after, _, _ := s.forCaller(Caller{Mode: mode, AppName: "ChatGPT"})
-			a, _ := json.Marshal(before)
-			b, _ := json.Marshal(after)
-			if string(a) != string(b) || s.instructionsFor(Caller{Mode: mode}) != s.instructionsFor(Caller{Mode: mode, AppName: "ChatGPT"}) {
-				t.Fatal("changed Hack inventory or instructions")
-			}
-		}
+		})
 	}
 }
 

@@ -332,13 +332,16 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	flat := s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite && flatListApp(caller.AppName)
 	context := s.offersAnalyticsContext(caller)
 	screen := s.passcodeScreenEnabled(caller)
-	if !flat && !context && !screen {
+	if !flat && !context && !screen && !storageRulesEnabled() {
 		return search
 	}
 	copy := *search
 	copy.flat = flat
 	copy.tools = append([]searchableTool(nil), search.tools...)
 	for i := range copy.tools {
+		if s.fixed == nil && storageRulesEnabled() {
+			copy.tools[i].tool = s.storageRulesTool(copy.tools[i].tool, caller)
+		}
 		if screen && copy.tools[i].tool.policy.listWithPasscode {
 			copy.tools[i].listed = true
 		}
@@ -349,6 +352,18 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 		if context {
 			copy.tools[i].tool = withAnalyticsContext(copy.tools[i].tool)
 		}
+	}
+	if s.fixed == nil && storageRulesEnabled() {
+		tools := make([]Tool, len(copy.tools))
+		for i, entry := range copy.tools {
+			tools[i] = entry.tool
+		}
+		indexed := newToolSearch(tools)
+		indexed.flat = copy.flat
+		for i := range indexed.tools {
+			indexed.tools[i].listed = copy.tools[i].listed
+		}
+		return indexed
 	}
 	return &copy
 }

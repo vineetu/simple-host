@@ -260,7 +260,10 @@ func (s *Server) ListedTools() []Tool {
 // HackListedTools returns the generic personal Hack inventory, including selected-team
 // tools. It reads no caller, grant, membership, or event data.
 func (s *Server) HackListedTools() []Tool {
-	full, _, _ := s.hackPersonalInventory()
+	full, bare, byName := s.hackPersonalInventory()
+	if storageRulesEnabled() {
+		full, _, _ = s.storageRulesInventory(full, bare, byName, Caller{Mode: CallerModeEvents})
+	}
 	return full
 }
 
@@ -327,6 +330,9 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 		if len(hackScreens) > 0 {
 			full = appToolMetadata(full, hackScreens)
 			bare = appToolMetadata(bare, hackScreens)
+		}
+		if s.fixed == nil && storageRulesEnabled() {
+			full, bare, byName = s.storageRulesInventory(full, bare, byName, caller)
 		}
 	}()
 	if s.fixed != nil {

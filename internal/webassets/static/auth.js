@@ -185,6 +185,10 @@
           var err = new Error((body && body.error) || "Request failed");
           err.status = r.status;
           err.code = body && body.code;
+          if (err.code === "rules_required") err.message = "The site owner needs to set access rules before this data can be used.";
+          if (err.code === "rules_invalid") err.message = "The site owner needs to repair the access rules for this data.";
+          if (err.code === "query_too_expensive") err.message = "This request took too much work. Try a smaller page or a narrower search.";
+          if (err.code === "storage_failed") err.message = "The save or read could not finish. Check the current data before trying again.";
           err.body = body;
           if (body && body.reason) err.reason = body.reason;
           if (body && body.tries_left != null) err.tries_left = body.tries_left;

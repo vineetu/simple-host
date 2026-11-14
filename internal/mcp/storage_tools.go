@@ -247,6 +247,14 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 	}
 	res := c.do(method, path, raw, headers)
 	if !res.ok() {
+		switch {
+		case bodyKind == "resource":
+			res.resourceKind, _ = args["body"].(map[string]any)["kind"].(string)
+		case strings.HasPrefix(suffix, "/sqlite/"):
+			res.resourceKind = "sqlite"
+		case strings.HasPrefix(suffix, "/kv/"):
+			res.resourceKind = "kv"
+		}
 		return output{}, restError(toolName, res)
 	}
 	var response any
@@ -367,6 +375,7 @@ func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any, event
 	path += "?for=" + url.QueryEscape(forRef)
 	res := c.do("POST", path, body, nil)
 	if !res.ok() {
+		res.resourceKind = "sqlite"
 		return output{}, restError(toolName, res)
 	}
 	var response any

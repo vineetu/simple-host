@@ -107,9 +107,14 @@ func (m *ImportManager) Report(owner, id string) (map[string]any, error) {
 	if r == nil || r.Owner != owner {
 		return nil, errors.New("no import with that id for this account")
 	}
+	report := r.Report
+	rulesOn := os.Getenv("STORAGE_RULES") == "on"
+	if rulesOn && report != nil {
+		report = importRulesAdvice(report)
+	}
 	steps := []string{}
-	if r.Report != nil {
-		for _, f := range r.Report.Features {
+	if report != nil {
+		for _, f := range report.Features {
 			if f.Status == wpimport.StatusNeedsSetup {
 				setup, _ := json.Marshal(f.Setup)
 				first := "/"
@@ -118,7 +123,11 @@ func (m *ImportManager) Report(owner, id string) (map[string]any, error) {
 				}
 				steps = append(steps, fmt.Sprintf("Switch on %s on %s: run these calls in order, one at a time (each needs the one before it): %s; then check %s", f.Kind, strings.Join(f.Pages, ", "), setup, first))
 				if f.Kind == "comments" || f.Kind == "guestbook" {
-					steps = append(steps, "For "+f.Kind+": follow what the person asked about approval. If they want to approve posts before they show, the storage_set_resource body must include \"approve_first\": true; if they want posts to show at once, leave it out.")
+					if rulesOn {
+						steps = append(steps, "For "+f.Kind+": ask whether posts need approval. To hold them, include a restrictive read policy using auth.role == \"owner\" || approved_at is not null, then approve by setting approved_at as the owner. To show them at once, omit that policy.")
+					} else {
+						steps = append(steps, "For "+f.Kind+": follow what the person asked about approval. If they want to approve posts before they show, the storage_set_resource body must include \"approve_first\": true; if they want posts to show at once, leave it out.")
+					}
 				}
 			} else {
 				steps = append(steps, fmt.Sprintf("%s (%s): %s. %s", f.Kind, f.Status, f.Use, f.Note))
@@ -127,8 +136,8 @@ func (m *ImportManager) Report(owner, id string) (map[string]any, error) {
 	}
 	steps = append(steps, "Show the person the live address and offer connect_domain for their own domain.")
 	out := map[string]any{"state": r.State, "message": r.Message, "site": r.Site, "site_url": r.SiteURL, "started_at": importTime(r.Started), "finished_at": importTime(r.Finished), "next_steps": steps}
-	if r.Report != nil {
-		out["report"] = r.Report
+	if report != nil {
+		out["report"] = report
 	}
 	return out, nil
 }
