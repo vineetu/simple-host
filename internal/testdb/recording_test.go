@@ -66,7 +66,11 @@ func TestRecordingDB(t *testing.T) {
 	if os.Getenv("DB_DSN") == "" {
 		t.Skip("DB_DSN unset")
 	}
-	db, r := OpenRecording(os.Getenv("DB_DSN"))
+	dsn := os.Getenv("DB_DSN")
+	if isolating() {
+		dsn = Fresh(t)
+	}
+	db, r := OpenRecording(dsn)
 	defer db.Close()
 	ctx := context.Background()
 	tx, e := db.BeginTx(ctx, nil)

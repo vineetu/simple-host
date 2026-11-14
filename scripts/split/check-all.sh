@@ -78,7 +78,7 @@ if ((cap && ! list)); then
     cap_error='the memory cap needs passwordless sudo and systemd-run; run with --no-cap to go without it (not a gate result)'
     command -v systemd-run >/dev/null && sudo -n true || error "$cap_error"
     env_args=() preserve=()
-    for key in FRESH_DB TEST_COUNT TEST_PKGS TMPDIR TEST_PG_URL PSQL PGPORT PGPASSWORD GOLDEN_REF_BIN GOLDEN_REF_HACK_BIN GOLDEN_HACK_BIN GOLDEN_PG_URL CHECK_ALL_GOLDEN_DIR BASE OWNER_KEY_FILE OTHER_KEY_FILE PLAYWRIGHT PLAYWRIGHT_DIR CHROMIUM NAVIGATION_SHOTS; do
+    for key in FRESH_DB TEST_COUNT TEST_PKGS TEST_WORKERS TMPDIR TEST_PG_URL PSQL PGPORT PGPASSWORD GOLDEN_REF_BIN GOLDEN_REF_HACK_BIN GOLDEN_HACK_BIN GOLDEN_PG_URL CHECK_ALL_GOLDEN_DIR BASE OWNER_KEY_FILE OTHER_KEY_FILE PLAYWRIGHT PLAYWRIGHT_DIR CHROMIUM NAVIGATION_SHOTS; do
         if [[ -v $key ]]; then export "$key"; env_args+=(-E "$key"); preserve+=("$key"); fi
     done
     preserve_list=$(IFS=,; echo "${preserve[*]}")

@@ -30,7 +30,7 @@
 # for a DB-related reason (DB_DSN unset / postgres not reachable), in any
 # -count iteration, or if the output stream isn't real `go test -json`
 # output (e.g. -json got disabled). Other skips (e.g. "needs network") are
-# fine and just counted. The required -p 1 -count=N -json flags are placed
+# fine and just counted. The required -p N -count=N -json flags are placed
 # AFTER "$@" so an overriding flag in extra args can never disable them.
 #
 # Usage:
@@ -40,18 +40,38 @@
 #   TEST_PKGS=./internal/handler TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
 #     # packages via TEST_PKGS (default ./...), repeat count via TEST_COUNT (default 1);
 #     # `make test-db PKGS=... RUN=... COUNT=...` wraps this.
+#   TEST_WORKERS=1 bash scripts/test-integration.sh  # serial packages (default 3)
 set -u
 cd "$(dirname "$0")/.."
+
+test_workers="${TEST_WORKERS:-3}"
+if [[ ! "$test_workers" =~ ^[1-9][0-9]*$ ]]; then
+  echo "FAIL: TEST_WORKERS must be a positive integer" >&2
+  exit 1
+fi
 
 container_id=""
 dbname=""
 admin_url=""
 json_file=""
 db_created=0
+go_test_pid=""
 
 cleanup() {
   local status=$?
+  trap '' INT TERM
+  if [ -n "$go_test_pid" ]; then
+    # The background job has its own process group, including test binaries.
+    kill -TERM -- "-$go_test_pid" 2>/dev/null || true
+    wait "$go_test_pid" 2>/dev/null || true
+  fi
   if [ "$db_created" -eq 1 ] && [ -n "$dbname" ] && [ -n "$admin_url" ]; then
+    # An interrupted test cannot run testdb's deferred cleanup. Remove only
+    # clones of THIS run's uniquely named template, before the template.
+    psql "$admin_url" -XAt -v ON_ERROR_STOP=1 -c \
+      "SELECT format('DROP DATABASE %I WITH (FORCE);', datname) FROM pg_database WHERE starts_with(datname, '${dbname}_t');" \
+      | psql "$admin_url" -X -v ON_ERROR_STOP=1 >/dev/null 2>&1 \
+      || echo "warning: failed to drop clones of $dbname -- clean up manually" >&2
     psql "$admin_url" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$dbname\";" >/dev/null 2>&1 \
       || echo "warning: failed to drop throwaway database $dbname -- clean up manually" >&2
   fi
@@ -68,6 +88,8 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 base=""
 
@@ -142,11 +164,23 @@ admin_url="${base}/postgres?sslmode=disable"
 target_url="${base}/${dbname}?sslmode=disable"
 
 echo "== creating throwaway database $dbname =="
-if ! psql "$admin_url" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$dbname\";" >/dev/null; then
+# Bash runs a pending signal trap when psql returns, before the next command.
+# Record CREATE's result and ownership before honoring an interrupted setup.
+setup_signal=0
+trap 'setup_signal=130' INT
+trap 'setup_signal=143' TERM
+if psql "$admin_url" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$dbname\";" >/dev/null; then
+  db_created=1
+fi
+trap 'exit 130' INT
+trap 'exit 143' TERM
+if [ "$setup_signal" -ne 0 ]; then
+  exit "$setup_signal"
+fi
+if [ "$db_created" -ne 1 ]; then
   echo "FAIL: could not create database $dbname" >&2
   exit 1
 fi
-db_created=1
 
 echo "== applying db/schema.sql =="
 if ! psql "$target_url" -v ON_ERROR_STOP=1 -f db/schema.sql >/dev/null; then
@@ -156,7 +190,7 @@ fi
 
 test_pkgs="${TEST_PKGS:-./...}"
 test_count="${TEST_COUNT:-1}"
-echo "== running go test $test_pkgs (DB_DSN set; TESTDB_ISOLATE=1; forcing -p 1 -count=$test_count -json) =="
+echo "== running go test $test_pkgs (DB_DSN set; TESTDB_ISOLATE=1; forcing -p $test_workers -count=$test_count -json) =="
 json_file=$(mktemp)
 # "$@" comes first so our own -p/-count/-json always win over anything in
 # it trying to turn JSON output off -- go's flag parser takes the last
@@ -171,8 +205,25 @@ json_file=$(mktemp)
 # EMPTY database, so they belong to scripts/check-fresh-install.sh (also run
 # by `make check`), never to a database inherited from the caller's shell.
 # $test_pkgs is unquoted on purpose: it may list several packages.
-DB_DSN="$target_url" MIGRATE_TEST_DSN= TESTDB_ISOLATE=1 go test "$@" -p 1 -count="$test_count" -json $test_pkgs >"$json_file" 2>&1
+# Job control gives this job a separate process group. Waiting on a background
+# job lets the signal traps run immediately, instead of after go test finishes.
+set -m
+# Record the job's PID before honoring an interrupt so cleanup always stops
+# and waits for the runner before dropping its databases.
+launch_signal=0
+trap 'launch_signal=130' INT
+trap 'launch_signal=143' TERM
+DB_DSN="$target_url" MIGRATE_TEST_DSN= TESTDB_ISOLATE=1 go test "$@" -p "$test_workers" -count="$test_count" -json $test_pkgs >"$json_file" 2>&1 &
+go_test_pid=$!
+trap 'exit 130' INT
+trap 'exit 143' TERM
+if [ "$launch_signal" -ne 0 ]; then
+  exit "$launch_signal"
+fi
+set +m
+wait "$go_test_pid"
 go_test_exit=$?
+go_test_pid=""
 
 echo
 python3 scripts/lib/summarize-go-test.py "$json_file" "$go_test_exit"

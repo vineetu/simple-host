@@ -1,9 +1,11 @@
 // Package testdb gives each DB-backed test process its own disposable
 // Postgres database, cloned from the database named in DB_DSN.
 //
-// Every package with DB-backed tests calls Main from its TestMain:
+// DB-backed test packages call Main from their TestMain:
 //
 //	func TestMain(m *testing.M) { testdb.Main(m) }
+//
+// A package with its own TestMain may instead call Fresh for each DB test.
 //
 // With TESTDB_ISOLATE=1 (set by scripts/test-integration.sh) and DB_DSN
 // set, Main runs `CREATE DATABASE <clone> TEMPLATE <db from DB_DSN>`,
@@ -60,10 +62,14 @@ func Main(m *testing.M) {
 // Fresh returns the DSN of a brand-new clone of the template database,
 // dropped when the test ends. It is for tests whose code under test reads
 // process-global queues that cannot be scoped to the test's own rows. It
-// skips when there is no database or isolation is off.
+// skips when there is no database or isolation is off. Packages with only
+// one DB-backed test may call Fresh without installing Main.
 func Fresh(t *testing.T) string {
 	t.Helper()
 	tmpl := os.Getenv(templateEnv)
+	if tmpl == "" {
+		tmpl = os.Getenv("DB_DSN")
+	}
 	if !isolating() || tmpl == "" {
 		t.Skip("DB_DSN unset or TESTDB_ISOLATE!=1: no template database to clone")
 	}

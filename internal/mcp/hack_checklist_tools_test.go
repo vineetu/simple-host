@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"net/http"
@@ -80,6 +81,9 @@ func TestChecklistDatabaseReplayParity(t *testing.T) {
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
+	}
+	if os.Getenv("TESTDB_ISOLATE") == "1" {
+		dsn = testdb.Fresh(t)
 	}
 	database, err := sql.Open("postgres", dsn)
 	if err != nil {

@@ -1177,10 +1177,27 @@ func TestMatrixAuthorArchivesGroupPostsOnce(t *testing.T) {
 		c.posts = append(c.posts, &item{ID: fmt.Sprint(n), Type: "post", Status: "publish", Author: login, Title: login, Path: fmt.Sprintf("/post-%d/", n)})
 	}
 	authors, _ := c.authorInfo()
+	// Measure the regression itself on this machine and under this run's
+	// load: a full scan for each author. Even rendering every archive must
+	// be faster than that scan alone. A fixed deadline flakes when other
+	// test packages or builders are using the CPU.
 	start := time.Now()
+	matches := 0
+	for login := range authors {
+		for _, post := range c.posts {
+			if post.Author == login {
+				matches++
+			}
+		}
+	}
+	rescanTime := time.Since(start)
+	if matches != len(c.posts) {
+		t.Fatalf("sparse author fixture: got %d matches", matches)
+	}
+	start = time.Now()
 	c.authorArchives(authors, nil)
-	if elapsed := time.Since(start); elapsed > 3*time.Second {
-		t.Fatalf("20,000 sparse author archives rescanned all posts: %s", elapsed)
+	if elapsed := time.Since(start); elapsed >= rescanTime {
+		t.Fatalf("20,000 sparse author archives: %s, full rescan baseline: %s", elapsed, rescanTime)
 	}
 	for _, n := range []int{0, 19999} {
 		login := fmt.Sprintf("author-%d", n)

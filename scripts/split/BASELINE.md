@@ -191,6 +191,174 @@ the package being changed: 18 seconds. Before pushing,
 the no-database steps plus `make test` take about 80 seconds. The full gate
 is run once per slice, before review.
 
+## X1-S1: bounded package concurrency (2026-11-13)
+
+`scripts/test-integration.sh` now uses `go test -p 3` by default.
+`TEST_WORKERS=1 bash scripts/test-integration.sh` restores serial package
+scheduling; any positive integer selects another bound. The same single
+Postgres server, template schema, JSON summarizer, forced count/JSON flags,
+DB-skip rejection and failure identities remain in use. No change to
+`check-all.sh`'s output parser was needed; its capped invocation now also
+forwards `TEST_WORKERS`, beside `TEST_COUNT` and `TEST_PKGS`.
+
+Before enabling concurrency, the Go test fixtures were audited for database
+connections, listeners and filesystem writes, including shared fixture helpers:
+
+- Twelve packages already use `testdb.Main` to clone the template, with
+  names containing the template name, process ID and random suffix.
+  Migration fixtures use `MIGRATE_TEST_DSN`, which this runner clears.
+- Two exceptions were found and fixed: `internal/mcp`'s
+  `TestChecklistDatabaseReplayParity` and `internal/testdb`'s
+  `TestRecordingDB` connected directly to the template. Even a read-only
+  connection there can block another package's `CREATE DATABASE … TEMPLATE`.
+  They now use a separate `testdb.Fresh` clone when isolation is enabled;
+  `Fresh` also supports packages without `testdb.Main`. Ad-hoc, non-isolated
+  DB runs retain their existing behavior.
+- HTTP fixtures use `httptest` listeners with allocated ports. The two
+  `ListenAndServe` browser helpers require distinct opt-in environment
+  variables and do not run in the default suite. Writable files, SQLite
+  databases, storage trees and certificate directories use `t.TempDir` or
+  other unique temporary directories. Browser/export fixture output paths
+  are opt-in. No fixed-port or fixed-temp-path changes were needed.
+
+The WordPress sparse-author test now compares archive rendering with a
+measured full rescan of the same 20,000 posts for every author, instead of a
+three-second deadline. Rendering must beat even that scan alone; its existing
+checks for lost or mixed posts remain. This measures the quadratic regression
+under the current machine load without allowing a slower algorithm merely
+because the machine is busy. A temporary Go overlay restored the old
+per-author rescan: this test rejected it (25.21 seconds to render versus
+14.40 seconds for the rescan baseline). The overlay changed no worktree file.
+
+Runner regression tests: `python3 scripts/test-integration_test.py`, using
+only `TEST_PG_URL` and temporary fixture packages. They check serial totals,
+forced flags, two deliberately failing packages that synchronize to prove
+overlap, database-related skip rejection, invalid worker counts, and both
+SIGINT and SIGTERM while two clone-owning packages are running. All five
+pass. Interrupt cleanup stops the runner's process group and drops only its
+own uniquely prefixed clones and template.
+
+Full-suite measurements use the assigned disposable `TEST_PG_URL` and the
+existing Go caches (not cleared), with unchanged Go package timeouts and no
+cgroup cap. The full gate is run separately by the orchestrator. Load is
+sampled every two seconds. Run 1 also overlapped build/vet and the focused
+runner checks; later runs briefly overlapped the targeted handler reruns.
+The recorded 537-second baseline had load 2.4–8.1, mean 4.1; the runs below
+are not at comparable load.
+
+| Run | Workers | Seconds | Load min / mean / max | Pass / fail / skip | DB skips | Result |
+|---|---|---|---|---|---|---|
+| 1 | 3 | 765.95 | 12.77 / 27.56 / 42.87 | 4133 / 1 / 19 | 0 | Handler package's existing 10-minute timeout |
+| 2 | 3 | 708.77 | 11.68 / 23.81 / 32.55 | 4324 / 2 / 21 | 0 | Same package timeout; parent and subtest failure events |
+| 3 | 3 | 632.92 | 11.31 / 24.44 / 47.56 | 4173 / 1 / 20 | 0 | Same handler package timeout |
+| 4 | 1 | 1274.61 | 17.78 / 30.67 / 56.51 | 4526 / 0 / 22 | 0 | Pass |
+
+Run 1's failure is attributed by Go to `TestSignupSourceRecordedAtCreation`,
+which had run for zero seconds when the **package** timeout fired. The timeout
+is unchanged. That individual test passes when rerun by itself against a
+new disposable database (1 pass, 0 failures, 0 skips). The changed Go
+packages (`internal/mcp`, `internal/testdb`, `internal/wpimport`) all passed
+in the full run. This run does not meet the required zero-failure totals or the
+40% speedup threshold (322.2 seconds). Run 2 hit the same package timeout
+during `TestSSORedteamListedConsentAndPending/abandon`, after that subtest
+had run for zero seconds; the parent had run for one second. Its failure
+count includes both parent and subtest. The test passes separately (6
+passes, 0 failures, 0 skips). All four full runs removed their template
+and clone databases, including the clone left by the package timeout.
+Run 3 hit the same package timeout during `TestStoragePresetsRulesOnSave`,
+which had been running for eight seconds. It passes separately (1 pass,
+0 failures, 0 skips). All changed Go packages passed in all four full runs.
+The serial run completed the whole suite with no
+failures and no database-related skips.
+
+**Initial acceptance result (before the review follow-up below):** the three parallel runs timed out and their
+partial totals differ from the complete serial run. None establishes the
+required 40% reduction from 537 seconds at similar load; comparing truncated
+parallel runs with the complete serial run would not be a valid speedup
+measurement. Handler assertions and timeouts remain unchanged.
+The five runner regression tests, `check-all_test.sh`, `go build ./...`,
+`go vet ./...`, and gofmt checks pass. The full gate is left to the
+orchestrator as requested; no commit, push, merge or deploy was performed.
+
+### X1-S1 review follow-up (2026-11-13)
+
+The setup-interruption finding was reproduced against the committed runner:
+both SIGINT and SIGTERM after a successful `CREATE DATABASE`, before `psql`
+returns, left the template behind. The runner now defers signal-triggered
+exit just across creation and ownership recording, then exits with 130 or
+143 and performs its normal cleanup. A failed creation still does not grant
+ownership. The new `test_interrupt_during_database_creation` regression uses
+real PostgreSQL creation with a temporary `psql` wrapper that delivers each
+signal at that boundary. Both cases fail against the old runner and pass
+against the fix; the test also removes its own database if the old runner
+leaks it. All six runner tests pass, including the existing two-package
+failure-reporting, forced-flag, database-skip and running-test interruption
+checks. Build, vet, gofmt and shell syntax checks pass.
+
+The prescribed three parallel runs and one serial run were repeated
+sequentially, using the assigned disposable `TEST_PG_URL`, unchanged caches,
+assertions and timeouts, and no cgroup cap. Build, vet and focused tests had
+finished before these trials. No other checks from this worktree ran beside
+them. Wall time and load were sampled every two seconds, so elapsed times
+include up to two seconds of completion-detection delay.
+
+| Run | Workers | Seconds | Load min / mean / max | Pass / fail / skip | DB skips | Result |
+|---|---|---|---|---|---|---|
+| Review 1 | 3 | 705.41 | 14.08 / 23.46 / 51.33 | 4526 / 0 / 22 | 0 | Pass |
+| Review 2 | 3 | 464.24 | 12.58 / 20.13 / 22.85 | 4526 / 0 / 22 | 0 | Pass |
+| Review 3 | 3 | 564.21 | 12.29 / 19.40 / 25.38 | 4526 / 0 / 22 | 0 | Pass |
+| Review 4 | 1 | 694.19 | 5.83 / 7.44 / 13.98 | 4526 / 0 / 22 | 0 | Pass |
+| Additional lower-load attempt | 3 | 458.29 | 6.12 / 10.33 / 13.29 | 4526 / 0 / 22 | 0 | Pass |
+
+All five runs exited zero and a catalog query verified that each run's
+template and uniquely prefixed clones were gone. The additional attempt
+started after load had fallen to 6.30; it used a private temporary directory
+to retain the runner's JSON stream for package timing analysis. During that
+run, load rose again. `internal/handler` took 441.262 seconds and started
+11.979 seconds after the first Go package. `products/hack/hackhttp` took
+286.076 seconds and started at 75.147 seconds. At these measured package
+durations, starting the handler first would still exceed 322.2 seconds;
+package ordering alone cannot close the gap in this run.
+
+**Review status:** the setup leak is fixed and repeatable successful totals
+are now demonstrated. The timing finding remains open: no parallel trial
+meets 322.2 seconds, and none matches the original baseline's load
+2.4–8.1 (mean 4.1). These runs do not establish the required 40% improvement.
+No further runner scheduling change was made based on non-comparable load,
+and no test assertion or timeout was relaxed. A comparable-load performance
+run remains necessary before this slice can be called done. Both review
+findings were accepted; neither was rejected. The full gate remains assigned
+to the orchestrator, as requested. No commit, push, merge, deploy, production
+database access or service change was performed.
+
+### X1-S1 package-isolation follow-up (2026-11-13)
+
+The audit missed `db/migrations/TestHackOneNameBackfill`: it opens `DB_DSN`
+directly, so its connection could prevent other packages from cloning the
+shared template. `db/migrations/main_test.go` now calls `testdb.Main`, giving
+the package its own clone. The separate `MIGRATE_TEST_DSN` path is unchanged.
+No assertions or timeouts were weakened.
+
+`TestDatabaseIsolation` checks the actual connected database against the
+original template and creates another clone while that connection stays
+open. A temporary Go overlay disabling the `TestMain` isolation made this
+regression fail at the missing-template assertion; with isolation restored,
+`TEST_PKGS='./db/migrations ./internal/testdb' TEST_COUNT=3` passed through
+the parallel runner (21 pass, 0 fail, 4 distinct skips, zero database-related
+skips; the four migration-only skips repeat in each iteration).
+The migration package also passed with all three `MIGRATE_*_DSN` fixtures
+pointing to newly created empty databases on the assigned test server;
+those databases were dropped afterwards. All six runner regression tests,
+`check-all_test.sh`, build, vet, formatting and layering checks also pass.
+The full gate is assigned to the orchestrator for this retry;
+the full-suite timings above are earlier runs, not remeasurements of this fix.
+
+The X1-S1 ruling in the refactor board's `NOTES.md` supersedes the timing
+blocker above: the 40% target is waived for merge under the shared box's
+load. Correctness, isolation and comparison with one worker in the same
+session remain the acceptance criteria; quiet-box timing is assigned to
+the orchestrator.
+
 ## Target (a proposal, not yet a rule)
 
 - Between edits: 30 seconds or less. Met today (18 s).
