@@ -1,5 +1,9 @@
 # Changelog
 
+- R2-S5a review: Persist newly created runtime directories before deleting moved Postgres data, bound SQLite prefix lists with the key index, and correct the installed program name in the move instructions.
+
+- R2-S5a: Add `kv-move` dry run, apply and health verification, with copy hashes and interruption recovery. Servers hold a maintenance lock so an offline move cannot overlap a running server. Production cutover remains a separate step; keep `KV_STORE=postgres`.
+
 - R2-S4b: Include SQLite key-value namespaces in site exports, resource deletion and the people list. Keep both stores in the research row count and add a comparable value-text-byte counter. The store remains dark; keep `KV_STORE=postgres` until the move and rehearsal are ready.
 
 - R2-S4a: Add the `KV_STORE` setting and a SQLite store for new key-value namespaces, for an upcoming change. Leave `KV_STORE` at `postgres` for now: site export, namespace deletion and the people list do not cover a SQLite namespace until a later release. Existing namespaces stay on PostgreSQL and the storage limits are unchanged.

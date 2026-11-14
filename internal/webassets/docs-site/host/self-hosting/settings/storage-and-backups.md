@@ -58,6 +58,60 @@ Keep `KV_STORE=postgres` until the move and rehearsal are ready. This release
 adds export, deletion and authorship support; changing the flag does not move
 existing namespaces.
 
+## Checking and moving key-value namespaces
+
+Run `kv-move` with the currently installed program (`/usr/local/bin/simple-host`
+in the standard installs), using that install's environment,
+including `DB_DSN` and `DATA_DIR`. Keep `KV_STORE=postgres` until the move
+and the separate rollback rehearsal have been approved.
+
+```text
+simple-host kv-move --dry-run --scratch /tmp/kv-check --log /tmp/kv-dry-run.jsonl
+simple-host kv-move --apply --log /tmp/kv-apply.jsonl
+simple-host kv-move --verify --log /tmp/kv-verify.jsonl
+```
+
+Repeat `--site <id>` to select sites; omitting it selects every key-value
+namespace, including sites in Recently deleted. Other resource kinds are
+unaffected.
+
+Dry run can run beside the server. It reads a repeatable Postgres snapshot,
+builds and checks temporary files under `--scratch`, and removes those files
+afterwards. Its JSON-lines report gives entry counts, logical bytes, copy
+hashes, whether Postgres's key order equals byte order, and the number of keys
+that differ only by case. Keys, values and authors are not included in the log.
+A copy difference exits 3; other failures exit 1. A namespace whose Postgres
+order differs will list in byte order after moving, so old page cursors may
+skip or repeat keys.
+
+Apply requires every server using the data directory to be stopped. Servers
+hold a shared lock on `DATA_DIR/.maintenance.lock` for their lifetime; apply
+takes an exclusive lock without waiting and exits 2 if it cannot. A server
+also refuses to start while apply holds that lock. The kernel releases the
+lock if the process dies; leave the lock file in place.
+
+For each namespace, apply builds a file without a WAL, compares every key,
+normalized JSON value, author and timestamp, checks integrity and the logical
+byte count, and writes the copy proof to the log. It syncs and renames the
+file and syncs the containing directories through the site directory, then
+changes the store marker and deletes the Postgres rows in one
+transaction. Check the command's exit status: the copy proof alone does not
+mean the final transaction committed. An unresolved site directory is
+reported and left on Postgres. Re-running apply removes interrupted copies
+for Postgres namespaces and skips namespaces already moved.
+
+Verify is read-only and can run beside the server after later writes. It
+checks the SQLite file, JSON values, entry and byte totals, and absence of
+Postgres rows for moved namespaces. It does not compare with the old source
+content. A leftover file for a Postgres namespace is a warning. A namespace
+changing during verification is retried once; a second change is reported
+as a warning, not corruption. Other health failures exit nonzero.
+
+Moving data on a live install is a separate operator step. Take the paired
+Postgres and data-directory backup while stopped before applying. This
+command does not provide rollback yet; that and the rehearsal are the next
+step. Once a namespace moves, use a program that understands its marker.
+
 **What fills the disk.** At the default allowances, 2,000 fully used hosted sites
 can add 40 GB of logical KV/SQLite and file storage (10 MB + 10 MB per site),
 beyond deployed versions. Budget extra for filesystem metadata, Postgres, SQLite

@@ -57,6 +57,15 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	if len(exts) == 1 {
 		ext = exts[0]
 	}
+	maintenance, err := storage.LockMaintenance(cfg.DataDir, false)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			maintenance.Close()
+		}
+	}()
 
 	if changed := cfg.Limits.Changed(); len(changed) > 0 {
 		log.Printf("limits changed from the defaults: %s", strings.Join(changed, " "))
@@ -73,7 +82,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	db.SetMaxIdleConns(cfg.DBMaxIdleConns)
 	db.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
 	db.SetConnMaxIdleTime(cfg.DBConnMaxIdleTime)
-	closeDeps := func() { db.Close() }
+	closeDeps := func() { db.Close(); maintenance.Close() }
 	defer func() {
 		if err != nil {
 			closeDeps()
@@ -473,7 +482,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// Caller location comes from local DB-IP files only (no network lookup);
 	// the watcher picks up the monthly refresh without a restart.
 	geo := geoip.Open(cfg.GeoIPDir)
-	closeDeps = func() { geo.Close(); db.Close() }
+	closeDeps = func() { geo.Close(); db.Close(); maintenance.Close() }
 
 	// Sign-in/sign-up country block (SIGNUP_BLOCKED_COUNTRIES): local lookup
 	// only, off by default. A listed country refuses every email-code and

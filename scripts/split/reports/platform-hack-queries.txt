@@ -10,7 +10,7 @@ internal/repository/accounts/account_lifecycle.go:265 | EraseAccount | event_che
 
 3. Embedded .sql files outside db/ that name a Hack object (0)
 
-4. Cannot evaluate: SQL built at run time from non-constant parts (53)
+4. Cannot evaluate: SQL built at run time from non-constant parts (54)
 internal/analytics/ingest.go:459 | Ingester.commitLines (strings.Builder) | non-constant: base, base + 1, base + 2, base + 3, base + 4 | INSERT INTO site_visitor_hourly (site_id, hour, class, ip_hash, country) VALUES
 internal/app/storage/legacy_sql_errors.go:136 | sqlFailure | non-constant: timeout | the statement ran longer than %s and was stopped: add a LIMIT, a narrower WHERE, or an index
 internal/app/storage/legacy_sql_errors.go:192 | sqlFailure | non-constant: m[1] | a row with the same ‹?m[1]› already exists (UNIQUE): use another value, or change the existing row with UPDATE (or INSERT ... ON CONFLICT DO…
@@ -47,6 +47,7 @@ internal/repository/sites/store_families.go:51 | queryFamilies | non-constant: w
 internal/repository/sites/store_families.go:141 | FamilyConflict | non-constant: overlapsSQL("$2", "f.suffix") | SELECT EXISTS (SELECT 1 FROM address_families f WHERE f.user_id <> $1 AND f.verified_at IS NOT NULL AND ‹?overlapsSQL("$2", "f.suffix")›) OR…
 internal/repository/sites/store_families.go:294 | OverlappingPendingFamilies | non-constant: overlapsSQL("$2", "f.suffix") | WHERE f.user_id <> $1 AND f.verified_at IS NULL AND ‹?overlapsSQL("$2", "f.suffix")›
 internal/repository/storage/usage.go:53 | ClearResourceWriters | non-constant: table | UPDATE ‹?table› SET writer_id='' WHERE site_id=$1 AND resource_name=$2
+internal/storage/runtime_kv.go:157 | runtimeKVListStatement | non-constant: op | SELECT key,value,visitor_id FROM kv WHERE key‹?op›?
 internal/storage/runtime_matrix.go:57 | PrepareMatrixDatabase | non-constant: Quote(t) | SELECT 1 FROM ‹?Quote(t)› LIMIT 1
 internal/storage/runtime_matrix.go:84 | PrepareMatrixDatabase | non-constant: Quote(t) | UPDATE ‹?Quote(t)› SET visitor_id = NULL
 internal/storage/runtime_row_insert.go:28 | insertRowStatement | non-constant: Quote(table) | INSERT INTO ‹?Quote(table)›

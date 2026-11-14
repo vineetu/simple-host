@@ -134,15 +134,51 @@ func RuntimeKVGet(conn *sqlite3.Conn, key, filter string) (KVEntry, error) {
 	return KVEntry{stmt.ColumnText(0), json.RawMessage(stmt.ColumnText(1)), stmt.ColumnText(2)}, nil
 }
 
+// runtimeKVPrefixEnd is the exclusive upper bound for a byte prefix under
+// BINARY collation. An empty result means there is no finite upper bound.
+func runtimeKVPrefixEnd(prefix string) string {
+	end := []byte(prefix)
+	for i := len(end) - 1; i >= 0; i-- {
+		if end[i] != 0xff {
+			end[i]++
+			return string(end[:i+1])
+		}
+	}
+	return ""
+}
+
+func runtimeKVListStatement(conn *sqlite3.Conn, prefix, after string, limit int, filter string) (*sqlite3.Stmt, error) {
+	// Use one effective lower bound so SQLite seeks straight to the prefix or
+	// the cursor, whichever is later, rather than filtering keys before it.
+	lower, op := after, ">"
+	if prefix > after {
+		lower, op = prefix, ">="
+	}
+	query := `SELECT key,value,visitor_id FROM kv WHERE key` + op + `?`
+	args := []string{lower}
+	if end := runtimeKVPrefixEnd(prefix); end != "" {
+		query += ` AND key<?`
+		args = append(args, end)
+	}
+	query += ` AND (?='' OR visitor_id=?) ORDER BY key COLLATE BINARY LIMIT ?`
+	args = append(args, filter, filter)
+	stmt, err := kvStatement(conn, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	if err = stmt.BindInt(len(args)+1, limit); err != nil {
+		stmt.Close()
+		return nil, err
+	}
+	return stmt, nil
+}
+
 func RuntimeKVList(conn *sqlite3.Conn, prefix, after string, limit int, filter string) ([]KVEntry, error) {
-	stmt, err := kvStatement(conn, `SELECT key,value,visitor_id FROM kv WHERE instr(key,?)=1 AND key>? AND (?='' OR visitor_id=?) ORDER BY key COLLATE BINARY LIMIT ?`, prefix, after, filter, filter)
+	stmt, err := runtimeKVListStatement(conn, prefix, after, limit, filter)
 	if err != nil {
 		return nil, err
 	}
 	defer stmt.Close()
-	if err = stmt.BindInt(5, limit); err != nil {
-		return nil, err
-	}
 	entries := []KVEntry{}
 	for stmt.Step() {
 		entries = append(entries, KVEntry{stmt.ColumnText(0), json.RawMessage(stmt.ColumnText(1)), stmt.ColumnText(2)})

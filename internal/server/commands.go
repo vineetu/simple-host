@@ -14,6 +14,7 @@ func commands(exts []*extension.Extension) []command {
 		{"prune-versions", runPruneVersions},
 		{"oauth-client", runOAuthClientCommand},
 		{"review-account", runReviewAccountCommand},
+		{"kv-move", runKVMoveCommand},
 		{"move-site-base", runMoveSiteBaseCommand},
 		{"brain-build", runBrainBuild},
 		{"geoip-verify", geoipVerify},
