@@ -14,8 +14,23 @@ type LegacyAuthorizerState struct {
 }
 
 // LegacyAuthorizer installs the legacy SQL route's SQLite authorizer.
-func LegacyAuthorizer[T any](conn *sqlite3.Conn, mode, read, visitorID string, owner bool, state *LegacyAuthorizerState, deny func(T) sqlite3.AuthorizerReturnCode, authorizerDenial func(sqlite3.AuthorizerActionCode, string, string) T, visitorReadDenial func(string) T) error {
+func LegacyAuthorizer[T any](conn *sqlite3.Conn, mode, read, visitorID string, owner, rulesResource bool, state *LegacyAuthorizerState, deny func(T) sqlite3.AuthorizerReturnCode, authorizerDenial func(sqlite3.AuthorizerActionCode, string, string) T, visitorReadDenial func(string) T) error {
+	alterMain := false
 	return conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
+		if a == sqlite3.AUTH_ALTER_TABLE && n3 == "main" && owner && mode == "schema" && rulesResource {
+			alterMain = true
+			state.DidSchema = true
+			// ALTER puts its database in n3; for DROP COLUMN, the driver
+			// supplies the column name in the usual schema argument.
+			return sqlite3.AUTH_OK
+		}
+		// ALTER checks and rewrites SQLite's temporary schema even when it has
+		// no objects. Let owner rules-schema changes reach the transactional
+		// rule-set rename guard, without allowing temp objects or direct access
+		// to their schema. Preset resources retain their existing refusal.
+		if alterMain && schema == "temp" && n3 == "sqlite_temp_master" && inner == "" && (a == sqlite3.AUTH_READ || a == sqlite3.AUTH_UPDATE) {
+			return sqlite3.AUTH_OK
+		}
 		if schema != "" && schema != "main" {
 			if schema == "temp" {
 				return deny(authorizerDenial(sqlite3.AUTH_CREATE_TEMP_TABLE, mode, ""))

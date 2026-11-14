@@ -19,7 +19,8 @@ func (h *SiteHandler) storageSvc() *appstorage.Service {
 // SetStorageBindings is called once at startup. A malformed product schema is a
 // programming/configuration error and stops startup before any request is served.
 func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
-	schema, err := appstorage.MergeBindingSchema(h.turnstile != nil, p)
+	declaration := appstorage.SnapshotBindings(p)
+	schema, err := appstorage.MergeBindingSchema(h.turnstile != nil, declaration)
 	if err != nil {
 		panic(err)
 	}
@@ -28,16 +29,21 @@ func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
 	}
 	h.storageBindings = p
 	h.storageBindingSchema = schema
+	h.storageProductBindingSchema = appstorage.BindingSchema{}
+	if declaration != nil {
+		h.storageProductBindingSchema = declaration.Schema()
+	}
 }
 
 func (h *SiteHandler) storageDeps() appstorage.Deps {
 	deps := appstorage.Deps{
-		Bindings:           h.storageBindings,
-		BindingSchema:      h.storageBindingSchema,
-		RulesEnabled:       os.Getenv("STORAGE_RULES") == "on",
-		SpamCheckAvailable: h.turnstile != nil,
-		SiteSlots:          h.siteSlotsFor(),
-		Locks:              &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
+		Bindings:             h.storageBindings,
+		BindingSchema:        h.storageBindingSchema,
+		ProductBindingSchema: h.storageProductBindingSchema,
+		RulesEnabled:         os.Getenv("STORAGE_RULES") == "on",
+		SpamCheckAvailable:   h.turnstile != nil,
+		SiteSlots:            h.siteSlotsFor(),
+		Locks:                &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
 		KVStore:   os.Getenv("KV_STORE"),
 		SiteLimit: os.Getenv("SITE_STORAGE_MAX_BYTES"), FilesLimit: os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"),
 		SpamCheckedMaxBytes: h.limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.limits.SpamCheckedMaxLinks,

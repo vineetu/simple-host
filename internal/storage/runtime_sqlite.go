@@ -225,10 +225,10 @@ func tableHasSchemaDependents(conn *sqlite3.Conn, table string) (bool, error) {
 // added were public before, so they count as approved.
 // EnsureHoldTables provides the existing runtime storage helper.
 func EnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
-	return ensureHoldTables(conn, need, false)
+	return ensureHoldTables(conn, need, false, nil)
 }
 
-func ensureHoldTables(conn *sqlite3.Conn, need func(string) bool, rulesSave bool) error {
+func ensureHoldTables(conn *sqlite3.Conn, need func(string) bool, rulesSave bool, before map[string]bool) error {
 	tables, err := SQLTables(conn)
 	if err != nil {
 		return err
@@ -246,6 +246,9 @@ func ensureHoldTables(conn *sqlite3.Conn, need func(string) bool, rulesSave bool
 			column = schemaColumn(cols, column)
 		}
 		if _, found := cols[column]; !found {
+			if before[table] {
+				return fmt.Errorf("approved_at TEXT required")
+			}
 			if e = conn.Exec("ALTER TABLE " + Quote(table) + " ADD COLUMN approved_at TEXT"); e != nil {
 				return e
 			}
@@ -679,4 +682,13 @@ func sqliteStage(ctx context.Context, stage string) {
 	if hook, ok := ctx.Value(sqliteStageKey{}).(func(string)); ok {
 		hook(stage)
 	}
+}
+
+// EnsureRuleColumns applies the owner schema safeguards with SQLite's
+// case-insensitive column names, as rule saves do.
+func EnsureRuleColumns(conn *sqlite3.Conn, before map[string]bool, own, hold func(string) bool) error {
+	if err := ensureOwnTables(conn, before, own, true); err != nil {
+		return err
+	}
+	return ensureHoldTables(conn, hold, true, before)
 }

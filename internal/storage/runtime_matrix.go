@@ -98,7 +98,7 @@ func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, u
 	if err = ensureOwnTables(conn, map[string]bool{}, ownTables, rulesSave); err != nil {
 		return existing, err
 	}
-	if err = ensureHoldTables(conn, holdTables, rulesSave); err != nil {
+	if err = ensureHoldTables(conn, holdTables, rulesSave, nil); err != nil {
 		return existing, err
 	}
 	sqliteStage(ctx, "before_commit")

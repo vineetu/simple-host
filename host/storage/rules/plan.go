@@ -131,3 +131,32 @@ func (p *Plan) validateValues(op Op, v Values) error {
 	}
 	return nil
 }
+
+// RequiredColumns derives schema safeguards from saved syntax, independently of
+// current column and product binding declarations. It is not an authorization
+// plan. Unknown bindings remain unknown when deciding whether a visitor may add.
+func RequiredColumns(set PolicySet, platform BindingSchema, lim Limits) (author, approval bool, err *RuleError) {
+	p := &Plan{schema: platform, lim: lim}
+	for _, pol := range set.Policies {
+		pp := plannedPolicy{command: pol.Command, restrictive: pol.Restrictive}
+		for _, clause := range []struct {
+			text string
+			dest **Expr
+		}{{pol.Using, &pp.using}, {pol.Check, &pp.check}} {
+			if clause.text == "" {
+				continue
+			}
+			x, e := Parse(clause.text, lim)
+			if e != nil {
+				return false, false, e
+			}
+			*clause.dest = normal(x, false)
+		}
+		if pp.check == nil && pol.Command == CmdAll {
+			pp.check = pp.using
+		}
+		p.policies = append(p.policies, pp)
+	}
+	p.check[OpAdd] = p.compose(OpAdd, true)
+	return p.AuthorTracked(), p.ReferencesColumn("approved_at"), nil
+}

@@ -16,6 +16,7 @@ import net from 'node:net';
 import http from 'node:http';
 import https from 'node:https';
 import crypto from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import {
   Namer, normalizeValue, normalizeText, normalizeSetCookie, sha256hex, omitRequests,
   createTextWriter, describeZip, normalizeRecordedText, sanitizeName,
@@ -581,6 +582,31 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
  if (result.json?.error || result.json?.result?.isError) throw new Error('rules-on tool save failed');
  const listed = await rpc(`tools/call ${prefix}list_resources`, 'tools/call', { name: `${prefix}list_resources`, arguments: scope });
  if (listed.json?.error || listed.json?.result?.isError) throw new Error('rules-on tool list failed');
+ // R3-S1a: seed only this scenario's disposable SQLite file after the
+ // existing owner requests, so their request/response bytes remain unchanged.
+ const siteWhere = instance.tag === 'hack'
+  ? `sites s JOIN events e ON s.user_id=e.account_id AND s.name=e.id::text JOIN users u ON u.id=s.user_id WHERE e.slug='${name}'`
+  : `sites s JOIN users u ON u.id=s.user_id WHERE s.name='${name}'`;
+ const [ownerID, siteName, handle] = psql(instance.dbURL, `SELECT s.user_id || '|' || s.name || '|' || u.handle FROM ${siteWhere}`).trim().split('|');
+ const folder = path.join(instance.env.DATA_DIR, 'by-id', ownerID, siteName, 'runtime', 'sqlite');
+ mkdirSync(folder, { recursive: true });
+ const db = new DatabaseSync(path.join(folder, 'notes.sqlite'));
+ try {
+  db.exec("CREATE TABLE notes(body TEXT); INSERT INTO notes VALUES('hidden'); CREATE TABLE public_notes(body TEXT); INSERT INTO public_notes VALUES('first'),('second');");
+ } finally { db.close(); }
+ const host = instance.tag === 'hack' ? `${name}.golden-hack.invalid` : `${name}.${handle}.golden-host.invalid`;
+ const headers = { Host: host, Origin: `http://${host}`, 'Sec-Fetch-Site': 'same-origin' };
+ const visitorBase = `/v1/sites/${name}/storage/sqlite/notes/tables`;
+ for (const [label, route, status] of [
+  ['visitor-read-open-get', 'public_notes/rows/1', 200],
+  ['visitor-read-open-list', 'public_notes/rows?limit=1', 200],
+  ['visitor-read-missing', 'public_notes/rows/99', 404],
+  ['visitor-read-closed-get', 'notes/rows/1', 403],
+  ['visitor-read-closed-list', 'notes/rows', 403],
+ ]) {
+  const result = await at(label, 'GET', `${visitorBase}/${route}`, { headers });
+  if (result && result.status !== status) throw new Error(`${label}: expected ${status}, got ${result.status}`);
+ }
 }
 
 async function seedAndCallMixedStore({ instance, at, registerSecret }) {

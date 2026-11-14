@@ -14,6 +14,7 @@ import (
 type Deps struct {
 	Bindings                                 BindingProvider
 	BindingSchema                            ruleengine.BindingSchema
+	ProductBindingSchema                     ruleengine.BindingSchema
 	RulesEnabled                             bool
 	VisitorEmail                             func(context.Context, string) (string, error)
 	Disk                                     interface{ SiteDir(string, string) string }

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
@@ -103,7 +104,11 @@ type rowMetadata struct {
 func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadata, error) {
 	var m rowMetadata
 	var err error
-	m.cols, m.order, err = runtime.TableInfo(conn, table)
+	if c.rulePlan != nil {
+		m.cols, m.order, err = runtime.TableXInfo(conn, table)
+	} else {
+		m.cols, m.order, err = runtime.TableInfo(conn, table)
+	}
 	if err != nil {
 		return m, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 	}
@@ -138,6 +143,10 @@ func (s *Service) authorizeTable(ctx context.Context, c Call, table, action stri
 	c.Context = ctx
 	if err := s.Gate(c, action != "read"); err != nil {
 		return c, "", err.(*Error), false
+	}
+	if action == "read" && !c.Owner && c.Resource.RulesStatus() != "preset" {
+		err := s.authorizeRuleRead(ctx, &c, table)
+		return c, "", err, err == nil
 	}
 	c.CurrentMatrix = c.Resource.TableMatrix(table)
 	// for (ResolveOwnerFor) only applies to a table whose read is own
@@ -188,6 +197,17 @@ func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, err
 		if hold && !c.Owner && !c.OwnerOnSite {
 			query += " AND approved_at IS NOT NULL"
 		}
+		var ruleArgs []ruleengine.Value
+		if c.rulePlan != nil {
+			predicate, e := s.ruleReadPredicate(ctx, &c, in.Table, meta)
+			if e != nil {
+				return e
+			}
+			query, ruleArgs, e = runtime.RuleSelectOne(in.Table, rowid, ruleengine.Int(in.ID), predicate)
+			if e != nil {
+				return rulesInvalid()
+			}
+		}
 		err = rowReadAuthorizer(conn, c.Owner)
 		if err != nil {
 			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
@@ -198,13 +218,19 @@ func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, err
 		}
 		defer stmt.Close()
 		s.sqliteStage("after_prepare")
-		if len(params) != stmt.BindCount() {
-			return invalid(err)
-		}
-		for i, v := range params {
-			raw, _ := json.Marshal(v)
-			if err := runtime.BindStorageParam(stmt, i+1, raw); err != nil {
+		if c.rulePlan != nil {
+			if err := runtime.BindRuleArgs(stmt, 1, ruleArgs); err != nil {
 				return invalid(err)
+			}
+		} else {
+			if len(params) != stmt.BindCount() {
+				return invalid(err)
+			}
+			for i, v := range params {
+				raw, _ := json.Marshal(v)
+				if err := runtime.BindStorageParam(stmt, i+1, raw); err != nil {
+					return invalid(err)
+				}
 			}
 		}
 		if !stmt.Step() {
@@ -218,7 +244,7 @@ func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, err
 		mine := false
 		for i, name := range order {
 			row[i] = runtime.StorageColumn(stmt, i)
-			if name == "visitor_id" {
+			if name == "visitor_id" || c.rulePlan != nil && strings.EqualFold(name, "visitor_id") {
 				id, _ := row[i].(string)
 				mine = id != "" && c.VisitorID != "" && id == c.VisitorID
 				if !c.Owner && !c.OwnerOnSite && !mine {
@@ -254,6 +280,14 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 		if err != nil {
 			return err
 		}
+		var predicate ruleengine.Predicate
+		if c.rulePlan != nil {
+			predicate, err = s.ruleReadPredicate(ctx, &c, in.Table, meta)
+			if err != nil {
+				return err
+			}
+		}
+		// Owner-only query options use the refreshed owner-on-site status.
 		cols, orderCols, rowid, hold := meta.cols, meta.order, meta.rowid, meta.hold
 		q := in.Query
 		after := q.Get("after")
@@ -274,7 +308,7 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 		if order == "" {
 			order = rowid
 		}
-		if _, ok := cols[order]; !ok && order != rowid || order == "visitor_id" && !(c.Owner || c.OwnerOnSite) {
+		if _, ok := cols[order]; !ok && order != rowid || (order == "visitor_id" || c.rulePlan != nil && strings.EqualFold(order, "visitor_id")) && !(c.Owner || c.OwnerOnSite) {
 			return &Error{Code: "invalid_rows", Message: "invalid row request"}
 		}
 		desc := q.Get("desc")
@@ -282,6 +316,7 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 			return &Error{Code: "invalid_rows", Message: "desc is 0 or 1"}
 		}
 		page := &rowPage{limit: limit, order: order, desc: desc == "1", orderIndex: -1}
+		rulePage := runtime.RulePage{Order: order, Desc: page.desc, Limit: limit + 1}
 		for i, name := range orderCols {
 			if name == order {
 				page.orderIndex = i
@@ -310,11 +345,12 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 		}
 		for _, k := range keys {
 			col := strings.TrimPrefix(k, "where.")
-			if _, ok := cols[col]; !ok || col == "visitor_id" && !(c.Owner || c.OwnerOnSite) {
+			if _, ok := cols[col]; !ok || (col == "visitor_id" || c.rulePlan != nil && strings.EqualFold(col, "visitor_id")) && !(c.Owner || c.OwnerOnSite) {
 				return &Error{Code: "invalid_rows", Message: "invalid row request"}
 			}
 			where = append(where, runtime.Quote(col)+" = ?")
 			bind(q.Get(k))
+			rulePage.Filters = append(rulePage.Filters, runtime.RuleFilter{Column: col, Value: ruleengine.Text(q.Get(k))})
 		}
 		direction, op := " ASC", ">"
 		if page.desc {
@@ -327,6 +363,11 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 			if e != nil || json.Unmarshal(b, &cur) != nil || cur.Order != order || cur.Desc != page.desc || cur.Value == nil || !runtime.StorageScalar(cur.Value) {
 				return &Error{Code: "invalid_rows", Message: "invalid after"}
 			}
+			value, e := ruleScalar(cur.Value)
+			if e != nil {
+				return &Error{Code: "invalid_rows", Message: "invalid after"}
+			}
+			rulePage.After = &runtime.RuleCursor{Value: value, ID: ruleengine.Int(cur.ID)}
 			// SQLite sorts NULL first in ascending order; include them when descending.
 			qo := runtime.Quote(order)
 			if order == rowid {
@@ -359,6 +400,14 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 		}
 		query += " ORDER BY " + orderSQL + direction + ", " + rowid + direction + " LIMIT ?"
 		bind(limit + 1)
+		var ruleArgs []ruleengine.Value
+		if c.rulePlan != nil {
+			var e error
+			query, ruleArgs, e = runtime.RuleSelectPage(in.Table, rowid, rulePage, predicate)
+			if e != nil {
+				return rulesInvalid()
+			}
+		}
 		if err := rowReadAuthorizer(conn, c.Owner); err != nil {
 			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 		}
@@ -368,7 +417,12 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 		}
 		defer stmt.Close()
 		s.sqliteStage("after_prepare")
-		if err = rowBindAll(stmt, params); err != nil {
+		if c.rulePlan != nil {
+			err = runtime.BindRuleArgs(stmt, 1, ruleArgs)
+		} else {
+			err = rowBindAll(stmt, params)
+		}
+		if err != nil {
 			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 		}
 		rows := make([][]any, 0)
@@ -393,7 +447,7 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 			m := false
 			for i, name := range orderCols {
 				row[i] = runtime.StorageColumn(stmt, i)
-				if name == "visitor_id" {
+				if name == "visitor_id" || c.rulePlan != nil && strings.EqualFold(name, "visitor_id") {
 					id, _ := row[i].(string)
 					m = id != "" && c.VisitorID != "" && id == c.VisitorID
 					if !c.Owner && !c.OwnerOnSite && !m {
@@ -485,4 +539,29 @@ func (s *Service) sqliteStage(stage string) {
 	if s.sqliteHook != nil {
 		s.sqliteHook(stage)
 	}
+}
+
+func ruleScalar(raw json.RawMessage) (ruleengine.Value, error) {
+	if string(raw) == "null" {
+		return ruleengine.Null(), nil
+	}
+	var v any
+	d := json.NewDecoder(strings.NewReader(string(raw)))
+	d.UseNumber()
+	if err := d.Decode(&v); err != nil {
+		return ruleengine.Value{}, err
+	}
+	switch v := v.(type) {
+	case string:
+		return ruleengine.Text(v), nil
+	case bool:
+		return ruleengine.Bool(v), nil
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return ruleengine.Int(i), nil
+		}
+		f, err := v.Float64()
+		return ruleengine.Float(f), err
+	}
+	return ruleengine.Value{}, fmt.Errorf("invalid scalar")
 }

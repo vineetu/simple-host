@@ -159,3 +159,23 @@ func reservedBindingNamespace(s string) bool {
 	}
 	return false
 }
+
+// SnapshotBindings keeps the provider declaration fixed after startup. Values
+// and owner checks still call the live provider on each authorization stage.
+func SnapshotBindings(p BindingProvider) BindingProvider {
+	if p == nil {
+		return nil
+	}
+	schema := ruleengine.BindingSchema{}
+	for name, binding := range p.Schema() {
+		schema[name] = binding
+	}
+	return declaredBindings{BindingProvider: p, schema: schema}
+}
+
+type declaredBindings struct {
+	BindingProvider
+	schema ruleengine.BindingSchema
+}
+
+func (p declaredBindings) Schema() ruleengine.BindingSchema { return p.schema }

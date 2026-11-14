@@ -177,3 +177,25 @@ func TestBindingValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRequiredColumnsWithoutBindingDeclarations(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		policies         []Policy
+		author, approval bool
+	}{
+		{"lost add binding", []Policy{{Command: CmdAdd, Check: `event.member`}}, true, false},
+		{"lost list binding", []Policy{{Command: CmdRead, Using: `visitor_id in event.members && approved_at is not null`}}, true, true},
+		{"owner add only", []Policy{{Command: CmdAdd, Check: `auth.role == "owner" && event.member`}}, false, false},
+		{"restrictive add denial", []Policy{{Command: CmdAdd, Check: `event.member`}, {Command: CmdAdd, Check: `false`, Restrictive: true}}, false, false},
+		{"literal names", []Policy{{Command: CmdRead, Using: `body == "visitor_id approved_at"`}}, false, false},
+		{"all default check", []Policy{{Command: CmdAll, Using: `auth.signed_in && event.member`}}, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			author, approval, err := RequiredColumns(PolicySet{Policies: tc.policies}, BindingSchema{"auth.role": {Type: TypeText}, "auth.signed_in": {Type: TypeBool}}, DefaultLimits())
+			if err != nil || author != tc.author || approval != tc.approval {
+				t.Fatalf("got %t %t %v", author, approval, err)
+			}
+		})
+	}
+}

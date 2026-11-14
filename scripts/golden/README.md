@@ -705,6 +705,12 @@ R2-S4b approvals; the base scenario stays unchanged.
 `rules-on` runs both products with `STORAGE_RULES=on`: an owner saves and reads
 a SQLite resource with a default set and a table override, lists a preset beside
 it, lists tools with screens off and on, and saves/lists through the storage tools.
-It contains no visitor requests; enforcement slices add those separately.
+Those original owner requests stay unchanged as enforcement slices add visitor requests.
 The first reference skips this scenario and R2-S3 approves its addition once per
 product. Later references run it alongside every other scenario.
+
+The `rules-on` scenario also records anonymous SQLite get/list requests for both
+products: an open default, a table override with no policies, a one-row page, and
+a missing row. After its original owner requests it seeds only its disposable
+`notes.sqlite` file using Node 22's built-in `node:sqlite`; existing owner request
+and response bytes stay unchanged. R3-S1a approves each new visitor request.

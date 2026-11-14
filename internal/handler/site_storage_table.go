@@ -68,7 +68,7 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 		}
 		if auth := result.Authorization; auth != nil {
 			if len(auth.Refusals) == 0 {
-				storageError(w, 403, auth.Code, auth.Message)
+				writeTableError(w, auth)
 				return
 			}
 			writeStorageRefusals(w, auth.Refusals)
@@ -115,7 +115,7 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 		auth := in.Authorized.Authorization
 		if auth != nil {
 			if len(auth.Refusals) == 0 {
-				storageError(w, 403, auth.Code, auth.Message)
+				writeTableError(w, auth)
 				return
 			}
 			writeStorageRefusals(w, auth.Refusals)
@@ -182,7 +182,10 @@ func writeTableError(w http.ResponseWriter, e *appstorage.Error) {
 		}
 		storageBusy(w)
 		return
-	case "forbidden":
+	case "account_suspended", "sign_in_required":
+		writeStorageRefusals(w, []*appstorage.Error{e})
+		return
+	case "forbidden", "rules_invalid", "site_locked", "site_private", "csrf_required", "for_requires_own":
 		status = http.StatusForbidden
 	case "row_not_found", "invalid_reference", "visitor_unknown":
 		status = http.StatusNotFound

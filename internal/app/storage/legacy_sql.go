@@ -44,7 +44,7 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 	var refusals []*Error
 	defer func() { result.Refusals = refusals }()
 	c, mode := in.Call, in.Mode
-	if !c.Owner && !c.Resource.LegacyVisitorSQL() {
+	if !c.Owner && (c.Resource.RulesStatus() != "preset" || !c.Resource.LegacyVisitorSQL()) {
 		return LegacySQLResult{}, &Error{Code: "fixed_routes_required", Message: "pages use the table rows routes (table().list, get, add, edit, delete); SQL is for the owner's tools"}
 	}
 	if mode != "query" && mode != "execute" && mode != "schema" {
@@ -211,7 +211,7 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 				}
 				return sqlite3.AUTH_DENY
 			}
-			err = storage.LegacyAuthorizer(conn, mode, c.Resource.Read, c.VisitorID, c.Owner, &authorizerState, deny, sqlAuthorizerDenial, sqlVisitorReadDenial)
+			err = storage.LegacyAuthorizer(conn, mode, c.Resource.Read, c.VisitorID, c.Owner, c.Resource.RulesStatus() != "preset", &authorizerState, deny, sqlAuthorizerDenial, sqlVisitorReadDenial)
 			if err != nil {
 				return LegacySQLResult{}, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 			}
@@ -311,9 +311,25 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 							return ruled
 						})
 						if renamed && len(added) > 0 {
-							return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own preset; give the new name its preset first (storage_set_resource tables), then rename"}
+							if c.Resource.RulesStatus() != "preset" {
+								for _, table := range added {
+									if _, own := c.Resource.Tables[strings.ToLower(table)]; !own {
+										return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own rules; give the new name its rules first (storage_set_resource tables), then rename"}
+									}
+								}
+							} else {
+								return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own preset; give the new name its preset first (storage_set_resource tables), then rename"}
+							}
 						}
 						for _, t := range added {
+							if c.Resource.RulesStatus() != "preset" {
+								if _, own := c.Resource.Tables[strings.ToLower(t)]; own {
+									notes = append(notes, "new table "+t+" uses the rules saved for it")
+								} else {
+									notes = append(notes, "new table "+t+" uses the database rules; give it its own with storage_set_resource tables if it should be narrower")
+								}
+								continue
+							}
 							m := c.Resource.TableMatrix(t)
 							if _, ruled := c.Resource.Tables[strings.ToLower(t)]; ruled {
 								notes = append(notes, "new table "+t+" uses the preset saved for it ("+rules.PresetName(m)+")")
@@ -323,13 +339,20 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 						}
 					}
 				}
-				if err == nil {
+				if err == nil && c.Resource.RulesStatus() != "preset" {
+					var ruleNotes []string
+					ruleNotes, err = s.ensureSchemaRules(conn, c, before)
+					notes = append(notes, ruleNotes...)
+				} else if err == nil {
 					err = storage.EnsureOwnTables(conn, before, c.Resource.OwnTables())
 				}
-				if err == nil {
+				if err == nil && c.Resource.RulesStatus() == "preset" {
 					err = storage.EnsureHoldTables(conn, c.Resource.Holds)
 				}
 				if err != nil {
+					if c.Resource.RulesStatus() != "preset" {
+						return LegacySQLResult{}, &Error{Code: "visitor_id_required", Message: "every author-tracked rules table must keep its visitor_id TEXT column"}
+					}
 					return LegacySQLResult{}, &Error{Code: "visitor_id_required", Message: "every table whose preset uses own or lets visitors add must keep its visitor_id TEXT column; only new tables receive it automatically, so do not drop or rename it"}
 				}
 				result.Changes = conn.Changes()

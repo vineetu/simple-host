@@ -866,13 +866,16 @@ func TestNotifyClientTimeoutAndResponseLimit(t *testing.T) {
 	defer srv.Close()
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
-	c := notifyClient{allowLoopback: true, roots: roots, timeout: l.NotifyTimeout}
+	// Body truncation is independent of the short deadline exercised below.
+	// Allow the normal timeout for the TLS handshake and response-size check.
+	c := notifyClient{allowLoopback: true, roots: roots}
 	n := model.Notification{Secret: notifyTestSecret, URL: srv.URL}
 	result := c.send(context.Background(), n, "msg_verification_size", []byte(`{}`))
-	if !result.Delivered || len(result.body) != 4096 {
+	if !result.Delivered || string(result.body) != strings.Repeat("x", 4096) {
 		t.Fatalf("response limit: %s, %d", result.Result, len(result.body))
 	}
 	n.URL += "/slow"
+	c.timeout = l.NotifyTimeout
 	result = c.send(context.Background(), n, "evt_timeout", []byte(`{}`))
 	if result.Result != "timeout" {
 		t.Fatalf("timeout category: %s", result.Result)

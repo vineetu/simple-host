@@ -56,7 +56,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
 	call.Resource.Tables = make(map[string]model.TableRule, len(c.resource.Tables))
 	for name, rule := range c.resource.Tables {
-		call.Resource.Tables[name] = model.TableRule{Matrix: model.AccessMatrix(rule.Matrix), PresetBase: rule.PresetBase}
+		call.Resource.Tables[name] = model.TableRule{Matrix: model.AccessMatrix(rule.Matrix), PresetBase: rule.PresetBase, Rules: rule.Rules}
 	}
 	svc := h.storageRequestSvc(r, c)
 	result, err := svc.LegacySQL(r.Context(), appstorage.LegacySQLInput{Call: call, Mode: mode, ReadBody: func() ([]byte, error) { return io.ReadAll(io.LimitReader(r.Body, (64<<10)+1)) }, ResultLimit: storageResultLimitBytes()})
@@ -128,7 +128,7 @@ func writeLegacySQLError(w http.ResponseWriter, e *appstorage.Error) {
 		status = 507
 	case "resource_changed", "table_preset_rename", "sql_unique_failed":
 		status = 409
-	case "sql_visitor_rule", "fixed_routes_required", "forbidden", "site_locked", "site_private", "csrf_required":
+	case "rules_invalid", "sql_visitor_rule", "fixed_routes_required", "forbidden", "site_locked", "site_private", "csrf_required":
 		status = 403
 	case "not_found":
 		status = 404
