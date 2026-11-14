@@ -36,7 +36,7 @@
       "method": "DELETE",
       "path": "/v1/admin/hack/events/{slug}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:542",
+      "source": "products/hack/hackhttp/hack.go:540",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -92,7 +92,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/hack.go:506",
+      "source": "products/hack/hackhttp/hack.go:504",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -172,7 +172,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/people/{user_id}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:508",
+      "source": "products/hack/hackhttp/hack.go:506",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -188,7 +188,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/requests/{id}",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:516",
+      "source": "products/hack/hackhttp/hack.go:514",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -196,7 +196,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:517",
+      "source": "products/hack/hackhttp/hack.go:515",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -204,7 +204,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:524",
+      "source": "products/hack/hackhttp/hack.go:522",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -212,7 +212,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:523",
+      "source": "products/hack/hackhttp/hack.go:521",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1716,7 +1716,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:493",
+      "source": "internal/server/build.go:494",
       "package": "internal/server",
       "dynamic": false
     },
@@ -1740,7 +1740,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:494",
+      "source": "internal/server/build.go:495",
       "package": "internal/server",
       "dynamic": false
     },
@@ -1748,7 +1748,7 @@
       "method": "GET",
       "path": "/v1/admin/hack/events",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:538",
+      "source": "products/hack/hackhttp/hack.go:536",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1772,7 +1772,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "internal/server/build.go:511",
+      "source": "internal/server/build.go:512",
       "package": "internal/server",
       "dynamic": false
     },
@@ -1932,7 +1932,7 @@
       "method": "GET",
       "path": "/v1/hack/directory",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:488",
+      "source": "products/hack/hackhttp/hack.go:486",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1940,7 +1940,7 @@
       "method": "GET",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack.go:499",
+      "source": "products/hack/hackhttp/hack.go:497",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1948,7 +1948,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/hack.go:502",
+      "source": "products/hack/hackhttp/hack.go:500",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2180,7 +2180,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/my-vote",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:496",
+      "source": "products/hack/hackhttp/hack.go:494",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2188,7 +2188,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/people",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:507",
+      "source": "products/hack/hackhttp/hack.go:505",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2196,7 +2196,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:489",
+      "source": "products/hack/hackhttp/hack.go:487",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2276,7 +2276,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:509",
+      "source": "products/hack/hackhttp/hack.go:507",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2284,7 +2284,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/open",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:510",
+      "source": "products/hack/hackhttp/hack.go:508",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2324,7 +2324,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:495",
+      "source": "products/hack/hackhttp/hack.go:493",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2332,7 +2332,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:492",
+      "source": "products/hack/hackhttp/hack.go:490",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2372,7 +2372,7 @@
       "method": "GET",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/hack.go:534",
+      "source": "products/hack/hackhttp/hack.go:532",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2380,7 +2380,7 @@
       "method": "GET",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "products/hack/hackhttp/hack.go:536",
+      "source": "products/hack/hackhttp/hack.go:534",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2396,7 +2396,7 @@
       "method": "GET",
       "path": "/v1/hack/names/{slug}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:501",
+      "source": "products/hack/hackhttp/hack.go:499",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2404,7 +2404,7 @@
       "method": "GET",
       "path": "/v1/hack/navigation",
       "feature_id": "hackathon-event-instances",
-      "source": "products/hack/hackhttp/hack.go:498",
+      "source": "products/hack/hackhttp/hack.go:496",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2428,7 +2428,7 @@
       "method": "GET",
       "path": "/v1/hack/team-links/{code}",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:533",
+      "source": "products/hack/hackhttp/hack.go:531",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3180,7 +3180,7 @@
       "method": "OPTIONS",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:490",
+      "source": "products/hack/hackhttp/hack.go:488",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3380,7 +3380,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/hack.go:503",
+      "source": "products/hack/hackhttp/hack.go:501",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3388,7 +3388,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/directory",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:494",
+      "source": "products/hack/hackhttp/hack.go:492",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3412,7 +3412,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/team",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:526",
+      "source": "products/hack/hackhttp/hack.go:524",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3644,7 +3644,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/keep-sites",
       "feature_id": "archive-cleanup",
-      "source": "products/hack/hackhttp/hack.go:540",
+      "source": "products/hack/hackhttp/hack.go:538",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3652,7 +3652,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/restore",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:541",
+      "source": "products/hack/hackhttp/hack.go:539",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3660,7 +3660,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/takedown",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:539",
+      "source": "products/hack/hackhttp/hack.go:537",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3820,7 +3820,7 @@
       "method": "POST",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack.go:500",
+      "source": "products/hack/hackhttp/hack.go:498",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3892,7 +3892,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/codes/{kind}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:505",
+      "source": "products/hack/hackhttp/hack.go:503",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3988,7 +3988,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/requests/{id}/{action}",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:515",
+      "source": "products/hack/hackhttp/hack.go:513",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4004,7 +4004,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/stage",
       "feature_id": "hack-next-step",
-      "source": "products/hack/hackhttp/hack.go:504",
+      "source": "products/hack/hackhttp/hack.go:502",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4020,7 +4020,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/invites",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:514",
+      "source": "products/hack/hackhttp/hack.go:512",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4028,7 +4028,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:529",
+      "source": "products/hack/hackhttp/hack.go:527",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4044,7 +4044,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:519",
+      "source": "products/hack/hackhttp/hack.go:517",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4052,7 +4052,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/fill",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:518",
+      "source": "products/hack/hackhttp/hack.go:516",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4060,7 +4060,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/join",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:520",
+      "source": "products/hack/hackhttp/hack.go:518",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4068,7 +4068,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/leave",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:521",
+      "source": "products/hack/hackhttp/hack.go:519",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4092,7 +4092,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:532",
+      "source": "products/hack/hackhttp/hack.go:530",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4100,7 +4100,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/members",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:522",
+      "source": "products/hack/hackhttp/hack.go:520",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4108,7 +4108,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/requests",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:513",
+      "source": "products/hack/hackhttp/hack.go:511",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4164,7 +4164,7 @@
       "method": "POST",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/hack.go:535",
+      "source": "products/hack/hackhttp/hack.go:533",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4172,7 +4172,7 @@
       "method": "POST",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "products/hack/hackhttp/hack.go:537",
+      "source": "products/hack/hackhttp/hack.go:535",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4820,7 +4820,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/me/looking",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:512",
+      "source": "products/hack/hackhttp/hack.go:510",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4860,7 +4860,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/finding",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/hack.go:511",
+      "source": "products/hack/hackhttp/hack.go:509",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4868,7 +4868,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:527",
+      "source": "products/hack/hackhttp/hack.go:525",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4876,7 +4876,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:528",
+      "source": "products/hack/hackhttp/hack.go:526",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4900,7 +4900,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:530",
+      "source": "products/hack/hackhttp/hack.go:528",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4908,7 +4908,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack.go:531",
+      "source": "products/hack/hackhttp/hack.go:529",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4924,7 +4924,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:497",
+      "source": "products/hack/hackhttp/hack.go:495",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4932,7 +4932,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack.go:493",
+      "source": "products/hack/hackhttp/hack.go:491",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },

@@ -74,6 +74,7 @@ type Parts struct {
 }
 
 type Hooks struct {
+	Images        operations.ProductImages
 	Sitemap       sites.SitemapFilter
 	Notifications notifications.GroupSites
 	GroupHosts    handler.GroupHosts

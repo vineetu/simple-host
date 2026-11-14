@@ -3,7 +3,7 @@
 # Objects: scripts/split/hack-objects.txt
 # Line numbers move when files are edited; regenerate this file, do not hand-edit it.
 
-1. SQL that names a Hack object (64)
+1. SQL that names a Hack object (62)
 internal/papermetrics/export.go:237 | Collector.setDaily | paper_hack_daily | SELECT to_char(d.day,'YYYY-MM-DD'),d.metric,d.value,h.run_id,COALESCE(r.metric_def_version,1) FROM paper_daily d LEFT JOIN paper_hack_daily h ON h.day=d.day AND…
 internal/papermetrics/hack_counter.go:406 | Collector.flushHackSlot | paper_hack_minute | INSERT INTO paper_hack_minute (run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s…
 internal/papermetrics/hack_counter.go:417 | Collector.flushHackSlot | paper_hack_latency | INSERT INTO paper_hack_latency (run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s) VALUES ($1…
@@ -67,8 +67,6 @@ internal/papermetrics/hack_snapshot.go:206 | hackDailyMetrics | events | SELECT 
 internal/papermetrics/hack_snapshot.go:207 | hackDailyMetrics | events | SELECT count(*) FROM events e JOIN sites s ON s.user_id=e.account_id AND s.name=e.id::text WHERE s.deleted_at IS NULL AND s.active_version>0
 internal/papermetrics/store.go:306 | Collector.dailySnapshot | paper_hack_daily | INSERT INTO paper_hack_daily(run_id,day,metric,value) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING
 internal/repository/accounts/account_lifecycle.go:265 | EraseAccount | event_checklist_acknowledgements | DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1
-internal/repository/operations/imagescan.go:336 | ClearEventIcon | events | UPDATE events SET icon_media_type = '', icon_bytes = NULL, updated_at = now() WHERE id = $1 AND icon_bytes IS NOT NULL AND encode(sha256(icon_bytes), 'hex') = $…
-internal/repository/operations/imagescan.go:349 | ClearEventScreenshot | event_entries | UPDATE event_entries SET screenshot = NULL, screenshot_type = '' WHERE team_id = $1 AND screenshot IS NOT NULL AND encode(sha256(screenshot), 'hex') = $2
 internal/repository/sites/gate.go:10 | LockEventOrganiser | event_members, events (name lines: 11) | SELECT m.role, e.stage, e.taken_down_at IS NOT NULL FROM events e JOIN event_members m ON m.event_id = e.id WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $…
 internal/repository/sites/gate.go:20 | LockApprovedTeamMember | event_members | SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE
 internal/repository/sites/gate.go:35 | SetTeamSiteTakedown | event_teams | UPDATE event_teams SET site_taken_down_at = COALESCE(site_taken_down_at, now()), site_taken_down_reason = $2 WHERE id = $1

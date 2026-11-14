@@ -20,6 +20,7 @@ import (
 	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/internal/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
+	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -104,13 +105,12 @@ func Extension() *extension.Extension {
 			hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
 			if d.ImageScan != nil {
 				hack.SetImageScan(d.ImageScan)
-				// SetImageScan takes only the enqueue interface; wire the reverse edge here.
-				d.ImageScan.SetHackTakeDownSync(hack.SyncEventMarkers)
 			}
 			return extension.Parts{
 				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
 				SiteSweep: NewSiteSweep(d.DB, siteHandler, siteSweep),
 				Hooks: extension.Hooks{
+					Images:        hackimages.New(d.DB, hack.SyncEventMarkers),
 					Sitemap:       hackevents.FilterSitemapSites,
 					Notifications: NotificationGroups{},
 					GroupHosts:    groupHosts,

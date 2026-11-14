@@ -313,13 +313,11 @@ func (h *HackHandler) ShareAssets(pages hackPages) { h.assets = pages }
 // screenshot enqueueing). Moved from imagescan.go (cleanup 3.2 slice 1c): a
 // method with a *HackHandler receiver must live in that type's package.
 // Only hackImageScanner's two methods, so this takes the interface, not
-// *ImageScan: main wires the take-down-marker sync the other way, with
-// SyncEventMarkers below and ImageScan.SetHackTakeDownSync (imagescan.go),
-// since that needs *ImageScan's own (unexported-to-hackhttp) method.
+// *ImageScan: the extension wires SyncEventMarkers into the product image hook.
 func (h *HackHandler) SetImageScan(s hackImageScanner) { h.imageScan = s }
 
-// SyncEventMarkers is syncEventMarkers, exported so main can wire it into
-// the image-scan worker's take-down path (ImageScan.SetHackTakeDownSync)
+// SyncEventMarkers is syncEventMarkers, exported so the extension can wire it into
+// the product image hook's take-down path
 // without this package needing to know *ImageScan's type.
 func (h *HackHandler) SyncEventMarkers(ctx context.Context, ev model.Event) bool {
 	return h.syncEventMarkers(ctx, ev)

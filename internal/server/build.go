@@ -444,6 +444,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		}
 	}
 	siteHandler.SetSitemapFilter(parts.Hooks.Sitemap)
+	imageScan.SetProductImages(parts.Hooks.Images)
 
 	siteHandler.SetNotificationGroups(parts.Hooks.Notifications)
 	siteHandler.SetGroupHosts(parts.Hooks.GroupHosts)

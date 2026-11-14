@@ -85,6 +85,10 @@ Hack supplies `GroupHosts` through `extension.Hooks` for group lookups, product 
 notification addresses and pinned versions. `Parts.SiteSweep` supplies its named sweep
 and after-pass callback; the platform reconciles suspension markers between those steps
 every tenth pass.
+Image scanning hands product-owned images (event icons, entry screenshots) to
+`operations.ProductImages`: `products/hack/app/imagescan` loads, describes, clears and takes
+down; `server.Build` installs it on `ImageScan` from `Parts.Hooks.Images`. With no hook such
+a queued job fails with a logged error and the worker carries on.
 
 Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies required schema;
 without a configured hostname it serves only setup and exits after configuration so the supervisor

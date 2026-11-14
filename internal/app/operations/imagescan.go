@@ -27,8 +27,6 @@ import (
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/workers"
-	entries "github.com/vsriram/simple-host/products/hack/repository/hackentries"
-	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 // Image matching (SIM-200). Images that reach the box (site files from a
@@ -87,8 +85,8 @@ type ImageScan struct {
 	SaveReport func(context.Context, sqlkit.Querier, int64, string, string, string) error
 	// siteHooks shares the site service lock and address policy.
 	siteHooks *ImageScanSiteHooks
-	// hackTakeDownSync updates event take-down markers after commit.
-	hackTakeDownSync func(ctx context.Context, ev model.Event) bool
+	// productImages handles images owned by the installed product.
+	productImages ProductImages
 }
 
 const (
@@ -134,12 +132,10 @@ func (s *ImageScan) reportReady() bool {
 	return s != nil && s.Reporter != nil && s.Config.ReportOrg != "" && s.Config.ReportName != "" && s.Config.ReportEmail != ""
 }
 
-// SetHackTakeDownSync wires the events-side take-down-marker sync (owned by
-// HackHandler, which calls this from its own SetImageScan in hack.go); nil
-// keeps the hack take-down path a no-op, same as before this was a func.
-func (s *ImageScan) SetHackTakeDownSync(fn func(ctx context.Context, ev model.Event) bool) {
+// SetProductImages installs the product's image hooks before workers start.
+func (s *ImageScan) SetProductImages(hook ProductImages) {
 	if s != nil {
-		s.hackTakeDownSync = fn
+		s.productImages = hook
 	}
 }
 
@@ -452,26 +448,15 @@ func (s *ImageScan) LoadJobBytes(ctx context.Context, j model.ImageScanJob) ([]b
 		if err != nil {
 			return nil, err
 		}
-	case "event_icon":
-		_, body, err := events.GetEventIcon(ctx, s.database, j.EventID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		raw = body
-	case "entry_screenshot":
-		data, _, err := entries.GetEventScreenshot(ctx, s.database, j.TeamID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		raw = data
 	default:
-		return nil, fmt.Errorf("unknown kind %q", j.Kind)
+		if s.productImages == nil || !s.productImages.Owns(j.Kind) {
+			return nil, fmt.Errorf("unknown kind %q", j.Kind)
+		}
+		var err error
+		raw, err = s.productImages.Load(ctx, s.database, j)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(raw) == 0 || ImageHash(raw) != j.SHA256 {
 		// Replaced since it was queued; the new bytes have their own job.
@@ -721,7 +706,7 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 	}
 	siteKind := j.Kind == "site_file" || j.Kind == "storage_file"
 	var site model.Site
-	var ev model.Event
+	var groupFound bool
 	if siteKind {
 		var err error
 		if site, err = sites.GetSiteByID(ctx, s.database, j.SiteID); err != nil {
@@ -730,12 +715,22 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 			s.fillSiteOwner(ctx, &m, site)
 		}
 	} else {
+		var owner ProductImageOwner
 		var err error
-		if ev, err = events.GetEventByID(ctx, s.database, j.EventID); err != nil {
+		if s.productImages == nil || !s.productImages.Owns(j.Kind) {
+			err = fmt.Errorf("unknown kind %q", j.Kind)
+		} else {
+			owner, groupFound, err = s.productImages.Describe(ctx, s.database, j)
+		}
+		if err != nil || !groupFound {
+			groupFound = false
+			if err == nil {
+				err = sql.ErrNoRows
+			}
 			log.Printf("image scan: event %s: %v", j.EventID, err)
 		} else {
-			m.EventSlug, m.OwnerID, m.OwnerEmail = ev.Slug, ev.AccountID, ev.ContactEmail
-			if u, err := accounts.GetUserByID(ctx, s.database, ev.AccountID); err == nil && u.Handle.Valid {
+			m.EventSlug, m.OwnerID, m.OwnerEmail = owner.Label, owner.OwnerID, owner.OwnerEmail
+			if u, err := accounts.GetUserByID(ctx, s.database, owner.OwnerID); err == nil && u.Handle.Valid {
 				m.OwnerHandle = u.Handle.String
 			}
 		}
@@ -808,10 +803,10 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 		} else {
 			var cleared bool
 			var err error
-			if j.Kind == "event_icon" {
-				cleared, err = db.ClearEventIcon(ctx, s.database, j.EventID, j.SHA256)
+			if s.productImages == nil || !s.productImages.Owns(j.Kind) {
+				err = fmt.Errorf("unknown kind %q", j.Kind)
 			} else {
-				cleared, err = db.ClearEventScreenshot(ctx, s.database, j.TeamID, j.SHA256)
+				cleared, err = s.productImages.Clear(ctx, s.database, j, j.SHA256)
 			}
 			switch {
 			case err != nil:
@@ -822,10 +817,10 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 				add("file removal", stepDone, "the stored image had already changed; nothing to remove", nil)
 			}
 		}
-		if ev.ID == "" {
+		if !groupFound {
 			add("take-down", stepFailed, "the event row is missing", nil)
 		} else {
-			err := s.takeDownEvent(ctx, ev)
+			err := s.productImages.TakeDown(ctx, j, ImageScanTakeDownMsg)
 			add("take-down", ok(err == nil), "the event", err)
 			m.TakenDown = err == nil
 		}
@@ -995,29 +990,6 @@ func (s *ImageScan) removeStorageObject(ctx context.Context, site model.Site, m 
 		return "the object was removed, but its row could not be", err
 	}
 	return "the object was removed from the files resource", nil
-}
-
-// takeDownEvent is the operator take-down of an event (hack_admin.go): the
-// event is stamped, its holding account suspended, and its team sites marked.
-func (s *ImageScan) takeDownEvent(ctx context.Context, ev model.Event) error {
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := events.TakeDownEvent(ctx, tx, ev.ID, ImageScanTakeDownMsg); err != nil {
-		return err
-	}
-	if err := accounts.SetUserSuspended(ctx, tx, ev.AccountID, ImageScanTakeDownMsg); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if s.hackTakeDownSync != nil && !s.hackTakeDownSync(ctx, ev) {
-		return errors.New("team site markers could not all be written")
-	}
-	return nil
 }
 
 // writeRecord keeps record.json beside the evidence copy: the match row's

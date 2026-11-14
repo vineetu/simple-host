@@ -1,0 +1,137 @@
+{
+  "match": {
+    "Address": "image-event",
+    "AlertedAt": {
+      "Time": "2026-01-02T03:04:05Z",
+      "Valid": true
+    },
+    "Bytes": 651,
+    "ContentType": "image/png",
+    "DetectedAt": "2026-01-02T03:04:05Z",
+    "EventID": "10000000-0000-0000-0000-000000000003",
+    "EventSlug": "image-event",
+    "EvidencePath": "\u003cevidence\u003e",
+    "ID": 1,
+    "Kind": "event_icon",
+    "OwnerEmail": "contact@example.com",
+    "OwnerHandle": "image-event",
+    "OwnerID": "10000000-0000-0000-0000-000000000001",
+    "Path": "icon",
+    "Provider": "fake",
+    "Raw": {
+      "IsMatch": true
+    },
+    "ReportError": "",
+    "ReportID": "RPT-TEST-1",
+    "ReportStatus": "filed",
+    "ReportedAt": {
+      "Time": "2026-01-02T03:04:05Z",
+      "Valid": true
+    },
+    "ResourceName": "",
+    "SHA256": "7a6ba9c2442eac59fe5980ad8b1a9e89988e98ba9d91f1b0eee0ad5161c10a74",
+    "SiteID": "",
+    "SiteName": "",
+    "Source": "NCMEC",
+    "TakenDown": true,
+    "TeamID": "",
+    "TrackingID": "t-match",
+    "UploadedAt": "2026-01-02T03:04:05Z",
+    "Uploader": "image-writer writer@example.com",
+    "Version": 0,
+    "Violations": "A1,B2",
+    "WriterID": "10000000-0000-0000-0000-000000000002"
+  },
+  "record": {
+    "address": "image-event",
+    "alerted_at": "2026-01-02T03:04:05Z",
+    "bytes": 651,
+    "content_type": "image/png",
+    "detected_at": "2026-01-02T03:04:05Z",
+    "event_id": "10000000-0000-0000-0000-000000000003",
+    "event_slug": "image-event",
+    "evidence_path": "\u003cevidence\u003e",
+    "id": 1,
+    "kind": "event_icon",
+    "owner_email": "contact@example.com",
+    "owner_handle": "image-event",
+    "path": "icon",
+    "provider": "fake",
+    "raw_reply": {
+      "IsMatch": true
+    },
+    "report_error": "",
+    "report_id": "RPT-TEST-1",
+    "report_status": "filed",
+    "reported_at": "2026-01-02T03:04:05Z",
+    "resource_name": "",
+    "sha256": "7a6ba9c2442eac59fe5980ad8b1a9e89988e98ba9d91f1b0eee0ad5161c10a74",
+    "site_id": "",
+    "site_name": "",
+    "source": "NCMEC",
+    "steps": [
+      {
+        "detail": "kept in the evidence folder",
+        "status": "done",
+        "step": "evidence copy"
+      },
+      {
+        "detail": "the image was removed",
+        "status": "done",
+        "step": "file removal"
+      },
+      {
+        "detail": "the event",
+        "status": "done",
+        "step": "take-down"
+      },
+      {
+        "detail": "filed as RPT-TEST-1",
+        "status": "done",
+        "step": "report"
+      },
+      {
+        "detail": "sent to alerts@example.com",
+        "status": "done",
+        "step": "alert email"
+      }
+    ],
+    "taken_down": true,
+    "team_id": "",
+    "tracking_id": "t-match",
+    "uploaded_at": "2026-01-02T03:04:05Z",
+    "uploader": "image-writer writer@example.com",
+    "version": 0,
+    "violations": "A1,B2",
+    "writer_id": "10000000-0000-0000-0000-000000000002"
+  },
+  "report": {
+    "Files": [
+      {
+        "ContentType": "image/png",
+        "Data": "iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAACUklEQVR4nOzUXUsUURzH8TxFlJCREtFF0cNNCEFFEARhRU8IQlFmSoiQFAuBJCFUN2FU2gpSgUGB6U3PiRKUGZQXVhKuQilbppu77q7rrv/f7M7snDkzc8ZC38BcDHS1b+B3Dv8PfJcuKX9R93dtceBLbWPbmoFA+OSj3pcNY8V8R3vrp8mi0vytwZaxfc2n2nd2582WFne82Z7dO191t/mruvl44fS37sl42+cnr/o2Zgqf3f8QyD+8/Mqy1pGCuhMP2/dEYqtru7pYy0Qa/vpKiikCNVYJZbiN+lt/wE0Hu2JZDGnrKamaWFfdR5ohUTY2C8NyEE4ZaHr9g5C10LnhJ+mmg3NTCgqua5hRBDpWVC9uMd9IjLjlIJTQ0NKvYU61EFw1TJqQKA0R3en5hThxPNifB0W3cbMnQropcWhGpZV5JlIZgU2+d1C5jaogLW5NE6cjjw0omgnWWRJE1pBoiKh0UbuK2Yyg3m3fkdFNXKiKY+FnoSQnvb8GpJk0XjQIzbBx9DdgmPOIKYLm3oeR5jbdCISgC4mymIrovQNIaRax3f5uaEJSxWgShikRnuM4XzAIRZf0NDgK3ZTUOJWG/2wlEmmBSHUFVC7JdykKbkuaTGRx2fIvPI74lgFkhaRj4wRhOxQlA8x3cAqKbuH2zAS45dDpqIprg4ySGYHy5x+hGjbODCdgWA6FUjqaeOXi3d9GhhbG4GbIvCK6GTKviG6GzCuimyHziuhmyLwiuhkyr4huhswropsh84roZsi8IroZ5mqaq2mupv+hpv8GAJhBQQbiNhDxAAAAAElFTkSuQmCC",
+        "Metadata": {
+          "address": "image-event",
+          "kind": "event_icon",
+          "match_id": "1",
+          "path": "icon",
+          "provider": "fake",
+          "site": "",
+          "source": "NCMEC",
+          "tracking_id": "t-match",
+          "violations": "A1,B2"
+        },
+        "Name": "icon",
+        "UploadedAt": "2026-01-02T03:04:05Z"
+      }
+    ],
+    "IncidentTime": "2026-01-02T03:04:05Z",
+    "Metadata": {
+      "platform": "Simple Host"
+    },
+    "OrgName": "Test Org",
+    "ReporteeName": "image-writer writer@example.com",
+    "ReporterEmail": "reports@example.com",
+    "ReporterName": "Tester"
+  }
+}

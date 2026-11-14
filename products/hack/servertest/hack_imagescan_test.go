@@ -19,6 +19,7 @@ import (
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	opsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/storage"
+	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
@@ -136,6 +137,7 @@ func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk *storage.DiskSto
 	if f.scan == nil {
 		t.Fatal("NewImageScan returned nil with a matcher")
 	}
+	f.scan.SetProductImages(hackimages.New(database, nil))
 	f.scan.Prepare = fakePrepare
 	f.scan.Dispatch = func(fn func()) {
 		f.runs.Add(1)
@@ -177,7 +179,7 @@ func TestImageScanEventIcon(t *testing.T) {
 		}()
 	}
 	a.hack.SetImageScan(s)
-	s.SetHackTakeDownSync(a.hack.SyncEventMarkers) // as main wires it
+	s.SetProductImages(hackimages.New(a.database, a.hack.SyncEventMarkers)) // as the extension wires it
 	ada := a.newPerson(t, "ada")
 	slug := uniqueSlug()
 	if r := a.createEvent(t, ada, slug, nil); r.status != http.StatusCreated {
