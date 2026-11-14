@@ -43,6 +43,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -604,7 +605,7 @@ func newTeamSiteApp(t *testing.T) *teamSiteApp {
 // mailer (nil: an unconfigured sender, as in most tests).
 func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	t.Helper()
-	accountapp.SetGroupHooks(accountapp.GroupHooks{Target: hackteams.ConnectorTarget{}})
+	accountapp.SetGroupHooks(accountapp.GroupHooks{Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}})
 	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
@@ -672,7 +673,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
 	a.sites.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))
-	gated := a.sites.LegacyStorageCutoffGate(hackhttp.LegacyStorageGate(ed, handler.LegacyStoragePath)(auth.ScopeGate(accountapp.New(database), mux, true, 180*24*time.Hour)))
+	gated := a.sites.LegacyStorageCutoffGate(hackhttp.LegacyStorageGate(ed, handler.LegacyStoragePath)(auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour)))
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)

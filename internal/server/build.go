@@ -347,7 +347,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	scoped := auth.ScopeGate(accountsService, mux, ed.Identity().TeamKeys, ed.Limits().KeyIdleExpiry)
+	scoped := auth.ScopeGate(accountsService, mux, ed.Limits().KeyIdleExpiry)
 	if ext != nil && ext.Gate != nil {
 		scoped = ext.Gate(extension.GateDeps{Site: siteHandler, Edition: ed})(scoped)
 	}

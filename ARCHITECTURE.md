@@ -72,6 +72,13 @@ serving. Platform-only services have no hook and issue no product-table queries.
 Label enrichment follows repository reads on the same database or transaction;
 subscription creation retains the membership lock before the site lock.
 
+Group credentials and scoped file links use `accounts.GroupKeys`, supplied by
+`products/hack/repository/hackevents.GroupKeys` through `Extension.Early` before
+account services are constructed. Services read the hook at call time, including
+the REST/MCP scope gate. The platform keeps the route allowlist and holding-account
+impersonation; Hack owns membership, write refusals and organiser file-link checks.
+With no product hook, stored team keys cannot authenticate and scoped links fail.
+
 No CLI-proxy sidecar is needed by the Go request path; deployment-specific integrations belong
 with the proxy configuration.
 

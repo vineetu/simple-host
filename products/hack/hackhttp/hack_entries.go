@@ -19,11 +19,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	entries "github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 // Entries: the text, links and screenshot a team submits, kept apart from
@@ -538,7 +538,7 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 		case "no_team", "team_choice_closed":
 			httpx.WriteError(w, http.StatusConflict, refusal.Code, refusal.Message)
 		default:
-			status, msg := auth.TeamRefusal(refusal.Code)
+			status, msg := hackevents.TeamRefusal(refusal.Code)
 			httpx.WriteError(w, status, refusal.Code, msg)
 		}
 		return "", false

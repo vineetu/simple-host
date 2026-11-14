@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
@@ -13,7 +12,7 @@ import (
 type TeamIdentity = model.TeamIdentity
 type TeamWriteState = model.TeamWriteState
 
-var ErrTeamKeyInactive = fmt.Errorf("team key no longer active: %w", sql.ErrNoRows)
+var ErrTeamKeyInactive = model.ErrTeamKeyInactive
 
 const teamWriteStateCols = `t.id, e.id, e.slug, t.slug, e.account_id, e.stage, e.taken_down_at IS NOT NULL,
 	(t.site_taken_down_at IS NOT NULL OR EXISTS (SELECT 1 FROM sites s WHERE s.user_id = e.account_id

@@ -17,7 +17,22 @@ type ConnectorTarget interface {
 	Labels(ctx context.Context, q sqlkit.Querier, userID string) (map[string][]model.OAuthConnectionTeam, error)
 }
 
+// GroupKeys resolves credentials that act for a holding account. Nil means no
+// key is a group key. Implementations keep membership and write checks live.
+type GroupKeys interface {
+	// Binding returns the stored binding, or sql.ErrNoRows when unbound.
+	Binding(ctx context.Context, q sqlkit.Querier, keyHash string) (teamID, memberID string, err error)
+	// Identity returns the member's live place, or sql.ErrNoRows when no longer on it.
+	Identity(ctx context.Context, q sqlkit.Querier, memberID, teamID string) (model.TeamIdentity, error)
+	// WriteRefusal allows when code is empty; otherwise the response is unchanged.
+	WriteRefusal(ctx context.Context, q sqlkit.Querier, teamID string) (status int, code, msg string, err error)
+	// FileLinkAllows checks team membership or the group's own website organiser.
+	FileLinkAllows(ctx context.Context, q sqlkit.Querier, site model.Site, kind, id, memberID string) bool
+	Messages() (scopeOnly, inactive string)
+}
+
 type GroupHooks struct {
+	Keys   GroupKeys
 	Target ConnectorTarget
 }
 

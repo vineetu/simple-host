@@ -10,7 +10,6 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
 	authrules "github.com/vsriram/simple-host/internal/rules/auth"
-	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 type Service struct{ database *sql.DB }
@@ -31,7 +30,7 @@ func (s *Service) GetUserByAPIKey(ctx context.Context, apiKey string, keyIdle ti
 		}
 		if err == nil && c.TeamID != "" {
 			// A connector connection bound to a team site (hack_sites.go).
-			id, terr := events.ResolveTeamIdentity(ctx, s.database, c.UserID, c.TeamID)
+			id, terr := s.ResolveTeamIdentity(ctx, c.UserID, c.TeamID)
 			if terr != nil {
 				return model.User{}, terr
 			}
@@ -64,16 +63,19 @@ func (s *Service) GetUserByAPIKey(ctx context.Context, apiKey string, keyIdle ti
 		repo.TouchAPIKey(ctx, s.database, user.KeyHash)
 	}
 	if err == nil && user.KeyScope == authrules.KeyScopeTeam {
+		if groupHooks.Keys == nil {
+			return model.User{}, sql.ErrNoRows
+		}
 		// A member's team key: the event's holding account on the team's
 		// site, only while they are on that team (hack_sites.go).
-		teamID, memberID, terr := events.TeamKeyBinding(ctx, s.database, user.KeyHash)
+		teamID, memberID, terr := groupHooks.Keys.Binding(ctx, s.database, user.KeyHash)
 		if terr == nil && memberID != user.ID {
-			terr = events.ErrTeamKeyInactive
+			terr = model.ErrTeamKeyInactive
 		}
 		if terr != nil {
 			return model.User{}, terr
 		}
-		id, terr := events.ResolveTeamIdentity(ctx, s.database, memberID, teamID)
+		id, terr := s.ResolveTeamIdentity(ctx, memberID, teamID)
 		if terr != nil {
 			return model.User{}, terr
 		}
@@ -86,7 +88,7 @@ func (s *Service) actAsTeam(ctx context.Context, member model.User, id model.Tea
 	holder, err := repo.GetUserByID(ctx, s.database, id.AccountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.User{}, events.ErrTeamKeyInactive
+			return model.User{}, model.ErrTeamKeyInactive
 		}
 		return model.User{}, err
 	}
@@ -109,6 +111,9 @@ func (s *Service) actAsTeam(ctx context.Context, member model.User, id model.Tea
 
 // TeamScopeOfKey checks whether a credential is team-bound and still has a live participant.
 func (s *Service) TeamScopeOfKey(ctx context.Context, apiKey string) (isTeam, live bool, id model.TeamIdentity, err error) {
+	if groupHooks.Keys == nil {
+		return false, false, id, nil
+	}
 	memberID, teamID, internal := repo.LookupInternalTeamKey(apiKey)
 	if !internal {
 		scope, err := repo.StoredKeyScope(ctx, s.database, apiKey)
@@ -119,7 +124,7 @@ func (s *Service) TeamScopeOfKey(ctx context.Context, apiKey string) (isTeam, li
 			return false, false, id, err
 		}
 
-		teamID, memberID, err = events.TeamKeyBinding(ctx, s.database, repo.HashAPIKey(apiKey))
+		teamID, memberID, err = groupHooks.Keys.Binding(ctx, s.database, repo.HashAPIKey(apiKey))
 		if errors.Is(err, sql.ErrNoRows) {
 			return true, false, id, nil
 		}
@@ -127,7 +132,7 @@ func (s *Service) TeamScopeOfKey(ctx context.Context, apiKey string) (isTeam, li
 			return true, false, id, err
 		}
 	}
-	id, err = events.ResolveTeamIdentity(ctx, s.database, memberID, teamID)
+	id, err = s.ResolveTeamIdentity(ctx, memberID, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true, false, id, nil
 	}

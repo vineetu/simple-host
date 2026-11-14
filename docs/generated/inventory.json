@@ -148,7 +148,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/key",
       "feature_id": "guided-team-site-publishing",
-      "source": "products/hack/hackhttp/hack_keys.go:28",
+      "source": "products/hack/hackhttp/hack_keys.go:29",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -180,7 +180,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/people/{user_id}/key",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_keys.go:29",
+      "source": "products/hack/hackhttp/hack_keys.go:30",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2156,7 +2156,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/key",
       "feature_id": "guided-team-site-publishing",
-      "source": "products/hack/hackhttp/hack_keys.go:26",
+      "source": "products/hack/hackhttp/hack_keys.go:27",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2236,7 +2236,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/site",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_keys.go:25",
+      "source": "products/hack/hackhttp/hack_keys.go:26",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2388,7 +2388,7 @@
       "method": "GET",
       "path": "/v1/hack/my-teams",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_keys.go:33",
+      "source": "products/hack/hackhttp/hack_keys.go:34",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3956,7 +3956,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/key",
       "feature_id": "guided-team-site-publishing",
-      "source": "products/hack/hackhttp/hack_keys.go:27",
+      "source": "products/hack/hackhttp/hack_keys.go:28",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4116,7 +4116,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/restore",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_keys.go:32",
+      "source": "products/hack/hackhttp/hack_keys.go:33",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4124,7 +4124,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/takedown",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_keys.go:31",
+      "source": "products/hack/hackhttp/hack_keys.go:32",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4852,7 +4852,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/site",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_keys.go:24",
+      "source": "products/hack/hackhttp/hack_keys.go:25",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4892,7 +4892,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/deadline",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_keys.go:30",
+      "source": "products/hack/hackhttp/hack_keys.go:31",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },

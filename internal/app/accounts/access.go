@@ -6,7 +6,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
-	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 func (s *Service) GetUserByID(ctx context.Context, id string) (model.User, error) {
@@ -27,22 +26,22 @@ func (s *Service) APIKeyScope(ctx context.Context, key string, idle time.Duratio
 func (s *Service) TouchVisitorSession(ctx context.Context, id []byte, idle time.Duration) error {
 	return repo.TouchVisitorSession(ctx, s.database, id, idle)
 }
-func (s *Service) TeamWriteState(ctx context.Context, id string) (model.TeamWriteState, error) {
-	return events.TeamWriteStateFor(ctx, s.database, id, false)
+
+// GroupWriteRefusal asks the installed product at the scope gate's write check.
+func (s *Service) GroupWriteRefusal(ctx context.Context, id string) (int, string, string, error) {
+	if groupHooks.Keys == nil {
+		return 0, "", "", nil
+	}
+	return groupHooks.Keys.WriteRefusal(ctx, s.database, id)
+}
+
+func (s *Service) GroupKeyMessages() (scopeOnly, inactive string) {
+	if groupHooks.Keys == nil {
+		return "", ""
+	}
+	return groupHooks.Keys.Messages()
 }
 
 func (s *Service) FileLinkScopeAllows(ctx context.Context, site model.Site, kind, id, memberID string) bool {
-	switch kind {
-	case "team":
-		team, err := events.ResolveTeamIdentity(ctx, s.database, memberID, id)
-		return err == nil && team.AccountID == site.UserID && team.TeamSlug == site.Name
-	case "event":
-		ev, err := events.GetEventByAccount(ctx, s.database, site.UserID)
-		if err != nil || ev.ID != id || site.Name != ev.ID || ev.TakenDown() {
-			return false
-		}
-		member, err := events.GetEventMember(ctx, s.database, ev.ID, memberID)
-		return err == nil && member.Role == "organiser"
-	}
-	return false
+	return groupHooks.Keys != nil && groupHooks.Keys.FileLinkAllows(ctx, s.database, site, kind, id, memberID)
 }

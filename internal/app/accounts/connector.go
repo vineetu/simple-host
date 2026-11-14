@@ -2,10 +2,11 @@ package accounts
 
 import (
 	"context"
+	"database/sql"
+	"time"
+
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
-	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
-	"time"
 )
 
 func (s *Service) ConsumeOAuthCode(ctx context.Context, codeHash string) (model.OAuthCode, error) {
@@ -85,7 +86,10 @@ func (s *Service) UpsertBuiltinOAuthClient(ctx context.Context, clientID string,
 	return repo.UpsertBuiltinOAuthClient(ctx, s.database, clientID, name, redirectURIs)
 }
 func (s *Service) ResolveTeamIdentity(ctx context.Context, member, team string) (model.TeamIdentity, error) {
-	return events.ResolveTeamIdentity(ctx, s.database, member, team)
+	if groupHooks.Keys == nil {
+		return model.TeamIdentity{}, sql.ErrNoRows
+	}
+	return groupHooks.Keys.Identity(ctx, s.database, member, team)
 }
 
 func (s *Service) InternalKeyFor(userID, teamID string) (string, func(), error) {

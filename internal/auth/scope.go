@@ -12,7 +12,6 @@ import (
 	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/model"
 	authrules "github.com/vsriram/simple-host/internal/rules/auth"
-	siterules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // deployRoutes is everything a deploy-only key may call, by the pattern the
@@ -106,10 +105,6 @@ var teamRoutes = map[string]bool{
 // registered as pattern (on its own site; the gate checks the name).
 func TeamKeyAllows(pattern string) bool { return deployRoutes[pattern] || teamRoutes[pattern] }
 
-// TeamOnlyMessage is the refusal a team key gets outside its routes.
-const TeamOnlyMessage = "this is a team key: it publishes and looks after your team's site only. " +
-	"Use your own sign-in on the event platform for anything else."
-
 // sitePathName is the {sitename} segment of a /v1/sites/{sitename}... path,
 // unescaped as the mux matches it.
 func sitePathName(r *http.Request) (string, bool) {
@@ -133,13 +128,13 @@ func sitePathName(r *http.Request) (string, bool) {
 // Unknown, expired, admin and internal keys pass through untouched; whatever
 // the route does with them is unchanged.
 //
-// When teamKeys is enabled it also holds team keys to
+// When a group-key hook is installed it also holds team keys to
 // teamRoutes and deployRoutes on their own team's site (403 team_key_scope,
 // 403 team_site_only), refuses them every change once the team may no
 // longer change its site (the deadline, an ended or taken-down event, a site
 // the organiser took down; deploys check again under a lock, site.go), and
 // refuses a team key whose person is no longer on the team.
-func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, teamKeys bool, keyIdle time.Duration) http.Handler {
+func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle time.Duration) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key == "" {
@@ -147,17 +142,15 @@ func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, teamKeys bo
 			return
 		}
 		_, pattern := mux.Handler(r)
-		if teamKeys {
-			isTeam, live, id, err := accountService.TeamScopeOfKey(r.Context(), key)
-			if err != nil {
-				log.Printf("scope gate: team key: %v", err)
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
-			if isTeam {
-				teamGate(w, r, mux, accountService, pattern, live, id)
-				return
-			}
+		isTeam, live, id, err := accountService.TeamScopeOfKey(r.Context(), key)
+		if err != nil {
+			log.Printf("scope gate: team key: %v", err)
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		if isTeam {
+			teamGate(w, r, mux, accountService, pattern, live, id)
+			return
 		}
 		if DeployKeyAllows(pattern) {
 			mux.ServeHTTP(w, r)
@@ -179,13 +172,14 @@ func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, teamKeys bo
 
 // teamGate serves a request made with a team credential, or refuses it.
 func teamGate(w http.ResponseWriter, r *http.Request, mux *http.ServeMux, accountService *accounts.Service, pattern string, live bool, id model.TeamIdentity) {
+	scopeOnly, inactive := accountService.GroupKeyMessages()
 	if !TeamKeyAllows(pattern) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: TeamOnlyMessage, Code: "team_key_scope"})
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: scopeOnly, Code: "team_key_scope"})
 		return
 	}
 	if !live {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{
-			Error: "this team key stopped working: its person is no longer on that team. Get a new key from your event page on simple-hack.app.",
+			Error: inactive,
 			Code:  "team_key_inactive",
 		})
 		return
@@ -210,27 +204,17 @@ func teamGate(w http.ResponseWriter, r *http.Request, mux *http.ServeMux, accoun
 			pattern != "POST /v1/sites/{sitename}/storage/sqlite/{name}/query" &&
 			pattern != "POST /v1/sites/{sitename}/storage/files/{name}/download-link" &&
 			!strings.HasSuffix(pattern, " /mcp") {
-			st, err := accountService.TeamWriteState(r.Context(), id.TeamID)
+			status, code, msg, err := accountService.GroupWriteRefusal(r.Context(), id.TeamID)
 			if err != nil {
 				log.Printf("scope gate: team state: %v", err)
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 				return
 			}
-			if code := st.WriteRefusal(); code != "" {
-				status, msg := TeamRefusal(code)
+			if code != "" {
 				writeJSON(w, status, errorResponse{Error: msg, Code: code})
 				return
 			}
 		}
 	}
 	mux.ServeHTTP(w, r)
-}
-
-// TeamRefusal is the status and message for a TeamWriteState refusal code.
-func TeamRefusal(code string) (int, string) {
-	status := http.StatusConflict
-	if code == "event_taken_down" || code == "team_site_taken_down" {
-		status = http.StatusForbidden
-	}
-	return status, siterules.TeamRefusalMessage(code)
 }

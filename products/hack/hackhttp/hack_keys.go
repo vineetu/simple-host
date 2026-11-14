@@ -15,6 +15,7 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
+	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 // Team sites, member keys, per-team deadlines and the organiser's team-site
@@ -208,7 +209,7 @@ func (h *HackHandler) makeTeamKey(w http.ResponseWriter, r *http.Request) {
 				httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
 				return
 			default:
-				status, msg := auth.TeamRefusal(e.Code)
+				status, msg := hackevents.TeamRefusal(e.Code)
 				httpx.WriteError(w, status, e.Code, msg)
 				return
 			}
@@ -550,7 +551,7 @@ func (h *HackHandler) putTeamSiteArchive(w http.ResponseWriter, r *http.Request)
 		if code == "" {
 			return 0, "", "", nil
 		}
-		status, msg := auth.TeamRefusal(code)
+		status, msg := hackevents.TeamRefusal(code)
 		return status, code, msg, nil
 	})
 }

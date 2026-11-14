@@ -37,7 +37,7 @@ func Extension() *extension.Extension {
 			return hackhttp.LegacyStorageGate(d.Edition, handler.LegacyStoragePath)
 		},
 		Early: func(d extension.EarlyDeps) extension.EarlyHooks {
-			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Target: hackteams.ConnectorTarget{}}}
+			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}}}
 		},
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition
