@@ -191,7 +191,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			t.Errorf("stale onboarding copy %q", stale)
 		}
 	}
-	for _, want := range []string{"team.event.simple-hack.app", "https://simple-host.app/hackathons", "ranks and overall scores are public by default", "After results are published", `id="prompt-organiser"`, `id="prompt-participant"`, `id="prompt-judge"`, `class="sh-header sh-hack"`, `class="sh-footer"`, "/hack-ink.css?v="} {
+	for _, want := range []string{"team.event.simple-hack.app", "https://simple-hack.app/hackathons", "ranks and overall scores are public by default", "After results are published", `id="prompt-organiser"`, `id="prompt-participant"`, `id="prompt-judge"`, `class="sh-header sh-hack"`, `class="sh-footer"`, "/hack-ink.css?v="} {
 		if !strings.Contains(page, want) {
 			t.Errorf("missing %q", want)
 		}

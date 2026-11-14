@@ -12,10 +12,10 @@ var dynamicSites = dynamicTable{
 		{`"GET /" + name`, []string{"GET /llms.txt", "GET /install.html", "GET /auth.js", "GET /signin.js", "GET /features.json"}},
 		{`"GET /" + name`, []string{"GET /openapi.yaml", "GET /openapi.json"}},
 		{`"GET /" + name`, []string{"GET /favicon.svg", "GET /favicon.ico", "GET /favicon-32.png", "GET /apple-touch-icon.png"}},
-		{`"GET /skills/" + dir + ".zip"`, skillPatterns(".zip")},
-		{`"GET /skills/" + dir + "/SKILL.md"`, skillPatterns("/SKILL.md")},
-		{`"GET /skills/" + dir`, skillPatterns("")},
-		{`"GET /skills/" + dir + "/references/{file}"`, skillPatterns("/references/{file}")},
+		{`"GET /skills/" + dir + ".zip"`, skillPatterns(".zip", "host", "hack")},
+		{`"GET /skills/" + dir + "/SKILL.md"`, skillPatterns("/SKILL.md", "host", "hack")},
+		{`"GET /skills/" + dir`, skillPatterns("", "host", "hack")},
+		{`"GET /skills/" + dir + "/references/{file}"`, skillPatterns("/references/{file}", "host", "hack")},
 	},
 	"products/hack/hackhttp/hack_ui.go:RegisterHackUI": {
 		{`p`, []string{"GET /signin", "GET /account", "GET /events", "GET /events/new", "GET /e/{slug}/team", "GET /e/{slug}/manage", "GET /e/{slug}/apply", "GET /join/{code}", "GET /judge/{code}", "GET /organiser/{code}", "GET /team/{code}"}},
@@ -26,15 +26,19 @@ var dynamicSites = dynamicTable{
 	},
 }
 
-func skillPatterns(suffix string) []string {
-	// bundledSkillDirs is private. This is the union of the Host and Hack bundles
-	// (internal/webassets/simple-host-website/skills and internal/webassets/hack-toolkit/skills); availability is checked
-	// at runtime by skillAvailable, but every directory below is served in an edition.
+var productSkills = map[string][]string{
+	"host": {"connect-domain", "website-deploy", "website-deploy-builder"},
+	"hack": {"join-hackathon", "judge-hackathon", "run-hackathon", "website-deploy", "website-deploy-builder"},
+}
+
+func skillPatterns(suffix string, products ...string) []string {
 	var out []string
-	for _, name := range []string{"connect-domain", "join-hackathon", "judge-hackathon", "run-hackathon", "website-deploy", "website-deploy-builder"} {
-		out = append(out, "GET /skills/"+name+suffix)
+	for _, product := range products {
+		for _, name := range productSkills[product] {
+			out = append(out, "GET /skills/"+name+suffix)
+		}
 	}
-	return out
+	return uniqueStrings(out)
 }
 func versionPatterns(versions []string) []string {
 	var out []string

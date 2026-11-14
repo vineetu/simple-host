@@ -18,7 +18,7 @@ for s in $SKILLS; do
     echo "  FAIL: $DST/$s differs from $SRC/$s"; fail=1
   fi
 done
-for d in "$DST"/*; do
+for d in "$DST"/* openai-plugin/skills/*; do
   [ -e "$d" ] || continue
   case " $SKILLS " in *" $(basename "$d") "*) ;; *) echo "  FAIL: unexpected $d"; fail=1 ;; esac
 done

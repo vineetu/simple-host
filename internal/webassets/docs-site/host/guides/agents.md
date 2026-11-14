@@ -24,6 +24,8 @@
    <!--sh:self-->Download this install's [skills.zip](/skills.zip) and use this server's connector address.<!--/sh:self-->
 
 
+The [skills catalog](/v1/skills) and downloads contain Website Deploy, Website Deploy Builder and Connect Domain.
+
 ## Give an agent the references
 [What this is](/features.html#agents-discovery)
 

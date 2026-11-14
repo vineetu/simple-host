@@ -288,6 +288,7 @@ try:
                 words += ['--out', root + '/' + target, '--scenario', 'all']
                 if side == 'reference' and added: words += ['--skip-scenario', ','.join(dict.fromkeys(added))]
                 steps.append(('golden:' + side, shell(words)))
+            steps.append(('golden:coverage', shell(['node', golden_dir + '/coverage.mjs', root + '/cand'])))
             words = ['node', golden_dir + '/diff.mjs', root + '/ref', root + '/cand']
             if slice_set == '1': words += ['--slice', slice_ids]
             steps.append(('golden:diff', shell(words)))

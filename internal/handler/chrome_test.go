@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"html"
 	"io/fs"
 	"net/http"
@@ -115,14 +116,12 @@ func TestChromeOnEveryMainOriginPage(t *testing.T) {
 		{"/privacy.html", "/privacy.html"},
 		{"/features.html", "/features"},
 		{"/enterprise.html", "/enterprise"},
-		{"/hackathons.html", "/hackathons"},
 		// serveStaticPage
 		{"/dashboard", "/dashboard"},
 		{"/features", "/features"},
 		{"/enterprise", "/enterprise"},
 		{"/enterprise/brief", "/enterprise"},
 		{"/enterprise/architecture", "/enterprise"},
-		{"/hackathons", "/hackathons"},
 		{"/admin", ""},
 		{"/analytics/my-site", ""},
 	} {
@@ -624,29 +623,24 @@ func TestSupportAddressDefendsAgainstUnsafeCharacters(t *testing.T) {
 	}
 }
 
-func TestChromeOnHackathonHomepage(t *testing.T) {
-	// simple-hack.app serves /hackathons as its homepage (nginx proxies / to
-	// /hackathons). There "Home" would be this same page and "For hackathons"
-	// a second link to it: Home points at the main product, the duplicate goes.
-	mux := chromeTestMux(t, edition.Host)
-	body := get(t, mux, "simple-hack.app", "/hackathons").Body.String()
-	assertChrome(t, "simple-hack.app homepage", body, "")
-	if !strings.Contains(body, `<a href="https://simple-host.app/">Simple Host</a>`) {
-		t.Error("simple-hack.app: Home does not point at the main product")
-	}
-	if strings.Contains(body, `href="/hackathons"`) || strings.Contains(body, ">Home<") {
-		t.Error("simple-hack.app: still links to itself from the chrome")
-	}
-
-	// Anywhere else it is the ordinary page.
-	body = get(t, mux, "simple-host.app", "/hackathons").Body.String()
-	if !strings.Contains(body, ">Home</a>") || !strings.Contains(body, `href="/hackathons" aria-current="page"`) {
-		t.Error("simple-host.app/hackathons lost its ordinary chrome")
-	}
-	// Other pages on simple-hack.app are not the homepage and keep Home.
-	body = get(t, mux, "simple-hack.app", "/install.html").Body.String()
-	if !strings.Contains(body, ">Home</a>") {
-		t.Error("simple-hack.app/install.html lost Home")
+func TestHostHackathonsRedirect(t *testing.T) {
+	for _, hosted := range []bool{false, true} {
+		t.Run(fmt.Sprint(hosted), func(t *testing.T) {
+			previous := instanceIsHostedService
+			instanceIsHostedService = hosted
+			t.Cleanup(func() { instanceIsHostedService = previous })
+			mux := chromeTestMux(t, edition.Host)
+			for _, path := range []string{"/hackathons", "/hackathons.html"} {
+				rec := get(t, mux, "simple-host.app", path)
+				if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/" {
+					t.Errorf("%s = %d, Location %q", path, rec.Code, rec.Header().Get("Location"))
+				}
+			}
+			body := get(t, mux, "simple-host.app", "/").Body.String()
+			if strings.Contains(body, `href="/hackathons"`) {
+				t.Error("Host navigation links to hackathons")
+			}
+		})
 	}
 }
 
@@ -841,6 +835,31 @@ func TestHeadPartialVersionsIconLinks(t *testing.T) {
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("index.html missing %s", want)
+		}
+	}
+}
+
+// The hackathons page lives on Simple Hack. Simple Host's enterprise page
+// links to it there. A Simple Hack install serves the page itself, so its copy
+// links to its own address and never to the hosted service; on simple-hack.app
+// that address is simple-hack.app.
+func TestEnterpriseHackathonsLinkPerProduct(t *testing.T) {
+	for _, tc := range []struct {
+		kind edition.Kind
+		base string
+		want string
+		not  string
+	}{
+		{edition.Host, "", `href="https://simple-hack.app/hackathons"`, `href="/hackathons"`},
+		{edition.Hack, "", `href="https://simple-hack.app/hackathons"`, `href="/hackathons"`},
+		{edition.Hack, "https://hack.example.org", `href="https://hack.example.org/hackathons"`, `simple-hack.app/hackathons`},
+	} {
+		page, err := newAssetPipeline(edition.ForKind(tc.kind), tc.base).chromePage("enterprise.html", ChromeData{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(page), tc.want) || strings.Contains(string(page), tc.not) {
+			t.Errorf("%v at %q enterprise page: want %s and not %s", tc.kind, tc.base, tc.want, tc.not)
 		}
 	}
 }

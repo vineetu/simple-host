@@ -27,7 +27,7 @@ import (
 // marketing pages, one list per brand, followed by docs and eligible hosted sites.
 var (
 	hostSitemapPaths = []string{
-		"/", "/features", "/pricing", "/install.html", "/hackathons",
+		"/", "/features", "/pricing", "/install.html",
 		"/enterprise", "/enterprise/brief", "/enterprise/architecture",
 		"/architecture.html", "/terms", "/support", "/privacy.html",
 	}

@@ -56,6 +56,14 @@ func TestSitemapShards(t *testing.T) {
 	}
 }
 
+func TestHostSitemapExcludesHackathons(t *testing.T) {
+	rec := httptest.NewRecorder()
+	serveSitemapXML(rec, httptest.NewRequest(http.MethodGet, "https://simple-host.app/sitemap.xml", nil), false)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "/hackathons") {
+		t.Fatalf("Host sitemap = %d, must omit hackathons", rec.Code)
+	}
+}
+
 func TestSitemapFilterErrorIsNotCached(t *testing.T) {
 	a, _ := newSiteApp(t, "canonical")
 	old := instanceIsHostedService

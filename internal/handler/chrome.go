@@ -8,7 +8,6 @@ import (
 	"html"
 	"html/template"
 	"io/fs"
-	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -117,10 +116,6 @@ type ChromeData struct {
 	// Current names the page being served, for aria-current. Empty when the
 	// page is not in the nav (a showcase, a 404).
 	Current string
-	// HackHome is the hackathons page served as simple-hack.app's homepage.
-	// There "Home" would be a link back to this same page and "For hackathons"
-	// a second one, so Home points at the main product and the duplicate goes.
-	HackHome bool
 	// Hack is the simple-hack.app chrome (the pipeline's chromeHack, fixed at
 	// construction from the edition's Presentation().HackAssets); false
 	// leaves the header and footer as they are.
@@ -164,8 +159,6 @@ var navKeys = map[string]string{
 	"/enterprise.html":         "enterprise",
 	"/enterprise/brief":        "enterprise",
 	"/enterprise/architecture": "enterprise",
-	"/hackathons":              "hackathons",
-	"/hackathons.html":         "hackathons",
 	"/companies":               "companies",
 	"/features":                "features",
 	"/features.html":           "features",
@@ -186,15 +179,9 @@ func (p *assetPipeline) chromeDataFor(r *http.Request, base string) ChromeData {
 	if strings.HasPrefix(r.URL.Path, "/docs/") {
 		current = "docs"
 	}
-	host := r.Host
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
-	host = strings.ToLower(host)
 	return ChromeData{
 		Base:          base,
 		Current:       current,
-		HackHome:      current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
 		Hack:          p.chromeHack,
 		CSSVersion:    siteCSSVersion,
 		SigninVersion: SigninJSVersion(),
@@ -374,9 +361,20 @@ var chromeCache sync.Map
 // describe the other product, whose limits are its own, so they keep theirs.
 func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
 	page, err := chromePageRaw(name, d)
+	if err == nil && name == "enterprise.html" && p.pres.HackAssets {
+		// Simple Hack serves /hackathons itself, so its copy of this shared
+		// page links to this install's own address (simple-hack.app only on
+		// simple-hack.app itself); Simple Host, which no longer has the
+		// page, keeps the simple-hack.app link.
+		page = bytes.ReplaceAll(page, []byte(`href="`+canonicalHackBaseURL+`/hackathons"`), []byte(`href="`+strings.TrimRight(p.inkBaseURL(), "/")+`/hackathons"`))
+	}
 	if err != nil || strings.HasPrefix(name, "enterprise-") || name == "enterprise.html" {
 		return page, err
 	}
+	return p.presentChromePage(name, page), nil
+}
+
+func (p *assetPipeline) presentChromePage(name string, page []byte) []byte {
 	if p.pres.HackAssets {
 		page = hackPersonalPresentationHTML(name, page)
 	}
@@ -385,7 +383,7 @@ func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
 	if p.hostedOwner() == "" {
 		page = p.selfHostedChromeRewrite(page)
 	}
-	return page, nil
+	return page
 }
 
 // selfHostedChromeRewrite is the one centralized self-hosted pass every

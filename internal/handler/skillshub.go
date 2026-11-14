@@ -27,9 +27,7 @@ func (p *assetPipeline) servedSkillFS() webassets.Files {
 //	GET /v1/skills/{name}     → that skill's raw SKILL.md (text/markdown)
 //	GET /v1/skills/{name}/SKILL.md → the same
 //
-// It reads the embedded skill bundle and lists only the guides for this
-// service: Simple Host exposes the shared organiser guide directly, while join/judge
-// guides are published only by Simple Hack.
+// It reads the embedded skill bundle and lists only this service's guides.
 
 type skillEntry struct {
 	Name        string `json:"name"`
@@ -44,13 +42,11 @@ type skillsCatalog struct {
 	Skills  []skillEntry `json:"skills"`
 }
 
-// The organiser guide describes hosted events on simple-hack.app.
-// Joining and judging guides belong only to the hosted Simple Hack catalog.
 func (p *assetPipeline) skillAvailable(name string) bool {
 	if p.pres.HackAssets {
 		return hostedHackSkill(name)
 	}
-	return name != "join-hackathon" && name != "judge-hackathon"
+	return name != "join-hackathon" && name != "judge-hackathon" && name != "run-hackathon"
 }
 
 // parseSkillFrontmatter pulls name + description out of a SKILL.md YAML

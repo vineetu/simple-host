@@ -40,7 +40,7 @@ func TestHackChromeHeader(t *testing.T) {
 	}
 	for _, want := range []string{
 		`href="https://simple-host.app/"`,
-		`href="https://simple-host.app/hackathons"`,
+		`href="https://simple-hack.app/hackathons"`,
 		`href="/privacy.html"`,
 		`href="/terms"`,
 		`href="/report"`,
@@ -151,6 +151,12 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 			after := before + `<a href="{{.Base}}/pricing"{{if eq .Current "pricing"}} aria-current="page"{{end}}>Cost and limits</a>` + "\n        "
 			out = bytes.Replace(out, []byte(before), []byte(after), 1)
 		}
+		// D2-S11 removes the Host hackathon navigation and its special home mode.
+		out = bytes.ReplaceAll(out, []byte(".HackHome"), []byte("false"))
+		out = bytes.ReplaceAll(out, []byte(`        {{- if not false}}
+        <a href="{{.Base}}/hackathons"{{if eq .Current "hackathons"}} aria-current="page"{{end}}>For hackathons</a>
+        {{- end}}
+`), nil)
 		if _, err := old.New(name).Parse(string(out)); err != nil {
 			t.Fatalf("parse baseline %s: %v", name, err)
 		}
@@ -167,11 +173,9 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 	samples := []handler.ChromeData{
 		{},
 		{Current: "home"},
-		{HackHome: true, Current: "home"},
 		{Base: "https://simple-host.app", Current: "enterprise"},
 		{Base: "https://simple-host.app", Current: "install"},
 		{Current: "report"},
-		{Current: "hackathons"},
 		{Current: "dashboard"},
 		{CSSVersion: "abc"},
 	}

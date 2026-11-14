@@ -62,9 +62,9 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 	mux := chromeTestMux(t, edition.Host)
 	for _, path := range []string{
 		"/", "/install.html", "/docs/", "/architecture.html", "/privacy.html",
-		"/features.html", "/enterprise.html", "/hackathons.html",
+		"/features.html", "/enterprise.html",
 		"/dashboard", "/features", "/enterprise", "/enterprise/brief",
-		"/enterprise/architecture", "/hackathons", "/terms", "/support",
+		"/enterprise/architecture", "/terms", "/support",
 		"/admin", "/analytics/my-site",
 	} {
 		rec := get(t, mux, "simple-host.app", path)

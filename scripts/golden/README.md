@@ -39,7 +39,7 @@ refused because it is shared production Postgres.
    ```
 
    Replace `rules-on` with the actual added names, separated by commas. Omit `--skip-scenario`
-   when there are none. Only `base` is currently shipped; unknown scenario names fail.
+   when there are none. Run `base`, `mixed-store` and `hosted-pages` against the reference too; unknown scenario names fail.
 
 3. Record the candidate with all scenarios:
 
@@ -267,7 +267,11 @@ the context's `registerSecret(category, raw)` helper.
 
 ## Adding a scenario
 
-The `SCENARIOS` table in `run.mjs` currently contains only `base`, the default. `--scenario all`
+The `SCENARIOS` table in `run.mjs` contains `base` (the default), `mixed-store` and `hosted-pages`.
+`hosted-pages` checks Host's landing page, old hackathons addresses and sitemap with
+`SITE_DOMAIN=simple-host.app`, using a loopback server and a throwaway database.
+It pins the hosted navigation and redirects that the self-hosted base fixture cannot cover.
+`--scenario all`
 selects the table; comma-separated names select exactly those scenarios. `--skip-scenario` subtracts
 a comma-separated list. Unknown or repeated names fail, and `base` cannot be skipped. Named runs use
 `host.NAME.json` and `text/host.NAME/`, likewise Hack.

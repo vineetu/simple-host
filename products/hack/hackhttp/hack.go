@@ -195,6 +195,8 @@ type hackPages interface {
 	SkillsModTime() time.Time
 	// ServeStaticPage serves one embedded static/<name> with its chrome.
 	ServeStaticPage(name string) http.Handler
+	// RenderPage applies the instance chrome and text to a product-owned page.
+	RenderPage(r *http.Request, name string, raw []byte) ([]byte, error)
 	// AdminUICSP is the standard admin-app Content-Security-Policy wrapper.
 	AdminUICSP(next http.Handler) http.Handler
 	// UICSP is AdminUICSP with an extended frame-src.

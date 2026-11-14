@@ -304,8 +304,6 @@ func TestServedTextFollowsLimits(t *testing.T) {
 		{"/dashboard", []string{"For 30 days you can restore it"}, []string{"For 7 days"}},
 		{"/skills/connect-domain/SKILL.md", []string{"expires after 36 hours", "If it fails every check for 2 days", "After 5 days the domain is disconnected", "after 5 days, be disconnected"},
 			[]string{"after 24 hours", "for a day", "three days"}},
-		// The hosted team-site retention stays fixed across instance limits.
-		{"/skills/run-hackathon/SKILL.md", []string{"Team sites stay up for 30 days"}, []string{"A claim lasts 30 days", "A claim expires after 30 days"}},
 		// The enterprise pages describe the other product's limits.
 		{"/enterprise/architecture", []string{"at most 50,000 entries"}, []string{"30,000 entries"}},
 	} {

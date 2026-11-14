@@ -129,6 +129,15 @@ func (p *assetPipeline) SkillsModTime() time.Time { return skillsModTime }
 // ServeStaticPage is serveStaticPage (ui.go), exported for hackPages.
 func (p *assetPipeline) ServeStaticPage(name string) http.Handler { return p.serveStaticPage(name) }
 
+// RenderPage applies this instance's chrome and text to a product-owned page.
+func (p *assetPipeline) RenderPage(r *http.Request, name string, raw []byte) ([]byte, error) {
+	page, err := withChrome(raw, p.chromeDataFor(r, ""))
+	if err != nil {
+		return nil, err
+	}
+	return stampNonce(r, p.presentChromePage(name, page)), nil
+}
+
 // AdminUICSP is adminUICSP (ui.go), exported for hackPages.
 func (p *assetPipeline) AdminUICSP(next http.Handler) http.Handler { return p.adminUICSP(next) }
 

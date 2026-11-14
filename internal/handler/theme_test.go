@@ -143,7 +143,7 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/", "/dashboard", "/install.html", "/docs/", "/architecture.html", "/privacy.html",
-		"/features", "/enterprise", "/enterprise/brief", "/enterprise/architecture", "/hackathons",
+		"/features", "/enterprise", "/enterprise/brief", "/enterprise/architecture",
 		"/setup", "/costs", "/terms", "/support", "/admin", "/analytics/my-site", "/connect.html",
 	} {
 		rec := get(t, mux, "simple-host.app", path)

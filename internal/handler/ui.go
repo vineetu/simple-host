@@ -195,15 +195,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /enterprise", assets.adminUICSP(assets.serveStaticPage("enterprise.html")))
 	mux.Handle("GET /enterprise/brief", assets.adminUICSP(assets.serveStaticPage("enterprise-brief.html")))
 	mux.Handle("GET /enterprise/architecture", assets.adminUICSP(assets.serveStaticPage("enterprise-architecture.html")))
-	if assets.pres.HackAssets || assets.hostedOwner() != "" {
-		mux.Handle("GET /hackathons", assets.adminUICSP(assets.serveStaticPage("hackathons.html")))
-	} else {
-		// Self-hosted Host edition (no Hack feature, EVENTS=off): this page
-		// pitches self-hosting the Hack platform and links to "Use the
-		// hosted version" (simple-hack.app) -- neither makes sense on an
-		// instance that is already self-hosted. Hidden the same way other
-		// self-host-only marketing is, a redirect to home rather than a
-		// page describing something this install cannot do.
+	if !assets.pres.HackAssets {
 		mux.Handle("GET /hackathons", http.RedirectHandler("/", http.StatusFound))
 		mux.Handle("GET /hackathons.html", http.RedirectHandler("/", http.StatusFound))
 	}
@@ -664,16 +656,6 @@ func (p *assetPipeline) buildSkillsZip() ([]byte, error) {
 				return walkErr
 			}
 			if path == "." || d.IsDir() {
-				return nil
-			}
-			// The bundle is what a participant installs. A control-plane skill
-			// provisions cloud servers with the operator's own credentials and
-			// has no business in a participant's agent — and shipping it here
-			// also made the Get Started page wrong, since it tells people to
-			// expect three folders. Organisers do not need the bundle: the
-			// organiser prompt has their agent read the skill from its URL, and
-			// /skills/run-hackathon.zip is still there for an explicit download.
-			if controlPlaneSkill(path) {
 				return nil
 			}
 

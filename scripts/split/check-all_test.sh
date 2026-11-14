@@ -164,6 +164,7 @@ printf node >>"$STUB_LOG"
 printf ' <%s>' "$@" >>"$STUB_LOG"
 printf '\n' >>"$STUB_LOG"
 if [[ $1 == */diff.mjs ]]; then exit "${DIFF_STATUS:-0}"; fi
+if [[ $1 == */coverage.mjs ]]; then exit "${COVERAGE_STATUS:-0}"; fi
 EOF
 chmod +x "$tmp/bin/go" "$tmp/bin/node"
 export PATH="$tmp/bin:$PATH" STUB_LOG="$tmp/calls"
@@ -174,6 +175,7 @@ cat >"$tmp/expected" <<EOF
 go [0] <build> <-o> <$tmp/out/golden/candidate.bin> <./cmd/server>
 node <$tmp/golden/run.mjs> <--host> <$GOLDEN_REF_BIN> <--out> <$tmp/out/golden/ref> <--scenario> <all>
 node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/candidate.bin> <--out> <$tmp/out/golden/cand> <--scenario> <all>
+node <$tmp/golden/coverage.mjs> <$tmp/out/golden/cand>
 node <$tmp/golden/diff.mjs> <$tmp/out/golden/ref> <$tmp/out/golden/cand> <--slice> <X>
 EOF
 check 'golden order and exact arguments without hacks' cmp -s "$tmp/expected" "$STUB_LOG"
@@ -188,6 +190,9 @@ export GOLDEN_REF_HACK_BIN="$tmp/reference hack" GOLDEN_HACK_BIN="$tmp/candidate
 check 'golden with hack overrides passes' run 0 --golden
 check 'reference hack argument' has "$STUB_LOG" "<--host> <$GOLDEN_REF_BIN> <--hack> <$GOLDEN_REF_HACK_BIN> <--out>"
 check 'candidate hack argument' has "$STUB_LOG" "<--host> <$tmp/out/golden/candidate.bin> <--hack> <$GOLDEN_HACK_BIN> <--out>"
+export COVERAGE_STATUS=1
+check 'golden coverage failure fails gate' run 1 --golden
+unset COVERAGE_STATUS
 export DIFF_STATUS=1
 check 'golden diff failure fails gate' run 1 --golden
 check 'golden diff is unexpected' has "$tmp/report" "Unexpected failures (not in known-red.txt) (1):

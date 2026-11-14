@@ -36,7 +36,6 @@ func patternInputs(sites []dynamicSite, prefix, suffix string) []string {
 func validateDynamicInputs(root string) error {
 	ui := dynamicSites["internal/handler/ui.go:RegisterUIRoutes"]
 	connector := dynamicSites["internal/handler/connector.go:Register"]
-	skills := patternInputs(ui[5:6], "GET /skills/", "")
 	hackVersions := dynamicSites["products/hack/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
 	inputs := []dynamicInput{
 		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
@@ -60,8 +59,8 @@ func validateDynamicInputs(root string) error {
 		}
 	}
 	// bundledSkillDirs reads these embedded directories rather than a Go list.
-	var dirs []string
-	for _, bundle := range []string{"internal/webassets/simple-host-website/skills", "internal/webassets/hack-toolkit/skills"} {
+	for product, bundle := range map[string]string{"host": "internal/webassets/simple-host-website/skills", "hack": "internal/webassets/hack-toolkit/skills"} {
+		var dirs []string
 		entries, err := os.ReadDir(filepath.Join(root, bundle))
 		if err != nil {
 			return err
@@ -74,9 +73,9 @@ func validateDynamicInputs(root string) error {
 				dirs = append(dirs, entry.Name())
 			}
 		}
-	}
-	if !reflect.DeepEqual(uniqueStrings(dirs), uniqueStrings(skills)) {
-		return fmt.Errorf("dynamic inputs changed: bundled skill directories; review scripts/inventory/dynamic.go")
+		if !reflect.DeepEqual(uniqueStrings(dirs), uniqueStrings(productSkills[product])) {
+			return fmt.Errorf("dynamic inputs changed: %s bundled skill directories; review scripts/inventory/dynamic.go", product)
+		}
 	}
 	return nil
 }

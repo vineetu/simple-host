@@ -4,11 +4,8 @@
 # Recorded paths are relative to text/host; binary assets are not text.
 
 ## Host recording
-text/host/GET__.well-known_skills_index.json.txt:13 | text | hackathon
-text/host/GET__.well-known_skills_index.json.txt:13 | text | simple-hack
-text/host/GET__.well-known_skills_index.json.txt:19 | text | hackathon
 text/host/GET__admin.txt:692 | text | hackathon
-text/host/GET__admin.txt:1836 | text | hackathon
+text/host/GET__admin.txt:1835 | text | hackathon
 text/host/GET__auth.js.txt:989 | text | simple-hack
 text/host/GET__auth.js.txt:998 | text | Simple Hack
 text/host/GET__enterprise.txt:620 | text | hackathon
@@ -489,10 +486,10 @@ text/host/GET__llms.txt.txt:434 | text | Simple Hack
 text/host/GET__llms.txt.txt:439 | text | Simple Hack
 text/host/GET__llms.txt.txt:489 | text | Simple Hack
 text/host/GET__llms.txt.txt:493 | text | Simple Hack
-text/host/GET__oauth_authorize.txt:598 | text | Simple Hack
-text/host/GET__oauth_authorize.txt:618 | text | Simple Hack
-text/host/GET__oauth_authorize.txt:667 | text | Simple Hack
-text/host/GET__oauth_authorize.txt:727 | text | hackathon
+text/host/GET__oauth_authorize.txt:597 | text | Simple Hack
+text/host/GET__oauth_authorize.txt:617 | text | Simple Hack
+text/host/GET__oauth_authorize.txt:666 | text | Simple Hack
+text/host/GET__oauth_authorize.txt:726 | text | hackathon
 text/host/GET__openapi.json.txt:41 | text | Simple Hack
 text/host/GET__openapi.json.txt:640 | text | Simple Hack
 text/host/GET__openapi.json.txt:991 | text | Simple Hack
@@ -557,75 +554,37 @@ text/host/GET__openapi.yaml.txt:11648 | text | Simple Hack
 text/host/GET__openapi.yaml.txt:14525 | text | Simple Hack
 text/host/GET__openapi.yaml.txt:14626 | text | Simple Hack
 text/host/GET__openapi.yaml.txt:14978 | text | Simple Hack
-text/host/GET__plugin.zip.txt:699 | text | hackathon
-text/host/GET__plugin.zip.txt:703 | text | hackathon
-text/host/GET__plugin.zip.txt:704 | text | Simple Hack
-text/host/GET__plugin.zip.txt:704 | text | simple-hack
-text/host/GET__plugin.zip.txt:707 | text | hackathon
-text/host/GET__plugin.zip.txt:714 | text | Simple Hack
-text/host/GET__plugin.zip.txt:714 | text | simple-hack
-text/host/GET__plugin.zip.txt:751 | text | simple-hack
-text/host/GET__plugin.zip.txt:753 | text | simple-hack
-text/host/GET__plugin.zip.txt:791 | text | hackathon
-text/host/GET__plugin.zip.txt:795 | text | hackathon
-text/host/GET__plugin.zip.txt:796 | text | Simple Hack
-text/host/GET__plugin.zip.txt:796 | text | simple-hack
-text/host/GET__plugin.zip.txt:799 | text | hackathon
-text/host/GET__plugin.zip.txt:804 | text | Simple Hack
-text/host/GET__plugin.zip.txt:804 | text | simple-hack
-text/host/GET__plugin.zip.txt:824 | text | simple-hack
-text/host/GET__plugin.zip.txt:833 | text | hackathon
-text/host/GET__plugin.zip.txt:838 | text | Simple Hack
-text/host/GET__plugin.zip.txt:954 | text | hackathon
-text/host/GET__plugin.zip.txt:954 | text | simple-hack
-text/host/GET__plugin.zip.txt:1003 | text | hackathon
-text/host/GET__plugin.zip.txt:1007 | text | hackathon
-text/host/GET__plugin.zip.txt:1008 | text | hackathon
-text/host/GET__plugin.zip.txt:1008 | text | simple-hack
-text/host/GET__plugin.zip.txt:1011 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1011 | text | hackathon
-text/host/GET__plugin.zip.txt:1016 | text | Hackathon
-text/host/GET__plugin.zip.txt:1021 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1021 | text | simple-hack
-text/host/GET__plugin.zip.txt:1027 | text | simple-hack
-text/host/GET__plugin.zip.txt:1035 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1039 | text | hackathon
-text/host/GET__plugin.zip.txt:1041 | text | hackathon
+text/host/GET__plugin.zip.txt:717 | text | Simple Hack
+text/host/GET__plugin.zip.txt:723 | text | Simple Hack
+text/host/GET__plugin.zip.txt:742 | text | Simple Hack
+text/host/GET__plugin.zip.txt:943 | text | Simple Hack
+text/host/GET__plugin.zip.txt:1028 | text | Simple Hack
 text/host/GET__plugin.zip.txt:1047 | text | hackathon
-text/host/GET__plugin.zip.txt:1047 | text | simple-hack
-text/host/GET__plugin.zip.txt:1105 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1111 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1130 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1331 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1416 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1435 | text | hackathon
-text/host/GET__plugin.zip.txt:1574 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1651 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1665 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1680 | text | Simple Hack
-text/host/GET__plugin.zip.txt:1720 | text | Simple Hack
-text/host/GET__plugin.zip.txt:2498 | text | Simple Hack
-text/host/GET__plugin.zip.txt:2747 | text | Simple Hack
-text/host/GET__plugin.zip.txt:2764 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3295 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3432 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3445 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3731 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3768 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3778 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3781 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3784 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3808 | text | Simple Hack
-text/host/GET__plugin.zip.txt:3908 | text | Simple Hack
-text/host/GET__plugin.zip.txt:4027 | text | Simple Hack
-text/host/GET__plugin.zip.txt:4030 | text | Simple Hack
-text/host/GET__plugin.zip.txt:4073 | text | Simple Hack
-text/host/GET__plugin.zip.txt:4085 | text | hackathon
-text/host/GET__plugin.zip.txt:4224 | text | Simple Hack
-text/host/GET__plugin.zip.txt:4225 | text | Simple Hack
-text/host/GET__plugin.zip.txt:4597 | text | Simple Hack
-text/host/GET__sitemap-pages.xml.txt:28 | text | hackathon
-text/host/GET__sitemap.xml.txt:28 | text | hackathon
+text/host/GET__plugin.zip.txt:1186 | text | Simple Hack
+text/host/GET__plugin.zip.txt:1263 | text | Simple Hack
+text/host/GET__plugin.zip.txt:1277 | text | Simple Hack
+text/host/GET__plugin.zip.txt:1292 | text | Simple Hack
+text/host/GET__plugin.zip.txt:1332 | text | Simple Hack
+text/host/GET__plugin.zip.txt:2110 | text | Simple Hack
+text/host/GET__plugin.zip.txt:2359 | text | Simple Hack
+text/host/GET__plugin.zip.txt:2376 | text | Simple Hack
+text/host/GET__plugin.zip.txt:2907 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3044 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3057 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3343 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3380 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3390 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3393 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3396 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3420 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3520 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3639 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3642 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3685 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3697 | text | hackathon
+text/host/GET__plugin.zip.txt:3836 | text | Simple Hack
+text/host/GET__plugin.zip.txt:3837 | text | Simple Hack
+text/host/GET__plugin.zip.txt:4209 | text | Simple Hack
 text/host/GET__skills.zip.txt:698 | text | Simple Hack
 text/host/GET__skills.zip.txt:704 | text | Simple Hack
 text/host/GET__skills.zip.txt:723 | text | Simple Hack
@@ -657,53 +616,6 @@ text/host/GET__skills.zip.txt:3678 | text | hackathon
 text/host/GET__skills.zip.txt:3817 | text | Simple Hack
 text/host/GET__skills.zip.txt:3818 | text | Simple Hack
 text/host/GET__skills.zip.txt:4190 | text | Simple Hack
-text/host/GET__skills_run-hackathon.txt:2 | text | hackathon
-text/host/GET__skills_run-hackathon.txt:3 | text | hackathon
-text/host/GET__skills_run-hackathon.txt:3 | text | simple-hack
-text/host/GET__skills_run-hackathon.txt:6 | text | Simple Hack
-text/host/GET__skills_run-hackathon.txt:6 | text | hackathon
-text/host/GET__skills_run-hackathon.txt:11 | text | Hackathon
-text/host/GET__skills_run-hackathon.txt:16 | text | Simple Hack
-text/host/GET__skills_run-hackathon.txt:16 | text | simple-hack
-text/host/GET__skills_run-hackathon.txt:22 | text | simple-hack
-text/host/GET__skills_run-hackathon.txt:30 | text | Simple Hack
-text/host/GET__skills_run-hackathon.txt:34 | text | hackathon
-text/host/GET__skills_run-hackathon.txt:36 | text | hackathon
-text/host/GET__skills_run-hackathon.txt:42 | text | hackathon
-text/host/GET__skills_run-hackathon.txt:42 | text | simple-hack
-text/host/GET__skills_run-hackathon.zip.txt:6 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:11 | text | Simple Hack
-text/host/GET__skills_run-hackathon.zip.txt:127 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:127 | text | simple-hack
-text/host/GET__skills_run-hackathon.zip.txt:176 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:180 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:181 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:181 | text | simple-hack
-text/host/GET__skills_run-hackathon.zip.txt:184 | text | Simple Hack
-text/host/GET__skills_run-hackathon.zip.txt:184 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:189 | text | Hackathon
-text/host/GET__skills_run-hackathon.zip.txt:194 | text | Simple Hack
-text/host/GET__skills_run-hackathon.zip.txt:194 | text | simple-hack
-text/host/GET__skills_run-hackathon.zip.txt:200 | text | simple-hack
-text/host/GET__skills_run-hackathon.zip.txt:208 | text | Simple Hack
-text/host/GET__skills_run-hackathon.zip.txt:212 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:214 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:220 | text | hackathon
-text/host/GET__skills_run-hackathon.zip.txt:220 | text | simple-hack
-text/host/GET__skills_run-hackathon_SKILL.md.txt:2 | text | hackathon
-text/host/GET__skills_run-hackathon_SKILL.md.txt:3 | text | hackathon
-text/host/GET__skills_run-hackathon_SKILL.md.txt:3 | text | simple-hack
-text/host/GET__skills_run-hackathon_SKILL.md.txt:6 | text | Simple Hack
-text/host/GET__skills_run-hackathon_SKILL.md.txt:6 | text | hackathon
-text/host/GET__skills_run-hackathon_SKILL.md.txt:11 | text | Hackathon
-text/host/GET__skills_run-hackathon_SKILL.md.txt:16 | text | Simple Hack
-text/host/GET__skills_run-hackathon_SKILL.md.txt:16 | text | simple-hack
-text/host/GET__skills_run-hackathon_SKILL.md.txt:22 | text | simple-hack
-text/host/GET__skills_run-hackathon_SKILL.md.txt:30 | text | Simple Hack
-text/host/GET__skills_run-hackathon_SKILL.md.txt:34 | text | hackathon
-text/host/GET__skills_run-hackathon_SKILL.md.txt:36 | text | hackathon
-text/host/GET__skills_run-hackathon_SKILL.md.txt:42 | text | hackathon
-text/host/GET__skills_run-hackathon_SKILL.md.txt:42 | text | simple-hack
 text/host/GET__skills_website-deploy-builder.txt:67 | text | Simple Hack
 text/host/GET__skills_website-deploy-builder.txt:81 | text | Simple Hack
 text/host/GET__skills_website-deploy-builder.zip.txt:24 | text | Simple Hack
@@ -742,27 +654,6 @@ text/host/GET__skills_website-deploy.zip.txt:2558 | text | Simple Hack
 text/host/GET__skills_website-deploy.zip.txt:2930 | text | Simple Hack
 text/host/GET__skills_website-deploy_SKILL.md.txt:175 | text | Simple Hack
 text/host/GET__terms.txt:459 | text | hackathon
-text/host/GET__v1_skills.txt:12 | text | hackathon
-text/host/GET__v1_skills.txt:12 | text | simple-hack
-text/host/GET__v1_skills.txt:14 | text | hackathon
-text/host/GET__v1_skills.txt:15 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:2 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:3 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:3 | text | simple-hack
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:6 | text | Simple Hack
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:6 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:11 | text | Hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:16 | text | Simple Hack
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:16 | text | simple-hack
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:22 | text | simple-hack
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:30 | text | Simple Hack
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:34 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:36 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:42 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_SKILL.md.txt:42 | text | simple-hack
-text/host/GET__v1_skills_run-hackathon_references_organiser-api.md.txt:3 | text | Simple Hack
-text/host/GET__v1_skills_run-hackathon_references_organiser-api.md.txt:119 | text | hackathon
-text/host/GET__v1_skills_run-hackathon_references_organiser-api.md.txt:119 | text | simple-hack
 text/host/GET__v1_skills_website-deploy-builder_SKILL.md.txt:67 | text | Simple Hack
 text/host/GET__v1_skills_website-deploy-builder_SKILL.md.txt:81 | text | Simple Hack
 text/host/GET__v1_skills_website-deploy-builder_references_capabilities.md.txt:16 | text | Simple Hack
@@ -805,7 +696,7 @@ text/host/tools_list_deploy-only.txt:1453 | text | Simple Hack
 text/host/tools_list_deploy-only_screens-off.txt:1392 | text | Simple Hack
 text/host/tools_list_personal.txt:1453 | text | Simple Hack
 text/host/tools_list_personal_screens-off.txt:1392 | text | Simple Hack
-Findings: 801
+Findings: 692
 
 ## Platform embedded assets
 internal/mcp/apps/hack-judge-bundle.js:939 | text | Simple Hack
@@ -1015,9 +906,10 @@ internal/webassets/docs-site/hack/api/visitor-sign-in/index.html:461 | text | Si
 internal/webassets/docs-site/hack/api/visitor-sign-in/index.html:494 | text | simple-hack
 internal/webassets/docs-site/hack/api/visitor-sign-in/index.html:495 | text | Simple Hack
 internal/webassets/docs-site/hack/api/visitor-sign-in/index.html:508 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:9 | text | simple-hack
-internal/webassets/docs-site/hack/changelog.md:13 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:17 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:5 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:5 | text | hackathon
+internal/webassets/docs-site/hack/changelog.md:11 | text | simple-hack
+internal/webassets/docs-site/hack/changelog.md:15 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:19 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:21 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:23 | text | Simple Hack
@@ -1036,8 +928,8 @@ internal/webassets/docs-site/hack/changelog.md:47 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:49 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:51 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:53 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:57 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:63 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:55 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:59 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:65 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:67 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:69 | text | Simple Hack
@@ -1045,57 +937,58 @@ internal/webassets/docs-site/hack/changelog.md:71 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:73 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:75 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:77 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:87 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:79 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:89 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:91 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:95 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:101 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:93 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:97 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:103 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:103 | text | simple-hack
-internal/webassets/docs-site/hack/changelog.md:107 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:105 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:105 | text | simple-hack
 internal/webassets/docs-site/hack/changelog.md:109 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:117 | text | simple-hack
-internal/webassets/docs-site/hack/changelog.md:121 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:131 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:139 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:111 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:119 | text | simple-hack
+internal/webassets/docs-site/hack/changelog.md:123 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:133 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:141 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:143 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:145 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:145 | text | hackathon
 internal/webassets/docs-site/hack/changelog.md:147 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:147 | text | hackathon
 internal/webassets/docs-site/hack/changelog.md:149 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:151 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:153 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:153 | text | simple-hack
 internal/webassets/docs-site/hack/changelog.md:155 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:159 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:165 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:169 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:155 | text | simple-hack
+internal/webassets/docs-site/hack/changelog.md:157 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:161 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:167 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:171 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:173 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:173 | text | simple-hack
 internal/webassets/docs-site/hack/changelog.md:175 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:179 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:179 | text | simple-hack
+internal/webassets/docs-site/hack/changelog.md:175 | text | simple-hack
+internal/webassets/docs-site/hack/changelog.md:177 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:181 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:181 | text | simple-hack
 internal/webassets/docs-site/hack/changelog.md:183 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:183 | text | hackathon
-internal/webassets/docs-site/hack/changelog.md:189 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:217 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:249 | text | simple-hack
-internal/webassets/docs-site/hack/changelog.md:253 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:185 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:185 | text | hackathon
+internal/webassets/docs-site/hack/changelog.md:191 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:219 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:251 | text | simple-hack
 internal/webassets/docs-site/hack/changelog.md:255 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:257 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:273 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:259 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:275 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:275 | text | hackathon
-internal/webassets/docs-site/hack/changelog.md:275 | text | simple-hack
-internal/webassets/docs-site/hack/changelog.md:279 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:289 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:277 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:277 | text | hackathon
+internal/webassets/docs-site/hack/changelog.md:277 | text | simple-hack
+internal/webassets/docs-site/hack/changelog.md:281 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:291 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog.md:293 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:299 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog.md:351 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:295 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:301 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog.md:353 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:5 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:450 | text | simple-hack
 internal/webassets/docs-site/hack/changelog/index.html:451 | text | Simple Hack
@@ -1106,9 +999,10 @@ internal/webassets/docs-site/hack/changelog/index.html:461 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:494 | text | simple-hack
 internal/webassets/docs-site/hack/changelog/index.html:495 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:508 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:617 | text | simple-hack
-internal/webassets/docs-site/hack/changelog/index.html:623 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:629 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:611 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:611 | text | hackathon
+internal/webassets/docs-site/hack/changelog/index.html:620 | text | simple-hack
+internal/webassets/docs-site/hack/changelog/index.html:626 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:632 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:635 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:638 | text | Simple Hack
@@ -1127,8 +1021,8 @@ internal/webassets/docs-site/hack/changelog/index.html:674 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:677 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:680 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:683 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:689 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:698 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:686 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:692 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:701 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:704 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:707 | text | Simple Hack
@@ -1136,58 +1030,59 @@ internal/webassets/docs-site/hack/changelog/index.html:710 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:713 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:716 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:719 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:734 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:722 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:737 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:740 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:746 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:755 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:743 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:749 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:758 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:758 | text | simple-hack
-internal/webassets/docs-site/hack/changelog/index.html:764 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:761 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:761 | text | simple-hack
 internal/webassets/docs-site/hack/changelog/index.html:767 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:779 | text | simple-hack
-internal/webassets/docs-site/hack/changelog/index.html:785 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:800 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:812 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:770 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:782 | text | simple-hack
+internal/webassets/docs-site/hack/changelog/index.html:788 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:803 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:815 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:818 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:821 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:821 | text | hackathon
 internal/webassets/docs-site/hack/changelog/index.html:824 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:824 | text | hackathon
 internal/webassets/docs-site/hack/changelog/index.html:827 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:830 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:833 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:833 | text | simple-hack
 internal/webassets/docs-site/hack/changelog/index.html:836 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:842 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:851 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:857 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:836 | text | simple-hack
+internal/webassets/docs-site/hack/changelog/index.html:839 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:845 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:854 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:860 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:863 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:863 | text | simple-hack
 internal/webassets/docs-site/hack/changelog/index.html:866 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:872 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:872 | text | simple-hack
+internal/webassets/docs-site/hack/changelog/index.html:866 | text | simple-hack
+internal/webassets/docs-site/hack/changelog/index.html:869 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:875 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:875 | text | simple-hack
 internal/webassets/docs-site/hack/changelog/index.html:878 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:878 | text | hackathon
-internal/webassets/docs-site/hack/changelog/index.html:887 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:929 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:977 | text | simple-hack
-internal/webassets/docs-site/hack/changelog/index.html:983 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:881 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:881 | text | hackathon
+internal/webassets/docs-site/hack/changelog/index.html:890 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:932 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:980 | text | simple-hack
 internal/webassets/docs-site/hack/changelog/index.html:986 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:989 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:1013 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:992 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:1016 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:1016 | text | hackathon
-internal/webassets/docs-site/hack/changelog/index.html:1016 | text | simple-hack
-internal/webassets/docs-site/hack/changelog/index.html:1022 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:1037 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:1019 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:1019 | text | hackathon
+internal/webassets/docs-site/hack/changelog/index.html:1019 | text | simple-hack
+internal/webassets/docs-site/hack/changelog/index.html:1025 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:1040 | text | Simple Hack
 internal/webassets/docs-site/hack/changelog/index.html:1043 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:1052 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:1130 | text | Simple Hack
-internal/webassets/docs-site/hack/changelog/index.html:1184 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:1046 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:1055 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:1133 | text | Simple Hack
+internal/webassets/docs-site/hack/changelog/index.html:1187 | text | Simple Hack
 internal/webassets/docs-site/hack/guides/access.md:7 | text | Simple Hack
 internal/webassets/docs-site/hack/guides/access.md:28 | text | simple-hack
 internal/webassets/docs-site/hack/guides/access/index.html:5 | text | Simple Hack
@@ -2198,38 +2093,6 @@ internal/webassets/hack-toolkit/skills/website-deploy/references/storage.md:1 | 
 internal/webassets/hack-toolkit/skills/website-deploy/references/storage.md:3 | text | Simple Hack
 internal/webassets/hack-toolkit/skills/website-deploy/references/storage.md:12 | text | Simple Hack
 internal/webassets/hack-toolkit/skills/website-deploy/references/storage.md:14 | text | Simple Hack
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:2 | text | hackathon
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:3 | text | Simple Hack
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:3 | text | simple-hack
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:6 | text | hackathon
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:13 | text | Simple Hack
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:13 | text | simple-hack
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:50 | text | simple-hack
-internal/webassets/simple-host-website/skills/join-hackathon/SKILL.md:52 | text | simple-hack
-internal/webassets/simple-host-website/skills/judge-hackathon/SKILL.md:2 | text | hackathon
-internal/webassets/simple-host-website/skills/judge-hackathon/SKILL.md:3 | text | Simple Hack
-internal/webassets/simple-host-website/skills/judge-hackathon/SKILL.md:3 | text | simple-hack
-internal/webassets/simple-host-website/skills/judge-hackathon/SKILL.md:6 | text | hackathon
-internal/webassets/simple-host-website/skills/judge-hackathon/SKILL.md:11 | text | Simple Hack
-internal/webassets/simple-host-website/skills/judge-hackathon/SKILL.md:11 | text | simple-hack
-internal/webassets/simple-host-website/skills/judge-hackathon/SKILL.md:31 | text | simple-hack
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:2 | text | hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:3 | text | hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:3 | text | simple-hack
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:6 | text | Simple Hack
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:6 | text | hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:11 | text | Hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:16 | text | Simple Hack
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:16 | text | simple-hack
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:22 | text | simple-hack
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:30 | text | Simple Hack
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:34 | text | hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:36 | text | hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:42 | text | hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/SKILL.md:42 | text | simple-hack
-internal/webassets/simple-host-website/skills/run-hackathon/references/organiser-api.md:3 | text | Simple Hack
-internal/webassets/simple-host-website/skills/run-hackathon/references/organiser-api.md:119 | text | hackathon
-internal/webassets/simple-host-website/skills/run-hackathon/references/organiser-api.md:119 | text | simple-hack
 internal/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md:67 | text | Simple Hack
 internal/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md:81 | text | Simple Hack
 internal/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md:16 | text | Simple Hack
@@ -3129,20 +2992,6 @@ internal/webassets/static/hack/shell.js:156 | text | Simple Hack
 internal/webassets/static/hack/shell.js:159 | text | hackathon
 internal/webassets/static/hack/shell.js:246 | text | hackathon
 internal/webassets/static/hack/ui.js:413 | text | hackathon
-internal/webassets/static/hackathons.html:6 | text | Simple Hack
-internal/webassets/static/hackathons.html:7 | text | Simple Hack
-internal/webassets/static/hackathons.html:10 | text | hackathon
-internal/webassets/static/hackathons.html:11 | text | Hackathon
-internal/webassets/static/hackathons.html:12 | text | Simple Hack
-internal/webassets/static/hackathons.html:13 | text | simple-hack
-internal/webassets/static/hackathons.html:79 | text | Simple Hack
-internal/webassets/static/hackathons.html:80 | text | Hackathon
-internal/webassets/static/hackathons.html:81 | text | Simple Hack
-internal/webassets/static/hackathons.html:83 | text | Simple Hack
-internal/webassets/static/hackathons.html:83 | text | simple-hack
-internal/webassets/static/hackathons.html:88 | text | simple-hack
-internal/webassets/static/hackathons.html:95 | text | Simple Hack
-internal/webassets/static/hackathons.html:100 | text | Simple Hack
 internal/webassets/static/host-ink.css:122 | text | Simple Hack
 internal/webassets/static/install.html:500 | text | hackathon
 internal/webassets/static/llms.txt:91 | text | Simple Hack
@@ -3358,7 +3207,6 @@ internal/webassets/static/openapi.yaml:17182 | text | Simple Hack
 internal/webassets/static/openapi.yaml:17219 | text | Simple Hack
 internal/webassets/static/openapi.yaml:17726 | text | Simple Hack
 internal/webassets/static/partials/footer.html:7 | text | hackathon
-internal/webassets/static/partials/footer.html:25 | text | hackathon
 internal/webassets/static/privacy.html:42 | text | Simple Hack
 internal/webassets/static/privacy.html:58 | text | Simple Hack
 internal/webassets/static/privacy.html:58 | text | simple-hack
@@ -3402,4 +3250,4 @@ internal/webassets/static/terms.html:42 | text | Simple Hack
 internal/webassets/static/terms.html:60 | text | Simple Hack
 internal/webassets/static/terms.html:60 | text | simple-hack
 internal/webassets/static/terms.html:62 | text | hackathon
-Findings: 2594
+Findings: 2551

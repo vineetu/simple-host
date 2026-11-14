@@ -30,6 +30,14 @@ const FIXED_GETS = fixedGetRoutes(JSON.parse(readFileSync(path.join(REPO_ROOT, '
 const SCENARIOS = {
  base: { env: { host: { KV_STORE: 'postgres' }, hack: { KV_STORE: 'postgres' } }, host: seedAndCallHost, hack: seedAndCallHack },
  'mixed-store': { env: { host: { KV_STORE: 'sqlite' }, hack: { KV_STORE: 'sqlite' } }, host: seedAndCallMixedStore, hack: seedAndCallMixedStore },
+  'hosted-pages': {
+    env: { host: { SITE_DOMAIN: 'simple-host.app' } },
+    host: async ({ at }) => {
+      for (const route of ['/', '/hackathons', '/hackathons.html', '/sitemap.xml']) {
+        await at(`GET ${route}`, 'GET', route);
+      }
+    },
+  },
 };
 
 function sleep(ms) {
@@ -521,13 +529,17 @@ function finalizeCall(record, namer, knownTimestamps, writer) {
 // ---- Host instance: seed + request list -----------------------------------
 
 // R2-S4a: one pre-existing Postgres namespace beside a newly created file.
-async function seedAndCallMixedStore({ instance, at }) {
+async function seedAndCallMixedStore({ instance, at, registerSecret }) {
  const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['mixed-owner@example.com'] } });
  const owner = created.json.created[0].api_key;
  let base;
  const name = 'golden-mixed';
  if (instance.tag === 'hack') {
-  await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
+  const event = await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
+  // The event's join and judge codes are random per run: hide them, as base does.
+  for (const code of [event.json?.organiser?.join_code, event.json?.organiser?.judge_code]) {
+   if (code) registerSecret('code', code);
+  }
   await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Mixed storage</h1>' } } });
   base = `/v1/hack/events/${name}/website/storage`;
  } else {
@@ -1055,6 +1067,13 @@ async function widerCoverage(instance, calls, usedNames, owner) {
       });
     }
   }
+  // Keep retired Host skills in the replay after they leave discovery (D2-S11).
+  for (const name of ['join-hackathon', 'judge-hackathon', 'run-hackathon']) {
+    await get(`/v1/skills/${name}`);
+    await get(`/v1/skills/${name}/SKILL.md`);
+    await get(`/.well-known/skills/${name}/SKILL.md`);
+  }
+  await get('/v1/skills/run-hackathon/references/organiser-api.md');
   const indexRecord = calls.find(r => r.name === 'GET /.well-known/skills/index.json');
   const index = JSON.parse(indexRecord.rawBody.toString());
   for (const skill of index.skills || []) {

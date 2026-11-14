@@ -63,7 +63,7 @@ Go owners name the registration or rendering function.
 | Host person showcase | `showcase.html`; host/path routing supplies the handle | `handler/showcase.go:renderShowcase`, `ownerAppOrStatic`; `handler/personhost.go` |
 | Host `/analytics/{sitename}` | `analytics.html` | `handler/ui.go:RegisterUIRoutes` |
 | `/admin`, `/features`, `/pricing` | `admin.html`, generated `features.html`, settings-filled `pricing.html` | `handler/ui.go:RegisterUIRoutes` |
-| `/enterprise` and its brief/architecture pages, `/hackathons` | Corresponding `enterprise*.html`, `hackathons.html` | `handler/ui.go:RegisterUIRoutes` |
+| `/enterprise` and its brief/architecture pages | Corresponding `enterprise*.html` | `handler/ui.go:RegisterUIRoutes` |
 | `/setup`, `/costs` | `setup-helper.html` with `setup/setup.js`; `costs.html` with `costs/calc.js` | `handler/ui.go:RegisterUIRoutes` |
 | First boot without SITE_DOMAIN | `setup.html`, a separate setup-only server | `handler/setup.go:SetupHandler.Register` |
 | Hack `/` | Canonical instance: `hack-home.html`; other instances: `hack-story.html` | `hackhttp/hack_home.go:RegisterHackHome` |

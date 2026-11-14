@@ -1,9 +1,12 @@
 package hackhttp
 
 import (
+	"bytes"
 	"net/http"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // homepageLinks is the homepage's Link header value. Duplicated from
@@ -21,6 +24,7 @@ const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternat
 // this only ever called sh.pipeline().
 func RegisterHackHome(mux *http.ServeMux, pages hackPages) {
 	assets := pages
+	registerHackathons(mux, pages)
 	story := assets.ServeStaticPage("hack-story.html")
 	home := assets.ServeStaticPage("hack-home.html")
 	canonical := assets.IsCanonicalInstance()
@@ -55,4 +59,27 @@ func RegisterHackHome(mux *http.ServeMux, pages hackPages) {
 	RegisterHackWatch(mux, pages)
 	RegisterHackGetStarted(mux, pages)
 	RegisterHackCompanies(mux, pages)
+}
+
+func registerHackathons(mux *http.ServeMux, pages hackPages) {
+	raw, err := webassets.Static.ReadFile("static/hackathons.html")
+	if err != nil {
+		panic(err)
+	}
+	page := pages.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := pages.RenderPage(r, "hackathons.html", raw)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.Path == "/hackathons.html" {
+			http.ServeContent(w, r, "hackathons.html", time.Time{}, bytes.NewReader(body))
+			return
+		}
+		_, _ = w.Write(body)
+	}))
+	mux.Handle("GET /hackathons", page)
+	mux.Handle("GET /hackathons.html", page)
 }
