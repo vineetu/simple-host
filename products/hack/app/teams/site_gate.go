@@ -8,6 +8,7 @@ import (
 
 	sites "github.com/vsriram/simple-host/internal/app/sites"
 	model "github.com/vsriram/simple-host/internal/model"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	siterules "github.com/vsriram/simple-host/internal/rules/sites"
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
@@ -21,6 +22,26 @@ type SiteGate struct {
 }
 
 var _ sites.GroupGate = SiteGate{}
+
+const organiserTakedownPrefix = "Taken down by the event organiser"
+
+func (g SiteGate) Suspension(ctx context.Context, tx *sql.Tx, site siterepo.Site) (string, string, error) {
+	down, reason, err := repo.LockTeamSiteSuspension(ctx, tx, site.UserID, site.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	if !down {
+		return organiserTakedownPrefix, "", nil
+	}
+	full := organiserTakedownPrefix
+	if reason != "" {
+		full += ": " + reason
+	}
+	return organiserTakedownPrefix, full, nil
+}
 
 func (g SiteGate) Check(ctx context.Context, tx *sql.Tx, user *model.User, siteName string) *sites.GateError {
 	if user.EventWebsite != nil {

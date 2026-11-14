@@ -6,12 +6,30 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/model"
+	repo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 type groupGateFunc func(context.Context, *sql.Tx, *model.User, string) *GateError
 
 func (f groupGateFunc) Check(ctx context.Context, tx *sql.Tx, user *model.User, name string) *GateError {
 	return f(ctx, tx, user, name)
+}
+
+func (f groupGateFunc) Suspension(context.Context, *sql.Tx, repo.Site) (string, string, error) {
+	return "", "", nil
+}
+
+func TestSuspendHeldSiteRejectsEmptyPrefix(t *testing.T) {
+	for _, on := range []bool{false, true} {
+		// No dependencies: rejection must precede locks, SQL and callbacks.
+		svc := New(nil, nil, nil, 0, Deps{})
+		if err := svc.SuspendHeldSite(context.Background(), HeldSiteSuspension{On: on, Reason: "operator reason", Also: func(*sql.Tx) error {
+			t.Fatal("empty prefix reached product update")
+			return nil
+		}}); err == nil {
+			t.Fatal("empty prefix accepted")
+		}
+	}
 }
 
 func TestCreateGateDispatch(t *testing.T) {

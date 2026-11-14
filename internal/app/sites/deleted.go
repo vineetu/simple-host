@@ -80,17 +80,6 @@ func (s *Service) WakeImageScans(ctx context.Context, siteID string) {
 // sql.ErrNoRows when it is not (or no longer) in Recently deleted.
 func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (repo.Site, error) {
 	d, handle, also := in.Site, in.Handle, s.deps.DeletedTransaction
-	// It comes back as it was, taken down included (the operator may have
-	// taken it down while it was deleted): the marker goes into its folder
-	// before the folder is served again, so it is never live without it.
-	full, err := repo.GetSiteByID(ctx, s.database, d.ID)
-	if err != nil {
-		return repo.Site{}, err
-	}
-	if err := s.disk.SetTrashedSuspended(d.UserID, d.ID, full.Suspended()); err != nil {
-		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
-		return repo.Site{}, ErrRestoreFiles
-	}
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return repo.Site{}, err
@@ -103,6 +92,32 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (r
 		if err := also(tx); err != nil {
 			return repo.Site{}, err
 		}
+	}
+	full, err := repo.GetSiteByID(ctx, tx, d.ID)
+	if err != nil {
+		return repo.Site{}, err
+	}
+	if gate := s.deps.GroupGate; gate != nil {
+		prefix, reason, err := gate.Suspension(ctx, tx, full)
+		if err != nil {
+			return repo.Site{}, err
+		}
+		current := full.SiteSuspendedReason
+		if prefix != "" && (current == "" || strings.HasPrefix(current, prefix)) && current != reason {
+			if err := repo.SetSiteSuspended(ctx, tx, d.ID, reason); err != nil {
+				return repo.Site{}, err
+			}
+		}
+	}
+	full, err = repo.GetSiteByID(ctx, tx, d.ID)
+	if err != nil {
+		return repo.Site{}, err
+	}
+	// Rewrite the deleted folder's marker before it can be served, including
+	// any owner suspension even when the product just lifted its own reason.
+	if err := s.disk.SetTrashedSuspended(d.UserID, d.ID, full.Suspended()); err != nil {
+		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
+		return repo.Site{}, ErrRestoreFiles
 	}
 	// The name is this site's again; an old name another site left there
 	// stops redirecting.

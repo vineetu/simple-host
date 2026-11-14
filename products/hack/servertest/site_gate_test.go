@@ -17,6 +17,7 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
+	"github.com/vsriram/simple-host/internal/server"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
 	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
@@ -27,6 +28,29 @@ type siteGateFunc func(context.Context, *sql.Tx, *model.User, string) *sites.Gat
 
 func (f siteGateFunc) Check(ctx context.Context, tx *sql.Tx, user *model.User, name string) *sites.GateError {
 	return f(ctx, tx, user, name)
+}
+
+func (f siteGateFunc) Suspension(context.Context, *sql.Tx, siterepo.Site) (string, string, error) {
+	return "", "", nil
+}
+
+func TestHackBuildRequiresGroupGate(t *testing.T) {
+	cfg := platformtest.Config(t, testdb.Fresh(t))
+	ext := hack.Extension()
+	wire := ext.Wire
+	ext.Wire = func(d extension.Deps) (extension.Parts, error) {
+		parts, err := wire(d)
+		parts.Hooks.GroupGate = nil
+		return parts, err
+	}
+	app, err := server.Build(cfg, []*extension.Extension{ext})
+	if app != nil {
+		app.Close()
+		t.Fatal("Hack started without a group gate")
+	}
+	if err == nil || !strings.Contains(err.Error(), "requires a group gate") {
+		t.Fatalf("missing group gate error: %v", err)
+	}
 }
 
 func TestSiteGateInstalledAfterBuild(t *testing.T) {

@@ -14,6 +14,7 @@ func (h *SiteHandler) lifecycleSvc() *sites.Service { return h.lifecycleSvcWithT
 // lifecycleSvcWithTransaction preserves the idle cleanup's companion write in the site transaction.
 func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sites.Service {
 	return sites.New(h.database, h.disk, h.previewAccounts, h.previewTTL, sites.Deps{
+		GroupGate:          h.groupGate,
 		DeletedTransaction: also,
 		ResponseState: func(site model.Site, version int, preview, footprint bool) any {
 			return h.captureSiteResponseState(site, version, preview, footprint)

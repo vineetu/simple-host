@@ -307,7 +307,7 @@ type TeamSiteChanger interface {
 // SetSiteTakenDown changes a site's state and sends the existing team notices.
 func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger, event model.Event, team model.EventTeam, down bool, reason string) error {
 	if err := changer.SuspendHeldSite(ctx, sites.HeldSiteSuspension{
-		AccountID: event.AccountID, Name: team.Slug, Prefix: "Taken down by the event organiser", Reason: reason, On: down,
+		AccountID: event.AccountID, Name: team.Slug, Prefix: organiserTakedownPrefix, Reason: reason, On: down,
 		Also: func(tx *sql.Tx) error { return hackteams.SetTeamSiteTakedown(ctx, tx, team.ID, down, reason) },
 	}); err != nil {
 		return err
