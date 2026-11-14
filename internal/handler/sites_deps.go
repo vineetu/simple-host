@@ -6,7 +6,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
 // signInMailer is the outbound capability consumed by visitor sign-in.
@@ -37,8 +36,6 @@ func (h *SiteHandler) writePreparationError(w http.ResponseWriter, err error, li
 	}
 	writeJSON(w, 400, errorResponse{Error: message, Code: code})
 }
-
-func (h *SiteHandler) hackSiteSvc() *teams.Service { return teams.New(h.database) }
 
 func (h *SiteHandler) siteReporting() *operations.Reporting {
 	return operations.NewReporting(h.database)

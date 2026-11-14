@@ -3,7 +3,6 @@
 package extension
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 
@@ -66,7 +65,7 @@ type Deps struct {
 
 type Parts struct {
 	Workers       []workers.Owner
-	SiteSweep     func(context.Context)
+	SiteSweep     handler.GroupSweep
 	PaperHack     func(*papermetrics.Collector)
 	PaperRecorder func(http.Handler) http.Handler
 	Hooks         Hooks
@@ -75,4 +74,5 @@ type Parts struct {
 type Hooks struct {
 	Sitemap       sites.SitemapFilter
 	Notifications notifications.GroupSites
+	GroupHosts    handler.GroupHosts
 }

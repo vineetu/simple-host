@@ -506,7 +506,7 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 		own = own || isOwnHost(candidate, b)
 	}
 	if own && h.ed.Storage().EventSites {
-		own = h.hackTLSHostExists(r.Context(), candidate)
+		own = h.groupTLSHostExists(r.Context(), candidate)
 	}
 	if own {
 		w.WriteHeader(http.StatusOK)

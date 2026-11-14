@@ -81,6 +81,10 @@ verification, network sampling, image scans and paper metrics. Enabled providers
 which loops do work. Background owners satisfy `workers.Owner` and are registered in
 `internal/server/workers.go`; `GET /v1/admin/usage` exposes their `workers` status array.
 HTTP drains before the worker set stops and waits, with a separate worker context.
+Hack supplies `GroupHosts` through `extension.Hooks` for group lookups, product pages,
+notification addresses and pinned versions. `Parts.SiteSweep` supplies its named sweep
+and after-pass callback; the platform reconciles suspension markers between those steps
+every tenth pass.
 
 Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies required schema;
 without a configured hostname it serves only setup and exits after configuration so the supervisor
@@ -118,7 +122,7 @@ host/TLS hand-offs, identity, view locks, legacy access and request accounting a
 | `<label>.<suffix>` address family | Host resolves one account and its prefixed site. nginx serves files; `handler/familyhost.go:FamilyHosts` handles API, misses, aliases and own-domain redirects. Visitor auth is site-bound. |
 | `<handle>.simple-host.app` | Public site listing/home page and legacy `/<site>/` fallback; `/v1/` binds to that person's sites. Own addresses get 302 redirects; site-host redirects also require canonical mode and readiness. `handler/personhost.go:PersonHosts`. |
 | Legacy `sites.simple-host.app/<handle>/<site>/` | nginx redirects through `/internal/domain-redirect` or `/internal/site-redirect`; same path/query, 302 with no-store. `/v1/` remains; canonical person-host mode requires keys for shared-host writes, without visitor sign-in. `personhost.go:contentHostRedirect`, `domains.go`. |
-| Hack `<event>.simple-hack.app` | `PersonHosts` selects `handler/hack_mode.go:serveHackEventHost`: event page/gallery screenshot, or custom event website. Only a custom website's own storage/visitor API allowlist is served here; event management stays apex-only. |
+| Hack `<event>.simple-hack.app` | `PersonHosts` selects `handler/grouphost.go:serveGroupHost`: event page/gallery screenshot, or custom event website. Only a custom website's own storage/visitor API allowlist is served here; event management stays apex-only. |
 | Hack `<team>.<event>.simple-hack.app` | Site-host dispatch with the event holding account and team site. Scoped credentials authorize website management; visitor sessions cover that website. `handler/sitehost.go`, `heldsites.go`, `auth/scope.go`. |
 
 Host modes retain the path model when off; canonical site URLs wait for certificate readiness

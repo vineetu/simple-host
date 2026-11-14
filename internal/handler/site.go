@@ -258,12 +258,8 @@ type SiteHandler struct {
 	// thinStuck: sites whose history stayed over the cap after a thin (what
 	// is left is the per-day copies thinning keeps), with its size then.
 	// Thinning is skipped for them until the history grows by thinMargin.
-	thinStuck sync.Map // site id -> int64
-	// hackEventPage renders an event's page on its host (EVENTS=hosted;
-	// hack_mode.go). nil elsewhere.
-	hackEventPage func(http.ResponseWriter, *http.Request, model.User) bool
-	// hackScreenshot serves one gallery screenshot on that host. nil elsewhere.
-	hackScreenshot func(http.ResponseWriter, *http.Request, model.User, string) bool
+	thinStuck  sync.Map // site id -> int64
+	groupHosts GroupHosts
 
 	// geoBlock gates a visitor's email-code sign-in on a site by the
 	// request's country (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See
@@ -1130,8 +1126,8 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 	}
 	if onPerson {
 		if h.ed.Storage().EventSites {
-			ev, err := h.hackSiteSvc().SiteEventByAccount(r.Context(), owner.ID)
-			if err != nil || ev.Slug != siteName || ev.WebsiteMode != "custom" || ev.TakenDown() {
+			ev, err := h.groupByAccount(r.Context(), owner.ID)
+			if err != nil || ev.Slug != siteName || !ev.CustomWebsite || ev.TakenDown {
 				return "", sql.ErrNoRows
 			}
 			s, err := h.sitesSvc().GetSiteByUser(r.Context(), owner.ID, ev.ID)

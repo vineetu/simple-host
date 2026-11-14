@@ -93,8 +93,7 @@ func Extension() *extension.Extension {
 				return hack.NameTaken(ctx, name)
 			})
 			hackPages := hackhttp.NewHackEventPages(handler.EmbeddedStatic())
-			siteHandler.SetHackEventPage(hackhttp.HackEventPage(d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages))
-			siteHandler.SetHackScreenshot(hackhttp.HackScreenshot(d.DB, siteHandler.TeamSitesReady, hack))
+			groupHosts := hackhttp.NewGroupHosts(d.DB, hackhttp.HackEventPage(d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages), hackhttp.HackScreenshot(d.DB, siteHandler.TeamSitesReady, hack))
 			hackhttp.RegisterHackHome(mux, siteHandler.Pages())
 			hackhttp.RegisterHackPublic(mux, d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages)
 			hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
@@ -104,12 +103,13 @@ func Extension() *extension.Extension {
 				d.ImageScan.SetHackTakeDownSync(hack.SyncEventMarkers)
 			}
 			return extension.Parts{
+				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
+				SiteSweep: NewSiteSweep(d.DB, siteHandler, siteSweep),
 				Hooks: extension.Hooks{
 					Sitemap:       hackevents.FilterSitemapSites,
 					Notifications: NotificationGroups{},
+					GroupHosts:    groupHosts,
 				},
-				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
-				SiteSweep: siteSweep,
 				PaperHack: func(paper *papermetrics.Collector) { paper.WithHack() },
 				PaperRecorder: func(next http.Handler) http.Handler {
 					return hackhttp.WithPaperRecorder(next, papermetrics.RequestRecorder{})

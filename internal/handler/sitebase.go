@@ -166,7 +166,7 @@ func (h *SiteHandler) userHostLabel(host string) (label, base string, ok bool) {
 // or label is itself a real account handle, or the lookup to check that
 // could not be completed.
 //
-// Shared by siteHostParts (routing) and hackTLSHostExists (the on-demand
+// Shared by siteHostParts (routing) and groupTLSHostExists (the on-demand
 // TLS allowlist), so both apply the exact-handle-match-wins rule the same
 // way: a single label that is itself a real, addressable account handle —
 // an event created before "--" was forbidden in slugs, or any future

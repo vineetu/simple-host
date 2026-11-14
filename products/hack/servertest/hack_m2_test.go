@@ -13,6 +13,7 @@ import (
 	"time"
 
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
+	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -556,7 +557,7 @@ func TestHackM2ReviewRound2(t *testing.T) {
 		t.Fatalf("draft then building kept the passed deadline")
 	}
 	// The emptied team, reopened and unpinned, goes with the sweep.
-	a.sites.HackSweepForTest(context.Background())
+	hack.NewSiteSweep(a.database, a.sites, nil).Sweep(context.Background())
 	_ = a.database.QueryRow(`SELECT count(*) FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1`, slug).Scan(&n)
 	if n != 0 {
 		t.Fatalf("empty reopened team kept: %d", n)

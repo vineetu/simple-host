@@ -607,7 +607,7 @@ func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site model.Site)
 	if !h.ed.Notifications().EventScoped {
 		return site.Name, h.siteURLFor(site), nil
 	}
-	ev, err := h.storeAccounts().GetEventByAccount(ctx, site.UserID)
+	ev, err := h.groupByAccount(ctx, site.UserID)
 	if err != nil {
 		return "", "", err
 	}

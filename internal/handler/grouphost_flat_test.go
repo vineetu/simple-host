@@ -171,28 +171,20 @@ func setHandle(t *testing.T, a *privateApp, p person, handle string) {
 	}
 }
 
-// makeEventAccount gives p's account a minimal, real events row (built-in
-// website mode, so serveHackEventHost reaches the hackEventPage callback
-// below once GetEventByAccount resolves it), and wires a stub event page so
-// a request that correctly falls through to the person/event host actually
-// gets distinctive, checkable content back instead of a 404.
+// makeEventAccount installs a group stub: this half tests platform dispatch.
+// Real event lookup and flat-host routing are tested in products/hack/servertest.
 func makeEventAccount(t *testing.T, a *privateApp, p person) {
 	t.Helper()
 	id, _ := a.userID(t, p)
-	slug := uniqueLabel(t, "ev")
-	if _, err := a.database.Exec(
-		`INSERT INTO events (slug, account_id, title, organiser_name, contact_email, join_code, judge_code)
-		 VALUES ($1, $2, 'Legacy Event', 'Legacy Organiser', 'legacy@example.com', $3, $4)`,
-		slug, id, uniqueLabel(t, "join"), uniqueLabel(t, "judge"),
-	); err != nil {
-		t.Fatal(err)
-	}
-	a.sites.SetHackEventPage(func(w http.ResponseWriter, r *http.Request, user model.User) bool {
-		if user.ID != id {
-			return false
-		}
-		w.Write([]byte("<h1>legacy event page</h1>"))
-		return true
+	a.sites.SetGroupHosts(&stubGroupHosts{
+		group: Group{GroupRef: GroupRef{ID: "group", AccountID: id}},
+		page: func(w http.ResponseWriter, r *http.Request, user model.User) bool {
+			if user.ID != id {
+				return false
+			}
+			w.Write([]byte("<h1>legacy event page</h1>"))
+			return true
+		},
 	})
 }
 

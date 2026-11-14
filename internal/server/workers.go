@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/operations"
@@ -22,7 +21,7 @@ type workerDependencies struct {
 	geo            *geoip.DB
 	analytics      *operations.AnalyticsIngest
 	eventDomains   *handler.EventDomainHandler
-	siteSweep      func(context.Context)
+	siteSweep      handler.GroupSweep
 }
 
 // registerWorkers is the single registry of process background owners.

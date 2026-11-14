@@ -76,7 +76,6 @@ server/servertest -> testdb
 app/accounts -> @/products/hack/repository/hackevents production # removal step D2-S9; D2-S4c, D2-S5a, D2-S6, D2-S7 and D2-S8 remove earlier callers
 app/operations -> @/products/hack/repository/hackevents production # removal step D2-S2
 app/operations -> @/products/hack/repository/hackentries production # removal step D2-S2
-handler -> @/products/hack/app/teams production # removal step D2-S4c; D2-S4b removes earlier callers
 handler -> @/products/hack/app/members production # removal step D2-S8
 mcp -> @/products/hack/app/events test # removal step D3-S1c
 mcp -> @/products/hack/app/entries test # removal step D3-S1c

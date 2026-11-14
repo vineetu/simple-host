@@ -51,7 +51,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 			}
 			return floor
 		},
-		PinnedFloor: h.hackPinnedFloor,
+		PinnedFloor: h.groupPinnedFloor,
 		TeamKeys:    h.ed.Identity().TeamKeys, TeamSitesReady: h.teamSitesReady,
 		PaperSite: func(ctx context.Context, user *model.User, name string) {
 			if h.ed.Identity().PaperMetrics {
