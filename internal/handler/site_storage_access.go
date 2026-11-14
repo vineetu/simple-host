@@ -5,9 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/httpx"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/model"
@@ -92,6 +95,30 @@ func storageAccessJSON(m storageAccessMatrix, base string, legacy bool) map[stri
 		}
 	default:
 		out["preset"] = name
+	}
+	return out
+}
+
+// storageResourceRulesJSON leaves the flag-off preset representation unchanged.
+func storageResourceRulesJSON(x storageResource, diagnostics []httpx.RuleError) map[string]any {
+	status := x.rulesResource().RulesStatus()
+	if status == "preset" {
+		out := storageResourceJSON(x)
+		if os.Getenv("STORAGE_RULES") == "on" {
+			out["rules_status"] = status
+		}
+		return out
+	}
+	if diagnostics == nil {
+		diagnostics = []httpx.RuleError{}
+	}
+	out := map[string]any{"name": x.Name, "kind": x.Kind, "site_passcode": x.SitePasscode, "rules": x.Rules, "rules_status": status, "rules_errors": diagnostics}
+	if x.Kind == "sqlite" {
+		tables := map[string]any{}
+		for name, table := range x.Tables {
+			tables[name] = map[string]any{"rules": table.Rules}
+		}
+		out["tables"] = tables
 	}
 	return out
 }

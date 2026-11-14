@@ -128,7 +128,13 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	}
 	x.ConvertedFrom = old.ConvertedFrom
 	rulesSave := hasRules(in.Rules)
-	if rulesSave && !s.deps.RulesEnabled {
+	hasSubmittedRules := rulesSave
+	if in.Tables != nil {
+		for _, table := range *in.Tables {
+			hasSubmittedRules = hasSubmittedRules || hasRules(table.Rules)
+		}
+	}
+	if hasSubmittedRules && !s.deps.RulesEnabled {
 		return ResourceResult{}, &Error{Code: "rules_unavailable", Message: "storage rules are unavailable"}
 	}
 	keepRules := !rulesSave && exists && old.Rules != nil && !in.hasPresetFields() && !in.hasTablePresetFields()

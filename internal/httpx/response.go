@@ -7,13 +7,20 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
+
+// RuleError exposes the wire diagnostic to transports without an engine import.
+type RuleError = ruleengine.RuleError
 
 // ErrorResponse is the shared JSON error body. Keep every field, tag and
 // comment: MCP tools key their hints on Code, and sign-in UI keys cards on
 // Reason.
 type ErrorResponse struct {
-	Error string `json:"error"`
+	RuleError   *ruleengine.RuleError  `json:"rule_error,omitempty"`
+	RulesErrors []ruleengine.RuleError `json:"rules_errors,omitempty"`
+	Error       string                 `json:"error"`
 	// Code is a stable snake_case name for the failure, set where one error
 	// status has more than one meaning (the MCP tools key their hints on it).
 	Code string `json:"code,omitempty"`

@@ -25,9 +25,8 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FIXED_GETS = fixedGetRoutes(JSON.parse(readFileSync(path.join(REPO_ROOT, 'docs/generated/inventory.json'))));
-// Add rules track scenarios here, for example:
-// 'rules-on': { env: { host: { STORAGE_RULES: 'on' }, hack: {} }, host: seedAndCallHost, hack: seedAndCallHack }
 const SCENARIOS = {
+ 'rules-on': { env: { host: { STORAGE_RULES: 'on' }, hack: { STORAGE_RULES: 'on' } }, host: seedAndCallRulesOn, hack: seedAndCallRulesOn },
  base: { env: { host: { KV_STORE: 'postgres' }, hack: { KV_STORE: 'postgres' } }, host: seedAndCallHost, hack: seedAndCallHack },
  'mixed-store': { env: { host: { KV_STORE: 'sqlite' }, hack: { KV_STORE: 'sqlite' } }, host: seedAndCallMixedStore, hack: seedAndCallMixedStore },
   'hosted-pages': {
@@ -543,6 +542,47 @@ function finalizeCall(record, namer, knownTimestamps, writer) {
 // ---- Host instance: seed + request list -----------------------------------
 
 // R2-S4a: one pre-existing Postgres namespace beside a newly created file.
+// R2-S3 exercises owner saves and reads only. Visitor enforcement is added
+// by R3-S1a/R3-S1b/R3-S3, without changing these requests.
+async function seedAndCallRulesOn({ instance, at, registerSecret }) {
+ const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['rules-owner@example.com'] } });
+ const owner = created.json.created[0].api_key;
+ const name = 'golden-rules';
+ let base;
+ if (instance.tag === 'hack') {
+  const event = await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
+  for (const code of [event.json?.organiser?.join_code, event.json?.organiser?.judge_code]) {
+   if (code) registerSecret('code', code);
+  }
+  await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Rules storage</h1>' } } });
+  base = `/v1/hack/events/${name}/website/storage`;
+ } else {
+  await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Rules storage</h1>' } } });
+  base = `/v1/sites/${name}/storage`;
+ }
+ const body = { kind: 'sqlite', rules: { policies: [{ name: 'read', command: 'read', using: 'true' }] }, tables: { notes: { rules: { policies: [] } } } };
+ const saved = await at('save-rules', 'PUT', `${base}/resources/notes`, { apiKey: owner, body });
+ if (saved.json?.rules_status !== 'rules') throw new Error('rules-on owner save did not return rules');
+ const loaded = await at('read-rules', 'GET', `${base}/resources`, { apiKey: owner });
+ if (loaded.json?.resources?.[0]?.rules_status !== 'rules') throw new Error('rules-on owner read did not return rules');
+ const preset = await at('save-preset', 'PUT', `${base}/resources/preset`, { apiKey: owner, body: { kind: 'sqlite', preset: 'private' } });
+ if (preset.json?.rules_status !== 'preset') throw new Error('rules-on preset status missing');
+ await at('list-resources', 'GET', `${base}/resources`, { apiKey: owner });
+ const rpc = (label, method, params) => at(label, 'POST', '/mcp', { apiKey: owner, body: { jsonrpc: '2.0', id: 10, method, params } });
+ for (const screens of ['off', 'on']) {
+  await instance.screens(screens);
+  const suffix = screens === 'off' ? 'personal screens-off' : 'personal';
+  await rpc(`initialize ${suffix}`, 'initialize', { protocolVersion: '2025-06-18', capabilities: { extensions: { 'io.modelcontextprotocol/ui': {} } }, clientInfo: { name: 'golden', version: '1' } });
+  await rpc(`tools/list ${suffix}`, 'tools/list', {});
+ }
+ const prefix = instance.tag === 'hack' ? 'hack_event_storage_' : 'storage_';
+ const scope = instance.tag === 'hack' ? { event: name } : { site: name };
+ const result = await rpc(`tools/call ${prefix}set_resource`, 'tools/call', { name: `${prefix}set_resource`, arguments: { ...scope, name: 'notes', body } });
+ if (result.json?.error || result.json?.result?.isError) throw new Error('rules-on tool save failed');
+ const listed = await rpc(`tools/call ${prefix}list_resources`, 'tools/call', { name: `${prefix}list_resources`, arguments: scope });
+ if (listed.json?.error || listed.json?.result?.isError) throw new Error('rules-on tool list failed');
+}
+
 async function seedAndCallMixedStore({ instance, at, registerSecret }) {
  const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['mixed-owner@example.com'] } });
  const owner = created.json.created[0].api_key;

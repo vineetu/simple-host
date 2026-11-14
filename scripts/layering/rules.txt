@@ -17,6 +17,7 @@ auth -> app/accounts httpx edition model rules/auth rules/sites
 @/products/hack/hackhttp -> rules/sites
 mcp -> app/** edition model httpx buildinfo brain webassets workers
 httpx -> app/errors model edition
+httpx -> @/host/storage/rules
 app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
 @/products/hack/app/events -> app/errors model edition workers repository/sqlkit
 @/products/hack/app/teams -> app/errors model edition workers repository/sqlkit

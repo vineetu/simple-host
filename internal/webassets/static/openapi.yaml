@@ -12864,7 +12864,7 @@ paths:
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }]
       responses:
-        '200': { description: 'resources: [{name,kind,preset,access:{read,add,edit,delete},tables,read,write,write_mode,site_passcode}]' }
+        '200': { description: 'resources: [{name,kind,preset,access:{read,add,edit,delete},tables,read,write,write_mode,site_passcode}]', content: { application/json: { schema: { type: object, properties: { resources: { type: array, items: { $ref: '#/components/schemas/StorageResource' } } } } } } }
         '403': { description: forbidden, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/turnstile/frame:
     get:
@@ -12909,15 +12909,122 @@ paths:
         needs empty tables (visitor_id_required). Owner here means the owner's tools and the owner signed in on the site's
         own address through visitor sign-in; nobody means the owner's tools only. Simple Hack accepts only read and write
         (anyone, signed-in, owner) with full mode, as before presets.
+        With STORAGE_RULES=on, SQLite and SQLite-stored KV resources also accept rules (StoragePolicySet),
+        without preset fields. A rules save on a Postgres KV namespace returns 400 rules_unavailable.
+        Rules are unavailable on file buckets (400 invalid_rules). A body or table rules field with the flag
+        off returns 400 rules_unavailable. Bodies over 256 KiB return 400 invalid_rules with clause size.
+        Null rules are treated as absent; an empty policies array denies visitors. For SQLite, table rules
+        override the default set; omit tables to keep overrides, or send tables {} to clear them. When
+        moving from per-table presets, send rules for every override or tables {}. Preset fields and rules
+        on the same body or table entry return 400 invalid_rules. A rules resource saved back to presets
+        with table overrides requires explicit tables (otherwise 409 tables_present). A passcode-only
+        save on a rules resource preserves rules. Rules responses omit preset fields and carry rules,
+        rules_status and rules_errors. Preset responses remain unchanged with the flag off; with it on
+        they also carry rules_status preset.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [kind], properties: { kind: { type: string, enum: [kv, sqlite, files] }, preset: { type: string, enum: [public, inbox, wall, comments, records, personal, board, private, custom] }, read: { type: string, enum: [nobody, owner, own, signed-in, anyone] }, add: { type: string, enum: [nobody, owner, signed-in, checked, anyone] }, approve_first: { type: boolean }, edit: { type: string, enum: [nobody, owner, own, signed-in] }, delete: { type: string, enum: [nobody, owner, own, signed-in] }, tables: { type: object, additionalProperties: { type: object, properties: { preset: { type: string }, read: { type: string }, add: { type: string }, edit: { type: string }, delete: { type: string } } } }, write_mode: { type: string, enum: [full, add], description: older field, translated }, write: { type: string, enum: [anyone, signed-in, owner], description: older field, translated }, site_passcode: { type: string, enum: [inherit, off] } } } } }
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - kind
+              properties:
+                kind:
+                  type: string
+                  enum:
+                  - kv
+                  - sqlite
+                  - files
+                preset:
+                  type: string
+                  enum:
+                  - public
+                  - inbox
+                  - wall
+                  - comments
+                  - records
+                  - personal
+                  - board
+                  - private
+                  - custom
+                read:
+                  type: string
+                  enum:
+                  - nobody
+                  - owner
+                  - own
+                  - signed-in
+                  - anyone
+                add:
+                  type: string
+                  enum:
+                  - nobody
+                  - owner
+                  - signed-in
+                  - checked
+                  - anyone
+                approve_first:
+                  type: boolean
+                edit:
+                  type: string
+                  enum:
+                  - nobody
+                  - owner
+                  - own
+                  - signed-in
+                delete:
+                  type: string
+                  enum:
+                  - nobody
+                  - owner
+                  - own
+                  - signed-in
+                tables:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      preset:
+                        type: string
+                      read:
+                        type: string
+                      add:
+                        type: string
+                      edit:
+                        type: string
+                      delete:
+                        type: string
+                      rules:
+                        $ref: '#/components/schemas/StoragePolicySet'
+                write_mode:
+                  type: string
+                  enum:
+                  - full
+                  - add
+                  description: older field
+                  translated: null
+                write:
+                  type: string
+                  enum:
+                  - anyone
+                  - signed-in
+                  - owner
+                  description: older field
+                  translated: null
+                site_passcode:
+                  type: string
+                  enum:
+                  - inherit
+                  - "off"
+                rules:
+                  $ref: '#/components/schemas/StoragePolicySet'
       responses:
-        '200': { description: Existing resource policy changed; the resource as listed }
-        '201': { description: Resource created; the resource as listed }
-        '400': { description: 'invalid_access (with rule), invalid_resource, visitor_id_required', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '200': { description: Existing resource policy changed; the resource as listed, content: { application/json: { schema: { $ref: '#/components/schemas/StorageResource' } } } }
+        '201': { description: Resource created; the resource as listed, content: { application/json: { schema: { $ref: '#/components/schemas/StorageResource' } } } }
+        '400': { description: 'invalid_access (with rule), invalid_resource, visitor_id_required, invalid_rules (with rule_error and rules_errors), rules_unavailable', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: 'resource_kind_conflict, or tables_present (older fields on a database with per-table presets)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: forbidden, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
     delete:
@@ -17125,10 +17232,59 @@ components:
               site_url: { type: string, description: "https://<team>.<event>.simple-hack.app/" }
 
 
+    StoragePolicySet:
+      type: object
+      nullable: true
+      description: Optional owner-written row rules; null is treated as absent. Requires STORAGE_RULES=on to save.
+      required: [policies]
+      properties:
+        version: { type: integer, enum: [1], description: Omit for version 1. }
+        policies:
+          type: array
+          maxItems: 32
+          items: { $ref: '#/components/schemas/StoragePolicy' }
+    StoragePolicy:
+      type: object
+      required: [name, command]
+      properties:
+        name: { type: string, description: Unique policy name in this set. }
+        command: { type: string, enum: [read, add, edit, delete, all] }
+        using: { type: string, description: 'Existing-row predicate, at most 2048 UTF-8 bytes. Required for read, edit, delete and all; refused for add.' }
+        check: { type: string, description: 'New-row predicate, at most 2048 UTF-8 bytes. Required for add; edit and all default to using; refused for read and delete.' }
+        restrictive: { type: boolean, description: Restrictive policies combine with AND; permissive policies combine with OR. }
+    StorageRuleError:
+      type: object
+      required: [table, policy, clause, position, message]
+      properties:
+        table: { type: string, description: Table name or empty for resource defaults. }
+        policy: { type: string, description: Policy name or empty for a set-level error. }
+        clause: { type: string, description: Clause or validation bound that failed. }
+        position: { type: integer, description: UTF-8 byte offset or -1 when no offset applies. }
+        message: { type: string }
+    StorageResource:
+      type: object
+      description: A preset response keeps its existing fields. A rules response omits preset, access, read, add, edit, delete, write, write_mode, approve_first, based_on and legacy_note.
+      properties:
+        rules: { $ref: '#/components/schemas/StoragePolicySet' }
+        rules_status: { type: string, enum: [preset, rules, invalid], description: Structural state; preset is only included with STORAGE_RULES=on. }
+        rules_errors:
+          type: array
+          items: { $ref: '#/components/schemas/StorageRuleError' }
+        tables:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              rules: { $ref: '#/components/schemas/StoragePolicySet' }
     ErrorResponse:
       type: object
       required: [error]
       properties:
+        rule_error: { $ref: '#/components/schemas/StorageRuleError' }
+        rules_errors:
+          type: array
+          description: All diagnostics for an invalid_rules save; rule_error is the first.
+          items: { $ref: '#/components/schemas/StorageRuleError' }
         error: { type: string, description: "What went wrong, in plain words. The wording may change; branch on `code`." }
         code:
           type: string
@@ -17139,6 +17295,8 @@ components:
             another site or person), invalid_name (400: not 1-63 lowercase
             letters, digits and hyphens), name_reserved (400: reserved by the
             platform), invalid_domain (400: not a domain that can be connected),
+            invalid_rules (400: invalid row rules, with rule_error and rules_errors),
+            rules_unavailable (400: rules are off or the KV namespace has not moved),
             redirects_invalid (400: root _redirects has invalid rules; fix the listed line numbers),
             site_quota_reached (403), append_only (409: public list items cannot
             be edited; the owner may still delete them), custom_domain_required (409: the site needs

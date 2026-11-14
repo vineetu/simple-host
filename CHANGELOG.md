@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-14: Add optional row rules to the storage API and tool schemas, with structured errors and a 256 KiB save limit (R2-S3). The API reference includes these fields; rules saves remain off by default.
+
 2026-11-14: Add service validation and saving for owner-written row rules, behind `STORAGE_RULES=off` by default (R2-S2). API support follows separately.
 
 - R2-S5a review: Persist newly created runtime directories before deleting moved Postgres data, bound SQLite prefix lists with the key index, and correct the installed program name in the move instructions.

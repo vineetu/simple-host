@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 14:** Add optional row rules to the storage API and tool schemas, with structured errors and a 256 KiB save limit (R2-S3). The API reference includes these fields; rules saves remain off by default.
+
 - **Nov 14:** Add service validation and saving for owner-written row rules, behind `STORAGE_RULES=off` by default (R2-S2). API support follows separately.
 
 - **Nov 13:** Limit SQLite table-row work per site, with a short retry response when busy. Recover SQLite panics per request and preserve successful writes if cleanup panics (R1-S3a).

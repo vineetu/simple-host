@@ -898,3 +898,17 @@ func TestRulesSaveTableReplacementAndPostPreparationFailure(t *testing.T) {
 		}
 	})
 }
+
+// R2-S3 exposes table rules at the transport boundary; flag refusal belongs
+// here so every transport gets the same answer even without a default set.
+func TestRulesSaveFlagOffTableOnly(t *testing.T) {
+	s, _, in := rulesFixture(t, "")
+	s.deps.RulesEnabled = false
+	in.Rules = nil
+	table := map[string]ResourceTableInput{"notes": {Rules: saveSet()}}
+	in.Tables = &table
+	_, err := s.PutStorageResource(context.Background(), in)
+	if e, ok := err.(*Error); !ok || e.Code != "rules_unavailable" {
+		t.Fatalf("table-only rules with flag off: %v", err)
+	}
+}

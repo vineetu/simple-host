@@ -15,6 +15,7 @@ route host POST /v1/site-signin
 route host POST /v1/site-unlock
 route host POST /v1/visitor/logout
 tool hack hack_event_storage_list_resources
+tool hack hack_event_storage_set_resource
 tool hack hack_get_event
 tool hack hack_get_event_website
 tool hack hack_get_rubric
@@ -30,4 +31,6 @@ tool host list_versions
 tool host passcode_screen
 tool host run_tool
 tool host storage_get_kv
+tool host storage_list_resources
+tool host storage_set_resource
 tool host who_am_i

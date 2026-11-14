@@ -2860,7 +2860,10 @@ internal certificate checks.
 R2-S2 adds service-level validation and persistence for owner-written row rules, behind
 `STORAGE_RULES=off` by default. Rules saves validate syntax, bindings, prospective columns
 and composed statement limits before SQLite preparation, then save a deny-visitor preset
-fill with the rules. REST and tool support follows in R2-S3.
+fill with the rules. R2-S3 exposes optional resource and per-table `rules` through
+REST and the set/list tools, with `rules_status` and structured validation diagnostics.
+Resource saves accept up to 256 KiB. The API reference documents these optional fields;
+preset responses stay unchanged while the flag is off. Enforcement follows in R3-GO.
 
 Routes: `/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`.
 MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `storage_file_download_link`, `storage_get_usage`, `storage_list_file_objects`, `storage_list_kv_keys`.

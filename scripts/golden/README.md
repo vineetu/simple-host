@@ -699,3 +699,12 @@ compares every member's name and full normalized text, including `storage/kv.jso
 archive header mtimes are omitted, as with ZIP metadata. The fixture contains only
 text files. This uses the local `tar` command. The six new requests are the only
 R2-S4b approvals; the base scenario stays unchanged.
+
+### R2-S3 owner rules scenario
+
+`rules-on` runs both products with `STORAGE_RULES=on`: an owner saves and reads
+a SQLite resource with a default set and a table override, lists a preset beside
+it, lists tools with screens off and on, and saves/lists through the storage tools.
+It contains no visitor requests; enforcement slices add those separately.
+The first reference skips this scenario and R2-S3 approves its addition once per
+product. Later references run it alongside every other scenario.

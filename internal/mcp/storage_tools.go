@@ -482,13 +482,16 @@ func storageResourceBodyFor(spamCheck bool) map[string]any {
 		addText = "Optional override: who may add a new entry (never own)."
 	}
 	table := object(map[string]any{
+		"rules":  storageRulesSchema(),
 		"preset": storageWhoSchema("This table's preset.", presets...),
 		"read":   storageWhoSchema("Optional override for read.", who...),
 		"add":    storageWhoSchema("Optional override for add.", addWho...),
 		"edit":   storageWhoSchema("Optional override for edit.", who...),
 		"delete": storageWhoSchema("Optional override for delete.", who...),
-	}, "preset")
+	})
+	table["description"] = "When specifying access, give exactly one of preset or rules; omitting both keeps the private default."
 	body := object(map[string]any{
+		"rules":         storageRulesSchema(),
 		"kind":          map[string]any{"type": "string", "enum": []string{"kv", "sqlite", "files"}, "description": "kv (one JSON value per key), sqlite (tables), or files (uploads). Cannot change once created."},
 		"preset":        storageWhoSchema(presetText, presets...),
 		"read":          storageWhoSchema("Optional override: who may list and view.", who...),
@@ -504,4 +507,22 @@ func storageResourceBodyFor(spamCheck bool) map[string]any {
 	}
 	body["description"] = "The resource's kind and preset, e.g. {\"kind\": \"sqlite\", \"preset\": \"records\"}."
 	return body
+}
+
+// storageRulesSchema is shared by resource defaults and table overrides in both products.
+func storageRulesSchema() map[string]any {
+	policy := object(map[string]any{
+		"name":        map[string]any{"type": "string"},
+		"command":     map[string]any{"type": "string", "enum": []string{"read", "add", "edit", "delete", "all"}},
+		"using":       map[string]any{"type": "string", "description": "Predicate over the existing row, at most 2048 bytes."},
+		"check":       map[string]any{"type": "string", "description": "Predicate over the new row, at most 2048 bytes."},
+		"restrictive": map[string]any{"type": "boolean"},
+	}, "name", "command")
+	set := object(map[string]any{
+		"version":  map[string]any{"type": "integer", "enum": []int{1}},
+		"policies": map[string]any{"type": "array", "items": policy, "description": "At most 32 policies."},
+	}, "policies")
+	set["type"] = []string{"object", "null"}
+	set["description"] = "Optional row rules for SQLite or a SQLite-stored KV namespace; requires STORAGE_RULES=on. Do not combine with preset fields. An empty policies array denies visitors; null is treated as absent."
+	return set
 }

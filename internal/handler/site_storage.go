@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
+	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -266,7 +267,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	}
 	entries := make([]map[string]any, 0, len(out))
 	for _, item := range out {
-		entry := storageResourceJSON(fromRulesResource(item.Resource))
+		entry := storageResourceRulesJSON(fromRulesResource(item.Resource), item.RulesErrors)
 		if item.HasVisitorHistory {
 			entry["visitor_history"] = item.VisitorHistory
 		}
@@ -288,15 +289,21 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Kind string `json:"kind"`
 		model.AccessRequest
-		Write        string                          `json:"write"`
-		WriteMode    string                          `json:"write_mode"`
-		SitePasscode string                          `json:"site_passcode"`
-		Tables       *map[string]model.AccessRequest `json:"tables"`
-		ApproveFirst *bool                           `json:"approve_first"`
+		Rules        *json.RawMessage            `json:"rules"`
+		Write        string                      `json:"write"`
+		WriteMode    string                      `json:"write_mode"`
+		SitePasscode string                      `json:"site_passcode"`
+		Tables       *map[string]json.RawMessage `json:"tables"`
+		ApproveFirst *bool                       `json:"approve_first"`
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
-	err := dec.Decode(&req)
-	if err != nil || dec.Decode(new(any)) != io.EOF {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256<<10))
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		diagnostic := httpx.RuleError{Clause: "size", Position: -1, Message: "resource body exceeds 256 KiB"}
+		writeStorageRulesError(w, &appstorage.Error{Code: "invalid_rules", Message: diagnostic.Message, RuleError: &diagnostic, RulesErrors: []httpx.RuleError{diagnostic}})
+		return
+	}
+	if err != nil || json.Unmarshal(data, &req) != nil {
 		storageError(w, 400, "invalid_request", "invalid JSON body")
 		return
 	}
@@ -304,13 +311,21 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	var tables *map[string]appstorage.ResourceTableInput
 	if req.Tables != nil {
 		mapped := map[string]appstorage.ResourceTableInput{}
-		for name, access := range *req.Tables {
-			mapped[name] = appstorage.ResourceTableInput{AccessRequest: access}
+		for name, raw := range *req.Tables {
+			var table struct {
+				model.AccessRequest
+				Rules *json.RawMessage `json:"rules"`
+			}
+			if json.Unmarshal(raw, &table) != nil {
+				storageError(w, 400, "invalid_request", "invalid JSON body")
+				return
+			}
+			mapped[name] = appstorage.ResourceTableInput{AccessRequest: table.AccessRequest, Rules: table.Rules, PresetFieldsPresent: storagePresetFieldsPresent(raw)}
 		}
 		tables = &mapped
 	}
 	result, err := h.storageRequestSvc(r, c).PutStorageResource(r.Context(), appstorage.ResourceInput{
-		Call: call,
+		Call: call, Rules: req.Rules, PresetFieldsPresent: storagePresetFieldsPresent(data),
 		Name: name, Kind: req.Kind, AccessRequest: req.AccessRequest, Write: req.Write, WriteMode: req.WriteMode, SitePasscode: req.SitePasscode, Tables: tables, ApproveFirst: req.ApproveFirst,
 	})
 	if err != nil {
@@ -320,6 +335,8 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		switch e.Code {
+		case "invalid_rules", "rules_unavailable":
+			writeStorageRulesError(w, e)
 		case "storage_busy":
 			storageBusy(w)
 		case "forbidden":
@@ -341,11 +358,29 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if result.Created {
 		status = 201
 	}
-	body := storageResourceJSON(fromRulesResource(result.Resource))
+	body := storageResourceRulesJSON(fromRulesResource(result.Resource), result.RulesErrors)
 	if len(result.Warnings) > 0 {
 		body["warnings"] = result.Warnings
 	}
 	writeJSON(w, status, body)
+}
+
+// Explicit empty or null preset fields still conflict with supplied rules.
+func storagePresetFieldsPresent(data []byte) bool {
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(data, &fields)
+	for _, name := range []string{"preset", "read", "add", "edit", "delete", "write", "write_mode", "approve_first"} {
+		for key := range fields {
+			if strings.EqualFold(key, name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func writeStorageRulesError(w http.ResponseWriter, e *appstorage.Error) {
+	writeJSON(w, 400, errorResponse{Error: e.Message, Code: e.Code, RuleError: e.RuleError, RulesErrors: e.RulesErrors})
 }
 
 // storageAccessError refuses a matrix that breaks a rule (R1 to R4) or names
