@@ -74,7 +74,6 @@ server/servertest -> testdb
 # Each edge names the slice that removes its final caller.
 @/cmd/server -> @/products/hack production # removal step D3-S6b
 app/accounts -> @/products/hack/repository/hackevents production # removal step D2-S9; D2-S4c, D2-S5a, D2-S6, D2-S7 and D2-S8 remove earlier callers
-app/notifications -> @/products/hack/repository/hackevents production # removal step D2-S1
 app/operations -> @/products/hack/repository/hackevents production # removal step D2-S2
 app/operations -> @/products/hack/repository/hackentries production # removal step D2-S2
 handler -> @/products/hack/app/teams production # removal step D2-S4c; D2-S4b removes earlier callers

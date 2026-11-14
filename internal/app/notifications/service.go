@@ -4,16 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"time"
+
 	"github.com/vsriram/simple-host/internal/model"
+	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/notifications"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
-	"time"
 )
 
 type Service struct {
 	database *sql.DB
 	sites    SiteReader
+	groups   GroupSites
 }
 type SiteReader interface {
 	GetSiteByID(context.Context, string) (model.Site, error)
@@ -44,10 +46,18 @@ func (s *Service) EmitSiteEventFor(ctx context.Context, site string, id string, 
 	return repo.EmitSiteEventFor(ctx, s.database, site, id, name, storage, data, pushActor, pushTarget)
 }
 func (s *Service) ListPushDevices(ctx context.Context, site string) ([]model.Notification, error) {
-	return repo.ListPushDevices(ctx, s.database, site)
+	rows, err := repo.ListPushDevices(ctx, s.database, site)
+	if err != nil {
+		return nil, err
+	}
+	return s.labelNotifications(ctx, s.database, rows)
 }
 func (s *Service) ListVisitorPushDevices(ctx context.Context, site, visitorID string) ([]model.Notification, error) {
-	return repo.ListVisitorPushDevices(ctx, s.database, site, visitorID)
+	rows, err := repo.ListVisitorPushDevices(ctx, s.database, site, visitorID)
+	if err != nil {
+		return nil, err
+	}
+	return s.labelNotifications(ctx, s.database, rows)
 }
 func (s *Service) UpsertPushSubscription(ctx context.Context, n model.Notification, newID string, max int) (string, bool, error) {
 	return repo.UpsertPushSubscription(ctx, s.database, n, newID, max)
@@ -83,7 +93,7 @@ func (s *Service) FinishNotificationDelivery(ctx context.Context, d model.Notifi
 	return repo.FinishNotificationDelivery(ctx, s.database, d, state, category, status, duration, next, window, minAttempts, failPercent, failFor)
 }
 func (s *Service) GetNotification(ctx context.Context, id string) (model.Notification, error) {
-	return repo.GetNotification(ctx, s.database, id)
+	return s.GetNotificationOn(ctx, s.database, id)
 }
 func (s *Service) HasNotifications(ctx context.Context, site string) (bool, error) {
 	return repo.HasNotifications(ctx, s.database, site)
@@ -92,7 +102,11 @@ func (s *Service) HasNotificationsFor(ctx context.Context, site string, name str
 	return repo.HasNotificationsFor(ctx, s.database, site, name)
 }
 func (s *Service) ListNotifications(ctx context.Context, owner string, site string) ([]model.Notification, error) {
-	return repo.ListNotifications(ctx, s.database, owner, site)
+	rows, err := repo.ListNotifications(ctx, s.database, owner, site)
+	if err != nil {
+		return nil, err
+	}
+	return s.labelNotifications(ctx, s.database, rows)
 }
 func (s *Service) NotificationCursor(ctx context.Context, id string, site string) (int64, error) {
 	return repo.NotificationCursor(ctx, s.database, id, site)
@@ -119,7 +133,7 @@ func (s *Service) RotateNotification(ctx context.Context, id string, secret stri
 	return repo.RotateNotification(ctx, s.database, id, secret, secrets)
 }
 func (s *Service) SaveNotification(ctx context.Context, n model.Notification, max int, cursor *int64, historyDays int, secrets model.NotificationSecrets) (bool, bool, error) {
-	return repo.SaveNotification(ctx, s.database, n, max, cursor, historyDays, secrets, notificationAccess{})
+	return repo.SaveNotification(ctx, s.database, n, max, cursor, historyDays, secrets, notificationAccess{s.groups})
 }
 func (s *Service) SealNotificationSecrets(ctx context.Context, seal func(string, string) (string, error)) (int64, error) {
 	return repo.SealNotificationSecrets(ctx, s.database, seal)
@@ -130,36 +144,54 @@ func (s *Service) SweepNotifications(ctx context.Context, days int) error {
 func (s *Service) SweepNotificationsCount(ctx context.Context, days int) (int64, error) {
 	return repo.SweepNotificationsCount(ctx, s.database, days)
 }
-func (s *Service) HackNotificationSite(ctx context.Context, member, name, event string, teamEvent ...string) (model.Site, error) {
-	id, err := repo.HackNotificationSiteID(ctx, s.database, member, name, event, teamEvent...)
+func (s *Service) GroupNotificationSite(ctx context.Context, member, name, event string, teamEvent ...string) (model.Site, error) {
+	if s.groups == nil {
+		return model.Site{}, sql.ErrNoRows
+	}
+	id, err := s.groups.SiteFor(ctx, s.database, member, name, event, teamEvent...)
 	if err != nil {
 		return model.Site{}, err
 	}
 	return s.sites.GetSiteByID(ctx, id)
 }
-func (s *Service) HackNotificationAllowed(ctx context.Context, site string, member string, creating bool) (bool, error) {
-	return events.HackNotificationAllowed(ctx, s.database, site, member, creating)
+func (s *Service) GroupNotificationAllowed(ctx context.Context, site string, member string, creating bool) (bool, error) {
+	if s.groups == nil {
+		return false, nil
+	}
+	return s.groups.Allowed(ctx, s.database, site, member, creating)
 }
-func (s *Service) HackNotificationContextExists(ctx context.Context, member string, name string, event string, scope string) (bool, error) {
-	return events.HackNotificationContextExists(ctx, s.database, member, name, event, scope)
+func (s *Service) GroupNotificationContextExists(ctx context.Context, member string, name string, event string, scope string) (bool, error) {
+	if s.groups == nil {
+		return false, nil
+	}
+	return s.groups.ContextExists(ctx, s.database, member, name, event, scope)
 }
 func (s *Service) EventAccountFlag(ctx context.Context, userID string) (bool, error) {
-	return events.EventAccountFlag(ctx, s.database, userID)
+	return accounts.EventAccountFlag(ctx, s.database, userID)
 }
 
 func (s *Service) VerifiedAt(ctx context.Context, owner, url string) (time.Time, error) {
 	return repo.VerifiedAt(ctx, s.database, owner, url)
 }
-func (s *Service) SiteEventSlug(ctx context.Context, account string) (string, error) {
-	return repo.SiteEventSlug(ctx, s.database, account)
+func (s *Service) GroupLabel(ctx context.Context, account string) (string, error) {
+	if s.groups == nil {
+		return "", sql.ErrNoRows
+	}
+	return s.groups.GroupLabel(ctx, s.database, account)
 }
 
-func (notificationAccess) LockNotificationMember(ctx context.Context, tx *sql.Tx, site, member string) error {
-	return events.LockNotificationMember(ctx, tx, site, member)
+func (a notificationAccess) LockNotificationMember(ctx context.Context, tx *sql.Tx, site, member string) error {
+	if a.groups == nil {
+		return model.ErrNotificationAccess
+	}
+	return a.groups.LockMember(ctx, tx, site, member)
 }
 
-type notificationAccess struct{}
+type notificationAccess struct{ groups GroupSites }
 
-func (notificationAccess) HackNotificationAllowed(ctx context.Context, q sqlkit.Querier, site, member string, creating bool) (bool, error) {
-	return events.HackNotificationAllowed(ctx, q, site, member, creating)
+func (a notificationAccess) GroupNotificationAllowed(ctx context.Context, q sqlkit.Querier, site, member string, creating bool) (bool, error) {
+	if a.groups == nil {
+		return false, nil
+	}
+	return a.groups.Allowed(ctx, q, site, member, creating)
 }

@@ -154,12 +154,12 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 	var site model.Site
 	if name := r.PathValue("sitename"); name != "" || r.PathValue("slug") != "" {
 		if h.ed.Notifications().EventScoped {
-			site, err = h.notificationsSvc().HackNotificationSite(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
+			site, err = h.notificationsSvc().GroupNotificationSite(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
 		} else {
 			site, err = h.sitesSvc().GetSiteByUser(ctx, user.ID, name)
 		}
 		if errors.Is(err, sql.ErrNoRows) && h.ed.Notifications().EventScoped && r.Method == http.MethodGet && r.PathValue("id") == "" {
-			allowed, checkErr := h.notificationsSvc().HackNotificationContextExists(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
+			allowed, checkErr := h.notificationsSvc().GroupNotificationContextExists(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
 			if checkErr != nil {
 				notifyError(w, 500, "internal_error")
 				return
@@ -189,13 +189,13 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		}
 		limits := h.notifyLimits()
 		if h.ed.Notifications().EventScoped && site.ID != "" {
-			canCreate, e := h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, user.ID, true)
+			canCreate, e := h.notificationsSvc().GroupNotificationAllowed(ctx, site.ID, user.ID, true)
 			if e != nil {
 				notifyError(w, 500, "internal_error")
 				return
 			}
 			limits["can_create"] = canCreate && h.NotificationsReady()
-			canManage, e := h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, user.ID, false)
+			canManage, e := h.notificationsSvc().GroupNotificationAllowed(ctx, site.ID, user.ID, false)
 			if e != nil {
 				notifyError(w, 500, "internal_error")
 				return
@@ -215,7 +215,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if h.ed.Notifications().EventScoped && r.Method != http.MethodGet && r.Method != http.MethodDelete {
-		allowed, e := h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, user.ID, false)
+		allowed, e := h.notificationsSvc().GroupNotificationAllowed(ctx, site.ID, user.ID, false)
 		if e != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -348,7 +348,7 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if h.ed.Notifications().EventScoped {
-		allowed, err := h.notificationsSvc().HackNotificationAllowed(r.Context(), site.ID, auth.GetUser(r.Context()).ID, true)
+		allowed, err := h.notificationsSvc().GroupNotificationAllowed(r.Context(), site.ID, auth.GetUser(r.Context()).ID, true)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return

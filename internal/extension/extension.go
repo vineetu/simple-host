@@ -9,6 +9,7 @@ import (
 
 	"github.com/vsriram/simple-host/db/migrations"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/notifications"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/config"
@@ -72,5 +73,6 @@ type Parts struct {
 }
 
 type Hooks struct {
-	Sitemap sites.SitemapFilter
+	Sitemap       sites.SitemapFilter
+	Notifications notifications.GroupSites
 }

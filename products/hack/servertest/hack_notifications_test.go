@@ -25,6 +25,7 @@ import (
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/model"
 	notifyrepo "github.com/vsriram/simple-host/internal/repository/notifications"
+	"github.com/vsriram/simple-host/products/hack"
 )
 
 // testPasscodeKey, notifyTestSecret, notifyRandom, receivedNotification,
@@ -221,7 +222,7 @@ func (f hackNotifyFixture) emit(t *testing.T) {
 func (f hackNotifyFixture) gone(t *testing.T, ids ...string) {
 	t.Helper()
 	for _, id := range ids {
-		if _, err := notifyrepo.GetNotification(context.Background(), f.a.database, id); !errors.Is(err, sql.ErrNoRows) {
+		if _, err := notifyapp.New(f.a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), id); !errors.Is(err, sql.ErrNoRows) {
 			t.Fatal("membership loss retained subscription")
 		}
 	}
@@ -230,7 +231,7 @@ func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
 	f := newHackNotifyFixture(t)
 	a := f.a
 	id := f.create(t, f.base, f.member)
-	n, err := notifyrepo.GetNotification(context.Background(), a.database, id)
+	n, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +296,7 @@ func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
 	if rotated.status != 200 {
 		t.Fatal("rotate after deadline")
 	}
-	n, err = notifyrepo.GetNotification(context.Background(), a.database, id)
+	n, err = notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +418,7 @@ func TestHackNotificationsMCPSelectedTeamAndOrganiser(t *testing.T) {
 	another := a.makeEvent(t, f.other)
 	wantTS(t, "other event site", a.api(t, "PUT", "/v1/hack/events/"+another+"/website/files?create=1", deployBody("other"), f.other.key), 201, "")
 	subscribe(orgAccess, map[string]any{"event": another}, false)
-	n, err := notifyrepo.GetNotification(context.Background(), a.database, eventID)
+	n, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), eventID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -485,11 +486,11 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	wantTS(t, "ambiguous site", a.api(t, "POST", f.base, f.body(), f.member.key), 404, "")
 	id := f.create(t, f.base+"?event="+f.slug, f.member)
 	otherID := f.create(t, f.base+"?event="+slug2, f.member)
-	n, err := notifyrepo.GetNotification(context.Background(), a.database, id)
+	n, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := notifyrepo.GetNotification(context.Background(), a.database, otherID)
+	other, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), otherID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -516,7 +517,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	if !ok {
 		t.Fatal("MCP subscribe")
 	}
-	sub, err := notifyrepo.GetNotification(context.Background(), a.database, result["id"].(string))
+	sub, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), result["id"].(string))
 	if err != nil || sub.SiteID != other.SiteID {
 		t.Fatal("MCP resolved wrong event")
 	}
@@ -526,7 +527,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 		t.Fatal("remove")
 	}
 	f.gone(t, otherID)
-	if _, err := notifyrepo.GetNotification(context.Background(), a.database, id); err != nil {
+	if _, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).GetNotification(context.Background(), id); err != nil {
 		t.Fatal("removed other event subscription")
 	}
 }
@@ -564,7 +565,7 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: f.sid, OwnerID: a.uid(t, f.other), Hack: true, Source: "owner", URL: f.x.server.URL, Events: []string{"record.added"}, Secret: notifyTestSecret, VerifiedAt: &now}
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := notifyapp.New(a.database, nil).SaveNotification(context.Background(), n, 10, nil, 7, a.sites.NotificationSecretsForTest())
+		_, _, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).SaveNotification(context.Background(), n, 10, nil, 7, a.sites.NotificationSecretsForTest())
 		done <- err
 	}()
 	if err = tx.Commit(); err != nil {
@@ -600,5 +601,56 @@ func TestHackEmptyNotificationsBeforePublishing(t *testing.T) {
 			t.Fatalf("not empty: %s", r.body)
 		}
 		wantTS(t, "outsider", a.api(t, "GET", c.path, nil, outsider.key), 404, "not_found")
+	}
+}
+
+// A transaction-created website must be visible to both the base read and label enrichment.
+func TestNotificationGroupLabelInTransaction(t *testing.T) {
+	f := newHackNotifyFixture(t)
+	ctx := context.Background()
+	tx, err := f.a.database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	var site string
+	err = tx.QueryRowContext(ctx, `INSERT INTO sites(user_id,name) SELECT account_id,id::text FROM events WHERE slug=$1 RETURNING id`, f.slug).Scan(&site)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := notifyRandom("sub_", 12)
+	_, err = tx.ExecContext(ctx, `INSERT INTO site_notifications(id,site_id,owner_id,source,url,events,secret,kind,subscriber_role) VALUES($1,$2,$3,'owner','https://example.invalid/push','{record.added}','','web-push','visitor')`, id, site, f.a.uid(t, f.org))
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := notifyapp.New(f.a.database, nil).WithGroupSites(hack.NotificationGroups{})
+	n, err := svc.GetNotificationOn(ctx, tx, id)
+	if err != nil || n.Event != f.slug || n.SiteID != site {
+		t.Fatalf("transaction label = %q, site %q, error %v", n.Event, n.SiteID, err)
+	}
+	if _, err := svc.GetNotification(ctx, id); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("uncommitted notification visible outside transaction: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	// All listing wrappers enrich after closing their repository rows.
+	f.a.database.SetMaxOpenConns(1)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	lists := []func() ([]model.Notification, error){
+		func() ([]model.Notification, error) { return svc.ListNotifications(ctx, f.a.uid(t, f.org), site) },
+		func() ([]model.Notification, error) { return svc.ListPushDevices(ctx, site) },
+		func() ([]model.Notification, error) { return svc.ListVisitorPushDevices(ctx, site, f.a.uid(t, f.org)) },
+	}
+	for i, list := range lists {
+		rows, err := list()
+		if err != nil || len(rows) != 1 || rows[0].Event != f.slug {
+			t.Fatalf("listing %d: %#v, error %v", i, rows, err)
+		}
+	}
+	labels, err := (hack.NotificationGroups{}).Labels(ctx, f.a.database, []string{site, f.sid})
+	if err != nil || labels[site] != f.slug || labels[f.sid] != "" {
+		t.Fatalf("website/team labels: %v %v", labels, err)
 	}
 }

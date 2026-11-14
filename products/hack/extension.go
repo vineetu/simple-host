@@ -104,7 +104,10 @@ func Extension() *extension.Extension {
 				d.ImageScan.SetHackTakeDownSync(hack.SyncEventMarkers)
 			}
 			return extension.Parts{
-				Hooks:     extension.Hooks{Sitemap: hackevents.FilterSitemapSites},
+				Hooks: extension.Hooks{
+					Sitemap:       hackevents.FilterSitemapSites,
+					Notifications: NotificationGroups{},
+				},
 				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
 				SiteSweep: siteSweep,
 				PaperHack: func(paper *papermetrics.Collector) { paper.WithHack() },

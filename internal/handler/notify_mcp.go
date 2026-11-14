@@ -102,7 +102,7 @@ func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, stora
 			}
 			site, err = b.h.sitesSvc().GetSiteByUser(ctx, team.AccountID, name)
 		} else {
-			site, err = b.h.notificationsSvc().HackNotificationSite(ctx, c.Owner, name, event)
+			site, err = b.h.notificationsSvc().GroupNotificationSite(ctx, c.Owner, name, event)
 		}
 	} else {
 		if eventSlug != "" {
@@ -134,7 +134,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return out, e
 		}
-		allowed, e := b.h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, c.Owner, old.SiteID != site.ID)
+		allowed, e := b.h.notificationsSvc().GroupNotificationAllowed(ctx, site.ID, c.Owner, old.SiteID != site.ID)
 		if e != nil {
 			return out, e
 		}
@@ -290,5 +290,5 @@ func (b notificationBackend) NotificationSiteEvent(ctx context.Context, c mcp.Ca
 	if err != nil {
 		return "", err
 	}
-	return b.h.notificationsSvc().SiteEventSlug(ctx, site.UserID)
+	return b.h.notificationsSvc().GroupLabel(ctx, site.UserID)
 }

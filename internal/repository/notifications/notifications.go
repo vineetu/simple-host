@@ -13,7 +13,7 @@ import (
 	"github.com/lib/pq"
 )
 
-const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,CASE WHEN e.id::text=s.name THEN e.slug ELSE '' END,n.kind,n.subscriber_role,n.push_p256dh,n.push_auth,n.device_label,n.muted_resources`
+const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,'',n.kind,n.subscriber_role,n.push_p256dh,n.push_auth,n.device_label,n.muted_resources`
 
 func scanNotification(row interface{ Scan(...any) error }) (model.Notification, error) {
 	var n model.Notification
@@ -21,10 +21,10 @@ func scanNotification(row interface{ Scan(...any) error }) (model.Notification, 
 	return n, err
 }
 func GetNotification(ctx context.Context, q sqlkit.Querier, id string) (model.Notification, error) {
-	return scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.id=$1`, id))
+	return scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.id=$1`, id))
 }
 func ListNotifications(ctx context.Context, database *sql.DB, owner, site string) ([]model.Notification, error) {
-	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
+	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 		return false, false, err
 	}
 	if n.Hack {
-		ok, err := access.HackNotificationAllowed(ctx, tx, n.SiteID, n.OwnerID, !exists)
+		ok, err := access.GroupNotificationAllowed(ctx, tx, n.SiteID, n.OwnerID, !exists)
 		if err != nil {
 			return false, false, err
 		}
@@ -636,7 +636,7 @@ func RecentlyVerifiedNotification(ctx context.Context, q sqlkit.Querier, owner, 
 // ListPushDevices lists every web-push subscription on a site (both the
 // owner's and visitors' own devices), for the owner's device-management view.
 func ListPushDevices(ctx context.Context, database *sql.DB, site string) ([]model.Notification, error) {
-	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.site_id=$1 AND n.kind='web-push' ORDER BY n.created_at DESC`, site)
+	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' ORDER BY n.created_at DESC`, site)
 	if err != nil {
 		return nil, err
 	}
@@ -654,7 +654,7 @@ func ListPushDevices(ctx context.Context, database *sql.DB, site string) ([]mode
 
 // ListVisitorPushDevices lists one visitor's own web-push devices on one site.
 func ListVisitorPushDevices(ctx context.Context, database *sql.DB, site, visitorID string) ([]model.Notification, error) {
-	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.site_id=$1 AND n.kind='web-push' AND n.subscriber_role='visitor' AND n.owner_id=$2 ORDER BY n.created_at DESC`, site, visitorID)
+	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' AND n.subscriber_role='visitor' AND n.owner_id=$2 ORDER BY n.created_at DESC`, site, visitorID)
 	if err != nil {
 		return nil, err
 	}
@@ -877,5 +877,5 @@ func SetPushRule(ctx context.Context, q sqlkit.Querier, rule model.PushRule) err
 
 type AccessChecks interface {
 	LockNotificationMember(context.Context, *sql.Tx, string, string) error
-	HackNotificationAllowed(context.Context, sqlkit.Querier, string, string, bool) (bool, error)
+	GroupNotificationAllowed(context.Context, sqlkit.Querier, string, string, bool) (bool, error)
 }

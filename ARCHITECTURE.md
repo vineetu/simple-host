@@ -65,6 +65,13 @@ identical eligibility CASE a live delivery would have, instead of none at all. H
 deploy/activation, domain-status, named-viewer requests and visitor-sign-in events;
 `notify.go:emitSiteNotification` excludes Hack.
 [Hosts and access](docs/architecture/hosts-and-access.md#notification-triggers) lists the sources.
+The notification service asks `notifications.GroupSites` for held-site access and
+website labels. `products/hack.NotificationGroups` supplies the event queries;
+`server.Build` installs it on `SiteHandler` from `Parts.Hooks.Notifications` before
+serving. Platform-only services have no hook and issue no product-table queries.
+Label enrichment follows repository reads on the same database or transaction;
+subscription creation retains the membership lock before the site lock.
+
 No CLI-proxy sidecar is needed by the Go request path; deployment-specific integrations belong
 with the proxy configuration.
 

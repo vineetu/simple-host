@@ -385,7 +385,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 		notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1`, id)
 		drainNotifications(t, s)
 	}
-	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil || n.State != "suspended" {
 		t.Fatalf("not suspended: %s %v", n.State, err)
 	}
@@ -404,7 +404,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 	x.setStatus(200)
 	notificationRequest(t, s, "PATCH", "/"+id, map[string]bool{"paused": false}, 200)
 	drainNotifications(t, s)
-	n, err = notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+	n, err = s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil || n.State != "active" || n.LastSuccessAt == nil {
 		t.Fatal("resume did not deliver")
 	}
@@ -621,7 +621,7 @@ func TestNotifyLeaseCursorExpiryAndSweep(t *testing.T) {
 	if err = s.a.database.QueryRow(`SELECT (SELECT count(*) FROM site_events WHERE site_id=$1),(SELECT count(*) FROM site_event_deliveries WHERE subscription_id=$2)`, s.sid, id).Scan(&events, &deliveries); err != nil || events != 0 || deliveries != 0 {
 		t.Fatal("history sweep did not cascade")
 	}
-	if _, err = notificationsrepo.GetNotification(ctx, s.a.database, id); !errors.Is(err, sql.ErrNoRows) {
+	if _, err = s.a.sites.notificationsSvc().GetNotification(ctx, id); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("expired subscription not swept")
 	}
 }
@@ -695,7 +695,7 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	drainNotifications(t, s)
-	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
 	if err != nil || n.State != "active" {
 		t.Fatal("expired failures caused suspension")
 	}
@@ -706,7 +706,7 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 	notificationSQL(t, s, `UPDATE site_notifications SET failing_since=now()-interval '4 days' WHERE id=$1`, id)
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1`, id)
 	drainNotifications(t, s)
-	n, err = notificationsrepo.GetNotification(ctx, s.a.database, id)
+	n, err = s.a.sites.notificationsSvc().GetNotification(ctx, id)
 	if err != nil || n.State != "suspended" {
 		t.Fatal("continuous failure did not suspend")
 	}
@@ -801,7 +801,7 @@ func TestNotifyMCPRotationTTLAndChallengeLimit(t *testing.T) {
 	x.keys = append(x.keys, secret)
 	x.mu.Unlock()
 	notificationRequest(t, s, "POST", "/"+first.ID+"/test", nil, 409)
-	n, err := notificationsrepo.GetNotification(ctx, s.a.database, first.ID)
+	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, first.ID)
 	if err != nil || openedNotification(t, s, n.ID, n.PrevSecret) != notifyTestSecret || openedNotification(t, s, n.ID, n.Secret) != secret {
 		t.Fatal("MCP refresh did not rotate secret")
 	}
@@ -864,7 +864,7 @@ func TestNotifyRefusedAddressAndPermanentHTTPDoNotRetry(t *testing.T) {
 		x.setStatus(status)
 		emit()
 		drainNotifications(t, s)
-		n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+		n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
 		if err != nil || n.State != "active" {
 			t.Fatal("permanent HTTP result changed subscription")
 		}
@@ -962,7 +962,7 @@ func TestNotifyRefreshPreservesLeaseAndBackoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now()+interval '1 hour' WHERE subscription_id=$1`, id)
-	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1034,7 +1034,7 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 		t.Fatal("claimed expired history")
 	}
 	notificationSQL(t, s, `DELETE FROM site_event_deliveries WHERE subscription_id=$1`, id)
-	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1056,7 +1056,7 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 	}
 	notificationSQL(t, s, `UPDATE sites SET deleted_at=now() WHERE id=$1`, s.sid)
 	for _, site := range []string{"", s.sid} {
-		ns, err := notificationsrepo.ListNotifications(ctx, s.a.database, s.ownerID, site)
+		ns, err := s.a.sites.notificationsSvc().ListNotifications(ctx, s.ownerID, site)
 		if err != nil || len(ns) != 0 {
 			t.Fatal("listed deleted site's notifications")
 		}
@@ -1102,7 +1102,7 @@ func TestNotifyMCPValidationAndSiteReplacement(t *testing.T) {
 	if err != nil || next.Refreshed || next.ID != first.ID || len(x.snapshot()) != count+1 {
 		t.Fatalf("new site did not require fresh verification: %v", err)
 	}
-	n, err := notificationsrepo.GetNotification(ctx, s.a.database, next.ID)
+	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, next.ID)
 	if err != nil || n.SiteID != replacement {
 		t.Fatal("subscription remained on old site")
 	}
@@ -1333,7 +1333,7 @@ func TestNotifyMCPAPIKeyTTL(t *testing.T) {
 				} else if result.RefreshBefore == nil || result.RefreshBefore.Before(before.Add(want)) || result.RefreshBefore.After(time.Now().Add(want)) {
 					t.Fatal("refreshBefore does not reflect granted TTL")
 				}
-				n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, result.ID)
+				n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), result.ID)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1378,7 +1378,7 @@ func TestNotifyMCPGrantIdentity(t *testing.T) {
 		}
 	}
 	for i, result := range results {
-		n, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
+		n, err := s.a.sites.notificationsSvc().GetNotification(ctx, result.ID)
 		if err != nil || openedNotification(t, s, n.ID, n.Secret) != secrets[i] || n.PrevSecret != "" {
 			t.Fatal("another app replaced a subscription secret")
 		}
@@ -1390,11 +1390,11 @@ func TestNotifyMCPGrantIdentity(t *testing.T) {
 	if err := backend.Unsubscribe(ctx, callers[1], unsub); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := notificationsrepo.GetNotification(ctx, s.a.database, results[1].ID); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := s.a.sites.notificationsSvc().GetNotification(ctx, results[1].ID); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("unsubscribe did not remove its grant's subscription")
 	}
 	for _, i := range []int{0, 2} {
-		if _, err := notificationsrepo.GetNotification(ctx, s.a.database, results[i].ID); err != nil {
+		if _, err := s.a.sites.notificationsSvc().GetNotification(ctx, results[i].ID); err != nil {
 			t.Fatal("unsubscribe removed another grant's subscription")
 		}
 	}

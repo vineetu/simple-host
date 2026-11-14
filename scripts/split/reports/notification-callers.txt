@@ -1,0 +1,47 @@
+D2-S1: direct repository callers before extraction (git grep).
+All are test callers; all now use the notification service wrappers.
+Production callers already used the service.
+
+internal/handler/notify_secrets_test.go:196:	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_secrets_test.go:206:	n, err = notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_secrets_test.go:222:	first, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
+internal/handler/notify_secrets_test.go:230:	same, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
+internal/handler/notify_secrets_test.go:244:	changed, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
+internal/handler/notify_secrets_test.go:254:	refreshed, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
+internal/handler/notify_secrets_test.go:268:	before, err := notificationsrepo.GetNotification(ctx, s.a.database, untouched)
+internal/handler/notify_secrets_test.go:277:	after, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_secrets_test.go:291:	other, err := notificationsrepo.GetNotification(ctx, s.a.database, untouched)
+internal/handler/notify_secrets_test.go:319:	concurrent, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_secrets_test.go:331:	final, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_secrets_test.go:359:	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+internal/handler/notify_secrets_test.go:422:				n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_secrets_test.go:430:			n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_secrets_test.go:458:	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+internal/handler/notify_secrets_test.go:492:	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+internal/handler/notify_secrets_test.go:536:	if _, err := notificationsrepo.GetNotification(context.Background(), s.a.database, sub.ID); !errors.Is(err, sql.ErrNoRows) {
+internal/handler/notify_secrets_test.go:554:	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+internal/handler/notify_secrets_test.go:578:	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, sub.ID)
+internal/handler/notify_site_events_test.go:176:	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, result["id"].(string))
+internal/handler/notify_test.go:388:	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+internal/handler/notify_test.go:407:	n, err = notificationsrepo.GetNotification(context.Background(), s.a.database, id)
+internal/handler/notify_test.go:624:	if _, err = notificationsrepo.GetNotification(ctx, s.a.database, id); !errors.Is(err, sql.ErrNoRows) {
+internal/handler/notify_test.go:698:	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_test.go:709:	n, err = notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_test.go:804:	n, err := notificationsrepo.GetNotification(ctx, s.a.database, first.ID)
+internal/handler/notify_test.go:867:		n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_test.go:965:	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_test.go:1037:	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
+internal/handler/notify_test.go:1059:		ns, err := notificationsrepo.ListNotifications(ctx, s.a.database, s.ownerID, site)
+internal/handler/notify_test.go:1105:	n, err := notificationsrepo.GetNotification(ctx, s.a.database, next.ID)
+internal/handler/notify_test.go:1336:				n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, result.ID)
+internal/handler/notify_test.go:1381:		n, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
+internal/handler/notify_test.go:1393:	if _, err := notificationsrepo.GetNotification(ctx, s.a.database, results[1].ID); !errors.Is(err, sql.ErrNoRows) {
+internal/handler/notify_test.go:1397:		if _, err := notificationsrepo.GetNotification(ctx, s.a.database, results[i].ID); err != nil {
+products/hack/servertest/hack_notifications_test.go:224:		if _, err := notifyrepo.GetNotification(context.Background(), f.a.database, id); !errors.Is(err, sql.ErrNoRows) {
+products/hack/servertest/hack_notifications_test.go:233:	n, err := notifyrepo.GetNotification(context.Background(), a.database, id)
+products/hack/servertest/hack_notifications_test.go:298:	n, err = notifyrepo.GetNotification(context.Background(), a.database, id)
+products/hack/servertest/hack_notifications_test.go:420:	n, err := notifyrepo.GetNotification(context.Background(), a.database, eventID)
+products/hack/servertest/hack_notifications_test.go:488:	n, err := notifyrepo.GetNotification(context.Background(), a.database, id)
+products/hack/servertest/hack_notifications_test.go:492:	other, err := notifyrepo.GetNotification(context.Background(), a.database, otherID)
+products/hack/servertest/hack_notifications_test.go:519:	sub, err := notifyrepo.GetNotification(context.Background(), a.database, result["id"].(string))
+products/hack/servertest/hack_notifications_test.go:529:	if _, err := notifyrepo.GetNotification(context.Background(), a.database, id); err != nil {

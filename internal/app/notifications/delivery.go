@@ -95,7 +95,7 @@ func (h *Service) ProcessDelivery(ctx context.Context, d model.NotificationDeliv
 		}
 	}
 	if err == nil && ed.Notifications().EventScoped {
-		allowed, err = h.HackNotificationAllowed(ctx, n.SiteID, n.OwnerID, false)
+		allowed, err = h.GroupNotificationAllowed(ctx, n.SiteID, n.OwnerID, false)
 		if err != nil {
 			return true
 		}

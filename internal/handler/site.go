@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/notifications"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
@@ -83,8 +84,9 @@ type SiteHandler struct {
 	sqliteSitesOnce sync.Once
 	storageBindings appstorage.BindingProvider
 
-	notifyOnce    sync.Once
-	notifications *notificationEngine
+	notifyOnce         sync.Once
+	notifications      *notificationEngine
+	notificationGroups notifications.GroupSites
 
 	mailer       signInMailer
 	emailLimiter *rateLimiter

@@ -13,7 +13,6 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
 	model "github.com/vsriram/simple-host/internal/model"
-	notificationsrepo "github.com/vsriram/simple-host/internal/repository/notifications"
 )
 
 // Site events (SIM-356): the engine side only. The hooks that call
@@ -173,7 +172,7 @@ func TestNotifySiteEventsMCP(t *testing.T) {
 	if result == nil {
 		t.Fatalf("subscribe: %v", out)
 	}
-	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, result["id"].(string))
+	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), result["id"].(string))
 	if err != nil || n.Storage != "" || n.Source != "mcp" || len(n.Events) != 1 || n.Events[0] != "visitor.signed_up" || n.ArgsCanonical != `{"site":"shop"}` {
 		t.Fatalf("stored MCP site subscription: %+v %v", n, err)
 	}

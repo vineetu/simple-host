@@ -38,6 +38,7 @@ import (
 	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
+	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
@@ -650,6 +651,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	a.disk = disk
 	a.sites = handler.NewSiteHandler(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites.SetNotificationGroups(hack.NotificationGroups{})
 	a.sites.SetOperationsReporting(operations.NewReporting(database))
 	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
 	a.sites.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
