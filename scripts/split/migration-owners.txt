@@ -129,3 +129,4 @@ zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_
 0017-hack-submissions-public.sql | hack | alters events (hack)
 0018-storage-rules.sql | platform | alters site_storage_resources, site_storage_tables
 0019-storage-kv-store.sql | platform | alters site_storage_resources
+0020-hack-grant-teams.sql | hack | creates hack_grant_teams; copies selected teams from oauth_grants

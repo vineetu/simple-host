@@ -130,10 +130,11 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		log.Printf("hosted events: on (the hackathon platform at %s)", cfg.PublicBaseURL)
 	}
 
+	var early extension.EarlyHooks
 	if ext != nil && ext.Early != nil {
-		// EarlyHooks is empty until the accounts hook slices add their fields.
-		ext.Early(extension.EarlyDeps{DB: db, Config: cfg, Edition: ed})
+		early = ext.Early(extension.EarlyDeps{DB: db, Config: cfg, Edition: ed})
 	}
+	accountapp.SetGroupHooks(early.Accounts)
 
 	// A box installed from a provider's catalog boots knowing nothing about
 	// where it lives. Rather than serve a broken product on an address nobody

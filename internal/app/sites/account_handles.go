@@ -19,6 +19,7 @@ import (
 
 // HandleStore is the account/transaction reader used by handle assignment and availability.
 type HandleStore interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }

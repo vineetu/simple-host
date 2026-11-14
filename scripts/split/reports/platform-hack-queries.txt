@@ -3,7 +3,7 @@
 # Objects: scripts/split/hack-objects.txt
 # Line numbers move when files are edited; regenerate this file, do not hand-edit it.
 
-1. SQL that names a Hack object (68)
+1. SQL that names a Hack object (64)
 internal/papermetrics/export.go:237 | Collector.setDaily | paper_hack_daily | SELECT to_char(d.day,'YYYY-MM-DD'),d.metric,d.value,h.run_id,COALESCE(r.metric_def_version,1) FROM paper_daily d LEFT JOIN paper_hack_daily h ON h.day=d.day AND…
 internal/papermetrics/hack_counter.go:406 | Collector.flushHackSlot | paper_hack_minute | INSERT INTO paper_hack_minute (run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s…
 internal/papermetrics/hack_counter.go:417 | Collector.flushHackSlot | paper_hack_latency | INSERT INTO paper_hack_latency (run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s) VALUES ($1…
@@ -67,10 +67,6 @@ internal/papermetrics/hack_snapshot.go:206 | hackDailyMetrics | events | SELECT 
 internal/papermetrics/hack_snapshot.go:207 | hackDailyMetrics | events | SELECT count(*) FROM events e JOIN sites s ON s.user_id=e.account_id AND s.name=e.id::text WHERE s.deleted_at IS NULL AND s.active_version>0
 internal/papermetrics/store.go:306 | Collector.dailySnapshot | paper_hack_daily | INSERT INTO paper_hack_daily(run_id,day,metric,value) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING
 internal/repository/accounts/account_lifecycle.go:265 | EraseAccount | event_checklist_acknowledgements | DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1
-internal/repository/accounts/connector.go:146 | GetOAuthGrantByID | selected_team_id (name lines: 147) | SELECT user_id, client_id, scope, resource, selected_team_id FROM oauth_grants WHERE id = $1
-internal/repository/accounts/connector.go:157 | GetOAuthToken | selected_team_id (name lines: 158) | SELECT t.kind, t.expires_at, t.used_at, g.id, g.user_id, g.client_id, g.scope, g.resource, g.selected_team_id FROM oauth_tokens t JOIN oauth_grants g ON g.id = …
-internal/repository/accounts/connector.go:168 | SelectOAuthTeam | event_members, event_teams, selected_team_id (name lines: 169, 170, 171) | UPDATE oauth_grants g SET selected_team_id = t.id FROM event_teams t JOIN event_members m ON m.event_id = t.event_id AND m.team_id = t.id WHERE g.id = $1::uuid …
-internal/repository/accounts/connector.go:306 | OAuthConnectionTeams | event_teams, events, selected_team_id (name lines: 309, 310) | SELECT DISTINCT g.client_id, e.title, t.name FROM oauth_grants g JOIN event_teams t ON t.id = g.selected_team_id JOIN events e ON e.id = t.event_id WHERE g.user…
 internal/repository/operations/imagescan.go:336 | ClearEventIcon | events | UPDATE events SET icon_media_type = '', icon_bytes = NULL, updated_at = now() WHERE id = $1 AND icon_bytes IS NOT NULL AND encode(sha256(icon_bytes), 'hex') = $…
 internal/repository/operations/imagescan.go:349 | ClearEventScreenshot | event_entries | UPDATE event_entries SET screenshot = NULL, screenshot_type = '' WHERE team_id = $1 AND screenshot IS NOT NULL AND encode(sha256(screenshot), 'hex') = $2
 internal/repository/sites/gate.go:10 | LockEventOrganiser | event_members, events (name lines: 11) | SELECT m.role, e.stage, e.taken_down_at IS NOT NULL FROM events e JOIN event_members m ON m.event_id = e.id WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $…
@@ -153,7 +149,7 @@ internal/repository/notifications/notifications.go:444 | emitSiteEvent | site_no
 internal/repository/notifications/notifications.go:721 | UpsertPushSubscription | site_notifications.events | INSERT INTO site_notifications(id,site_id,owner_id,source,label,url,events,storage,secret,kind,subscriber_role,push_p256dh,push_auth,device_label,verified_at,st…
 internal/repository/notifications/notifications.go:725 | UpsertPushSubscription | site_notifications.events | UPDATE site_notifications SET events=$2,label=$3,push_p256dh=$4,push_auth=$5,device_label=$6,verified_at=$7,push_family=$8, state='active',suspended_at=NULL,sus…
 
-6. Not SQL: Go lists that name Hack tables or columns (33)
+6. Not SQL: Go lists that name Hack tables or columns (34)
 internal/handler/connector.go:905 | ConnectorHandler.scopesSupported | events (also the platform column site_notifications.events) | events
 internal/mcp/notification_tools.go:86 | notificationTools | events (also the platform column site_notifications.events) | events
 internal/papermetrics/hack_counter.go:382 | Collector.flushHack | paper_hack_latency | paper_hack_latency
@@ -161,31 +157,32 @@ internal/papermetrics/hack_counter.go:382 | Collector.flushHack | paper_hack_min
 internal/papermetrics/provenance.go:24 | runConfigKeys | events (also the platform column site_notifications.events) | events
 internal/repository/operations/schemacheck.go:27 | requiredColumns | events (also the platform column site_notifications.events) | events
 internal/repository/operations/schemacheck.go:103 | requiredColumns | oauth_grants.selected_team_id | selected_team_id
-internal/repository/operations/schemacheck.go:122 | hackColumns | hack_account_preferences | hack_account_preferences
-internal/repository/operations/schemacheck.go:123 | hackColumns | event_organiser_invites | event_organiser_invites
-internal/repository/operations/schemacheck.go:124 | hackColumns | event_tracks | event_tracks
-internal/repository/operations/schemacheck.go:125 | hackColumns | event_track_panels | event_track_panels
-internal/repository/operations/schemacheck.go:126 | hackColumns | event_content | event_content
-internal/repository/operations/schemacheck.go:127 | hackColumns | event_announcements | event_announcements
-internal/repository/operations/schemacheck.go:128 | hackColumns | event_announcement_deliveries | event_announcement_deliveries
-internal/repository/operations/schemacheck.go:129 | hackColumns | event_entry_receipts | event_entry_receipts
-internal/repository/operations/schemacheck.go:131 | hackColumns | event_entry_reminders | event_entry_reminders
-internal/repository/operations/schemacheck.go:133 | hackColumns | event_judge_reminders | event_judge_reminders
-internal/repository/operations/schemacheck.go:134 | hackColumns | event_team_messages | event_team_messages
-internal/repository/operations/schemacheck.go:135 | hackColumns | events (also the platform column site_notifications.events) | events
-internal/repository/operations/schemacheck.go:155 | hackColumns | event_team_requests | event_team_requests
-internal/repository/operations/schemacheck.go:156 | hackColumns | event_teams | event_teams
-internal/repository/operations/schemacheck.go:164 | hackColumns | event_entries | event_entries
-internal/repository/operations/schemacheck.go:169 | hackColumns | event_team_keys | event_team_keys
-internal/repository/operations/schemacheck.go:170 | hackColumns | event_members | event_members
-internal/repository/operations/schemacheck.go:175 | hackColumns | event_create_log | event_create_log
-internal/repository/operations/schemacheck.go:177 | hackColumns | rubric_criteria | rubric_criteria
-internal/repository/operations/schemacheck.go:178 | hackColumns | event_assignments | event_assignments
-internal/repository/operations/schemacheck.go:179 | hackColumns | event_conflicts | event_conflicts
-internal/repository/operations/schemacheck.go:180 | hackColumns | event_scores | event_scores
-internal/repository/operations/schemacheck.go:181 | hackColumns | event_results | event_results
-internal/repository/operations/schemacheck.go:182 | hackColumns | event_votes | event_votes
-internal/repository/operations/schemacheck.go:184 | hackColumns | event_former_judges | event_former_judges
+internal/repository/operations/schemacheck.go:123 | hackColumns | hack_grant_teams | hack_grant_teams
+internal/repository/operations/schemacheck.go:124 | hackColumns | hack_account_preferences | hack_account_preferences
+internal/repository/operations/schemacheck.go:125 | hackColumns | event_organiser_invites | event_organiser_invites
+internal/repository/operations/schemacheck.go:126 | hackColumns | event_tracks | event_tracks
+internal/repository/operations/schemacheck.go:127 | hackColumns | event_track_panels | event_track_panels
+internal/repository/operations/schemacheck.go:128 | hackColumns | event_content | event_content
+internal/repository/operations/schemacheck.go:129 | hackColumns | event_announcements | event_announcements
+internal/repository/operations/schemacheck.go:130 | hackColumns | event_announcement_deliveries | event_announcement_deliveries
+internal/repository/operations/schemacheck.go:131 | hackColumns | event_entry_receipts | event_entry_receipts
+internal/repository/operations/schemacheck.go:133 | hackColumns | event_entry_reminders | event_entry_reminders
+internal/repository/operations/schemacheck.go:135 | hackColumns | event_judge_reminders | event_judge_reminders
+internal/repository/operations/schemacheck.go:136 | hackColumns | event_team_messages | event_team_messages
+internal/repository/operations/schemacheck.go:137 | hackColumns | events (also the platform column site_notifications.events) | events
+internal/repository/operations/schemacheck.go:157 | hackColumns | event_team_requests | event_team_requests
+internal/repository/operations/schemacheck.go:158 | hackColumns | event_teams | event_teams
+internal/repository/operations/schemacheck.go:166 | hackColumns | event_entries | event_entries
+internal/repository/operations/schemacheck.go:171 | hackColumns | event_team_keys | event_team_keys
+internal/repository/operations/schemacheck.go:172 | hackColumns | event_members | event_members
+internal/repository/operations/schemacheck.go:177 | hackColumns | event_create_log | event_create_log
+internal/repository/operations/schemacheck.go:179 | hackColumns | rubric_criteria | rubric_criteria
+internal/repository/operations/schemacheck.go:180 | hackColumns | event_assignments | event_assignments
+internal/repository/operations/schemacheck.go:181 | hackColumns | event_conflicts | event_conflicts
+internal/repository/operations/schemacheck.go:182 | hackColumns | event_scores | event_scores
+internal/repository/operations/schemacheck.go:183 | hackColumns | event_results | event_results
+internal/repository/operations/schemacheck.go:184 | hackColumns | event_votes | event_votes
+internal/repository/operations/schemacheck.go:186 | hackColumns | event_former_judges | event_former_judges
 internal/rules/sites/sites.go:100 | reservedSubdomainLabels | events (also the platform column site_notifications.events) | events
 
 7. Other text (136)

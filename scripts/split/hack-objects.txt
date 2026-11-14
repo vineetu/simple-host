@@ -50,3 +50,4 @@ function | hack_clear_team_admin_on_team_change | D3-S5c | executed by Hack tabl
 function | revoke_hack_notifications | D3-S5c | executed by Hack table trigger
 
 column | oauth_grants.selected_team_id | D3-S5b | added by z6-hack-connector-selected-team.sql for the connector's selected team; D2-S6 moves the data, D3-S5b stops the platform reading it
+table | hack_grant_teams | D3-S5c | Hack connected-app selection

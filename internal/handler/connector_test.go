@@ -29,6 +29,7 @@ import (
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 	operationsrepo "github.com/vsriram/simple-host/internal/repository/operations"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -1307,6 +1308,17 @@ func TestConnectorUnknownClientHelp(t *testing.T) {
 	}
 }
 
+// This transport fixture supplies product labels through the platform hook.
+// The Hack repository tests exercise the actual distinct-team lookup.
+type connectionLabelsStub struct {
+	accountapp.ConnectorTarget
+	labels map[string][]model.OAuthConnectionTeam
+}
+
+func (h connectionLabelsStub) Labels(context.Context, sqlkit.Querier, string) (map[string][]model.OAuthConnectionTeam, error) {
+	return h.labels, nil
+}
+
 func TestConnectionsTeamsByEdition(t *testing.T) {
 	for _, kind := range []edition.Kind{edition.Hack, edition.Host} {
 		t.Run(kind.String(), func(t *testing.T) {
@@ -1331,6 +1343,8 @@ func TestConnectionsTeamsByEdition(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			accountapp.SetGroupHooks(accountapp.GroupHooks{Target: connectionLabelsStub{labels: map[string][]model.OAuthConnectionTeam{bolt: {{Event: "Practice", Team: "P2"}}}}})
+			t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
 			r := a.do(t, "GET", "/v1/me/connections", nil, map[string]string{"X-API-Key": p.key})
 			if r.status != 200 {
 				t.Fatalf("connections: %d %s", r.status, r.body)

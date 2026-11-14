@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	_ "github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/testdb"
 )
 
 // TestVerifySchemaCatchesMissingPasswordLogin is the regression this file
@@ -46,5 +47,27 @@ func TestVerifySchemaCatchesMissingPasswordLogin(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "account_passwords.login") {
 		t.Fatalf("VerifySchema error does not name the missing column: %v", err)
+	}
+}
+
+func TestVerifyHackSchemaCatchesMissingGrantTeams(t *testing.T) {
+	db, err := sql.Open("postgres", testdb.Fresh(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	ctx := context.Background()
+	if err := VerifyHackSchema(ctx, db); err != nil {
+		t.Fatalf("VerifyHackSchema on an up-to-date schema: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DROP TABLE hack_grant_teams`); err != nil {
+		t.Fatal(err)
+	}
+	err = VerifyHackSchema(ctx, db)
+	if err == nil || !strings.Contains(err.Error(), "hack_grant_teams (whole table)") {
+		t.Fatalf("VerifyHackSchema with missing grant teams: %v; want startup refusal naming the table", err)
+	}
+	if err := VerifySchema(ctx, db); err != nil {
+		t.Fatalf("platform schema must not require Hack's grant teams: %v", err)
 	}
 }

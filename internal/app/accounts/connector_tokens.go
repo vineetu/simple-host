@@ -172,7 +172,7 @@ func (h *Connector) Refresh(ctx context.Context, in ConnectorTokenInput, client 
 		return ConnectorTokens{}, &ConnectorError{Code: "server_error", Description: "", Internal: true}
 	}
 	defer tx.Rollback()
-	tok, err := repo.GetOAuthToken(ctx, tx, tokenHash)
+	tok, err := getOAuthToken(ctx, tx, tokenHash)
 	if err != nil || tok.Kind != "refresh" {
 		return ConnectorTokens{}, &ConnectorError{Code: "invalid_grant", Description: "unknown refresh token", Internal: false}
 	}

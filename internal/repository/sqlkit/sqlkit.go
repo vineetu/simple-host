@@ -8,6 +8,7 @@ import (
 
 // Querier abstracts *sql.DB and *sql.Tx for transaction-safe queries.
 type Querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }

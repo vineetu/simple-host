@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/extension"
@@ -21,6 +22,7 @@ import (
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 // Extension describes the hosted Hack routes, workers and product policy.
@@ -30,6 +32,9 @@ func Extension() *extension.Extension {
 		Edition: func(limits config.Limits) *edition.Edition { return edition.ForKindWithLimits(edition.Hack, limits) },
 		Gate: func(d extension.GateDeps) func(http.Handler) http.Handler {
 			return hackhttp.LegacyStorageGate(d.Edition, handler.LegacyStoragePath)
+		},
+		Early: func(d extension.EarlyDeps) extension.EarlyHooks {
+			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Target: hackteams.ConnectorTarget{}}}
 		},
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition

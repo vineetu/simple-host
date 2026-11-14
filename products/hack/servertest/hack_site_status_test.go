@@ -236,7 +236,8 @@ func TestHackSiteStatusAllEventsGrants(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, g := range tc.grants {
-				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id,last_used_at) VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6)`, g.user, g.client, g.scope, g.resource, g.team, g.at); err != nil {
+				if _, err := a.database.Exec(`WITH g AS (INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id,last_used_at) VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6) RETURNING id,selected_team_id)
+INSERT INTO hack_grant_teams (grant_id,team_id) SELECT id,selected_team_id FROM g WHERE selected_team_id IS NOT NULL`, g.user, g.client, g.scope, g.resource, g.team, g.at); err != nil {
 					t.Fatal(err)
 				}
 			}

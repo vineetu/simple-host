@@ -19,8 +19,9 @@ func EventsGrants(ctx context.Context, q interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, userIDs []string, resources []string) ([]Grant, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT g.user_id, g.scope, g.selected_team_id, g.last_used_at, c.client_name
+		SELECT g.user_id, g.scope, h.team_id, g.last_used_at, c.client_name
 		  FROM oauth_grants g JOIN oauth_clients c ON c.client_id = g.client_id
+          LEFT JOIN hack_grant_teams h ON h.grant_id = g.id
 		 WHERE g.user_id = ANY($1::uuid[]) AND g.resource = ANY($2::text[])
 		 ORDER BY g.last_used_at DESC`, pq.Array(userIDs), pq.Array(resources))
 	if err != nil {

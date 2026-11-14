@@ -144,8 +144,8 @@ func InsertOAuthToken(ctx context.Context, q Querier, tokenHash, grantID, kind s
 func GetOAuthGrantByID(ctx context.Context, q Querier, grantID string) (model.OAuthGrant, error) {
 	var g model.OAuthGrant
 	err := q.QueryRowContext(ctx, `
-		SELECT user_id, client_id, scope, resource, selected_team_id FROM oauth_grants WHERE id = $1`, grantID).
-		Scan(&g.UserID, &g.ClientID, &g.Scope, &g.Resource, &g.SelectedTeamID)
+		SELECT user_id, client_id, scope, resource FROM oauth_grants WHERE id = $1`, grantID).
+		Scan(&g.UserID, &g.ClientID, &g.Scope, &g.Resource)
 	return g, err
 }
 
@@ -155,27 +155,11 @@ func GetOAuthGrantByID(ctx context.Context, q Querier, grantID string) (model.OA
 func GetOAuthToken(ctx context.Context, q Querier, tokenHash string) (model.OAuthTokenGrant, error) {
 	var t model.OAuthTokenGrant
 	err := q.QueryRowContext(ctx, `
-		SELECT t.kind, t.expires_at, t.used_at, g.id, g.user_id, g.client_id, g.scope, g.resource, g.selected_team_id
+		SELECT t.kind, t.expires_at, t.used_at, g.id, g.user_id, g.client_id, g.scope, g.resource
 		  FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id
 		 WHERE t.token_hash = $1`, tokenHash).
-		Scan(&t.Kind, &t.ExpiresAt, &t.UsedAt, &t.GrantID, &t.UserID, &t.ClientID, &t.Scope, &t.Resource, &t.SelectedTeamID)
+		Scan(&t.Kind, &t.ExpiresAt, &t.UsedAt, &t.GrantID, &t.UserID, &t.ClientID, &t.Scope, &t.Resource)
 	return t, err
-}
-
-// SelectOAuthTeam changes only this grant's publishing target. The membership
-// predicate is checked here and again when the selected team credential is used.
-func SelectOAuthTeam(ctx context.Context, q Querier, grantID, userID, teamID string) (bool, error) {
-	res, err := q.ExecContext(ctx, `
-		UPDATE oauth_grants g SET selected_team_id = t.id
-		  FROM event_teams t JOIN event_members m ON m.event_id = t.event_id AND m.team_id = t.id
-		 WHERE g.id = $1::uuid AND g.user_id = $2::uuid AND g.scope = 'sites events'
-		   AND t.id = $3::uuid AND m.user_id = g.user_id AND m.role = 'participant'
-		   AND m.approval_status = 'approved'`, grantID, userID, teamID)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n == 1, err
 }
 
 // MarkRefreshTokenUsed rotates a refresh token out. It reports false when the
@@ -299,29 +283,4 @@ func UpsertBuiltinOAuthClient(ctx context.Context, q Querier, clientID, name str
 		  redirect_uris = EXCLUDED.redirect_uris, token_endpoint_auth_method = 'none', pkce_required = TRUE, dynamic = FALSE`,
 		clientID, name, pq.Array(redirectURIs))
 	return err
-}
-
-// OAuthConnectionTeams reads distinct existing teams selected by this user's apps.
-func OAuthConnectionTeams(ctx context.Context, database *sql.DB, userID string) (map[string][]model.OAuthConnectionTeam, error) {
-	rows, err := database.QueryContext(ctx, `
-  SELECT DISTINCT g.client_id, e.title, t.name
-  FROM oauth_grants g
-  JOIN event_teams t ON t.id = g.selected_team_id
-  JOIN events e ON e.id = t.event_id
-  WHERE g.user_id = $1
-  ORDER BY g.client_id, e.title, t.name`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string][]model.OAuthConnectionTeam{}
-	for rows.Next() {
-		var clientID string
-		var team model.OAuthConnectionTeam
-		if err := rows.Scan(&clientID, &team.Event, &team.Team); err != nil {
-			return nil, err
-		}
-		out[clientID] = append(out[clientID], team)
-	}
-	return out, rows.Err()
 }

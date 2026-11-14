@@ -42,7 +42,9 @@ type EarlyDeps struct {
 	Edition *edition.Edition
 }
 
-type EarlyHooks struct{}
+type EarlyHooks struct {
+	Accounts accountapp.GroupHooks
+}
 
 type GateDeps struct {
 	Site    *handler.SiteHandler

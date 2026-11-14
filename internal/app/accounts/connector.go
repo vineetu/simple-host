@@ -30,10 +30,14 @@ func (s *Service) GetOAuthClient(ctx context.Context, clientID string) (model.OA
 	return repo.GetOAuthClient(ctx, s.database, clientID)
 }
 func (s *Service) GetOAuthGrantByID(ctx context.Context, grantID string) (model.OAuthGrant, error) {
-	return repo.GetOAuthGrantByID(ctx, s.database, grantID)
+	g, err := repo.GetOAuthGrantByID(ctx, s.database, grantID)
+	if err == nil && groupHooks.Target != nil {
+		g.SelectedTeamID, err = groupHooks.Target.Selected(ctx, s.database, grantID)
+	}
+	return g, err
 }
 func (s *Service) GetOAuthToken(ctx context.Context, tokenHash string) (model.OAuthTokenGrant, error) {
-	return repo.GetOAuthToken(ctx, s.database, tokenHash)
+	return getOAuthToken(ctx, s.database, tokenHash)
 }
 func (s *Service) InsertOAuthClient(ctx context.Context, c model.OAuthClient) error {
 	return repo.InsertOAuthClient(ctx, s.database, c)
@@ -57,7 +61,10 @@ func (s *Service) MarkRefreshTokenUsed(ctx context.Context, tokenHash string) (b
 	return repo.MarkRefreshTokenUsed(ctx, s.database, tokenHash)
 }
 func (s *Service) SelectOAuthTeam(ctx context.Context, grantID string, userID string, teamID string) (bool, error) {
-	return repo.SelectOAuthTeam(ctx, s.database, grantID, userID, teamID)
+	if groupHooks.Target == nil {
+		return false, nil
+	}
+	return groupHooks.Target.Select(ctx, s.database, grantID, userID, teamID)
 }
 func (s *Service) SetOAuthClientRedirectURIs(ctx context.Context, clientID string, uris []string) error {
 	return repo.SetOAuthClientRedirectURIs(ctx, s.database, clientID, uris)
@@ -96,5 +103,8 @@ func (s *Service) PurgeExpiredAPIKeys(ctx context.Context, idle time.Duration) (
 func (s *Service) NamespaceDomains() []string { return repo.PlatformDomains() }
 
 func (s *Service) OAuthConnectionTeams(ctx context.Context, userID string) (map[string][]model.OAuthConnectionTeam, error) {
-	return repo.OAuthConnectionTeams(ctx, s.database, userID)
+	if groupHooks.Target == nil {
+		return nil, nil
+	}
+	return groupHooks.Target.Labels(ctx, s.database, userID)
 }

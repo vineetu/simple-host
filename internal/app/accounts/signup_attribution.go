@@ -11,6 +11,7 @@ import (
 
 // AttributionStore may be the sign-in transaction; recording never opens a nested transaction.
 type AttributionStore interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }

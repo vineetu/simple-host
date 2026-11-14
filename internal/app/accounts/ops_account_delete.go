@@ -7,6 +7,7 @@ import (
 )
 
 type DeletionQueries interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }

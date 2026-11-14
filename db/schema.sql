@@ -913,6 +913,13 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
 CREATE INDEX IF NOT EXISTS oauth_grants_user_idx ON oauth_grants (user_id, client_id);
 CREATE INDEX IF NOT EXISTS oauth_grants_client_idx ON oauth_grants (client_id);
 
+-- Hack owns connected-app publishing selections. Deleted team IDs stay stored.
+CREATE TABLE IF NOT EXISTS hack_grant_teams (
+  grant_id UUID PRIMARY KEY REFERENCES oauth_grants(id) ON DELETE CASCADE,
+  team_id UUID NOT NULL,
+  selected_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Authorization codes: single use, ~60 seconds, bound to the client, the
 -- redirect URI, the PKCE challenge and the resource. grant_id is set when the
 -- code is redeemed, so a second redemption can revoke what the first issued.
