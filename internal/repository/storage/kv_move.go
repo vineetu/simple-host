@@ -98,6 +98,63 @@ func KVMoveCommit(ctx context.Context, db *sql.DB, n KVNamespace, count int64, b
 	return tx.Commit()
 }
 
+// KVMoveRollback proves the restored rows inside the transaction before changing
+// authority. A failed cast or comparison leaves the namespace entirely on SQLite.
+func KVMoveRollback(ctx context.Context, db *sql.DB, n KVNamespace, entries []KVMoveEntry, compare func([]KVMoveEntry) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var store string
+	err = tx.QueryRowContext(ctx, `SELECT kv_store FROM site_storage_resources WHERE site_id=$1 AND name=$2 AND kind='kv' FOR UPDATE`, n.SiteID, n.Name).Scan(&store)
+	if err != nil {
+		return err
+	}
+	var count int64
+	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2`, n.SiteID, n.Name).Scan(&count); err != nil {
+		return err
+	}
+	if store != "sqlite" || count != 0 {
+		return fmt.Errorf("rollback requires SQLite marker and no Postgres rows")
+	}
+	for _, e := range entries {
+		_, err = tx.ExecContext(ctx, `INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id,created_at,updated_at) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)`, n.SiteID, n.Name, e.Key, e.Value, e.Writer, e.Created, e.Updated)
+		if err != nil {
+			return err
+		}
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT key,value::text,writer_id,created_at,updated_at FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2`, n.SiteID, n.Name)
+	if err != nil {
+		return err
+	}
+	var restored []KVMoveEntry
+	for rows.Next() {
+		var e KVMoveEntry
+		if err = rows.Scan(&e.Key, &e.Value, &e.Writer, &e.Created, &e.Updated); err != nil {
+			rows.Close()
+			return err
+		}
+		restored = append(restored, e)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if err = compare(restored); err != nil {
+		return err
+	}
+	r, err := tx.ExecContext(ctx, `UPDATE site_storage_resources SET kv_store='postgres' WHERE site_id=$1 AND name=$2 AND kind='kv' AND kv_store='sqlite'`, n.SiteID, n.Name)
+	if err != nil {
+		return err
+	}
+	if changed, err := r.RowsAffected(); err != nil || changed != 1 {
+		return fmt.Errorf("rollback marker update: rows=%d: %v", changed, err)
+	}
+	return tx.Commit()
+}
+
 // KVMoveState also works after a concurrent resource deletion (exists=false).
 func KVMoveState(ctx context.Context, db *sql.DB, n KVNamespace) (store string, exists bool, rows int64, err error) {
 	current, exists, rows, err := KVMoveCurrent(ctx, db, n)

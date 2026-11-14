@@ -22,6 +22,7 @@ func runKVMoveCommand(args []string) int {
 	dry := fs.Bool("dry-run", false, "build and compare scratch copies; server may be running")
 	apply := fs.Bool("apply", false, "move Postgres namespaces; server must be stopped")
 	verify := fs.Bool("verify", false, "check namespace health; server may be running")
+	rollback := fs.Bool("rollback", false, "move SQLite namespaces back to Postgres; server must be stopped")
 	scratch := fs.String("scratch", "", "scratch directory required for dry-run")
 	logPath := fs.String("log", "", "JSON-lines report file (required)")
 	var sites kvMoveSites
@@ -30,14 +31,14 @@ func runKVMoveCommand(args []string) int {
 		return 2
 	}
 	count, mode := 0, ""
-	for name, on := range map[string]bool{"dry-run": *dry, "apply": *apply, "verify": *verify} {
+	for name, on := range map[string]bool{"dry-run": *dry, "apply": *apply, "verify": *verify, "rollback": *rollback} {
 		if on {
 			count++
 			mode = name
 		}
 	}
 	if count != 1 || fs.NArg() != 0 || *logPath == "" || (*dry && *scratch == "") || (!*dry && *scratch != "") {
-		fmt.Fprintln(os.Stderr, "usage: kv-move (--dry-run --scratch DIR | --apply | --verify) [--site ID]... --log FILE")
+		fmt.Fprintln(os.Stderr, "usage: kv-move (--dry-run --scratch DIR | --apply | --verify | --rollback) [--site ID]... --log FILE")
 		return 2
 	}
 	dsn := os.Getenv("DB_DSN")

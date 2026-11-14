@@ -62,6 +62,32 @@ func ReadKVSnapshot(ctx context.Context, path string) ([]KVSnapshotEntry, KVMeta
 		return nil, KVMeta{}, err
 	}
 	defer done()
+	return readKVSnapshot(conn)
+}
+
+// CheckpointKVSnapshot is used only under the exclusive maintenance lock.
+// A busy checkpoint must not be mistaken for a complete, single-file snapshot.
+func CheckpointKVSnapshot(ctx context.Context, path string) ([]KVSnapshotEntry, KVMeta, error) {
+	conn, done, err := OpenRuntimeKV(ctx, path, true, false)
+	if err != nil {
+		return nil, KVMeta{}, err
+	}
+	defer done()
+	stmt, _, err := conn.Prepare("PRAGMA wal_checkpoint(TRUNCATE)")
+	if err != nil {
+		return nil, KVMeta{}, err
+	}
+	ok := stmt.Step() && stmt.ColumnInt(0) == 0
+	err = stmt.Err()
+	stmt.Close()
+	if !ok || err != nil {
+		return nil, KVMeta{}, fmt.Errorf("WAL checkpoint failed: %v", err)
+	}
+	return readKVSnapshot(conn)
+}
+
+func readKVSnapshot(conn *sqlite3.Conn) ([]KVSnapshotEntry, KVMeta, error) {
+	var err error
 	if err = conn.Exec("BEGIN"); err != nil {
 		return nil, KVMeta{}, err
 	}

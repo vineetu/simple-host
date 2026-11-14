@@ -179,8 +179,8 @@ internal/handler/seo.go:217 | identifier | hack
 internal/handler/showcase.go:547 | identifier | chromeHack
 internal/handler/site.go:424 | identifier | hackInstanceURL
 internal/handler/site.go:465 | identifier | hackInstanceURL
-internal/handler/site_storage_access.go:222 | identifier | HackSiteOwnerOnSite
-internal/handler/site_storage_access.go:255 | identifier | HackSiteOwnerOnSite
+internal/handler/site_storage_access.go:249 | identifier | HackSiteOwnerOnSite
+internal/handler/site_storage_access.go:282 | identifier | HackSiteOwnerOnSite
 internal/handler/skillshub.go:16 | identifier | HackAssets
 internal/handler/skillshub.go:17 | identifier | HackSkills
 internal/handler/skillshub.go:46 | identifier | HackAssets
@@ -753,8 +753,8 @@ internal/server/build.go:138 | identifier | hackInstanceURL
 internal/server/build.go:163 | identifier | hackInstanceURL
 internal/server/build.go:222 | identifier | HackAssets
 internal/server/build.go:265 | identifier | hackInstanceURL
-internal/server/build.go:520 | identifier | PaperHack
-internal/server/build.go:521 | identifier | PaperHack
+internal/server/build.go:523 | identifier | PaperHack
+internal/server/build.go:524 | identifier | PaperHack
 internal/webassets/docs-site/hack/mcp/hack-app-only.md:0 | filename | hack-app-only.md
 internal/webassets/docs-site/hack/mcp/hack-entries.md:0 | filename | hack-entries.md
 internal/webassets/docs-site/hack/mcp/hack-events.md:0 | filename | hack-events.md
@@ -1257,6 +1257,7 @@ internal/mcp/storage_presets_test.go:160 | identifier | hack
 internal/mcp/storage_presets_test.go:163 | identifier | hack
 internal/mcp/storage_presets_test.go:164 | identifier | hack
 internal/mcp/storage_presets_test.go:166 | identifier | hack
+internal/mcp/storage_rules_schema_test.go:6 | identifier | HackTools
 internal/mcp/storage_tools_test.go:67 | identifier | TestStorageToolsScopedToSelectedHackTeam
 internal/mcp/storage_tools_test.go:69 | identifier | runTestStorageToolsScopedToSelectedHackTeam
 internal/mcp/storage_tools_test.go:73 | identifier | runTestStorageToolsScopedToSelectedHackTeam
@@ -1271,7 +1272,7 @@ internal/rules/auth/hack_grant_test.go:0 | filename | hack_grant_test.go
 internal/rules/auth/hack_grant_test.go:5 | identifier | TestHackGrantKind
 internal/server/testdata/routes-hack.txt:0 | filename | routes-hack.txt
 internal/server/testdata/workers-hack.txt:0 | filename | workers-hack.txt
-Findings: 424
+Findings: 425
 
 ## Generated inventories
 Not scanned: docs/generated/ is the union of both products.

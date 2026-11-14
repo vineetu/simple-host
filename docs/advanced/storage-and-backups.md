@@ -66,12 +66,13 @@ existing namespaces.
 Run `kv-move` with the currently installed program (`/usr/local/bin/simple-host`
 in the standard installs), using that install's environment,
 including `DB_DSN` and `DATA_DIR`. Keep `KV_STORE=postgres` until the move
-and the separate rollback rehearsal have been approved.
+and the rollback rehearsal have been approved.
 
 ```text
 simple-host kv-move --dry-run --scratch /tmp/kv-check --log /tmp/kv-dry-run.jsonl
 simple-host kv-move --apply --log /tmp/kv-apply.jsonl
 simple-host kv-move --verify --log /tmp/kv-verify.jsonl
+simple-host kv-move --rollback --log /tmp/kv-rollback.jsonl
 ```
 
 Repeat `--site <id>` to select sites; omitting it selects every key-value
@@ -112,8 +113,61 @@ as a warning, not corruption. Other health failures exit nonzero.
 
 Moving data on a live install is a separate operator step. Take the paired
 Postgres and data-directory backup while stopped before applying. This
-command does not provide rollback yet; that and the rehearsal are the next
-step. Once a namespace moves, use a program that understands its marker.
+command includes rollback; production cutover remains a separate approved step.
+Once a namespace moves, use a program that understands its marker.
+
+Rollback also requires the exclusive maintenance lock. It checkpoints and checks
+each SQLite namespace, inserts every current entry into Postgres and reads those
+rows back in the same transaction. It compares values, authors and both timestamps
+before changing the marker to `postgres`. A mismatch or failed JSON cast rolls
+the transaction back and leaves the namespace on SQLite. Existing Postgres rows
+in a SQLite namespace cause a refusal. Later writes, edits and deletes are
+preserved. Repeat `--site` to limit the rollback to selected sites.
+
+After commit the old file is retained as `<namespace>.sqlite.rolledback-<UTC time>`.
+If the rename fails, the leftover active file is ignored by the Postgres marker;
+a later apply removes it and rebuilds from Postgres. A kill between commit and
+rename has the same safe result. Repeating rollback skips namespaces already on
+Postgres. Set `KV_STORE=postgres` before restarting if new namespaces should use
+Postgres too.
+
+### Rehearse the cutover and both ways back
+
+Run `scripts/kv-move-rehearsal.sh` once for each install, passing its program,
+product (`host` or `hack`), a custom-format dump from the stopped install and the
+matching whole data-directory copy. `TEST_PG_URL` supplies a bare disposable
+Postgres server URL; the script creates and drops only its own database. Inputs
+are read only. It uses fresh local credentials, removes copied notification
+subscriptions and saved setup hostnames on the scratch database, and inherits no
+provider credentials. The scratch environment supplies its local hostname.
+
+The script restores the copies, starts a loopback instance, dry-runs, checks free
+space (data plus dump plus 20%), stops, takes the paired backup with sizes and
+SHA-256 hashes, applies, verifies and restarts with `KV_STORE=sqlite`. It compares
+all key-value records and live-site owner reads, usage and exported `kv.json`,
+and exercises page and owner-tool writes, reads and deletes on an invented site.
+It compares the usage tool's decoded response with its pre-stop response. Apply
+must leave every key-value namespace on SQLite and the Postgres KV table empty;
+rollback must return every namespace, including newly created ones, to Postgres.
+It then makes new keys, edits, deletes, a new namespace and a namespace
+deletion, verifies, stops, rolls back, restarts and compares again. Finally it
+restores the paired dump and files onto an emptied scratch directory and compares
+with the backup-time state. This last restore deliberately loses the later
+changes; it is a last resort, never an overlay onto the current directory.
+
+The output directory retains JSON-lines move logs, per-step wall times, backup
+sizes/hashes and key-value read throughput before and after moving (100 reads
+with one and four clients on one site, `SITE_STORAGE_SITE_INFLIGHT=1`). Scratch
+databases, file copies and backups are deleted on exit. Keep the output from both
+installs for the cutover review. A rehearsal on invented fixtures alone does not
+establish that production copies have passed.
+
+The upgrade journal and step list are not available in this release. When they
+land, the move registers as `OptIn` (`upgrade --with kv-move`), with progress per
+namespace, not a remembered install-wide completion. Every attempt must inspect
+the current markers and Postgres rows; successful verification must also require
+zero Postgres namespaces and rows. Standalone apply/rollback take their own lock;
+the future upgrade command holds it across its steps instead.
 
 
 **What fills the disk.** At the default allowances, 2,000 fully used hosted sites

@@ -21,7 +21,7 @@ import (
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
-// KVMoveOptions selects one of dry-run, apply and verify. Sites empty means all.
+// KVMoveOptions selects dry-run, apply, verify or rollback. Sites empty means all.
 type KVMoveOptions struct {
 	Mode, Scratch string
 	Sites         []string
@@ -65,10 +65,10 @@ func (m *KVMover) at(stage string) error {
 	return nil
 }
 
-// Run takes the exclusive lock only for apply, before opening any data file.
+// Run takes the exclusive lock for apply and rollback, before opening any data file.
 func (m *KVMover) Run(ctx context.Context, o KVMoveOptions) error {
-	if o.Mode != "dry-run" && o.Mode != "apply" && o.Mode != "verify" {
-		return fmt.Errorf("choose dry-run, apply or verify")
+	if o.Mode != "dry-run" && o.Mode != "apply" && o.Mode != "verify" && o.Mode != "rollback" {
+		return fmt.Errorf("choose dry-run, apply, verify or rollback")
 	}
 	if o.Log == nil {
 		return fmt.Errorf("a log is required")
@@ -81,7 +81,7 @@ func (m *KVMover) Run(ctx context.Context, o KVMoveOptions) error {
 			return err
 		}
 	}
-	if o.Mode == "apply" {
+	if o.Mode == "apply" || o.Mode == "rollback" {
 		lock, err := runtime.LockMaintenance(m.DataDir, true)
 		if err != nil {
 			return err
@@ -105,7 +105,10 @@ func (m *KVMover) Run(ctx context.Context, o KVMoveOptions) error {
 		if len(selected) > 0 && !selected[n.SiteID] {
 			continue
 		}
-		if o.Mode != "verify" && n.Store != "postgres" {
+		if o.Mode == "rollback" && n.Store != "sqlite" {
+			continue
+		}
+		if (o.Mode == "apply" || o.Mode == "dry-run") && n.Store != "postgres" {
 			continue
 		}
 		r := KVMoveReport{Site: n.SiteID, Resource: n.Name, Mode: o.Mode, Status: "ok"}
@@ -113,6 +116,9 @@ func (m *KVMover) Run(ctx context.Context, o KVMoveOptions) error {
 		err = m.slots.Admit(ctx, n.SiteID, func(ctx context.Context, _ *Admission) error {
 			if o.Mode == "verify" {
 				return m.verify(ctx, n, &r)
+			}
+			if o.Mode == "rollback" {
+				return m.rollback(ctx, n, &r)
 			}
 			return m.copy(ctx, n, o, &r, func() error {
 				if err := enc.Encode(r); err != nil {
@@ -136,6 +142,52 @@ func (m *KVMover) Run(ctx context.Context, o KVMoveOptions) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func (m *KVMover) rollback(ctx context.Context, n repo.KVNamespace, r *KVMoveReport) error {
+	path := runtime.RuntimeKVPath(filepath.Join(m.siteDir(n), "runtime"), n.Name)
+	entries, meta, err := runtime.CheckpointKVSnapshot(ctx, path)
+	if err != nil {
+		return err
+	}
+	r.FileEntries, r.FileLogicalBytes = meta.Entries, meta.LogicalBytes
+	r.FileSHA256 = kvDumpHash(entries)
+	rows := make([]repo.KVMoveEntry, 0, len(entries))
+	for _, e := range entries {
+		created, err := time.Parse(time.RFC3339Nano, e.Created)
+		if err != nil {
+			return err
+		}
+		updated, err := time.Parse(time.RFC3339Nano, e.Updated)
+		if err != nil {
+			return err
+		}
+		rows = append(rows, repo.KVMoveEntry{Key: e.Key, Value: e.Value, Writer: e.Writer, Created: created, Updated: updated})
+	}
+	err = repo.KVMoveRollback(ctx, m.DB, n, rows, func(restored []repo.KVMoveEntry) error {
+		copied := make([]runtime.KVSnapshotEntry, 0, len(restored))
+		for _, e := range restored {
+			copied = append(copied, runtime.KVSnapshotEntry{Key: e.Key, Value: e.Value, Writer: e.Writer, Created: kvMoveStamp(e.Created), Updated: kvMoveStamp(e.Updated)})
+			r.LogicalBytes += int64(len(e.Key) + len(e.Value))
+		}
+		r.Entries = int64(len(copied))
+		r.SourceSHA256 = kvDumpHash(copied)
+		if err := compareKVCopy(entries, copied); err != nil {
+			return err
+		}
+		return m.at("rollback-compared")
+	})
+	if err != nil {
+		return err
+	}
+	if err = m.at("rollback-committed"); err != nil {
+		return err
+	}
+	if err = os.Rename(path, path+".rolledback-"+time.Now().UTC().Format("20060102T150405.000000000Z")); err != nil {
+		r.Status = "warning: Postgres restored; leftover SQLite file ignored (apply removes it)"
+		return nil
+	}
+	return nil
 }
 
 func (m *KVMover) siteDir(n repo.KVNamespace) string {

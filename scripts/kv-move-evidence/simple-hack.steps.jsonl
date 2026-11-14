@@ -1,0 +1,26 @@
+{"seconds": 53.912804, "status": "ok", "step": "restore-input-copies"}
+{"clients": 1, "failures": 0, "load_average": [13.32861328125, 13.837890625, 14.3076171875], "measurement": "kv-read-throughput", "reads": 100, "reads_per_second": 81.305, "seconds": 1.229932, "site_inflight": 1, "store": "postgres"}
+{"clients": 4, "failures": 0, "load_average": [13.32861328125, 13.837890625, 14.3076171875], "measurement": "kv-read-throughput", "reads": 100, "reads_per_second": 181.589, "seconds": 0.550696, "site_inflight": 1, "store": "postgres"}
+{"seconds": 3.021319, "status": "ok", "step": "start-before-cutover"}
+{"seconds": 0.057083, "status": "ok", "step": "2-dry-run-while-serving"}
+{"data_bytes": 212907, "dump_bytes": 1120324, "free_bytes": 45722984448, "required_bytes": 1599878}
+{"seconds": 0.547476, "status": "ok", "step": "3-free-disk"}
+{"seconds": 0.031539, "status": "ok", "step": "4-stop"}
+{"backup": "paired.dump", "bytes": 1120398, "sha256": "b69e295c92d4204ac267879d1635911db5754f5e37c74750d9a56d97b88de764"}
+{"backup": "paired.tar.gz", "bytes": 47142, "sha256": "c694604d73f2c7250c9c3b3ff95bdd13353c6bc7c81fc7c3a3208f9f83372ef0"}
+{"seconds": 0.509416, "status": "ok", "step": "5-paired-backup"}
+{"comparison": "all-namespaces-on-sqlite", "differences": 0, "namespaces": 2, "postgres_rows": 0}
+{"seconds": 0.200184, "status": "ok", "step": "6-apply"}
+{"seconds": 0.043296, "status": "ok", "step": "7-verify"}
+{"comparison": "cutover", "differences": 0, "namespaces": 2, "reads": 6}
+{"comparison": "storage_get_usage", "differences": 0}
+{"clients": 1, "failures": 0, "load_average": [14.423828125, 14.056640625, 14.3759765625], "measurement": "kv-read-throughput", "reads": 100, "reads_per_second": 77.069, "seconds": 1.297537, "site_inflight": 1, "store": "sqlite"}
+{"clients": 4, "failures": 0, "load_average": [14.423828125, 14.056640625, 14.3759765625], "measurement": "kv-read-throughput", "reads": 100, "reads_per_second": 108.746, "seconds": 0.919572, "site_inflight": 1, "store": "sqlite"}
+{"seconds": 3.692678, "status": "ok", "step": "8-start-sqlite-and-smoke"}
+{"seconds": 0.308806, "status": "ok", "step": "later-writes"}
+{"comparison": "all-namespaces-on-postgres", "differences": 0, "namespaces": 3, "postgres_rows": 7}
+{"comparison": "rollback-preserves-later-writes", "differences": 0, "namespaces": 3, "reads": 7}
+{"seconds": 0.731741, "status": "ok", "step": "rollback-and-compare"}
+{"comparison": "paired-restore-returns-to-backup-time", "differences": 0, "namespaces": 2, "reads": 6}
+{"seconds": 3.457209, "status": "ok", "step": "last-resort-paired-restore"}
+{"differences": 0, "input_dump_bytes": 1326808, "product": "hack", "status": "passed"}

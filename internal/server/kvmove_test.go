@@ -11,7 +11,7 @@ import (
 
 func TestKVMoveCommandUsage(t *testing.T) {
 	t.Setenv("DB_DSN", "")
-	for _, args := range [][]string{{}, {"--apply", "--verify", "--log", "unused"}, {"--dry-run", "--log", "unused"}, {"--verify", "--scratch", "unused", "--log", "unused"}, {"--verify", "--log", "unused"}} {
+	for _, args := range [][]string{{}, {"--apply", "--verify", "--log", "unused"}, {"--rollback", "--apply", "--log", "unused"}, {"--rollback", "--scratch", "unused", "--log", "unused"}, {"--dry-run", "--log", "unused"}, {"--verify", "--scratch", "unused", "--log", "unused"}, {"--verify", "--log", "unused"}} {
 		if code := runKVMoveCommand(args); code != 2 {
 			t.Fatalf("%v: exit %d", args, code)
 		}
@@ -52,14 +52,16 @@ func TestKVMoveCommandModesAndLockExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code := runKVMoveCommand([]string{"--apply", "--log", log}); code != 2 {
-		t.Errorf("lock refusal exit=%d", code)
+	for _, mode := range []string{"--apply", "--rollback"} {
+		if code := runKVMoveCommand([]string{mode, "--log", log}); code != 2 {
+			t.Errorf("%s lock refusal exit=%d", mode, code)
+		}
 	}
 	if code := runKVMoveCommand([]string{"--dry-run", "--scratch", t.TempDir(), "--site", site, "--site", site, "--log", log}); code != 0 {
 		t.Errorf("dry-run exit=%d", code)
 	}
 	shared.Close()
-	for _, mode := range []string{"--apply", "--apply", "--verify"} {
+	for _, mode := range []string{"--apply", "--apply", "--verify", "--rollback", "--rollback", "--verify", "--apply", "--rollback"} {
 		if code := runKVMoveCommand([]string{mode, "--site", site, "--log", log}); code != 0 {
 			t.Fatalf("%s exit=%d", mode, code)
 		}

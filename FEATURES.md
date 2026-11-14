@@ -2882,9 +2882,17 @@ are unchanged.
 The operator's `kv-move` command can build and compare scratch copies, apply
 the move while the server is stopped, and verify namespace health after later
 writes. Servers hold a shared data-directory maintenance lock; apply requires
-the exclusive lock. Apply syncs the file and its directories through the site
+the exclusive lock, as does rollback. Apply syncs the file and its directories through the site
 directory before removing the Postgres source. Interrupted moves can be rerun.
-The command is built; production cutover and the rollback rehearsal remain separate steps. See
+Rollback restores every current entry and proves the copy inside its Postgres
+transaction before switching the marker, preserving later writes. Old SQLite files
+are retained after rollback. The rehearsal script exercises cutover, later writes,
+rollback and paired-backup restore on scratch copies, recording times and read
+throughput. It asserts the destination markers and empty Postgres KV table after
+apply, all Postgres markers after rollback, and unchanged MCP usage across cutover.
+Saved setup hostnames are cleared only in the scratch database. Both installs'
+production-copy rehearsals must pass before this slice is complete; production
+cutover remains a separate step. See
 `docs/advanced/storage-and-backups.md`.
 
 SQLite table-row operations share a per-site concurrency limit across resources
