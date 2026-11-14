@@ -22,7 +22,7 @@ function registerTool(spec) {
 
 `spec` is `{ name, description, inputSchema, annotations, execute }`. `inputSchema` is JSON Schema. `readOnlyHint: true` means the tool changes no server state. `consequentialHint: true` means a write is hard to undo, so a compliant agent (ChatGPT's browser included) asks the person before calling it. Do not build your own confirmation dialog. A tool calls the same function the page's form already calls. It is not a second way to write data.
 
-A booking page from the `booking` recipe uses the `records` preset. The page keeps one table handle:
+A booking page from the `booking` recipe uses author-or-owner read rules. The page keeps one table handle:
 
 ```js
 var bookings = SH.storage.sqlite('bookings').table('bookings');

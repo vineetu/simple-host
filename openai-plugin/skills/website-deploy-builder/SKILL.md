@@ -12,29 +12,31 @@ Use this skill to decide what to build. When the person has chosen, hand the bui
 missing, ask the person to connect Simple Host (https://simple-host.app/install.html). Never ask
 for sign-in codes, API keys or passwords in chat.
 
+Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. Read the website-deploy `references/storage.md` for row-rule syntax; file buckets keep presets.
+
 ## What Simple Host is
 
 A static-file host: every site lives at `https://<sitename>.<handle>.simple-host.app/` and serves
 HTML, CSS, JS, images and fonts. Simple Host serves static files and its built-in storage; it does not run your own server code. Each site can still save data in
 three kinds of resource the owner creates: KV (named JSON values), SQLite (tables and queries) and
-files (photos, PDFs). Each resource, and each SQLite table, has a preset that says who may read,
-add, edit and delete. Visitors sign in with Google or an emailed code; no password or sign-up form.
+files (photos, PDFs). SQLite and KV use row rules for read, add, edit and delete; SQLite tables may
+replace the resource default. File buckets keep access presets. Visitors sign in with Google or an emailed code; no password or sign-up form.
 
 ## Map the request
 
 | They want | Plan |
 |---|---|
 | a landing page, portfolio, CV, multi-page site | static only, relative links |
-| bookings, appointments, table reservations | SQLite preset `records`, recipe `booking`: the customer signs in when they book and sees their status; the owner confirms from chat |
-| a quote request, contact form, waitlist, sign-up, application, feedback | SQLite preset `inbox`, recipe `inbox`: anyone sends without signing in; only the owner reads |
-| a menu, prices, opening hours the owner updates | KV preset `public`, recipe `public`: the owner changes it from chat, no republish |
-| orders from a small shop | SQLite preset `records` with a status and a linked change table |
+| bookings, appointments, table reservations | SQLite author-or-owner read rules, recipe `booking`: the customer signs in when they book and sees their status; the owner confirms from chat |
+| a quote request, contact form, waitlist, sign-up, application, feedback | SQLite owner-only read and public add rules, recipe `inbox`: anyone sends without signing in; only the owner reads |
+| a menu, prices, opening hours the owner updates | KV public read and owner write rules, recipe `public`: the owner changes it from chat, no republish |
+| orders from a small shop | SQLite author-or-owner read rules with a status and a linked change table |
 | a client portal | one site per client, opened only to that client's email (named viewers), recipe `portal` |
-| reviews, comments, a guestbook anyone may post to without signing in | preset `comments`, recipe `comments`: a spam check instead of sign-in; the owner removes posts or approves each one first |
-| reviews, comments, a guestbook by people who sign in | preset `wall`: everyone reads, people sign in to post |
+| reviews, comments, a guestbook anyone may post to without signing in | checked add rules, recipe `comments`: a spam check instead of sign-in; the owner removes posts or approves each one first |
+| reviews, comments, a guestbook by people who sign in | recipe `wall`: everyone reads, people sign in to post |
 | photos visitors share | files preset `wall`, recipe `gallery` |
-| a shared sign-up sheet or task list | preset `board` |
-| things each visitor keeps for themselves | preset `personal` |
+| a shared sign-up sheet or task list | signed-in shared rules, recipe `board` |
+| things each visitor keeps for themselves | author-or-owner rules, recipe `personal` |
 | only some people may open the whole site | named viewers by email, or one shared passcode; ask which if they did not say |
 | their own domain, or a shorter address | the `connect-domain` skill, or a short `<name>.simple-host.app` |
 | a tool that runs only in the browser | static plus `localStorage` or `IndexedDB` |
@@ -46,7 +48,7 @@ add, edit and delete. Visitors sign in with Google or an emailed code; no passwo
 2. Decide whether it can run as a static site. Name any part that cannot (server code, payments
    processing, custom account systems, long-running jobs) and suggest a substitute or another
    service for that part.
-3. If visitors save anything, state each resource, its preset, and whether sign-in is needed,
+3. If visitors save anything, state each resource, its rules (file-bucket preset), and whether sign-in is needed,
    before designing the page. Personal details go in `inbox`, `records` or `personal`, never in a
    resource everyone signed in can read.
 4. Always pair a form with a way for the owner to read it back: from chat with
@@ -62,4 +64,4 @@ add, edit and delete. Visitors sign in with Google or an emailed code; no passwo
 |---|---|
 | What a site can be, what is not a fit, the full idea-to-plan map, what to say up front | `references/capabilities.md` |
 | The deploy handoff, home page, file sizes, each person's records worked example | `references/handoff-and-examples.md` |
-| Presets, custom access matrices and the page helper in full | the `website-deploy` skill's `references/storage.md` |
+| Row rules, file-bucket presets and the page helper in full | the `website-deploy` skill's `references/storage.md` |

@@ -2,7 +2,7 @@
 
 ## Overview (moved from SKILL.md)
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, bookings, reservations, RSVPs with a status, support requests and assignments, use the [Each person's records](storage.md#each-persons-records) pattern in `references/storage.md` with domain-specific tables, status and linked change rows; quote requests, contact forms, waitlists and sign-ups are `inbox`, sent without sign-in. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+The older state, collection and declared-data APIs are for existing sites only. New sites use KV, SQLite and files. For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets keep presets.
 
 An existing Simple Host site may already use the older state, collections and
 declared-data kinds (Shared, Page info, Submissions, Personal, Shared board).
@@ -38,9 +38,8 @@ resources instead — see `references/storage.md`. Account sign-in (`/v1/auth`,
 one: it is for Simple Host account owners and their agents only, and the server
 refuses it on any host but the app's own address. A page's visitors always sign
 in with visitor sign-in (`auth.js`, `SH.mount`, `SH.requireSignIn`), whichever
-storage the site uses. (On the new storage resources, pick an access preset:
-`board` gives shared access, `records` and `personal` keep each visitor's rows
-to themselves — see `references/storage.md`.) Simple
+storage the site uses. (New SQLite and KV resources use row rules: require the author or owner
+for per-person reads — see `references/storage.md`.) Simple
 Hack websites expose only KV, SQLite and files; event signup stays on the
 trusted Simple Hack apex.
 

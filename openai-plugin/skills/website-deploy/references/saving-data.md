@@ -35,7 +35,7 @@ which job" above). Full reference for the old APIs, kept for maintenance only:
 > `/v1/auth/verify` are never for a site's visitors, on an existing site or a new one: that is
 > account sign-in for the owner, and it does not answer on a site's own address.
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. `signed-in` alone gives shared access; pick an access preset: `records` keeps each visitor's rows to themselves, `inbox` takes forms only the owner reads. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+For existing sites, keep the older saved-data APIs until an owner-directed migration. New sites use SQLite/KV row rules and file-bucket presets. Author-or-owner reads keep personal data private; sign-in alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged storage reference explains the language and examples.
 
 
 ## Saving and reading data: the page helper and the tools
@@ -72,7 +72,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 | A draft, a cart, "already voted" on this device only | `localStorage` in the page | per visitor, this device; never shared |
 | Roles, per-field rules, joins, search, live co-editing of one object, instant updates | does not fit | say so instead of approximating it |
 
-On an existing declared-data site, anything with personal details stays in private Submissions. For new designs, use KV, SQLite and files with a privacy design that respects whole-resource policies.
+On an existing declared-data site, anything with personal details stays in private Submissions. For new designs, use KV, SQLite and files with row rules that preserve author-or-owner or owner-only reads; file buckets keep presets.
 
 A Submissions entry is at most 16 KB. The owner gets a daily email about new private
 Submissions (`notify: "daily"`; `"each"` for batched soon after they arrive; `"off"`), and

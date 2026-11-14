@@ -2,7 +2,7 @@
 
 Moved here from SKILL.md unchanged.
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, bookings, reservations, RSVPs with a status, support requests and assignments, use the [Each person's records](handoff-and-examples.md#each-persons-records) pattern in `references/handoff-and-examples.md` with domain-specific tables, status and linked change rows; quote requests, contact forms, waitlists and sign-ups are `inbox`, sent without sign-in. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+For existing sites, keep the older saved-data APIs until an owner-directed migration. New sites use SQLite/KV row rules and file-bucket presets. Author-or-owner reads keep personal data private; sign-in alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged storage reference explains the language and examples.
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
@@ -18,8 +18,8 @@ if the idea is clear, go straight to building.
 - **Deprecated shared state on existing sites**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
   vote tallies, settings, a short list.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.
-  Each resource has independent `anyone`, `signed-in` or `owner` read and write policies,
-  plus a choice to inherit or bypass the site's passcode. All three kinds share
+  SQLite/KV use row rules for read, add, edit and delete; file buckets keep presets.
+  Each resource can inherit or bypass the site's passcode. All three kinds share
   10,000,000 bytes for KV/SQLite plus 10 MB for files per website; check `storage_get_usage`. Choose own reads for private visitor records; each person reads only their own rows. Compress phone photos before file uploads.
 - **Deprecated collections on existing sites**: lists, one item per submission, newest first. RSVPs, sign-ups,
   survey responses, orders, guestbook entries. On any site, a collection
@@ -44,7 +44,7 @@ Say so plainly, then offer the part that does fit:
 
 - Server code, scheduled jobs, sending email or texts, webhooks.
 - Custom per-user roles, per-field access or confidential medical, financial and ID data in a
-  shared storage resource. For per-person reads use read=own and add-only writes; people request changes by adding linked history rows; original records stay add-only. Existing Simple Host sites may keep Personal and private Submissions when they already depend on those semantics.
+  shared storage resource. For per-person reads use author-or-owner read rules and signed-in add rules; people request changes by adding linked history rows; original records stay add-only. Existing Simple Host sites may keep Personal and private Submissions when they already depend on those semantics.
 - Taking card payments on the page. (A shop can take orders and the owner confirms and bills
   separately, or link out to a payment page the owner already has.)
 - Calling APIs that need a secret key. A key in a page is public.
@@ -57,7 +57,7 @@ that needs a server.
 | The person wants | Build |
 |---|---|
 | Landing page, portfolio, CV, menu, event info | static pages |
-| RSVP, waitlist, sign-up, contact form | “Each person's records”: SQLite with preset `records`, status and linked change rows; `inbox` for a form only the owner reads; `board` or `wall` for a shared sign-up sheet; owner review, or an `admin` page |
+| RSVP, waitlist, sign-up, contact form | “Each person's records”: SQLite with author-or-owner read rules, status and linked change rows; `inbox` for a form only the owner reads; `board` or `wall` for a shared sign-up sheet; owner review, or an `admin` page |
 | Survey or quiz with answers collected | “Each person's records” for answers people can revisit; aggregate through owner tooling |
 | Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
 | Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
@@ -66,8 +66,8 @@ that needs a server.
 | Small shop | product list in the page, cart in `localStorage`, “Each person's records” SQLite pattern, plus owner review |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |
-| Searchable small structured data | a SQLite resource, with a schema chosen for the site and a whole-resource access policy |
-| Simple settings or public key/value data | a KV resource with the appropriate whole-resource policy |
+| Searchable small structured data | a SQLite resource, with a schema chosen for the site and row rules for its audience |
+| Simple settings or public key/value data | a KV resource with row rules for its audience |
 | Visitor photo or document uploads | a files resource; resize/compress phone photos before upload and budget within the separate 10 MB file allowance and 1 MB per-upload cap |
 | Report from a spreadsheet or export | the data as a `.json` or `.csv` file in the site, rendered in the page |
 | A shorter address (optional) | short `<name>.simple-host.app` (one `connect_domain` call), or their domain via the `connect-domain` skill |
@@ -86,8 +86,9 @@ that needs a server.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
 - Pages are public unless the whole site has named viewers (only the people named by email) or
   a passcode (anyone given it can pass it on).
-  A storage resource's `owner` policy is owner-only; `signed-in` means every signed-in visitor,
-  with shared access unless read=own is selected. For own reads on a new site, choose read=own with add-only writes; people request changes by adding linked history rows; original records stay add-only. Existing sites may retain deprecated Personal or private Submissions.
+  For SQLite/KV, `auth.role == "owner"` is owner-only; `auth.signed_in` alone shares rows
+  among signed-in visitors. For private records use `visitor_id == auth.id || auth.role == "owner"`
+  for reads and `auth.signed_in` for adds; people request changes by adding linked history rows; original records stay add-only. Existing sites may retain deprecated Personal or private Submissions.
 
 ## Hand off
 

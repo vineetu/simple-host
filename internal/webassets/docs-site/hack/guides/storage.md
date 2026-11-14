@@ -9,10 +9,18 @@
 
       **In chat**
 “Add a private notes table where each visitor can read and edit only their own notes.”   **API**
-Send `PUT /v1/sites/{sitename}/storage/resources/notes` with `{"kind":"sqlite","preset":"personal"}`. Use `kv` or `files` for those resource kinds.   
+Send `PUT /v1/sites/{sitename}/storage/resources/notes` with the body below. Use `kv` for key-value data; file buckets keep presets such as `wall` for visitor photos.   
 3. For SQLite, send owner DDL to `POST /v1/sites/{sitename}/storage/sqlite/notes/schema`: `{"sql":"CREATE TABLE notes (id INTEGER PRIMARY KEY, visitor_id TEXT, text TEXT)"}`.
-4. Choose `private` for owner-only data, `inbox` for submissions, `public` for owner-written public data, or `personal` for each visitor's editable records. Confirm access before saving a new preset.
+4. Review who can read and change data before saving. Permissive policies combine with OR; restrictive policies narrow them with AND. No applicable permissive policy means no access. A table's own set replaces the default.
 
+   ```json
+   {"kind":"sqlite","rules":{"version":1,"policies":[
+     {"command":"all","using":"visitor_id == auth.id || auth.role == \"owner\"","check":"auth.signed_in"}
+   ]}}
+   ```
+
+
+Follow this server's `storage_set_resource` description: if it does not accept `rules`, the server is older and its description says what to send. KV namespaces still in Postgres cannot accept rules. Existing presets work until the announced switch; file buckets keep them afterwards. Saved rules remain enforced if accepting new rules is turned off.
 
 ## Write to storage from your own code
 [What this is](/features.html#storage-rows)
@@ -34,7 +42,7 @@ Use entirely `NULL` optional composite references, never partly `NULL`. Keep `vi
 <details>
 <summary>Existing resources and migration</summary>
 
-Omit `write_mode` to preserve it. Empty or migrate legacy full-mode SQLite tables with owner tools before switching to own access. Keep unattributed legacy rows outside visitor-owned views.
+Review legacy identities before migration. Keep unattributed rows outside visitor-owned views. Omit `tables` to keep existing table sets, or send `{}` to remove them. Do not mix rules and preset fields in one save.
 
 </details>
 
@@ -55,9 +63,11 @@ Limit file paths to 16 segments; check bucket object allowance, including empty 
 <details>
 <summary>Global uniqueness and passcodes</summary>
 
-Use random identifiers or visitor-specific namespaces for global UNIQUE columns, KV keys, and file paths. Use table routes for visitor SQLite access, not raw SQL. Set `site_passcode: "off"` only when the owner chooses public resources without unlocking.
+A UNIQUE conflict can reveal a hidden row; a KV add attempt can reveal an existing key through `key_exists`. Use opaque random identifiers for global UNIQUE columns, KV keys, and file paths. Use table routes for visitor SQLite access, not raw SQL. Set `site_passcode: "off"` only when the owner chooses public resources without unlocking.
 
 </details>
+
+A table holds new posts only when its effective rules name TEXT `approved_at`. Visitor adds store NULL; owner adds stamp the time. Only the owner may edit it to approve. A leftover column no rule names is ordinary data. Edit and delete also require read visibility of the stored row.
 
 ## Errors you may see
 
@@ -66,6 +76,9 @@ Use random identifiers or visitor-specific namespaces for global UNIQUE columns,
 | `use_custom_domain` (400 or 401) | Shared address refuses visitor writes | Open the site on its own address |
 | `invalid_reference` (404) | Parent missing or unreadable | Choose a readable parent |
 | `row_conflict` (409) | Row cannot satisfy a table constraint | Check required fields, unique values, and check constraints |
+| `invalid_rules` (400) | Rules save is invalid | Use `rule_error` clause and position to repair it |
+| `rules_invalid` (403) | Stored rules no longer compile | Repair the schema or rules with owner tools |
+| `rules_unavailable` (400) | Server rules off or KV still in Postgres | Follow this server’s tool description |
 | `storage_busy` (503) | Storage is busy | Retry after a short wait; honor `Retry-After` when supplied |
 | `site_full` (507) | Storage allowance reached | Remove unused data |
 

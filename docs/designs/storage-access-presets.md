@@ -1,5 +1,9 @@
 # Storage access presets
 
+> **Superseded for SQLite and key-value data by [row rules](storage-rules.md).**
+> Existing presets remain until the announced switch. File buckets keep these
+> presets before and after the switch. The rest of this page records the original design.
+
 > **Status: Shipped on Simple Host (2026-10-10).** Phase 1 is live: the matrix, seven presets, per-table SQLite rules, server-built table routes (list, get, add, edit, delete), the owner on their own site (D1, decided yes), translation of the older fields, recipes per preset, and the dashboard's preset picker. D2 decided first as "Simple Hack presets: later", then on 2026-10-10, after the presets were verified on Simple Host, Simple Hack got them too (team sites and custom event websites; the team or the organisers are the owner; INTENT.md). Showcase page: https://storage-presets.vineetu.simple-host.app/.
 
 ## The ask

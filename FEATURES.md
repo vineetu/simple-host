@@ -2857,13 +2857,14 @@ internal certificate checks.
 
 ## 23. Site storage primitives <a id="site-storage-primitives"></a>
 
-R2-S2 adds service-level validation and persistence for owner-written row rules, behind
-`STORAGE_RULES=off` by default. Rules saves validate syntax, bindings, prospective columns
-and composed statement limits before SQLite preparation, then save a deny-visitor preset
-fill with the rules. R2-S3 exposes optional resource and per-table `rules` through
-REST and the set/list tools, with `rules_status` and structured validation diagnostics.
-Resource saves accept up to 256 KiB. The API reference documents these optional fields;
-preset responses stay unchanged while the flag is off. Enforcement follows in R3-GO.
+SQLite and key-value resources use owner-written row rules for reads, adds,
+edits and deletes; file buckets keep presets. The API accepts resource and
+per-table `rules`, with `rules_status`, `rules_errors` and structured `rule_error`
+diagnostics. Saves are limited to 256 KiB. Follow this server's
+`storage_set_resource` description on an older install without rules enabled.
+Existing presets continue until the announced switch. Saved rules stay enforced
+when accepting new rules is turned off. Public docs and skills for this change
+are held until R4-S2 activation.
 
 Routes: `/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`.
 MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `storage_file_download_link`, `storage_get_usage`, `storage_list_file_objects`, `storage_list_kv_keys`.
@@ -2876,8 +2877,7 @@ stores. Missing namespace files count as zero usage with a server log; reads
 report the missing file. Busy files return a retry response. Existing namespaces
 keep their store. Both stores charge key bytes plus PostgreSQL-normalized JSON
 text, and a site with both charges their sum. SQLite lists use byte order and
-indexed bounds for literal prefixes and cursors; author visibility and presets
-are unchanged.
+indexed bounds for literal prefixes and cursors; author visibility is preserved during the move.
 
 The operator's `kv-move` command can build and compare scratch copies, apply
 the move while the server is stopped, and verify namespace health after later
@@ -2901,104 +2901,77 @@ gate shares one timeout and returns `storage_busy` with `Retry-After` when full.
 Recoverable SQLite panics fail only that request; an already committed write keeps
 its success response and inserted row ID even if checkpointing or closing panics.
 
-**Access presets (2026-10-10; owner decision D1 and "Simple Hack uses storage access presets too", INTENT.md).** Every KV namespace, file <a id="storage-presets"></a>
-bucket and SQLite table has an access matrix: four actions (read, add, edit, delete), each one of
-`nobody`, `owner`, `own` (the signed-in person who added the entry), `signed-in` or `anyone`. Seven
-presets name the common matrices (read / add / edit / delete): `public` (anyone / owner / owner /
-owner), `inbox` (owner / anyone / owner / owner), `wall` (anyone / signed-in / owner / own), `records`
-(own / signed-in / owner / owner), `personal` (own / signed-in / own / own), `board` (signed-in /
-signed-in / signed-in / owner) and `private` (all owner, the default). `PUT
-/v1/sites/{sitename}/storage/resources/{name}` takes `preset`, single-action overrides (`read`, `add`,
-`edit`, `delete`; reported as `custom` with `based_on`) or `preset: custom` with all four, and for
-SQLite `tables` with a preset per table (the resource's preset is the database default). The server
-refuses four kinds of matrix when they are saved (400 `invalid_access` with `rule`): edit or delete
-`anyone` (R1, `anonymous_change`), add `own` (R2), `own` anywhere with add `anyone` (R3), and edit or
-delete wider than read (R4); 161 of the 625 matrices are valid. Visitors never send SQL on a database
-with a preset: pages use `GET/POST .../sqlite/{name}/tables/{table}/rows` (list with `where.{col}=`
-equality filters, at most three, plus order, desc, limit, after) and `GET/PATCH/DELETE
-/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`; the server builds every statement, `own` edits and deletes carry
-`visitor_id = caller` in the statement (another person's row answers 404), and `id`, `visitor_id`,
-`created_at` and `updated_at` are the server's. A KV or file `PUT` is an add or an edit by whether the
-key or path exists, decided by the server; an edit keeps the original author. Visitors see `mine`
-per entry instead of other people's `visitor_id`. A trigger or foreign-key action (`ON DELETE
-CASCADE`) that would write another table refuses the page's change. Foreign keys must point at a row
-the visitor may read under the parent table's read value. **The owner on their own site (D1):** the
-site's owner signed in through visitor sign-in on one of the site's own addresses (site host, family
-address or own domain; not the person host) gets owner rights for storage data only: reads every
-row, key and file, and edits and deletes where the value is `owner`, `own` or `signed-in` (never
-`nobody`). Settings, deploys, domains, passcodes, named viewers, keys, versions and deleting the site
-stay with the owner's key or connector. `GET /v1/sites/{sitename}/me` answers `site_owner: true`
-there. A page the owner opens while signed in gets `Content-Security-Policy: frame-ancestors 'self'`
-and `X-Frame-Options: SAMEORIGIN`, so a sibling site cannot frame it (clickjacking); every page
-answer carries `Vary: Cookie`; other visitors' pages are unchanged. auth.js sends `X-SH-Framed: 1`
-on a page framed by another origin (custom domains and families, whose pages nginx serves), and
-such a request, or one from a preview of an earlier version, never gets owner rights. The first preset saved on a legacy database that pages wrote with
-SQL clears every `visitor_id` in it, so a forged id never becomes someone's own row; an edit or
-delete that would change more than its one row (a same-table cascade) is refused for pages.
-Per-table rules match table names case-insensitively, and a save warns about rules for tables
-that do not exist yet; a new table on a wider default gets a note from the schema route. Resources saved before presets keep their rules (`preset: legacy` when the new model would
-refuse them: write `anyone` with full, or a full-mode SQLite database pages still query with SQL)
-until the owner saves a policy; the older `read`, `write`, `write_mode` fields are still accepted and
-translated. Browser helpers: `SH.storage.sqlite(db).table(t).list/get/add/edit/delete`,
-`SH.storage.toObjects`, KV and files `delete`. Recipes per preset plus `admin` (an owner page that
-lists all orders and sets a status). Migration `zd-storage-access-presets.sql`. **Simple Hack
-(2026-10-10):** team sites and custom event websites use the same presets and routes, under Hack's
-own gates (team key on its own site only, membership, submission deadline, ended event,
-take-downs) and its 1,000,000-byte pool. Owner there: the team key or the connector with the team
-selected, or the organiser routes (`/v1/hack/events/{slug}/website/storage/...`, now with `PATCH`
-for row edits; `hack_event_storage_*`); on the site, an approved member of the team signed in on
-the team site while the team may still change it, or an organiser signed in on the event website
-until the event ends (`db.HackSiteOwnerOnSite`), with the D1 limits and frame guard. Team keys
-reach `GET/PATCH/DELETE .../rows/{id}`; changes stop at the deadline like every team change.
-`get_page_recipe` (team connections) and `hack_get_page_recipe` (the personal Hack connection, so
-organisers have it without selecting a team) return the recipes with a note on who the owner is on
-Hack. Tests
-`h/hack_storage_presets_test.go`. Source:
-`internal/handler/site_storage_access.go`, `site_storage_table.go`; tests
-`h/site_storage_presets_test.go`. Design: `docs/designs/storage-access-presets.md`.
+**Row rules and file-bucket access (re-architecture decision 19).** <a id="storage-presets"></a>
+An owner saves a version-1 policy set on a SQLite or key-value resource, and may
+replace the default set for each SQLite table. Policies have a command (`read`,
+`add`, `edit`, `delete`, `all`), `using` for stored rows, `check` for written
+rows, and optional `restrictive: true`. Edit checks inherit using when absent.
+Permissive policies combine with OR and restrictive policies with AND; without an applicable permissive policy,
+access is denied. Owner tools bypass rules. Owner-on-site
+uses `auth.role == "owner"` and has saved-data rights only, on its own host,
+never from a framed page or an old-version preview. It cannot configure the site.
 
-**Comments preset: posting without sign-in, spam-checked (2026-10-14; owner decision, INTENT.md).** <a id="storage-comments"></a>
-An eighth preset, `comments` (anyone / `checked` / owner / owner), for guestbooks, comments,
-reviews and Q&A that anyone may post without signing in. `checked` is a new add value: anyone who
-passes Cloudflare Turnstile (only on add; never with `own`; kv and sqlite, not files). Offered only
-when `TURNSTILE_SITE_KEY` and a secret (`TURNSTILE_SECRET` or `TURNSTILE_SECRET_FILE`) are set;
-otherwise `storage_set_resource` answers 400 `spam_check_unavailable` (Simple Hack and self-hosted
-boxes by default), and the connector leaves it out too (2026-10-15): `storage_set_resource` and
-`storage_sql_schema` drop `comments`, `checked` and `approve_first`, `get_page_recipe` answers topics
-comments and guestbook with a pointer to `wall`, and the server instructions send guestbooks to `wall`.
-The small-box `compose.yaml` passes `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` from `.env`, and
-`install.sh` keeps both on a re-run; the steps are in `docs/advanced/saved-data.md`. The widget runs in a frame served from the app's own address
-(`GET /v1/turnstile/frame`, 404 elsewhere, `frame-ancestors *`, the only page whose CSP allows
-challenges.cloudflare.com), because site hosts and custom domains are too many for one widget.
-`auth.js` opens it when a KV `set` or a row `add` answers 403 `spam_check_required`, talks to it only
-through that frame's window and the app origin, and resends the save with the token in
-`X-SH-Turnstile`. The server checks the token with siteverify before taking any lock: `success`,
-action `sh-post`, hostname = the app's own, `cdata` = a hash of the request host and the resource,
-`challenge_ts` under 300 s, at most 2048 characters, single use (a local spent-token cache as well as
-Cloudflare's); any failure is 403 `spam_check_failed`, a timeout or unreachable Cloudflare 403
-`spam_check_unavailable`. The visitor's IP is not sent. The owner on their own site posts without
-the check. A checked post is at most `SPAM_CHECKED_POST_MAX_BYTES` (4000, 413 `post_too_large`) with at
-most `SPAM_CHECKED_POST_MAX_LINKS` (2, 400 `too_many_links`); `RATE_LIMIT_SPAM_CHECKED_IP` (10 per 30 s
-refill, per address) and `RATE_LIMIT_SPAM_CHECKED_SITE` (60, per site) apply on top of the storage
-limits. `approve_first: true` (SQLite only, needs a checked add) holds posts: the server adds
-`approved_at TEXT` to those tables (existing rows count as approved), visitors list, get, edit,
-delete and reference only rows with `approved_at` set, a visitor's add always stores it empty, and
-the owner approves with `UPDATE ... SET approved_at = datetime('now')` (the owner signed in on the
-site sees and posts approved). Recipe `comments` (alias `guestbook`; refused on Simple Hack, which
-points to `wall`). The dashboard's storage panel offers `comments` only where the check is on
-(`spamCheck` in the page data), with a "Hold new posts until you approve them" box on SQLite;
-leaving the preset there turns `approve_first` off. Simple Hack's connector tools
-(`storage_set_resource`, `storage_sql_schema` and their `hack_event_` twins) leave out `comments`,
-`checked` and `approve_first` (PARITY.md says why). Migration `ze-spam-checked-posts.sql`. Source:
-`internal/handler/turnstile.go`; tests `h/turnstile_test.go` (siteverify cases, preset policy,
-approve-first, frame, and the postMessage checks under node,
-`internal/handler/testdata/turnstile_harness.js`).
+For each person's records, read `visitor_id == auth.id || auth.role == "owner"`,
+add `auth.signed_in`, and owner-only edit/delete. A signed-in rule alone shares
+rows. Every permissive edit/delete/all using alternative must positively require
+sign-in, author or owner. Edit/delete also require stored-row read visibility;
+failed written-row checks roll back. Hidden and missing rows answer identically.
+Lists filter before paging and foreign-key parents must be readable under the
+parent's set. Pages use fixed table routes and auth.js helpers, never raw SQL.
+The server assigns IDs and stamps identity/timestamps. Visitor-AI edits/deletes
+remain limited to their author's rows. Identity-dependent permissive policies
+refuse suspended accounts; permissive `true` still grants public access.
+
+A SQLite table set replaces the default, not combines with it. Omit `tables`
+to retain existing sets; `{}` removes them. Rules cannot mix with preset fields
+in the same save. Invalid stored rules fail closed for visitors while owner
+tools can repair them. The language, limits, save semantics and disclosures are
+in `docs/designs/storage-rules.md`. A global UNIQUE conflict can reveal a hidden
+row; a KV write permitted to attempt an add can reveal an existing key through
+`key_exists`. KV edits keep the original author. The owner's push rule still
+grants its chosen column to that author regardless of row-read rules.
+
+File buckets keep the access matrix and presets: `public`, `inbox`, `wall`,
+`records`, `personal`, `board`, `private`, with single-action overrides. Each
+of read/add/edit/delete is `nobody`, `owner`, `own`, `signed-in` or `anyone`.
+File rules are not accepted; `comments`/checked posting is not a file choice.
+Unconverted SQLite/KV resources retain their presets until the hard switch,
+labelled not converted in the Storage panel. File presets remain afterwards.
+Historical preset design: `docs/designs/storage-access-presets.md`.
+
+On Simple Hack these rules sit under the existing team scope, membership,
+stage, deadline, offline/suspension and take-down gates and 1,000,000-byte pool.
+Trusted bindings add `auth.team`, `auth.teams`, `auth.organiser`, `event.team`,
+`event.stage` and `event.before_deadline`; site data never supplies them. On a
+team site owner-on-site means an approved teammate while the team may still
+change it; on an event website it means an organiser until the event ends.
+Team tools use `storage_*`; organisers use `hack_event_storage_*`.
+
+**Spam-checked comments and approval (owner decision, 2026-10-14).** <a id="storage-comments"></a>
+An add check can use `auth.checked` only when the install has Turnstile
+configured. auth.js opens the app-origin frame and resends with a one-time
+token. Verification happens before locks and never sends the visitor's IP.
+Checked posts retain the size, link and rate limits; without the configured
+check the binding is undeclared and the save is refused. Recipe topics
+`comments` and `guestbook` retain their names; use signed-in posting where
+spam checking is unavailable.
+
+The approval stamp applies when the effective set references TEXT
+`approved_at`. Rules saves add that column when needed. Visitor adds stamp
+NULL; owner-on-site and owner tools stamp the time (tools may supply a value).
+Only these owner paths may edit it. A restrictive read of
+`auth.role == "owner" || approved_at is not null` hides held rows even from
+the author. An unreferenced leftover column is ordinary editable data.
+Source: `internal/handler/turnstile.go`, `internal/app/storage` and
+`host/storage/rules`.
+
+Routes: `/v1/turnstile/frame`.
 
 **Schema route (2026-10-10).** `CREATE ... IF NOT EXISTS` for a table, view or trigger that already exists is accepted by `POST .../storage/sqlite/{name}/schema` as a no-op (200, no change), so the owner setup in a recipe can be rerun; a rerun `CREATE INDEX IF NOT EXISTS` on an existing index still answers 403. <a id="storage-schema"></a>
 
 **Page recipes (2026-10-10).** `get_page_recipe` (connector, read-only) and `GET /recipes/{topic}.md` <a id="storage-recipes"></a>
 (public, `GET /recipes/{topic}` with or without a `.md` suffix, same text with a placeholder site name) return the owner setup (`storage_*` calls) and a
-complete page for each everyday job and each storage preset: `booking` (a booking or reservation: the
+complete page for each everyday job, with row rules for SQLite/KV and presets for files: `booking` (a booking or reservation: the
 customer signs in when they book and sees their bookings and status; the owner confirms; added
 2026-10-10 with `portal`, a private page per client opened to that client's email, and the aliases
 `reservation`, `appointment`, `quote`, `waitlist`, `contact`, `menu`), `public` (a menu the owner keeps), `inbox` (a form only the
@@ -3039,16 +3012,14 @@ WHERE id = 12`, then `storage_visitor_emails`. Hosted and small box; not Simple 
 Routes: `/v1/sites/{sitename}/storage/visitors`.
 
 **Owner adds a row for a signed-in visitor (SIM-358, 2026-11-06; review fixes <a id="storage-owner-for-visitor"></a>
-2026-11-06).** On a SQLite table whose preset reads `own` (`records`, `personal`) — checked on the
-table's actual matrix, never on whether a column happens to exist, so `for` is refused
-(403 `for_requires_own`) on `public`, `inbox`, `wall`, `comments`, `board` or `private`, where it
-would otherwise make a row visible, or attributed, beyond the one visitor it names — the owner may
-add a row on behalf of one already-signed-in visitor: the row's server-owned `visitor_id` is set to
-that visitor, so only that visitor (and the owner) sees it, exactly as if they had added it
-themselves — same column, same presets, no schema change for anyone who does not use this.
-Everything else about presets is unchanged, and under `records` the visitor can still read but never
-edit or delete the owner's row; under `personal` they can (same as their own rows; `written_by` is
-protected from a PATCH either way, by owner or visitor). The visitor must have a visitor identity on
+2026-11-06).** On a SQLite table whose permissive read alternatives require the author
+or owner, with at least one author alternative, the owner may add a row for an
+already-signed-in visitor. This is checked on the effective rules, not on the
+presence of a column; broader read rules give `for_requires_own`. The server
+stamps `visitor_id` for that person and `written_by: "owner"`, so their reads
+can distinguish it from their own write. The table's remaining rules decide
+whether that visitor may edit or delete it.
+The visitor must have a visitor identity on
 that site already (signed in at least once, recorded by the server, never taken from a table a raw
 owner SQL statement could have written); there is no pre-sign-in email binding, and a request naming
 anyone else answers 404 `visitor_unknown` (or 400 `visitor_email_ambiguous` for an email more than
@@ -3064,7 +3035,7 @@ owner-on-site add with no `for` still does, unchanged.
 
 `written_by` is added lazily, under the site's write lock, the first time a table is used this way
 — an existing `records`/`personal` table works on its very first `for` add, with no need to resave
-its preset — and the add is refused (409 `written_by_blocked`) rather than risk it, if a trigger or
+its access rules — and the add is refused (409 `written_by_blocked`) rather than risk it, if a trigger or
 view's stored SQL appears to depend on the table (a conservative name match, not true dependency
 analysis: a false positive only means removing or recreating that trigger or view first).
 `storage_sql_execute` and the other raw-SQL routes are the owner's separate, pre-existing,
@@ -3077,9 +3048,8 @@ on purpose, this ticket does not add SQL parsing to try). The `written_by` guara
 marked `written_by` "owner" if and only if the owner added it on someone's behalf — holds for rows
 added through the table routes, `auth.js`, and `for`, the three paths below; the owner's raw SQL
 console remains exactly as unrestricted on server columns as it already was, including `visitor_id`
-and, through a positional `INSERT`, `written_by` too. Separately: changing a table's preset later
-from `records`/`personal` to a wider read exposes an owner-added row the same as any other row on
-that table — expected, pre-existing behaviour of changing a preset, not specific to this feature.
+and, through a positional `INSERT`, `written_by` too. Separately: changing a table's rules later to a wider read exposes an owner-added row the same as any other row on
+that table — expected, pre-existing behaviour of changing access rules, not specific to this feature.
 
 Three paths, one app-service check (`ResolveOwnerFor`, `internal/app/storage/visitors.go`): the
 owner's REST key or connector token, and the owner signed in on the site's own address
@@ -3123,39 +3093,19 @@ shop orders, RSVPs and event sign-ups, bookings and appointments, applications (
 The worked example is orders with `order_changes` and a photos bucket; bookings
 use the same rules with `bookings` and `booking_changes` linked by `booking_id`.
 See `docs/designs/site-storage-primitives.md`.
-Add/own and order history are hosted / small box only, not Enterprise or Simple Hack.
-Simple Hack retains full-mode resource-wide policies.
+The same row routes work on Simple Hack under its own scope and write gates.
 
-`write_mode` is `full` (the default, preserving existing resources) or `add`.
-`read` is `anyone`, `signed-in`, `owner`, or `own`; `write` remains `anyone`,
-`signed-in`, or `owner`. `own` requires a signed-in visitor, including for
-inserts, and combines with `write_mode=add` when visitors may write. An owner
-credential retains full control. With `add`, visitors create new KV keys and
-file paths only (409 `key_exists` / `file_exists` on a collision), and cannot
-delete them (403 `add_only`). `own` filters individual reads and lists by the
-stable signed-in visitor ID stored by the server; old unattributed objects stay
-owner-only under own reads. Anonymous own access returns 401 `sign_in_required`.
-
-On SQLite databases with a preset (and legacy ones in add or own mode), raw `/query` and `/execute` are
-owner-only (403 `fixed_routes_required` for visitors). Pages use
-`POST /sqlite/{name}/tables/{table}/rows` with a JSON object of column values,
-and `GET /sqlite/{name}/tables/{table}/rows?order=&desc=1&limit=&after=`.
-The server validates tables and columns against the real schema, quotes
-identifiers, binds values, and stamps `visitor_id` on visitor inserts. A supplied
-`visitor_id` is ignored and replaced with the session identity. Visitor inserts
-also stamp UTC `created_at` when present, ignoring client timestamps. Add-only
-inserts in own-read databases check declared SQLite foreign keys in the same
-transaction: one indexed lookup per parent verifies its visitor identity. Missing
-and other visitors’ parents both return 404 `invalid_reference`. Since presets, a parent must be
-readable by the visitor under its table's read value, so owner-created parents in an own table are
-refused too; keep a catalogue in a `public` table.
-In the orders example, customers append linked `order_changes` (change, note, cancel_request, details,
-created_at); the owner sees all history and updates status. The page reads orders
-and history separately; no `include=` option. Optional links must be all NULL; partial composite NULLs are refused. Own databases require `visitor_id TEXT` in every table;
-new tables created through the owner schema route receive it and an index.
-Choosing own reads on an existing database without it or with any earlier
-non-own rows is refused. Schema changes
-that remove it roll back. Own rows use one query with `WHERE visitor_id = ?`.
+Rules resources refuse visitor raw `/query` and `/execute` with
+`fixed_routes_required`; owner SQL remains available. The older access fields
+remain for unconverted resources until the switch. Pages use fixed rows routes;
+server-generated SQL applies predicates and validates the written row before
+commit. References use the parent table's read rules; missing and hidden
+parents both return `invalid_reference`. Optional composite references must be
+entirely NULL. Author-tracked tables gain indexed `visitor_id TEXT` through the
+owner schema route or rules save. Legacy untrusted identities require deliberate
+migration before granting per-person access. In the orders example, customers
+append linked history rows and the owner sets status; the page reads both
+separately, with no `include=` option.
 Reads return `{columns,rows,next_after}`; the opaque cursor includes the order
 value and rowid, so equal values paginate without skipping. Defaults are rowid
 ascending and 100 rows (maximum 500); fixed routes need a normal rowid table.
@@ -3208,7 +3158,7 @@ reports used, limit, remaining and KV/SQLite/files bytes. Phone-photo upload
 pages should resize/compress client-side before using raw-file storage.
 
 Route surface: `GET /v1/sites/{sitename}/storage/resources`, `PUT /v1/sites/{sitename}/storage/resources/{name}`, `DELETE /v1/sites/{sitename}/storage/resources/{name}`; `GET /v1/sites/{sitename}/storage/kv/{name}/keys`, `GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`; `POST /v1/sites/{sitename}/storage/sqlite/{name}/query`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/execute`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/schema`; `GET /v1/sites/{sitename}/storage/files/{name}/objects`, `GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `POST /v1/sites/{sitename}/storage/files/{name}/download-link`, and `GET /v1/storage-download`.
-Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/PATCH/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource's preset; unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
+Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/PATCH/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource's rules (file-bucket preset); unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
 
 The earlier immutable ChatGPT routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.5.zip` return 410 after withdrawal; `/simple-hack-skills-only-0.2.6.zip` serves the reviewed connector-only package. Historical bytes remain in Git history.
 

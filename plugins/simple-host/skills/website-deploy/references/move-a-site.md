@@ -63,7 +63,7 @@ so plainly: a few pages can be rebuilt by hand there; for a whole site, open a c
 
 ## 4. Replace what needed the old server (in the same build)
 
-Create each resource with its preset and tables before publishing the pages that use them, then
+Create each resource with its row rules (file-bucket preset) and tables before publishing the pages that use them, then
 keep the old form's markup and classes so it looks the same, and save with `SH.storage`.
 
 | Old part | Replacement | Topic |

@@ -23,20 +23,20 @@
  * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn() starts the hop.
  * SH.email.request(email) / .verify(email, code) remain for cached pages.
  *
- * STORAGE (the owner creates each resource and picks its preset first: public,
- * inbox, wall, comments, records, personal, board or private; SQLite per table):
+ * STORAGE (the owner creates resources first: row rules for SQLite and KV,
+ * file-bucket presets for uploads; SQLite tables may replace the default set):
  *   var orders = SH.storage.sqlite('shop').table('orders');
  *   await SH.requireSignIn(); var r = await orders.add({items: '...', total_cents: 700});
  *   var page = await orders.list({order: 'id', desc: 1, limit: 50, where: {status: 'received'}});
  *     // {columns, rows, items, next_after, mine}: items are the rows as objects,
  *     // and the result also reads like that array (page[0], page.length, page.forEach)
  *   await orders.get(12); await orders.edit(12, {status: 'shipped'}); await orders.delete(12);
- *   The server decides who may read, add, edit and delete from the preset;
- *   "own" means the visitor's own rows only. visitor_id, created_at and
+ *   The server enforces read/add/edit/delete rules; personal reads use
+ *   visitor_id == auth.id or auth.role == "owner". Sign-in alone shares rows. visitor_id, created_at and
  *   updated_at are stamped by the server. Visitors never send SQL.
  *   The site's owner, signed in on the site's own address, gets owner rights
  *   for saved data (an admin page); SH.me() then returns site_owner: true.
- *   There, on a table whose preset reads own (records, personal), the owner
+ *   There, on a table whose read rules require its author or owner, the owner
  *   may add a row for one signed-in visitor instead of themselves:
  *   orders.add({items: '...'}, {for: visitorId}); visitorId (or that
  *   person's sign-in email) comes from SH.storage.people() (also owner
@@ -45,14 +45,18 @@
  *   stamped written by the owner, never looking like the visitor's own.
  *   SH.storage.kv('settings').get('theme') / .set('theme', 'dark') / .keys() / .delete(key)
  *   SH.storage.files('gallery').put('cover.webp', file) / .get(path) / .url(path) / .list() / .delete(path)
- *   An "anyone" action works without sign-in; a signed-in action without a session
+ *   A true rule works without sign-in; an identity rule without a session
  *   rejects with code sign_in_required and fires the 'sh:signin-required' event.
- *   On a comments resource (add "checked": anyone posts without signing in once a
+ *   When an add check names auth.checked (posting without sign-in after a
  *   spam check passes), add() and set() run the check on their own: a small box
  *   shows Cloudflare Turnstile in a frame from the app's address, and the save is
  *   sent again with its one-time token. A refused check rejects with code
  *   spam_check_failed or spam_check_cancelled.
- *   query()/execute() are the owner's, or legacy full-mode databases saved before presets.
+ *   query()/execute() are owner tools on rules resources; visitors use table routes.
+ *   Approval stamps apply only when rules reference TEXT approved_at: visitors
+ *   add NULL, owners stamp time and only owners edit it. An unused leftover
+ *   column is ordinary data. Hidden/missing rows match; UNIQUE conflicts and
+ *   KV add attempts (key_exists) can still reveal existence.
  *
  * The shared address sites.<domain> offers no sign-in: on simple-host.app it is
  * view-only; event and self-hosted instances keep saves open there.

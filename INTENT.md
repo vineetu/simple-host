@@ -176,9 +176,28 @@ Saved data:
 
 - **19. Row rules replace the access presets:** rules in the style of Postgres row security on per-site databases and key-value data; nothing is allowed unless a rule allows it. File access keeps today's policies. Reason: one engine for every product, and what makes light products possible.
 - **20. Products add trusted facts to the rules.** Hack adds team member, organiser, stage and deadline from the server's own data, and Hack's own gates still apply whatever the rules say. Reason: the engine knows nothing about hackathons, and a rule cannot weaken a product's safety checks.
-- **21. Key-value data moves into its own small database per site,** keeping today's size limits, authorship, notifications, export and deletion, with a verification step and a way back. Reason: one store for saved data; backups cover the database and the files together.
+- **21. Key-value data moves into its own small database per namespace within each site,** keeping today's size limits, authorship, notifications, export and deletion, with a verification step and a way back. Reason: one store for saved data; backups cover the database and the files together.
 - **22. No sandbox for site databases:** limits inside the program and recovery from errors; visitors never send raw queries once the old route is retired. Owner's decision. Reason: a sandbox was more than the requirement needs.
 - **23. The presets and the older saved-data APIs retire on one date,** as two separate things, each with its own notice to the owners affected; our own sites convert first. Reason: one hard switch, as the owner asked.
+
+Implementation decisions for 19–23 (rules-track review, 2026-11-14):
+
+- **Language and clauses.** The grammar and two-valued, typed comparison semantics are in `docs/designs/storage-rules.md`. Permissive policies OR together, restrictive policies AND together; without an applicable permissive policy, access is denied. Missing edit check inherits using. Edit and delete require read visibility of the stored row, not of the edited row. Every permissive edit/delete/all using alternative must contain a positive identity guard; a guard only in check does not count.
+- **Approval stamp.** A table holds new posts only when its effective set names `approved_at` and the column is TEXT. Visitor adds store NULL; owner-on-site and owner tools stamp the current time (owner tools may supply a value). Only those owner paths may edit it. An unreferenced leftover column is ordinary data. Rules alone decide held-row visibility.
+- **Suspended accounts.** An identity-dependent permissive policy requires the active-account check; a suspended caller gets `account_suspended`. A permissive public rule such as `true` still grants what anyone may read, even when a restrictive policy mentions identity.
+- **Limits and recovery.** Saves are bounded to 256 KiB; expressions, lists, policies and composed predicates have the documented engine bounds. One SQLite slot per site is the default. Connection memory follows `ceil_MiB(3 MiB + clamp(D/4, 256 KiB, 2 MiB) + max(2D, 1 MiB))`, capped at the driver's 4096 MiB ceiling. D is database plus WAL for reads, and database plus remaining pooled write budget (capped at the site limit) for writes. This bounds SQLite allocation per connection, not the Go heap or the whole install. These are engineering guards, not the owner's whole-install performance targets.
+- **Move and maintenance.** Key-value data has one file per namespace; the cutover deletes its Postgres rows with the marker change. Postgres stays the JSON normalizer. The server holds a shared data-directory maintenance lock; data-changing commands need an exclusive lock and that install stopped, one install at a time at a quiet hour. `migrate-rules` is an operator command, documented for self-hosters and never offered as a site-owner tool.
+- **Older programs.** Deny-visitor fill columns deny all page callers, including owner-on-site, on an older program. An older program's subsequent resource save overwrites that fill and serves the supplied preset, leaving rules present; a rules-aware program then reports invalid state. The fill is only a safety net; the shared oldest-safe-program floor protects converted resources.
+- **Spam check and recipes.** `auth.checked` is not declared without a configured spam check and is usable only in add checks. Recipe topic names stay unchanged. File buckets keep their presets.
+
+Open-point dispositions (section 7 of the rules brief; defaults remain defaults until approved):
+
+- **Conversion scope, owner decision 2026-11-13.** “All sites under my account are our own sites”: R4-S2 includes all sites owned by `vineetu` on Host. Hack has test data only, so all Hack sites may convert in that step; R4-S4 needs no separate owner approval.
+- **Research metrics (proposed default).** Keep `kv_value_bytes` for the Postgres part until that path retires, with value-text bytes beside it; keep `kv_rows` and add `resources_rules`, `resources_rules_invalid`, `resources_preset`. The owner confirms research acceptability before cutover.
+- **Key order (proposed default).** Accept byte order after the move and identify any namespaces whose old ordering differs in the dry run.
+- **Dashboard and notice (pending).** R3-S7b proposes the Storage wording for the R4-S2 request. The owner sets the notice period and switch instant with the drafts; the default reminder is one week before the switch. No date is invented here.
+- **Notifications and key existence (brief defaults).** The owner's push rule grants its chosen column to the row's author regardless of row-read visibility; delivery and routing stay unchanged. A caller permitted to attempt a KV add can learn that a key exists through `key_exists`. A global UNIQUE conflict may reveal a hidden row. These existing disclosures are documented, not silently changed.
+
 
 Self-hosting and parity:
 

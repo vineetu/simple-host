@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Publish or update a site and its saved data on Simple Host (simple-host.app). Use when the person asks to put their files online, change an existing site, or configure forms and saved entries. Covers KV, SQLite, and files with access presets, visitor sign-in, domains, named viewers, versions, downloads, and visitor counts.
+description: Publish or update a site and its saved data on Simple Host (simple-host.app). Use when the person asks to put their files online, change an existing site, or configure forms and saved entries. Covers KV, SQLite, and files with row rules and file-bucket presets, visitor sign-in, domains, named viewers, versions, downloads, and visitor counts.
 ---
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md and internal/mcp/instructions.go. Keep in step. -->
@@ -16,11 +16,13 @@ ChatGPT and Codex list each tool separately. Call the named tool directly, using
 Call tools only for the work the person requested; a planning question alone does not authorize publication or storage changes.
 When the person asks to add their photos to a site, call `create_upload_link`. It shows a photo picker in the chat, or returns `photos_url` to give them; never ask them to convert, resize, or host photos elsewhere.
 
+Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. Read the website-deploy `references/storage.md` for row-rule syntax; file buckets keep presets.
+
 ## 1. Decide what to build
 
 People ask in a few words and never say who sees what. Pick the row, call `get_page_recipe` with
 its topic, run the recipe's setup calls, and build the whole thing: the page, the storage with its
-preset, sign-in only where the row says, and a line telling the owner how they see what comes in.
+rules, sign-in only where the row says, and a line telling the owner how they see what comes in.
 
 | They ask for | Topic | Who sees what |
 |---|---|---|
@@ -28,7 +30,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 | a quote request, contact or enquiry form, waitlist, sign-up, volunteer or job application, feedback | `inbox` | anyone sends without signing in; only the owner reads, from chat |
 | a menu, prices, opening hours, a stock list the owner changes | `public` | everyone reads; the owner changes it from chat with `storage_put_kv`, no republish |
 | a client portal, client documents, a private page for one client | `portal` | one site per client, opened only to that client's email |
-| a guestbook, comments, reviews or questions anyone may post without signing in | `comments` | everyone reads; anyone posts after a spam check (auth.js runs it); the owner removes posts, or approves each one first (`approve_first`) |
+| a guestbook, comments, reviews or questions anyone may post without signing in | `comments` | everyone reads; anyone posts after a spam check (auth.js runs it); the owner removes posts, or approves each one first (rules referencing `approved_at`) |
 | reviews, comments, community posts by people who sign in | `wall` | everyone reads; people sign in to post and can take back their own |
 | photos visitors share | `gallery` | everyone sees; people sign in to upload |
 | a shared list (shifts, tasks, a sign-up sheet) | `board` | people sign in and edit it together |
@@ -70,7 +72,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 ## 3. Pages that save or sign visitors in
 
 Follow the recipe's page code rather than inventing your own. Create each resource
-(`storage_set_resource` with its preset) and its tables (`storage_sql_schema`) before publishing
+(`storage_set_resource` with its rules) and its tables (`storage_sql_schema`) before publishing
 the page that uses them. Then the page:
 
 ```html
@@ -110,7 +112,7 @@ the page that uses them. Then the page:
 |---|---|
 | Every tool by job, versions and previews, rollback, rename, offline, delete and restore, exports, visitor numbers | `references/operations.md` |
 | Publishing and changing a site in full, what is public, the two sign-ins, design guidance | `references/publishing.md` |
-| Custom access matrices, presets per table, KV and files details, the page helper, each person's records | `references/storage.md` |
+| Row rules, per-table sets, file-bucket presets, the page helper, each person's records | `references/storage.md` |
 | Home page, showcase and bio | `references/home-page.md` |
 | File, site, account and storage limits, keeping files small | `references/limits.md` |
 | Framework builds (Vite, Next.js, Astro) or a local folder | `references/frameworks-and-files.md` |

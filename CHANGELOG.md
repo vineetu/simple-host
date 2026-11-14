@@ -4,6 +4,8 @@
 
 - R2-S5b: Add transactional `kv-move --rollback`, preserving writes since cutover, and a scratch rehearsal covering cutover, rollback, paired-backup restore and read throughput. Production cutover remains separate; keep `KV_STORE=postgres`.
 
+2026-11-14: Document row rules for SQLite and key-value data, including per-table policies, approval stamps and privacy limits. Update website skills and the Storage guide; file buckets keep presets. Prepared on the R3-S7a branch for activation with R4-S2.
+
 2026-11-14: Add optional row rules to the storage API and tool schemas, with structured errors and a 256 KiB save limit (R2-S3). The API reference includes these fields; rules saves remain off by default.
 
 2026-11-14: Add service validation and saving for owner-written row rules, behind `STORAGE_RULES=off` by default (R2-S2). API support follows separately.

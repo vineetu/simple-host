@@ -38,7 +38,7 @@ Use the signed-in Simple Host connector when available. If it is disconnected, a
 
 Website Deploy hosts static websites on simple-host.app. There is no server-side
 application execution. New Simple Host sites can add owner-declared JSON KV,
-SQLite and file resources with independent resource-wide read/write policies;
+SQLite resources with row rules, and file resources with access presets;
 the page calls them through the hosted REST API. Existing shared state, lists
 and declared kinds remain available for sites that use their built-in behavior.
 KV and SQLite share 10,000,000 bytes; files have a separate 10 MB allowance per website;
@@ -102,7 +102,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.112`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.114`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -140,7 +140,7 @@ Typical combinations:
 - **Framework project:** frameworks → packaging and
   validation.
 - **New Simple Host site where visitors save something:** choose KV, SQLite or
-  files, define the resource's read/write policy, then read `references/storage.md`
+  files, define SQLite/KV row rules or a file-bucket preset, then read `references/storage.md`
   before writing the page.
 - **Existing site using declared data:** keep its kind and built-in semantics;
   read `references/backend.md` before changing it.
@@ -203,11 +203,13 @@ the site itself. GitHub Actions recipe:
 
 ## Saving from a page
 
-KV, SQLite and file resources have separate `read` and `write` policies. A
-new resource defaults to owner-only access. `anyone` permits anonymous access,
-`signed-in` requires a visitor signed in on this site's own address, and `owner`
-requires its owner. A site passcode may also gate visitor access. These policies
-are shared unless `read:own` is chosen; add/own visitors use fixed row routes. Read `references/storage.md` for
+SQLite and KV use row rules for read, add, edit and delete. For personal data,
+read `visitor_id == auth.id || auth.role == "owner"`; `auth.signed_in` alone
+shares access among signed-in visitors. Pages use fixed row routes. File buckets
+keep their access presets. A resource may inherit the site's passcode gate.
+Follow the description of `storage_set_resource` that this server gives; if it
+does not accept `rules`, the server is older and its description says what to
+send. Read `references/storage.md` for
 the connector and REST paths. Older state and declared-data routes keep their
 existing sign-in and privacy rules; see `references/backend.md` (existing sites only).
 

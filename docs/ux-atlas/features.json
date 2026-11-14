@@ -172,7 +172,7 @@
     "role": "organiser",
     "area": "website",
     "name": "Event website's own saved data",
-    "what": "The KV/SQLite/file backend behind a custom event website (same mechanism as any Simple Host site), reachable only via API/AI app, not a dedicated manage panel.",
+    "what": "Saved data behind a custom event website: KV and SQLite use row rules, file buckets keep presets. Trusted organiser, team, stage and deadline facts never weaken event gates. API/AI app only, not a dedicated manage panel.",
     "stages": "any (read always; writes blocked once archived)",
     "today_location": "API / AI app only",
     "api": "GET/PUT/POST/PATCH/DELETE /v1/hack/events/{slug}/website/storage/{rest}",

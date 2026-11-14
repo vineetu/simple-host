@@ -645,7 +645,7 @@
 			</li>
 		</ul>
 	</div>
-	<div id="tab-panel-0-0" aria-labelledby="tab-0-0" role="tabpanel" tabindex="0">“Add a private notes table where each visitor can read and edit only their own notes.”</div><div id="tab-panel-0-1" aria-labelledby="tab-0-1" role="tabpanel" tabindex="0" hidden>Send <code>PUT /v1/sites/{sitename}/storage/resources/notes</code> with <code>{"kind":"sqlite","preset":"personal"}</code>. Use <code>kv</code> or <code>files</code> for those resource kinds.</div>
+	<div id="tab-panel-0-0" aria-labelledby="tab-0-0" role="tabpanel" tabindex="0">“Add a private notes table where each visitor can read and edit only their own notes.”</div><div id="tab-panel-0-1" aria-labelledby="tab-0-1" role="tabpanel" tabindex="0" hidden>Send <code>PUT /v1/sites/{sitename}/storage/resources/notes</code> with the body below. Use <code>kv</code> for key-value data; file buckets keep presets such as <code>wall</code> for visitor photos.</div>
 	<starlight-tabs-restore class="astro-scn3uvmv"></starlight-tabs-restore>
 </starlight-tabs>
 
@@ -657,9 +657,13 @@
 <p>For SQLite, send owner DDL to <code>POST /v1/sites/{sitename}/storage/sqlite/notes/schema</code>: <code>{"sql":"CREATE TABLE notes (id INTEGER PRIMARY KEY, visitor_id TEXT, text TEXT)"}</code>.</p>
 </li>
 <li>
-<p>Choose <code>private</code> for owner-only data, <code>inbox</code> for submissions, <code>public</code> for owner-written public data, or <code>personal</code> for each visitor’s editable records. Confirm access before saving a new preset.</p>
+<p>Review who can read and change data before saving. Permissive policies combine with OR; restrictive policies narrow them with AND. No applicable permissive policy means no access. A table’s own set replaces the default.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="json"><code><span class="line"><span style="color:#E1E4E8">{</span><span style="color:#79B8FF">"kind"</span><span style="color:#E1E4E8">:</span><span style="color:#9ECBFF">"sqlite"</span><span style="color:#E1E4E8">,</span><span style="color:#79B8FF">"rules"</span><span style="color:#E1E4E8">:{</span><span style="color:#79B8FF">"version"</span><span style="color:#E1E4E8">:</span><span style="color:#79B8FF">1</span><span style="color:#E1E4E8">,</span><span style="color:#79B8FF">"policies"</span><span style="color:#E1E4E8">:[</span></span>
+<span class="line"><span style="color:#E1E4E8">  {</span><span style="color:#79B8FF">"command"</span><span style="color:#E1E4E8">:</span><span style="color:#9ECBFF">"all"</span><span style="color:#E1E4E8">,</span><span style="color:#79B8FF">"using"</span><span style="color:#E1E4E8">:</span><span style="color:#9ECBFF">"visitor_id == auth.id || auth.role == </span><span style="color:#79B8FF">\"</span><span style="color:#9ECBFF">owner</span><span style="color:#79B8FF">\"</span><span style="color:#9ECBFF">"</span><span style="color:#E1E4E8">,</span><span style="color:#79B8FF">"check"</span><span style="color:#E1E4E8">:</span><span style="color:#9ECBFF">"auth.signed_in"</span><span style="color:#E1E4E8">}</span></span>
+<span class="line"><span style="color:#E1E4E8">]}}</span></span></code></pre>
 </li>
 </ol>
+<p>Follow this server’s <code>storage_set_resource</code> description: if it does not accept <code>rules</code>, the server is older and its description says what to send. KV namespaces still in Postgres cannot accept rules. Existing presets work until the announced switch; file buckets keep them afterwards. Saved rules remain enforced if accepting new rules is turned off.</p>
 <h2 id="write-to-storage-from-your-own-code">Write to storage from your own code</h2>
 <a class="what-link" href="/features.html#storage-rows" data-pagefind-ignore>What this is</a>
 <ol role="list" class="sl-steps">
@@ -669,10 +673,11 @@
 <li>Before a larger write, read <code>GET /v1/sites/{sitename}/storage/usage</code>.</li>
 </ol>
 <details><summary>SQLite inserts and references</summary><p>Use entirely <code>NULL</code> optional composite references, never partly <code>NULL</code>. Keep <code>visitor_id TEXT</code> on parents. Treat unreadable and missing parents alike as <code>invalid_reference</code>. Remove cross-table triggers and cascades from tables visitors edit or delete.</p></details>
-<details><summary>Existing resources and migration</summary><p>Omit <code>write_mode</code> to preserve it. Empty or migrate legacy full-mode SQLite tables with owner tools before switching to own access. Keep unattributed legacy rows outside visitor-owned views.</p></details>
+<details><summary>Existing resources and migration</summary><p>Review legacy identities before migration. Keep unattributed rows outside visitor-owned views. Omit <code>tables</code> to keep existing table sets, or send <code>{}</code> to remove them. Do not mix rules and preset fields in one save.</p></details>
 <details><summary>Rate limits and execution</summary><p>Retry <code>storage_busy</code> after a short wait; honor <code>Retry-After</code> when supplied. Check <code>SITE_STORAGE_*</code> execution settings in the <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">settings reference</a>. Keep tables accessed by visitors to at most 100 total columns, including server-managed columns. Limit query results.</p></details>
 <details><summary>Quotas and names</summary><p>Limit file paths to 16 segments; check bucket object allowance, including empty files. Use NFC names for new writes; keep exact legacy names for reads and deletion. Handle <code>sqlite_full</code> separately from <code>site_full</code>.</p></details>
-<details><summary>Global uniqueness and passcodes</summary><p>Use random identifiers or visitor-specific namespaces for global UNIQUE columns, KV keys, and file paths. Use table routes for visitor SQLite access, not raw SQL. Set <code>site_passcode: "off"</code> only when the owner chooses public resources without unlocking.</p></details>
+<details><summary>Global uniqueness and passcodes</summary><p>A UNIQUE conflict can reveal a hidden row; a KV add attempt can reveal an existing key through <code>key_exists</code>. Use opaque random identifiers for global UNIQUE columns, KV keys, and file paths. Use table routes for visitor SQLite access, not raw SQL. Set <code>site_passcode: "off"</code> only when the owner chooses public resources without unlocking.</p></details>
+<p>A table holds new posts only when its effective rules name TEXT <code>approved_at</code>. Visitor adds store NULL; owner adds stamp the time. Only the owner may edit it to approve. A leftover column no rule names is ordinary data. Edit and delete also require read visibility of the stored row.</p>
 <h2 id="errors-you-may-see">Errors you may see</h2>
 <table>
 <thead>
@@ -697,6 +702,21 @@
 <td><code>row_conflict</code> (409)</td>
 <td>Row cannot satisfy a table constraint</td>
 <td>Check required fields, unique values, and check constraints</td>
+</tr>
+<tr>
+<td><code>invalid_rules</code> (400)</td>
+<td>Rules save is invalid</td>
+<td>Use <code>rule_error</code> clause and position to repair it</td>
+</tr>
+<tr>
+<td><code>rules_invalid</code> (403)</td>
+<td>Stored rules no longer compile</td>
+<td>Repair the schema or rules with owner tools</td>
+</tr>
+<tr>
+<td><code>rules_unavailable</code> (400)</td>
+<td>Server rules off or KV still in Postgres</td>
+<td>Follow this server’s tool description</td>
 </tr>
 <tr>
 <td><code>storage_busy</code> (503)</td>

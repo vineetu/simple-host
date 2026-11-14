@@ -12,7 +12,7 @@ Example prompt for "save drafts in localStorage":
 
 Example prompt for a guestbook on a **new** resource (anyone reads and posts without signing in, after a spam check; this site also has a custom domain, so `SH_CONFIG` is required):
 
-> Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). Create a `comments` SQLite resource with `storage_set_resource`: `{"kind":"sqlite","preset":"comments"}` (add `"approve_first": true` if the owner wants to approve each post first), then `storage_sql_schema` to create `CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT)`. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, save with `SH.storage.sqlite('comments').table('entries').add({name, message})` (auth.js runs the spam check itself; no sign-in), and show the messages on the same page with `.list({order:'id', desc:1, limit:50})`, rendering visitor text with `textContent`. On a non-2xx keep the form and show "Not posted". Relative asset links only. If the server answers `spam_check_unavailable`, use preset `wall` instead, where people sign in to post (`await SH.requireSignIn()` before the add) and can take back their own. `get_page_recipe` topic `comments` has the complete page.
+> Add a guestbook to this site (custom domain `guests.example.com`, site `guestbook`). Use recipe topic `comments` and the current server’s `storage_set_resource` description. Configure public read and checked add rules; for held posts add the restrictive approval read described in the website-deploy storage reference. If the spam check is unavailable, use signed-in add and recipe `wall`. Create the table through `storage_sql_schema`. Load auth.js with `window.SH_CONFIG = {site: "guestbook"}` before the tag. Use `table().add()` and `.list()`, render with `textContent`, and preserve the form on failure. Follow the server description on an older server without rules.
 
 Example prompt for **maintaining an existing** declared-data guestbook (existing sites only — this site already has entries saved as `SH.data('entries', 'entries')`):
 
@@ -95,7 +95,7 @@ Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, 
 
 Use this pattern when someone asks for any of these. Choose resource and table
 names that fit the domain (`bookings`, `applications`, and so on), keeping
-the `records` preset, a status column and a
+author-or-owner read rules, a status column and a
 linked change table in the same database. Declare its foreign key so a person's
 change rows can reference only their own record. This pattern is for hosted
 Simple Host and small-box installs.
@@ -106,7 +106,12 @@ Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body
 (or owner PUT):
 
 ```json
-{"kind":"sqlite","preset":"records","site_passcode":"inherit"}
+{"kind":"sqlite","rules":{"version":1,"policies":[
+  {"command":"read","using":"visitor_id == auth.id || auth.role == \"owner\""},
+  {"command":"add","check":"auth.signed_in"},
+  {"command":"edit","using":"auth.role == \"owner\""},
+  {"command":"delete","using":"auth.role == \"owner\""}
+]},"site_passcode":"inherit"}
 ```
 
 Through owner `storage_sql_schema`, create these tables in two calls in that
@@ -128,7 +133,7 @@ CREATE TABLE order_changes (
 )
 ```
 
-Both tables use the resource's `records` preset (add signed-in, read own, edit and delete owner). The server
+Both tables inherit its rules: signed-in add, author-or-owner read, owner edit/delete. The server
 adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
 ignores client-sent identity and timestamps. A declared foreign key checks that
 the referenced order exists and belongs to the same customer, in the insert
@@ -172,7 +177,7 @@ trusted owner dashboard/connector, or an admin page (`get_page_recipe` topic
 `admin`) where the owner, signed in on the site, lists every order and sets a
 status with `table('orders').edit(id, {status})`; never put an owner key in a page.
 
-Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
+File buckets keep presets. Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
 view (authors can remove their own), or `records` for photos only the sender and
 the shop owner see:
 

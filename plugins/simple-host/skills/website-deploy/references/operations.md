@@ -186,7 +186,7 @@ lists only the drafts that have never been live. Discard a draft nobody will use
 (it is final, so confirm with the person first; connector: `discard_version`):
 
 ```bash
-curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.112"
+curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.114"
 ```
 
 200 answers `discarded_version` and `active_version`; 404 `version_not_found`; 409
@@ -199,9 +199,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.112"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.114"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.112"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.114"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -429,7 +429,7 @@ the site's own address, and every save from a page needs a signed-in visitor
 The connector no longer offers tools for any of this (no `declare_data`,
 `list_data`, `set_collection_privacy`); use the REST routes below with the
 owner's API key, only to maintain an existing site that already has one. For a
-new site, use a SQLite resource with `read:"own"` or `read:"owner"` instead —
+new site, use a SQLite resource with author-or-owner or owner-only read rules —
 see `references/storage.md` and the `website-deploy` skill's "Each person's
 records".
 
@@ -460,8 +460,9 @@ passcode above). There is no lock on a single page. If a user asks for a private
 site, offer named viewers (each person signs in with their own email) or the
 site passcode (one shared code), say plainly what each does, and do not suggest
 a workaround. Sign-in
-gates saving, not reading pages; a storage resource with `read:"own"` or
-`"owner"`, or, on an existing site, a private collection, is the exception.
+gates saving, not reading pages. SQLite/KV author-or-owner or owner-only read
+rules keep saved data private; file buckets keep their access presets. On an
+existing site, a private collection also restricts data reads.
 
 Hosted retention (2026-10-05): normally 4 latest versions, plus any older live one. Only accounts enabled by `KEEP_VERSIONS_SELF_SET` may use the per-site route or `set_keep_versions`; others receive 403 `keep_versions_fixed`, “Simple Host keeps your 4 latest versions”. `0` uses the account default (`KEEP_VERSIONS_OVERRIDES`), else the instance setting.
 

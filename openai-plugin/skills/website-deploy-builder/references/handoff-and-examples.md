@@ -79,7 +79,7 @@ Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, 
 
 Use this pattern when someone asks for any of these. Choose resource and table
 names that fit the domain (`bookings`, `applications`, and so on), keeping
-the `records` preset, a status column and a
+author-or-owner read rules, a status column and a
 linked change table in the same database. Declare its foreign key so a person's
 change rows can reference only their own record. This pattern is for hosted
 Simple Host and small-box installs.
@@ -90,7 +90,12 @@ Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body
 (or owner PUT):
 
 ```json
-{"kind":"sqlite","preset":"records","site_passcode":"inherit"}
+{"kind":"sqlite","rules":{"version":1,"policies":[
+  {"command":"read","using":"visitor_id == auth.id || auth.role == \"owner\""},
+  {"command":"add","check":"auth.signed_in"},
+  {"command":"edit","using":"auth.role == \"owner\""},
+  {"command":"delete","using":"auth.role == \"owner\""}
+]},"site_passcode":"inherit"}
 ```
 
 Through owner `storage_sql_schema`, create these tables in two calls in that
@@ -112,7 +117,7 @@ CREATE TABLE order_changes (
 )
 ```
 
-Both tables use the resource's `records` preset (add signed-in, read own, edit and delete owner). The server
+Both tables inherit its rules: signed-in add, author-or-owner read, owner edit/delete. The server
 adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
 ignores client-sent identity and timestamps. A declared foreign key checks that
 the referenced order exists and belongs to the same customer, in the insert

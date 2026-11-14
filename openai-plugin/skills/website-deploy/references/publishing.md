@@ -4,7 +4,7 @@ Moved here from SKILL.md unchanged. The tool list by job is in `references/opera
 
 ## Connecting Simple Host
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, bookings, reservations, RSVPs with a status, support requests and assignments, use the [Each person's records](storage.md#each-persons-records) pattern in `references/storage.md` with domain-specific tables, status and linked change rows; quote requests, contact forms, waitlists and sign-ups are `inbox`, sent without sign-in. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+For existing sites, keep the older saved-data APIs until an owner-directed migration. New sites use SQLite/KV row rules and file-bucket presets. Author-or-owner reads keep personal data private; sign-in alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged storage reference explains the language and examples.
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
@@ -94,9 +94,11 @@ site passcode according to its `site_passcode` setting.
 List on my profile (`set_visibility`): public = on, unlisted = off (default). It only controls the profile page.
 Never put secrets, keys or passwords in pages or data.
 
-Saved data is as public as its resource's read policy (see "Which storage for which job"
-above): `owner` is private to the owner, `own` is private to each signed-in visitor, `anyone`
-is public. The page that shows an owner-only resource is still a public page; the data behind
+SQLite/KV read rules decide who sees saved data: `auth.role == "owner"` is
+owner-only, `visitor_id == auth.id || auth.role == "owner"` is author-or-owner,
+and `true` is public. File buckets keep presets. Follow this server's
+`storage_set_resource` description; if it does not accept `rules`, the server is
+older and its description says what to send. The page that shows an owner-only resource is still a public page; the data behind
 it is what is private.
 
 Never ask visitors for payment details, ID numbers or health information, in any resource.

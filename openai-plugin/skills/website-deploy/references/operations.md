@@ -23,8 +23,8 @@ Moved here from SKILL.md unchanged.
 | A shorter address (optional) | `connect_domain` (short `<name>.simple-host.app`, or their own domain), `domain_status`, `remove_domain` |
 | Visitors | `site_analytics` (report the `person` numbers) |
 | Download a copy of a site | `export_site` (a link that works for 10 minutes; give it to the person) |
-| Exact page code for a storage job | `get_page_recipe` (a topic per job: `booking`, `inbox`, `public`, `portal`; per preset: `wall`, `comments`, `board`, `personal`, `private`, `records`; plus `admin` and `gallery`) |
-| New KV, SQLite or file resource and its preset | `storage_set_resource`, `storage_list_resources`, `storage_delete_resource`, `storage_get_usage` |
+| Exact page code for a storage job | `get_page_recipe` (a topic per job: `booking`, `inbox`, `public`, `portal`; other topics: `wall`, `comments`, `board`, `personal`, `private`, `records`; plus `admin` and `gallery`) |
+| New SQLite/KV row rules or a file-bucket preset | `storage_set_resource`, `storage_list_resources`, `storage_delete_resource`, `storage_get_usage` |
 | KV values | `storage_get_kv`, `storage_put_kv`, `storage_list_kv_keys`, `storage_delete_kv` |
 | SQLite tables and rows, as the owner | `storage_sql_schema`, `storage_sql_query`, `storage_sql_execute` |
 | Files | `storage_put_file`, `storage_list_file_objects`, `storage_file_download_link`, `storage_delete_file` |
@@ -33,11 +33,13 @@ To publish a new site use `create_site`; to change an existing site use `update_
 its files first). `create_site` never overwrites an existing site.
 
 For new saved data, first choose the site's own schema and whether a KV, SQLite or files
-resource fits. Configure each resource's independent whole-resource read and write policy
-with `storage_set_resource`. KV/SQLite share **10,000,000 bytes per website** and files have a separate **10 MB** allowance;
+resource fits. Save SQLite/KV row rules with `storage_set_resource`: for personal
+reads use `visitor_id == auth.id || auth.role == "owner"`, signed-in adds use
+`auth.signed_in`, and edit/delete may be owner-only. File buckets keep presets. KV/SQLite share **10,000,000 bytes per website** and files have a separate **10 MB** allowance;
 check `storage_get_usage` before large writes. A resource can inherit the site's passcode
-or deliberately bypass it. `signed-in` grants every signed-in visitor access to the whole
-resource; choose `read:own` with add-only writes for each person's records. Existing sites may
+or deliberately bypass it. `auth.signed_in` alone shares rows among signed-in visitors.
+Follow the description of `storage_set_resource` that this server gives; if it does not
+accept `rules`, the server is older and its description says what to send. Existing sites may
 still hold data from the older state, collection and declared-data APIs; those routes keep
 working but the connector no longer offers tools for them (see "Existing sites only" below).
 Read `references/storage.md` before wiring storage into a page. Compress phone photos in the
