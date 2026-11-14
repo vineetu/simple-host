@@ -256,6 +256,7 @@ var knobDocs = map[string]knobDoc{
 // strictOrder is StrictOrder for the security-sensitive switches and choices
 // (a test fails when one is missing or does not list exactly Allowed).
 var strictOrder = map[string][]string{
+	"STORAGE_RULES":           {"off", "on"},
 	"WRITE_AUTH_MODE":         {"on", "log", "off"},
 	"SAVED_DATA_DEFAULT_KIND": {"declare_first", "shared"},
 	"OIDC_INSECURE_ALLOWED":   {"false", "true"},
@@ -272,6 +273,7 @@ var zeroIsNever = map[string]bool{
 // that were settings before the knobs existed.
 func otherSettings() []Setting {
 	return []Setting{
+		{Name: "STORAGE_RULES", Group: "storage", Type: "enum", Default: "off", Allowed: []string{"off", "on"}, SmallBox: true, Security: true, Description: "Accept owner-written row rules for SQLite databases and moved key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it."},
 		{Name: "KV_STORE", Group: "storage", Type: "enum", Default: "postgres", Allowed: []string{"postgres", "sqlite"}, SmallBox: true, Description: "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values."},
 		{Name: "SITE_DOMAIN", Group: "server", Type: "string", Basic: true, SmallBox: true, InstallFlag: "--host",
 			Description: "The domain this server lives at, like hack.example.com. Unset, the server starts in setup mode and asks for one."},

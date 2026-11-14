@@ -74,6 +74,7 @@ metadata:
     helm.sh/chart: simple-hack-0.1.0
 data:
   KV_STORE: "postgres"
+  STORAGE_RULES: "off"
   SITE_STORAGE_SITE_INFLIGHT: "1"
   # The platform: the hackathon product on this hostname.
   SITE_DOMAIN: "hack.example.com"

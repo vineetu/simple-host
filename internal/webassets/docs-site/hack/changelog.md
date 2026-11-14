@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 14:** Add service validation and saving for owner-written row rules, behind `STORAGE_RULES=off` by default (R2-S2). API support follows separately.
+
 - **Nov 13:** Simple Host now offers only its three website skills. Its old hackathons page redirects home, and the organiser guide is no longer served there. Simple Hack keeps its pages and five skills (D2-S11).
 
 - **Nov 13:** Limit SQLite table-row work per site, with a short retry response when busy. Recover SQLite panics per request and preserve successful writes if cleanup panics (R1-S3a).

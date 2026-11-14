@@ -35,6 +35,42 @@ func readPredicate(t *testing.T, expr string, v Values) Predicate {
 	return p
 }
 
+func TestWorstCasePredicates(t *testing.T) {
+	p := compilePolicies(t, Policy{Command: CmdAll, Using: `auth.signed_in && (c in auth.teams || auth.role == "owner")`})
+	for _, clause := range []struct {
+		op    Op
+		check bool
+	}{{OpRead, false}, {OpEdit, false}, {OpDelete, false}, {OpAdd, true}, {OpEdit, true}} {
+		worst, err := p.WorstCase(clause.op, clause.check)
+		if err != nil || len(worst.Args) != DefaultLimits().ListItems || !strings.Contains(worst.SQL, `"c"`) {
+			t.Fatalf("clause %+v: %+v, %v", clause, worst, err)
+		}
+		for _, count := range []int{0, 1, DefaultLimits().ListItems} {
+			for _, role := range []string{"visitor", "owner"} {
+				values := Values{"auth.signed_in": Bool(true), "auth.role": Text(role), "auth.teams": List(make([]string, count)...)}
+				actual, err := p.forRequest(clause.op, clause.check, values)
+				if err != nil || len(actual.SQL) > len(worst.SQL) || len(actual.Args) > len(worst.Args) {
+					t.Fatalf("clause %+v, count %d, role %s: %+v, %v; worst %+v", clause, count, role, actual, err, worst)
+				}
+			}
+		}
+	}
+	if _, err := p.WorstCase(OpRead, true); err == nil {
+		t.Fatal("read has no check clause")
+	}
+	p = readPlan(t, "true")
+	for _, op := range []Op{OpRead, OpEdit, OpDelete} {
+		pred, err := p.WorstCase(op, false)
+		want := "0"
+		if op == OpRead {
+			want = "1"
+		}
+		if err != nil || pred.SQL != want || len(pred.Args) != 0 {
+			t.Fatalf("op %v: %+v, %v", op, pred, err)
+		}
+	}
+}
+
 // Every compile-table row, including both polarities, has a literal expected
 // predicate. These expectations do not derive from the emitter or evaluator.
 func TestCompileTable(t *testing.T) {

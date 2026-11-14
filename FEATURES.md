@@ -2857,6 +2857,11 @@ internal certificate checks.
 
 ## 23. Site storage primitives <a id="site-storage-primitives"></a>
 
+R2-S2 adds service-level validation and persistence for owner-written row rules, behind
+`STORAGE_RULES=off` by default. Rules saves validate syntax, bindings, prospective columns
+and composed statement limits before SQLite preparation, then save a deny-visitor preset
+fill with the rules. REST and tool support follows in R2-S3.
+
 Routes: `/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`.
 MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `storage_file_download_link`, `storage_get_usage`, `storage_list_file_objects`, `storage_list_kv_keys`.
 

@@ -9,7 +9,9 @@ import (
 )
 
 // PrepareMatrixDatabase applies the SQLite changes needed for a resource matrix.
-func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs bool, ownTables, holdTables func(string) bool, checkpoint func(error), markChanged func(), committed func(map[string]bool)) (map[string]bool, error) {
+// Only rules saves resolve system columns case-insensitively; preset row paths
+// require their lowercase spelling for stamping and redaction.
+func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs, rulesSave bool, ownTables, holdTables func(string) bool, checkpoint func(error), markChanged func(), committed func(map[string]bool)) (map[string]bool, error) {
 	existing := map[string]bool{}
 	ctx, cache := sqliteMemoryContext(ctx, min(limit, fileSize+limit-used), maxMemory)
 	conn, err := sqlite3.OpenContext(ctx, path)
@@ -76,12 +78,16 @@ func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, u
 	defer conn.Exec("ROLLBACK")
 	if clearIDs {
 		for t := range tables {
-			cols, e := TableColumns(conn, t)
+			cols, e := tableColumns(conn, t, rulesSave)
 			if e != nil {
 				return existing, e
 			}
-			if _, has := cols["visitor_id"]; has {
-				if e = conn.Exec("UPDATE " + Quote(t) + " SET visitor_id = NULL"); e != nil {
+			column := "visitor_id"
+			if rulesSave {
+				column = schemaColumn(cols, column)
+			}
+			if _, found := cols[column]; found {
+				if e = conn.Exec("UPDATE " + Quote(t) + " SET " + Quote(column) + " = NULL"); e != nil {
 					return existing, e
 				}
 			}
@@ -89,10 +95,10 @@ func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, u
 	}
 	// Every table counts as new here, so one that needs visitor_id and has
 	// none gets it.
-	if err = EnsureOwnTables(conn, map[string]bool{}, ownTables); err != nil {
+	if err = ensureOwnTables(conn, map[string]bool{}, ownTables, rulesSave); err != nil {
 		return existing, err
 	}
-	if err = EnsureHoldTables(conn, holdTables); err != nil {
+	if err = ensureHoldTables(conn, holdTables, rulesSave); err != nil {
 		return existing, err
 	}
 	sqliteStage(ctx, "before_commit")

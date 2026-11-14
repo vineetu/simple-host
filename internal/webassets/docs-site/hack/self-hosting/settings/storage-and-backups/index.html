@@ -704,6 +704,12 @@ knows.</p>
 <td>Storage writes per site and signed-in visitor; limits add-only flooding.</td>
 </tr>
 <tr>
+<td><code>STORAGE_RULES</code></td>
+<td><code>off</code></td>
+<td><code>off</code> / <code>on</code></td>
+<td>Accept owner-written row rules for SQLite databases and moved key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it. <strong>Security-sensitive.</strong></td>
+</tr>
+<tr>
 <td><code>KV_STORE</code></td>
 <td><code>postgres</code></td>
 <td><code>postgres</code> / <code>sqlite</code></td>

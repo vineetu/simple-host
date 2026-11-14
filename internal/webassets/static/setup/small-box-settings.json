@@ -3385,6 +3385,25 @@
       "small_box": true
     },
     {
+      "name": "STORAGE_RULES",
+      "group": "storage",
+      "description": "Accept owner-written row rules for SQLite databases and moved key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it.",
+      "type": "enum",
+      "default": "off",
+      "allowed": [
+        "off",
+        "on"
+      ],
+      "strict_order": [
+        "off",
+        "on"
+      ],
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "KV_STORE",
       "group": "storage",
       "description": "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values.",

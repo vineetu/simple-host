@@ -251,3 +251,4 @@ storageSiteInflight: 1
 
 # Store for newly created key-value namespaces; existing markers are retained.
 kvStore: postgres
+storageRules: "off"

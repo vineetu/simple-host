@@ -36,23 +36,57 @@ func SQLTables(conn *sqlite3.Conn) (map[string]bool, error) {
 
 // TableColumns provides the existing runtime storage helper.
 func TableColumns(conn *sqlite3.Conn, table string) (map[string]string, error) {
+	return tableColumns(conn, table, false)
+}
+
+// tableColumns keeps preset metadata unchanged while rules preparation includes
+// generated columns, which table_info omits.
+func tableColumns(conn *sqlite3.Conn, table string, rulesSave bool) (map[string]string, error) {
+	cols, _, err := tableColumnInfo(conn, table, rulesSave)
+	return cols, err
+}
+
+// TableXInfo returns all declared columns, including generated and hidden ones,
+// with their types and names in storage order.
+func TableXInfo(conn *sqlite3.Conn, table string) (map[string]string, []string, error) {
+	return tableColumnInfo(conn, table, true)
+}
+
+func tableColumnInfo(conn *sqlite3.Conn, table string, complete bool) (map[string]string, []string, error) {
 	tables, err := SQLTables(conn)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !tables[table] {
-		return nil, fmt.Errorf("unknown table")
+		return nil, nil, fmt.Errorf("unknown table")
 	}
-	stmt, _, err := conn.Prepare("PRAGMA table_info(" + Quote(table) + ")")
+	pragma := "table_info"
+	if complete {
+		pragma = "table_xinfo"
+	}
+	stmt, _, err := conn.Prepare("PRAGMA " + pragma + "(" + Quote(table) + ")")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer stmt.Close()
 	cols := map[string]string{}
+	var order []string
 	for stmt.Step() {
-		cols[stmt.ColumnText(1)] = strings.ToUpper(stmt.ColumnText(2))
+		name := stmt.ColumnText(1)
+		cols[name] = strings.ToUpper(stmt.ColumnText(2))
+		order = append(order, name)
 	}
-	return cols, stmt.Err()
+	return cols, order, stmt.Err()
+}
+
+// schemaColumn resolves a SQLite column while keeping its declared spelling.
+func schemaColumn(cols map[string]string, name string) string {
+	for column := range cols {
+		if strings.EqualFold(column, name) {
+			return column
+		}
+	}
+	return ""
 }
 
 // Owner schema changes are transactional. Add the identity column only to newly
@@ -60,6 +94,10 @@ func TableColumns(conn *sqlite3.Conn, table string) (map[string]string, error) {
 // need picks the tables that must carry it (nil: every table).
 // EnsureOwnTables provides the existing runtime storage helper.
 func EnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(string) bool) error {
+	return ensureOwnTables(conn, before, need, false)
+}
+
+func ensureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(string) bool, rulesSave bool) error {
 	tables, err := SQLTables(conn)
 	if err != nil {
 		return err
@@ -68,37 +106,46 @@ func EnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(strin
 		if need != nil && !need(table) {
 			continue
 		}
-		cols, e := TableColumns(conn, table)
+		cols, e := tableColumns(conn, table, rulesSave)
 		if e != nil {
 			return e
 		}
-		if _, ok := cols["visitor_id"]; !ok && !before[table] {
+		column := "visitor_id"
+		if rulesSave {
+			column = schemaColumn(cols, column)
+		}
+		if _, found := cols[column]; !found && !before[table] {
 			if e = conn.Exec("ALTER TABLE " + Quote(table) + " ADD COLUMN visitor_id TEXT"); e != nil {
 				return e
 			}
 			cols["visitor_id"] = "TEXT"
+			column = "visitor_id"
 		}
-		if cols["visitor_id"] != "TEXT" {
+		if cols[column] != "TEXT" {
 			return fmt.Errorf("visitor_id TEXT required")
 		}
-		if e = conn.Exec("CREATE INDEX IF NOT EXISTS " + Quote("sh_visitor_"+table) + " ON " + Quote(table) + " (visitor_id)"); e != nil {
+		if e = conn.Exec("CREATE INDEX IF NOT EXISTS " + Quote("sh_visitor_"+table) + " ON " + Quote(table) + " (" + Quote(column) + ")"); e != nil {
 			return e
 		}
 		// IF NOT EXISTS must not accept a same-named index on another column.
-		index, _, e := conn.Prepare("SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=?")
+		query := "SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=?"
+		if rulesSave {
+			query += " COLLATE NOCASE"
+		}
+		index, _, e := conn.Prepare(query)
 		if e != nil {
 			return e
 		}
 		defer index.Close()
 		_ = index.BindText(1, "sh_visitor_"+table)
-		correct := index.Step() && index.ColumnText(0) == table
+		correct := index.Step() && (index.ColumnText(0) == table || rulesSave && strings.EqualFold(index.ColumnText(0), table))
 		index.Close()
 		info, _, e := conn.Prepare("PRAGMA index_info(" + Quote("sh_visitor_"+table) + ")")
 		if e != nil {
 			return e
 		}
 		defer info.Close()
-		correct = correct && info.Step() && info.ColumnText(2) == "visitor_id"
+		correct = correct && info.Step() && (info.ColumnText(2) == column || rulesSave && strings.EqualFold(info.ColumnText(2), column))
 		info.Close()
 		if !correct {
 			return fmt.Errorf("visitor_id index required")
@@ -178,6 +225,10 @@ func tableHasSchemaDependents(conn *sqlite3.Conn, table string) (bool, error) {
 // added were public before, so they count as approved.
 // EnsureHoldTables provides the existing runtime storage helper.
 func EnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
+	return ensureHoldTables(conn, need, false)
+}
+
+func ensureHoldTables(conn *sqlite3.Conn, need func(string) bool, rulesSave bool) error {
 	tables, err := SQLTables(conn)
 	if err != nil {
 		return err
@@ -186,11 +237,15 @@ func EnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
 		if !need(table) {
 			continue
 		}
-		cols, e := TableColumns(conn, table)
+		cols, e := tableColumns(conn, table, rulesSave)
 		if e != nil {
 			return e
 		}
-		if _, ok := cols["approved_at"]; !ok {
+		column := "approved_at"
+		if rulesSave {
+			column = schemaColumn(cols, column)
+		}
+		if _, found := cols[column]; !found {
 			if e = conn.Exec("ALTER TABLE " + Quote(table) + " ADD COLUMN approved_at TEXT"); e != nil {
 				return e
 			}
@@ -206,8 +261,9 @@ func EnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
 				return e
 			}
 			cols["approved_at"] = "TEXT"
+			column = "approved_at"
 		}
-		if cols["approved_at"] != "TEXT" {
+		if cols[column] != "TEXT" {
 			return fmt.Errorf("approved_at TEXT required")
 		}
 	}

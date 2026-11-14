@@ -11,6 +11,9 @@ import (
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
+// BindingSchema is the merged declaration passed from startup to the service.
+type BindingSchema = ruleengine.BindingSchema
+
 // BindingCall is everything a provider may know about a request. It holds
 // no header, query value or body: nothing a browser chose except which
 // site it is on and which session it presented.

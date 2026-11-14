@@ -98,7 +98,7 @@ func TestSQLiteMemoryLargeWriteBudgets(t *testing.T) {
 					err = c.Exec("INSERT INTO posts(body) VALUES ('ok')")
 				case "matrix":
 					// Adding the ownership column and index is a real committed schema write.
-					_, err = PrepareMatrixDatabase(ctx, path, 0, budget, fi.Size(), fi.Size(), false, false, func(string) bool { return true }, func(string) bool { return false }, func(e error) { t.Error(e) }, func() {}, func(map[string]bool) {})
+					_, err = PrepareMatrixDatabase(ctx, path, 0, budget, fi.Size(), fi.Size(), false, false, false, func(string) bool { return true }, func(string) bool { return false }, func(e error) { t.Error(e) }, func() {}, func(map[string]bool) {})
 				}
 				if err != nil {
 					t.Fatal(err)

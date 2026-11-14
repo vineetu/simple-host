@@ -3,11 +3,14 @@ package storage
 import (
 	"errors"
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
 // Error identifies a storage workflow failure.
 type Error struct {
 	Code, Message string
+	RuleError     *ruleengine.RuleError
+	RulesErrors   []ruleengine.RuleError
 	Rule          string
 	Allowed       bool
 	NoRetryAfter  bool

@@ -301,9 +301,17 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	call := h.storageServiceCall(c)
+	var tables *map[string]appstorage.ResourceTableInput
+	if req.Tables != nil {
+		mapped := map[string]appstorage.ResourceTableInput{}
+		for name, access := range *req.Tables {
+			mapped[name] = appstorage.ResourceTableInput{AccessRequest: access}
+		}
+		tables = &mapped
+	}
 	result, err := h.storageRequestSvc(r, c).PutStorageResource(r.Context(), appstorage.ResourceInput{
 		Call: call,
-		Name: name, Kind: req.Kind, AccessRequest: req.AccessRequest, Write: req.Write, WriteMode: req.WriteMode, SitePasscode: req.SitePasscode, Tables: req.Tables, ApproveFirst: req.ApproveFirst,
+		Name: name, Kind: req.Kind, AccessRequest: req.AccessRequest, Write: req.Write, WriteMode: req.WriteMode, SitePasscode: req.SitePasscode, Tables: tables, ApproveFirst: req.ApproveFirst,
 	})
 	if err != nil {
 		e := err.(*appstorage.Error)

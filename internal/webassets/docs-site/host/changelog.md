@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 14:** Add service validation and saving for owner-written row rules, behind `STORAGE_RULES=off` by default (R2-S2). API support follows separately.
+
 - **Nov 13:** Limit SQLite table-row work per site, with a short retry response when busy. Recover SQLite panics per request and preserve successful writes if cleanup panics (R1-S3a).
 
 - **Nov 12:** Create a site private from the first request, with only you and the viewers you name able to open it. Send access specific and optional viewer emails in the create call; the default stays anyone with the address. Available on Simple Host, including self-hosted installs with visitor sign-in and per-site addresses.

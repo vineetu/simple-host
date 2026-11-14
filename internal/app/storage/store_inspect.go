@@ -30,3 +30,8 @@ func (i *Inspection) Tables() (map[string]bool, error) { return runtime.SQLTable
 func (i *Inspection) TableInfo(table string) (map[string]string, []string, error) {
 	return runtime.TableInfo(i.conn, table)
 }
+
+// TableXInfo includes generated and hidden columns for rules validation.
+func (i *Inspection) TableXInfo(table string) (map[string]string, []string, error) {
+	return runtime.TableXInfo(i.conn, table)
+}

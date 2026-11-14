@@ -6,12 +6,15 @@ import (
 	"sync"
 	"time"
 
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 )
 
 // Deps holds the storage service configuration.
 type Deps struct {
 	Bindings                                 BindingProvider
+	BindingSchema                            ruleengine.BindingSchema
+	RulesEnabled                             bool
 	VisitorEmail                             func(context.Context, string) (string, error)
 	Disk                                     interface{ SiteDir(string, string) string }
 	SpamCheckAvailable                       bool

@@ -48,8 +48,8 @@ internal/repository/sites/store_families.go:141 | FamilyConflict | non-constant:
 internal/repository/sites/store_families.go:294 | OverlappingPendingFamilies | non-constant: overlapsSQL("$2", "f.suffix") | WHERE f.user_id <> $1 AND f.verified_at IS NULL AND ‹?overlapsSQL("$2", "f.suffix")›
 internal/repository/storage/usage.go:53 | ClearResourceWriters | non-constant: table | UPDATE ‹?table› SET writer_id='' WHERE site_id=$1 AND resource_name=$2
 internal/storage/runtime_kv.go:157 | runtimeKVListStatement | non-constant: op | SELECT key,value,visitor_id FROM kv WHERE key‹?op›?
-internal/storage/runtime_matrix.go:57 | PrepareMatrixDatabase | non-constant: Quote(t) | SELECT 1 FROM ‹?Quote(t)› LIMIT 1
-internal/storage/runtime_matrix.go:84 | PrepareMatrixDatabase | non-constant: Quote(t) | UPDATE ‹?Quote(t)› SET visitor_id = NULL
+internal/storage/runtime_matrix.go:59 | PrepareMatrixDatabase | non-constant: Quote(t) | SELECT 1 FROM ‹?Quote(t)› LIMIT 1
+internal/storage/runtime_matrix.go:90 | PrepareMatrixDatabase | non-constant: Quote(t), Quote(column) | UPDATE ‹?Quote(t)› SET ‹?Quote(column)› = NULL
 internal/storage/runtime_row_insert.go:28 | insertRowStatement | non-constant: Quote(table) | INSERT INTO ‹?Quote(table)›
 internal/storage/runtime_row_insert.go:30 | insertRowStatement | non-constant: Quote(table) | INSERT OR ABORT INTO ‹?Quote(table)›
 internal/storage/runtime_row_insert.go:44 | insertRowStatement | non-constant: query, rowid | ‹?query› RETURNING ‹?rowid›
@@ -61,14 +61,14 @@ internal/storage/runtime_row_rules.go:88 | RuleSelectPage | non-constant: rowKey
 internal/storage/runtime_row_rules.go:107 | RuleUpdate | non-constant: Quote(table), strings.Join(sets, ", "), rowKey, read.SQL, edit.SQL | UPDATE OR ABORT ‹?Quote(table)› SET ‹?strings.Join(sets, ", ")› WHERE ‹?rowKey› = ? AND (‹?read.SQL›) AND (‹?edit.SQL›)
 internal/storage/runtime_row_rules.go:116 | RuleDelete | non-constant: Quote(table), rowKey, read.SQL, del.SQL | DELETE FROM ‹?Quote(table)› WHERE ‹?rowKey› = ? AND (‹?read.SQL›) AND (‹?del.SQL›)
 internal/storage/runtime_row_rules.go:123 | RuleCheck | non-constant: Quote(table), rowKey, check.SQL | SELECT 1 FROM ‹?Quote(table)› WHERE ‹?rowKey› = ? AND (‹?check.SQL›)
-internal/storage/runtime_sqlite.go:76 | EnsureOwnTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN visitor_id TEXT
-internal/storage/runtime_sqlite.go:84 | EnsureOwnTables | non-constant: Quote("sh_visitor_" + table), Quote(table) | CREATE INDEX IF NOT EXISTS ‹?Quote("sh_visitor_" + table)› ON ‹?Quote(table)› (visitor_id)
-internal/storage/runtime_sqlite.go:154 | EnsureWrittenByColumn | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN written_by TEXT NOT NULL DEFAULT ''
-internal/storage/runtime_sqlite.go:194 | EnsureHoldTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN approved_at TEXT
-internal/storage/runtime_sqlite.go:197 | EnsureHoldTables | non-constant: Quote(table) | UPDATE ‹?Quote(table)› SET approved_at = ?
-internal/storage/runtime_sqlite.go:288 | RowID | non-constant: name, Quote(table) | SELECT ‹?name› FROM ‹?Quote(table)› LIMIT 0
-internal/storage/runtime_sqlite.go:388 | CheckReferences | non-constant: strings.Join(nulls, " OR "), strings.Join(nulls, " AND "), Quote(ref.to[0]), writer, Quote(table), Quote(ref.table), strings.Join(joins, " AND "), rowid | SELECT (‹?strings.Join(nulls, " OR ")›), (‹?strings.Join(nulls, " AND ")›), p.‹?Quote(ref.to[0])› IS NOT NULL, ‹?writer› FROM ‹?Quote(table)…
-internal/storage/runtime_sqlite.go:592 | TableInfo | non-constant: Quote(table) | SELECT * FROM ‹?Quote(table)› LIMIT 0
+internal/storage/runtime_sqlite.go:118 | ensureOwnTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN visitor_id TEXT
+internal/storage/runtime_sqlite.go:127 | ensureOwnTables | non-constant: Quote("sh_visitor_" + table), Quote(table), Quote(column) | CREATE INDEX IF NOT EXISTS ‹?Quote("sh_visitor_" + table)› ON ‹?Quote(table)› (‹?Quote(column)›)
+internal/storage/runtime_sqlite.go:201 | EnsureWrittenByColumn | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN written_by TEXT NOT NULL DEFAULT ''
+internal/storage/runtime_sqlite.go:249 | ensureHoldTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN approved_at TEXT
+internal/storage/runtime_sqlite.go:252 | ensureHoldTables | non-constant: Quote(table) | UPDATE ‹?Quote(table)› SET approved_at = ?
+internal/storage/runtime_sqlite.go:344 | RowID | non-constant: name, Quote(table) | SELECT ‹?name› FROM ‹?Quote(table)› LIMIT 0
+internal/storage/runtime_sqlite.go:444 | CheckReferences | non-constant: strings.Join(nulls, " OR "), strings.Join(nulls, " AND "), Quote(ref.to[0]), writer, Quote(table), Quote(ref.table), strings.Join(joins, " AND "), rowid | SELECT (‹?strings.Join(nulls, " OR ")›), (‹?strings.Join(nulls, " AND ")›), p.‹?Quote(ref.to[0])› IS NOT NULL, ‹?writer› FROM ‹?Quote(table)…
+internal/storage/runtime_sqlite.go:648 | TableInfo | non-constant: Quote(table) | SELECT * FROM ‹?Quote(table)› LIMIT 0
 internal/testdb/testdb.go:129 | clone | non-constant: pq.QuoteIdentifier(name) | DROP DATABASE IF EXISTS ‹?pq.QuoteIdentifier(name)› WITH (FORCE)
 
 5. Same word as a platform column, for a person to confirm (4)

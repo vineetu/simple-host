@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-14: Add service validation and saving for owner-written row rules, behind `STORAGE_RULES=off` by default (R2-S2). API support follows separately.
+
 - R2-S5a review: Persist newly created runtime directories before deleting moved Postgres data, bound SQLite prefix lists with the key index, and correct the installed program name in the move instructions.
 
 - R2-S5a: Add `kv-move` dry run, apply and health verification, with copy hashes and interruption recovery. Servers hold a maintenance lock so an offline move cannot overlap a running server. Production cutover remains a separate step; keep `KV_STORE=postgres`.

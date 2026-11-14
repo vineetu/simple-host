@@ -78,11 +78,12 @@ type SiteHandler struct {
 	// sized from h.limits. NewSiteHandler builds it; a bare &SiteHandler{}
 	// (tests) gets one on first use via sqliteGateFor, matching pipeline()'s
 	// lazy-build pattern.
-	sqlite          *sqliteGate
-	sqliteOnce      sync.Once
-	sqliteSites     *appstorage.SiteSlots
-	sqliteSitesOnce sync.Once
-	storageBindings appstorage.BindingProvider
+	sqlite               *sqliteGate
+	sqliteOnce           sync.Once
+	sqliteSites          *appstorage.SiteSlots
+	sqliteSitesOnce      sync.Once
+	storageBindings      appstorage.BindingProvider
+	storageBindingSchema appstorage.BindingSchema
 
 	notifyOnce         sync.Once
 	notifications      *notificationEngine
