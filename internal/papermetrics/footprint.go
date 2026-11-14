@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-// siteFootprint is one live site's weekly row. It carries no site, owner or
+// SiteFootprint is one live site's weekly row. It carries no site, owner or
 // name: the paper needs distributions, and an anonymous row cannot be tied
 // back to anyone.
-type siteFootprint struct {
-	versions                                        int
-	liveFiles                                       int
-	liveBytes, totalBytes                           int64
-	htmlBytes, jsBytes, cssBytes, mediaBytes, other int64
-	sqliteBytes, fileStoreBytes, kvBytes            int64
-	kvRows, legacyRows                              int64
-	views30d                                        int64
-	ageDays                                         int
-	daysSinceUpdate                                 int
+type SiteFootprint struct {
+	Versions                                        int
+	LiveFiles                                       int
+	LiveBytes, TotalBytes                           int64
+	HtmlBytes, JsBytes, CssBytes, MediaBytes, Other int64
+	SqliteBytes, FileStoreBytes, KvBytes            int64
+	KvRows, LegacyRows                              int64
+	Views30d                                        int64
+	AgeDays                                         int
+	DaysSinceUpdate                                 int
 }
 
 // weekStart is the Monday (UTC) of t's week.
@@ -63,11 +63,11 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 	if err != nil {
 		return err
 	}
-	sites := map[string]*siteFootprint{}
+	sites := map[string]*SiteFootprint{}
 	for rows.Next() {
 		var user, name string
-		f := &siteFootprint{}
-		if err := rows.Scan(&user, &name, &f.ageDays, &f.daysSinceUpdate, &f.views30d, &f.kvRows, &f.kvBytes, &f.legacyRows); err != nil {
+		f := &SiteFootprint{}
+		if err := rows.Scan(&user, &name, &f.AgeDays, &f.DaysSinceUpdate, &f.Views30d, &f.KvRows, &f.KvBytes, &f.LegacyRows); err != nil {
 			rows.Close()
 			return err
 		}
@@ -78,7 +78,7 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 		return err
 	}
 
-	c.walkFootprints(sites)
+	c.WalkFootprints(sites)
 
 	var written int64
 	tx, err := c.db.BeginTx(ctx, nil)
@@ -87,18 +87,18 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 	}
 	defer tx.Rollback() //nolint:errcheck
 	for _, f := range sites {
-		if _, err := c.execMetric(ctx, tx, &written, `
+		if _, err := c.ExecMetric(ctx, tx, &written, `
 			INSERT INTO paper_site_footprint (week, versions, live_files, live_bytes, total_bytes,
 				html_bytes, js_bytes, css_bytes, media_bytes, other_bytes,
 				sqlite_bytes, file_store_bytes, kv_bytes, kv_rows, legacy_rows, views_30d, age_days, days_since_update)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-			week, f.versions, f.liveFiles, f.liveBytes, f.totalBytes,
-			f.htmlBytes, f.jsBytes, f.cssBytes, f.mediaBytes, f.other,
-			f.sqliteBytes, f.fileStoreBytes, f.kvBytes, f.kvRows, f.legacyRows, f.views30d, f.ageDays, f.daysSinceUpdate); err != nil {
+			week, f.Versions, f.LiveFiles, f.LiveBytes, f.TotalBytes,
+			f.HtmlBytes, f.JsBytes, f.CssBytes, f.MediaBytes, f.Other,
+			f.SqliteBytes, f.FileStoreBytes, f.KvBytes, f.KvRows, f.LegacyRows, f.Views30d, f.AgeDays, f.DaysSinceUpdate); err != nil {
 			return fmt.Errorf("insert footprint: %w", err)
 		}
 	}
-	if err := c.commitMetrics(tx, written); err != nil {
+	if err := c.CommitMetrics(tx, written); err != nil {
 		return err
 	}
 	log.Printf("paper metrics: footprint for week of %s, %d sites", week, len(sites))
@@ -116,7 +116,7 @@ func isDigits(s string) bool {
 
 // walkFootprints is shared by the weekly site and nightly Hack snapshots.
 // Symlinks are not followed; only regular files count.
-func (c *Collector) walkFootprints(sites map[string]*siteFootprint) {
+func (c *Collector) WalkFootprints(sites map[string]*SiteFootprint) {
 	if c.dataDir == "" {
 		return
 	}
@@ -142,7 +142,7 @@ func (c *Collector) walkFootprints(sites map[string]*siteFootprint) {
 		}
 		if d.IsDir() {
 			if len(seg) == 3 && len(seg[2]) > 1 && seg[2][0] == 'v' && isDigits(seg[2][1:]) {
-				f.versions++
+				f.Versions++
 			}
 			return nil
 		}
@@ -154,27 +154,27 @@ func (c *Collector) walkFootprints(sites map[string]*siteFootprint) {
 			return nil //nolint:nilerr
 		}
 		size := info.Size()
-		f.totalBytes += size
+		f.TotalBytes += size
 		switch {
 		case seg[2] == "current" && len(seg) > 3:
-			f.liveBytes += size
-			f.liveFiles++
+			f.LiveBytes += size
+			f.LiveFiles++
 			switch strings.ToLower(strings.TrimPrefix(filepath.Ext(path), ".")) {
 			case "html", "htm":
-				f.htmlBytes += size
+				f.HtmlBytes += size
 			case "js", "mjs":
-				f.jsBytes += size
+				f.JsBytes += size
 			case "css":
-				f.cssBytes += size
+				f.CssBytes += size
 			case "png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "ico", "mp4", "webm", "mp3", "wav", "woff", "woff2", "ttf", "otf":
-				f.mediaBytes += size
+				f.MediaBytes += size
 			default:
-				f.other += size
+				f.Other += size
 			}
 		case seg[2] == "runtime" && len(seg) > 4 && seg[3] == "sqlite":
-			f.sqliteBytes += size
+			f.SqliteBytes += size
 		case seg[2] == "runtime" && len(seg) > 4 && seg[3] == "files":
-			f.fileStoreBytes += size
+			f.FileStoreBytes += size
 		}
 		return nil
 	})

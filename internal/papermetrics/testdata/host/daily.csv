@@ -1,0 +1,6 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-daily-2026-10-01-2026-10-01.csv"
+day,metric,value
+2026-10-01,accounts,3
+2026-10-01,sites_live,7

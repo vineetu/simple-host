@@ -252,7 +252,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			h.renderSiteHostNotFound(w, r, user.Handle.String)
 			return
 		}
-		h.paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
+		h.paperSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
 		markRestrictedSite(w, site)
 		escaped := r.URL.EscapedPath()
 		if escaped == "" {

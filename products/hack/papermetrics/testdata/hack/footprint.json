@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"metric_def_version":1,"set":"footprint","from":"2026-09-28","to":"2026-09-28","columns":["week","versions","live_files","live_bytes","total_bytes","html_bytes","js_bytes","css_bytes","media_bytes","other_bytes","sqlite_bytes","file_store_bytes","kv_bytes","kv_rows","legacy_rows","views_30d","age_days","days_since_update"],"rows":[["2026-09-28",2,1,20,40,0,0,0,0,0,0,0,0,0,0,0,0,0]]}

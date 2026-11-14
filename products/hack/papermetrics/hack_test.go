@@ -5,12 +5,11 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"math"
+	platform "github.com/vsriram/simple-host/internal/papermetrics"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -97,9 +96,9 @@ func TestHackSnapshotAndExport(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	c := New(d, dir).WithHack()
+	c := Install(platform.New(d, dir))
 	// Applying the migration repeatedly is safe even after the fresh schema.
-	migration, err := os.ReadFile("../../db/migrations/zs-hack-paper-metrics.sql")
+	migration, err := os.ReadFile("../../../db/migrations/zs-hack-paper-metrics.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,13 +111,13 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	if err := d.QueryRow(`SELECT event_key FROM paper_hack_key WHERE event_id=$1`, event).Scan(&eventKey); err != nil {
 		t.Fatal(err)
 	}
-	result, err := c.query(ctx, "raw-test", now.Format("2006-01-02"), now.Format("2006-01-02"), hackEventCols, `SELECT `+strings.Join(hackEventCols, ",")+` FROM paper_hack_event WHERE event_key=$1`, eventKey)
+	result, err := c.platform.Query(ctx, "raw-test", now.Format("2006-01-02"), now.Format("2006-01-02"), hackEventCols, `SELECT `+strings.Join(hackEventCols, ",")+` FROM paper_hack_event WHERE event_key=$1`, eventKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var values map[string]any
 	for _, row := range result.Rows {
-		if toInt(row[1]) == eventKey {
+		if ToInt(row[1]) == eventKey {
 			values = map[string]any{}
 			for i, col := range result.Columns {
 				values[col] = row[i]
@@ -130,14 +129,14 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	}
 	expected := map[string]int64{"duration_hours": 24, "expected_participants": 100, "participants": 2, "organisers": 1, "judges": 1, "applications": 3, "applications_approved": 2, "teams": 2, "teams_with_entry": 1, "teams_kept_after_leave": 1, "team_size_p50": 0, "team_size_max": 2, "team_sites": 1, "team_site_bytes_sum": 21, "team_site_bytes_p50": 21, "team_site_versions_sum": 2, "event_storage_bytes": 19 + kvBytes, "submissions": 1, "entries_with_code_url": 1, "entries_with_video": 1, "scores": 1, "score_criteria": 1, "assignments": 1, "conflicts": 1, "votes": 1, "announcements": 1, "deploys_total": 3, "minutes_create_to_first_deploy": 30}
 	for col, want := range expected {
-		if got := toInt(values[col]); got != want {
+		if got := ToInt(values[col]); got != want {
 			t.Errorf("%s=%v want %d", col, values[col], want)
 		}
 	}
 	if values["results_published"] != true || values["stage"] != "building" {
 		t.Fatalf("event flags=%v", values)
 	}
-	wantWeek := weekStart(start.Add(-48 * time.Hour)).Format("2006-01-02")
+	wantWeek := start.Add(-48*time.Hour).UTC().Truncate(24*time.Hour).AddDate(0, 0, -(int(start.Add(-48*time.Hour).UTC().Weekday())+6)%7).Format("2006-01-02")
 	if !strings.HasPrefix(fmt.Sprint(values["created_week"]), wantWeek) {
 		t.Fatalf("week=%v want %s", values["created_week"], wantWeek)
 	}
@@ -177,8 +176,8 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	}
 	exec(`ALTER TABLE event_teams RENAME COLUMN kept_temporarily TO kept_after_leave`)
 	// Host never writes Hack daily counts. Hack writes the additional metrics.
-	host := New(d, dir)
-	if err := host.dailySnapshot(ctx, now); err != nil {
+	host := platform.New(d, dir)
+	if err := host.DailySnapshot(ctx, now); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -187,7 +186,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 		t.Fatal("Host collected Hack metrics")
 	}
 	exec(`DELETE FROM paper_daily`)
-	if err := c.dailySnapshot(ctx, now); err != nil {
+	if err := c.platform.DailySnapshot(ctx, now); err != nil {
 		t.Fatal(err)
 	}
 	d.QueryRow(`SELECT count(*) FROM paper_daily WHERE metric LIKE 'hack_%'`).Scan(&count)
@@ -207,7 +206,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	c.refreshHack(ctx)
 	slot := now.Truncate(hackSlot)
 	runtimeEvent := c.hack.meta.Load().events["secret-slug"]
-	r := &hackRequest{metrics: c.hack, start: slot, class: classAPIWrite, member: p1, write: true, deploy: true, writer: statusWriter{status: 200}}
+	r := &hackRequest{metrics: c.hack, start: slot, class: ClassAPIWrite, member: p1, write: true, deploy: true, writer: StatusWriter{Status: 200}}
 	r.attach(runtimeEvent)
 	r.finish(100 * time.Microsecond)
 	c.flushHack(ctx, slot.Add(hackSlot))
@@ -243,7 +242,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, row := range release.Rows {
-		if toInt(row[1]) == eventKey {
+		if ToInt(row[1]) == eventKey {
 			for i, col := range release.Columns {
 				if col == "participants" && row[i] != nil {
 					t.Fatal("unsuppressed participants")
@@ -264,7 +263,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 				t.Fatalf("%s/%s: %d %s", set, format, w.Code, w.Body.String())
 			}
 			if format == "json" {
-				var result table
+				var result Table
 				if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || len(result.Rows) == 0 {
 					t.Fatalf("json %v %s", err, w.Body.String())
 				}
@@ -283,8 +282,8 @@ func TestHackDailySkipsFailedQuery(t *testing.T) {
 	if _, err := d.Exec(`ALTER TABLE event_votes RENAME TO event_votes_unavailable`); err != nil {
 		t.Fatal(err)
 	}
-	c := New(d, "").WithHack()
-	if err := c.dailySnapshot(context.Background(), time.Now().UTC()); err != nil {
+	c := Install(platform.New(d, ""))
+	if err := c.platform.DailySnapshot(context.Background(), time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 	status := c.tracker.Snapshot()
@@ -302,7 +301,7 @@ func TestHackDailySkipsFailedQuery(t *testing.T) {
 
 func mockHack(t testing.TB) (*Collector, *hackEventInfo) {
 	t.Helper()
-	c := New(nil, "", "simple-hack.app").WithHack()
+	c := Install(platform.New(nil, "", "simple-hack.app"))
 	e := &hackEventInfo{id: "website", slug: "event", account: "account", key: 42}
 	e.state.Store(&hackEventState{stage: "judging"})
 	c.hack.meta.Store(&hackMetadata{events: map[string]*hackEventInfo{"event": e}, accounts: map[string]*hackEventInfo{"account": e}, members: map[string]map[string]struct{}{"event": {"member": {}}}, hosts: map[string]*hackEventInfo{"team.event.simple-hack.app": e}})
@@ -313,8 +312,8 @@ func TestHackCounterSlots(t *testing.T) {
 	slot := time.Now().UTC().Truncate(time.Minute)
 	// Both requests start in one minute and overlap, including one crossing the
 	// boundary. Until that request completes the start slot cannot be flushed.
-	a := &hackRequest{metrics: c.hack, start: slot.Add(3 * time.Second), class: classAPIWrite, member: "a", write: true, deploy: true, writer: statusWriter{status: 201}}
-	b := &hackRequest{metrics: c.hack, start: slot.Add(3 * time.Second), class: classAPIRead, member: "b", writer: statusWriter{status: 404}}
+	a := &hackRequest{metrics: c.hack, start: slot.Add(3 * time.Second), class: ClassAPIWrite, member: "a", write: true, deploy: true, writer: StatusWriter{Status: 201}}
+	b := &hackRequest{metrics: c.hack, start: slot.Add(3 * time.Second), class: ClassAPIRead, member: "b", writer: StatusWriter{Status: 404}}
 	a.attach(e)
 	b.attach(e)
 	a.finish(100 * time.Microsecond)
@@ -330,10 +329,10 @@ func TestHackCounterSlots(t *testing.T) {
 	if s.slot != slot || s.requests.Load() != 2 || s.writes.Load() != 1 || s.deploys.Load() != 1 || s.active.Load() != 2 || s.inflightMax.Load() != 2 || s.arrivals[3].Load() != 2 || s.writes1s[3].Load() != 1 {
 		t.Fatal("wrong start-slot totals")
 	}
-	if s.cells[classAPIRead][2].Load().arrivals[3].Load() != 1 || s.cells[classAPIWrite][0].Load().writes1s[3].Load() != 1 {
+	if s.cells[ClassAPIRead][2].Load().arrivals[3].Load() != 1 || s.cells[ClassAPIWrite][0].Load().writes1s[3].Load() != 1 {
 		t.Fatal("class/status 1s bins")
 	}
-	if got := s.cells[classAPIRead][2].Load().hist.Snapshot(); got.N != 1 || got.MaxUS != 70000000 {
+	if got := s.cells[ClassAPIRead][2].Load().hist.Snapshot(); got.N != 1 || got.MaxUS != 70000000 {
 		t.Fatalf("wrong 4xx histogram: %+v", got)
 	}
 	if s.members.contains("a") {
@@ -362,7 +361,7 @@ func TestHackCapAndConcurrentBoundary(t *testing.T) {
 	slot := time.Now().UTC().Truncate(time.Minute)
 	for i := 0; i < 201; i++ {
 		e := &hackEventInfo{key: int64(i + 1)}
-		r := &hackRequest{metrics: c.hack, start: slot, class: classAPIRead, writer: statusWriter{status: 200}}
+		r := &hackRequest{metrics: c.hack, start: slot, class: ClassAPIRead, writer: StatusWriter{Status: 200}}
 		r.attach(e)
 		r.finish(time.Microsecond)
 	}
@@ -376,7 +375,7 @@ func TestHackCapAndConcurrentBoundary(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 1000; j++ {
-				r := &hackRequest{metrics: c.hack, start: slot, class: classAPIRead, member: "same", writer: statusWriter{status: 200}}
+				r := &hackRequest{metrics: c.hack, start: slot, class: ClassAPIRead, member: "same", writer: StatusWriter{Status: 200}}
 				r.attach(e)
 				r.finish(time.Microsecond)
 			}
@@ -384,42 +383,11 @@ func TestHackCapAndConcurrentBoundary(t *testing.T) {
 	}
 	wg.Wait()
 	rows := c.hack.drain(slot.Add(time.Minute))
-	if len(rows) != 1 || rows[0].requests.Load() != 8000 || rows[0].active.Load() != 1 || rows[0].cells[classAPIRead][0].Load().hist.Snapshot().N != 8000 {
+	if len(rows) != 1 || rows[0].requests.Load() != 8000 || rows[0].active.Load() != 1 || rows[0].cells[ClassAPIRead][0].Load().hist.Snapshot().N != 8000 {
 		t.Fatal("concurrent counters")
 	}
 }
-func TestLogHistogramMerge(t *testing.T) {
-	var all, left, right LogHistogram
-	samples := make([]int64, 20000)
-	for i := range samples {
-		samples[i] = int64(math.Exp2(float64(i%300)/8)) + int64(i%7)
-		all.Observe(samples[i])
-		if i%2 == 0 {
-			left.Observe(samples[i])
-		} else {
-			right.Observe(samples[i])
-		}
-	}
-	a := all.Snapshot()
-	merged := MergeHistograms(left.Snapshot(), right.Snapshot())
-	if a.N != merged.N || a.SumUS != merged.SumUS || a.MaxUS != merged.MaxUS || a.Offset != merged.Offset || fmt.Sprint(a.Counts) != fmt.Sprint(merged.Counts) {
-		t.Fatal("merge differs from one histogram")
-	}
-	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
-	for _, q := range []float64{.5, .9, .99, .999} {
-		actual := float64(samples[int(math.Ceil(float64(len(samples))*q))-1])
-		estimate := merged.Quantile(q)
-		if math.Abs(estimate/actual-1) > .044 {
-			t.Fatalf("q=%v actual=%v estimate=%v", q, actual, estimate)
-		}
-	}
-	for exponent := 1; exponent < 43; exponent++ {
-		value := int64(1) << exponent
-		if got := logBucket(value); got != exponent*8 {
-			t.Fatalf("power of two %d => %d", value, got)
-		}
-	}
-}
+
 func TestHackRequestContextLifetime(t *testing.T) {
 	c, _ := mockHack(t)
 	type key struct{}
@@ -489,13 +457,6 @@ func benchmarkHack(b *testing.B, parallel bool) {
 		})
 	}
 }
-func TestRunConfigWhitelist(t *testing.T) {
-	a := configHash(map[string]any{"person_hosts": "off", "DB_DSN": "secret-one", "ADMIN_API_KEY": "secret"})
-	b := configHash(map[string]any{"person_hosts": "off", "DB_DSN": "different-secret"})
-	if a != b || a == configHash(map[string]any{"person_hosts": "on"}) {
-		t.Fatal("config whitelist")
-	}
-}
 
 func TestHackStableKeysSyntheticAndPhases(t *testing.T) {
 	d := isolatedDB(t)
@@ -526,7 +487,7 @@ func TestHackStableKeysSyntheticAndPhases(t *testing.T) {
 	}
 	events = append(events, makeEvent("normal-address", creator))
 	real := makeEvent("real", nil)
-	c := New(d, "").WithRunConfig(map[string]any{"events": "hosted", "DB_DSN": "must-be-ignored"}).WithHack()
+	c := Install(platform.New(d, "").WithRunConfig(map[string]any{"events": "hosted", "DB_DSN": "must-be-ignored"}))
 	c.refreshHack(ctx)
 	var key int64
 	if err := d.QueryRow(`SELECT event_key FROM paper_hack_key WHERE event_id=$1`, real).Scan(&key); err != nil {
@@ -619,11 +580,11 @@ func TestHackStableKeysSyntheticAndPhases(t *testing.T) {
 	if err := d.QueryRow(`SELECT observed FROM paper_hack_phase WHERE event_key=$1 AND stage='closed' ORDER BY minute_offset DESC LIMIT 1`, key).Scan(&observed); err != nil || observed {
 		t.Fatal("postcommit phase hook", err)
 	}
-	run, err := c.ensureRun(ctx)
+	run, err := c.platform.EnsureRun(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := c.ensureRun(ctx)
+	again, err := c.platform.EnsureRun(ctx)
 	if err != nil || run != again {
 		t.Fatal("duplicate run")
 	}
@@ -645,7 +606,7 @@ func TestHackStableKeysSyntheticAndPhases(t *testing.T) {
 		if w.Code != 200 {
 			t.Fatalf("%s: %s", set, w.Body.String())
 		}
-		var result table
+		var result Table
 		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || len(result.Rows) != 0 {
 			t.Fatal("small series leaked", set, err)
 		}
@@ -655,8 +616,8 @@ func TestHackStableKeysSyntheticAndPhases(t *testing.T) {
 func TestHackReleaseThresholds(t *testing.T) {
 	d := isolatedDB(t)
 	ctx := context.Background()
-	c := New(d, "").WithHack()
-	run, err := c.ensureRun(ctx)
+	c := Install(platform.New(d, ""))
+	run, err := c.platform.EnsureRun(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -682,7 +643,7 @@ func TestHackReleaseThresholds(t *testing.T) {
 			if small {
 				path += "&include_small=1"
 			}
-			table, err := exportSets[set](c, ctx, day, day, httptest.NewRequest("GET", path, nil))
+			table, err := c.Exports().Sets[set](ctx, day, day, httptest.NewRequest("GET", path, nil))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -704,7 +665,7 @@ func TestHackReleaseThresholds(t *testing.T) {
 					if col == "judges" && row[i] != nil {
 						t.Fatal("judge leak")
 					}
-					if col == "participants" && !small && toInt(row[i]) != 5 {
+					if col == "participants" && !small && ToInt(row[i]) != 5 {
 						t.Fatal("threshold-five count suppressed")
 					}
 					if col == "participants_suppressed" && !small && row[i] != false {

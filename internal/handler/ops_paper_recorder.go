@@ -2,18 +2,21 @@ package handler
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"time"
 )
 
 // PaperRecorder annotates measurements with facts resolved by this transport.
 type PaperRecorder interface {
-	ResolveHackEvent(ctx context.Context, slug, stage, member string, published ...time.Time)
-	HackMember(ctx context.Context, member string)
-	ResolveHackSite(ctx context.Context, account, site, member string, write bool)
-	HackWriteCommitted(ctx context.Context)
-	HackDeploy(ctx context.Context)
-	HackMutationResult(ctx context.Context, method, path string, status int)
+	User(context.Context, *model.User)
+	Site(*http.Request, string, string, *model.User)
+	ResolveGroup(ctx context.Context, slug, stage, member string, published ...time.Time)
+	Member(ctx context.Context, member string)
+	ResolveSite(ctx context.Context, account, site, member string, write bool)
+	WriteCommitted(ctx context.Context)
+	Deploy(ctx context.Context)
+	MutationResult(ctx context.Context, method, path string, status int)
 }
 
 type paperRecorderKey struct{}
@@ -34,11 +37,19 @@ func paperRecorder(ctx context.Context) PaperRecorder {
 
 type quietPaperRecorder struct{}
 
-func (quietPaperRecorder) ResolveHackEvent(ctx context.Context, slug, stage, member string, published ...time.Time) {
+func (quietPaperRecorder) ResolveGroup(ctx context.Context, slug, stage, member string, published ...time.Time) {
 }
-func (quietPaperRecorder) HackMember(ctx context.Context, member string) {}
-func (quietPaperRecorder) ResolveHackSite(ctx context.Context, account, site, member string, write bool) {
+func (quietPaperRecorder) Member(ctx context.Context, member string) {}
+func (quietPaperRecorder) ResolveSite(ctx context.Context, account, site, member string, write bool) {
 }
-func (quietPaperRecorder) HackWriteCommitted(ctx context.Context)                                  {}
-func (quietPaperRecorder) HackDeploy(ctx context.Context)                                          {}
-func (quietPaperRecorder) HackMutationResult(ctx context.Context, method, path string, status int) {}
+func (quietPaperRecorder) WriteCommitted(ctx context.Context)                                  {}
+func (quietPaperRecorder) Deploy(ctx context.Context)                                          {}
+func (quietPaperRecorder) MutationResult(ctx context.Context, method, path string, status int) {}
+
+func (quietPaperRecorder) User(context.Context, *model.User)               {}
+func (quietPaperRecorder) Site(*http.Request, string, string, *model.User) {}
+func (h *SiteHandler) paperSite(r *http.Request, account, site string, user *model.User) {
+	if h.ed.Identity().PaperMetrics {
+		paperRecorder(r.Context()).Site(r, account, site, user)
+	}
+}

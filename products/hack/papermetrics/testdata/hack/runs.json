@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"metric_def_version":4,"set":"runs","from":"2026-10-01","to":"2026-10-01","columns":["run_id","started_at","role","vcs_revision","vcs_modified","go_version","binary_sha256","config_hash","metric_def_version","bucket_scheme","gomaxprocs","num_cpu","cgroup_memory_max","cgroup_cpu_max"],"rows":[[17,"2026-10-01T00:00:00Z","hack",null,false,"go-fixture",null,"fixture",4,"exp2_scale3_us_v1",2,4,null,null]]}

@@ -12,18 +12,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/lib/pq"
 )
 
-// Sets the export can produce. Each is a table: columns plus rows.
-var exportSets = map[string]func(c *Collector, ctx context.Context, from, to string, r *http.Request) (table, error){
+// Sets the export can produce. Each is a Table: columns plus rows.
+var exportSets = map[string]func(c *Collector, ctx context.Context, from, to string, r *http.Request) (Table, error){
 	"daily":             (*Collector).setDaily,
-	"hack_events":       (*Collector).setHackEvents,
-	"hack_minutes":      (*Collector).setHackMinutes,
-	"hack_latency":      (*Collector).setHackLatency,
-	"hack_phases":       (*Collector).setHackPhases,
-	"runs":              (*Collector).setRuns,
 	"latency":           (*Collector).setLatency,
 	"latency_buckets":   (*Collector).setLatencyBuckets,
 	"process":           (*Collector).setProcess,
@@ -33,7 +26,7 @@ var exportSets = map[string]func(c *Collector, ctx context.Context, from, to str
 	"api_routes":        (*Collector).setAPIRoutes,
 }
 
-type table struct {
+type Table struct {
 	BucketScheme     string   `json:"bucket_scheme,omitempty"`
 	MetricDefVersion int      `json:"metric_def_version,omitempty"`
 	Set              string   `json:"set"`
@@ -90,12 +83,13 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out := map[string]any{"from": from, "to": to, "classes": ClassNames(), "bucket_upper_us": BucketBounds(), "methodology": "https://github.com/vineetu/simple-host/blob/main/docs/paper-metrics.md"}
-		if c.hack != nil {
-			out["metric_def_version"] = MetricDefVersion
-			out["bucket_schemes"] = map[string]string{"latency_buckets": LegacyBucketScheme, "hack_latency": BucketScheme}
+		if c.product != nil {
+			for key, value := range c.product.Exports().Summary {
+				out[key] = value
+			}
 		}
 		for _, name := range c.sortedExportSets() {
-			t, err := exportSets[name](c, r.Context(), from, to, r)
+			t, err := c.exportSets()[name](r.Context(), from, to, r)
 			if err != nil {
 				out[name] = map[string]string{"error": err.Error()}
 				continue
@@ -106,12 +100,12 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
-	fn := exportSets[set]
-	if fn == nil || (c.hack == nil && hackExportSet(set)) {
+	fn := c.exportSets()[set]
+	if fn == nil {
 		writeErr(w, http.StatusBadRequest, "unknown set; one of: summary, "+c.exportSetList())
 		return
 	}
-	t, err := fn(c, r.Context(), from, to, r)
+	t, err := fn(r.Context(), from, to, r)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "query failed: "+err.Error())
 		return
@@ -124,16 +118,10 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 		for _, row := range t.Rows {
 			rec := make([]string, len(row))
 			for i, v := range row {
-				if c.hack == nil {
+				if c.product == nil {
 					rec[i] = fmt.Sprint(v)
-				} else if v != nil {
-					switch value := v.(type) {
-					case []int64:
-						encoded, _ := json.Marshal(value)
-						rec[i] = string(encoded)
-					default:
-						rec[i] = fmt.Sprint(v)
-					}
+				} else {
+					rec[i] = c.product.Exports().CSV(v)
 				}
 			}
 			_ = cw.Write(rec)
@@ -172,24 +160,15 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 }
 
 // query runs a SELECT and returns every row as plain values.
-func (c *Collector) query(ctx context.Context, set, from, to string, cols []string, q string, args ...any) (table, error) {
+func (c *Collector) Query(ctx context.Context, set, from, to string, cols []string, q string, args ...any) (Table, error) {
 	rows, err := c.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return table{}, err
+		return Table{}, err
 	}
 	defer rows.Close()
-	t := table{Set: set, From: from, To: to, Columns: cols, Rows: [][]any{}}
-	if c.hack != nil {
-		t.MetricDefVersion = MetricDefVersion
-		if set != "daily" && set != "runs" && !strings.HasPrefix(set, "hack_") {
-			t.MetricDefVersion = 1
-		}
-		if set == "latency_buckets" {
-			t.BucketScheme = LegacyBucketScheme
-		}
-		if set == "hack_latency" {
-			t.BucketScheme = BucketScheme
-		}
+	t := Table{Set: set, From: from, To: to, Columns: cols, Rows: [][]any{}}
+	if c.product != nil {
+		c.product.Exports().Annotate(&t)
 	}
 	for rows.Next() {
 		vals := make([]any, len(cols))
@@ -198,22 +177,20 @@ func (c *Collector) query(ctx context.Context, set, from, to string, cols []stri
 			ptrs[i] = &vals[i]
 		}
 		if err := rows.Scan(ptrs...); err != nil {
-			return table{}, err
+			return Table{}, err
 		}
 		for i, v := range vals {
 			switch x := v.(type) {
 			case []byte:
-				if cols[i] == "event_key" {
-					vals[i] = string(x)
-					continue
-				}
-				if c.hack != nil && (cols[i] == "counts" || cols[i] == "arrivals_1s" || cols[i] == "writes_1s") {
-					var array pq.Int64Array
-					if err := array.Scan(x); err != nil {
-						return table{}, err
+				if c.product != nil {
+					value, handled, err := c.product.Exports().Decode(cols[i], x)
+					if err != nil {
+						return Table{}, err
 					}
-					vals[i] = []int64(array)
-					continue
+					if handled {
+						vals[i] = value
+						continue
+					}
 				}
 				if _, err := strconv.ParseFloat(string(x), 64); err == nil {
 					vals[i] = json.Number(x) // numeric columns come back as text
@@ -229,42 +206,35 @@ func (c *Collector) query(ctx context.Context, set, from, to string, cols []stri
 	return t, rows.Err()
 }
 
-func (c *Collector) setDaily(ctx context.Context, from, to string, _ *http.Request) (table, error) {
-	if c.hack == nil {
-		return c.query(ctx, "daily", from, to, []string{"day", "metric", "value"},
-			`SELECT to_char(day, 'YYYY-MM-DD'), metric, value FROM paper_daily WHERE day BETWEEN $1 AND $2 ORDER BY day, metric`, from, to)
-	}
-	t, err := c.query(ctx, "daily", from, to, []string{"day", "metric", "value", "run_id", "metric_def_version"}, `SELECT to_char(d.day,'YYYY-MM-DD'),d.metric,d.value,h.run_id,COALESCE(r.metric_def_version,1) FROM paper_daily d LEFT JOIN paper_hack_daily h ON h.day=d.day AND h.metric=d.metric LEFT JOIN paper_run r ON r.run_id=h.run_id WHERE d.day BETWEEN $1 AND $2 ORDER BY d.day,d.metric`, from, to)
-	if err != nil {
-		return t, err
-	}
-	return suppressHackDaily(t), nil
+func (c *Collector) setDaily(ctx context.Context, from, to string, _ *http.Request) (Table, error) {
+	return c.Query(ctx, "daily", from, to, []string{"day", "metric", "value"},
+		`SELECT to_char(day, 'YYYY-MM-DD'), metric, value FROM paper_daily WHERE day BETWEEN $1 AND $2 ORDER BY day, metric`, from, to)
 }
 
-func (c *Collector) setLatencyBuckets(ctx context.Context, from, to string, _ *http.Request) (table, error) {
-	return c.query(ctx, "latency_buckets", from, to, []string{"day", "class", "le_us", "requests"},
+func (c *Collector) setLatencyBuckets(ctx context.Context, from, to string, _ *http.Request) (Table, error) {
+	return c.Query(ctx, "latency_buckets", from, to, []string{"day", "class", "le_us", "requests"},
 		`SELECT to_char(day, 'YYYY-MM-DD'), class, le_us, requests FROM paper_latency_daily WHERE day BETWEEN $1 AND $2 ORDER BY day, class, le_us = -1, le_us`, from, to)
 }
 
 // setLatency gives per day and class: requests, 5xx share, bytes, mean and
 // percentiles. With all=1 the range is folded into one row per class.
-func (c *Collector) setLatency(ctx context.Context, from, to string, r *http.Request) (table, error) {
+func (c *Collector) setLatency(ctx context.Context, from, to string, r *http.Request) (Table, error) {
 	all := r != nil && r.URL.Query().Get("all") == "1"
 	dayExpr := "to_char(day, 'YYYY-MM-DD')"
 	if all {
 		dayExpr = "'all'"
 	}
-	classes, err := c.query(ctx, "", from, to, []string{"day", "class", "requests", "errors", "total_us", "bytes"},
+	classes, err := c.Query(ctx, "", from, to, []string{"day", "class", "requests", "errors", "total_us", "bytes"},
 		`SELECT `+dayExpr+`, class, sum(requests), sum(server_errors), sum(total_us), sum(bytes_out) FROM paper_class_daily
 		 WHERE day BETWEEN $1 AND $2 GROUP BY 1, 2 ORDER BY 1, 2`, from, to)
 	if err != nil {
-		return table{}, err
+		return Table{}, err
 	}
-	buckets, err := c.query(ctx, "", from, to, []string{"day", "class", "le_us", "requests"},
+	buckets, err := c.Query(ctx, "", from, to, []string{"day", "class", "le_us", "requests"},
 		`SELECT `+dayExpr+`, class, le_us, sum(requests) FROM paper_latency_daily
 		 WHERE day BETWEEN $1 AND $2 GROUP BY 1, 2, 3`, from, to)
 	if err != nil {
-		return table{}, err
+		return Table{}, err
 	}
 	hist := map[string]map[int64]int64{}
 	for _, b := range buckets.Rows {
@@ -272,16 +242,15 @@ func (c *Collector) setLatency(ctx context.Context, from, to string, r *http.Req
 		if hist[k] == nil {
 			hist[k] = map[int64]int64{}
 		}
-		hist[k][toInt(b[2])] += toInt(b[3])
+		hist[k][ToInt(b[2])] += ToInt(b[3])
 	}
-	t := table{Set: "latency", From: from, To: to, Rows: [][]any{},
+	t := Table{Set: "latency", From: from, To: to, Rows: [][]any{},
 		Columns: []string{"day", "class", "requests", "server_error_pct", "bytes_out", "mean_ms", "p50_ms", "p90_ms", "p99_ms", "p999_ms"}}
-	if c.hack != nil {
-		t.MetricDefVersion = 1
-		t.BucketScheme = LegacyBucketScheme
+	if c.product != nil {
+		c.product.Exports().Annotate(&t)
 	}
 	for _, row := range classes.Rows {
-		n, errs, totalUS, bytes := toInt(row[2]), toInt(row[3]), toInt(row[4]), toInt(row[5])
+		n, errs, totalUS, bytes := ToInt(row[2]), ToInt(row[3]), ToInt(row[4]), ToInt(row[5])
 		h := hist[fmt.Sprint(row[0], "|", row[1])]
 		var errPct, mean float64
 		if n > 0 {
@@ -323,16 +292,16 @@ func pct(h map[int64]int64, q float64) float64 {
 	return round(float64(lower)/1000, 3)
 }
 
-func (c *Collector) setProcess(ctx context.Context, from, to string, _ *http.Request) (table, error) {
+func (c *Collector) setProcess(ctx context.Context, from, to string, _ *http.Request) (Table, error) {
 	cols := []string{"at", "started_at", "proc_cpu_cores", "proc_rss_bytes", "go_heap_bytes", "goroutines", "open_fds", "pg_rss_bytes", "nginx_rss_bytes", "box_cpu_cores", "box_cpus", "box_mem_total_bytes", "box_mem_avail_bytes", "load1"}
-	return c.query(ctx, "process", from, to, cols,
+	return c.Query(ctx, "process", from, to, cols,
 		`SELECT at, started_at, proc_cpu_cores, proc_rss_bytes, go_heap_bytes, goroutines, open_fds, pg_rss_bytes, nginx_rss_bytes, box_cpu_cores, box_cpus, box_mem_total_bytes, box_mem_avail_bytes, load1
 		 FROM paper_process_sample WHERE at >= $1::date AND at < $2::date + 1 ORDER BY at`, from, to)
 }
 
-func (c *Collector) setProcessDaily(ctx context.Context, from, to string, _ *http.Request) (table, error) {
+func (c *Collector) setProcessDaily(ctx context.Context, from, to string, _ *http.Request) (Table, error) {
 	cols := []string{"day", "samples", "restarts", "proc_cpu_mean", "proc_cpu_p99", "proc_rss_median", "proc_rss_max", "pg_rss_median", "nginx_rss_median", "box_cpu_mean", "box_mem_used_median", "goroutines_median"}
-	return c.query(ctx, "process_daily", from, to, cols, `
+	return c.Query(ctx, "process_daily", from, to, cols, `
 		SELECT to_char(at, 'YYYY-MM-DD'), count(*), count(DISTINCT started_at) - 1,
 			round(avg(proc_cpu_cores)::numeric, 4), round(percentile_cont(0.99) WITHIN GROUP (ORDER BY proc_cpu_cores)::numeric, 4),
 			percentile_disc(0.5) WITHIN GROUP (ORDER BY proc_rss_bytes), max(proc_rss_bytes),
@@ -346,7 +315,7 @@ var footprintCols = []string{"week", "versions", "live_files", "live_bytes", "to
 
 // setFootprint returns the anonymous per-site rows of one week (week=,
 // default the latest), in random order.
-func (c *Collector) setFootprint(ctx context.Context, from, to string, r *http.Request) (table, error) {
+func (c *Collector) setFootprint(ctx context.Context, from, to string, r *http.Request) (Table, error) {
 	week := ""
 	if r != nil {
 		week = r.URL.Query().Get("week")
@@ -356,7 +325,7 @@ func (c *Collector) setFootprint(ctx context.Context, from, to string, r *http.R
 		_ = c.db.QueryRowContext(ctx, `SELECT to_char(max(week), 'YYYY-MM-DD') FROM paper_site_footprint`).Scan(&w)
 		week = w.String
 	}
-	return c.query(ctx, "footprint", week, week, footprintCols, `
+	return c.Query(ctx, "footprint", week, week, footprintCols, `
 		SELECT to_char(week, 'YYYY-MM-DD'), versions, live_files, live_bytes, total_bytes, html_bytes, js_bytes, css_bytes, media_bytes, other_bytes,
 			sqlite_bytes, file_store_bytes, kv_bytes, kv_rows, legacy_rows, views_30d, age_days, days_since_update
 		FROM paper_site_footprint WHERE week = $1::date ORDER BY random()`, week)
@@ -364,10 +333,10 @@ func (c *Collector) setFootprint(ctx context.Context, from, to string, r *http.R
 
 // setFootprintSummary: per week, the distribution the paper reports. An
 // idle site is one with no person views in 30 days.
-func (c *Collector) setFootprintSummary(ctx context.Context, from, to string, _ *http.Request) (table, error) {
+func (c *Collector) setFootprintSummary(ctx context.Context, from, to string, _ *http.Request) (Table, error) {
 	cols := []string{"week", "sites", "idle_sites", "live_bytes_p50", "live_bytes_p90", "live_bytes_p99", "live_bytes_max", "total_bytes_sum",
 		"js_bytes_p50", "js_bytes_p90", "html_bytes_p50", "data_bytes_p50", "data_bytes_p99", "sites_with_data", "idle_total_bytes_mean", "versions_p50"}
-	return c.query(ctx, "footprint_summary", from, to, cols, `
+	return c.Query(ctx, "footprint_summary", from, to, cols, `
 		SELECT to_char(week, 'YYYY-MM-DD'), count(*), count(*) FILTER (WHERE views_30d = 0),
 			percentile_disc(0.5) WITHIN GROUP (ORDER BY live_bytes), percentile_disc(0.9) WITHIN GROUP (ORDER BY live_bytes),
 			percentile_disc(0.99) WITHIN GROUP (ORDER BY live_bytes), max(live_bytes), sum(total_bytes),
@@ -383,12 +352,12 @@ func (c *Collector) setFootprintSummary(ctx context.Context, from, to string, _ 
 
 // setAPIRoutes is the existing per-route counts (30-day retention there),
 // for the storage read/write mix and the attack-surface table.
-func (c *Collector) setAPIRoutes(ctx context.Context, from, to string, _ *http.Request) (table, error) {
-	return c.query(ctx, "api_routes", from, to, []string{"route", "status", "calls"},
+func (c *Collector) setAPIRoutes(ctx context.Context, from, to string, _ *http.Request) (Table, error) {
+	return c.Query(ctx, "api_routes", from, to, []string{"route", "status", "calls"},
 		`SELECT route, status, sum(calls) FROM api_request_daily WHERE day BETWEEN $1 AND $2 GROUP BY 1, 2 ORDER BY 3 DESC`, from, to)
 }
 
-func toInt(v any) int64 {
+func ToInt(v any) int64 {
 	switch x := v.(type) {
 	case int64:
 		return x
@@ -409,18 +378,26 @@ func round(v float64, places int) float64 {
 	return math.Round(v*p) / p
 }
 
-func hackExportSet(name string) bool { return strings.HasPrefix(name, "hack_") || name == "runs" }
-func (c *Collector) sortedExportSets() []string {
-	names := sortedSets()
-	if c.hack != nil {
-		return names
-	}
-	result := names[:0]
-	for _, name := range names {
-		if !hackExportSet(name) {
-			result = append(result, name)
+func (c *Collector) exportSets() map[string]ExportSet {
+	sets := make(map[string]ExportSet, len(exportSets))
+	for name, fn := range exportSets {
+		sets[name] = func(ctx context.Context, from, to string, r *http.Request) (Table, error) {
+			return fn(c, ctx, from, to, r)
 		}
 	}
-	return result
+	if c.product != nil {
+		for name, fn := range c.product.Exports().Sets {
+			sets[name] = fn
+		}
+	}
+	return sets
+}
+func (c *Collector) sortedExportSets() []string {
+	names := make([]string, 0)
+	for name := range c.exportSets() {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 func (c *Collector) exportSetList() string { return strings.Join(c.sortedExportSets(), ", ") }

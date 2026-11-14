@@ -3,6 +3,7 @@ package papermetrics
 import (
 	"context"
 	"fmt"
+	platform "github.com/vsriram/simple-host/internal/papermetrics"
 	"log"
 	"sort"
 	"strings"
@@ -65,7 +66,7 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) (resultErr 
 	if err := c.ensureHackKeys(ctx); err != nil {
 		return err
 	}
-	run, err := c.ensureRun(ctx)
+	run, err := c.platform.EnsureRun(ctx)
 	if err != nil {
 		return err
 	}
@@ -131,11 +132,11 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) (resultErr 
 			values[i] = e.values[col]
 			marks[i] = fmt.Sprintf("$%d", i+1)
 		}
-		if _, err := c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_event (`+strings.Join(hackEventCols, ",")+`) VALUES (`+strings.Join(marks, ",")+`) ON CONFLICT (snapshot_day,event_key) DO NOTHING`, values...); err != nil {
+		if _, err := c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_hack_event (`+strings.Join(hackEventCols, ",")+`) VALUES (`+strings.Join(marks, ",")+`) ON CONFLICT (snapshot_day,event_key) DO NOTHING`, values...); err != nil {
 			return err
 		}
 	}
-	return c.commitMetrics(tx, written)
+	return c.platform.CommitMetrics(tx, written)
 }
 
 func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
@@ -145,7 +146,7 @@ func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 		log.Printf("paper metrics Hack sites: %v", err)
 		return
 	}
-	sites := map[string]*siteFootprint{}
+	sites := map[string]*SiteFootprint{}
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
@@ -153,25 +154,25 @@ func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 			rows.Close()
 			return
 		}
-		sites[e.account+"/"+name] = &siteFootprint{}
+		sites[e.account+"/"+name] = &SiteFootprint{}
 	}
 	rows.Close()
 	if rows.Err() != nil {
 		c.tracker.Fail("read Hack metadata", rows.Err())
 		return
 	}
-	c.walkFootprints(sites)
+	c.platform.WalkFootprints(sites)
 	var storage, versions, teamVersions, teamBytes int64
 	var sizes []int64
 	for key, f := range sites {
-		storage += f.sqliteBytes + f.fileStoreBytes
-		versions += int64(f.versions)
+		storage += f.SqliteBytes + f.FileStoreBytes
+		versions += int64(f.Versions)
 		if key == e.account+"/"+e.id {
 			continue
 		} // custom event website
-		sizes = append(sizes, f.totalBytes)
-		teamBytes += f.totalBytes
-		teamVersions += int64(f.versions)
+		sizes = append(sizes, f.TotalBytes)
+		teamBytes += f.TotalBytes
+		teamVersions += int64(f.Versions)
 	}
 	e.values["team_sites"] = len(sizes)
 	if c.dataDir != "" {
@@ -211,4 +212,46 @@ func init() {
 	for _, stage := range []string{"draft", "open", "building", "closed", "judging", "results", "archived"} {
 		hackDailyMetrics = append(hackDailyMetrics, struct{ name, query string }{"hack_events_by_stage_" + stage, `SELECT count(*) FROM events WHERE stage='` + stage + `'`})
 	}
+}
+
+func (c *Collector) DailyMetrics() []platform.DailyMetric {
+	metrics := make([]platform.DailyMetric, 0, len(hackDailyMetrics))
+	for _, metric := range hackDailyMetrics {
+		name := metric.name
+		metrics = append(metrics, platform.DailyMetric{Name: name, Query: metric.query, Store: func(ctx context.Context, day string, value float64) error {
+			return c.storeDaily(ctx, day, name, value)
+		}})
+	}
+	return metrics
+}
+func (c *Collector) storeDaily(ctx context.Context, day, name string, value float64) error {
+
+	run, err := c.platform.EnsureRun(ctx)
+	if err != nil {
+		c.tracker.Fail("paper metrics Hack daily run", err)
+		log.Printf("paper metrics Hack daily run: %v", err)
+		return err
+	}
+	var written int64
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		c.tracker.Fail("paper metrics Hack daily", err)
+		log.Printf("paper metrics Hack daily: %v", err)
+		return err
+	}
+	_, err = c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_hack_daily(run_id,day,metric,value) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, run, day, name, value)
+	if err == nil {
+		_, err = c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_daily(day,metric,value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, day, name, value)
+	}
+	if err == nil {
+		err = c.platform.CommitMetrics(tx, written)
+	} else {
+		_ = tx.Rollback()
+	}
+	if err != nil {
+		c.tracker.Fail("paper metrics Hack daily", err)
+		log.Printf("paper metrics Hack daily: %v", err)
+		return err
+	}
+	return nil
 }

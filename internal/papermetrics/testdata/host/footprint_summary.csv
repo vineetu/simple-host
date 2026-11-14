@@ -1,0 +1,5 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-footprint_summary-2026-10-01-2026-10-01.csv"
+week,sites,idle_sites,live_bytes_p50,live_bytes_p90,live_bytes_p99,live_bytes_max,total_bytes_sum,js_bytes_p50,js_bytes_p90,html_bytes_p50,data_bytes_p50,data_bytes_p99,sites_with_data,idle_total_bytes_mean,versions_p50
+2026-09-28,1,1,20,20,20,20,40,0,0,0,0,0,0,40,2

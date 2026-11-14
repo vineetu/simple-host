@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"bucket_scheme":"legacy_16_upper_us_v1","metric_def_version":1,"set":"latency_buckets","from":"2026-10-01","to":"2026-10-01","columns":["day","class","le_us","requests"],"rows":[["2026-10-01","api_read",100,8],["2026-10-01","api_read",250,2]]}

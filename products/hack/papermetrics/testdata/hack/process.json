@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"metric_def_version":1,"set":"process","from":"2026-10-01","to":"2026-10-01","columns":["at","started_at","proc_cpu_cores","proc_rss_bytes","go_heap_bytes","goroutines","open_fds","pg_rss_bytes","nginx_rss_bytes","box_cpu_cores","box_cpus","box_mem_total_bytes","box_mem_avail_bytes","load1"],"rows":[["2026-10-01T12:00:00Z","2026-10-01T00:00:00Z",0.25,1024,0,0,0,0,0,0,4,0,0,0]]}

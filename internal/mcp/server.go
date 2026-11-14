@@ -170,7 +170,7 @@ type Config struct {
 	// with the REST method, path and the status it got back. It exists so
 	// the Hack paper-metrics collector can see successful hack-event writes
 	// without this leaf package importing internal/papermetrics; the
-	// handler package wires it to papermetrics.HackMutationResult. Nil-safe.
+	// handler package wires it to the product metrics recorder. Nil-safe.
 	MutationResultHook func(ctx context.Context, method, path string, status int)
 }
 

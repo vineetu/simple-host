@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"metric_def_version":4,"set":"hack_phases","from":"2026-10-01","to":"2026-10-01","columns":["run_id","event_key","synthetic","stage","minute_offset","observed","baseline","metric_def_version"],"rows":[[17,"9007199254740993",false,"judging",null,true,true,4]]}

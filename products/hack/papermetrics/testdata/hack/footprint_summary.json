@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"metric_def_version":1,"set":"footprint_summary","from":"2026-10-01","to":"2026-10-01","columns":["week","sites","idle_sites","live_bytes_p50","live_bytes_p90","live_bytes_p99","live_bytes_max","total_bytes_sum","js_bytes_p50","js_bytes_p90","html_bytes_p50","data_bytes_p50","data_bytes_p99","sites_with_data","idle_total_bytes_mean","versions_p50"],"rows":[["2026-09-28",1,1,20,20,20,20,40,0,0,0,0,0,0,40,2]]}

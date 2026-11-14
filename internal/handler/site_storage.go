@@ -124,7 +124,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 	if h.refuseSuspendedSiteID(w, r, id) {
 		return storageCall{}, false
 	}
-	h.paperHackSite(r, ownerID, siteName, nil)
+	h.paperSite(r, ownerID, siteName, nil)
 	c := storageCall{siteID: id, ownerID: ownerID, siteName: siteName}
 	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
 		if !h.ed.Storage().EventOwners || scope.siteID != id || scope.ownerID != ownerID {
@@ -159,7 +159,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 				c.linkScope = "admin"
 			}
 		}
-		hackSitesPaperUser(r, &u)
+		paperRecorder(r.Context()).User(r.Context(), &u)
 		if !c.owner {
 			storageError(w, 403, "forbidden", "owner credential required")
 			return storageCall{}, false

@@ -1,0 +1,5 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-latency-2026-10-01-2026-10-01.csv"
+day,class,requests,server_error_pct,bytes_out,mean_ms,p50_ms,p90_ms,p99_ms,p999_ms
+2026-10-01,api_read,10,10,300,0.12,0.081,0.175,0.243,0.249

@@ -55,17 +55,17 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		TeamKeys:    h.ed.Identity().TeamKeys, TeamSitesReady: h.teamSitesReady,
 		PaperSite: func(ctx context.Context, user *model.User, name string) {
 			if h.ed.Identity().PaperMetrics {
-				paperRecorder(ctx).ResolveHackSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
+				paperRecorder(ctx).ResolveSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
 			}
 		},
 		PaperState: func(ctx context.Context, user *model.User, stage string) {
-			paperRecorder(ctx).ResolveHackEvent(ctx, user.Team.EventSlug, stage, user.Team.MemberID)
+			paperRecorder(ctx).ResolveGroup(ctx, user.Team.EventSlug, stage, user.Team.MemberID)
 		},
 		NotifyUpdate: func(ctx context.Context, user *model.User, site model.Site, n, prev int, published bool, files map[string][]byte) {
 			if published {
 				h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)
 				if h.ed.Identity().PaperMetrics && user.Team != nil {
-					paperRecorder(ctx).HackDeploy(ctx)
+					paperRecorder(ctx).Deploy(ctx)
 				}
 			}
 			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, n, files)
@@ -78,7 +78,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		},
 		NotifyCreate: func(ctx context.Context, user *model.User, site model.Site, files map[string][]byte) {
 			if h.ed.Identity().PaperMetrics && user.Team != nil {
-				paperRecorder(ctx).HackDeploy(ctx)
+				paperRecorder(ctx).Deploy(ctx)
 			}
 			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, 1, files)
 		},

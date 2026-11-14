@@ -251,7 +251,7 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 		return
 	}
 	if h.ed.Storage().EventOwners {
-		paperRecorder(r.Context()).HackMember(r.Context(), sess.UserID)
+		paperRecorder(r.Context()).Member(r.Context(), sess.UserID)
 		if ok, err := h.storeAccounts().HackSiteOwnerOnSite(r.Context(), sess.SiteID, sess.UserID); err != nil || !ok {
 			return
 		}

@@ -45,7 +45,7 @@ func TestClassify(t *testing.T) {
 	}
 	for _, tc := range cases {
 		r := httptest.NewRequest(tc.method, "http://"+tc.host+tc.path, nil)
-		if got := classNames[c.classify(r)]; got != tc.want {
+		if got := classNames[c.Classify(r)]; got != tc.want {
 			t.Errorf("%s %s%s = %q, want %q", tc.method, tc.host, tc.path, got, tc.want)
 		}
 	}
@@ -61,7 +61,7 @@ func TestPercentiles(t *testing.T) {
 	if got := pct(h, 0.999); got != 10_000 {
 		t.Fatalf("overflow p99.9 = %v, want the 10 s floor", got)
 	}
-	if bucketFor(0) != 0 || bucketFor(51) != 1 || bucketFor(20_000_000) != numBuckets-1 {
+	if bucketFor(0) != 0 || bucketFor(51) != 1 || bucketFor(20_000_000) != NumBuckets-1 {
 		t.Fatal("bucketFor")
 	}
 }
@@ -81,7 +81,7 @@ func TestWrapKeepsFastPaths(t *testing.T) {
 	if !sawReaderFrom || !sawFlusher || rec.Body.String() != "hello" {
 		t.Fatalf("readerFrom=%v flusher=%v body=%q", sawReaderFrom, sawFlusher, rec.Body.String())
 	}
-	hs := &c.hist[classSiteFile]
+	hs := &c.hist[ClassSiteFile]
 	if hs.requests.Load() != 1 || hs.errors.Load() != 1 || hs.bytes.Load() != 5 {
 		t.Fatalf("counted %d req %d err %d bytes", hs.requests.Load(), hs.errors.Load(), hs.bytes.Load())
 	}
@@ -226,7 +226,7 @@ func TestCollectAndExport(t *testing.T) {
 		t.Fatalf("signed out got %d", w.Code)
 	}
 	w := get("set=latency&all=1", admin)
-	var lat table
+	var lat Table
 	if err := json.Unmarshal(w.Body.Bytes(), &lat); err != nil || len(lat.Rows) != 1 || lat.Rows[0][1] != "site_file" {
 		t.Fatalf("latency: %v %s", err, w.Body.String())
 	}

@@ -22,6 +22,7 @@ import (
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
@@ -115,9 +116,9 @@ func Extension() *extension.Extension {
 					Notifications: NotificationGroups{},
 					GroupHosts:    groupHosts,
 				},
-				PaperHack: func(paper *papermetrics.Collector) { paper.WithHack() },
+				PaperHack: func(paper *papermetrics.Collector) { hackmetrics.Install(paper) },
 				PaperRecorder: func(next http.Handler) http.Handler {
-					return hackhttp.WithPaperRecorder(next, papermetrics.RequestRecorder{})
+					return hackhttp.WithPaperRecorder(handler.WithPaperRecorder(next, hackhttp.SitePaperRecorder{}), hackmetrics.RequestRecorder{})
 				},
 			}, nil
 		},

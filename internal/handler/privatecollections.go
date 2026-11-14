@@ -127,7 +127,7 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (mode
 	if err != nil || !h.sessionValidFor(r, sess, siteID) {
 		return model.VisitorSession{}, false
 	}
-	paperRecorder(r.Context()).HackMember(r.Context(), sess.UserID)
+	paperRecorder(r.Context()).Member(r.Context(), sess.UserID)
 	return sess, true
 }
 

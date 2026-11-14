@@ -17,7 +17,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) (resultErr error) {
 			c.tracker.Fail("ensureHackKeys", resultErr)
 		}
 	}()
-	run, err := c.ensureRun(ctx)
+	run, err := c.platform.EnsureRun(ctx)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) (resultErr error) {
 				return err
 			}
 			key := int64(binary.BigEndian.Uint64(bytes[:]))
-			_, err = c.execMetric(ctx, c.db, nil, `INSERT INTO paper_hack_key (event_id,event_key,synthetic,run_id) VALUES ($1,$2,$3,$4) ON CONFLICT (event_id) DO NOTHING`, item.id, key, item.synthetic, run)
+			_, err = c.platform.ExecMetric(ctx, c.db, nil, `INSERT INTO paper_hack_key (event_id,event_key,synthetic,run_id) VALUES ($1,$2,$3,$4) ON CONFLICT (event_id) DO NOTHING`, item.id, key, item.synthetic, run)
 			if err == nil {
 				break
 			}
@@ -60,7 +60,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) (resultErr error) {
 			return err
 		}
 	}
-	_, err = c.execMetric(ctx, c.db, nil, `UPDATE paper_hack_key k SET synthetic=true FROM events e LEFT JOIN users u ON u.id=e.created_by WHERE k.event_id=e.id AND NOT k.synthetic AND `+syntheticSQL)
+	_, err = c.platform.ExecMetric(ctx, c.db, nil, `UPDATE paper_hack_key k SET synthetic=true FROM events e LEFT JOIN users u ON u.id=e.created_by WHERE k.event_id=e.id AND NOT k.synthetic AND `+syntheticSQL)
 	return err
 }
 
@@ -236,7 +236,7 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 	if err := c.ensureHackKeys(ctx); err != nil {
 		return err
 	}
-	run, err := c.ensureRun(ctx)
+	run, err := c.platform.EnsureRun(ctx)
 	if err != nil {
 		return err
 	}
@@ -272,17 +272,17 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 			return err
 		}
 		if !exact {
-			if _, err = c.execMetric(ctx, tx, &written, `UPDATE paper_hack_phase SET origin_change=$4 WHERE event_key=$1 AND stage=$2 AND origin_change=$3`, key, stage, previousOrigin, stamp); err != nil {
+			if _, err = c.platform.ExecMetric(ctx, tx, &written, `UPDATE paper_hack_phase SET origin_change=$4 WHERE event_key=$1 AND stage=$2 AND origin_change=$3`, key, stage, previousOrigin, stamp); err != nil {
 				return err
 			}
 		}
 	}
 	if stage == "open" && !observed && !baseline {
-		if _, err = c.execMetric(ctx, tx, &written, `UPDATE paper_hack_key SET first_open_at=COALESCE(first_open_at,$2) WHERE event_id=$1`, eventID, at); err != nil {
+		if _, err = c.platform.ExecMetric(ctx, tx, &written, `UPDATE paper_hack_key SET first_open_at=COALESCE(first_open_at,$2) WHERE event_id=$1`, eventID, at); err != nil {
 			return err
 		}
 	}
-	_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,origin_change)
+	_, err = c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,origin_change)
  SELECT $1,k.event_key,k.synthetic,$3,date_trunc('minute',$4::timestamptz),round(EXTRACT(epoch FROM ($4::timestamptz-COALESCE(e.starts_at,k.first_open_at)))/60)::int,date_trunc('minute',COALESCE(e.starts_at,k.first_open_at)+interval '30 seconds'),$5,$6,$7
  FROM events e JOIN paper_hack_key k ON k.event_id=e.id WHERE e.id=$2
  ON CONFLICT(event_key,stage,origin_change) DO UPDATE SET
@@ -295,7 +295,7 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 	if err != nil {
 		return err
 	}
-	return c.commitMetrics(tx, written)
+	return c.platform.CommitMetrics(tx, written)
 }
 func (c *Collector) hackTimestampPhases(ctx context.Context) (resultErr error) {
 	defer func() {
@@ -303,11 +303,11 @@ func (c *Collector) hackTimestampPhases(ctx context.Context) (resultErr error) {
 			c.tracker.Fail("hackTimestampPhases", resultErr)
 		}
 	}()
-	run, err := c.ensureRun(ctx)
+	run, err := c.platform.EnsureRun(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = c.execMetric(ctx, c.db, nil, `INSERT INTO paper_hack_phase (run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,origin_change)
+	_, err = c.platform.ExecMetric(ctx, c.db, nil, `INSERT INTO paper_hack_phase (run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,origin_change)
  SELECT $1,k.event_key,k.synthetic,v.stage,date_trunc('minute',v.at),round(EXTRACT(epoch FROM (v.at-COALESCE(e.starts_at,k.first_open_at)))/60)::int,date_trunc('minute',COALESCE(e.starts_at,k.first_open_at)+interval '30 seconds'),false,v.at
  FROM events e JOIN paper_hack_key k ON k.event_id=e.id
  CROSS JOIN LATERAL (VALUES ('submission_deadline',e.submission_deadline),('judging_locked',e.judging_locked_at),('results_published',COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))),('voting_opens',e.voting_opens_at),('voting_closes',e.voting_closes_at)) v(stage,at)
@@ -320,6 +320,3 @@ func HackPhasesChanged(ctx context.Context) {
 		request.metrics.nudge()
 	}
 }
-
-// RefreshHackBackground drains phase notices and refreshes the metadata snapshot.
-func (c *Collector) RefreshHackBackground(ctx context.Context) { c.refreshHackBackground(ctx) }

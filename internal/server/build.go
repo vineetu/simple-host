@@ -552,7 +552,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		if parts.PaperRecorder != nil {
 			served = parts.PaperRecorder(served)
 		}
-		served = paper.Wrap(handler.WithPaperRecorder(served, papermetrics.RequestRecorder{}))
+		served = paper.Wrap(served)
 	}
 
 	var paperWorker *operations.PaperMetrics

@@ -1,0 +1,5 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-hack_events-2026-10-01-2026-10-01.csv"
+event_key,run_id,synthetic,stage,duration_hours,expected_participants,participants,organisers,judges,applications,applications_approved,teams,teams_with_entry,teams_kept_after_leave,team_size_p50,team_size_max,team_sites,team_site_bytes_sum,team_site_bytes_p50,team_site_versions_sum,event_storage_bytes,submissions,entries_with_code_url,entries_with_video,scores,score_criteria,assignments,conflicts,votes,announcements,results_published,deploys_total,minutes_create_to_first_deploy,metric_def_version,expected_participants_suppressed,participants_suppressed,organisers_suppressed,judges_suppressed,applications_suppressed,applications_approved_suppressed,team_size_p50_suppressed,team_size_max_suppressed,scores_suppressed,assignments_suppressed,conflicts_suppressed,votes_suppressed
+9007199254740993,17,false,judging,,,6,,,,,5,,,,,,,,,,,,,,,,,,,,,,4,false,false,true,true,true,true,false,false,true,true,true,false

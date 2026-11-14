@@ -1027,7 +1027,7 @@ func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (strin
 		if key := r.Header.Get("X-API-Key"); key != "" {
 			if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && u.ID != "" {
 				if s, serr := h.sitesSvc().GetSiteByUser(r.Context(), u.ID, siteName); serr == nil {
-					h.paperHackSite(r, s.UserID, s.Name, &u)
+					h.paperSite(r, s.UserID, s.Name, &u)
 					return s.ID, true, nil
 				}
 			}
@@ -1064,7 +1064,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 				return "", sql.ErrNoRows
 			}
 		}
-		h.paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
+		h.paperSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
 		return site.ID, nil
 	}
 	// On a family address (<label>.<family>) the host names the site too:

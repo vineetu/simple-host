@@ -8,7 +8,7 @@
 // Hack key lookup alone holds an operational event ID, deleted with that event.
 //
 // Cost is the point of the paper, so it has to be near zero here too: a
-// Host request uses classHist (BenchmarkWrap); Hack adds event-slot atomics
+// Host request uses ClassHist (BenchmarkWrap); Hack adds event-slot atomics
 // and a member set (BenchmarkHackWrap and BenchmarkHackWrapParallel). The
 // database sees completed slot batches and a process sample every five minutes.
 // A missing table only loses metrics; it never stops the server.
@@ -41,9 +41,9 @@ type Collector struct {
 	dataDir    string
 	apexHosts  map[string]bool
 	started    time.Time
-	hist       [numClasses]classHist
+	hist       [NumClasses]ClassHist
 	lastSample sample
-	hack       *hackMetrics
+	product    ProductCollector
 	runID      atomic.Int64
 	runMu      sync.Mutex
 	runConfig  map[string]any
@@ -74,21 +74,16 @@ func (c *Collector) ProgressTracker() *workers.Tracker { return c.tracker }
 func (c *Collector) InitializeRun(ctx context.Context) {
 	c.tracker.Attempt()
 	newRun := c.runID.Load() == 0
-	if _, err := c.ensureRun(ctx); err != nil {
+	if _, err := c.EnsureRun(ctx); err != nil {
 		c.tracker.Fail("register run", err)
 	} else if newRun {
 		c.tracker.Progress()
 	}
 }
-func (c *Collector) HackEnabled() bool              { return c.hack != nil }
-func (c *Collector) HackRefresh() <-chan struct{}   { return c.hack.refresh }
 func (c *Collector) Flush(ctx context.Context)      { c.flush(ctx) }
 func (c *Collector) TakeSample(ctx context.Context) { c.takeSample(ctx) }
 func (c *Collector) DailySnapshot(ctx context.Context, now time.Time) error {
 	return c.dailySnapshot(ctx, now)
-}
-func (c *Collector) HackSnapshot(ctx context.Context, now time.Time) error {
-	return c.hackSnapshot(ctx, now)
 }
 func (c *Collector) WeeklyFootprint(ctx context.Context, now time.Time) error {
 	return c.weeklyFootprint(ctx, now)
@@ -99,48 +94,48 @@ func (c *Collector) Wrap(h http.Handler) http.Handler {
 	if !Enabled() {
 		return h
 	}
-	if c.hack != nil {
-		return c.wrapHack(h)
+	if c.product != nil {
+		return c.product.Wrap(h)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cl := c.classify(r)
-		if cl == classNone {
+		cl := c.Classify(r)
+		if cl == ClassNone {
 			h.ServeHTTP(w, r)
 			return
 		}
-		rec := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		rec := &StatusWriter{ResponseWriter: w, Status: http.StatusOK}
 		t0 := time.Now()
 		h.ServeHTTP(rec, r)
-		c.hist[cl].observe(time.Since(t0), rec.status, rec.bytes)
+		c.hist[cl].Observe(time.Since(t0), rec.Status, rec.Bytes)
 	})
 }
 
-// statusWriter records the status and body bytes, and keeps the fast paths
+// StatusWriter records the status and body bytes, and keeps the fast paths
 // of the writer it wraps: ReadFrom (sendfile for site files), Flush (MCP
 // streams) and, via Unwrap, http.ResponseController.
-type statusWriter struct {
+type StatusWriter struct {
 	http.ResponseWriter
-	status int
-	bytes  int64
+	Status int
+	Bytes  int64
 }
 
-func (s *statusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+func (s *StatusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
 
-func (s *statusWriter) WriteHeader(code int) {
-	s.status = code
+func (s *StatusWriter) WriteHeader(code int) {
+	s.Status = code
 	s.ResponseWriter.WriteHeader(code)
 }
 
-func (s *statusWriter) Write(b []byte) (int, error) {
+func (s *StatusWriter) Write(b []byte) (int, error) {
 	n, err := s.ResponseWriter.Write(b)
-	s.bytes += int64(n)
+	s.Bytes += int64(n)
 	return n, err
 }
 
-func (s *statusWriter) ReadFrom(src io.Reader) (int64, error) {
+func (s *StatusWriter) ReadFrom(src io.Reader) (int64, error) {
 	if rf, ok := s.ResponseWriter.(io.ReaderFrom); ok {
 		n, err := rf.ReadFrom(src)
-		s.bytes += n
+		s.Bytes += n
 		return n, err
 	}
 	return io.Copy(writerOnly{s}, src)
@@ -149,22 +144,22 @@ func (s *statusWriter) ReadFrom(src io.Reader) (int64, error) {
 // writerOnly hides ReadFrom so io.Copy does not call back into it.
 type writerOnly struct{ io.Writer }
 
-func (s *statusWriter) Flush() {
+func (s *StatusWriter) Flush() {
 	if f, ok := s.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
 }
 
-// classHist is one class's in-memory counters since the last flush.
-type classHist struct {
-	buckets  [numBuckets]atomic.Int64
+// ClassHist is one class's in-memory counters since the last flush.
+type ClassHist struct {
+	buckets  [NumBuckets]atomic.Int64
 	requests atomic.Int64
 	errors   atomic.Int64 // 5xx
 	totalUS  atomic.Int64
 	bytes    atomic.Int64
 }
 
-func (h *classHist) observe(d time.Duration, status int, bytes int64) {
+func (h *ClassHist) Observe(d time.Duration, status int, bytes int64) {
 	us := d.Microseconds()
 	h.buckets[bucketFor(us)].Add(1)
 	h.requests.Add(1)

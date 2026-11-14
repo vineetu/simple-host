@@ -1,0 +1,5 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-process_daily-2026-10-01-2026-10-01.csv"
+day,samples,restarts,proc_cpu_mean,proc_cpu_p99,proc_rss_median,proc_rss_max,pg_rss_median,nginx_rss_median,box_cpu_mean,box_mem_used_median,goroutines_median
+2026-10-01,1,0,0.2500,0.2500,1024,1024,0,0,0.0000,0,0

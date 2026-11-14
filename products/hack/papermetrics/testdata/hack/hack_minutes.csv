@@ -1,0 +1,5 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-hack_minutes-2026-10-01-2026-10-01.csv"
+run_id,minute_offset,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s,writes_1s,metric_def_version,active_members_suppressed
+17,,60,9007199254740993,false,7,2,1,1,,2,4,"[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]","[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]",4,true

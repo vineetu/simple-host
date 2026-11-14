@@ -1,0 +1,4 @@
+400 Bad Request
+application/json
+
+{"error":"unknown set; one of: summary, api_routes, daily, footprint, footprint_summary, hack_events, hack_latency, hack_minutes, hack_phases, latency, latency_buckets, process, process_daily, runs"}

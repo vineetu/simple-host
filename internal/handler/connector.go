@@ -219,7 +219,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// import internal/papermetrics directly; this is the same hook it
 		// used to call inline from internal/mcp/tools.go.
 		MutationResultHook: func(ctx context.Context, method, path string, status int) {
-			paperRecorder(ctx).HackMutationResult(ctx, method, path, status)
+			paperRecorder(ctx).MutationResult(ctx, method, path, status)
 		},
 		// main sets it from the server's Turnstile keys (OfferSpamCheck).
 		SelfHosted: siteDomain != canonicalSiteDomain,

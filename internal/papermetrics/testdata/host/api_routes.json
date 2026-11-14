@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"set":"api_routes","from":"2026-10-01","to":"2026-10-01","columns":["route","status","calls"],"rows":[["GET /v1/sites",200,10]]}

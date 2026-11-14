@@ -27,8 +27,8 @@ func (c *PaperMetrics) Start(ctx context.Context) {
 		}
 		c.runner.Go(ctx, func(ctx context.Context) {
 			c.collector.InitializeRun(ctx)
-			if c.collector.HackEnabled() {
-				c.runner.Go(ctx, c.hackLoop)
+			if c.collector.Product() != nil {
+				c.runner.Go(ctx, c.productLoop)
 			}
 			c.loop(ctx)
 		})
@@ -71,8 +71,8 @@ func (c *PaperMetrics) snapshots(ctx context.Context) {
 	if err := c.collector.DailySnapshot(ctx, time.Now().UTC()); err != nil {
 		c.tracker.Fail("daily snapshot", err)
 	}
-	if c.collector.HackEnabled() {
-		if err := c.collector.HackSnapshot(ctx, time.Now().UTC()); err != nil {
+	if c.collector.Product() != nil {
+		if err := c.collector.Product().Snapshot(ctx, time.Now().UTC()); err != nil {
 			c.tracker.Fail("Hack snapshot", err)
 		}
 	}
@@ -81,22 +81,22 @@ func (c *PaperMetrics) snapshots(ctx context.Context) {
 	}
 }
 
-func (c *PaperMetrics) hackLoop(ctx context.Context) {
+func (c *PaperMetrics) productLoop(ctx context.Context) {
 	tick := time.NewTimer(time.Until(time.Now().UTC().Truncate(time.Minute).Add(time.Minute)))
 	defer tick.Stop()
-	c.collector.RefreshHackBackground(ctx)
+	c.collector.Product().Refresh(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			finalCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			c.collector.FlushHack(finalCtx, time.Now().UTC())
+			c.collector.Product().Flush(finalCtx, time.Now().UTC())
 			cancel()
 			return
-		case <-c.collector.HackRefresh():
-			c.collector.RefreshHackBackground(ctx)
+		case <-c.collector.Product().RefreshSignal():
+			c.collector.Product().Refresh(ctx)
 		case now := <-tick.C:
-			c.collector.FlushHack(ctx, now)
-			c.collector.RefreshHackBackground(ctx)
+			c.collector.Product().Flush(ctx, now)
+			c.collector.Product().Refresh(ctx)
 			tick.Reset(time.Until(time.Now().UTC().Truncate(time.Minute).Add(time.Minute)))
 		}
 	}

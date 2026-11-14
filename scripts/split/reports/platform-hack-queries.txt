@@ -3,84 +3,18 @@
 # Objects: scripts/split/hack-objects.txt
 # Line numbers move when files are edited; regenerate this file, do not hand-edit it.
 
-1. SQL that names a Hack object (62)
-internal/papermetrics/export.go:237 | Collector.setDaily | paper_hack_daily | SELECT to_char(d.day,'YYYY-MM-DD'),d.metric,d.value,h.run_id,COALESCE(r.metric_def_version,1) FROM paper_daily d LEFT JOIN paper_hack_daily h ON h.day=d.day AND…
-internal/papermetrics/hack_counter.go:406 | Collector.flushHackSlot | paper_hack_minute | INSERT INTO paper_hack_minute (run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s…
-internal/papermetrics/hack_counter.go:417 | Collector.flushHackSlot | paper_hack_latency | INSERT INTO paper_hack_latency (run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s) VALUES ($1…
-internal/papermetrics/hack_export.go:65 | eligibleEvent | paper_hack_event | ($3 OR COALESCE((SELECT teams FROM paper_hack_event e WHERE e.event_key=t.event_key ORDER BY snapshot_day DESC LIMIT 1),0)>=5)
-internal/papermetrics/hack_export.go:85 | hackMinuteOffset | events, paper_hack_key | (SELECT round(EXTRACT(epoch FROM (t.slot-e.starts_at))/60)::bigint FROM paper_hack_key k JOIN events e ON e.id=k.event_id WHERE k.event_key=t.event_key)
-internal/papermetrics/hack_export.go:91 | Collector.setHackMinutes | events, paper_hack_event, paper_hack_key, paper_hack_minute | SELECT run_id,(SELECT round(EXTRACT(epoch FROM (t.slot-e.starts_at))/60)::bigint FROM paper_hack_key k JOIN events e ON e.id=k.event_id WHERE k.event_key=t.even…
-    built from: internal/papermetrics/hack_export.go:65 eligibleEvent; internal/papermetrics/hack_export.go:85 hackMinuteOffset
-internal/papermetrics/hack_export.go:98 | Collector.setHackLatency | events, paper_hack_event, paper_hack_key, paper_hack_latency | SELECT run_id,(SELECT round(EXTRACT(epoch FROM (t.slot-e.starts_at))/60)::bigint FROM paper_hack_key k JOIN events e ON e.id=k.event_id WHERE k.event_key=t.even…
-    built from: internal/papermetrics/hack_export.go:65 eligibleEvent; internal/papermetrics/hack_export.go:85 hackMinuteOffset
-internal/papermetrics/hack_export.go:104 | Collector.setHackPhases | paper_hack_event, paper_hack_phase | SELECT run_id,event_key::text,synthetic,stage,minute_offset,observed,baseline, (SELECT metric_def_version FROM paper_run r WHERE r.run_id=t.run_id) FROM paper_h…
-    built from: internal/papermetrics/hack_export.go:65 eligibleEvent
-internal/papermetrics/hack_metadata.go:24 | Collector.ensureHackKeys | events, paper_hack_key | SELECT e.id::text,(e.slug LIKE 'e2e-%' OR e.slug LIKE 'mock-%' OR e.slug LIKE 'mock2-%' OR e.slug LIKE 'local-%' OR COALESCE(u.username LIKE 'e2e-%',false)) FRO…
-    built from: internal/papermetrics/hack_metadata.go:12 syntheticSQL
-internal/papermetrics/hack_metadata.go:54 | Collector.ensureHackKeys | paper_hack_key | INSERT INTO paper_hack_key (event_id,event_key,synthetic,run_id) VALUES ($1,$2,$3,$4) ON CONFLICT (event_id) DO NOTHING
-internal/papermetrics/hack_metadata.go:63 | Collector.ensureHackKeys | events, paper_hack_key | UPDATE paper_hack_key k SET synthetic=true FROM events e LEFT JOIN users u ON u.id=e.created_by WHERE k.event_id=e.id AND NOT k.synthetic AND (e.slug LIKE 'e2e-…
-    built from: internal/papermetrics/hack_metadata.go:12 syntheticSQL
-internal/papermetrics/hack_metadata.go:77 | Collector.refreshHack | event_results, events, paper_hack_key, paper_hack_phase (name lines: 77, 78) | SELECT e.id::text,e.slug,e.account_id::text,e.stage,COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id)),k.event_ke…
-internal/papermetrics/hack_metadata.go:122 | Collector.refreshHack | event_members, event_results, events | SELECT e.slug,m.user_id::text FROM event_members m JOIN events e ON e.id=m.event_id WHERE e.stage IN ('open','building','closed','judging') OR (e.stage='results…
-internal/papermetrics/hack_metadata.go:254 | Collector.recordHackPhase | paper_hack_key | SELECT event_key FROM paper_hack_key WHERE event_id=$1 FOR UPDATE
-internal/papermetrics/hack_metadata.go:260 | Collector.recordHackPhase | paper_hack_phase | SELECT stage,origin_change,observed,baseline FROM paper_hack_phase WHERE event_key=$1 AND stage IN ('draft','open','building','closed','judging','results','arch…
-internal/papermetrics/hack_metadata.go:271 | Collector.recordHackPhase | paper_hack_phase | SELECT EXISTS(SELECT 1 FROM paper_hack_phase WHERE event_key=$1 AND stage=$2 AND origin_change=$3)
-internal/papermetrics/hack_metadata.go:275 | Collector.recordHackPhase | paper_hack_phase | UPDATE paper_hack_phase SET origin_change=$4 WHERE event_key=$1 AND stage=$2 AND origin_change=$3
-internal/papermetrics/hack_metadata.go:281 | Collector.recordHackPhase | paper_hack_key | UPDATE paper_hack_key SET first_open_at=COALESCE(first_open_at,$2) WHERE event_id=$1
-internal/papermetrics/hack_metadata.go:285 | Collector.recordHackPhase | events, paper_hack_key, paper_hack_phase (name lines: 285, 287, 289, 290, 291, 292, 293, 294) | INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,origin_change) SELECT $1,k.event_key,k.synt…
-internal/papermetrics/hack_metadata.go:310 | Collector.hackTimestampPhases | event_results, events, paper_hack_key, paper_hack_phase (name lines: 310, 312, 313) | INSERT INTO paper_hack_phase (run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,origin_change) SELECT $1,k.event_key,k.synthetic,v.…
-internal/papermetrics/hack_snapshot.go:26 | hackEventQueries | event_members | SELECT count(*) FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved'
-internal/papermetrics/hack_snapshot.go:27 | hackEventQueries | event_members | SELECT count(*) FROM event_members WHERE event_id=$1 AND role='organiser'
-internal/papermetrics/hack_snapshot.go:28 | hackEventQueries | event_members | SELECT count(*) FROM event_members WHERE event_id=$1 AND role='judge'
-internal/papermetrics/hack_snapshot.go:29 | hackEventQueries | event_members | SELECT count(*) FROM event_members WHERE event_id=$1 AND role='participant'
-internal/papermetrics/hack_snapshot.go:30 | hackEventQueries | event_members | SELECT count(*) FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved'
-internal/papermetrics/hack_snapshot.go:31 | hackEventQueries | event_teams | SELECT count(*) FROM event_teams WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:32 | hackEventQueries | event_entries, event_teams | SELECT count(*) FROM event_teams t WHERE event_id=$1 AND EXISTS (SELECT 1 FROM event_entries e WHERE e.team_id=t.id)
-internal/papermetrics/hack_snapshot.go:33 | hackEventQueries | event_teams | SELECT count(*) FROM event_teams WHERE event_id=$1 AND kept_after_leave
-internal/papermetrics/hack_snapshot.go:34 | hackEventQueries | event_members, event_teams | SELECT COALESCE(percentile_disc(0.5) WITHIN GROUP (ORDER BY n),0) FROM (SELECT count(m.user_id) n FROM event_teams t LEFT JOIN event_members m ON m.team_id=t.id…
-internal/papermetrics/hack_snapshot.go:35 | hackEventQueries | event_members, event_teams | SELECT COALESCE(max(n),0) FROM (SELECT count(m.user_id) n FROM event_teams t LEFT JOIN event_members m ON m.team_id=t.id WHERE t.event_id=$1 GROUP BY t.id) size…
-internal/papermetrics/hack_snapshot.go:36 | hackEventQueries | event_entries | SELECT count(*) FROM event_entries WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:37 | hackEventQueries | event_entries | SELECT count(*) FROM event_entries WHERE event_id=$1 AND code_url<>''
-internal/papermetrics/hack_snapshot.go:38 | hackEventQueries | event_entries | SELECT count(*) FROM event_entries WHERE event_id=$1 AND video_url<>''
-internal/papermetrics/hack_snapshot.go:39 | hackEventQueries | event_scores | SELECT count(*) FROM event_scores WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:40 | hackEventQueries | rubric_criteria | SELECT count(*) FROM rubric_criteria WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:41 | hackEventQueries | event_assignments | SELECT count(*) FROM event_assignments WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:42 | hackEventQueries | event_conflicts | SELECT count(*) FROM event_conflicts WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:43 | hackEventQueries | event_votes | SELECT count(*) FROM event_votes WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:44 | hackEventQueries | event_announcements | SELECT count(*) FROM event_announcements WHERE event_id=$1
-internal/papermetrics/hack_snapshot.go:45 | hackEventQueries | event_results, events | SELECT results_published_at IS NOT NULL OR EXISTS(SELECT 1 FROM event_results r WHERE r.event_id=e.id) FROM events e WHERE id=$1
-internal/papermetrics/hack_snapshot.go:46 | hackEventQueries | events | SELECT EXTRACT(epoch FROM ends_at-starts_at)/3600 FROM events WHERE id=$1
-internal/papermetrics/hack_snapshot.go:47 | hackEventQueries | events | SELECT expected_participants FROM events WHERE id=$1
-internal/papermetrics/hack_snapshot.go:48 | hackEventQueries | events (name lines: 51) | SELECT round(EXTRACT(epoch FROM ( (SELECT min(v.created_at) FROM versions v JOIN sites s ON s.id=v.site_id WHERE s.user_id=e.account_id AND s.name<>e.id::text A…
-internal/papermetrics/hack_snapshot.go:78 | Collector.hackSnapshot | paper_hack_event | SELECT EXISTS (SELECT 1 FROM paper_hack_event WHERE snapshot_day=$1)
-internal/papermetrics/hack_snapshot.go:84 | Collector.hackSnapshot | events, paper_hack_key | SELECT e.id::text,e.account_id::text,k.event_key,k.synthetic,e.stage,date_trunc('week',e.created_at AT TIME ZONE 'UTC')::date FROM events e JOIN paper_hack_key …
-internal/papermetrics/hack_snapshot.go:197 | hackDailyMetrics | events | SELECT count(*) FROM events
-internal/papermetrics/hack_snapshot.go:198 | hackDailyMetrics | events | SELECT count(*) FROM events WHERE created_at >= $1::date AND created_at < $1::date+1
-internal/papermetrics/hack_snapshot.go:199 | hackDailyMetrics | event_members | SELECT count(*) FROM event_members WHERE role='participant' AND approval_status='approved'
-internal/papermetrics/hack_snapshot.go:200 | hackDailyMetrics | event_members | SELECT count(*) FROM event_members WHERE role='judge'
-internal/papermetrics/hack_snapshot.go:201 | hackDailyMetrics | event_teams | SELECT count(*) FROM event_teams
-internal/papermetrics/hack_snapshot.go:202 | hackDailyMetrics | event_entries | SELECT count(*) FROM event_entries
-internal/papermetrics/hack_snapshot.go:203 | hackDailyMetrics | event_scores | SELECT count(*) FROM event_scores
-internal/papermetrics/hack_snapshot.go:204 | hackDailyMetrics | event_votes | SELECT count(*) FROM event_votes
-internal/papermetrics/hack_snapshot.go:205 | hackDailyMetrics | event_members | SELECT count(*) FROM event_members WHERE role='participant' AND joined_via='application' AND joined_at >= $1::date AND joined_at < $1::date+1
-internal/papermetrics/hack_snapshot.go:206 | hackDailyMetrics | events | SELECT count(*) FROM sites s JOIN events e ON e.account_id=s.user_id WHERE s.deleted_at IS NULL AND s.name<>e.id::text
-internal/papermetrics/hack_snapshot.go:207 | hackDailyMetrics | events | SELECT count(*) FROM events e JOIN sites s ON s.user_id=e.account_id AND s.name=e.id::text WHERE s.deleted_at IS NULL AND s.active_version>0
-internal/papermetrics/store.go:306 | Collector.dailySnapshot | paper_hack_daily | INSERT INTO paper_hack_daily(run_id,day,metric,value) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING
+1. SQL that names a Hack object (5)
 internal/repository/accounts/account_lifecycle.go:265 | EraseAccount | event_checklist_acknowledgements | DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1
 internal/repository/sites/gate.go:10 | LockEventOrganiser | event_members, events (name lines: 11) | SELECT m.role, e.stage, e.taken_down_at IS NOT NULL FROM events e JOIN event_members m ON m.event_id = e.id WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $…
 internal/repository/sites/gate.go:20 | LockApprovedTeamMember | event_members | SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE
 internal/repository/sites/gate.go:35 | SetTeamSiteTakedown | event_teams | UPDATE event_teams SET site_taken_down_at = COALESCE(site_taken_down_at, now()), site_taken_down_reason = $2 WHERE id = $1
 internal/repository/sites/gate.go:37 | SetTeamSiteTakedown | event_teams | UPDATE event_teams SET site_taken_down_at = NULL, site_taken_down_reason = '' WHERE id = $1
 
-2. SQL built at run time that names a Hack object (4)
-internal/papermetrics/hack_export.go:81 | Collector.setHackEvents | paper_hack_event | SELECT ‹?strings.Join(exprs, ",")›, (SELECT metric_def_version FROM paper_run r WHERE r.run_id=t.run_id) FROM paper_hack_event t WHERE snapshot_day BETWEEN $1 A…
-internal/papermetrics/hack_export.go:110 | Collector.setRuns | paper_hack_daily, paper_hack_event, paper_hack_latency, paper_hack_minute, paper_hack_phase | SELECT ‹?strings.Join(runCols, ",")› FROM paper_run WHERE (started_at >= $1::date AND started_at < $2::date+1) OR run_id IN ( SELECT run_id FROM paper_hack_minu…
-internal/papermetrics/hack_snapshot.go:134 | Collector.hackSnapshot | paper_hack_event | INSERT INTO paper_hack_event (‹?strings.Join(hackEventCols, ",")›) VALUES (‹?strings.Join(marks, ",")›) ON CONFLICT (snapshot_day,event_key) DO NOTHING
-internal/papermetrics/hack_snapshot.go:212 | init | events | SELECT count(*) FROM events WHERE stage='‹?stage›'
+2. SQL built at run time that names a Hack object (0)
 
 3. Embedded .sql files outside db/ that name a Hack object (0)
 
-4. Cannot evaluate: SQL built at run time from non-constant parts (54)
+4. Cannot evaluate: SQL built at run time from non-constant parts (53)
 internal/analytics/ingest.go:459 | Ingester.commitLines (strings.Builder) | non-constant: base, base + 1, base + 2, base + 3, base + 4 | INSERT INTO site_visitor_hourly (site_id, hour, class, ip_hash, country) VALUES
 internal/app/storage/legacy_sql_errors.go:136 | sqlFailure | non-constant: timeout | the statement ran longer than %s and was stopped: add a LIMIT, a narrower WHERE, or an index
 internal/app/storage/legacy_sql_errors.go:192 | sqlFailure | non-constant: m[1] | a row with the same ‹?m[1]› already exists (UNIQUE): use another value, or change the existing row with UPDATE (or INSERT ... ON CONFLICT DO…
@@ -94,9 +28,8 @@ internal/app/storage/rows.go:349 | Service.TableList | non-constant: query, stri
 internal/handler/entry_operations.go:82 | SiteHandler.writeEntrySelection | non-constant: in.SiteName, in.Name | each visitor changes their own record with PUT, PATCH or DELETE /v1/sites/‹?in.SiteName›/data/‹?in.Name›
 internal/handler/kinds.go:770 | SiteHandler.putContent | non-constant: siteName, name, siteName, name | add items with POST /v1/sites/‹?siteName›/data/‹?name›; only the owner empties it, with DELETE /v1/sites/‹?siteName›/collections/‹?name›
 internal/handler/personal.go:357 | SiteHandler.writePersonalRequestError | non-constant: siteName, name, siteName, name | change or delete one item with PATCH or DELETE /v1/sites/‹?siteName›/data/‹?name›/items/{id}; the owner empties the whole list with DELETE /…
-internal/papermetrics/export.go:258 | Collector.setLatency | non-constant: dayExpr | SELECT ‹?dayExpr›, class, sum(requests), sum(server_errors), sum(total_us), sum(bytes_out) FROM paper_class_daily WHERE day BETWEEN $1 AND $…
-internal/papermetrics/export.go:264 | Collector.setLatency | non-constant: dayExpr | SELECT ‹?dayExpr›, class, le_us, sum(requests) FROM paper_latency_daily WHERE day BETWEEN $1 AND $2 GROUP BY 1, 2, 3
-internal/papermetrics/hack_counter.go:383 | Collector.flushHack | non-constant: table | DELETE FROM ‹?table› WHERE slot<$1
+internal/papermetrics/export.go:228 | Collector.setLatency | non-constant: dayExpr | SELECT ‹?dayExpr›, class, sum(requests), sum(server_errors), sum(total_us), sum(bytes_out) FROM paper_class_daily WHERE day BETWEEN $1 AND $…
+internal/papermetrics/export.go:234 | Collector.setLatency | non-constant: dayExpr | SELECT ‹?dayExpr›, class, le_us, sum(requests) FROM paper_latency_daily WHERE day BETWEEN $1 AND $2 GROUP BY 1, 2, 3
 internal/repository/accounts/sites_transport.go:58 | ListUsers | non-constant: filter | SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name, suspended_at IS NOT NULL, COALESCE(suspended_reason, ''), COA…
 internal/repository/operations/analytics.go:244 | viewsBy | non-constant: bucket, scope | SELECT ‹?bucket›, class, SUM(views) FROM site_view_hourly WHERE ‹?scope› AND hour >= $2::timestamptz AND hour < $3::timestamptz GROUP BY 1, …
 internal/repository/operations/analytics.go:251 | visitorsBy | non-constant: bucket, scope | SELECT ‹?bucket›, class, COUNT(DISTINCT ip_hash) FROM site_visitor_hourly WHERE ‹?scope› AND hour >= $2::timestamptz AND hour < $3::timestam…
@@ -147,11 +80,9 @@ internal/repository/notifications/notifications.go:444 | emitSiteEvent | site_no
 internal/repository/notifications/notifications.go:721 | UpsertPushSubscription | site_notifications.events | INSERT INTO site_notifications(id,site_id,owner_id,source,label,url,events,storage,secret,kind,subscriber_role,push_p256dh,push_auth,device_label,verified_at,st…
 internal/repository/notifications/notifications.go:725 | UpsertPushSubscription | site_notifications.events | UPDATE site_notifications SET events=$2,label=$3,push_p256dh=$4,push_auth=$5,device_label=$6,verified_at=$7,push_family=$8, state='active',suspended_at=NULL,sus…
 
-6. Not SQL: Go lists that name Hack tables or columns (34)
+6. Not SQL: Go lists that name Hack tables or columns (32)
 internal/handler/connector.go:905 | ConnectorHandler.scopesSupported | events (also the platform column site_notifications.events) | events
 internal/mcp/notification_tools.go:86 | notificationTools | events (also the platform column site_notifications.events) | events
-internal/papermetrics/hack_counter.go:382 | Collector.flushHack | paper_hack_latency | paper_hack_latency
-internal/papermetrics/hack_counter.go:382 | Collector.flushHack | paper_hack_minute | paper_hack_minute
 internal/papermetrics/provenance.go:24 | runConfigKeys | events (also the platform column site_notifications.events) | events
 internal/repository/operations/schemacheck.go:27 | requiredColumns | events (also the platform column site_notifications.events) | events
 internal/repository/operations/schemacheck.go:103 | requiredColumns | oauth_grants.selected_team_id | selected_team_id

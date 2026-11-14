@@ -1,0 +1,13 @@
+INSERT INTO paper_daily VALUES ('2026-10-01','accounts',3),('2026-10-01','sites_live',7);
+INSERT INTO paper_class_daily VALUES ('2026-10-01','api_read',10,1,1200,300);
+INSERT INTO paper_latency_daily VALUES ('2026-10-01','api_read',100,8),('2026-10-01','api_read',250,2);
+INSERT INTO paper_process_sample(at,started_at,proc_cpu_cores,proc_rss_bytes,box_cpus) VALUES ('2026-10-01 12:00Z','2026-10-01 00:00Z',0.25,1024,4);
+INSERT INTO paper_site_footprint(week,versions,live_files,live_bytes,total_bytes) VALUES ('2026-09-28',2,1,20,40);
+INSERT INTO api_request_daily(day,route,status,calls) VALUES ('2026-10-01','GET /v1/sites',200,10);
+INSERT INTO paper_run VALUES (17,'2026-10-01 00:00Z','hack',NULL,false,'go-fixture',NULL,'fixture',4,'exp2_scale3_us_v1',2,4,NULL,NULL);
+INSERT INTO paper_hack_daily VALUES (17,'2026-10-01','hack_judges_total',3);
+INSERT INTO paper_daily VALUES ('2026-10-01','hack_judges_total',3),('2026-10-01','hack_scores_total',12);
+INSERT INTO paper_hack_event(snapshot_day,event_key,run_id,synthetic,stage,created_week,teams,participants,organisers,judges,applications,applications_approved,scores,assignments,conflicts) VALUES ('2026-10-01',9007199254740993,17,false,'judging','2026-09-28',5,6,2,3,12,10,12,8,2);
+INSERT INTO paper_hack_minute VALUES (17,'2026-10-01 12:00Z',60,9007199254740993,false,7,2,1,1,3,2,4,array_fill(1,ARRAY[60]),array_fill(0,ARRAY[60]));
+INSERT INTO paper_hack_latency VALUES (17,'2026-10-01 12:00Z',9007199254740993,false,'api_read','2xx',7,700,100,200,53,ARRAY[2,0,5]::bigint[],array_fill(1,ARRAY[60]),array_fill(0,ARRAY[60]));
+INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,observed,baseline) VALUES (17,9007199254740993,false,'judging','2026-10-01 12:00Z',NULL,true,true);

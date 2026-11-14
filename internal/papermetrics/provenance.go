@@ -108,7 +108,7 @@ func cgroupLimits() (memory, cpu any) {
 	return
 }
 
-func (c *Collector) ensureRun(ctx context.Context) (int64, error) {
+func (c *Collector) EnsureRun(ctx context.Context) (int64, error) {
 	if !Enabled() {
 		return 0, errors.New("paper metrics disabled")
 	}
@@ -139,9 +139,8 @@ func (c *Collector) ensureRun(ctx context.Context) (int64, error) {
 	memory, cpu := cgroupLimits()
 	role := "host"
 	version, scheme := 1, LegacyBucketScheme
-	if c.hack != nil {
-		role = "hack"
-		version, scheme = MetricDefVersion, BucketScheme
+	if c.product != nil {
+		role, version, scheme = c.product.RunDefinition()
 	}
 	var id int64
 	err := c.db.QueryRowContext(ctx, `INSERT INTO paper_run (started_at,role,vcs_revision,vcs_modified,go_version,binary_sha256,config_hash,metric_def_version,bucket_scheme,gomaxprocs,num_cpu,cgroup_memory_max,cgroup_cpu_max)
@@ -153,4 +152,4 @@ func (c *Collector) ensureRun(ctx context.Context) (int64, error) {
 }
 
 // RegisterRun records provenance only while collection is enabled.
-func (c *Collector) RegisterRun(ctx context.Context) error { _, err := c.ensureRun(ctx); return err }
+func (c *Collector) RegisterRun(ctx context.Context) error { _, err := c.EnsureRun(ctx); return err }

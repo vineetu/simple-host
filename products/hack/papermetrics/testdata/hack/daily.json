@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"metric_def_version":4,"set":"daily","from":"2026-10-01","to":"2026-10-01","columns":["day","metric","value","run_id","metric_def_version","value_suppressed"],"rows":[["2026-10-01","accounts",null,null,1,true],["2026-10-01","hack_judges_total",null,17,4,true],["2026-10-01","hack_scores_total",null,null,1,true],["2026-10-01","sites_live",7,null,1,false]]}

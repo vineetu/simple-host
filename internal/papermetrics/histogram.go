@@ -35,7 +35,7 @@ var logBucketUpper = func() [logBucketCount]int64 {
 
 // LogHistogram is a mergeable scale-3 exponential histogram in microseconds.
 // Observe is concurrent; Snapshot must be taken after writers have quiesced.
-// The Host collector deliberately continues to use its original classHist.
+// The Host collector deliberately continues to use its original ClassHist.
 type LogHistogram struct {
 	chunks          [16]atomic.Pointer[histogramChunk]
 	n, sumUS, maxUS atomic.Int64
@@ -70,7 +70,7 @@ func logBucket(us int64) int {
 	return lo
 }
 
-func atomicMax(dst *atomic.Int64, value int64) {
+func AtomicMax(dst *atomic.Int64, value int64) {
 	for old := dst.Load(); value > old; old = dst.Load() {
 		if dst.CompareAndSwap(old, value) {
 			return
@@ -85,7 +85,7 @@ func (h *LogHistogram) Observe(us int64) {
 	h.bucket(logBucket(us)).Add(1)
 	h.n.Add(1)
 	h.sumUS.Add(us)
-	atomicMax(&h.maxUS, us)
+	AtomicMax(&h.maxUS, us)
 }
 
 func (h *LogHistogram) Snapshot() Histogram {
@@ -188,7 +188,7 @@ func (h Histogram) Quantile(q float64) float64 {
 	return float64(h.MaxUS)
 }
 
-func (h *LogHistogram) merge(other Histogram) {
+func (h *LogHistogram) Merge(other Histogram) {
 	for i, n := range other.Counts {
 		if n != 0 {
 			h.bucket(int(other.Offset) + i + 1).Add(n)
@@ -196,7 +196,7 @@ func (h *LogHistogram) merge(other Histogram) {
 	}
 	h.n.Add(other.N)
 	h.sumUS.Add(other.SumUS)
-	atomicMax(&h.maxUS, other.MaxUS)
+	AtomicMax(&h.maxUS, other.MaxUS)
 }
 
 type histogramChunk [32]atomic.Int64
@@ -233,3 +233,5 @@ func (h *LogHistogram) Reset() {
 	h.sumUS.Store(0)
 	h.maxUS.Store(0)
 }
+
+func (h *LogHistogram) Count() int64 { return h.n.Load() }

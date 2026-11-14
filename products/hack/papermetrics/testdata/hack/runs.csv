@@ -1,0 +1,5 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-runs-2026-10-01-2026-10-01.csv"
+run_id,started_at,role,vcs_revision,vcs_modified,go_version,binary_sha256,config_hash,metric_def_version,bucket_scheme,gomaxprocs,num_cpu,cgroup_memory_max,cgroup_cpu_max
+17,2026-10-01T00:00:00Z,hack,,false,go-fixture,,fixture,4,exp2_scale3_us_v1,2,4,,

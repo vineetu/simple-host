@@ -1,0 +1,8 @@
+200 OK
+text/csv; charset=utf-8
+attachment; filename="paper-daily-2026-10-01-2026-10-01.csv"
+day,metric,value,run_id,metric_def_version,value_suppressed
+2026-10-01,accounts,,,1,true
+2026-10-01,hack_judges_total,,17,4,true
+2026-10-01,hack_scores_total,,,1,true
+2026-10-01,sites_live,7,,1,false

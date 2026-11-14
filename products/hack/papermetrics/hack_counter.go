@@ -2,6 +2,7 @@ package papermetrics
 
 import (
 	"context"
+	platform "github.com/vsriram/simple-host/internal/papermetrics"
 	"log"
 	"net/http"
 	"strings"
@@ -42,7 +43,7 @@ type hackCounts struct {
 	pending                               atomic.Int64
 	requests, writes, dataWrites, deploys atomic.Int64
 	arrivals, writes1s                    [60]atomic.Int64
-	cells                                 [numClasses][4]atomic.Pointer[hackCell]
+	cells                                 [NumClasses][4]atomic.Pointer[hackCell]
 }
 type hackSlotCount struct {
 	hackCounts
@@ -66,12 +67,15 @@ type hackMetrics struct {
 	requests      sync.Pool
 	nextShard     atomic.Uint64
 	cells         sync.Pool
-	hist          [16][numClasses]classHist
+	hist          [16][NumClasses]ClassHist
 }
 
-func (c *Collector) WithHack() *Collector {
+func Install(base *platform.Collector) *Collector {
+	c := &Collector{platform: base, db: base.DB(), dataDir: base.DataDir(), apexHosts: base.ApexHosts(), tracker: base.ProgressTracker()}
 	c.hack = &hackMetrics{owner: c, slots: map[int64]map[int64]*hackSlotCount{}, refresh: make(chan struct{}, 1), phases: make(chan hackPhaseNotice, 256)}
 	c.hack.meta.Store(&hackMetadata{events: map[string]*hackEventInfo{}, accounts: map[string]*hackEventInfo{}, members: map[string]map[string]struct{}{}, hosts: map[string]*hackEventInfo{}})
+	c.exports = c.buildExports()
+	base.SetProduct(c)
 	return c
 }
 func hackActive(stage string, published, now time.Time) bool {
@@ -86,7 +90,7 @@ func hackActive(stage string, published, now time.Time) bool {
 
 type hackRequestKey struct{}
 type hackRequest struct {
-	writer                                statusWriter
+	writer                                StatusWriter
 	metrics                               *hackMetrics
 	start                                 time.Time
 	class                                 int
@@ -165,7 +169,7 @@ func HackDeploy(ctx context.Context) {
 	}
 }
 func (r *hackRequest) attach(event *hackEventInfo) {
-	if r.class == classMCPStream || r.slot != nil {
+	if r.class == ClassMCPStream || r.slot != nil {
 		return
 	}
 	slot := r.metrics.slotFor(event, r.start)
@@ -187,7 +191,7 @@ func (r *hackRequest) attach(event *hackEventInfo) {
 	}
 	r.event, r.slot, r.counts = event, slot, counts
 	r.second = r.start.Second()
-	atomicMax(&slot.inflightMax, event.inflight.Add(1))
+	platform.AtomicMax(&slot.inflightMax, event.inflight.Add(1))
 }
 func (h *hackMetrics) slotFor(event *hackEventInfo, start time.Time) *hackSlotCount {
 	minute := start.Unix() / 60
@@ -237,11 +241,11 @@ func (r *hackRequestContext) Value(key any) any {
 	}
 	return r.Context.Value(key)
 }
-func (c *Collector) wrapHack(next http.Handler) http.Handler {
+func (c *Collector) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		class := c.classify(r)
-		if class == classNone {
+		class := c.platform.Classify(r)
+		if class == ClassNone {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -251,7 +255,7 @@ func (c *Collector) wrapHack(next http.Handler) http.Handler {
 		}
 		state.metrics, state.start, state.class = c.hack, start, class
 		state.apiCandidate = mutationMethod(r.Method) && strings.HasPrefix(r.URL.Path, "/v1/hack/events/")
-		state.writer = statusWriter{ResponseWriter: w, status: 200}
+		state.writer = StatusWriter{ResponseWriter: w, Status: 200}
 		// Resolve cached event URL/host before routing/auth so the gauge spans the
 		// entire handler. Other site forms attach at their existing resolution hook.
 		meta := c.hack.meta.Load()
@@ -277,10 +281,10 @@ func (c *Collector) wrapHack(next http.Handler) http.Handler {
 			// recording the start slot. An aborted handler has server-error
 			// semantics for metrics even if it already wrote a partial body.
 			if !completed {
-				state.writer.status = http.StatusInternalServerError
+				state.writer.Status = http.StatusInternalServerError
 			}
 			elapsed := time.Since(start)
-			c.hack.hist[state.shard][class].observe(elapsed, state.writer.status, state.writer.bytes)
+			c.hack.hist[state.shard][class].Observe(elapsed, state.writer.Status, state.writer.Bytes)
 			state.finish(elapsed)
 			ctx.state.Store(nil)
 			*state = hackRequest{shard: state.shard}
@@ -295,7 +299,7 @@ func (r *hackRequest) finish(elapsed time.Duration) {
 	if slot == nil {
 		return
 	}
-	status := r.writer.status
+	status := r.writer.Status
 	group := status/100 - 2
 	if group < 0 {
 		group = 0
@@ -315,7 +319,7 @@ func (r *hackRequest) finish(elapsed time.Duration) {
 	}
 	cell.arrivals[r.second].Add(1)
 	cell.hist.Observe(elapsed.Microseconds())
-	cell.bytes.Add(r.writer.bytes)
+	cell.bytes.Add(r.writer.Bytes)
 	if r.write {
 		r.counts.dataWrites.Add(1)
 	}
@@ -366,7 +370,7 @@ func (h *hackMetrics) drain(now time.Time) []*hackSlotCount {
 	return result
 }
 func (c *Collector) flushHack(ctx context.Context, now time.Time) {
-	run, err := c.ensureRun(ctx)
+	run, err := c.platform.EnsureRun(ctx)
 	if err != nil {
 		c.tracker.Fail("paper metrics run", err)
 		log.Printf("paper metrics run: %v", err)
@@ -380,7 +384,7 @@ func (c *Collector) flushHack(ctx context.Context, now time.Time) {
 		c.hack.releaseCells(slot)
 	}
 	for _, table := range []string{"paper_hack_latency", "paper_hack_minute"} {
-		if _, err := c.execMetric(ctx, c.db, nil, `DELETE FROM `+table+` WHERE slot<$1`, now.AddDate(0, 0, -400)); err != nil {
+		if _, err := c.platform.ExecMetric(ctx, c.db, nil, `DELETE FROM `+table+` WHERE slot<$1`, now.AddDate(0, 0, -400)); err != nil {
 			c.tracker.Fail("paper metrics Hack retention", err)
 			log.Printf("paper metrics Hack retention: %v", err)
 		}
@@ -403,9 +407,9 @@ func (c *Collector) flushHackSlot(ctx context.Context, run int64, slot *hackSlot
 		log.Printf("paper metrics Hack slot: %v", err)
 		return
 	}
-	_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_minute (run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s,writes_1s)
+	_, err = c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_hack_minute (run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s,writes_1s)
    VALUES ($1,$2,60,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING`, run, slot.slot, slot.event.key, slot.event.synthetic.Load(), slot.requests.Load(), slot.writes.Load(), slot.dataWrites.Load(), slot.deploys.Load(), slot.active.Load(), slot.inflightMax.Load(), peak, pq.Array(arrivals[:]), pq.Array(writes[:]))
-	for class := 1; class < numClasses && err == nil; class++ {
+	for class := 1; class < NumClasses && err == nil; class++ {
 		for group := 0; group < 4 && err == nil; group++ {
 			if cell := slot.cells[class][group].Load(); cell != nil {
 				hist := cell.hist.Snapshot()
@@ -414,13 +418,13 @@ func (c *Collector) flushHackSlot(ctx context.Context, run int64, slot *hackSlot
 					classArrivals[i] = int64(cell.arrivals[i].Load())
 					classWrites[i] = int64(cell.writes1s[i].Load())
 				}
-				_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_latency (run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s)
+				_, err = c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_hack_latency (run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT DO NOTHING`, run, slot.slot, slot.event.key, slot.event.synthetic.Load(), classNames[class], []string{"2xx", "3xx", "4xx", "5xx"}[group], hist.N, hist.SumUS, hist.MaxUS, cell.bytes.Load(), hist.Offset, pq.Array(hist.Counts), pq.Array(classArrivals[:]), pq.Array(classWrites[:]))
 			}
 		}
 	}
 	if err == nil {
-		err = c.commitMetrics(tx, written)
+		err = c.platform.CommitMetrics(tx, written)
 	} else {
 		_ = tx.Rollback()
 	}
@@ -429,9 +433,6 @@ func (c *Collector) flushHackSlot(ctx context.Context, run int64, slot *hackSlot
 		log.Printf("paper metrics Hack slot: %v", err)
 	}
 }
-
-// FlushHack persists the completed Hack slots.
-func (c *Collector) FlushHack(ctx context.Context, now time.Time) { c.flushHack(ctx, now) }
 
 func mutationMethod(method string) bool {
 	return method != "GET" && method != "HEAD" && method != "OPTIONS"
@@ -458,7 +459,7 @@ func (slot *hackSlotCount) mergeShards(h *hackMetrics) {
 		}
 		slot.dataWrites.Add(shard.dataWrites.Load())
 		slot.deploys.Add(shard.deploys.Load())
-		for class := 1; class < numClasses; class++ {
+		for class := 1; class < NumClasses; class++ {
 			for group := 0; group < 4; group++ {
 				src := shard.cells[class][group].Swap(nil)
 				if src == nil {
@@ -469,7 +470,7 @@ func (slot *hackSlotCount) mergeShards(h *hackMetrics) {
 					slot.cells[class][group].Store(src)
 					continue
 				}
-				dst.hist.merge(src.hist.Snapshot())
+				dst.hist.Merge(src.hist.Snapshot())
 				dst.bytes.Add(src.bytes.Load())
 				for sec := 0; sec < 60; sec++ {
 					dst.arrivals[sec].Add(src.arrivals[sec].Load())
@@ -479,10 +480,10 @@ func (slot *hackSlotCount) mergeShards(h *hackMetrics) {
 			}
 		}
 	}
-	for class := 1; class < numClasses; class++ {
+	for class := 1; class < NumClasses; class++ {
 		for group := 0; group < 4; group++ {
 			if cell := slot.cells[class][group].Load(); cell != nil {
-				slot.requests.Add(cell.hist.n.Load())
+				slot.requests.Add(cell.hist.Count())
 				for sec := 0; sec < 60; sec++ {
 					slot.arrivals[sec].Add(int64(cell.arrivals[sec].Load()))
 					w := int64(cell.writes1s[sec].Load())
@@ -554,7 +555,7 @@ func (h *hackMetrics) putCell(cell *hackCell) {
 	h.cells.Put(cell)
 }
 func (h *hackMetrics) releaseCells(slot *hackSlotCount) {
-	for class := 1; class < numClasses; class++ {
+	for class := 1; class < NumClasses; class++ {
 		for group := 0; group < 4; group++ {
 			if cell := slot.cells[class][group].Swap(nil); cell != nil {
 				h.putCell(cell)

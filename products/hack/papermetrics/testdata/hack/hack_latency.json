@@ -1,0 +1,4 @@
+200 OK
+application/json
+
+{"bucket_scheme":"exp2_scale3_us_v1","metric_def_version":4,"set":"hack_latency","from":"2026-10-01","to":"2026-10-01","columns":["run_id","minute_offset","event_key","synthetic","class","status_group","n","sum_us","max_us","bytes_out","idx_offset","counts","arrivals_1s","writes_1s","metric_def_version"],"rows":[[17,null,"9007199254740993",false,"api_read","2xx",7,700,100,200,53,[2,0,5],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],4]]}

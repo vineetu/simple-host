@@ -10,7 +10,7 @@ type metricExecutor interface {
 }
 
 // Transactional writes become progress only after their commit succeeds.
-func (c *Collector) execMetric(ctx context.Context, q metricExecutor, written *int64, query string, args ...any) (sql.Result, error) {
+func (c *Collector) ExecMetric(ctx context.Context, q metricExecutor, written *int64, query string, args ...any) (sql.Result, error) {
 	res, err := q.ExecContext(ctx, query, args...)
 	if err != nil {
 		c.tracker.Fail("write metrics", err)
@@ -27,7 +27,7 @@ func (c *Collector) execMetric(ctx context.Context, q metricExecutor, written *i
 	}
 	return res, err
 }
-func (c *Collector) commitMetrics(tx *sql.Tx, written int64) error {
+func (c *Collector) CommitMetrics(tx *sql.Tx, written int64) error {
 	err := tx.Commit()
 	if err != nil {
 		c.tracker.Fail("commit metrics", err)
