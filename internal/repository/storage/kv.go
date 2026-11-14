@@ -28,11 +28,11 @@ func KVSize(ctx context.Context, db *sql.DB, siteID, resource, key string) (int6
 	return size, err
 }
 
-// KVNormalizedSize reads the size of PostgreSQL's normalized JSON value.
-func KVNormalizedSize(ctx context.Context, db *sql.DB, value json.RawMessage) (int64, error) {
-	var size int64
-	err := db.QueryRowContext(ctx, `SELECT octet_length($1::jsonb::text)`, string(value)).Scan(&size)
-	return size, err
+// KVNormalize returns PostgreSQL's canonical JSON text, shared by both stores.
+func KVNormalize(ctx context.Context, db *sql.DB, value json.RawMessage) (string, error) {
+	var text string
+	err := db.QueryRowContext(ctx, `SELECT $1::jsonb::text`, string(value)).Scan(&text)
+	return text, err
 }
 
 // UpdateKV updates a key while retaining its author.

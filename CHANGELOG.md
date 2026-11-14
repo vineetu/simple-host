@@ -1,5 +1,7 @@
 # Changelog
 
+- R2-S4a: Add the `KV_STORE` setting and a SQLite store for new key-value namespaces, for an upcoming change. Leave `KV_STORE` at `postgres` for now: site export, namespace deletion and the people list do not cover a SQLite namespace until a later release. Existing namespaces stay on PostgreSQL and the storage limits are unchanged.
+
 2026-11-13: Limit SQLite table-row work per site, with a short retry response when busy. Recover SQLite panics per request and preserve successful writes if cleanup panics (R1-S3a).
 
 2026-11-12: Create a site private from the first request, with only you and the viewers you name able to open it (SIM-448). Send access specific and optional viewer emails in the create call; the default stays anyone with the address. Available on Simple Host, including self-hosted installs with visitor sign-in and per-site addresses.

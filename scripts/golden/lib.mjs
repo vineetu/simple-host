@@ -320,6 +320,14 @@ export function stableStringify(value) {
   return JSON.stringify(value);
 }
 
+// The admin usage sentences of internal/capacity (describe), after byte
+// quantities have become <measurement>.
+const DISK_MESSAGES = [
+  /^This server is \d+% full, with <measurement> left\. Publishing will start failing\. Free space or move to a bigger disk now\.$/,
+  /^This server is \d+% full, with <measurement> left\. Worth watching, and worth acting on before an event rather than during one\.$/,
+  /^<measurement> of <measurement> used, <measurement> free\. Sites account for <measurement> of it\.$/,
+];
+
 // Build identity, host measurements and worker timing/counters are incomparable.
 export function normalizeResponseNoise(name, value, { observationCount = 0 } = {}) {
   if (!value || typeof value !== 'object') return value;
@@ -340,6 +348,11 @@ export function normalizeResponseNoise(name, value, { observationCount = 0 } = {
   }
   if (['GET /v1/admin/usage', 'GET /v1/admin/usage as admin', 'admin-usage'].includes(name)) {
     if (typeof value.message === 'string') value.message = value.message.replace(/\b\d+(?:\.\d+)? (?:(?:[KMGT]B)|bytes?)\b/g, '<measurement>');
+    // Which sentence and state the server picks depends on how full this
+    // machine's disk is at that moment. Only the three known sentences and
+    // states are replaced, so a reworded message or a new state stays visible.
+    if (typeof value.message === 'string' && DISK_MESSAGES.some(re => re.test(value.message))) value.message = '<disk-message>';
+    if (['ok', 'filling', 'full'].includes(value.status)) value.status = '<disk-status>';
     const measurements = v => {
       if (typeof v === 'number') return '<n>';
       if (Array.isArray(v)) return v.map(measurements);

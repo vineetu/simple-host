@@ -16,6 +16,12 @@ import (
 
 // Covers the two Hack storage identities and the visitor's event origin.
 func TestHackStorageScopedReview(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackStorageScopedReview(t) })
+	}
+}
+
+func runTestHackStorageScopedReview(t *testing.T) {
 	a := newTeamSiteApp(t)
 	organiser := a.newPerson(t, "storage-review-org")
 	participant := a.newPerson(t, "storage-review-member")

@@ -79,6 +79,12 @@ func hackSiteID(t *testing.T, a *teamSiteApp, slug, name string) string {
 // in on the team site is the owner for saved data while the team may still
 // change its site, and Hack's own gates still apply on top.
 func TestHackStoragePresetsTeamSite(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackStoragePresetsTeamSite(t) })
+	}
+}
+
+func runTestHackStoragePresetsTeamSite(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, member, member2 := a.newPerson(t, "hp-org"), a.newPerson(t, "hp-member"), a.newPerson(t, "hp-member2")
 	alice, bob, rival := a.newPerson(t, "hp-alice"), a.newPerson(t, "hp-bob"), a.newPerson(t, "hp-rival")
@@ -241,6 +247,12 @@ func TestHackStoragePresetsTeamSite(t *testing.T) {
 // routes (hack_event_storage_*) and an organiser signed in on the event
 // website, while the event is neither ended nor taken down.
 func TestHackStoragePresetsEventWebsite(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackStoragePresetsEventWebsite(t) })
+	}
+}
+
+func runTestHackStoragePresetsEventWebsite(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, participant, visitor := a.newPerson(t, "hpe-org"), a.newPerson(t, "hpe-member"), a.newPerson(t, "hpe-visitor")
 	slug := a.makeEvent(t, org)
@@ -297,6 +309,12 @@ func TestHackStoragePresetsEventWebsite(t *testing.T) {
 // The connector: the selected team's storage_set_resource takes presets and
 // get_page_recipe is offered; the event tools take presets too.
 func TestHackStoragePresetsConnector(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackStoragePresetsConnector(t) })
+	}
+}
+
+func runTestHackStoragePresetsConnector(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, member := a.newPerson(t, "hpc-org"), a.newPerson(t, "hpc-member")
 	slug := a.makeEvent(t, org)

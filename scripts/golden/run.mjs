@@ -27,7 +27,10 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FIXED_GETS = fixedGetRoutes(JSON.parse(readFileSync(path.join(REPO_ROOT, 'docs/generated/inventory.json'))));
 // Add rules track scenarios here, for example:
 // 'rules-on': { env: { host: { STORAGE_RULES: 'on' }, hack: {} }, host: seedAndCallHost, hack: seedAndCallHack }
-const SCENARIOS = { base: { env: { host: {}, hack: {} }, host: seedAndCallHost, hack: seedAndCallHack } };
+const SCENARIOS = {
+ base: { env: { host: { KV_STORE: 'postgres' }, hack: { KV_STORE: 'postgres' } }, host: seedAndCallHost, hack: seedAndCallHack },
+ 'mixed-store': { env: { host: { KV_STORE: 'sqlite' }, hack: { KV_STORE: 'sqlite' } }, host: seedAndCallMixedStore, hack: seedAndCallMixedStore },
+};
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -516,6 +519,41 @@ function finalizeCall(record, namer, knownTimestamps, writer) {
 }
 
 // ---- Host instance: seed + request list -----------------------------------
+
+// R2-S4a: one pre-existing Postgres namespace beside a newly created file.
+async function seedAndCallMixedStore({ instance, at }) {
+ const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['mixed-owner@example.com'] } });
+ const owner = created.json.created[0].api_key;
+ let base;
+ const name = 'golden-mixed';
+ if (instance.tag === 'hack') {
+  await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
+  await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Mixed storage</h1>' } } });
+  base = `/v1/hack/events/${name}/website/storage`;
+ } else {
+  await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Mixed storage</h1>' } } });
+  base = `/v1/sites/${name}/storage`;
+ }
+ // Hack keeps an event's website under the event's holding account, named
+ // by the event id, not the slug (ServeEventWebsiteStorage).
+ const site = instance.tag === 'hack'
+  ? `sites s JOIN events e ON s.user_id=e.account_id AND s.name=e.id::text WHERE e.slug='${name}'`
+  : `sites s WHERE s.name='${name}'`;
+ psql(instance.dbURL, `INSERT INTO site_storage_resources(site_id,name,kind,kv_store) SELECT s.id,'pg','kv','postgres' FROM ${site};
+ INSERT INTO site_storage_kv(site_id,resource_name,key,value) SELECT s.id,'pg','seed','100'::jsonb FROM ${site}`);
+ await at('create-file-namespace', 'PUT', `${base}/resources/file`, { apiKey: owner, body: { kind: 'kv', preset: 'private' } });
+ for (const store of ['pg', 'file']) {
+  await at(`${store}-set`, 'PUT', `${base}/kv/${store}/keys/entry`, { apiKey: owner, body: { value: { n: 100, text: 'saved' } } });
+  await at(`${store}-get`, 'GET', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
+  await at(`${store}-list`, 'GET', `${base}/kv/${store}/keys`, { apiKey: owner });
+ }
+ await at('mixed-usage', 'GET', `${base}/usage`, { apiKey: owner });
+ for (const store of ['pg', 'file']) {
+  await at(`${store}-delete`, 'DELETE', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
+  await at(`${store}-missing`, 'GET', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
+ }
+ await at('usage-after-delete', 'GET', `${base}/usage`, { apiKey: owner });
+}
 
 async function seedAndCallHost({ instance: host, calls, usedNames, at }) {
 

@@ -126,7 +126,7 @@ func storageResourceJSON(x storageResource) map[string]any {
 }
 
 func (x storageResource) rulesResource() model.Resource {
-	r := model.Resource{Name: x.Name, Kind: x.Kind, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst, Rules: x.Rules, ConvertedFrom: x.ConvertedFrom}
+	r := model.Resource{Name: x.Name, Kind: x.Kind, KVStore: x.KVStore, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst, Rules: x.Rules, ConvertedFrom: x.ConvertedFrom}
 	if x.Access != nil {
 		m := model.AccessMatrix(*x.Access)
 		r.Access = &m
@@ -156,7 +156,7 @@ func (x storageResource) holds(t string) bool          { return x.rulesResource(
 func (x storageResource) fingerprint() string          { return x.rulesResource().Fingerprint() }
 
 func fromRulesResource(r model.Resource) storageResource {
-	x := storageResource{Name: r.Name, Kind: r.Kind, Read: r.Read, Write: r.Write, SitePasscode: r.SitePasscode, WriteMode: r.WriteMode, PresetBase: r.PresetBase, ApproveFirst: r.ApproveFirst, Rules: r.Rules, ConvertedFrom: r.ConvertedFrom}
+	x := storageResource{Name: r.Name, Kind: r.Kind, KVStore: r.KVStore, Read: r.Read, Write: r.Write, SitePasscode: r.SitePasscode, WriteMode: r.WriteMode, PresetBase: r.PresetBase, ApproveFirst: r.ApproveFirst, Rules: r.Rules, ConvertedFrom: r.ConvertedFrom}
 	if r.Access != nil {
 		m := storageAccessMatrix(*r.Access)
 		x.Access = &m

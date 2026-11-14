@@ -257,6 +257,7 @@ type Resource struct {
 	// Nil rules and conversion history represent SQL NULL.
 	Rules, ConvertedFrom                                         json.RawMessage
 	Name, Kind, Read, Write, SitePasscode, WriteMode, PresetBase string
+	KVStore                                                      string
 	Access                                                       *AccessMatrix
 	Tables                                                       map[string]TableRule
 	TableLookup                                                  func(string) (TableRule, bool)
@@ -378,7 +379,7 @@ func (x Resource) RulesStatus() string {
 
 // Fingerprint compares two loads of the same resource (storageWriteLock).
 func (x Resource) Fingerprint() string {
-	parts := []string{x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, x.PresetBase, fmt.Sprint(x.ApproveFirst), fmt.Sprint(x.Rules != nil), string(x.Rules)}
+	parts := []string{x.KVStore, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, x.PresetBase, fmt.Sprint(x.ApproveFirst), fmt.Sprint(x.Rules != nil), string(x.Rules)}
 	if x.Access != nil {
 		parts = append(parts, x.Access.Read, x.Access.Add, x.Access.Edit, x.Access.Delete)
 	} else {

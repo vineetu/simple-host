@@ -7,7 +7,7 @@
 #   bash scripts/split/check-all.sh                # gate 1, under the 2G memory cap
 #   bash scripts/split/check-all.sh --golden --slice <slice id>  # gates 1+2
 #   bash scripts/split/check-all.sh --browser --list # browser steps and baseline
-#   --golden appends comparisons; --slice IDS limits the golden diff (optional).
+#   --golden appends comparisons of every scenario; --slice IDS limits the golden diff (optional).
 #   bash scripts/split/check-all.sh --list         # step ids and commands, runs nothing
 #   bash scripts/split/check-all.sh --only 'go vet' --only scripts/check-html.sh
 #   bash scripts/split/check-all.sh --skip scripts/test-integration.sh --skip scripts/check-fresh-install.sh   # everything that needs no database
@@ -91,7 +91,7 @@ fi
 # Python handles text formats; Bash owns shell execution and pipeline statuses.
 parse() {
 python3 - "$@" <<'PY'
-import sys, re, pathlib, shlex, os
+import sys, re, pathlib, shlex, os, json
 mode, *args = sys.argv[1:]
 # Read diagnostics as text, including invalid bytes from failed commands.
 def read(path):
@@ -269,13 +269,24 @@ try:
             def shell(words):
                 return shlex.join(words)
             steps.append(('golden:build', 'CGO_ENABLED=0 ' + shell(['go', 'build', '-o', candidate, './cmd/server'])))
+            # Both sides record every scenario. The reference skips the ones a
+            # named slice approves whole as added: its program cannot run them.
+            added = []
+            for slice_id in slice_ids.split(',') if slice_set == '1' else []:
+                try:
+                    entries = json.loads(read(golden_dir + '/approved/' + slice_id + '.json'))['entries']
+                    added += [e['scenario'] for e in entries
+                              if e.get('change') == 'added' and isinstance(e.get('scenario'), str)]
+                except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                    pass  # diff.mjs reports a missing or damaged approval file
             for side, host, hack, target in [
                 ('reference', os.environ.get('GOLDEN_REF_BIN') or '/usr/local/bin/simple-host', 'GOLDEN_REF_HACK_BIN', 'ref'),
                 ('candidate', candidate, 'GOLDEN_HACK_BIN', 'cand'),
             ]:
                 words = ['node', golden_dir + '/run.mjs', '--host', host]
                 if os.environ.get(hack): words += ['--hack', os.environ[hack]]
-                words += ['--out', root + '/' + target]
+                words += ['--out', root + '/' + target, '--scenario', 'all']
+                if side == 'reference' and added: words += ['--skip-scenario', ','.join(dict.fromkeys(added))]
                 steps.append(('golden:' + side, shell(words)))
             words = ['node', golden_dir + '/diff.mjs', root + '/ref', root + '/cand']
             if slice_set == '1': words += ['--slice', slice_ids]

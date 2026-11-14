@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"github.com/vsriram/simple-host/internal/repository/storage"
+	runtime "github.com/vsriram/simple-host/internal/storage"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -45,11 +46,50 @@ func (u Usage) Total() int64 { return u.KV + u.SQLite + u.Files }
 // definition: normalized JSONB value text, SQLite main files after checkpoint,
 // and raw object bytes. WAL, retained deploys and legacy data are separate.
 func (s *Service) MeasureSiteStorage(ctx context.Context, siteID, root string) (Usage, error) {
+	names, err := storage.SQLiteKVNamespaces(ctx, s.db, siteID)
+	if err != nil {
+		return Usage{}, err
+	}
+	if len(names) == 0 {
+		return s.measureSiteStorageAdmitted(ctx, siteID, root)
+	}
+	var u Usage
+	err = s.deps.SiteSlots.Admit(ctx, siteID, func(ctx context.Context, _ *Admission) error {
+		var err error
+		u, err = s.measureSiteStorageAdmitted(ctx, siteID, root)
+		return err
+	})
+	return u, err
+}
+
+// measureSiteStorageAdmitted never acquires a slot: its callers already own one
+// whenever the site has SQLite KV namespaces.
+func (s *Service) measureSiteStorageAdmitted(ctx context.Context, siteID, root string) (Usage, error) {
 	u := Usage{FileObjects: map[string]int{}}
 	if err := storage.KVUsage(ctx, s.db, siteID, &u.KV); err != nil {
 		return u, err
 	}
-	err := filepath.WalkDir(root, func(p string, d os.DirEntry, e error) error {
+	names, err := storage.SQLiteKVNamespaces(ctx, s.db, siteID)
+	if err != nil {
+		return u, err
+	}
+	for _, name := range names {
+		var meta runtime.KVMeta
+		err = func() error {
+			conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(root, name), false, false)
+			if err != nil {
+				return err
+			}
+			defer closeSQLite(done)
+			meta, err = runtime.RuntimeKVMeta(conn)
+			return err
+		}()
+		if err != nil {
+			return u, err
+		}
+		u.KV += meta.LogicalBytes
+	}
+	err = filepath.WalkDir(root, func(p string, d os.DirEntry, e error) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}

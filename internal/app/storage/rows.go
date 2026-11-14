@@ -64,7 +64,7 @@ func (s *Service) openTableConn(ctx context.Context, c Call, write bool) (*sqlit
 	if write {
 		timeout = s.deps.WriteTimeout
 		remaining = func() (int64, error) {
-			u, err := s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir)
+			u, err := s.measureSiteStorageAdmitted(ctx, c.SiteID, c.RuntimeDir)
 			return SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool) - s.BudgetUsed(u), err
 		}
 	}

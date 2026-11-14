@@ -9,6 +9,12 @@ import (
 )
 
 func TestHackStorageTeamAndEventScopes(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackStorageTeamAndEventScopes(t) })
+	}
+}
+
+func runTestHackStorageTeamAndEventScopes(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, member, outsider := a.newPerson(t, "storage-org"), a.newPerson(t, "storage-member"), a.newPerson(t, "storage-outsider")
 	slug := a.makeEvent(t, org)

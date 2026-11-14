@@ -3,8 +3,6 @@ package handler
 // Regression assertions ported from Claude's storage2/claude-poc tests, plus
 // the second review's quota, listing, normalization and policy edge cases.
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http/httptest"
@@ -192,6 +190,15 @@ func TestStorageSecurityPolicyConversionAndOmittedMode(t *testing.T) {
 }
 
 func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) {
+			t.Setenv("KV_STORE", store)
+			runTestStorageSecurityFileObjectsListingsAndUnicode(t)
+		})
+	}
+}
+
+func runTestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 	s := newSecurityShop(t)
 	lim := config.DefaultLimits()
 	lim.StorageFileObjects = 2
@@ -270,6 +277,15 @@ func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 }
 
 func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) {
+			t.Setenv("KV_STORE", store)
+			runTestStorageSecurityKVKeyQuotaAndConcurrentCreate(t)
+		})
+	}
+}
+
+func runTestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "own", "signed-in", "add")
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "5")
@@ -282,7 +298,7 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "1000000")
 	// Exercise the actual save statement with concurrent independent connections,
 	// deliberately without lockSite or the existence preflight.
-	c := storageCall{siteID: s.siteID, resourceName: "kv", resource: storageResource{WriteMode: "add"}}
+	c := storageKVFixtureCall(t, s.a.sites, s.siteID, "kv")
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -295,7 +311,7 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 			<-start
 			cc := c
 			cc.visitorID = fmt.Sprintf("writer-%d", i)
-			inserted, err := s.a.sites.storageSvc().InsertKV(context.Background(), cc.siteID, cc.resourceName, "race", json.RawMessage(fmt.Sprint(i)), cc.owner, cc.visitorID)
+			inserted, err := insertStorageKVRace(t, s.a.sites, cc, "race", fmt.Sprint(i), cc.visitorID)
 			if err != nil {
 				t.Error(err)
 				return
@@ -313,10 +329,8 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	if wins != 1 {
 		t.Fatalf("%d concurrent creators succeeded", wins)
 	}
-	var writer, value string
-	if err := s.a.database.QueryRow(`SELECT writer_id,value::text FROM site_storage_kv WHERE site_id=$1 AND key='race'`, s.siteID).Scan(&writer, &value); err != nil {
-		t.Fatal(err)
-	}
+	writer := readStorageKVAuthor(t, s.a.sites, s.siteID, "kv", "race")
+	value := readStorageKVValue(t, s.a.sites, c, "race")
 	if writer != winner || writer != "writer-"+value {
 		t.Fatalf("overwritten creator: %s/%s vs %s", writer, value, winner)
 	}
@@ -324,15 +338,21 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	s.call(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "read": "anyone", "write": "signed-in", "write_mode": "full"}, s.key, 200)
 	s.call(t, "PUT", "/kv/kv/keys/key", `{"value":2}`, s.bob, 200)
 	var before, after string
-	s.a.database.QueryRow(`SELECT writer_id FROM site_storage_kv WHERE site_id=$1 AND key='key'`, s.siteID).Scan(&before)
+	before = readStorageKVAuthor(t, s.a.sites, s.siteID, "kv", "key")
 	s.call(t, "PUT", "/kv/kv/keys/key", `{"value":3}`, s.key, 200)
-	s.a.database.QueryRow(`SELECT writer_id FROM site_storage_kv WHERE site_id=$1 AND key='key'`, s.siteID).Scan(&after)
+	after = readStorageKVAuthor(t, s.a.sites, s.siteID, "kv", "key")
 	if before == "" || before != after {
 		t.Fatal("writer attribution not preserved for owner")
 	}
 }
 
 func TestStorageSecurityVisitorRateLimits(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageSecurityVisitorRateLimits(t) })
+	}
+}
+
+func runTestStorageSecurityVisitorRateLimits(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "anyone", "anyone", "add")
 	s.resource(t, "files", "files", "anyone", "anyone", "add")
@@ -369,6 +389,15 @@ func (b *securitySlowBody) Read(p []byte) (int, error) {
 }
 func (b *securitySlowBody) Close() error { return nil }
 func TestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) {
+			t.Setenv("KV_STORE", store)
+			runTestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t)
+		})
+	}
+}
+
+func runTestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "db", "sqlite", "anyone", "anyone", "full")
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")
@@ -418,6 +447,12 @@ func TestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t *testing.T) {
 }
 
 func TestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageSecurityReadsAndBoundedLockPOC(t) })
+	}
+}
+
+func runTestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "db", "sqlite", "anyone", "owner", "full")
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")

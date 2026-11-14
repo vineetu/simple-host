@@ -41,6 +41,12 @@ func LoadResource(ctx context.Context, q Querier, siteID, name string) (Resource
 	if err != nil {
 		return x, err
 	}
+	if x.Kind == "kv" {
+		err = q.QueryRowContext(ctx, `SELECT kv_store FROM site_storage_resources WHERE site_id=$1 AND name=$2 AND kind='kv'`, siteID, name).Scan(&x.KVStore)
+		if err != nil {
+			return x, err
+		}
+	}
 	if x.Kind == "sqlite" && (x.Access != nil || x.Rules != nil) {
 		x.Tables, err = LoadTables(ctx, q, siteID, name)
 	}

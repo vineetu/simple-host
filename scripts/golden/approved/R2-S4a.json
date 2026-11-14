@@ -1,0 +1,2083 @@
+{
+  "slice": "R2-S4a",
+  "entries": [
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].allowed",
+      "old": "__absent__",
+      "new": [
+        "postgres",
+        "sqlite"
+      ]
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].default",
+      "old": "",
+      "new": "postgres"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].description",
+      "old": "The Postgres connection string. install.sh sets it for the bundled database.",
+      "new": "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].name",
+      "old": "DB_DSN",
+      "new": "KV_STORE"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].required",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].security_sensitive",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].type",
+      "old": "secret",
+      "new": "enum"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].default",
+      "old": "25",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].description",
+      "old": "Maximum open Postgres connections per server process; excess requests wait.",
+      "new": "The Postgres connection string. install.sh sets it for the bundled database."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].min",
+      "old": 1,
+      "new": "__absent__"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].name",
+      "old": "DB_MAX_OPEN_CONNS",
+      "new": "DB_DSN"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].required",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].security_sensitive",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].small_box",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].type",
+      "old": "int",
+      "new": "secret"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].unit",
+      "old": "connections",
+      "new": "__absent__"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].default",
+      "old": "5",
+      "new": "25"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].description",
+      "old": "Maximum idle Postgres connections per server process; zero keeps none.",
+      "new": "Maximum open Postgres connections per server process; excess requests wait."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].min",
+      "old": 0,
+      "new": 1
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].name",
+      "old": "DB_MAX_IDLE_CONNS",
+      "new": "DB_MAX_OPEN_CONNS"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].default",
+      "old": "30",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].description",
+      "old": "Maximum lifetime of each pooled Postgres connection.",
+      "new": "Maximum idle Postgres connections per server process; zero keeps none."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].min",
+      "old": 1,
+      "new": 0
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].name",
+      "old": "DB_CONN_MAX_LIFETIME_MINUTES",
+      "new": "DB_MAX_IDLE_CONNS"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].unit",
+      "old": "minutes",
+      "new": "connections"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[262].default",
+      "old": "5",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[262].description",
+      "old": "Maximum idle time of each pooled Postgres connection.",
+      "new": "Maximum lifetime of each pooled Postgres connection."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[262].name",
+      "old": "DB_CONN_MAX_IDLE_MINUTES",
+      "new": "DB_CONN_MAX_LIFETIME_MINUTES"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].allowed",
+      "old": [
+        "true",
+        "false"
+      ],
+      "new": "__absent__"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].default",
+      "old": "false",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].description",
+      "old": "true makes the server build an empty database from the embedded schema.sql and apply every pending migration before it listens (the same as `simple-host migrate -init`). For Kubernetes, where there is no psql and no install command; two pods starting at once are safe (an advisory lock).",
+      "new": "Maximum idle time of each pooled Postgres connection."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].min",
+      "old": "__absent__",
+      "new": 1
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].name",
+      "old": "MIGRATE_ON_START",
+      "new": "DB_CONN_MAX_IDLE_MINUTES"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].type",
+      "old": "bool",
+      "new": "int"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].unit",
+      "old": "__absent__",
+      "new": "minutes"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].allowed",
+      "old": "__absent__",
+      "new": [
+        "true",
+        "false"
+      ]
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].default",
+      "old": "./data/sites",
+      "new": "false"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].description",
+      "old": "The folder that holds every site's files and versions.",
+      "new": "true makes the server build an empty database from the embedded schema.sql and apply every pending migration before it listens (the same as `simple-host migrate -init`). For Kubernetes, where there is no psql and no install command; two pods starting at once are safe (an advisory lock)."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].name",
+      "old": "DATA_DIR",
+      "new": "MIGRATE_ON_START"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].type",
+      "old": "string",
+      "new": "bool"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].default",
+      "old": "10000000",
+      "new": "./data/sites"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].description",
+      "old": "Durable byte budget per site for KV and SQLite (Hack defaults to 1000000, pooled with files); SQLite WAL and backups need additional temporary disk.",
+      "new": "The folder that holds every site's files and versions."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].max",
+      "old": 10737418240,
+      "new": "__absent__"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].min",
+      "old": 1,
+      "new": "__absent__"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].name",
+      "old": "SITE_STORAGE_MAX_BYTES",
+      "new": "DATA_DIR"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].small_box",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].type",
+      "old": "int",
+      "new": "string"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].unit",
+      "old": "bytes",
+      "new": "__absent__"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[266].description",
+      "old": "Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance.",
+      "new": "Durable byte budget per site for KV and SQLite (Hack defaults to 1000000, pooled with files); SQLite WAL and backups need additional temporary disk."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[266].name",
+      "old": "SITE_STORAGE_FILES_MAX_BYTES",
+      "new": "SITE_STORAGE_MAX_BYTES"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[267].default",
+      "old": "1000000",
+      "new": "10000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[267].description",
+      "old": "Largest individual raw-file upload for a site storage bucket.",
+      "new": "Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[267].name",
+      "old": "SITE_STORAGE_FILE_MAX_BYTES",
+      "new": "SITE_STORAGE_FILES_MAX_BYTES"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[268].description",
+      "old": "Largest JSON result from one site SQLite query.",
+      "new": "Largest individual raw-file upload for a site storage bucket."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[268].max",
+      "old": 67108864,
+      "new": 10737418240
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[268].name",
+      "old": "SITE_STORAGE_SQL_RESULT_MAX_BYTES",
+      "new": "SITE_STORAGE_FILE_MAX_BYTES"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].default",
+      "old": "200",
+      "new": "1000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].description",
+      "old": "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other).",
+      "new": "Largest JSON result from one site SQLite query."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].group",
+      "old": "observability",
+      "new": "storage"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].max",
+      "old": 10000,
+      "new": 67108864
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].min",
+      "old": 10,
+      "new": 1
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].name",
+      "old": "ANALYTICS_PAGES_PER_SITE_DAY",
+      "new": "SITE_STORAGE_SQL_RESULT_MAX_BYTES"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].unit",
+      "old": "pages",
+      "new": "bytes"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].default",
+      "old": "100",
+      "new": "200"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].description",
+      "old": "Distinct referring domains a site keeps per day; further new domains that day are counted together as (other).",
+      "new": "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other)."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].name",
+      "old": "ANALYTICS_REFERRERS_PER_SITE_DAY",
+      "new": "ANALYTICS_PAGES_PER_SITE_DAY"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].unit",
+      "old": "domains",
+      "new": "pages"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].default",
+      "old": "10240",
+      "new": "100"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].description",
+      "old": "The box's free outbound data a month, in GB (1 TB = 1024 GB), which the admin page's network bar measures this month's outbound against. 10240 is Oracle Cloud Always Free's 10 TB. 0 hides the bar.",
+      "new": "Distinct referring domains a site keeps per day; further new domains that day are counted together as (other)."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].max",
+      "old": 10000000,
+      "new": 10000
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].min",
+      "old": 0,
+      "new": 10
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].name",
+      "old": "NETWORK_MONTHLY_ALLOWANCE_GB",
+      "new": "ANALYTICS_REFERRERS_PER_SITE_DAY"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].unit",
+      "old": "GB",
+      "new": "domains"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].default",
+      "old": "75",
+      "new": "10240"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].description",
+      "old": "The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month.",
+      "new": "The box's free outbound data a month, in GB (1 TB = 1024 GB), which the admin page's network bar measures this month's outbound against. 10240 is Oracle Cloud Always Free's 10 TB. 0 hides the bar."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].max",
+      "old": 100,
+      "new": 10000000
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].min",
+      "old": 1,
+      "new": 0
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].name",
+      "old": "NETWORK_ALERT_PCT",
+      "new": "NETWORK_MONTHLY_ALLOWANCE_GB"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].unit",
+      "old": "percent",
+      "new": "GB"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].default",
+      "old": "60",
+      "new": "75"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].description",
+      "old": "How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose.",
+      "new": "The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].max",
+      "old": 1440,
+      "new": 100
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].name",
+      "old": "NETWORK_SAMPLE_MINUTES",
+      "new": "NETWORK_ALERT_PCT"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].type",
+      "old": "duration",
+      "new": "int"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].unit",
+      "old": "minutes",
+      "new": "percent"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].default",
+      "old": "20",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].description",
+      "old": "How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly.",
+      "new": "How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].max",
+      "old": 3600,
+      "new": 1440
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].min",
+      "old": 5,
+      "new": 1
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].name",
+      "old": "API_METRICS_FLUSH_SECONDS",
+      "new": "NETWORK_SAMPLE_MINUTES"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].small_box",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].unit",
+      "old": "seconds",
+      "new": "minutes"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].default",
+      "old": "",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].description",
+      "old": "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending.",
+      "new": "How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].max",
+      "old": "__absent__",
+      "new": 3600
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].min",
+      "old": "__absent__",
+      "new": 5
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].name",
+      "old": "AGENTCAT_PROJECT_ID",
+      "new": "API_METRICS_FLUSH_SECONDS"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].type",
+      "old": "string",
+      "new": "duration"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].unit",
+      "old": "__absent__",
+      "new": "seconds"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].allowed",
+      "old": [
+        "on",
+        "off"
+      ],
+      "new": "__absent__"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].default",
+      "old": "on",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].description",
+      "old": "Collects local paper metrics; off, false or 0 disables collection.",
+      "new": "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].name",
+      "old": "PAPER_METRICS",
+      "new": "AGENTCAT_PROJECT_ID"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].type",
+      "old": "bool",
+      "new": "string"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].allowed",
+      "old": "__absent__",
+      "new": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].default",
+      "old": "",
+      "new": "on"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].description",
+      "old": "The web server's access log that visit analytics are read from. Empty: no analytics.",
+      "new": "Collects local paper metrics; off, false or 0 disables collection."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].name",
+      "old": "ANALYTICS_LOG",
+      "new": "PAPER_METRICS"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].type",
+      "old": "string",
+      "new": "bool"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].description",
+      "old": "Salt for the hashed visitor addresses in analytics. Empty: derived from ADMIN_API_KEY.",
+      "new": "The web server's access log that visit analytics are read from. Empty: no analytics."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].name",
+      "old": "ANALYTICS_SALT",
+      "new": "ANALYTICS_LOG"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].security_sensitive",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].type",
+      "old": "secret",
+      "new": "string"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].default",
+      "old": "<default route>",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].description",
+      "old": "The network interface whose traffic the admin page reports as the box's own. Empty: the one the default route leaves by. Inside a container, where that is the container's own, network use is off unless this is set.",
+      "new": "Salt for the hashed visitor addresses in analytics. Empty: derived from ADMIN_API_KEY."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].name",
+      "old": "NETWORK_INTERFACE",
+      "new": "ANALYTICS_SALT"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].security_sensitive",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].type",
+      "old": "string",
+      "new": "secret"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[280].default",
+      "old": "<DATA_DIR>/../geoip",
+      "new": "<default route>"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[280].description",
+      "old": "Where the local location databases are. Missing files mean blank locations, never a lookup elsewhere.",
+      "new": "The network interface whose traffic the admin page reports as the box's own. Empty: the one the default route leaves by. Inside a container, where that is the container's own, network use is off unless this is set."
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[280].name",
+      "old": "GEOIP_DIR",
+      "new": "NETWORK_INTERFACE"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE lengthens the admin settings list by one; the last setting, unchanged, moves to this new index.",
+      "at": "body.settings[281]",
+      "old": "__absent__",
+      "new": {
+        "basic": false,
+        "default": "<DATA_DIR>/../geoip",
+        "description": "Where the local location databases are. Missing files mean blank locations, never a lookup elsewhere.",
+        "group": "observability",
+        "name": "GEOIP_DIR",
+        "required": false,
+        "security_sensitive": false,
+        "small_box": false,
+        "type": "string"
+      }
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].allowed",
+      "old": "__absent__",
+      "new": [
+        "postgres",
+        "sqlite"
+      ]
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].default",
+      "old": "",
+      "new": "postgres"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].description",
+      "old": "The Postgres connection string. install.sh sets it for the bundled database.",
+      "new": "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].name",
+      "old": "DB_DSN",
+      "new": "KV_STORE"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].required",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].security_sensitive",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[258].type",
+      "old": "secret",
+      "new": "enum"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].default",
+      "old": "25",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].description",
+      "old": "Maximum open Postgres connections per server process; excess requests wait.",
+      "new": "The Postgres connection string. install.sh sets it for the bundled database."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].min",
+      "old": 1,
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].name",
+      "old": "DB_MAX_OPEN_CONNS",
+      "new": "DB_DSN"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].required",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].security_sensitive",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].small_box",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].type",
+      "old": "int",
+      "new": "secret"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[259].unit",
+      "old": "connections",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].default",
+      "old": "5",
+      "new": "25"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].description",
+      "old": "Maximum idle Postgres connections per server process; zero keeps none.",
+      "new": "Maximum open Postgres connections per server process; excess requests wait."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].min",
+      "old": 0,
+      "new": 1
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[260].name",
+      "old": "DB_MAX_IDLE_CONNS",
+      "new": "DB_MAX_OPEN_CONNS"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].default",
+      "old": "30",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].description",
+      "old": "Maximum lifetime of each pooled Postgres connection.",
+      "new": "Maximum idle Postgres connections per server process; zero keeps none."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].min",
+      "old": 1,
+      "new": 0
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].name",
+      "old": "DB_CONN_MAX_LIFETIME_MINUTES",
+      "new": "DB_MAX_IDLE_CONNS"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[261].unit",
+      "old": "minutes",
+      "new": "connections"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[262].default",
+      "old": "5",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[262].description",
+      "old": "Maximum idle time of each pooled Postgres connection.",
+      "new": "Maximum lifetime of each pooled Postgres connection."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[262].name",
+      "old": "DB_CONN_MAX_IDLE_MINUTES",
+      "new": "DB_CONN_MAX_LIFETIME_MINUTES"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].allowed",
+      "old": [
+        "true",
+        "false"
+      ],
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].default",
+      "old": "false",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].description",
+      "old": "true makes the server build an empty database from the embedded schema.sql and apply every pending migration before it listens (the same as `simple-host migrate -init`). For Kubernetes, where there is no psql and no install command; two pods starting at once are safe (an advisory lock).",
+      "new": "Maximum idle time of each pooled Postgres connection."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].min",
+      "old": "__absent__",
+      "new": 1
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].name",
+      "old": "MIGRATE_ON_START",
+      "new": "DB_CONN_MAX_IDLE_MINUTES"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].type",
+      "old": "bool",
+      "new": "int"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[263].unit",
+      "old": "__absent__",
+      "new": "minutes"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].allowed",
+      "old": "__absent__",
+      "new": [
+        "true",
+        "false"
+      ]
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].default",
+      "old": "./data/sites",
+      "new": "false"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].description",
+      "old": "The folder that holds every site's files and versions.",
+      "new": "true makes the server build an empty database from the embedded schema.sql and apply every pending migration before it listens (the same as `simple-host migrate -init`). For Kubernetes, where there is no psql and no install command; two pods starting at once are safe (an advisory lock)."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].name",
+      "old": "DATA_DIR",
+      "new": "MIGRATE_ON_START"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[264].type",
+      "old": "string",
+      "new": "bool"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].default",
+      "old": "10000000",
+      "new": "./data/sites"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].description",
+      "old": "Durable byte budget per site for KV and SQLite (Hack defaults to 1000000, pooled with files); SQLite WAL and backups need additional temporary disk.",
+      "new": "The folder that holds every site's files and versions."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].max",
+      "old": 10737418240,
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].min",
+      "old": 1,
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].name",
+      "old": "SITE_STORAGE_MAX_BYTES",
+      "new": "DATA_DIR"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].small_box",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].type",
+      "old": "int",
+      "new": "string"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[265].unit",
+      "old": "bytes",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[266].description",
+      "old": "Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance.",
+      "new": "Durable byte budget per site for KV and SQLite (Hack defaults to 1000000, pooled with files); SQLite WAL and backups need additional temporary disk."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[266].name",
+      "old": "SITE_STORAGE_FILES_MAX_BYTES",
+      "new": "SITE_STORAGE_MAX_BYTES"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[267].default",
+      "old": "1000000",
+      "new": "10000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[267].description",
+      "old": "Largest individual raw-file upload for a site storage bucket.",
+      "new": "Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[267].name",
+      "old": "SITE_STORAGE_FILE_MAX_BYTES",
+      "new": "SITE_STORAGE_FILES_MAX_BYTES"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[268].description",
+      "old": "Largest JSON result from one site SQLite query.",
+      "new": "Largest individual raw-file upload for a site storage bucket."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[268].max",
+      "old": 67108864,
+      "new": 10737418240
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[268].name",
+      "old": "SITE_STORAGE_SQL_RESULT_MAX_BYTES",
+      "new": "SITE_STORAGE_FILE_MAX_BYTES"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].default",
+      "old": "200",
+      "new": "1000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].description",
+      "old": "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other).",
+      "new": "Largest JSON result from one site SQLite query."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].group",
+      "old": "observability",
+      "new": "storage"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].max",
+      "old": 10000,
+      "new": 67108864
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].min",
+      "old": 10,
+      "new": 1
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].name",
+      "old": "ANALYTICS_PAGES_PER_SITE_DAY",
+      "new": "SITE_STORAGE_SQL_RESULT_MAX_BYTES"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[269].unit",
+      "old": "pages",
+      "new": "bytes"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].default",
+      "old": "100",
+      "new": "200"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].description",
+      "old": "Distinct referring domains a site keeps per day; further new domains that day are counted together as (other).",
+      "new": "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other)."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].name",
+      "old": "ANALYTICS_REFERRERS_PER_SITE_DAY",
+      "new": "ANALYTICS_PAGES_PER_SITE_DAY"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[270].unit",
+      "old": "domains",
+      "new": "pages"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].default",
+      "old": "10240",
+      "new": "100"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].description",
+      "old": "The box's free outbound data a month, in GB (1 TB = 1024 GB), which the admin page's network bar measures this month's outbound against. 10240 is Oracle Cloud Always Free's 10 TB. 0 hides the bar.",
+      "new": "Distinct referring domains a site keeps per day; further new domains that day are counted together as (other)."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].max",
+      "old": 10000000,
+      "new": 10000
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].min",
+      "old": 0,
+      "new": 10
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].name",
+      "old": "NETWORK_MONTHLY_ALLOWANCE_GB",
+      "new": "ANALYTICS_REFERRERS_PER_SITE_DAY"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[271].unit",
+      "old": "GB",
+      "new": "domains"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].default",
+      "old": "75",
+      "new": "10240"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].description",
+      "old": "The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month.",
+      "new": "The box's free outbound data a month, in GB (1 TB = 1024 GB), which the admin page's network bar measures this month's outbound against. 10240 is Oracle Cloud Always Free's 10 TB. 0 hides the bar."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].max",
+      "old": 100,
+      "new": 10000000
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].min",
+      "old": 1,
+      "new": 0
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].name",
+      "old": "NETWORK_ALERT_PCT",
+      "new": "NETWORK_MONTHLY_ALLOWANCE_GB"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[272].unit",
+      "old": "percent",
+      "new": "GB"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].default",
+      "old": "60",
+      "new": "75"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].description",
+      "old": "How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose.",
+      "new": "The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].max",
+      "old": 1440,
+      "new": 100
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].name",
+      "old": "NETWORK_SAMPLE_MINUTES",
+      "new": "NETWORK_ALERT_PCT"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].type",
+      "old": "duration",
+      "new": "int"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[273].unit",
+      "old": "minutes",
+      "new": "percent"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].default",
+      "old": "20",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].description",
+      "old": "How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly.",
+      "new": "How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].max",
+      "old": 3600,
+      "new": 1440
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].min",
+      "old": 5,
+      "new": 1
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].name",
+      "old": "API_METRICS_FLUSH_SECONDS",
+      "new": "NETWORK_SAMPLE_MINUTES"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].small_box",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[274].unit",
+      "old": "seconds",
+      "new": "minutes"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].default",
+      "old": "",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].description",
+      "old": "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending.",
+      "new": "How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].max",
+      "old": "__absent__",
+      "new": 3600
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].min",
+      "old": "__absent__",
+      "new": 5
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].name",
+      "old": "AGENTCAT_PROJECT_ID",
+      "new": "API_METRICS_FLUSH_SECONDS"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].small_box",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].type",
+      "old": "string",
+      "new": "duration"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[275].unit",
+      "old": "__absent__",
+      "new": "seconds"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].allowed",
+      "old": [
+        "on",
+        "off"
+      ],
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].default",
+      "old": "on",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].description",
+      "old": "Collects local paper metrics; off, false or 0 disables collection.",
+      "new": "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].name",
+      "old": "PAPER_METRICS",
+      "new": "AGENTCAT_PROJECT_ID"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[276].type",
+      "old": "bool",
+      "new": "string"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].allowed",
+      "old": "__absent__",
+      "new": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].default",
+      "old": "",
+      "new": "on"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].description",
+      "old": "The web server's access log that visit analytics are read from. Empty: no analytics.",
+      "new": "Collects local paper metrics; off, false or 0 disables collection."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].name",
+      "old": "ANALYTICS_LOG",
+      "new": "PAPER_METRICS"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[277].type",
+      "old": "string",
+      "new": "bool"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].description",
+      "old": "Salt for the hashed visitor addresses in analytics. Empty: derived from ADMIN_API_KEY.",
+      "new": "The web server's access log that visit analytics are read from. Empty: no analytics."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].name",
+      "old": "ANALYTICS_SALT",
+      "new": "ANALYTICS_LOG"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].security_sensitive",
+      "old": true,
+      "new": false
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[278].type",
+      "old": "secret",
+      "new": "string"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].default",
+      "old": "<default route>",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].description",
+      "old": "The network interface whose traffic the admin page reports as the box's own. Empty: the one the default route leaves by. Inside a container, where that is the container's own, network use is off unless this is set.",
+      "new": "Salt for the hashed visitor addresses in analytics. Empty: derived from ADMIN_API_KEY."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].name",
+      "old": "NETWORK_INTERFACE",
+      "new": "ANALYTICS_SALT"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].security_sensitive",
+      "old": false,
+      "new": true
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[279].type",
+      "old": "string",
+      "new": "secret"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[280].default",
+      "old": "<DATA_DIR>/../geoip",
+      "new": "<default route>"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[280].description",
+      "old": "Where the local location databases are. Missing files mean blank locations, never a lookup elsewhere.",
+      "new": "The network interface whose traffic the admin page reports as the box's own. Empty: the one the default route leaves by. Inside a container, where that is the container's own, network use is off unless this is set."
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE inserts one setting at index 258 of the admin settings list, so this field of the entry at this index now shows the next setting in the unchanged order.",
+      "at": "body.settings[280].name",
+      "old": "GEOIP_DIR",
+      "new": "NETWORK_INTERFACE"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "Registering KV_STORE lengthens the admin settings list by one; the last setting, unchanged, moves to this new index.",
+      "at": "body.settings[281]",
+      "old": "__absent__",
+      "new": {
+        "basic": false,
+        "default": "<DATA_DIR>/../geoip",
+        "description": "Where the local location databases are. Missing files mean blank locations, never a lookup elsewhere.",
+        "group": "observability",
+        "name": "GEOIP_DIR",
+        "required": false,
+        "security_sensitive": false,
+        "small_box": false,
+        "type": "string"
+      }
+    },
+    {
+      "product": "host",
+      "scenario": "mixed-store",
+      "reason": "The deployed reference has no KV_STORE setting and cannot keep a key-value namespace in a SQLite file, so it cannot run this new scenario.",
+      "change": "added"
+    },
+    {
+      "product": "hack",
+      "scenario": "mixed-store",
+      "reason": "The deployed reference has no KV_STORE setting and cannot keep a key-value namespace in a SQLite file, so it cannot run this new scenario.",
+      "change": "added"
+    }
+  ]
+}

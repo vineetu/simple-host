@@ -17,7 +17,7 @@ import (
 	sqlite3 "github.com/ncruces/go-sqlite3"
 )
 
-// Production opens are deliberately restricted to the four admission-owned
+// Production opens are deliberately restricted to the admission-owned
 // mechanics. Resolve the import alias, so renaming sqlite3 cannot bypass this.
 func TestSQLiteOpenAllowList(t *testing.T) {
 	root := filepath.Join("..", "..")
@@ -26,6 +26,7 @@ func TestSQLiteOpenAllowList(t *testing.T) {
 		"internal/storage/runtime_sql_prepare.go": true,
 		"internal/storage/runtime_matrix.go":      true,
 		"internal/storage/export_sqlite.go":       true,
+		"internal/storage/runtime_kv.go":          true,
 	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

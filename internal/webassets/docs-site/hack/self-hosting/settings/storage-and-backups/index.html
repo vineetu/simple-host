@@ -697,6 +697,12 @@ knows.</p>
 <td>Storage writes per site and signed-in visitor; limits add-only flooding.</td>
 </tr>
 <tr>
+<td><code>KV_STORE</code></td>
+<td><code>postgres</code></td>
+<td><code>postgres</code> / <code>sqlite</code></td>
+<td>Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values.</td>
+</tr>
+<tr>
 <td><code>DB_DSN</code></td>
 <td>none</td>
 <td>secret</td>

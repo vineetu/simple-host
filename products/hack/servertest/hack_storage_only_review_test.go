@@ -15,6 +15,12 @@ import (
 // Checks the public router and both connector grant shapes, not only the
 // legacy route-name classifier. Hack websites retain resource storage.
 func TestHackStorageOnlyReview(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackStorageOnlyReview(t) })
+	}
+}
+
+func runTestHackStorageOnlyReview(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org := a.newPerson(t, "storage-only-org")
 	member := a.newPerson(t, "storage-only-member")
@@ -123,6 +129,12 @@ func TestHackStorageOnlyReview(t *testing.T) {
 // Exercises the registered public routes: the Hack spec must be the same
 // complete JSON document at both extensions, with no dangling component refs.
 func TestHackRegisteredDocsReview(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackRegisteredDocsReview(t) })
+	}
+}
+
+func runTestHackRegisteredDocsReview(t *testing.T) {
 	handler.SetInstanceHosts("simple-hack.test", "sites.simple-hack.test", "")
 	t.Cleanup(func() {
 		handler.SetInstanceHosts("simple-host.app", "", "")

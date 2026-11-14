@@ -2860,6 +2860,14 @@ internal certificate checks.
 Routes: `/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`.
 MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `storage_file_download_link`, `storage_get_usage`, `storage_list_file_objects`, `storage_list_kv_keys`.
 
+The server can keep a new key-value namespace in its own SQLite file, chosen by
+`KV_STORE` (default `postgres`). The setting exists for an upcoming change and
+must stay `postgres` for now: site export, namespace deletion and the people
+list do not cover a SQLite namespace until a later release. Existing namespaces
+keep their store. Both stores charge key bytes plus PostgreSQL-normalized JSON
+text, and a site with both charges their sum. SQLite lists use byte order;
+author visibility and presets are unchanged.
+
 SQLite table-row operations share a per-site concurrency limit across resources
 (default one, configurable from one to four). Waiting for the site slot and global
 gate shares one timeout and returns `storage_busy` with `Retry-After` when full.

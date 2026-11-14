@@ -26,6 +26,7 @@ type storageResource struct {
 	Rules, ConvertedFrom json.RawMessage
 	Name                 string
 	Kind                 string
+	KVStore              string
 	Read                 string
 	Write                string
 	SitePasscode         string
@@ -479,6 +480,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if e != nil {
+			if writeKVAdmissionError(w, e) {
+				return
+			}
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
@@ -508,6 +512,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if e != nil {
+			if writeKVAdmissionError(w, e) {
+				return
+			}
 			var serviceErr *appstorage.Error
 			if errors.As(e, &serviceErr) {
 				status := 400
@@ -548,6 +555,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if e != nil {
+			if writeKVAdmissionError(w, e) {
+				return
+			}
 			var serviceErr *appstorage.Error
 			if errors.As(e, &serviceErr) {
 				switch serviceErr.Code {
@@ -595,6 +605,9 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 		return
 	}
 	if e != nil {
+		if writeKVAdmissionError(w, e) {
+			return
+		}
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
@@ -626,4 +639,23 @@ func storageVisitorWrite(r *http.Request) bool {
 func storageBusy(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "1")
 	storageError(w, 503, "storage_busy", "storage is busy; retry shortly")
+}
+
+// KV file operations use the same admission responses as table routes.
+func writeKVAdmissionError(w http.ResponseWriter, err error) bool {
+	var e *appstorage.Error
+	if !errors.As(err, &e) {
+		return false
+	}
+	switch e.Code {
+	case "storage_busy":
+		storageBusy(w)
+	case "query_too_expensive":
+		storageError(w, 422, e.Code, e.Message)
+	case "storage_failed":
+		storageError(w, 500, e.Code, e.Message)
+	default:
+		return false
+	}
+	return true
 }

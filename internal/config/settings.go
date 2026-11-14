@@ -272,6 +272,7 @@ var zeroIsNever = map[string]bool{
 // that were settings before the knobs existed.
 func otherSettings() []Setting {
 	return []Setting{
+		{Name: "KV_STORE", Group: "storage", Type: "enum", Default: "postgres", Allowed: []string{"postgres", "sqlite"}, SmallBox: true, Description: "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values."},
 		{Name: "SITE_DOMAIN", Group: "server", Type: "string", Basic: true, SmallBox: true, InstallFlag: "--host",
 			Description: "The domain this server lives at, like hack.example.com. Unset, the server starts in setup mode and asks for one."},
 		{Name: "CONTENT_HOST", Group: "server", Type: "string", Default: "sites.<SITE_DOMAIN>", SmallBox: true, InstallFlag: "--content",

@@ -9,6 +9,12 @@ import (
 )
 
 func TestStorageStoryShopAndRefusals(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageStoryShopAndRefusals(t) })
+	}
+}
+
+func runTestStorageStoryShopAndRefusals(t *testing.T) {
 	a, cert := newSiteApp(t, "canonical")
 	owner := a.newPerson(t, "story-owner")
 	alice := a.newPerson(t, "story-alice")
@@ -212,6 +218,12 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 }
 
 func TestStorageStorySeparateAllowances(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageStorySeparateAllowances(t) })
+	}
+}
+
+func runTestStorageStorySeparateAllowances(t *testing.T) {
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "16384")
 	t.Setenv("SITE_STORAGE_FILES_MAX_BYTES", "10")
 	t.Setenv("SITE_STORAGE_FILE_MAX_BYTES", "100")

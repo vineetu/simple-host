@@ -2103,3 +2103,6 @@ CREATE TABLE IF NOT EXISTS hack_assistant_spend (
     month         DATE PRIMARY KEY,
     cost_micro_usd BIGINT NOT NULL DEFAULT 0
 );
+
+-- Per-namespace KV store (R2-S4a).
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS kv_store TEXT NOT NULL DEFAULT 'postgres' CHECK (kv_store IN ('postgres','sqlite'));

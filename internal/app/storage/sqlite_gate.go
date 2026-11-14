@@ -39,6 +39,8 @@ func (g *SQLiteGate) Acquire(ctx context.Context) (func(), error) {
 // SiteSlots bounds SQLite operations in flight per site and holds the global
 // gate. All request-built services share the program's instance.
 type SiteSlots struct {
+	admitHook func(bool) // tests assert admission is never nested on a goroutine
+
 	mu      sync.Mutex
 	sites   map[string]*siteSlot
 	perSite int
@@ -66,6 +68,10 @@ func (a *Admission) Committed() { a.committed = true }
 // Admit takes the site slot before the global gate, using a single wait budget.
 // The wait deadline applies to admission only; fn keeps the caller's context.
 func (s *SiteSlots) Admit(ctx context.Context, siteID string, fn func(context.Context, *Admission) error) (err error) {
+	if s.admitHook != nil {
+		s.admitHook(true)
+		defer s.admitHook(false)
+	}
 	wait, cancel := context.WithTimeout(ctx, s.wait)
 	defer cancel()
 	s.mu.Lock()

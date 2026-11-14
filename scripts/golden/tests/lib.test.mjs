@@ -60,6 +60,21 @@ test('outbox sorts mail, replaces only sign-in codes and hashes normalized HTML'
   assert.equal(signin.text, 'Code: <code>');
   assert.equal(signin.html_sha256, sha256hex('<b><code></b>'));
 });
+test('admin usage hides only the disk-derived sentence and state', () => {
+  const full = { status: 'full', message: 'This server is 97% full, with 5.1 GB left. Publishing will start failing. Free space or move to a bigger disk now.' };
+  const filling = { status: 'filling', message: 'This server is 76% full, with 46.3 GB left. Worth watching, and worth acting on before an event rather than during one.' };
+  const ok = { status: 'ok', message: '130.2 GB of 193.0 GB used, 62.8 GB free. Sites account for 512 KB of it.' };
+  for (const name of ['admin-usage', 'GET /v1/admin/usage', 'GET /v1/admin/usage as admin']) {
+    for (const body of [full, filling, ok]) {
+      assert.deepEqual(normalizeResponseNoise(name, { ...body, site_count: 3, top_sites: [{ name: 'a', status: 'ok' }] }),
+        { status: '<disk-status>', message: '<disk-message>', site_count: 3, top_sites: [{ name: 'a', status: 'ok' }] });
+    }
+    // A reworded sentence or an unknown state is a real difference.
+    assert.deepEqual(normalizeResponseNoise(name, { status: 'degraded', message: 'This server is 76% full, with 46.3 GB left. Act now.' }),
+      { status: 'degraded', message: 'This server is 76% full, with <measurement> left. Act now.' });
+  }
+  assert.deepEqual(normalizeResponseNoise('different response', structuredClone(ok)), ok);
+});
 test('authenticated usage gets the same narrow live measurements normalization', () => {
   const body = { disk_bytes: 12, workers: [{ name: 'mail', pending: 2, enabled: true }] };
   assert.equal(normalizeResponseNoise('GET /v1/admin/usage as admin', body).disk_bytes, '<n>');

@@ -10,6 +10,12 @@ import (
 // presets, and so do Simple Hack's event tools and recipes (owner decision
 // 2026-10-10), with Hack's own meaning of owner.
 func TestStoragePresetRecipesAndTools(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetRecipesAndTools(t) })
+	}
+}
+
+func runTestStoragePresetRecipesAndTools(t *testing.T) {
 	for _, topic := range recipeTopics {
 		text, err := PageRecipe(topic, "shop")
 		if err != nil {
@@ -84,6 +90,12 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 
 // Simple Hack has no named viewers, so the portal recipe is refused there.
 func TestHackRefusesPortalRecipe(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackRefusesPortalRecipe(t) })
+	}
+}
+
+func runTestHackRefusesPortalRecipe(t *testing.T) {
 	if _, err := HackPageRecipe("portal", "team"); err == nil {
 		t.Fatal("portal recipe served on Simple Hack")
 	}
@@ -97,6 +109,12 @@ func TestHackRefusesPortalRecipe(t *testing.T) {
 // portal/comments/guestbook/wordpress (listed, refused with a reason),
 // people is removed from hack_get_page_recipe's topic enum entirely.
 func TestHackPeopleRecipeNotOffered(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackPeopleRecipeNotOffered(t) })
+	}
+}
+
+func runTestHackPeopleRecipeNotOffered(t *testing.T) {
 	if _, err := HackPageRecipe("people", "team"); err == nil {
 		t.Fatal("people recipe served on Simple Hack")
 	}
@@ -116,6 +134,12 @@ func TestHackPeopleRecipeNotOffered(t *testing.T) {
 // tools never mention it, its checked value, or approve_first, while Simple
 // Host's do.
 func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestHackStorageToolsOmitSpamCheck(t) })
+	}
+}
+
+func runTestHackStorageToolsOmitSpamCheck(t *testing.T) {
 	s := newTestServer(nil)
 	schemaText := func(tool Tool) string {
 		b, err := json.Marshal(tool.InputSchema)

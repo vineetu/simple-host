@@ -31,6 +31,12 @@ func TestStorageRound2Gallery150POC(t *testing.T) {
 }
 
 func TestStorageRound2WriteBucketsPerSite(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageRound2WriteBucketsPerSite(t) })
+	}
+}
+
+func runTestStorageRound2WriteBucketsPerSite(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "anyone", "signed-in", "add")
 	owner := person{key: s.key["X-API-Key"]}
@@ -127,6 +133,12 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 }
 
 func TestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageRound2OwnerTimeoutAndDeployWait(t) })
+	}
+}
+
+func runTestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "anyone", "anyone", "full")
 	release := s.a.sites.lockSite(s.ownerID, "shop")
@@ -143,6 +155,12 @@ func TestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
 }
 
 func TestStorageRound2LegacyNFDNamesPOC(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageRound2LegacyNFDNamesPOC(t) })
+	}
+}
+
+func runTestStorageRound2LegacyNFDNamesPOC(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "photos", "files", "anyone", "anyone", "full")
 	s.resource(t, "kv", "kv", "anyone", "anyone", "full")

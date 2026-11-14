@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "hack.labels" . | nindent 4 }}
 data:
+  KV_STORE: {{ .Values.kvStore | quote }}
   SITE_STORAGE_SITE_INFLIGHT: {{ .Values.storageSiteInflight | quote }}
   # The platform: the hackathon product on this hostname.
   SITE_DOMAIN: {{ .Values.host | quote }}

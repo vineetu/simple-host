@@ -3385,6 +3385,21 @@
       "small_box": true
     },
     {
+      "name": "KV_STORE",
+      "group": "storage",
+      "description": "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values.",
+      "type": "enum",
+      "default": "postgres",
+      "allowed": [
+        "postgres",
+        "sqlite"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "DB_DSN",
       "group": "storage",
       "description": "The Postgres connection string. install.sh sets it for the bundled database.",

@@ -172,11 +172,17 @@ unset GOLDEN_REF_HACK_BIN GOLDEN_HACK_BIN
 check 'golden stub comparison passes' run 0 --golden --slice X
 cat >"$tmp/expected" <<EOF
 go [0] <build> <-o> <$tmp/out/golden/candidate.bin> <./cmd/server>
-node <$tmp/golden/run.mjs> <--host> <$GOLDEN_REF_BIN> <--out> <$tmp/out/golden/ref>
-node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/candidate.bin> <--out> <$tmp/out/golden/cand>
+node <$tmp/golden/run.mjs> <--host> <$GOLDEN_REF_BIN> <--out> <$tmp/out/golden/ref> <--scenario> <all>
+node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/candidate.bin> <--out> <$tmp/out/golden/cand> <--scenario> <all>
 node <$tmp/golden/diff.mjs> <$tmp/out/golden/ref> <$tmp/out/golden/cand> <--slice> <X>
 EOF
 check 'golden order and exact arguments without hacks' cmp -s "$tmp/expected" "$STUB_LOG"
+mkdir -p "$tmp/golden/approved"
+printf '%s\n' '{"slice":"Y","entries":[{"product":"host","scenario":"new-one","reason":"r","change":"added"},{"product":"hack","scenario":"new-one","reason":"r","change":"added"},{"product":"host","scenario":"old-one","reason":"r","change":"removed"}]}' >"$tmp/golden/approved/Y.json"
+: >"$STUB_LOG"
+check 'golden with an added scenario passes' run 0 --golden --slice X,Y
+check 'reference skips the added scenario' has "$STUB_LOG" "<--out> <$tmp/out/golden/ref> <--scenario> <all> <--skip-scenario> <new-one>"
+check 'candidate records every scenario' has "$STUB_LOG" "<--out> <$tmp/out/golden/cand> <--scenario> <all>"
 export GOLDEN_REF_HACK_BIN="$tmp/reference hack" GOLDEN_HACK_BIN="$tmp/candidate hack"
 : >"$STUB_LOG"
 check 'golden with hack overrides passes' run 0 --golden

@@ -128,3 +128,4 @@ zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_
 0016-hack-announcement-pin.sql | hack | alters event_announcements (hack)
 0017-hack-submissions-public.sql | hack | alters events (hack)
 0018-storage-rules.sql | platform | alters site_storage_resources, site_storage_tables
+0019-storage-kv-store.sql | platform | alters site_storage_resources

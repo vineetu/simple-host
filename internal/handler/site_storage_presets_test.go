@@ -116,9 +116,7 @@ func (s presetSite) seed(t *testing.T, kind, name, label string) string {
 	t.Helper()
 	switch kind {
 	case "kv":
-		if _, err := s.a.database.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id) VALUES($1,$2,$3,'"seed"',$4)`, s.sid, name, label, s.aliceID); err != nil {
-			t.Fatal(err)
-		}
+		seedStorageKV(t, s.a.sites, s.sid, name, label, `"seed"`, s.aliceID)
 		return label
 	case "files":
 		s.must(t, "PUT", "/files/"+name+"/objects/"+label, "seed", s.key, 200)
@@ -142,6 +140,12 @@ func presetPaths(kind, name, entry string) (one, list string) {
 }
 
 func TestStoragePresetsEveryActionAndCaller(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsEveryActionAndCaller(t) })
+	}
+}
+
+func runTestStoragePresetsEveryActionAndCaller(t *testing.T) {
 	s := newPresetSite(t)
 	for _, p := range storagePresets {
 		if p.ID == "comments" {
@@ -232,6 +236,12 @@ func TestStoragePresetsEveryActionAndCaller(t *testing.T) {
 }
 
 func TestStoragePresetsRulesOnSave(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsRulesOnSave(t) })
+	}
+}
+
+func runTestStoragePresetsRulesOnSave(t *testing.T) {
 	valid := 0
 	for _, r := range presetWho {
 		for _, a := range presetWho {
@@ -431,6 +441,12 @@ func TestStoragePresetsSQLiteTablesAndStatements(t *testing.T) {
 }
 
 func TestStoragePresetsOwnerOnSiteLimits(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsOwnerOnSiteLimits(t) })
+	}
+}
+
+func runTestStoragePresetsOwnerOnSiteLimits(t *testing.T) {
 	s := newPresetSite(t)
 	own := s.callers["owner-site"]
 	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "kv", "preset": "private"}, s.key, 201)
@@ -496,6 +512,12 @@ func TestStoragePresetsOwnerOnSiteLimits(t *testing.T) {
 }
 
 func TestStoragePresetsKVAndFilesOwnership(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsKVAndFilesOwnership(t) })
+	}
+}
+
+func runTestStoragePresetsKVAndFilesOwnership(t *testing.T) {
 	s := newPresetSite(t)
 	alice, bob := s.callers["alice"], s.callers["bob"]
 	for _, kind := range []string{"kv", "files"} {
@@ -536,6 +558,12 @@ func TestStoragePresetsKVAndFilesOwnership(t *testing.T) {
 
 // Simple Hack uses presets too (owner decision 2026-10-10, replacing D2).
 func TestStoragePresetsSimpleHackUsesPresets(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsSimpleHackUsesPresets(t) })
+	}
+}
+
+func runTestStoragePresetsSimpleHackUsesPresets(t *testing.T) {
 	s := newPresetSite(t)
 	r := s.must(t, "PUT", "/resources/team", map[string]string{"kind": "sqlite", "read": "anyone", "write": "signed-in", "write_mode": "add"}, s.key, 201).json(t)
 	if r["preset"] != "wall" && r["preset"] != "custom" {
@@ -629,6 +657,12 @@ func TestStoragePresetsReviewFixes(t *testing.T) {
 
 // Fixes from the second security review (2026-10-10).
 func TestStoragePresetsReviewRound2(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsReviewRound2(t) })
+	}
+}
+
+func runTestStoragePresetsReviewRound2(t *testing.T) {
 	s := newPresetSite(t)
 	bob, own := s.callers["bob"], s.callers["owner-site"]
 	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "kv", "preset": "private"}, s.key, 201)

@@ -670,6 +670,15 @@ connections is at most <code>SITE_STORAGE_SQL_CONCURRENCY</code> times the large
 (<code>0</code> concurrency means the CPU count). It does not bound the Go heap, result
 buffers, exports or other program memory. It is not the whole-install memory
 target measured separately for the self-hosted install.</p>
+<p><code>KV_STORE</code> exists for an upcoming change and must stay <code>postgres</code> (the default).
+Do not set <code>sqlite</code> yet: site export, deleting a namespace and the people list
+do not cover a SQLite namespace until a later release. When that release
+arrives, the setting will choose the store for newly created key-value
+namespaces (set in the Compose environment or the Helm <code>kvStore</code> value, then
+restart), and existing namespaces will keep the store they have. A SQLite
+namespace is the file <code>runtime/kv/&lt;name&gt;.sqlite</code>; it is charged key bytes plus
+normalized JSON text bytes, with no cap on the file itself, and its lists are in
+byte order where Postgres lists follow the database collation.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

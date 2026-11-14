@@ -34,6 +34,11 @@ func ListResources(ctx context.Context, db *sql.DB, siteID string) ([]Resource, 
 		return nil, err
 	}
 	for i := range out {
+		if out[i].Kind == "kv" {
+			if err = db.QueryRowContext(ctx, `SELECT kv_store FROM site_storage_resources WHERE site_id=$1 AND name=$2 AND kind='kv'`, siteID, out[i].Name).Scan(&out[i].KVStore); err != nil {
+				return nil, err
+			}
+		}
 		if out[i].Kind == "sqlite" && (out[i].Access != nil || out[i].Rules != nil) {
 			if out[i].Tables, err = LoadTables(ctx, db, siteID, out[i].Name); err != nil {
 				return nil, err
@@ -51,7 +56,10 @@ func ClearResourceWriters(ctx context.Context, tx *sql.Tx, table, siteID, name s
 // UpsertResource saves a resource without changing an existing resource's kind.
 func UpsertResource(ctx context.Context, tx *sql.Tx, siteID string, x rules.Resource) (sql.Result, error) {
 	m := x.Access
-	return tx.ExecContext(ctx, `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first,rules,rules_converted_from) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first,rules=EXCLUDED.rules,rules_converted_from=EXCLUDED.rules_converted_from WHERE site_storage_resources.kind=EXCLUDED.kind`, siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase, x.ApproveFirst, nullableJSON(x.Rules), nullableJSON(x.ConvertedFrom))
+	if x.KVStore == "" {
+		x.KVStore = "postgres"
+	}
+	return tx.ExecContext(ctx, `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first,rules,rules_converted_from,kv_store) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first,rules=EXCLUDED.rules,rules_converted_from=EXCLUDED.rules_converted_from WHERE site_storage_resources.kind=EXCLUDED.kind`, siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase, x.ApproveFirst, nullableJSON(x.Rules), nullableJSON(x.ConvertedFrom), x.KVStore)
 }
 
 // DeleteResourceTables removes the existing per-table rules.
@@ -76,4 +84,22 @@ func nullableJSON(raw json.RawMessage) any {
 		return nil
 	}
 	return string(raw)
+}
+
+// SQLiteKVNamespaces enumerates declared files only; orphan files are not usage.
+func SQLiteKVNamespaces(ctx context.Context, db *sql.DB, siteID string) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT name FROM site_storage_resources WHERE site_id=$1 AND kind='kv' AND kv_store='sqlite' ORDER BY name`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err = rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
 }

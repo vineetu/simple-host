@@ -523,8 +523,14 @@ Each rule below removes a specific source of run variation while keeping observa
 - **Usage measurements:** only the three named admin usage responses in the class table replace
   numeric network/disk measurement leaves with `<n>`. Configured `allowance_gb` and `alert_pct`
   stay visible, as do structure, key sets, nulls and nonnumeric leaves. Numeric byte quantities in
-  the root message become `<measurement>`; wording and status survive. These measurements depend on
-  the machine and runtime.
+  the root message become `<measurement>`. These measurements depend on the machine and runtime.
+
+- **Disk state:** in those admin usage responses the root `status` (`ok`, `filling` or `full`)
+  becomes `<disk-status>`, and the root `message` becomes `<disk-message>` when it is one of the
+  three sentences `internal/capacity` writes for those states. The server picks the state and the
+  sentence from how full the machine's disk is at that moment, so a reference and a candidate
+  recorded minutes apart on a busy box could differ with no change in the program. Any other
+  status value or wording is left as it is and compared; nothing else in the response is touched.
 
 - **Background status:** in those admin usage responses, timestamp strings become `<ts>` and numeric
   pending counts become `<n>`. The explicit timer group below uses `<timer>` for enabled tasks'

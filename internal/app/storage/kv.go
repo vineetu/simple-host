@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	sqlite3 "github.com/ncruces/go-sqlite3"
 	repository "github.com/vsriram/simple-host/internal/repository/storage"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
+	runtime "github.com/vsriram/simple-host/internal/storage"
 	"io"
 	"strings"
 	"time"
@@ -37,11 +39,11 @@ func (s *Service) putKV(ctx context.Context, siteID, resource, root, key string,
 	if err != nil {
 		return err
 	}
-	normalized, err := repository.KVNormalizedSize(ctx, s.db, value)
+	normalized, err := repository.KVNormalize(ctx, s.db, value)
 	if err != nil {
 		return &Error{Code: "invalid_value", Message: "invalid JSON value"}
 	}
-	if s.BudgetUsed(usage)-old+normalized+int64(len(key)) > SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool) {
+	if s.BudgetUsed(usage)-old+int64(len(normalized))+int64(len(key)) > SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool) {
 		return &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
 	}
 	var result sql.Result
@@ -96,8 +98,8 @@ func validateKVPost(value json.RawMessage, maxBytes, maxLinks int) error {
 }
 
 // prepareKVWrite resolves the existing author and the action for a write.
-func (s *Service) prepareKVWrite(ctx context.Context, siteID, resource, key, requested string, taken bool) (string, bool, string, error) {
-	writer, err := repository.KVWriter(ctx, s.db, siteID, resource, key)
+func (s *Service) prepareKVWrite(ctx context.Context, conn *sqlite3.Conn, siteID, resource, key, requested string, taken bool) (string, bool, string, error) {
+	writer, err := s.kvWriter(ctx, conn, siteID, resource, key)
 	exists := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", false, "", err
@@ -247,7 +249,27 @@ type VisibleKVItem struct {
 
 // ListVisibleKV reads a page and resolves its author visibility.
 func (s *Service) ListVisibleKV(ctx context.Context, call Call, prefix, after string, limit int) ([]VisibleKVItem, string, error) {
-	rows, next, err := s.listKV(ctx, call.SiteID, call.ResourceName, prefix, after, limit, call.Filter)
+	var rows []repository.KVItem
+	var next string
+	err := s.withKV(ctx, call, false, func(ctx context.Context, conn *sqlite3.Conn, _ *Admission) error {
+		var err error
+		if conn == nil {
+			rows, next, err = s.listKV(ctx, call.SiteID, call.ResourceName, prefix, after, limit, call.Filter)
+			return err
+		}
+		items, err := runtime.RuntimeKVList(conn, prefix, after, limit+1, call.Filter)
+		if err != nil {
+			return err
+		}
+		if len(items) > limit {
+			next = items[limit-1].Key
+			items = items[:limit]
+		}
+		for _, x := range items {
+			rows = append(rows, repository.KVItem{Key: x.Key, Value: x.Value, WriterID: x.VisitorID})
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, "", err
 	}
@@ -261,7 +283,20 @@ func (s *Service) ListVisibleKV(ctx context.Context, call Call, prefix, after st
 
 // GetVisibleKV reads a key and resolves its author visibility.
 func (s *Service) GetVisibleKV(ctx context.Context, call Call, key string) (VisibleKVItem, error) {
-	item, err := s.getKV(ctx, call.SiteID, call.ResourceName, key, call.Filter)
+	var item repository.KVItem
+	err := s.withKV(ctx, call, false, func(ctx context.Context, conn *sqlite3.Conn, _ *Admission) error {
+		var err error
+		if conn == nil {
+			item, err = s.getKV(ctx, call.SiteID, call.ResourceName, key, call.Filter)
+			return err
+		}
+		x, err := runtime.RuntimeKVGet(conn, key, call.Filter)
+		if errors.Is(err, sql.ErrNoRows) {
+			return &Error{Code: "key_not_found", Message: "key not found"}
+		}
+		item = repository.KVItem{Key: x.Key, Value: x.Value, WriterID: x.VisitorID}
+		return err
+	})
 	if err != nil {
 		return VisibleKVItem{}, err
 	}
@@ -383,31 +418,46 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 		return nil, nil, err
 	}
 	defer unlock()
-	writer, exists, action, err := s.prepareKVWrite(ctx, call.SiteID, call.ResourceName, in.Key, requested, kvTaken(call))
-	if err != nil {
-		return nil, nil, err
-	}
-	call.Context = ctx
-	call.CurrentMatrix = call.Resource.Matrix()
-	filter, err := s.Allow(&call, action, call.CurrentMatrix.Value(action))
+	var writer string
+	var exists bool
 	var auth *Error
+	err = s.withKV(ctx, call, true, func(ctx context.Context, conn *sqlite3.Conn, admission *Admission) error {
+		var action string
+		writer, exists, action, err = s.prepareKVWrite(ctx, conn, call.SiteID, call.ResourceName, in.Key, requested, kvTaken(call))
+		if err != nil {
+			return err
+		}
+		call.Context = ctx
+		call.CurrentMatrix = call.Resource.Matrix()
+		filter, err := s.Allow(&call, action, call.CurrentMatrix.Value(action))
+		if err != nil {
+			auth = err.(*Error)
+			if !auth.Allowed {
+				return nil
+			}
+		}
+		call.Filter = filter
+		if err := checkKVAuthor(exists, writer, call.Filter); err != nil {
+			return err
+		}
+		if call.CheckedPost {
+			if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
+				return err
+			}
+		}
+		if conn != nil {
+			return s.putKVSQLite(ctx, conn, admission, call, in.Key, value, exists)
+		}
+		if err := s.putKV(ctx, call.SiteID, call.ResourceName, call.RuntimeDir, in.Key, value, call.Filter, call.Owner, call.VisitorID, exists, s.deps.Committed); err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
-		auth = err.(*Error)
-		if !auth.Allowed {
-			return nil, auth, nil
-		}
-	}
-	call.Filter = filter
-	if err := checkKVAuthor(exists, writer, call.Filter); err != nil {
 		return nil, auth, err
 	}
-	if call.CheckedPost {
-		if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
-			return nil, auth, err
-		}
-	}
-	if err := s.putKV(ctx, call.SiteID, call.ResourceName, call.RuntimeDir, in.Key, value, call.Filter, call.Owner, call.VisitorID, exists, s.deps.Committed); err != nil {
-		return nil, auth, err
+	if auth != nil && !auth.Allowed {
+		return nil, auth, nil
 	}
 	name, data := finishKVWrite(unlock, in.Key, value, exists)
 	// writer is the key's own author (from prepareKVWrite, already read):
@@ -444,7 +494,13 @@ func (s *Service) DeleteKV(ctx context.Context, in KVDeleteInput) (*Error, error
 		}
 	}
 	in.Call.Filter = filter
-	n, writer, err := s.deleteKVLocked(ctx, in.Call.OwnerID+"/"+in.Call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck, s.deps.Committed, in.Call.SiteID, in.Call.ResourceName, in.Key, filter)
+	var n int64
+	var writer string
+	if in.Call.Resource.KVStore == "sqlite" {
+		n, writer, err = s.deleteKVSQLite(ctx, in.Call, in.Key, filter)
+	} else {
+		n, writer, err = s.deleteKVLocked(ctx, in.Call.OwnerID+"/"+in.Call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck, s.deps.Committed, in.Call.SiteID, in.Call.ResourceName, in.Key, filter)
+	}
 	if err != nil {
 		return auth, err
 	}

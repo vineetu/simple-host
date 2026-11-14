@@ -161,6 +161,12 @@ func TestVisitorMCPNamedViewerPresetsAndRemoval(t *testing.T) {
 }
 
 func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestVisitorMCPKVOwnerIsolationAuditAndCap(t) })
+	}
+}
+
+func runTestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	f := newVisitorFixture(t)
 	f.must(t, "PUT", "/resources/notes", map[string]any{"kind": "kv", "preset": "personal"}, f.key, 201)
 	args := f.args("kv", "notes")
@@ -177,9 +183,10 @@ func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	args["action"] = "delete"
 	delete(args, "value")
 	f.call(t, "visitor_change_entry", args, "key_not_found")
-	var author, app string
-	if err := f.a.database.QueryRow(`SELECT writer_id FROM site_storage_kv WHERE site_id=$1 AND key='one'`, f.sid).Scan(&author); err != nil || author != f.ids["bob"] {
-		t.Fatalf("author %q: %v", author, err)
+	var app string
+	author := readStorageKVAuthor(t, f.a.sites, f.sid, "notes", "one")
+	if author != f.ids["bob"] {
+		t.Fatalf("author %q", author)
 	}
 	if err := f.a.database.QueryRow(`SELECT actor_app FROM data_history WHERE site_id=$1 ORDER BY id DESC LIMIT 1`, f.sid).Scan(&app); err != nil || app != "ChatGPT" {
 		t.Fatalf("app %q: %v", app, err)

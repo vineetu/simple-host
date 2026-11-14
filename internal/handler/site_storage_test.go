@@ -12,6 +12,12 @@ import (
 )
 
 func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestSiteStoragePoliciesAndIsolation(t) })
+	}
+}
+
+func runTestSiteStoragePoliciesAndIsolation(t *testing.T) {
 	a, certDir := newSiteApp(t, "canonical")
 	ann := a.newPerson(t, "storage-ann")
 	bob := a.newPerson(t, "storage-bob")
@@ -147,6 +153,12 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 }
 
 func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestSiteStorageInheritsPasscodeAndExplicitOff(t) })
+	}
+}
+
+func runTestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 	p := newPasscodeApp(t)
 	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet)
 	base := "/v1/sites/trip/storage"
@@ -239,6 +251,12 @@ func TestSiteStorageUsageAndExactFileBoundary(t *testing.T) {
 }
 
 func TestSiteStorageKVNormalizedQuotaAndSQLiteFull(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestSiteStorageKVNormalizedQuotaAndSQLiteFull(t) })
+	}
+}
+
+func runTestSiteStorageKVNormalizedQuotaAndSQLiteFull(t *testing.T) {
 	a := newPrivateApp(t)
 	owner := a.newPerson(t, "storage-small")
 	a.deploy(t, owner, "small")
@@ -278,6 +296,12 @@ func TestSiteStorageKVNormalizedQuotaAndSQLiteFull(t *testing.T) {
 }
 
 func TestSiteStorageSurvivesDeployRenameAndRestore(t *testing.T) {
+	for _, store := range []string{"postgres", "sqlite"} {
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestSiteStorageSurvivesDeployRenameAndRestore(t) })
+	}
+}
+
+func runTestSiteStorageSurvivesDeployRenameAndRestore(t *testing.T) {
 	a := newPrivateApp(t)
 	owner := a.newPerson(t, "storage-lifecycle")
 	a.deploy(t, owner, "first")

@@ -32,6 +32,7 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		Bindings:  h.storageBindings,
 		SiteSlots: h.siteSlotsFor(),
 		Locks:     &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
+		KVStore:   os.Getenv("KV_STORE"),
 		SiteLimit: os.Getenv("SITE_STORAGE_MAX_BYTES"), FilesLimit: os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"),
 		SpamCheckedMaxBytes: h.limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.limits.SpamCheckedMaxLinks,
 		VisitorSessionIdle: h.limits.VisitorSessionIdle,

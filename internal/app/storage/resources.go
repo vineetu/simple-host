@@ -92,6 +92,15 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 		return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
 	}
 	x := rules.Resource{Name: name, Kind: in.Kind, SitePasscode: in.SitePasscode}
+	if x.Kind == "kv" {
+		x.KVStore = "postgres"
+		if s.deps.KVStore == "sqlite" {
+			x.KVStore = "sqlite"
+		}
+		if exists {
+			x.KVStore = old.KVStore
+		}
+	}
 	if x.SitePasscode == "" {
 		x.SitePasscode = "inherit"
 	}
@@ -219,38 +228,75 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 			return ResourceResult{}, &Error{Code: "visitor_id_required", Message: "every table needs visitor_id TEXT, set by the server; a database pages could write with SQL must be empty before own applies"}
 		}
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	defer tx.Rollback()
-	// Before presets a visitor's overwrite in a full-mode KV or files
-	// resource recorded the overwriter, so a later own would hand them
-	// someone else's key. The first preset forgets those writers.
-	if exists && old.Access == nil && old.WriteMode == "full" && old.Write != rules.WhoOwner {
-		for _, table := range map[string]string{"kv": "site_storage_kv", "files": "site_storage_files"} {
-			if _, e := repo.ClearResourceWriters(ctx, tx, table, call.SiteID, name); e != nil {
-				return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
+	if !exists && x.Kind == "kv" && x.KVStore == "sqlite" {
+		if err := s.createKVSQLite(ctx, call, x.Name); err != nil {
+			var e *Error
+			if errors.As(err, &e) {
+				return ResourceResult{}, e
 			}
-		}
-	}
-	result, e := repo.UpsertResource(ctx, tx, call.SiteID, x)
-	if e != nil {
-		return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	if n, err := result.RowsAffected(); err != nil || n == 0 {
-		return ResourceResult{}, &Error{Code: "resource_kind_conflict", Message: "resource kind cannot change"}
-	}
-	if _, e = repo.DeleteResourceTables(ctx, tx, call.SiteID, name); e != nil {
-		return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	for table, t := range x.Tables {
-		if _, e = repo.InsertResourceTable(ctx, tx, call.SiteID, name, table, t); e != nil {
 			return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
 		}
 	}
-	if err = tx.Commit(); err != nil {
-		return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
+	internal := &Error{Code: "internal_error", Message: "internal server error"}
+	// Before presets a visitor's overwrite in a full-mode KV or files
+	// resource recorded the overwriter, so a later own would hand them
+	// someone else's key. The first preset forgets those writers.
+	clearWriters := exists && old.Access == nil && old.WriteMode == "full" && old.Write != rules.WhoOwner
+	// commitFile, when set, commits the same clearing in the namespace's
+	// SQLite file. It runs right before the Postgres commit, so a preset is
+	// never saved over writers that were not cleared.
+	save := func(commitFile func() error) error {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return internal
+		}
+		defer tx.Rollback()
+		if clearWriters {
+			for _, table := range map[string]string{"kv": "site_storage_kv", "files": "site_storage_files"} {
+				if _, e := repo.ClearResourceWriters(ctx, tx, table, call.SiteID, name); e != nil {
+					return internal
+				}
+			}
+		}
+		result, e := repo.UpsertResource(ctx, tx, call.SiteID, x)
+		if e != nil {
+			return internal
+		}
+		if n, err := result.RowsAffected(); err != nil || n == 0 {
+			return &Error{Code: "resource_kind_conflict", Message: "resource kind cannot change"}
+		}
+		if _, e = repo.DeleteResourceTables(ctx, tx, call.SiteID, name); e != nil {
+			return internal
+		}
+		for table, t := range x.Tables {
+			if _, e = repo.InsertResourceTable(ctx, tx, call.SiteID, name, table, t); e != nil {
+				return internal
+			}
+		}
+		if commitFile != nil {
+			if err = commitFile(); err != nil {
+				return err
+			}
+		}
+		if err = tx.Commit(); err != nil {
+			return internal
+		}
+		return nil
+	}
+	if clearWriters && x.Kind == "kv" && x.KVStore == "sqlite" {
+		err = s.clearKVWritersSQLite(ctx, call, name, save)
+	} else {
+		err = save(nil)
+	}
+	if err != nil {
+		var e *Error
+		if errors.As(err, &e) {
+			return ResourceResult{}, e
+		}
+		if errors.Is(err, runtime.ErrSQLiteBusy) {
+			return ResourceResult{}, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
+		}
+		return ResourceResult{}, internal
 	}
 
 	unlock()
