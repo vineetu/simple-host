@@ -323,6 +323,13 @@ func pushTestServer(t *testing.T) (*httptest.Server, *int32) {
 	t.Helper()
 	var hits int32
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The client disables keep-alives. Read the encrypted body before
+		// replying so closing the connection cannot race its remaining writes.
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			t.Errorf("read push request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		atomic.AddInt32(&hits, 1)
 		w.WriteHeader(200)
 	}))

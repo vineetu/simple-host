@@ -833,6 +833,9 @@ func TestImageScanWorkerHashCache(t *testing.T) {
 	bad := testPNG(t)
 	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "first", map[string][]byte{"a.png": bad})
+	// Enqueue runs asynchronously. Finish the first enqueue before starting
+	// the second so the worker's oldest-first order matches the assertion below.
+	f.wait()
 	deployWithImages(t, a, olive, "second", map[string][]byte{"b.png": bad})
 	f.wait()
 	f.scan.RunOnce(context.Background())
