@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/vsriram/simple-host/internal/repository/storage"
 	runtime "github.com/vsriram/simple-host/internal/storage"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -84,8 +85,12 @@ func (s *Service) measureSiteStorageAdmitted(ctx context.Context, siteID, root s
 			meta, err = runtime.RuntimeKVMeta(conn)
 			return err
 		}()
+		if os.IsNotExist(err) {
+			log.Printf("storage: missing KV file for site %s namespace %s; usage counted as zero", siteID, name)
+			continue
+		}
 		if err != nil {
-			return u, err
+			return u, kvFileError(err)
 		}
 		u.KV += meta.LogicalBytes
 	}

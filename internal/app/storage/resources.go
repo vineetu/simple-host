@@ -316,7 +316,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 		return err
 	}
 	defer unlock()
-	staged, restore, err := runtime.StageRuntime(s.deps.Disk, call.OwnerID, call.SiteName, call.ResourceName, call.Resource.Kind)
+	staged, restore, err := runtime.StageRuntime(s.deps.Disk, call.OwnerID, call.SiteName, call.ResourceName, call.Resource.Kind, call.Resource.KVStore)
 	if err != nil {
 		return &Error{Code: "internal_error", Message: "internal server error"}
 	}

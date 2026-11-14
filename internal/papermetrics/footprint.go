@@ -52,7 +52,7 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 		return nil
 	}
 	rows, err := c.db.QueryContext(ctx, `
-		SELECT s.user_id::text, s.name,
+		SELECT s.id::text, s.user_id::text, s.name,
 			EXTRACT(day FROM now() - s.created_at)::int,
 			EXTRACT(day FROM now() - s.updated_at)::int,
 			COALESCE((SELECT sum(views) FROM site_view_hourly v WHERE v.site_id = s.id AND v.class = 'person' AND v.hour >= now() - interval '30 days'), 0),
@@ -64,20 +64,37 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 		return err
 	}
 	sites := map[string]*SiteFootprint{}
+	siteIDs := map[string]string{}
 	for rows.Next() {
-		var user, name string
+		var id, user, name string
 		f := &SiteFootprint{}
-		if err := rows.Scan(&user, &name, &f.AgeDays, &f.DaysSinceUpdate, &f.Views30d, &f.KvRows, &f.KvBytes, &f.LegacyRows); err != nil {
+		if err := rows.Scan(&id, &user, &name, &f.AgeDays, &f.DaysSinceUpdate, &f.Views30d, &f.KvRows, &f.KvBytes, &f.LegacyRows); err != nil {
 			rows.Close()
 			return err
 		}
 		sites[user+"/"+name] = f
+		siteIDs[user+"/"+name] = id
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
 
+	// kv_bytes retains its historical Postgres binary-size definition.
+	// Only the row count adds moved namespaces; value text bytes are a daily series.
+	skipped := 0
+	if c.KVFileStats != nil {
+		for key, f := range sites {
+			n, _, err := c.KVFileStats(ctx, siteIDs[key])
+			if err != nil {
+				delete(sites, key)
+				skipped++
+				continue
+			}
+			f.KvRows += n
+		}
+	}
+	log.Printf("paper metrics: footprint KV sites skipped=%d", skipped)
 	c.WalkFootprints(sites)
 
 	var written int64

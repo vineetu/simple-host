@@ -55,6 +55,11 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 	if err != nil {
 		return nil, &Error{Code: "internal_error", Message: "internal server error"}
 	}
+	fileKV, err := s.sqliteKVVisitors(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	kvIDs = append(kvIDs, fileKV...)
 	fileIDs, err := repository.DistinctFileWriters(ctx, s.db, c.SiteID)
 	if err != nil {
 		return nil, &Error{Code: "internal_error", Message: "internal server error"}
@@ -210,4 +215,30 @@ func distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]string, error)
 		stmt.Close()
 	}
 	return out, nil
+}
+
+func (s *Service) sqliteKVVisitors(ctx context.Context, c Call) ([]string, error) {
+	names, err := repository.SQLiteKVNamespaces(ctx, s.db, c.SiteID)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, name := range names {
+		err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
+			conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(c.RuntimeDir, name), false, false)
+			if err != nil {
+				return err
+			}
+			defer closeSQLite(done)
+			writers, err := runtime.RuntimeKVWriters(conn)
+			if err == nil {
+				ids = append(ids, writers...)
+			}
+			return err
+		})
+		if err != nil {
+			continue // Same best-effort policy as SQLite row authors.
+		}
+	}
+	return ids, nil
 }

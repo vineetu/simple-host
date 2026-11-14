@@ -3,12 +3,8 @@
 # Objects: scripts/split/hack-objects.txt
 # Line numbers move when files are edited; regenerate this file, do not hand-edit it.
 
-1. SQL that names a Hack object (5)
+1. SQL that names a Hack object (1)
 internal/repository/accounts/account_lifecycle.go:265 | EraseAccount | event_checklist_acknowledgements | DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1
-internal/repository/sites/gate.go:10 | LockEventOrganiser | event_members, events (name lines: 11) | SELECT m.role, e.stage, e.taken_down_at IS NOT NULL FROM events e JOIN event_members m ON m.event_id = e.id WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $…
-internal/repository/sites/gate.go:20 | LockApprovedTeamMember | event_members | SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE
-internal/repository/sites/gate.go:35 | SetTeamSiteTakedown | event_teams | UPDATE event_teams SET site_taken_down_at = COALESCE(site_taken_down_at, now()), site_taken_down_reason = $2 WHERE id = $1
-internal/repository/sites/gate.go:37 | SetTeamSiteTakedown | event_teams | UPDATE event_teams SET site_taken_down_at = NULL, site_taken_down_reason = '' WHERE id = $1
 
 2. SQL built at run time that names a Hack object (0)
 
@@ -19,12 +15,12 @@ internal/analytics/ingest.go:459 | Ingester.commitLines (strings.Builder) | non-
 internal/app/storage/legacy_sql_errors.go:136 | sqlFailure | non-constant: timeout | the statement ran longer than %s and was stopped: add a LIMIT, a narrower WHERE, or an index
 internal/app/storage/legacy_sql_errors.go:192 | sqlFailure | non-constant: m[1] | a row with the same ‹?m[1]› already exists (UNIQUE): use another value, or change the existing row with UPDATE (or INSERT ... ON CONFLICT DO…
 internal/app/storage/legacy_sql_errors.go:219 | sqlFailure | non-constant: msg | ‹?msg›: name the columns, e.g. INSERT INTO t (a, b) VALUES (?, ?)
-internal/app/storage/people.go:202 | distinctRowVisitors | non-constant: runtime.Quote(table) | SELECT DISTINCT visitor_id FROM ‹?runtime.Quote(table)› WHERE visitor_id IS NOT NULL AND visitor_id <> ''
+internal/app/storage/people.go:207 | distinctRowVisitors | non-constant: runtime.Quote(table) | SELECT DISTINCT visitor_id FROM ‹?runtime.Quote(table)› WHERE visitor_id IS NOT NULL AND visitor_id <> ''
 internal/app/storage/row_write.go:314 | verifyOwnerForRow | non-constant: runtime.Quote(table), rowid | SELECT visitor_id, written_by FROM ‹?runtime.Quote(table)› WHERE ‹?rowid› = ?
 internal/app/storage/row_write.go:436 | lookupRowVisitorID | non-constant: runtime.Quote(table), rowid | SELECT visitor_id FROM ‹?runtime.Quote(table)› WHERE ‹?rowid› = ?
-internal/app/storage/rows.go:177 | Service.TableGet | non-constant: rowid, runtime.Quote(in.Table), rowid | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)› WHERE ‹?rowid› = ?
-internal/app/storage/rows.go:347 | Service.TableList | non-constant: rowid, runtime.Quote(in.Table) | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)›
-internal/app/storage/rows.go:349 | Service.TableList | non-constant: query, strings.Join(where, " AND ") | ‹?query› WHERE ‹?strings.Join(where, " AND ")›
+internal/app/storage/rows.go:182 | Service.TableGet | non-constant: rowid, runtime.Quote(in.Table), rowid | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)› WHERE ‹?rowid› = ?
+internal/app/storage/rows.go:352 | Service.TableList | non-constant: rowid, runtime.Quote(in.Table) | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)›
+internal/app/storage/rows.go:354 | Service.TableList | non-constant: query, strings.Join(where, " AND ") | ‹?query› WHERE ‹?strings.Join(where, " AND ")›
 internal/handler/entry_operations.go:82 | SiteHandler.writeEntrySelection | non-constant: in.SiteName, in.Name | each visitor changes their own record with PUT, PATCH or DELETE /v1/sites/‹?in.SiteName›/data/‹?in.Name›
 internal/handler/kinds.go:770 | SiteHandler.putContent | non-constant: siteName, name, siteName, name | add items with POST /v1/sites/‹?siteName›/data/‹?name›; only the owner empties it, with DELETE /v1/sites/‹?siteName›/collections/‹?name›
 internal/handler/personal.go:357 | SiteHandler.writePersonalRequestError | non-constant: siteName, name, siteName, name | change or delete one item with PATCH or DELETE /v1/sites/‹?siteName›/data/‹?name›/items/{id}; the owner empties the whole list with DELETE /…

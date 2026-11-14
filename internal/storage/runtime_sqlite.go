@@ -491,7 +491,7 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 	if write {
 		var err error
 		if remaining, err = budget(); err != nil {
-			return nil, nil, ErrTableInternal
+			return nil, nil, err
 		}
 		uri = dbPath
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {

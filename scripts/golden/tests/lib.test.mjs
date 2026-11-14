@@ -3,7 +3,32 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { omitRequests } from '../lib.mjs';
 import { createTextWriter, renderJSON, sanitizeName, Namer, sha256hex, normalizeMailOutbox, normalizeResponseNoise, normalizeSetCookie, selectScenarios, normalizeText, renderRecordedText, normalizeValue, normalizeStaticText, relativeDates, isTextBody, validateScenarios, describeZip, validatePostgresURL } from '../lib.mjs';
+
+test('R2-S4b reference omits exactly the six additions and preserves older requests', async () => {
+  const entries = JSON.parse(readFileSync(new URL('../approved/R2-S4b.json', import.meta.url))).entries;
+  const skipped = entries.map(e => `${e.product}/${e.request}`).join(',');
+  const additions = ['mixed-site-export', 'mixed-people', 'mixed-visitor-emails'];
+  assert.equal(entries.length, 6);
+  const existing = ['create-owner', 'create-event', 'create-site', 'create-file-namespace',
+    'pg-set', 'pg-get', 'pg-list', 'file-set', 'file-get', 'file-list', 'mixed-usage',
+    'pg-delete', 'pg-missing', 'file-delete', 'file-missing', 'usage-after-delete'];
+  for (const product of ['host', 'hack']) {
+    for (const scenario of ['base', 'mixed-store']) {
+      for (const reference of [true, false]) {
+        const calls = [];
+        const at = omitRequests((...args) => { calls.push(args); return 'response'; },
+          product, scenario, reference ? skipped : '');
+        const names = [...existing, ...additions];
+        for (const name of names) await at(name, 'GET', `/test/${name}`, { apiKey: 'fixture' });
+        const expected = reference && scenario === 'mixed-store' ? existing : names;
+        assert.deepEqual(calls, expected.map(name => [name, 'GET', `/test/${name}`, { apiKey: 'fixture' }]));
+        assert.equal(await at('other-request', 'GET', '/other'), 'response');
+      }
+    }
+  }
+});
 
 test('every text body is written whole with byte hash and length', t => {
   const dir = mkdtempSync(path.join(tmpdir(), 'golden-text-'));

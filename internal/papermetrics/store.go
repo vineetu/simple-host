@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -266,6 +267,10 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) (resultErr
 	if done {
 		return nil
 	}
+	fileEntries, fileBytes, skipped, err := c.kvFileTotals(ctx)
+	if err != nil {
+		return err
+	}
 	n := 0
 	metrics := dailyMetrics
 	if c.product != nil {
@@ -284,6 +289,14 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) (resultErr
 		}
 		if !v.Valid {
 			v.Float64 = 0
+		}
+		switch m.Name {
+		case "kv_rows":
+			v.Float64 += float64(fileEntries)
+		case "kv_value_text_bytes":
+			v.Float64 += float64(fileBytes)
+		case "kv_file_sites_skipped":
+			v.Float64 = float64(skipped)
 		}
 		if m.Store != nil {
 			if err := m.Store(ctx, day, v.Float64); err != nil {
@@ -344,6 +357,9 @@ var dailyMetrics = []DailyMetric{
 	{Name: "accounts_suspended", Query: `SELECT count(*) FROM users WHERE suspended_at IS NOT NULL`},
 	{Name: "kv_rows", Query: `SELECT count(*) FROM site_storage_kv`},
 	{Name: "kv_value_bytes", Query: `SELECT COALESCE(sum(pg_column_size(value)), 0) FROM site_storage_kv`},
+	// Compressed Postgres bytes stay Postgres-only. Text bytes overlap both stores.
+	{Name: "kv_value_text_bytes", Query: `SELECT COALESCE(sum(octet_length(value::text)), 0) FROM site_storage_kv`},
+	{Name: "kv_file_sites_skipped", Query: `SELECT 0`},
 	{Name: "legacy_rows", Query: `SELECT count(*) FROM collection_items WHERE deleted_at IS NULL`},
 	{Name: "db_bytes", Query: `SELECT pg_database_size(current_database())`},
 	{Name: "api_calls_day", Query: `SELECT COALESCE(sum(calls), 0) FROM api_request_daily WHERE day = $1::date`},
@@ -361,4 +377,44 @@ var dailyMetrics = []DailyMetric{
 	{Name: "net_rx_bytes_day", Query: `SELECT COALESCE(sum(rx_bytes), 0) FROM net_usage_daily WHERE day = $1::date`},
 	{Name: "process_restarts_day", Query: `SELECT count(DISTINCT started_at) FROM paper_process_sample WHERE at >= $1::date AND at < $1::date + 1 AND started_at >= $1::date`},
 	{Name: "sample_minutes_missing_day", Query: `SELECT GREATEST(0, 1440 - 5 * count(*)) FROM paper_process_sample WHERE at >= $1::date AND at < $1::date + 1`},
+}
+
+// Enumerate markers, never walk orphan files. Collection is best effort per
+// site; skipped sites are recorded alongside the aggregate.
+func (c *Collector) kvFileTotals(ctx context.Context) (entries, bytes, skipped int64, err error) {
+	rows, err := c.db.QueryContext(ctx, `SELECT DISTINCT site_id::text FROM site_storage_resources WHERE kind='kv' AND kv_store='sqlite'`)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, 0, 0, err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	for _, id := range ids {
+		n, b, e := c.readKVFileStats(ctx, id)
+		if e != nil {
+			skipped++
+			continue
+		}
+		entries += n
+		bytes += b
+	}
+	return entries, bytes, skipped, nil
+}
+
+func (c *Collector) readKVFileStats(ctx context.Context, siteID string) (int64, int64, error) {
+	if c.KVFileStats == nil {
+		return 0, 0, fmt.Errorf("KV file statistics reader is not configured")
+	}
+	return c.KVFileStats(ctx, siteID)
 }

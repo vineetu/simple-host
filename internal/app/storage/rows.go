@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -69,6 +70,10 @@ func (s *Service) openTableConn(ctx context.Context, c Call, write bool) (*sqlit
 		}
 	}
 	conn, done, err := runtime.OpenTableConn(ctx, s.deps.SQLitePath, write, timeout, s.deps.SQLiteMaxMemory, remaining)
+	var storageErr *Error
+	if errors.As(err, &storageErr) && storageErr.Code == "storage_busy" {
+		return nil, nil, storageErr
+	}
 	if e := sqliteFailure(err); e != err {
 		return nil, nil, e
 	}

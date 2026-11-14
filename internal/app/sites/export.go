@@ -144,6 +144,39 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 	if err != nil {
 		return err
 	}
+	names, err := repo.ExportKVNamespaces(ctx, s.database, siteID)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err := s.deps.AdmitSQLite(ctx, siteID, func(ctx context.Context) error {
+			conn, done, err := storage.OpenRuntimeKV(ctx, storage.RuntimeKVPath(runtime, name), false, false)
+			if err != nil {
+				return err
+			}
+			defer done()
+			items, err := storage.RuntimeKVExport(conn)
+			if err != nil {
+				return err
+			}
+			for _, item := range items {
+				entries = append(entries, repo.ExportKVEntry{Resource: name, Key: item.Key, Value: item.Value, WriterID: item.VisitorID})
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	// Preserve the export's existing database collation, even when the keys
+	// were read from SQLite (whose visitor list uses byte order).
+	if len(names) > 0 {
+		entries, err = repo.OrderExportKV(ctx, s.database, entries)
+		if err != nil {
+			return err
+		}
+	}
+
 	if len(entries) > 0 {
 		b, e := json.MarshalIndent(map[string]any{"items": entries}, "", "  ")
 		if e != nil {
@@ -162,7 +195,7 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && strings.HasPrefix(d.Name(), ".deleting-") {
+		if d.IsDir() && (strings.HasPrefix(d.Name(), ".deleting-") || p == filepath.Join(runtime, "kv")) {
 			return filepath.SkipDir
 		}
 		if d.IsDir() {

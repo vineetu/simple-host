@@ -1,5 +1,7 @@
 # Changelog
 
+- R2-S4b: Include SQLite key-value namespaces in site exports, resource deletion and the people list. Keep both stores in the research row count and add a comparable value-text-byte counter. The store remains dark; keep `KV_STORE=postgres` until the move and rehearsal are ready.
+
 - R2-S4a: Add the `KV_STORE` setting and a SQLite store for new key-value namespaces, for an upcoming change. Leave `KV_STORE` at `postgres` for now: site export, namespace deletion and the people list do not cover a SQLite namespace until a later release. Existing namespaces stay on PostgreSQL and the storage limits are unchanged.
 
 2026-11-13: Simple Host now offers only its three website skills. Its old hackathons page redirects home, and the organiser guide is no longer served there. Simple Hack keeps its pages and five skills (D2-S11).

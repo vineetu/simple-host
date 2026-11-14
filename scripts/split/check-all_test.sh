@@ -185,6 +185,17 @@ printf '%s\n' '{"slice":"Y","entries":[{"product":"host","scenario":"new-one","r
 check 'golden with an added scenario passes' run 0 --golden --slice X,Y
 check 'reference skips the added scenario' has "$STUB_LOG" "<--out> <$tmp/out/golden/ref> <--scenario> <all> <--skip-scenario> <new-one>"
 check 'candidate records every scenario' has "$STUB_LOG" "<--out> <$tmp/out/golden/cand> <--scenario> <all>"
+cp "$repo/scripts/golden/approved/R2-S4b.json" "$tmp/golden/approved/R2-S4b.json"
+: >"$STUB_LOG"
+check 'golden with request and scenario additions passes' run 0 --golden --slice Y,R2-S4b
+cat >"$tmp/expected" <<EOF
+go [0] <build> <-o> <$tmp/out/golden/candidate.bin> <./cmd/server>
+node <$tmp/golden/run.mjs> <--host> <$GOLDEN_REF_BIN> <--out> <$tmp/out/golden/ref> <--scenario> <all> <--skip-scenario> <new-one> <--skip-request> <host/mixed-store/mixed-site-export,host/mixed-store/mixed-people,host/mixed-store/mixed-visitor-emails,hack/mixed-store/mixed-site-export,hack/mixed-store/mixed-people,hack/mixed-store/mixed-visitor-emails>
+node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/candidate.bin> <--out> <$tmp/out/golden/cand> <--scenario> <all>
+node <$tmp/golden/coverage.mjs> <$tmp/out/golden/cand>
+node <$tmp/golden/diff.mjs> <$tmp/out/golden/ref> <$tmp/out/golden/cand> <--slice> <Y,R2-S4b>
+EOF
+check 'only the reference omits exactly the six R2-S4b additions' cmp -s "$tmp/expected" "$STUB_LOG"
 export GOLDEN_REF_HACK_BIN="$tmp/reference hack" GOLDEN_HACK_BIN="$tmp/candidate hack"
 : >"$STUB_LOG"
 check 'golden with hack overrides passes' run 0 --golden

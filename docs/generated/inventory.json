@@ -1772,7 +1772,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "internal/server/build.go:513",
+      "source": "internal/server/build.go:514",
       "package": "internal/server",
       "dynamic": false
     },

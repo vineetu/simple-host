@@ -17,7 +17,7 @@ import http from 'node:http';
 import https from 'node:https';
 import crypto from 'node:crypto';
 import {
-  Namer, normalizeValue, normalizeText, normalizeSetCookie, sha256hex,
+  Namer, normalizeValue, normalizeText, normalizeSetCookie, sha256hex, omitRequests,
   createTextWriter, describeZip, normalizeRecordedText, sanitizeName,
   normalizeResponseNoise, normalizeMailOutbox, selectScenarios, renderRecordedText, fixedGetRoutes, normalizeStaticText, mapStrings, isTextBody, relativeDates, validateScenarios, validatePostgresURL, responseClass, requestReplacements, mcpCallName, STARTUP_PROGRESS_WORKERS,
 } from './lib.mjs';
@@ -520,6 +520,20 @@ function finalizeCall(record, namer, knownTimestamps, writer) {
       return zipNorm(text);
     }, { accountExport: record.path === '/v1/me/export.zip' }); out.text = writer(record.name, out.body, 'json'); return out;
   }
+  if (record.name === 'mixed-site-export' && record.status === 200) {
+    // Tar headers contain capture-time mtimes. Compare every member name and
+    // full content, as for ZIP exports, excluding only archive metadata.
+    const names = execFileSync('tar', ['-tzf', '-'], { input: record.rawBody, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+    out.body_kind = 'json';
+    out.body = { entries: names.map(name => {
+      const contents = execFileSync('tar', ['-xzOf', '-', '--', name], { input: record.rawBody });
+      let text = contents.toString('utf8');
+      if (name.endsWith('.json')) { text = JSON.stringify(normValue(JSON.parse(text)), null, 2) + '\n'; }
+      else { text = norm(text); }
+      return { name: norm(name), text };
+    }) };
+    out.text = writer(record.name, out.body, 'json'); return out;
+  }
   if (!isTextBody(record.contentType, record.rawBody)) {
     out.body_kind = 'binary'; out.body = { sha256: sha256hex(record.rawBody), length: record.rawBody.length }; return out;
   }
@@ -560,6 +574,13 @@ async function seedAndCallMixedStore({ instance, at, registerSecret }) {
   await at(`${store}-list`, 'GET', `${base}/kv/${store}/keys`, { apiKey: owner });
  }
  await at('mixed-usage', 'GET', `${base}/usage`, { apiKey: owner });
+ // Added by R2-S4b. Hack keeps people/email lookup unavailable; record that
+ // boundary too. Its admin archive uses the same per-site exporter.
+ await at('mixed-site-export', 'GET', instance.tag === 'hack' ? '/v1/admin/export.tar.gz' : `/v1/sites/${name}/export.tar.gz`, { apiKey: instance.tag === 'hack' ? instance.adminKey : owner });
+ await at('mixed-people', 'GET', `${base}/people`, { apiKey: owner });
+ const ownerID = psql(instance.dbURL, `SELECT id FROM users WHERE username='mixed-owner@example.com'`);
+ await at('mixed-visitor-emails', 'GET', `${base}/visitors?id=${ownerID}`, { apiKey: owner });
+
  for (const store of ['pg', 'file']) {
   await at(`${store}-delete`, 'DELETE', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
   await at(`${store}-missing`, 'GET', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
@@ -1210,12 +1231,12 @@ async function main() {
   const args = process.argv.slice(2), flags = {};
   function usage(message) {
     console.error(message || '');
-    console.error('usage: node scripts/golden/run.mjs --host BIN [--hack BIN] --out DIR [--scenario NAME[,NAME...]|all] [--skip-scenario NAME[,NAME...]]');
+    console.error('usage: node scripts/golden/run.mjs --host BIN [--hack BIN] --out DIR [--scenario NAME[,NAME...]|all] [--skip-scenario NAME[,NAME...]] [--skip-request PRODUCT/SCENARIO/NAME[,...]]');
     process.exit(2);
   }
   while (args.length) {
     const flag = args.shift();
-    if (!['--host','--hack','--out','--scenario','--skip-scenario'].includes(flag) || !args.length || flags[flag]) usage('invalid arguments');
+    if (!['--host','--hack','--out','--scenario','--skip-scenario','--skip-request'].includes(flag) || !args.length || flags[flag]) usage('invalid arguments');
     flags[flag] = args.shift();
   }
   if (!flags['--host'] || !flags['--out']) usage();
@@ -1249,7 +1270,7 @@ async function main() {
     });
     const stem = scenario === 'base' ? product : `${product}.${scenario}`;
     try {
-      const at = call(instance, calls, usedNames);
+      const at = omitRequests(call(instance, calls, usedNames), product, scenario, flags['--skip-request']);
       await config[product]({ instance, at, calls, usedNames, namer, exact, mail: instance.mail,
         registerSecret: (category, raw) => registerSecret(exact, namer, category, raw),
         mcp: (tool, args, apiKey, qualifier = '') => at(`tools/call ${tool} ${qualifier}`.trim(), 'POST', '/mcp', { apiKey, body: { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: tool, arguments: args } } }),

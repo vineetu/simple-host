@@ -36,17 +36,19 @@ func Enabled() bool {
 
 // Collector owns every paper metric for one server process.
 type Collector struct {
-	tracker    *workers.Tracker
-	db         *sql.DB
-	dataDir    string
-	apexHosts  map[string]bool
-	started    time.Time
-	hist       [NumClasses]ClassHist
-	lastSample sample
-	product    ProductCollector
-	runID      atomic.Int64
-	runMu      sync.Mutex
-	runConfig  map[string]any
+	// KVFileStats is installed by server wiring; it owns per-file admission.
+	KVFileStats func(ctx context.Context, siteID string) (entries, bytes int64, err error)
+	tracker     *workers.Tracker
+	db          *sql.DB
+	dataDir     string
+	apexHosts   map[string]bool
+	started     time.Time
+	hist        [NumClasses]ClassHist
+	lastSample  sample
+	product     ProductCollector
+	runID       atomic.Int64
+	runMu       sync.Mutex
+	runConfig   map[string]any
 	// commit is the build commit used for provenance (see WithCommit).
 	commit string
 }

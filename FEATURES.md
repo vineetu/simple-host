@@ -2862,8 +2862,10 @@ MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `sto
 
 The server can keep a new key-value namespace in its own SQLite file, chosen by
 `KV_STORE` (default `postgres`). The setting exists for an upcoming change and
-must stay `postgres` for now: site export, namespace deletion and the people
-list do not cover a SQLite namespace until a later release. Existing namespaces
+must stay `postgres` until the move and rehearsal are ready. Site exports,
+namespace deletion (including WAL/SHM), authors and the people list cover both
+stores. Missing namespace files count as zero usage with a server log; reads
+report the missing file. Busy files return a retry response. Existing namespaces
 keep their store. Both stores charge key bytes plus PostgreSQL-normalized JSON
 text, and a site with both charges their sum. SQLite lists use byte order;
 author visibility and presets are unchanged.

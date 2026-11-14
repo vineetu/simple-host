@@ -1,0 +1,41 @@
+{
+  "slice": "R2-S4b",
+  "entries": [
+    {
+      "product": "host",
+      "request": "mixed-store/mixed-site-export",
+      "reason": "R2-S4b extends mixed-store with export, people and visitor-email coverage; Hack retains its identity-lookup refusal.",
+      "change": "added"
+    },
+    {
+      "product": "host",
+      "request": "mixed-store/mixed-people",
+      "reason": "R2-S4b extends mixed-store with export, people and visitor-email coverage; Hack retains its identity-lookup refusal.",
+      "change": "added"
+    },
+    {
+      "product": "host",
+      "request": "mixed-store/mixed-visitor-emails",
+      "reason": "R2-S4b extends mixed-store with export, people and visitor-email coverage; Hack retains its identity-lookup refusal.",
+      "change": "added"
+    },
+    {
+      "product": "hack",
+      "request": "mixed-store/mixed-site-export",
+      "reason": "R2-S4b extends mixed-store with export, people and visitor-email coverage; Hack retains its identity-lookup refusal.",
+      "change": "added"
+    },
+    {
+      "product": "hack",
+      "request": "mixed-store/mixed-people",
+      "reason": "R2-S4b extends mixed-store with export, people and visitor-email coverage; Hack retains its identity-lookup refusal.",
+      "change": "added"
+    },
+    {
+      "product": "hack",
+      "request": "mixed-store/mixed-visitor-emails",
+      "reason": "R2-S4b extends mixed-store with export, people and visitor-email coverage; Hack retains its identity-lookup refusal.",
+      "change": "added"
+    }
+  ]
+}

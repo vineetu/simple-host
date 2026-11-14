@@ -25,6 +25,13 @@ export function selectScenarios(available, selected = 'base', skipped = '') {
   return names.filter(name => !skip.includes(name));
 }
 
+// Omit added requests only on the reference, using product/scenario/name selectors.
+export function omitRequests(at, product, scenario, skipped = '') {
+  const names = new Set(skipped ? skipped.split(',') : []);
+  return (name, ...args) => names.has(`${product}/${scenario}/${name}`)
+    ? Promise.resolve() : at(name, ...args);
+}
+
 // Only these request/path pairs describe the running program, not content versions.
 const BUILD_FIELDS = new Map([
   ...['GET /.well-known/agent-card.json', 'GET /.well-known/mcp/server-card.json',

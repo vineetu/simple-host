@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // ExportOwner reads the identity used to lock a site during export.
@@ -192,6 +194,46 @@ func ListExportItems(ctx context.Context, database *sql.DB, siteID string) ([]Ex
 		}
 		it.CreatedAt = created.Time
 		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// ExportKVNamespaces lists only authoritative KV files, in resource order.
+func ExportKVNamespaces(ctx context.Context, q exportQuerier, siteID string) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT name FROM site_storage_resources WHERE site_id=$1 AND kind='kv' AND kv_store='sqlite' ORDER BY name`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
+}
+
+// OrderExportKV retains the Postgres resource/key collation for mixed exports.
+func OrderExportKV(ctx context.Context, q exportQuerier, entries []ExportKVEntry) ([]ExportKVEntry, error) {
+	resources, keys := make([]string, len(entries)), make([]string, len(entries))
+	for i, e := range entries {
+		resources[i], keys[i] = e.Resource, e.Key
+	}
+	rows, err := q.QueryContext(ctx, `SELECT ord-1 FROM unnest($1::text[],$2::text[]) WITH ORDINALITY AS e(resource,key,ord) ORDER BY resource,key,ord`, pq.Array(resources), pq.Array(keys))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]ExportKVEntry, 0, len(entries))
+	for rows.Next() {
+		var i int
+		if err := rows.Scan(&i); err != nil {
+			return nil, err
+		}
+		out = append(out, entries[i])
 	}
 	return out, rows.Err()
 }

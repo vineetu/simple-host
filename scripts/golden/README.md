@@ -41,6 +41,13 @@ refused because it is shared production Postgres.
    Replace `rules-on` with the actual added names, separated by commas. Omit `--skip-scenario`
    when there are none. Run `base`, `mixed-store` and `hosted-pages` against the reference too; unknown scenario names fail.
 
+   For individual requests approved as additions to an existing scenario, pass
+   `--skip-request PRODUCT/SCENARIO/NAME[,...]` only to the reference recorder. For R2-S4b,
+   these are `mixed-site-export`, `mixed-people` and `mixed-visitor-emails` in `mixed-store`,
+   for each product. Every other request still runs. `check-all.sh --golden --slice R2-S4b`
+   derives these exact selectors from the six addition approvals automatically. When that
+   slice is already in the reference, leave it out of `--slice` so both sides run the requests.
+
 3. Record the candidate with all scenarios:
 
    ```sh
@@ -683,3 +690,12 @@ restarts the server: graceful stop up to 30 seconds, readiness up to 10 seconds 
 observation up to 15 seconds. Queue polling has a 10-second deadline; a synchronous `psql` call
 already in flight can add up to 15 seconds to that phase. A quiet check follows. There is no
 server-lifetime or whole-replay timeout.
+
+### R2-S4b mixed-store exports
+
+`mixed-store` also records site export, people and visitor-email lookup (the last
+two remain unavailable on Hack). `mixed-site-export` expands the tar.gz and
+compares every member's name and full normalized text, including `storage/kv.json`;
+archive header mtimes are omitted, as with ZIP metadata. The fixture contains only
+text files. This uses the local `tar` command. The six new requests are the only
+R2-S4b approvals; the base scenario stays unchanged.

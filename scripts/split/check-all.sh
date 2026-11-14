@@ -271,12 +271,16 @@ try:
             steps.append(('golden:build', 'CGO_ENABLED=0 ' + shell(['go', 'build', '-o', candidate, './cmd/server'])))
             # Both sides record every scenario. The reference skips the ones a
             # named slice approves whole as added: its program cannot run them.
+            # Request additions likewise belong only to the candidate recording.
             added = []
+            added_requests = []
             for slice_id in slice_ids.split(',') if slice_set == '1' else []:
                 try:
                     entries = json.loads(read(golden_dir + '/approved/' + slice_id + '.json'))['entries']
                     added += [e['scenario'] for e in entries
                               if e.get('change') == 'added' and isinstance(e.get('scenario'), str)]
+                    added_requests += [e['product'] + '/' + e['request'] for e in entries
+                                       if e.get('change') == 'added' and isinstance(e.get('request'), str)]
                 except (OSError, ValueError, KeyError, TypeError, AttributeError):
                     pass  # diff.mjs reports a missing or damaged approval file
             for side, host, hack, target in [
@@ -287,6 +291,7 @@ try:
                 if os.environ.get(hack): words += ['--hack', os.environ[hack]]
                 words += ['--out', root + '/' + target, '--scenario', 'all']
                 if side == 'reference' and added: words += ['--skip-scenario', ','.join(dict.fromkeys(added))]
+                if side == 'reference' and added_requests: words += ['--skip-request', ','.join(dict.fromkeys(added_requests))]
                 steps.append(('golden:' + side, shell(words)))
             steps.append(('golden:coverage', shell(['node', golden_dir + '/coverage.mjs', root + '/cand'])))
             words = ['node', golden_dir + '/diff.mjs', root + '/ref', root + '/cand']

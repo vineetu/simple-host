@@ -44,6 +44,11 @@ type KVMeta struct{ Entries, LogicalBytes int64 }
 // OpenRuntimeKV opens only a declared namespace. Callers own admission and writes
 // own the site lock. Unlike row databases, this file has no physical page cap.
 func OpenRuntimeKV(ctx context.Context, path string, write, create bool) (*sqlite3.Conn, func(), error) {
+	if !create {
+		if _, err := os.Stat(path); err != nil {
+			return nil, nil, err
+		}
+	}
 	mode := "ro"
 	if write {
 		mode = "rw"
@@ -217,4 +222,49 @@ func runtimeKVAdjust(conn *sqlite3.Conn, entries, bytes int64) error {
 		return err
 	}
 	return stmt.Exec()
+}
+
+// RuntimeKVExport reads all entries, including historical keys, in byte order.
+func RuntimeKVExport(conn *sqlite3.Conn) ([]KVEntry, error) {
+	stmt, _, err := conn.Prepare(`SELECT key,value,visitor_id FROM kv ORDER BY key COLLATE BINARY`)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	entries := []KVEntry{}
+	for stmt.Step() {
+		entries = append(entries, KVEntry{stmt.ColumnText(0), json.RawMessage(stmt.ColumnText(1)), stmt.ColumnText(2)})
+	}
+	return entries, stmt.Err()
+}
+
+// RuntimeKVWriters returns authors without reading their saved values.
+func RuntimeKVWriters(conn *sqlite3.Conn) ([]string, error) {
+	stmt, _, err := conn.Prepare(`SELECT DISTINCT visitor_id FROM kv WHERE visitor_id <> ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	var ids []string
+	for stmt.Step() {
+		ids = append(ids, stmt.ColumnText(0))
+	}
+	return ids, stmt.Err()
+}
+
+// RuntimeKVStats reports entries and value text bytes (keys are not included).
+// Both reads share one snapshot; the entry count is the maintained kv_meta count.
+func RuntimeKVStats(conn *sqlite3.Conn) (entries, bytes int64, err error) {
+	stmt, _, err := conn.Prepare(`SELECT entries, (SELECT coalesce(sum(length(CAST(value AS BLOB))),0) FROM kv) FROM kv_meta WHERE id=1`)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer stmt.Close()
+	if !stmt.Step() {
+		if err = stmt.Err(); err == nil {
+			err = sql.ErrNoRows
+		}
+		return 0, 0, err
+	}
+	return stmt.ColumnInt64(0), stmt.ColumnInt64(1), stmt.Err()
 }

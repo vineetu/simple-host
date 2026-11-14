@@ -127,6 +127,10 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 		var e error
 		usage, e = s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir)
 		if e != nil {
+			var storageErr *Error
+			if errors.As(e, &storageErr) && storageErr.Code == "storage_busy" {
+				return LegacySQLResult{}, storageErr
+			}
 			return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
 		}
 		currentDBBytes, newDB, e = storage.LegacySQLiteSize(dbPath)

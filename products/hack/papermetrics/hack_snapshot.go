@@ -183,6 +183,8 @@ func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 			median = sizes[(len(sizes)-1)/2]
 		}
 		e.values["team_site_bytes_p50"] = median
+		// Keep this historical counter's KV component Postgres-only. The
+		// shared daily kv_value_text_bytes series covers both stores.
 		var kv int64
 		if err := c.db.QueryRowContext(ctx, `SELECT COALESCE(sum(pg_column_size(k.value)),0) FROM site_storage_kv k JOIN sites s ON s.id=k.site_id WHERE s.user_id=$1 AND s.deleted_at IS NULL`, e.account).Scan(&kv); err == nil {
 			e.values["event_storage_bytes"] = storage + kv

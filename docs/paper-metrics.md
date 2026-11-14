@@ -97,6 +97,31 @@ versions, `runtime/sqlite` and `runtime/files` are saved data on disk; KV is the
 site id, owner or name and is returned in random order, so it cannot be joined back to a site.
 `total_bytes` includes every version and runtime data.
 
+**Key-value storage transition (R2-S4b, 2026-11-14).** This change arrives in
+the commit named `R2-S4b` in repository history (the build's exact revision is
+also recorded in run provenance). The daily `kv_rows` and weekly `kv_rows`
+include Postgres rows plus `kv_meta.entries` from namespaces marked `sqlite`.
+Files beside a Postgres marker and orphan files are not counted. The entry
+count keeps its meaning across the move.
+
+`kv_value_bytes` remains the sum of Postgres `pg_column_size(value)` only.
+That compressed binary size has no SQLite equivalent. Weekly `kv_bytes` and
+the KV component of Hack's `event_storage_bytes` also stay Postgres-only;
+they must not be read as the size of all KV after cutover. A new daily
+`kv_value_text_bytes` sums value text bytes across both stores, excluding
+keys. It starts before any production namespace moves, allowing an overlap
+with the old series. Physical KV files are included in total disk footprint,
+but not in the `runtime/sqlite` database counter.
+
+The collector opens each KV file through the same site admission limit as
+requests. A busy or unreadable site's file contribution is skipped for that
+run; daily `kv_file_sites_skipped` records the number skipped. Weekly collection
+omits that site's row and logs its skipped-site count. Postgres contributions
+in daily totals are still measured. These are best-effort current-state
+snapshots, not a transaction across both stores. Existing `resources_*` by
+`acc_*` counts see `nobody` on rules resources; separate rules-resource counters
+belong to R4-S1. The owner must accept this series change before R2-C.
+
 **Retention and privacy.** The Host tables hold no personal data and are kept with no end date; Hack activity slots have a 400-day retention and event snapshots retain daily history. The
 Privacy page says so (2026-10-31). The sources they are computed from keep their own retention
 (API per-route counts 30 days, analytics 400 days).

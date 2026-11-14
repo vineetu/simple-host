@@ -604,7 +604,8 @@
 								<div class="sl-markdown-content"><p>A server keeps everything in two places:</p>
 <ul>
 <li><strong>Postgres:</strong> accounts, keys, sites, versions, saved data and lists, domains.</li>
-<li><strong>A folder on disk (<code>DATA_DIR</code>):</strong> every site’s files, one folder per kept version.</li>
+<li><strong>A folder on disk (<code>DATA_DIR</code>):</strong> every site’s files, one folder per kept version,
+runtime SQLite databases, file buckets and any SQLite key-value namespaces.</li>
 </ul>
 <p>On a small box both are Docker volumes (<code>simple-host_db</code> and <code>simple-host_sites</code>), and
 <code>/opt/simple-host/.env</code> holds the admin key and the database password, which only that file
@@ -753,6 +754,16 @@ knows.</p>
 <p><strong>Back up a small box</strong> (from <code>/opt/simple-host</code>, into the current folder):</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>sudo docker compose exec -T db pg_dump -U simplehost simplehost | gzip &gt; db-$(date +%F).sql.gz &amp;&amp; sudo docker run --rm -v simple-host_sites:/sites -v "$PWD":/out alpine tar czf /out/sites-$(date +%F).tar.gz -C /sites . &amp;&amp; sudo cp .env env-$(date +%F).bak</span></span></code></pre>
 <p>Keep all three together: the <code>.env</code> backup is what lets a restored database be opened.</p>
+<p>After a key-value namespace moves to SQLite, its data lives at
+<code>runtime/kv/&lt;namespace&gt;.sqlite</code>. The Postgres dump and matching data directory
+are one backup: restore them together. Stop the install before taking the pair
+for a consistent snapshot. A live SQLite copy must include its <code>-wal</code> file;
+copying the main file alone can lose committed writes. Stopping first avoids
+copying files while they change. Site exports combine both KV stores into
+<code>storage/kv.json</code> and omit the internal <code>runtime/kv/</code> files.</p>
+<p>Keep <code>KV_STORE=postgres</code> until the move and rehearsal are ready. This release
+adds export, deletion and authorship support; changing the flag does not move
+existing namespaces.</p>
 <p><strong>What fills the disk.</strong> At the default allowances, 2,000 fully used hosted sites
 can add 40 GB of logical KV/SQLite and file storage (10 MB + 10 MB per site),
 beyond deployed versions. Budget extra for filesystem metadata, Postgres, SQLite

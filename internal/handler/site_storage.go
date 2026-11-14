@@ -387,6 +387,9 @@ func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.storageSvc().GetStorageUsage(r.Context(), h.storageServiceCall(c))
 	if err != nil {
+		if writeKVAdmissionError(w, err) {
+			return
+		}
 		if e, ok := err.(*appstorage.Error); ok && e.Code == "forbidden" {
 			storageError(w, 403, e.Code, e.Message)
 			return

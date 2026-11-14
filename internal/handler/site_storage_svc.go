@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
@@ -135,4 +136,18 @@ func (h *SiteHandler) siteSlotsFor() *appstorage.SiteSlots {
 		h.sqliteSites = appstorage.NewSiteSlots(h.limits.StorageSiteInflight, h.sqliteGateFor(), h.limits.StorageAcquireWait)
 	})
 	return h.sqliteSites
+}
+
+// KVFileStats shares request admission with the paper collector. Trashed sites
+// retain their namespaces until permanent deletion, just as Postgres rows do.
+func (h *SiteHandler) KVFileStats(ctx context.Context, siteID string) (int64, int64, error) {
+	site, err := h.lifecycleSvc().GetSiteByID(ctx, siteID)
+	if err != nil {
+		return 0, 0, err
+	}
+	dir := h.disk.SiteDir(site.UserID, site.Name)
+	if site.Deleted {
+		dir = h.disk.TrashDir(site.UserID, site.ID)
+	}
+	return h.storageSvc().KVFileStats(ctx, siteID, filepath.Join(dir, "runtime"))
 }

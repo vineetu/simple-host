@@ -507,6 +507,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 			apex = append(apex, u.Hostname())
 		}
 		paper = papermetrics.New(db, cfg.DataDir, apex...).WithRunConfig(paperConfig).WithCommit(buildinfo.Commit)
+		paper.KVFileStats = siteHandler.KVFileStats
 		if parts.PaperHack != nil {
 			parts.PaperHack(paper)
 		}

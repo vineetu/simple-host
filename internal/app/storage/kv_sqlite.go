@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"os"
+	"unicode/utf8"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	repository "github.com/vsriram/simple-host/internal/repository/storage"
@@ -60,7 +62,7 @@ func (s *Service) withKV(ctx context.Context, call Call, write bool, fn func(con
 	if call.Resource.KVStore != "sqlite" {
 		return fn(ctx, nil, nil)
 	}
-	return s.deps.SiteSlots.Admit(ctx, call.SiteID, func(ctx context.Context, a *Admission) error {
+	err := s.deps.SiteSlots.Admit(ctx, call.SiteID, func(ctx context.Context, a *Admission) error {
 		if !write && s.deps.SQLiteTimeout > 0 {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, s.deps.SQLiteTimeout)
@@ -73,11 +75,16 @@ func (s *Service) withKV(ctx context.Context, call Call, write bool, fn func(con
 		defer closeSQLite(done)
 		return fn(ctx, conn, a)
 	})
+	return kvFileError(err)
 }
 
 func (s *Service) kvWriter(ctx context.Context, conn *sqlite3.Conn, siteID, resource, key string) (string, error) {
 	if conn == nil {
 		return repository.KVWriter(ctx, s.db, siteID, resource, key)
+	}
+	// Postgres rejects these during the same author lookup, before a write.
+	if !utf8.ValidString(key) {
+		return "", errors.New("invalid UTF-8 key")
 	}
 	item, err := runtime.RuntimeKVGet(conn, key, "")
 	return item.VisitorID, err
@@ -154,4 +161,41 @@ func (s *Service) deleteKVSQLite(ctx context.Context, call Call, key, filter str
 		return s.commitKVSQLite(ctx, conn, a)
 	})
 	return
+}
+
+func kvFileError(err error) error {
+	if errors.Is(err, sqlite3.BUSY) || errors.Is(err, sqlite3.LOCKED) {
+		return sqliteBusy()
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return &Error{Code: "storage_failed", Message: "key-value namespace file is missing"}
+	}
+	return err
+}
+
+// KVFileStats is the admitted disk half of paper metrics. A failure discards
+// this site's partial result; the collector can skip and count that site.
+func (s *Service) KVFileStats(ctx context.Context, siteID, root string) (entries, bytes int64, err error) {
+	names, err := repository.SQLiteKVNamespaces(ctx, s.db, siteID)
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, name := range names {
+		var n, b int64
+		err = s.deps.SiteSlots.Admit(ctx, siteID, func(ctx context.Context, _ *Admission) error {
+			conn, done, e := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(root, name), false, false)
+			if e != nil {
+				return e
+			}
+			defer closeSQLite(done)
+			n, b, e = runtime.RuntimeKVStats(conn)
+			return e
+		})
+		if err != nil {
+			return 0, 0, kvFileError(err)
+		}
+		entries += n
+		bytes += b
+	}
+	return entries, bytes, nil
 }

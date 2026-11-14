@@ -3,7 +3,8 @@
 A server keeps everything in two places:
 
 - **Postgres:** accounts, keys, sites, versions, saved data and lists, domains.
-- **A folder on disk (`DATA_DIR`):** every site's files, one folder per kept version.
+- **A folder on disk (`DATA_DIR`):** every site's files, one folder per kept version,
+  runtime SQLite databases, file buckets and any SQLite key-value namespaces.
 
 On a small box both are Docker volumes (`simple-host_db` and `simple-host_sites`), and
 `/opt/simple-host/.env` holds the admin key and the database password, which only that file
@@ -44,6 +45,18 @@ sudo docker compose exec -T db pg_dump -U simplehost simplehost | gzip > db-$(da
 ```
 
 Keep all three together: the `.env` backup is what lets a restored database be opened.
+
+After a key-value namespace moves to SQLite, its data lives at
+`runtime/kv/<namespace>.sqlite`. The Postgres dump and matching data directory
+are one backup: restore them together. Stop the install before taking the pair
+for a consistent snapshot. A live SQLite copy must include its `-wal` file;
+copying the main file alone can lose committed writes. Stopping first avoids
+copying files while they change. Site exports combine both KV stores into
+`storage/kv.json` and omit the internal `runtime/kv/` files.
+
+Keep `KV_STORE=postgres` until the move and rehearsal are ready. This release
+adds export, deletion and authorship support; changing the flag does not move
+existing namespaces.
 
 **What fills the disk.** At the default allowances, 2,000 fully used hosted sites
 can add 40 GB of logical KV/SQLite and file storage (10 MB + 10 MB per site),
