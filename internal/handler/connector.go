@@ -141,6 +141,12 @@ func NewConnectorHandlerForTest(issuer string, mcpServer *mcp.Server, hostedEven
 	return &ConnectorHandler{issuer: issuer, mcp: mcpServer, hostedEvents: hostedEvents}
 }
 
+// MCPUpstreamForTest exposes the exact handler configured for MCP tool calls so
+// product wiring tests can exercise it with visitor-session credentials.
+func (h *ConnectorHandler) MCPUpstreamForTest() http.Handler {
+	return h.mcpConfig.Upstream
+}
+
 // NewConnectorHandler builds the connector. upstream is the application mux
 // behind the key scope gate (auth.ScopeGate): MCP tool calls are served into
 // it in process, so a deploy-only key's tools meet the same route table.

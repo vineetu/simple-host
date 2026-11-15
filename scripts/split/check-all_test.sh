@@ -19,6 +19,9 @@ run() {
     if [[ $status != "$expected" ]]; then cat "$tmp/report"; return 1; fi
 }
 has() { [[ $(cat "$1") == *"$2"* ]]; }
+# Build orchestration selects this runner with -x; without it, the fallback
+# make check bypasses the per-worktree fresh-install database names.
+check 'gate entry point is executable' test -x "$runner"
 : >"$tmp/red"
 printf '%s\n' '# comment' '' 'true' 'printf done' >"$tmp/steps"
 check 'all pass with empty known-red' run 0

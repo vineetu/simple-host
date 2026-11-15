@@ -11,6 +11,7 @@ import (
 	"github.com/vsriram/simple-host/internal/app/notifications"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
@@ -74,6 +75,7 @@ type Parts struct {
 }
 
 type Hooks struct {
+	Storage       appstorage.BindingProvider
 	Images        operations.ProductImages
 	Sitemap       sites.SitemapFilter
 	Notifications notifications.GroupSites

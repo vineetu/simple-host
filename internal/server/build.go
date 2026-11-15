@@ -455,12 +455,16 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	if ed.Identity().TeamKeys && parts.Hooks.GroupGate == nil {
 		return nil, fmt.Errorf("team-key edition requires a group gate")
 	}
+	if ed.Storage().EventOwners && parts.Hooks.Storage == nil {
+		return nil, fmt.Errorf("event-owner edition requires storage bindings")
+	}
 	siteHandler.SetSitemapFilter(parts.Hooks.Sitemap)
 	imageScan.SetProductImages(parts.Hooks.Images)
 
 	siteHandler.SetNotificationGroups(parts.Hooks.Notifications)
 	siteHandler.SetGroupHosts(parts.Hooks.GroupHosts)
 	siteHandler.SetGroupGate(parts.Hooks.GroupGate)
+	siteHandler.SetStorageBindings(parts.Hooks.Storage)
 
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
 	// least one domain are configured, so a self-hosted instance never tries to

@@ -216,8 +216,8 @@ func (h *SiteHandler) loadStorageResource(ctx context.Context, siteID, name stri
 // decision 2026-10-10): on a team site, an approved member of that team
 // while the team may still change its site; on an event's custom website,
 // an organiser of the event while it is neither ended nor taken down
-// (db.HackSiteOwnerOnSite). After the deadline a member is an ordinary
-// visitor there.
+// (the product's storage bindings provider). After the deadline a member is
+// an ordinary visitor there.
 //
 // Never from a page framed by another origin (auth.js sends X-SH-Framed: 1
 // there; it covers custom domains and families, whose pages nginx serves
@@ -246,7 +246,7 @@ func (h *SiteHandler) storageSiteOwnerOnSite(r *http.Request, c storageCall) boo
 		return false
 	}
 	if h.ed.Storage().EventOwners {
-		ok, err := h.storeAccounts().HackSiteOwnerOnSite(r.Context(), c.siteID, c.visitorID)
+		ok, err := h.storageBindingProvider().OwnerOnSite(r.Context(), c.siteID, c.visitorID)
 		return err == nil && ok
 	}
 	return true
@@ -279,7 +279,7 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 	}
 	if h.ed.Storage().EventOwners {
 		paperRecorder(r.Context()).Member(r.Context(), sess.UserID)
-		if ok, err := h.storeAccounts().HackSiteOwnerOnSite(r.Context(), sess.SiteID, sess.UserID); err != nil || !ok {
+		if ok, err := h.storageBindingProvider().OwnerOnSite(r.Context(), sess.SiteID, sess.UserID); err != nil || !ok {
 			return
 		}
 	} else if sess.UserID != ownerID {

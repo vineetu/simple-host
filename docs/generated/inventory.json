@@ -20,7 +20,7 @@
       "method": "DELETE",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:358",
+      "source": "internal/handler/connector.go:364",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -252,7 +252,7 @@
       "method": "DELETE",
       "path": "/v1/me/connections/{client_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:372",
+      "source": "internal/handler/connector.go:378",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -540,7 +540,7 @@
       "method": "GET",
       "path": "/.well-known/muse-client.json",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:343",
+      "source": "internal/handler/connector.go:349",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -548,7 +548,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:340",
+      "source": "internal/handler/connector.go:346",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -564,7 +564,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:342",
+      "source": "internal/handler/connector.go:348",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -572,7 +572,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:338",
+      "source": "internal/handler/connector.go:344",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -588,7 +588,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:339",
+      "source": "internal/handler/connector.go:345",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -996,7 +996,7 @@
       "method": "GET",
       "path": "/import/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:361",
+      "source": "internal/handler/connector.go:367",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1196,7 +1196,7 @@
       "method": "GET",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:358",
+      "source": "internal/handler/connector.go:364",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1212,7 +1212,7 @@
       "method": "GET",
       "path": "/oauth/authorize",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:346",
+      "source": "internal/handler/connector.go:352",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1716,7 +1716,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:507",
+      "source": "internal/server/build.go:511",
       "package": "internal/server",
       "dynamic": false
     },
@@ -1740,7 +1740,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:508",
+      "source": "internal/server/build.go:512",
       "package": "internal/server",
       "dynamic": false
     },
@@ -1772,7 +1772,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "internal/server/build.go:526",
+      "source": "internal/server/build.go:530",
       "package": "internal/server",
       "dynamic": false
     },
@@ -2468,7 +2468,7 @@
       "method": "GET",
       "path": "/v1/imports/status/{import_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:363",
+      "source": "internal/handler/connector.go:369",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2508,7 +2508,7 @@
       "method": "GET",
       "path": "/v1/me/connections",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:371",
+      "source": "internal/handler/connector.go:377",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2580,7 +2580,7 @@
       "method": "GET",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:366",
+      "source": "internal/handler/connector.go:372",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3580,7 +3580,7 @@
       "method": "POST",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:358",
+      "source": "internal/handler/connector.go:364",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -3588,7 +3588,7 @@
       "method": "POST",
       "path": "/oauth/authorize/decision",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:347",
+      "source": "internal/handler/connector.go:353",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3596,7 +3596,7 @@
       "method": "POST",
       "path": "/oauth/register",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:345",
+      "source": "internal/handler/connector.go:351",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3604,7 +3604,7 @@
       "method": "POST",
       "path": "/oauth/reviewer-signin",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/connector.go:350",
+      "source": "internal/handler/connector.go:356",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3612,7 +3612,7 @@
       "method": "POST",
       "path": "/oauth/revoke",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:352",
+      "source": "internal/handler/connector.go:358",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3620,7 +3620,7 @@
       "method": "POST",
       "path": "/oauth/token",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:351",
+      "source": "internal/handler/connector.go:357",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4204,7 +4204,7 @@
       "method": "POST",
       "path": "/v1/imports/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:362",
+      "source": "internal/handler/connector.go:368",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4284,7 +4284,7 @@
       "method": "POST",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:367",
+      "source": "internal/handler/connector.go:373",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4708,7 +4708,7 @@
       "method": "POST",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:369",
+      "source": "internal/handler/connector.go:375",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -5156,7 +5156,7 @@
       "method": "PUT",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:368",
+      "source": "internal/handler/connector.go:374",
       "package": "internal/handler",
       "dynamic": false
     }

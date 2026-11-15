@@ -43,7 +43,6 @@ func Extension() *extension.Extension {
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition
 			siteHandler, mux, authMW := d.Site, d.Mux, d.AuthMW
-			siteHandler.SetStorageBindings(storagebind.Provider{DB: d.DB})
 			hack := hackhttp.NewHackHandler(d.DB, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 			hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
 				return d.Accounts.GetUserByAPIKey(ctx, key, idle)
@@ -114,6 +113,7 @@ func Extension() *extension.Extension {
 				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
 				SiteSweep: NewSiteSweep(d.DB, siteHandler, siteSweep),
 				Hooks: extension.Hooks{
+					Storage:       storagebind.Provider{DB: d.DB},
 					Images:        hackimages.New(d.DB, hack.SyncEventMarkers),
 					Sitemap:       hackevents.FilterSitemapSites,
 					Notifications: NotificationGroups{},

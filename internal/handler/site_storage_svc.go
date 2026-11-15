@@ -35,9 +35,16 @@ func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
 	}
 }
 
+func (h *SiteHandler) storageBindingProvider() appstorage.BindingProvider {
+	if h.storageBindings != nil {
+		return h.storageBindings
+	}
+	return appstorage.DefaultProvider{DB: h.database}
+}
+
 func (h *SiteHandler) storageDeps() appstorage.Deps {
 	deps := appstorage.Deps{
-		Bindings:             h.storageBindings,
+		Bindings:             h.storageBindingProvider(),
 		BindingSchema:        h.storageBindingSchema,
 		ProductBindingSchema: h.storageProductBindingSchema,
 		RulesEnabled:         os.Getenv("STORAGE_RULES") == "on",
@@ -48,9 +55,6 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		SiteLimit: os.Getenv("SITE_STORAGE_MAX_BYTES"), FilesLimit: os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"),
 		SpamCheckedMaxBytes: h.limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.limits.SpamCheckedMaxLinks,
 		VisitorSessionIdle: h.limits.VisitorSessionIdle,
-	}
-	if deps.Bindings == nil {
-		deps.Bindings = appstorage.DefaultProvider{DB: h.database}
 	}
 	deps.VisitorEmail = func(ctx context.Context, id string) (string, error) { return visitorEmail(ctx, h.database, id) }
 	deps.OpenFileToken = func(token string) ([]byte, error) { return httpx.OpenLink(h.exportKey, "site storage file v1", token) }

@@ -7,11 +7,12 @@ import (
 
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 type Provider struct {
-	DB *sql.DB
+	DB sqlkit.Querier
 }
 
 var _ appstorage.BindingProvider = Provider{}

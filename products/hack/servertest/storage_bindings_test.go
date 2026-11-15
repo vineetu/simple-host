@@ -3,6 +3,7 @@ package servertest
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http/httptest"
 	"reflect"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/extension"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/server"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
 	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
@@ -66,6 +68,26 @@ func bindingValues(team, siteTeam, stage string, organiser, before bool) ruleeng
 	return ruleengine.Values{
 		"auth.team": text(team), "auth.teams": teams, "auth.organiser": ruleengine.Bool(organiser),
 		"event.team": text(siteTeam), "event.stage": text(stage), "event.before_deadline": ruleengine.Bool(before),
+	}
+}
+
+func TestHackBuildRequiresStorageBindings(t *testing.T) {
+	cfg := platformtest.Config(t, testdb.Fresh(t))
+	ext := hack.Extension()
+	wire := ext.Wire
+	ext.Wire = func(d extension.Deps) (extension.Parts, error) {
+		parts, err := wire(d)
+		parts.Hooks.Storage = nil
+		return parts, err
+	}
+	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
+	app, err := server.Build(cfg, []*extension.Extension{ext})
+	if app != nil {
+		app.Close()
+		t.Fatal("Hack started without storage bindings")
+	}
+	if err == nil || !strings.Contains(err.Error(), "requires storage bindings") {
+		t.Fatalf("missing storage bindings error: %v", err)
 	}
 }
 
@@ -125,7 +147,7 @@ func TestHackStorageBindingValues(t *testing.T) {
 	}
 }
 
-// This shared test stays when D2-S9 switches the handler callers to the provider.
+// The seeded parity fixture also covers other-team and ordinary-site cases.
 func TestHackOwnerOnSiteParity(t *testing.T) {
 	db := bindingDB(t, testdb.Fresh(t))
 	p := storagebind.Provider{DB: db}
@@ -233,4 +255,202 @@ func TestHackStorageBindingsAfterBuildAndDatabaseError(t *testing.T) {
 	}
 	site.SetStorageBindings(storagebind.Provider{DB: broken})
 	check("GET", path, "", false, 500, "internal_error")
+}
+
+func TestStorageOwnerOnSiteEdgeCases(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, member, other := a.newPerson(t, "binding-org"), a.newPerson(t, "binding-member"), a.newPerson(t, "binding-other")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, member, org)
+	team, _ := a.startTeam(t, slug, "Bindings", member)
+	markReady(t, a.certDir, slug)
+	wantTS(t, "team site", a.deployTeam(t, team, a.teamKey(t, slug, member), "team"), 201, "")
+	wantTS(t, "event site", a.api(t, "PUT", "/v1/hack/events/"+slug+"/website/files?create=1", deployBody("event"), org.key), 201, "")
+	var eid string
+	if err := a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, slug).Scan(&eid); err != nil {
+		t.Fatal(err)
+	}
+	teamSite, eventSite := hackSiteID(t, a, slug, team), hackSiteID(t, a, slug, eid)
+	mid, oid, otherID := a.uid(t, member), a.uid(t, org), a.uid(t, other)
+	type change struct {
+		query string
+		args  []any
+	}
+	event := func(set string) change { return change{`UPDATE events SET ` + set + ` WHERE id=$1`, []any{eid}} }
+	teamChange := func(set string) change {
+		return change{`UPDATE event_teams SET ` + set + ` WHERE event_id=$1 AND slug=$2`, []any{eid, team}}
+	}
+	memberChange := func(set string) change {
+		return change{`UPDATE event_members SET ` + set + ` WHERE event_id=$1 AND user_id=$2`, []any{eid, mid}}
+	}
+	siteChange := func(id, set string) change { return change{`UPDATE sites SET ` + set + ` WHERE id=$1`, []any{id}} }
+	cases := []struct {
+		name, site, user string
+		want             bool
+		changes          []change
+	}{
+		{"approved teammate", teamSite, mid, true, nil},
+		{"unrelated visitor", teamSite, otherID, false, nil},
+		{"organiser on team site", teamSite, oid, false, nil},
+		{"participant on event website", eventSite, mid, false, nil},
+		{"organiser on event website", eventSite, oid, true, nil},
+		{"missing site", "00000000-0000-0000-0000-000000000000", mid, false, nil},
+		{"no event", teamSite, mid, false, []change{siteChange(teamSite, `user_id='`+otherID+`'`)}},
+		{"no matching team", teamSite, mid, false, []change{siteChange(teamSite, `name='unmatched'`)}},
+		{"member removed", teamSite, mid, false, []change{{`DELETE FROM event_members WHERE event_id=$1 AND user_id=$2`, []any{eid, mid}}}},
+		{"no team", teamSite, mid, false, []change{memberChange(`team_id=NULL`)}},
+		{"judge", teamSite, mid, false, []change{memberChange(`team_id=NULL,role='judge'`)}},
+		{"pending", teamSite, mid, false, []change{memberChange(`approval_status='pending'`)}},
+		{"rejected", teamSite, mid, false, []change{memberChange(`approval_status='rejected'`)}},
+		{"team site taken down", teamSite, mid, false, []change{teamChange(`site_taken_down_at=now()`)}},
+		{"deadline passed", teamSite, mid, false, []change{event(`submission_deadline=now()-interval '1 hour'`)}},
+		{"future deadline", teamSite, mid, true, []change{event(`submission_deadline=now()+interval '1 hour'`)}},
+		{"future override", teamSite, mid, true, []change{event(`submission_deadline=now()-interval '1 hour'`), teamChange(`deadline_override=now()+interval '1 hour'`)}},
+		{"expired override", teamSite, mid, false, []change{event(`submission_deadline=now()-interval '2 hours'`), teamChange(`deadline_override=now()-interval '1 hour'`)}},
+		{"earlier override", teamSite, mid, true, []change{event(`submission_deadline=now()+interval '1 hour'`), teamChange(`deadline_override=now()-interval '1 hour'`)}},
+		{"override without event deadline", teamSite, mid, true, []change{event(`submission_deadline=NULL`), teamChange(`deadline_override=now()-interval '1 hour'`)}},
+		{"organiser past deadline", eventSite, oid, true, []change{event(`submission_deadline=now()-interval '1 hour'`)}},
+	}
+	for _, target := range []struct{ name, site, user string }{{"team", teamSite, mid}, {"website", eventSite, oid}} {
+		for _, state := range []string{"draft", "open", "building", "closed", "judging", "results", "archived"} {
+			want := state != "archived" && (target.name == "website" || state != "judging" && state != "results")
+			cases = append(cases, struct {
+				name, site, user string
+				want             bool
+				changes          []change
+			}{target.name + " stage " + state, target.site, target.user, want, []change{event(`stage='` + state + `'`)}})
+		}
+		for _, c := range []struct {
+			name   string
+			change change
+		}{{"event taken down", event(`taken_down_at=now()`)}, {"site deleted", siteChange(target.site, `deleted_at=now()`)}, {"site suspended", siteChange(target.site, `suspended_at=now()`)}} {
+			cases = append(cases, struct {
+				name, site, user string
+				want             bool
+				changes          []change
+			}{target.name + " " + c.name, target.site, target.user, false, []change{c.change}})
+		}
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tx, err := a.database.BeginTx(context.Background(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.Rollback()
+			for _, c := range tc.changes {
+				if _, err := tx.Exec(c.query, c.args...); err != nil {
+					t.Fatal(err)
+				}
+			}
+			old, oldErr := hackevents.HackSiteOwnerOnSite(context.Background(), tx, tc.site, tc.user)
+			got, err := (storagebind.Provider{DB: tx}).OwnerOnSite(context.Background(), tc.site, tc.user)
+			if oldErr != nil || err != nil || old != tc.want || got != old {
+				t.Fatalf("provider=%v/%v old=%v/%v want=%v", got, err, old, oldErr, tc.want)
+			}
+		})
+	}
+	t.Run("database error", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		old, oldErr := hackevents.HackSiteOwnerOnSite(ctx, a.database, teamSite, mid)
+		got, err := (storagebind.Provider{DB: a.database}).OwnerOnSite(ctx, teamSite, mid)
+		if got || old || !errors.Is(err, context.Canceled) || !errors.Is(oldErr, context.Canceled) {
+			t.Fatalf("provider=%v/%v old=%v/%v", got, err, old, oldErr)
+		}
+	})
+}
+
+type countedStorageBindings struct {
+	appstorage.BindingProvider
+	calls int
+	fail  bool
+}
+
+func (p *countedStorageBindings) OwnerOnSite(ctx context.Context, site, user string) (bool, error) {
+	p.calls++
+	if p.fail {
+		return true, errors.New("owner lookup failed")
+	}
+	return p.BindingProvider.OwnerOnSite(ctx, site, user)
+}
+
+// Use the actual Build wiring, then exercise both the HTTP dispatcher and the
+// gated upstream installed on the connector. Owner-on-site is a visitor-session
+// capability; MCP's owner credentials do not carry that session.
+func TestStorageBindingsInstalledAfterBuild(t *testing.T) {
+	cfg := platformtest.Config(t, testdb.Fresh(t))
+	cfg.SiteDomain = tsDomain
+	cfg.ContentHost = "sites." + tsDomain
+	cfg.PublicBaseURL = "https://" + tsDomain
+	cfg.PersonHosts = "canonical"
+	cfg.SiteHosts = "canonical"
+	cfg.SiteCertDir = ""
+	a := &teamSiteApp{}
+	ext := hack.Extension()
+	wire := ext.Wire
+	var provider *countedStorageBindings
+	ext.Wire = func(d extension.Deps) (extension.Parts, error) {
+		parts, err := wire(d)
+		if parts.Hooks.Storage == nil {
+			t.Fatal("Hack extension omitted storage bindings")
+		}
+		provider = &countedStorageBindings{BindingProvider: parts.Hooks.Storage}
+		parts.Hooks.Storage = provider
+		a.database = d.DB
+		a.sites = d.Site
+		a.conn = d.Connector
+		a.disk = d.Disk
+		return parts, err
+	}
+	app := platformtest.Build(t, cfg, []*extension.Extension{ext})
+	a.mux = app.Mux
+	a.srv = httptest.NewServer(app.Handler)
+	t.Cleanup(a.srv.Close)
+	httpServer := a.srv
+	inProcess := httptest.NewServer(a.conn.MCPUpstreamForTest())
+	t.Cleanup(inProcess.Close)
+	org, member := a.newPerson(t, "wired-org"), a.newPerson(t, "wired-member")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, member, org)
+	team, _ := a.startTeam(t, slug, "Wired", member)
+	key := a.teamKey(t, slug, member)
+	wantTS(t, "deploy", a.deployTeam(t, team, key, "wired"), 201, "")
+	base := "/v1/sites/" + team + "/storage"
+	wantTS(t, "private resource", a.api(t, "PUT", base+"/resources/private", map[string]string{"kind": "kv", "preset": "private"}, key), 201, "")
+	wantTS(t, "private value", a.api(t, "PUT", base+"/kv/private/keys/key", `{"value":"private value"}`, key), 200, "")
+	sid := hackSiteID(t, a, slug, team)
+	host := team + "." + slug + "." + tsDomain
+	asMember := hackSession(t, a, a.uid(t, member), sid, host)
+	for _, fail := range []bool{false, true} {
+		provider.fail = fail
+		for _, transport := range []string{"HTTP", "in-process"} {
+			if transport == "in-process" {
+				a.srv = inProcess
+			} else {
+				a.srv = httpServer
+			}
+			before := provider.calls
+			got := asMember("GET", base+"/kv/private/keys/key", nil)
+			want := 200
+			if fail {
+				want = 403
+			}
+			if got.status != want || provider.calls != before+1 {
+				t.Fatalf("%s storage fail=%v: %d calls=%d %s", transport, fail, got.status, provider.calls-before, got.body)
+			}
+			before = provider.calls
+			me := asMember("GET", "/v1/sites/"+team+"/me", nil)
+			if me.status != 200 || (me.json(t)["site_owner"] == true) == fail || provider.calls != before+1 {
+				t.Fatalf("%s me fail=%v: calls=%d %s", transport, fail, provider.calls-before, me.body)
+			}
+		}
+		a.srv = httpServer
+		before := provider.calls
+		page := asMember("GET", "/", nil)
+		guarded := page.header.Get("X-Frame-Options") == "SAMEORIGIN" && strings.Contains(page.header.Get("Content-Security-Policy"), "frame-ancestors 'self'")
+		if page.status != 200 || guarded == fail || provider.calls != before+1 {
+			t.Fatalf("frame fail=%v: %d calls=%d headers=%v", fail, page.status, provider.calls-before, page.header)
+		}
+	}
 }
