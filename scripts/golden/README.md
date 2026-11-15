@@ -714,3 +714,14 @@ products: an open default, a table override with no policies, a one-row page, an
 a missing row. After its original owner requests it seeds only its disposable
 `notes.sqlite` file using Node 22's built-in `node:sqlite`; existing owner request
 and response bytes stay unchanged. R3-S1a approves each new visitor request.
+
+## Storage dashboard coverage (R3-S7b)
+
+The `showcase-page` request records the served Host showcase HTML in `base` and
+`rules-on`, after creating an owner. `approved/R3-S7b.json` pins the exact
+Storage-panel script changes for both requests. Record the reference and candidate
+with this same harness so the page exists in both recordings.
+
+Hack has no owner showcase dashboard: its edition routes people to the event
+interface and does not serve this Storage panel. There is no Hack showcase
+approval; the other Hack requests still compare normally.

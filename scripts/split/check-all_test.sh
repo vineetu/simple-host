@@ -137,10 +137,10 @@ check 'browser conflicts with steps-file' run 2 --browser
 browser_list() {
     bash "$runner" --no-cap --browser --list >"$tmp/report" 2>&1 || return 1
     cut -f1 "$tmp/report" >"$tmp/actual"
-    printf 'browser:%s\n' hack-navigation hack-checklists hack-forms hack-presets named-viewers signin-card owner-dashboard >"$tmp/expected"
+    printf 'browser:%s\n' hack-navigation hack-checklists hack-forms hack-presets storage-rules named-viewers signin-card owner-dashboard >"$tmp/expected"
     cmp -s "$tmp/expected" "$tmp/actual"
 }
-check 'browser lists seven explicit ids' browser_list
+check 'browser lists eight explicit ids' browser_list
 mkdir -p "$tmp/golden" "$tmp/bin"
 export CHECK_ALL_GOLDEN_DIR="$tmp/golden"
 export GOLDEN_REF_BIN="$tmp/bin/reference host"

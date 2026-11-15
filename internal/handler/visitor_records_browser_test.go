@@ -28,6 +28,11 @@ func TestServeVisitorRecordsBrowser(t *testing.T) {
 	if file == "" {
 		t.Skip("VISITOR_RECORDS_FIXTURE unset")
 	}
+	serveVisitorRecordsBrowser(t, file)
+}
+
+func serveVisitorRecordsBrowser(t *testing.T, file string) {
+	t.Helper()
 	mb := &mailbox{}
 	a := newPrivateAppMailer(t, mb)
 	a.sites.SetPersonHosts("canonical")

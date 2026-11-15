@@ -8,6 +8,7 @@ checks=(
 'hack-checklists|./products/hack/hackhttp|TestServeHackNavigationBrowser|HACK_NAVIGATION_FIXTURE|hack-checklists'
 'hack-forms|./products/hack/hackhttp|TestServeHackFormsBrowser|HACK_FORMS_FIXTURE|hack-forms'
 'hack-presets|./products/hack/servertest|TestServeHackPresetsBrowser|HACK_PRESETS_FIXTURE|hack-presets'
+'storage-rules|./internal/handler|TestServeStorageRulesBrowser|STORAGE_RULES_FIXTURE|storage-rules'
 'named-viewers|./internal/handler|TestServeVisitorRecordsBrowser|VISITOR_RECORDS_FIXTURE|named-viewers'
 'signin-card||||signin-card'
 'owner-dashboard||||owner-dashboard'
@@ -150,7 +151,7 @@ case $runner in
         stage=check; run "$fixture" check --keep --shots "$tmp/shots"
         stage=dashboard; run "$fixture" dashboard --shots "$tmp/shots"
         ;;
-    hack-presets) run "$fixture" --shots "$tmp/shots" ;;
+    hack-presets|storage-rules) run "$fixture" --shots "$tmp/shots" ;;
     signin-card|owner-dashboard) run ;;
     # Checklists resets stage/results/conflicts itself; the fixture already has
     # two submitted entries. It needs no state left behind by navigation.

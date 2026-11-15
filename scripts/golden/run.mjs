@@ -560,6 +560,9 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
  } else {
   await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Rules storage</h1>' } } });
   base = `/v1/sites/${name}/storage`;
+  const profile = await at('showcase-owner', 'GET', '/v1/me', { apiKey: owner });
+  const page = await at('showcase-page', 'GET', '/' + profile.json.handle, { qualifier: true });
+  if (page.status !== 200 || !page.rawBody.includes('async function openStorage(')) throw new Error('showcase page unavailable');
  }
  const body = { kind: 'sqlite', rules: { policies: [{ name: 'read', command: 'read', using: 'true' }] }, tables: { notes: { rules: { policies: [] } } } };
  const saved = await at('save-rules', 'PUT', `${base}/resources/notes`, { apiKey: owner, body });
@@ -1214,6 +1217,8 @@ async function widerCoverage(instance, calls, usedNames, owner) {
     await at('plain-address', 'GET', '/new', { headers: { Host: host }, qualifier: true });
     await at('profile-site-list', 'PUT', '/v1/sites/redirect-site/visibility', { apiKey: owner, body: { visibility: 'public' } });
     await get(`/v1/u/${handle}/showcase.json`);
+    const showcase = await at('showcase-page', 'GET', '/' + handle, { qualifier: true });
+    if (showcase.status !== 200 || !showcase.rawBody.includes('async function openStorage(')) throw new Error('showcase page unavailable');
     const listing = await at('moderation-site-create', 'POST', '/v1/sites/moderation-site/files', { apiKey: owner, body: { files: { 'index.html': '<p>Moderation</p>' } } });
     await at('moderation-site-delete', 'DELETE', '/v1/sites/moderation-site', { apiKey: owner });
     await at('moderation-site-takedown-deleted', 'POST', `/v1/admin/sites/${listing.json.id}/suspend`, { apiKey: instance.adminKey, body: { reason: 'Golden moderation check' } });
