@@ -21,6 +21,7 @@ import (
 	"github.com/vsriram/simple-host/internal/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
+	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
@@ -42,6 +43,7 @@ func Extension() *extension.Extension {
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition
 			siteHandler, mux, authMW := d.Site, d.Mux, d.AuthMW
+			siteHandler.SetStorageBindings(storagebind.Provider{DB: d.DB})
 			hack := hackhttp.NewHackHandler(d.DB, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 			hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
 				return d.Accounts.GetUserByAPIKey(ctx, key, idle)
