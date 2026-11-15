@@ -2,6 +2,8 @@ package hack
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -23,6 +25,7 @@ import (
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
+	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -32,7 +35,13 @@ import (
 // Extension describes the hosted Hack routes, workers and product policy.
 func Extension() *extension.Extension {
 	return &extension.Extension{
-		Name:    "simple-hack",
+		Name: "simple-hack",
+		CheckSchema: func(ctx context.Context, database *sql.DB) error {
+			if err := hackdb.VerifyHackSchema(ctx, database); err != nil {
+				return fmt.Errorf("schema check (EVENTS=hosted): %w", err)
+			}
+			return nil
+		},
 		Edition: func(limits config.Limits) *edition.Edition { return edition.ForKindWithLimits(edition.Hack, limits) },
 		Gate: func(d extension.GateDeps) func(http.Handler) http.Handler {
 			return hackhttp.LegacyStorageGate(d.Edition, handler.LegacyStoragePath)

@@ -34,7 +34,8 @@ Reads DB_DSN from the environment. The server itself never migrates on start
 unless MIGRATE_ON_START=true, which runs the -init form before it listens; on a
 small box, re-running the install command runs this.`
 
-func runMigrateCommand(args []string, set migrations.Set) int {
+func runMigrateCommand(args []string, exts []*extension.Extension) int {
+	set := migrationSet(exts)
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprintln(os.Stderr, migrateUsage) }
 	status := fs.Bool("status", false, "")
@@ -89,7 +90,7 @@ func runMigrateCommand(args []string, set migrations.Set) int {
 	}
 
 	fmt.Println(buildinfo.String())
-	if err := migrateDatabase(ctx, database, set, *initSchema, func(f string, a ...any) { fmt.Printf(f+"\n", a...) }); err != nil {
+	if err := migrateDatabase(ctx, database, exts, *initSchema, func(f string, a ...any) { fmt.Printf(f+"\n", a...) }); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
@@ -101,7 +102,8 @@ func runMigrateCommand(args []string, set migrations.Set) int {
 // asked, apply every pending migration file, then check the database has
 // everything this build reads. The server runs it before listening when
 // MIGRATE_ON_START=true.
-func migrateDatabase(ctx context.Context, database *sql.DB, set migrations.Set, initSchema bool, logf func(string, ...any)) error {
+func migrateDatabase(ctx context.Context, database *sql.DB, exts []*extension.Extension, initSchema bool, logf func(string, ...any)) error {
+	set := migrationSet(exts)
 	if initSchema {
 		built, err := set.Init(ctx, database, logf)
 		if err != nil {
@@ -120,7 +122,10 @@ func migrateDatabase(ctx context.Context, database *sql.DB, set migrations.Set, 
 	} else {
 		logf("applied %d migration(s)", len(ran))
 	}
-	return operationrepo.VerifySchema(ctx, database)
+	if err := operationrepo.VerifySchema(ctx, database); err != nil {
+		return err
+	}
+	return checkProductSchema(ctx, database, exts)
 }
 
 func waitForDB(database *sql.DB, limit time.Duration) error {
@@ -178,4 +183,12 @@ func writeMigrationStatus(w io.Writer, entries []migrations.Entry) {
 	if unknown > 0 {
 		fmt.Fprintf(w, "%d recorded files are not part of this program\n", unknown)
 	}
+}
+
+// checkProductSchema follows platform verification at startup and after migrations.
+func checkProductSchema(ctx context.Context, database *sql.DB, exts []*extension.Extension) error {
+	if len(exts) == 1 && exts[0] != nil && exts[0].CheckSchema != nil {
+		return exts[0].CheckSchema(ctx, database)
+	}
+	return nil
 }

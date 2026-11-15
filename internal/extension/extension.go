@@ -3,6 +3,7 @@
 package extension
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 
@@ -22,8 +23,11 @@ import (
 )
 
 type Extension struct {
-	Name    string
-	Edition func(config.Limits) *edition.Edition
+	// CheckSchema runs after platform verification, before other database reads.
+	// It also runs after migration verification; nil adds no product checks.
+	CheckSchema func(context.Context, *sql.DB) error
+	Name        string
+	Edition     func(config.Limits) *edition.Edition
 	// Migrations and MigrationOrder supply the product catalogue and the frozen
 	// combined order of platform and product unnumbered migrations.
 	Migrations     *migrations.Catalog

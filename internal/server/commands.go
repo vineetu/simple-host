@@ -18,7 +18,7 @@ func commands(exts []*extension.Extension) []command {
 		{"move-site-base", runMoveSiteBaseCommand},
 		{"brain-build", runBrainBuild},
 		{"geoip-verify", geoipVerify},
-		{"migrate", func(args []string) int { return runMigrateCommand(args, set) }},
+		{"migrate", func(args []string) int { return runMigrateCommand(args, exts) }},
 		{"site-summary-backfill", runSiteSummaryBackfill},
 		{"api-growth-backfill", runAPIGrowthBackfill},
 		{"settings", runSettingsCommand},

@@ -106,7 +106,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 			return nil, fmt.Errorf("migrate on start: database not reachable: %v", err)
 		}
 		migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), 15*time.Minute)
-		migrateErr := migrateDatabase(migrateCtx, db, migrationSet(exts), true, log.Printf)
+		migrateErr := migrateDatabase(migrateCtx, db, exts, true, log.Printf)
 		cancelMigrate()
 		if migrateErr != nil {
 			return nil, fmt.Errorf("migrate on start: %v", migrateErr)
@@ -118,6 +118,9 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// looks like a 404 on every page rather than a deployment mistake.
 	if err := operationrepo.VerifySchema(context.Background(), db); err != nil {
 		return nil, fmt.Errorf("schema check: %v", err)
+	}
+	if err := checkProductSchema(context.Background(), db, exts); err != nil {
+		return nil, err
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
 	// registered, because the dashboard, the chrome and the host dispatch read it.
@@ -132,9 +135,6 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// always sees the originally configured address.
 	var hackInstanceURL string
 	if hosted {
-		if err := operationrepo.VerifyHackSchema(context.Background(), db); err != nil {
-			return nil, fmt.Errorf("schema check (EVENTS=hosted): %v", err)
-		}
 		hackInstanceURL = cfg.PublicBaseURL
 		log.Printf("hosted events: on (the hackathon platform at %s)", cfg.PublicBaseURL)
 	}

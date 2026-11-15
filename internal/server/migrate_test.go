@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/vsriram/simple-host/db/migrations"
 	"github.com/vsriram/simple-host/internal/extension"
+	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/testdb"
 )
 
@@ -92,7 +94,7 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	}
 	// Startup uses this same composed set and must tolerate recorded product
 	// files when it is subsequently run with only the platform catalogue.
-	if err := migrateDatabase(context.Background(), database, migrationSet(nil), true, t.Logf); err != nil {
+	if err := migrateDatabase(context.Background(), database, nil, true, t.Logf); err != nil {
 		t.Fatal(err)
 	}
 	if code := Run([]string{"migrate", "-mark", name}, nil); code != 1 {
@@ -101,7 +103,46 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	product.FS.(fstest.MapFS)["catalog-failure.sql"] = &fstest.MapFile{Data: []byte("SELECT no_such_catalog_function()")}
 	product.Legacy = append(product.Legacy, "catalog-failure.sql")
 	exts[0].MigrationOrder = append(exts[0].MigrationOrder, "catalog-failure.sql")
-	if err := migrateDatabase(context.Background(), database, migrationSet(exts), false, t.Logf); err == nil || !strings.Contains(err.Error(), "catalog-failure.sql") {
+	if err := migrateDatabase(context.Background(), database, exts, false, t.Logf); err == nil || !strings.Contains(err.Error(), "catalog-failure.sql") {
 		t.Fatalf("product failure = %v", err)
+	}
+}
+
+func TestMigrateSchemaCheck(t *testing.T) {
+	database, err := sql.Open("postgres", testdb.Fresh(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	ctx := context.Background()
+	for _, exts := range [][]*extension.Extension{nil, {nil}, {{Name: "no schema check"}}} {
+		if err := migrateDatabase(ctx, database, exts, true, t.Logf); err != nil {
+			t.Fatalf("nil hook: %v", err)
+		}
+	}
+	wantErr := errors.New("product schema missing")
+	calls := 0
+	exts := []*extension.Extension{{CheckSchema: func(ctx context.Context, db *sql.DB) error {
+		calls++
+		if db != database {
+			t.Fatal("product check received a different database")
+		}
+		if err := operationrepo.VerifySchema(ctx, db); err != nil {
+			t.Fatalf("product check ran before platform schema was ready: %v", err)
+		}
+		var migrationsRecorded int
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&migrationsRecorded); err != nil || migrationsRecorded == 0 {
+			t.Fatalf("product check ran before migrations: %d, %v", migrationsRecorded, err)
+		}
+		return wantErr
+	}}}
+	if err := migrateDatabase(ctx, database, exts, false, t.Logf); !errors.Is(err, wantErr) || calls != 1 {
+		t.Fatalf("product schema failure: %v, calls=%d", err, calls)
+	}
+	if _, err := database.Exec(`ALTER TABLE account_passwords DROP COLUMN login`); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrateDatabase(ctx, database, exts, false, t.Logf); err == nil || !strings.Contains(err.Error(), "account_passwords.login") || calls != 1 {
+		t.Fatalf("platform check must fail before product check: err=%v, calls=%d", err, calls)
 	}
 }

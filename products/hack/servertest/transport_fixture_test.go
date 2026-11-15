@@ -35,7 +35,6 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
-	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/products/hack"
@@ -43,6 +42,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
+	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -620,7 +620,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	if err := database.Ping(); err != nil {
 		t.Skipf("postgres not reachable: %v", err)
 	}
-	if err := operationrepo.VerifyHackSchema(context.Background(), database); err != nil {
+	if err := hackdb.VerifyHackSchema(context.Background(), database); err != nil {
 		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	disk, err := storage.NewDiskStorage(t.TempDir())

@@ -24,7 +24,10 @@ are outside this local SQLite contract; see
 
 SQL belongs to the area repositories; the retired `internal/db` compatibility
 package has no remaining callers. Startup schema verification lives in
-`internal/repository/operations/schemacheck.go`. See the [package contract](target.md).
+`internal/repository/operations/schemacheck.go` for platform columns and
+`products/hack/db/schemacheck.go` for Hack columns and its team-name index.
+`Extension.CheckSchema` runs after the platform check at startup and after migrations;
+without a product hook only the platform schema is required. See the [package contract](target.md).
 
 The pinned CGO-free `ncruces/go-sqlite3` driver uses compiled Go translated from
 its SQLite WebAssembly build. It needs neither runtime code generation nor
