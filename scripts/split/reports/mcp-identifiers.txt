@@ -1,0 +1,174 @@
+# MCP identifiers (go/types; production files only)
+# Regenerate: go run ./scripts/split/mcpidentifiers > scripts/split/reports/mcp-identifiers.txt
+
+## Platform identifiers used by Hack files
+APIHost | contribution.go | field APIHost string
+APIHost | server.go | field APIHost string
+APIKey | server.go | field APIKey string
+Annotations | tools.go | field Annotations map[string]any
+AppContext | contribution.go | type mcp.AppContext struct{APIHost string; Fixed bool; Meta func(mcp.AppScreen) map[string]any}
+AppContribution | contribution.go | type mcp.AppContribution struct{Screens func(mcp.Caller) []mcp.AppScreen; Resources func(mcp.Caller, bool) []map[string]any; Gate func(mcp.Caller, bool) bool; Read func(mcp.Request, mcp.Caller, bool) (mcp.Response, bool); AppFamily func(base []mcp.Tool) mcp.FamilyTools}
+AppName | server.go | field AppName string
+AppScreen | declare.go | type mcp.AppScreen = mcp.appScreen
+Apps | contribution.go | field Apps func(mcp.AppContext) mcp.AppContribution
+CSP | apps.go | field CSP map[string][]string
+Caller | server.go | type mcp.Caller struct{Handle string; APIKey string; DeployOnly bool; Owner string; MintUpload func(ctx context.Context, team bool) (key string, revoke func(), err error); MintPhoto func(ctx context.Context, team bool) (key string, revoke func(), err error); CredentialExpiresAt time.Time; Mode string; TeamAPIKey string; GrantID string; UserID string; OAuthGrantID string; AppName string}
+CallerModeEvents | server.go | const mcp.CallerModeEvents untyped string
+CallerModeHackSite | server.go | const mcp.CallerModeHackSite untyped string
+Config | server.go | type mcp.Config struct{Contribution *mcp.Contribution; Limits *mcp.Limits; VisitorTool func(*http.Request, mcp.Caller, string, map[string]any) (map[string]any, error); VisitorRefs *mcp.VisitorReferences; ValidateImportNames bool; ImportLinkTTL time.Duration; ImportCreated func(mcp.ImportLink) error; ImportReceiving func(string); ImportReport func(owner string, id string) (map[string]any, error); Upstream http.Handler; APIHost string; ContentOrigin string; SiteBases []string; SkillVersion string; ServerName string; Version string; AnalyticsProjectID string; AnalyticsEnv string; AnalyticsPepper string; SupportContact string; MaxBodyBytes int64; SelectHackTeam func(context.Context, mcp.Caller, string) error; NoSpamCheck bool; SelfHosted bool; Rewrite func(string) string; Events mcp.EventsBackend; MutationResultHook func(ctx context.Context, method string, path string, status int)}
+Contribution | contribution.go | type mcp.Contribution struct{Families []mcp.FamilyTools; Notifications []mcp.Tool; SiteVariants map[string]func(mcp.Tool, mcp.Limits) mcp.Tool; Instructions func(mode string) string; Rewrite func(text string, apiHost string) string; StorageError func(message string) string; NoTarget func(tool string, listable bool) (text string, structured map[string]any, isError bool); Apps func(mcp.AppContext) mcp.AppContribution}
+Contribution | server.go | field Contribution *mcp.Contribution
+DefaultLimits | limits.go | func mcp.DefaultLimits() mcp.Limits
+DeletedRetention | limits.go | field DeletedRetention time.Duration
+Description | tools.go | field Description string
+EventStorageTools | declare.go | func mcp.EventStorageTools(ownerSentence string, photoWording func(string) string) []mcp.Tool
+Events | server.go | field Events mcp.EventsBackend
+Families | contribution.go | field Families []mcp.FamilyTools
+Family | registry.go | field Family mcp.toolFamily
+Fixed | contribution.go | field Fixed bool
+Flag | apps.go | field Flag string
+Gate | contribution.go | field Gate func(mcp.Caller, bool) bool
+GrantID | server.go | field GrantID string
+HTML | apps.go | field HTML string
+Handle | server.go | field Handle string
+ID | apps.go | field ID string
+ID | jsonrpc.go | field ID json.RawMessage
+InputSchema | tools.go | field InputSchema map[string]any
+Instructions | contribution.go | field Instructions func(mode string) string
+InventoryTool | registry.go | type mcp.InventoryTool struct{Name string; Family string; Edition string; Listed bool; Hidden bool; Title string; Description string; InputSchema map[string]any}
+Label | apps.go | field Label string
+Limits | limits.go | type mcp.Limits struct{SiteViewersMax int; DeletedRetention time.Duration; PreviewLinkTTL time.Duration; ExportLinkTTL time.Duration; IdleAfter time.Duration; IdleGrace time.Duration; DomainUnprovenTTL time.Duration; DomainLapseWarnAfter time.Duration; DomainLapseAfter time.Duration; UndoDays time.Duration; FamilyUnprovenTTL time.Duration}
+Limits | server.go | field Limits *mcp.Limits
+MaxBodyBytes | server.go | field MaxBodyBytes int64
+Meta | call.go | field Meta map[string]any
+Meta | contribution.go | field Meta func(mcp.AppScreen) map[string]any
+Meta | tools.go | field Meta map[string]any
+Mode | server.go | field Mode string
+Name | tools.go | field Name string
+NoTarget | contribution.go | field NoTarget func(tool string, listable bool) (text string, structured map[string]any, isError bool)
+Notifications | contribution.go | field Notifications []mcp.Tool
+OutputSchema | tools.go | field OutputSchema map[string]any
+Owner | server.go | field Owner string
+PageRecipe | recipes.go | func mcp.PageRecipe(topic string, site string) (string, error)
+Params | jsonrpc.go | field Params json.RawMessage
+Permissions | apps.go | field Permissions map[string]any
+Read | contribution.go | field Read func(mcp.Request, mcp.Caller, bool) (mcp.Response, bool)
+Request | declare.go | type mcp.Request = mcp.request
+Resources | contribution.go | field Resources func(mcp.Caller, bool) []map[string]any
+Response | declare.go | type mcp.Response = mcp.response
+Rewrite | contribution.go | field Rewrite func(text string, apiHost string) string
+Screens | contribution.go | field Screens func(mcp.Caller) []mcp.AppScreen
+SelectHackTeam | server.go | field SelectHackTeam func(context.Context, mcp.Caller, string) error
+Server | server.go | type mcp.Server struct{registry *mcp.toolRegistry; policies map[string]mcp.toolPolicy; passcodeSessions mcp.passcodeSessionStore; importMu sync.Mutex; imports map[[32]byte]mcp.ImportLink; uploadMu sync.Mutex; uploads map[[32]byte]mcp.uploadLink; clientUI mcp.clientUIMemory; cfg mcp.Config; tools []mcp.Tool; byName map[string]mcp.Tool; analytics *mcp.analyticsSender; preOutputSchemaTools []mcp.Tool; coreTools []mcp.Tool; deployByName map[string]mcp.Tool; search *mcp.toolSearch; deploySearch *mcp.toolSearch; hackTools []mcp.Tool; hackByName map[string]mcp.Tool; hackBare []mcp.Tool; hackSiteTools []mcp.Tool; hackSiteBare []mcp.Tool; hackSiteByName map[string]mcp.Tool; apps mcp.AppContribution; fixed *mcp.inventory}
+SiteVariants | contribution.go | field SiteVariants map[string]func(mcp.Tool, mcp.Limits) mcp.Tool
+StorageError | contribution.go | field StorageError func(message string) string
+Structured | call.go | field Structured map[string]any
+TeamAPIKey | server.go | field TeamAPIKey string
+Text | call.go | field Text string
+Title | tools.go | field Title string
+Tool | tools.go | type mcp.Tool struct{Meta map[string]any "json:\"_meta,omitempty\""; Name string "json:\"name\""; Title string "json:\"title,omitempty\""; Description string "json:\"description\""; InputSchema map[string]any "json:\"inputSchema\""; OutputSchema map[string]any "json:\"outputSchema,omitempty\""; Annotations map[string]any "json:\"annotations,omitempty\""; policy mcp.toolPolicy; run func(c *mcp.call, args map[string]any) (mcp.output, error)}
+Tools | registry.go | field Tools []mcp.Tool
+URI | apps.go | field URI string
+UserID | server.go | field UserID string
+addFamilies | registry.go | func (*mcp.toolRegistry).addFamilies(edition mcp.toolEdition, families []mcp.familyTools, rewrite func([]mcp.Tool) []mcp.Tool)
+analytics | registry.go | field analytics mcp.analyticsPolicy
+analyticsPolicy | analytics_sanitize.go | type mcp.analyticsPolicy struct{redactAll bool; secretText bool; secretKey bool; secretHow bool; secretURL bool; structuredText bool; emailChanges bool; emailIdentity bool; contactEmail bool; fileResult bool; pageText bool; applicationAnswers bool; fileArguments bool; edits bool; fileData bool; fileContentSize bool}
+anyJSON | outputs.go | func mcp.anyJSON(description string) map[string]any
+appFiles | apps.go | var mcp.appFiles embed.FS
+appFlag | apps.go | func mcp.appFlag(value string, handle string) bool
+appMIME | apps.go | const mcp.appMIME untyped string
+appMeta | apps.go | func (*mcp.Server).appMeta(screen mcp.appScreen) map[string]any
+appScreen | apps.go | type mcp.appScreen struct{ID string; Flag string; URI string; Label string; HTML string; CSP map[string][]string; Permissions map[string]any}
+applicationAnswers | analytics_sanitize.go | field applicationAnswers bool
+archiveUploadDescription | uploads.go | const mcp.archiveUploadDescription untyped string
+body | call.go | field body []byte
+buildRegistry | registry.go | func mcp.buildRegistry(cfg mcp.Config) *mcp.toolRegistry
+call | call.go | type mcp.call struct{server *mcp.Server; policy mcp.toolPolicy; orig *http.Request; caller mcp.Caller; handle string; textOnlyClient bool; uiClient bool; wrapped bool}
+caller | call.go | field caller mcp.Caller
+cfg | server.go | field cfg mcp.Config
+codeInternalError | jsonrpc.go | const mcp.codeInternalError untyped int
+codeInvalidParams | jsonrpc.go | const mcp.codeInvalidParams untyped int
+connectorHidden | registry.go | field connectorHidden bool
+declaredTools | registry.go | func (*mcp.toolRegistry).declaredTools(edition mcp.toolEdition) []mcp.Tool
+deployPhotoTip | site_tools.go | const mcp.deployPhotoTip untyped string
+do | call.go | func (*mcp.call).do(method string, path string, body []byte, extra map[string]string) mcp.upstreamResult
+editionHack | registry.go | const mcp.editionHack mcp.toolEdition
+failure | jsonrpc.go | func mcp.failure(id json.RawMessage, code int, message string, data any) mcp.response
+famHackAppOnly | registry.go | const mcp.famHackAppOnly mcp.toolFamily
+famHackEntries | registry.go | const mcp.famHackEntries mcp.toolFamily
+famHackEvents | registry.go | const mcp.famHackEvents mcp.toolFamily
+famSites | registry.go | const mcp.famSites mcp.toolFamily
+famStorage | registry.go | const mcp.famStorage mcp.toolFamily
+familyTools | registry.go | type mcp.familyTools struct{Family mcp.toolFamily; Tools []mcp.Tool}
+fileArguments | analytics_sanitize.go | field fileArguments bool
+fileResult | analytics_sanitize.go | field fileResult bool
+filesBase64Schema | site_tools.go | func mcp.filesBase64Schema() map[string]any
+fixed | server.go | field fixed *mcp.inventory
+flatListApp | instructions.go | func mcp.flatListApp(appName string) bool
+header | call.go | field header http.Header
+includeEmails | registry.go | field includeEmails bool
+inventory | brain.go | type mcp.inventory struct{tools []mcp.Tool; bare []mcp.Tool; byName map[string]mcp.Tool; instructions string; title string}
+inventoryEvents | registry.go | type mcp.inventoryEvents struct{mcp.EventsBackend}
+inventoryTools | registry.go | func mcp.inventoryTools(cfg mcp.Config) []mcp.InventoryTool
+jsonText | call.go | func mcp.jsonText(v any) string
+judgeParameter | registry.go | field judgeParameter bool
+memberResult | registry.go | field memberResult string
+newServer | server.go | func mcp.newServer(cfg mcp.Config) *mcp.Server
+noArgs | args.go | func mcp.noArgs() map[string]any
+notificationID | registry.go | field notificationID bool
+notificationTools | notification_tools.go | func mcp.notificationTools() []mcp.Tool
+object | args.go | func mcp.object(properties map[string]any, required ...string) map[string]any
+ok | call.go | func (mcp.upstreamResult).ok() bool
+optionalBody | registry.go | field optionalBody bool
+optionalString | args.go | func mcp.optionalString(args map[string]any, key string) (string, error)
+organiserResult | registry.go | field organiserResult string
+orig | call.go | field orig *http.Request
+outArray | outputs.go | func mcp.outArray(description string, items map[string]any) map[string]any
+outBool | outputs.go | func mcp.outBool(description string) map[string]any
+outInteger | outputs.go | func mcp.outInteger(description string) map[string]any
+outObject | outputs.go | func mcp.outObject(properties map[string]any, required ...string) map[string]any
+outString | outputs.go | func mcp.outString(description string) map[string]any
+output | call.go | type mcp.output struct{Meta map[string]any; Text string; Structured map[string]any}
+pageRecipeTool | recipes.go | func mcp.pageRecipeTool() mcp.Tool
+policy | call.go | field policy mcp.toolPolicy
+policy | tools.go | field policy mcp.toolPolicy
+readOnly | args.go | func mcp.readOnly() map[string]any
+readRecipe | recipes.go | func mcp.readRecipe(topic string) ([]byte, error)
+recipeTopics | recipes.go | var mcp.recipeTopics []string
+recordsPins | registry.go | field recordsPins bool
+request | jsonrpc.go | type mcp.request struct{JSONRPC string "json:\"jsonrpc\""; ID json.RawMessage "json:\"id,omitempty\""; Method string "json:\"method\""; Params json.RawMessage "json:\"params,omitempty\""}
+response | jsonrpc.go | type mcp.response struct{JSONRPC string "json:\"jsonrpc\""; ID json.RawMessage "json:\"id\""; Result any "json:\"result,omitempty\""; Error *mcp.rpcError "json:\"error,omitempty\""}
+restError | call.go | func mcp.restError(tool string, u mcp.upstreamResult) error
+result | jsonrpc.go | func mcp.result(id json.RawMessage, value any) mcp.response
+run | tools.go | field run func(c *mcp.call, args map[string]any) (mcp.output, error)
+screen | registry.go | field screen string
+screenshot | registry.go | field screenshot bool
+secretKey | analytics_sanitize.go | field secretKey bool
+secretText | analytics_sanitize.go | field secretText bool
+secretURL | analytics_sanitize.go | field secretURL bool
+server | call.go | field server *mcp.Server
+showAllowed | registry.go | field showAllowed func(mcp.Caller, bool) bool
+span | limits.go | func mcp.span(d time.Duration) string
+status | call.go | field status int
+storageGalleryLookalike | storage_tools.go | const mcp.storageGalleryLookalike untyped string
+storageOwnerPhotos | storage_tools.go | const mcp.storageOwnerPhotos untyped string
+storageOwnerSentence | storage_tools.go | const mcp.storageOwnerSentence untyped string
+storageRulesEnabled | storage_rules.go | func mcp.storageRulesEnabled() bool
+storageRulesInstructions | storage_rules.go | const mcp.storageRulesInstructions untyped string
+str | args.go | func mcp.str(description string) map[string]any
+stringArg | args.go | func mcp.stringArg(args map[string]any, key string) (string, error)
+stringMap | args.go | func mcp.stringMap(args map[string]any, key string) (map[string]string, error)
+toolPolicy | registry.go | type mcp.toolPolicy struct{memberResult string; organiserResult string; visitorResult string; accessResult string; passcodeResult string; storageResource bool; visitorParams bool; pagedStorage bool; judgeParameter bool; includeEmails bool; recordsPins bool; screenshot bool; optionalBody bool; hackSiteExcluded bool; personalExcluded bool; connectorHidden bool; notDeployOnly bool; unlisted bool; notSearchable bool; listWithPasscode bool; personalCredential bool; listWithoutTeam bool; preserveNumbers bool; screenOnly bool; unwrap bool; discovery bool; notificationID bool; screen string; showAllowed func(mcp.Caller, bool) bool; flatList func(mcp.Tool) mcp.Tool; analytics mcp.analyticsPolicy; hackSite func(mcp.Tool, mcp.Limits) mcp.Tool; noSpamCheck func(mcp.Tool) mcp.Tool}
+toolRegistry | registry.go | type mcp.toolRegistry struct{entries []mcp.toolEntry}
+uiClient | call.go | field uiClient bool
+upstreamMessage | upstream_message.go | func mcp.upstreamMessage(u mcp.upstreamResult) (string, string)
+upstreamResult | call.go | type mcp.upstreamResult struct{status int; header http.Header; body []byte; resourceKind string}
+wholeNumber | args.go | func mcp.wholeNumber(args map[string]any, key string, required bool, min int, max int) (int, bool, error)
+withDescription | outputs.go | func mcp.withDescription(schema map[string]any, description string) map[string]any
+withToolPolicy | registry.go | func mcp.withToolPolicy(tool mcp.Tool, policy mcp.toolPolicy) mcp.Tool
+withoutSpamCheck | storage_tools.go | func mcp.withoutSpamCheck(tool mcp.Tool) mcp.Tool
+writes | args.go | func mcp.writes(destructive bool, idempotent bool, public bool) map[string]any
+
+## Hack identifiers used by platform files
+
+## Hack identifiers defined in a file not named for Hack

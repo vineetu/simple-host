@@ -22,7 +22,7 @@ func TestRegistryExportsPreserveDeclarations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var want []Tool
 			for _, family := range tc.families {
-				want = append(want, family.tools...)
+				want = append(want, family.Tools...)
 			}
 			gotJSON, err := json.Marshal(tc.got)
 			if err != nil {

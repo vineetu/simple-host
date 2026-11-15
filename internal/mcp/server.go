@@ -103,6 +103,10 @@ func callerFrom(ctx context.Context) (Caller, bool) {
 
 // Config wires the server to the application.
 type Config struct {
+	// Contribution is the product tool surface. Nil uses the transitional built-in contribution;
+	// a pointer to the zero value adds no product tools.
+	Contribution *Contribution
+
 	// Limits is the snapshot used for tool descriptions and results.
 	Limits *Limits
 
@@ -203,12 +207,13 @@ type Server struct {
 	hackSiteTools  []Tool
 	hackSiteBare   []Tool
 	hackSiteByName map[string]Tool
+	apps           AppContribution
 	// fixed is set on a server that is not the site connector (the owner's
 	// knowledge server): one tool set for every caller.
 	fixed *inventory
 }
 
-func NewServer(cfg Config) *Server {
+func newServer(cfg Config) *Server {
 	if cfg.MaxBodyBytes <= 0 {
 		cfg.MaxBodyBytes = 16 << 20
 	}
@@ -221,7 +226,7 @@ func NewServer(cfg Config) *Server {
 		l := *cfg.Limits
 		cfg.Limits = &l
 	}
-	r := newRegistry(cfg)
+	r := buildRegistry(cfg)
 	host := r.view(cfg, editionHost, false, false, false)
 	deploy := r.view(cfg, editionHost, false, false, true)
 	hack := r.view(cfg, editionHack, false, false, false)
@@ -237,16 +242,20 @@ func NewServer(cfg Config) *Server {
 	if cfg.AnalyticsProjectID != "" {
 		analytics = newAnalyticsSender(cfg)
 	}
-	return &Server{
+	s := &Server{
 		registry: r, policies: r.policyIndex(),
 		coreTools: core, deployByName: deploy.byName,
 		search: newToolSearch(host.tools), deploySearch: newToolSearch(deploy.tools),
 		analytics: analytics, cfg: cfg, tools: host.tools, byName: host.byName, preOutputSchemaTools: coreBare,
-		hackTools:     hackInstanceTools(hack.tools, cfg.APIHost),
-		hackByName:    hackInstanceToolMap(hack.byName, cfg.APIHost),
-		hackBare:      hackInstanceTools(hack.bare, cfg.APIHost),
+		hackTools:     productInstanceTools(hack.tools, cfg.APIHost, cfg.Contribution.Rewrite),
+		hackByName:    productInstanceToolMap(hack.byName, cfg.APIHost, cfg.Contribution.Rewrite),
+		hackBare:      productInstanceTools(hack.bare, cfg.APIHost, cfg.Contribution.Rewrite),
 		hackSiteTools: site.tools, hackSiteBare: site.bare, hackSiteByName: site.byName,
 	}
+	if factory := cfg.Contribution.Apps; factory != nil {
+		s.apps = factory(AppContext{APIHost: cfg.APIHost, Fixed: s.fixed != nil, Meta: s.appMeta})
+	}
+	return s
 }
 
 // ListedTools returns the tool list a normal signed-in Host connector session
@@ -326,7 +335,7 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			full = appToolMetadata(full, screens)
 			bare = appToolMetadata(bare, screens)
 		}
-		hackScreens := s.hackEnabledScreens(caller)
+		hackScreens := s.productScreens(caller)
 		if len(hackScreens) > 0 {
 			full = appToolMetadata(full, hackScreens)
 			bare = appToolMetadata(bare, hackScreens)
@@ -377,11 +386,10 @@ func (s *Server) instructionsFor(caller Caller) string {
 	if s.fixed != nil {
 		return s.fixed.instructions
 	}
-	if caller.Mode == CallerModeEvents {
-		return s.hackInstanceInstructions(HackInstructions())
-	}
-	if caller.Mode == CallerModeHackSite {
-		return s.hackInstanceInstructions(HackSiteInstructions())
+	if instructions := s.cfg.Contribution.Instructions; instructions != nil {
+		if text := instructions(caller.Mode); text != "" {
+			return s.productInstructions(text)
+		}
 	}
 	text := Instructions()
 	if flatListApp(caller.AppName) {
@@ -403,58 +411,40 @@ func (s *Server) hostInstructions(text string) string {
 	return text
 }
 
-func (s *Server) hackInstanceInstructions(text string) string {
-	return hackInstanceReplace(text, s.cfg.APIHost)
-}
-
-// hackInstanceReplace is hackInstanceInstructions' one-line replace, shared
-// with hackInstanceTools/hackInstanceToolMap below. On simple-hack.app
-// itself cfg.APIHost is "simple-hack.app" too, so this is an identity
-// replace there -- same as hackInstanceInstructions already relied on for
-// the top-level instructions text; a self-hosted instance's own APIHost
-// makes it a real substitution.
-func hackInstanceReplace(text, apiHost string) string {
-	if apiHost != "" {
-		text = strings.ReplaceAll(text, "simple-hack.app", apiHost)
+func (s *Server) productInstructions(text string) string {
+	if s.cfg.Contribution != nil && s.cfg.Contribution.Rewrite != nil {
+		rewrite := s.cfg.Contribution.Rewrite
+		return rewrite(text, s.cfg.APIHost)
 	}
 	return text
 }
 
-// hackInstanceTools applies hackInstanceReplace to every tool's text, once,
-// at construction (apiHost: cfg.APIHost). Unlike the Host edition's
-// instanceTools (basetext.go), the Hack tool set
-// (hackTools/hackBare/hackSiteTools/...) is served with zero rewriting today
-// -- CallerModeEvents returns s.hackTools straight from the registry
-// (forCaller), with no per-request pass -- so this has to run once in
-// NewServer instead. Only hack_apply_to_event's description currently names
-// simple-hack.app (the one hardcoded hosted URL in the whole MCP surface,
-// SIM connect-mcp audit item 25); this is the general-purpose fix so the
-// next one is caught the same way the instructions text already is.
-func hackInstanceTools(tools []Tool, apiHost string) []Tool {
-	if apiHost == "" {
+// productInstanceTools applies a product's text rewrite once at construction.
+func productInstanceTools(tools []Tool, apiHost string, rewrite func(string, string) string) []Tool {
+	if apiHost == "" || rewrite == nil {
 		return tools
 	}
 	out := make([]Tool, len(tools))
 	for i, t := range tools {
-		t.Title = hackInstanceReplace(t.Title, apiHost)
-		t.Description = hackInstanceReplace(t.Description, apiHost)
-		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
-		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
+		t.Title = rewrite(t.Title, apiHost)
+		t.Description = rewrite(t.Description, apiHost)
+		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return rewrite(s, apiHost) })
+		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return rewrite(s, apiHost) })
 		out[i] = t
 	}
 	return out
 }
 
-func hackInstanceToolMap(m map[string]Tool, apiHost string) map[string]Tool {
-	if apiHost == "" {
+func productInstanceToolMap(m map[string]Tool, apiHost string, rewrite func(string, string) string) map[string]Tool {
+	if apiHost == "" || rewrite == nil {
 		return m
 	}
 	out := make(map[string]Tool, len(m))
 	for name, t := range m {
-		t.Title = hackInstanceReplace(t.Title, apiHost)
-		t.Description = hackInstanceReplace(t.Description, apiHost)
-		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
-		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
+		t.Title = rewrite(t.Title, apiHost)
+		t.Description = rewrite(t.Description, apiHost)
+		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return rewrite(s, apiHost) })
+		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return rewrite(s, apiHost) })
 		out[name] = t
 	}
 	return out
@@ -723,8 +713,8 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 
 	case "tools/list":
 		full, bare, _ := s.forCaller(caller)
-		hackShowAllowed := s.hackShowToolsAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-		full, bare = filterHackShowTools(full, hackShowAllowed), filterHackShowTools(bare, hackShowAllowed)
+		hackShowAllowed := s.showToolsAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		full, bare = filterShowTools(full, hackShowAllowed), filterShowTools(bare, hackShowAllowed)
 		if modern {
 			return result(req.ID, s.withMeta(map[string]any{
 				"resultType": "complete",
@@ -746,9 +736,9 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	// the declared capabilities; an empty list is the true answer and keeps
 	// them from treating the connector as broken.
 	case "resources/list":
-		hackResourceAllowed := s.hackAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-		payload := map[string]any{"resources": append(s.appResources(caller), s.hackAppResources(caller, hackResourceAllowed)...)}
-		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.hackEnabledScreens(caller)) > 0)) {
+		hackResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		payload := map[string]any{"resources": append(s.appResources(caller), s.productAppResources(caller, hackResourceAllowed)...)}
+		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.productScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
 			payload["ttlMs"] = cacheTTLMillis
 			payload["cacheScope"] = "private"
@@ -757,8 +747,12 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	case "resources/read":
 		reply := s.readApp(req, caller)
 		if reply.Error != nil {
-			hackResourceAllowed := s.hackAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-			reply = s.readHackApp(req, caller, hackResourceAllowed)
+			hackResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+			if read := s.apps.Read; read != nil {
+				if productReply, handled := read(req, caller, hackResourceAllowed); handled {
+					reply = productReply
+				}
+			}
 		}
 		if modern && reply.Error == nil {
 			payload := reply.Result.(map[string]any)
@@ -768,9 +762,9 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		}
 		return reply
 	case "resources/templates/list":
-		hackResourceAllowed := s.hackAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		hackResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		payload := map[string]any{"resourceTemplates": []any{}}
-		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.hackEnabledScreens(caller)) > 0)) {
+		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.productScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
 			payload["ttlMs"] = cacheTTLMillis
 			payload["cacheScope"] = "private"
@@ -955,12 +949,18 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			// My sites can read the person's event websites through the existing
 			// hack_* tools without a team. Return no team data and never replay
 			// this request with the person's credential against /v1/sites.
-			if tool.policy.listWithoutTeam && s.mySitesEnabled(caller) {
+			listable := tool.policy.listWithoutTeam && s.mySitesEnabled(caller)
+			text, structured, isError := "No target selected.", map[string]any(nil), true
+			if s.cfg.Contribution != nil && s.cfg.Contribution.NoTarget != nil {
+				noTarget := s.cfg.Contribution.NoTarget
+				text, structured, isError = noTarget(params.Name, listable)
+			}
+			if listable && s.cfg.Contribution != nil && s.cfg.Contribution.NoTarget != nil {
 				record(nil)
-				return toolResult(req.ID, "No team selected. Call hack_get_my_teams to choose a team, or hack_list_events for your event websites.", map[string]any{"sites": []any{}, "count": 0}, false, modern)
+				return toolResult(req.ID, text, structured, isError, modern)
 			}
 			record(errors.New("no team selected"))
-			return toolResult(req.ID, "Choose a team with hack_select_team before publishing its site.", nil, true, modern)
+			return toolResult(req.ID, text, structured, isError, modern)
 		}
 		caller.APIKey = caller.TeamAPIKey
 	}
@@ -995,7 +995,10 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		// error that ends the turn.
 		message := err.Error()
 		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
-			message = hackStorageErrorMessage(message)
+			if s.cfg.Contribution != nil && s.cfg.Contribution.StorageError != nil {
+				rewrite := s.cfg.Contribution.StorageError
+				message = rewrite(message)
+			}
 		} else if s.fixed == nil {
 			var refusal *refusalError
 			if errors.As(err, &refusal) && (refusal.code == "key_expired" || refusal.code == "key_expired_idle" || refusal.code == "invalid_api_key" || refusal.status == http.StatusUnauthorized) {
@@ -1039,16 +1042,6 @@ func retiredSavedDataTool(name string) bool {
 		return true
 	}
 	return false
-}
-
-// Shared Host refusal hints are written for the owner's own connector. Keep
-// the actual REST refusal and code; Hack callers reconnect in the app.
-func hackStorageErrorMessage(message string) string {
-	if strings.Contains(message, "[key_expired]") || strings.Contains(message, "[key_expired_idle]") {
-		first, _, _ := strings.Cut(message, "\n")
-		return first + "\nReconnect the Simple Hack connector in the app; do not share a key in chat."
-	}
-	return message
 }
 
 // unexpectedArgument refuses an argument the tool's schema does not declare.

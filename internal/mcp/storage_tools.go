@@ -13,14 +13,10 @@ import (
 // These tools run as the site owner through the caller's existing credential;
 // visitor access remains on the site's own origin through REST.
 func storageTools() []Tool {
-	return storageToolsFor(false)
+	return storageToolsFor(false, "", nil)
 }
 
-func eventStorageTools() []Tool {
-	return storageToolsFor(true)
-}
-
-func storageToolsFor(event bool) []Tool {
+func storageToolsFor(event bool, ownerSentence string, photoWording func(string) string) []Tool {
 	type route struct {
 		name, title, description, method, suffix string
 		args                                     []string
@@ -31,8 +27,7 @@ func storageToolsFor(event bool) []Tool {
 	routes := []route{
 		{name: "storage_list_resources", title: "List storage resources", description: "List a site's saved-data resources (KV, SQLite, files) with each one's name, kind, preset, and access (who may read, add, edit, and delete), plus each SQLite table's own preset. preset legacy marks a resource saved before presets that keeps its old rules until you set a preset on it. Call it before reading or changing saved data, to get the exact resource name. It does not list a files resource's uploads: storage_list_file_objects does (through run_tool if it is not in your tool list).", method: "GET", suffix: "/resources", args: nil, body: "", annotation: readOnly()},
 		{name: "storage_get_usage", title: "Read site storage usage", description: "Show how much of a site's saved-data allowance is used: on Simple Host, KV and SQLite together (10,000,000 bytes) and files separately (10 MB); on Simple Hack, one 1,000,000-byte pool for all three. The site's own pages and images are counted elsewhere (list_sites).", method: "GET", suffix: "/usage", args: nil, body: "", annotation: readOnly()},
-		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck,
-			hackSite: hackSiteStorageSetResource},
+		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck},
 			name: "storage_set_resource", title: "Create a storage resource or set its preset", description: storageSetResourceDescription, method: "PUT", suffix: "/resources/{name}", args: []string{"name"}, body: "resource", annotation: writes(true, true, true)},
 		{name: "storage_delete_resource", title: "Delete storage resource", description: "Remove a resource and everything saved in it, for good. Ask the person to confirm this exact resource first.", method: "DELETE", suffix: "/resources/{name}", args: []string{"name"}, body: "", annotation: writes(true, true, true)},
 		{policy: toolPolicy{pagedStorage: true, visitorResult: "items"}, name: "storage_list_kv_keys", title: "List KV keys", description: "List the keys in a KV resource, optionally only those starting with a prefix.", method: "GET", suffix: "/kv/{name}/keys", args: []string{"name"}, body: "", annotation: readOnly()},
@@ -41,8 +36,7 @@ func storageToolsFor(event bool) []Tool {
 		{name: "storage_delete_kv", title: "Delete KV value", description: "Delete one key and its value from a KV resource. Ask first.", method: "DELETE", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "", annotation: writes(true, true, true)},
 		{policy: toolPolicy{visitorParams: true, visitorResult: "rows"}, name: "storage_sql_query", title: "Query SQLite resource", description: "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders; on Simple Host, visitor_id values from results can be passed back as parameters. Use it to show the person their orders, entries, or messages. " + sqlNoPragmaHint, method: "POST", suffix: "/sqlite/{name}/query", args: []string{"name"}, body: "sql", annotation: readOnly()},
 		{policy: toolPolicy{visitorParams: true}, name: "storage_sql_execute", title: "Execute SQLite statement", description: "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status; on Simple Host, visitor_id values from results can be passed back as parameters. Ask before changing or deleting what visitors sent. Repeating a successful statement can add duplicate rows or apply a change again, so query the affected records before retrying after an uncertain result. " + sqlNoPragmaHint, method: "POST", suffix: "/sqlite/{name}/execute", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
-		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck,
-			hackSite: hackSiteStorageSqlSchema},
+		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck},
 			name: "storage_sql_schema", title: "Change SQLite schema", description: "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema with " + sqlSchemaIntrospectionHint + " (no PRAGMA) before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, comments, records, personal, board) the server adds an indexed visitor_id column itself" + storageSchemaCommentsText + ". A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.", method: "POST", suffix: "/sqlite/{name}/schema", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
 		{policy: toolPolicy{pagedStorage: true, visitorResult: "items"}, name: "storage_list_file_objects", title: "List stored files", description: "List the files in a files resource, optionally only those under a path prefix.", method: "GET", suffix: "/files/{name}/objects", args: []string{"name"}, body: "", annotation: readOnly()},
 		{policy: toolPolicy{analytics: analyticsPolicy{fileData: true}},
@@ -65,8 +59,8 @@ func storageToolsFor(event bool) []Tool {
 			r.title = "Event website: " + r.title
 			r.description = strings.ReplaceAll(r.description, "storage_", "hack_event_storage_")
 			r.description = strings.ReplaceAll(r.description, "get_page_recipe", "hack_get_page_recipe")
-			r.description = strings.Replace(r.description, storageOwnerSentence, hackEventOwnerSentence, 1)
-			r.description = hackPhotoWording(r.description)
+			r.description = strings.Replace(r.description, storageOwnerSentence, ownerSentence, 1)
+			r.description = photoWording(r.description)
 			r.description = strings.Replace(r.description, "; text written in the page itself is changed with update_site (edits), so read the page first", "", 1)
 			r.description += " Organiser only on this event's custom website."
 		}
@@ -406,15 +400,9 @@ const storageSetResourceDescription = "Create a saved-data resource on a site, o
 
 // Simple Hack has no photo picker, so its copies keep the files-gallery wording.
 const (
-	storageOwnerPhotos          = " (the owner's own photos go through create_upload_link instead)"
-	storageGalleryLookalike     = "photos the owner adds go through create_upload_link (a photo picker in the chat), photos visitors add are wall on files"
-	hackStorageGalleryLookalike = "a gallery you fill is public on files, one visitors add to is wall on files"
+	storageOwnerPhotos      = " (the owner's own photos go through create_upload_link instead)"
+	storageGalleryLookalike = "photos the owner adds go through create_upload_link (a photo picker in the chat), photos visitors add are wall on files"
 )
-
-func hackPhotoWording(description string) string {
-	description = strings.Replace(description, storageOwnerPhotos, ", a gallery you fill", 1)
-	return strings.Replace(description, storageGalleryLookalike, hackStorageGalleryLookalike, 1)
-}
 
 // The comments preset (add checked: the Turnstile spam check). Simple Hack
 // does not offer it (PARITY.md), so withoutSpamCheck takes these out of its
@@ -463,10 +451,6 @@ func withoutSpamCheck(tool Tool) Tool {
 // on Simple Hack the team or the event's organisers (owner decision
 // 2026-10-10).
 const storageOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means you: these tools, and you signed in on the site's own address through its sign-in box, where a page you write can act as an admin page (all orders, set a status). \"nobody\" keeps data to these tools only. "
-
-const hackTeamOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means the team: these tools with the selected team, and a team member signed in on the team site's own address with the email they use on Simple Hack, where a page can act as an admin page (all orders, set a status). That stops at the team's submission deadline, with the team's other changes; after it a member there is an ordinary visitor. \"nobody\" keeps data to these tools only. "
-
-const hackEventOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means the event's organisers: these hack_event_storage_* tools, and an organiser signed in on the event website's own address with the email they use on Simple Hack, where a page can act as an admin page (all questions, mark one answered). That stops when the event ends. \"nobody\" keeps data to these tools only. "
 
 func storageWhoSchema(description string, values ...string) map[string]any {
 	return map[string]any{"type": "string", "enum": values, "description": description}

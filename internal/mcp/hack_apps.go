@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 )
 
 // Simple Hack's own MCP Apps, extending the machinery in apps.go and
@@ -88,12 +87,16 @@ func (s *Server) hackEnabledScreens(c Caller) []appScreen {
 // allowed mirrors readHackApp's: resources/list must not even name a
 // resource a connection could not read (Grok security review, SIM-344).
 func (s *Server) hackAppResources(c Caller, allowed bool) []any {
+	return s.hackAppResourcesWithMeta(c, allowed, s.appMeta)
+}
+
+func (s *Server) hackAppResourcesWithMeta(c Caller, allowed bool, meta func(AppScreen) map[string]any) []any {
 	resources := []any{}
 	if !allowed {
 		return resources
 	}
 	for _, screen := range s.hackEnabledScreens(c) {
-		resources = append(resources, map[string]any{"uri": screen.URI, "name": screen.Label, "mimeType": appMIME, "_meta": s.appMeta(screen)})
+		resources = append(resources, map[string]any{"uri": screen.URI, "name": screen.Label, "mimeType": appMIME, "_meta": meta(screen)})
 	}
 	return resources
 }
@@ -128,6 +131,10 @@ func freshNonce() (string, error) {
 // checked separately, inside hackEnabledScreens, so one flag being off
 // never hides a screen whose own flag is on.
 func (s *Server) readHackApp(req request, caller Caller, allowed bool) response {
+	return s.readHackAppWithMeta(req, caller, allowed, s.appMeta)
+}
+
+func (s *Server) readHackAppWithMeta(req request, caller Caller, allowed bool, meta func(AppScreen) map[string]any) response {
 	if !allowed {
 		return failure(req.ID, codeInvalidParams, "resource not available", nil)
 	}
@@ -165,7 +172,7 @@ func (s *Server) readHackApp(req request, caller Caller, allowed bool) response 
 			"__VIEW__", asset(screen.ID+"-view.js"),
 		).Replace(asset(screen.HTML))
 		return result(req.ID, map[string]any{"contents": []any{map[string]any{
-			"uri": screen.URI, "mimeType": appMIME, "text": page, "_meta": s.appMeta(screen),
+			"uri": screen.URI, "mimeType": appMIME, "text": page, "_meta": meta(screen),
 		}}})
 	}
 	return failure(req.ID, codeInvalidParams, "resource not available", nil)
@@ -201,86 +208,9 @@ func (s *Server) hackShowJudgeAppAllowed(c Caller, uiCapable bool) bool {
 	return s.hackAppsGate(c, uiCapable) && appFlag(os.Getenv("MCP_APP_HACK_JUDGE"), c.Handle)
 }
 
-// uiDeclaredForListing reports whether this connection has declared MCP
-// Apps UI support, for gating hack_show_judge's presence in tools/list
-// (never its behaviour -- that stays c.uiClient, set at call time from
-// the same two sources). A modern (stateless) request carries its
-// capabilities on every call, including tools/list, since every modern
-// request's params._meta must carry io.modelcontextprotocol/
-// clientCapabilities (server.go's validateHeaders); an initialize-era
-// client only ever declares it once, in initialize, so clientUIMemory is
-// the only record of it by the time tools/list is asked.
-func (s *Server) uiDeclaredForListing(caller Caller, params json.RawMessage, modern bool) bool {
-	if modern {
-		var envelope struct {
-			Meta map[string]json.RawMessage `json:"_meta"`
-		}
-		if json.Unmarshal(params, &envelope) != nil {
-			return false
-		}
-		raw, present := envelope.Meta["io.modelcontextprotocol/clientCapabilities"]
-		if !present {
-			return false
-		}
-		var caps struct {
-			Extensions map[string]json.RawMessage `json:"extensions"`
-		}
-		if json.Unmarshal(raw, &caps) != nil {
-			return false
-		}
-		_, ui := caps.Extensions["io.modelcontextprotocol/ui"]
-		return ui
-	}
-	ui, known := s.clientUI.lookup(caller, time.Now())
-	return known && ui
-}
-
-// hackShowToolsAllowed computes, once per tools/list, whether each
-// hack_show_* tool AND every hack_app_* twin (hack_app_only_tools.go)
-// should appear in this connection's listing -- one entry per tool name,
-// each from that tool's (or that tool's app's) own *Allowed function (its
-// own flag on top of the shared hackAppsGate). A tool with no entry here
-// is left alone by filterHackShowTools below.
-//
-// The twins were originally listed unconditionally for every events
-// connection: `_meta.ui.visibility: ["app"]` only withholds a tool from
-// the model for a host that honours it, so a flagged-off, excluded-app-
-// name or non-UI connection could still see (and, since each twin's own
-// run() used to check only c.uiClient, call) one simply by asking for
-// tools/list (owner follow-up review, SIM-344 phase 2). Filtering them
-// here, the same way hack_show_judge/hack_show_organiser already are, is
-// the fix; hackAppOnlyTwin's own run() gate (hack_app_only_tools.go) is
-// the matching call-time half, so a tool hidden from listing is also
-// refused if called by name anyway.
-func (s *Server) hackShowToolsAllowed(c Caller, uiCapable bool) map[string]bool {
-	allowed := map[string]bool{}
-	for _, entry := range s.inventory() {
-		if entry.policy.showAllowed != nil {
-			allowed[entry.tool.Name] = entry.policy.showAllowed(s, c, uiCapable)
-		}
-	}
-	return allowed
-}
-
-// filterHackShowTools removes any hack_show_* tool from a tools/list
-// result whose own entry in allowed says this connection should not see
-// it. Every other tool is untouched, so an unrelated caller's listing is
-// unaffected byte for byte (TestHackAppsGatesAndUnchangedInventory's own
-// invariant extended to each new show tool).
-func filterHackShowTools(list []Tool, allowed map[string]bool) []Tool {
-	out := make([]Tool, 0, len(list))
-	for _, tool := range list {
-		if ok, named := allowed[tool.Name]; named && !ok {
-			continue
-		}
-		out = append(out, tool)
-	}
-	return out
-}
-
 func hackShowJudgeTool() Tool {
 	return Tool{
-		policy: toolPolicy{screen: "hack-judge", showAllowed: hackAppOnlyJudgeAllowed},
+		policy: toolPolicy{screen: "hack-judge", showAllowed: func(c Caller, ui bool) bool { return hackAppOnlyJudgeAllowed(&Server{}, c, ui) }},
 		Name:   "hack_show_judge",
 		Title:  "Show the judge view",
 		Description: "Open the judge app view in chat: invite (accept a judge invite, needs code), queue (My teams), score (one entry's scoring, optional team_id) or rubric. " +

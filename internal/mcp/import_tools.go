@@ -36,7 +36,7 @@ func importTools() []Tool {
 			Annotations: readOnly(), run: getImportReport,
 		},
 		{
-			policy: toolPolicy{screen: "photo-picker", flatList: flatUploadTool, analytics: analyticsPolicy{secretText: true, secretHow: true}, hackSite: hackSiteCreateUploadLink},
+			policy: toolPolicy{screen: "photo-picker", flatList: flatUploadTool, analytics: analyticsPolicy{secretText: true, secretHow: true}},
 			OutputSchema: outObject(map[string]any{
 				"photos_url": outString("Link to give the person to add photos."),
 				"folder":     outEnum("Photo folder.", "images/"),

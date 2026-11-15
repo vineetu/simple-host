@@ -9,3 +9,5 @@ func hackStorageTools() []Tool {
 	recipe.Name = "hack_get_page_recipe"
 	return append(tools, recipe)
 }
+
+func eventStorageTools() []Tool { return EventStorageTools(hackEventOwnerSentence, hackPhotoWording) }

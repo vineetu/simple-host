@@ -70,7 +70,7 @@ func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
 		tool.Description += ` Owner on a team site means a current approved teammate until the team's submission deadline, subject to stage and take-down checks; after that the teammate is an ordinary visitor.`
 	}
 	if caller.Mode == CallerModeHackSite || caller.Mode == CallerModeEvents || strings.HasPrefix(tool.Name, "hack_event_") {
-		tool.Description = hackInstanceReplace(tool.Description, s.cfg.APIHost)
+		tool.Description = s.productInstructions(tool.Description)
 	} else {
 		tool.Description = instanceText(addressText(tool.Description))
 	}

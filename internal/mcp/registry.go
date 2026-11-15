@@ -21,8 +21,8 @@ const (
 
 // familyTools is one family's tool declarations, in listing order.
 type familyTools struct {
-	family toolFamily
-	tools  []Tool
+	Family toolFamily
+	Tools  []Tool
 }
 
 // A basic build and the jobs people ask for most (SIM-187). 2026-10-27
@@ -53,7 +53,7 @@ type toolPolicy struct {
 	personalCredential, listWithoutTeam, preserveNumbers bool
 	screenOnly, unwrap, discovery, notificationID        bool
 	screen                                               string
-	showAllowed                                          hackAppOnlyAllowed
+	showAllowed                                          func(Caller, bool) bool
 	flatList                                             func(Tool) Tool
 	analytics                                            analyticsPolicy
 	hackSite                                             func(Tool, Limits) Tool
@@ -94,16 +94,16 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 	}
 }
 
-func newRegistry(cfg Config) *toolRegistry {
+func buildRegistry(cfg Config) *toolRegistry {
 	r := &toolRegistry{}
 	r.addFamilies(editionHost, hostFamilies(*cfg.Limits), func(tools []Tool) []Tool { return instanceTools(addressTools(tools)) })
 	if cfg.Events != nil {
 		r.add(editionHost, famNotifications, instanceTools(addressTools(notificationTools())))
 	}
 	r.add(editionHost, famDiscovery, instanceTools(discoveryTools()))
-	r.addFamilies(editionHack, hackFamilies(), addressTools)
+	r.addFamilies(editionHack, cfg.Contribution.Families, addressTools)
 	if cfg.Events != nil {
-		r.add(editionHack, famNotifications, hackNotificationTools())
+		r.add(editionHack, famNotifications, cfg.Contribution.Notifications)
 	}
 	r.add(editionScreen, famAccess, []Tool{passcodeScreenTool()})
 	for i := range r.entries {
@@ -150,8 +150,9 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, dep
 			continue
 		}
 		tool := entry.tool
-		if site && entry.policy.hackSite != nil {
-			tool = entry.policy.hackSite(tool, *cfg.Limits)
+		if site && cfg.Contribution != nil && cfg.Contribution.SiteVariants[tool.Name] != nil {
+			variant := cfg.Contribution.SiteVariants[tool.Name]
+			tool = variant(tool, *cfg.Limits)
 			tool.policy = entry.policy
 		}
 		v.byName[tool.Name] = tool
@@ -192,11 +193,11 @@ func (r *toolRegistry) policyIndex() map[string]toolPolicy {
 // A nil rewrite retains the declarations' original wording.
 func (r *toolRegistry) addFamilies(edition toolEdition, families []familyTools, rewrite func([]Tool) []Tool) {
 	for _, family := range families {
-		tools := family.tools
+		tools := family.Tools
 		if rewrite != nil {
 			tools = rewrite(tools)
 		}
-		r.add(edition, family.family, tools)
+		r.add(edition, family.Family, tools)
 	}
 }
 
@@ -224,9 +225,8 @@ type InventoryTool struct {
 
 // Inventory returns every registered tool with Events enabled. Listed describes
 // edition listing policy; caller-specific core and screen gates still apply.
-func Inventory() []InventoryTool {
-	limits := DefaultLimits()
-	r := newRegistry(Config{Limits: &limits, Events: inventoryEvents{}})
+func inventoryTools(cfg Config) []InventoryTool {
+	r := buildRegistry(cfg)
 	var out []InventoryTool
 	for _, entry := range r.entries {
 		edition := "host"

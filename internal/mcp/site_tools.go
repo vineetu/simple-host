@@ -189,7 +189,7 @@ func siteTools(limits Limits) []Tool {
 			run:         readSiteFiles,
 		},
 		{
-			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{fileArguments: true, structuredText: true, emailIdentity: true, emailChanges: true}, hackSite: hackSiteCreateSite},
+			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{fileArguments: true, structuredText: true, emailIdentity: true, emailChanges: true}},
 			OutputSchema: func() map[string]any {
 				schema := siteSummaryWith(map[string]any{
 					"file_count":    outInteger("How many files were published."),
@@ -218,7 +218,7 @@ func siteTools(limits Limits) []Tool {
 			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "create") },
 		},
 		{
-			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{secretText: true, fileArguments: true, edits: true}, hackSite: hackSiteUpdateSite},
+			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{secretText: true, fileArguments: true, edits: true}},
 			OutputSchema: siteSummaryWith(map[string]any{
 				"file_count":          outInteger("How many files the new version has."),
 				"page_warnings":       pageWarningsSchema,
@@ -479,7 +479,7 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			policy: toolPolicy{hackSite: hackSiteDeleteSite},
+			policy: toolPolicy{},
 			OutputSchema: outObject(map[string]any{
 				"deleted":         outString("Name of the site that was deleted."),
 				"restorable_days": outInteger("How many days restore_site can bring it back."),
@@ -554,7 +554,7 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			policy:       toolPolicy{hackSite: hackSiteRestoreSite},
+			policy:       toolPolicy{},
 			OutputSchema: withDescription(siteSummarySchema(), "The restored site, live again at its address."),
 			Name:         "restore_site",
 			Title:        "Restore a deleted site",
@@ -636,7 +636,7 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			policy: toolPolicy{hackSite: hackSiteSetVisibility},
+			policy: toolPolicy{},
 			OutputSchema: outObject(map[string]any{
 				"site":       outString(outSiteName),
 				"visibility": outEnum("List on my profile: public = on; unlisted = off. Every open site can be found by search engines.", "public", "unlisted"),
@@ -668,7 +668,7 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			policy: toolPolicy{hackSite: hackSiteSetSiteOffline},
+			policy: toolPolicy{},
 			OutputSchema: outObject(map[string]any{
 				"site":    outString(outSiteName),
 				"offline": outBool("Whether the site is offline now."),
@@ -818,7 +818,7 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			policy: toolPolicy{analytics: analyticsPolicy{secretText: true, secretURL: true}, hackSite: hackSiteExportSite},
+			policy: toolPolicy{analytics: analyticsPolicy{secretText: true, secretURL: true}},
 			OutputSchema: outObject(map[string]any{
 				"site":       outString(outSiteName),
 				"url":        outString("The download link: a .tar.gz with the site's files, state.json and collections.json. Give it to the person; it opens without signing in, so do not post it publicly."),
@@ -1490,8 +1490,6 @@ const deployFormTip = "A form visitors send (contact, quote, booking, sign-up, o
 
 // deployPhotoTip: Simple Hack has no photos link and swaps in hackPhotoTip.
 const deployPhotoTip = "For the person's own photos, give them create_upload_link's photos_url (it shrinks them); never ask them to resize or attach photos."
-
-const hackPhotoTip = "Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB."
 
 const deploySizeTips = "Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. " + deployPhotoTip + " Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need."
 

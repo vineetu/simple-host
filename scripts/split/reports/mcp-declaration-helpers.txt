@@ -1,0 +1,42 @@
+D3-S1a declaration boundary (read beside mcp-identifiers.txt)
+
+Schema/declaration helpers: declare.go exposes thin wrappers for the typed
+inventory's schema builders, annotations, argument parsers, description/meta
+attachment and policy options. Policy and analytics fields remain private.
+There is no exported registry, registry view, policy index or server inventory.
+
+Tool adapters: Call/Output/UpstreamResult aliases retain the existing mechanics.
+Do, Caller, WithCaller, Request, UICapable, MaxBodyBytes, CanSelectTarget, SelectTarget,
+MemberResult and OrganiserResult cover the private call/server facts used by
+Hack adapters. UpstreamResult's OK/Status/Header/Body cover REST replies.
+WithPolicy replaces policy like the private helper; WithRun and CallTool
+replace direct run-field writes/reads, with CallTool
+preserving the base declaration's policy for app-only twins.
+
+Screens: AppScreen/Request/Response, Result/Failure, protocol error constants,
+AppMIME, AppFiles, AppFlag and FlatListApp expose the shared screen primitives.
+The UI-declaration parser and listing loop/filter remain private platform code.
+ShowAllowed accepts only Caller and the UI capability boolean.
+
+New dependencies found after extracting product fragments: NotificationTools,
+RequiresNotificationID, PageRecipeTool, RecipeTopics and ReadRecipe. Wording
+constants used by the product have read-only exported aliases. Storage rules
+use StorageRulesEnabled and StorageRulesInstructions. Span already existed.
+EventStorageTools takes the product owner sentence and photo-wording function;
+the current no-argument adapter remains in hack_storage_tools.go.
+
+Shared helper found in a product file: upstreamMessage is used by Host's site
+adapters too. It stays byte-for-byte platform code in upstream_message.go.
+
+Transitional composition: NewServer, Inventory and the existing in-package
+newRegistry shim live beside hackContribution in families_hack.go. They fill
+an omitted Config.Contribution, without init-time registration. An explicit
+&Contribution{} adds nothing. D3-S1b moves selection to the composition root.
+The generic constructor, registry and dispatch use only the contribution.
+HackTools still uses the private registry in this slice; D3-S1b replaces that
+compatibility assembly with its own contributed families, without exporting it.
+Family constants become product-owned family labels at that move.
+
+Screen methods and call-time gates remain in Hack files until D3-S1c. The Apps
+factory builds their transitional receiver from AppContext once per server.
+No request data or serving Server is passed into the factory.

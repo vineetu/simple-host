@@ -44,7 +44,7 @@ func (s *Server) hackShowOrganiserAppAllowed(c Caller, uiCapable bool) bool {
 
 func hackShowOrganiserTool() Tool {
 	return Tool{
-		policy: toolPolicy{screen: "hack-organiser", showAllowed: hackAppOnlyOrganiserAllowed},
+		policy: toolPolicy{screen: "hack-organiser", showAllowed: func(c Caller, ui bool) bool { return hackAppOnlyOrganiserAllowed(&Server{}, c, ui) }},
 		Name:   "hack_show_organiser",
 		Title:  "Show the organiser view",
 		Description: "Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (assignments, progress and former judges; rubric in website Settings). " +

@@ -12,11 +12,11 @@ func hostFamilies(limits Limits) []familyTools {
 	recipe.Description += " After building a records form, offer notifications through MCP Events if the app supports them, or the dashboard Notifications panel."
 	storage = append(storage, recipe)
 	families := []familyTools{
-		{family: famAccounts, tools: accountTools()},
-		{family: famSites, tools: siteTools(limits)},
-		{family: famImports, tools: importTools()},
-		{family: famAccess, tools: access},
-		{family: famStorage, tools: storage},
+		{Family: famAccounts, Tools: accountTools()},
+		{Family: famSites, Tools: siteTools(limits)},
+		{Family: famImports, Tools: importTools()},
+		{Family: famAccess, Tools: access},
+		{Family: famStorage, Tools: storage},
 	}
 	return families
 }
