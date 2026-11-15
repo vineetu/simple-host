@@ -622,6 +622,31 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   // A reference recording omits newly added requests via --skip-request.
   if (response && (response.json?.error || Boolean(response.json?.result?.isError) !== refused)) throw new Error(`rules-on recipe ${recipeTool} ${topic} returned an unexpected result`);
  }
+ // R3-S1b: a separate table keeps all earlier owner/read requests identical.
+ const writes = new DatabaseSync(path.join(folder, 'notes.sqlite'));
+ try { writes.exec('CREATE TABLE write_notes(id INTEGER PRIMARY KEY, body TEXT, visitor_id TEXT)'); }
+ finally { writes.close(); }
+ const writeRules = JSON.stringify({ policies: [
+  { command: 'read', using: 'true' },
+  { command: 'add', check: 'body == "allowed"' },
+  { command: 'edit', using: 'auth.signed_in' },
+  { command: 'delete', using: 'auth.signed_in' },
+ ] });
+ psql(instance.dbURL, `INSERT INTO site_storage_tables(site_id,resource_name,table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base,rules)
+ SELECT s.id,'notes','write_notes','nobody','nobody','nobody','nobody','rules','${writeRules}'::jsonb FROM ${siteWhere}`);
+ const writeHeaders = { ...headers, 'X-SH-CSRF': '1' };
+ for (const [label, method, suffix, body, status, requestHeaders] of [
+  ['visitor-write-add', 'POST', '', { body: 'allowed' }, 200, writeHeaders],
+  ['visitor-write-check-denied', 'POST', '', { body: 'denied' }, 403, writeHeaders],
+  ['visitor-write-client-id', 'POST', '', { id: 42, body: 'allowed' }, 400, writeHeaders],
+  ['visitor-write-edit-sign-in', 'PATCH', '/1', { body: 'allowed' }, 401, writeHeaders],
+  ['visitor-write-delete-sign-in', 'DELETE', '/1', undefined, 401, writeHeaders],
+  ['visitor-write-csrf', 'POST', '', { body: 'allowed' }, 403, headers],
+ ]) {
+  const result = await at(label, method, `${visitorBase}/write_notes/rows${suffix}`, { headers: requestHeaders, body });
+  if (result && result.status !== status) throw new Error(`${label}: expected ${status}, got ${result.status}`);
+ }
+
 }
 
 async function seedAndCallMixedStore({ instance, at, registerSecret }) {

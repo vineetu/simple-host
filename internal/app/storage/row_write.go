@@ -11,6 +11,7 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
@@ -48,6 +49,9 @@ func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput, 
 		}
 		meta, err := tableMetadata(conn, c, in.Table, filter)
 		if err != nil {
+			return err
+		}
+		if err := s.ruleWritePlan(&c, in.Table, meta, ruleengine.OpAdd); err != nil {
 			return err
 		}
 		return s.addTableRow(conn, c, in, meta, a, &id)
@@ -198,6 +202,9 @@ func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, err
 type InsertActor struct {
 	Owner, OwnerOnSite, Hold bool
 	StampID                  string
+	// Rules resources accept SQLite's case-insensitive server column names.
+	// Presets keep their existing exact-spelling validation.
+	Rules bool
 	// OwnerFor: set only when Owner (or OwnerOnSite) is adding this row for
 	// another, already-validated, signed-in visitor (ResolveOwnerFor). It
 	// is the one way an owner write ends up with a non-empty visitor_id.
@@ -214,8 +221,29 @@ type InsertActor struct {
 func stampInsertValues(cols map[string]string, values map[string]json.RawMessage, actor InsertActor) {
 	owner, ownerOnSite, hold, stampID := actor.Owner, actor.OwnerOnSite, actor.Hold, actor.StampID
 	encode := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
-	delete(values, "visitor_id")
-	delete(values, "written_by")
+	discard := func(name string) {
+		if !actor.Rules {
+			delete(values, name)
+			return
+		}
+		for supplied := range values {
+			if strings.EqualFold(supplied, name) {
+				delete(values, supplied)
+			}
+		}
+	}
+	column := func(name string) string {
+		if actor.Rules {
+			return declaredColumn(cols, name)
+		}
+		return name
+	}
+	visitorID := column("visitor_id")
+	writtenByColumn := column("written_by")
+	createdAt := column("created_at")
+	approvedAt := column("approved_at")
+	discard("visitor_id")
+	discard("written_by")
 	// onBehalf: an on-behalf-of add, whether reached by the owner's API
 	// key/connector token or by the owner signed in on the site's own
 	// address (OwnerOnSite) — both resolve and validate OwnerFor the same
@@ -223,39 +251,40 @@ func stampInsertValues(cols map[string]string, values map[string]json.RawMessage
 	// ordinary OwnerOnSite self-add path below.
 	onBehalf := (owner || ownerOnSite) && actor.OwnerFor != ""
 	if !owner && !onBehalf {
-		delete(values, "created_at")
-		delete(values, "updated_at")
-		if _, ok := cols["visitor_id"]; ok {
-			values["visitor_id"] = encode(stampID)
+		discard("created_at")
+		discard("updated_at")
+		if _, ok := cols[visitorID]; ok {
+			values[visitorID] = encode(stampID)
 			if stampID == "" {
-				values["visitor_id"] = json.RawMessage("null")
+				values[visitorID] = json.RawMessage("null")
 			}
 		}
-		if _, ok := cols["created_at"]; ok {
-			values["created_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+		if _, ok := cols[createdAt]; ok {
+			values[createdAt] = encode(time.Now().UTC().Format(time.RFC3339Nano))
 		}
 		if hold {
-			values["approved_at"] = json.RawMessage("null")
+			discard("approved_at")
+			values[approvedAt] = json.RawMessage("null")
 			if ownerOnSite {
-				values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+				values[approvedAt] = encode(time.Now().UTC().Format(time.RFC3339Nano))
 			}
 		}
 	} else {
-		if _, set := values["approved_at"]; hold && !set {
-			values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+		if _, set := values[approvedAt]; hold && !set {
+			values[approvedAt] = encode(time.Now().UTC().Format(time.RFC3339Nano))
 		}
 		if onBehalf {
-			if _, ok := cols["visitor_id"]; ok {
-				values["visitor_id"] = encode(actor.OwnerFor)
+			if _, ok := cols[visitorID]; ok {
+				values[visitorID] = encode(actor.OwnerFor)
 			}
 		}
 	}
-	if _, ok := cols["written_by"]; ok {
+	if _, ok := cols[writtenByColumn]; ok {
 		writtenBy := ""
 		if onBehalf {
 			writtenBy = "owner"
 		}
-		values["written_by"] = encode(writtenBy)
+		values[writtenByColumn] = encode(writtenBy)
 	}
 }
 
@@ -272,7 +301,7 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 			return &Error{Code: "invalid_rows", Message: "the server assigns ids"}
 		}
 	}
-	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID), OwnerFor: c.OwnerFor})
+	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID), Rules: c.Resource.Rules != nil, OwnerFor: c.OwnerFor})
 	query, params, err := runtime.PrepareInsert(in.Table, meta.rowid, meta.cols, in.Values, !c.Owner)
 	if err != nil {
 		return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
@@ -287,6 +316,9 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 		return err
 	}
 	if err = checkRowReferences(conn, c, in.Table, meta.rowid, id); err != nil {
+		return err
+	}
+	if err = s.checkWrittenRule(conn, c, in.Table, meta, id, ruleengine.OpAdd); err != nil {
 		return err
 	}
 	if c.OwnerFor != "" {
@@ -357,6 +389,9 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 		if err != nil {
 			return err
 		}
+		if err := s.ruleWritePlan(&c, in.Table, meta, ruleengine.OpEdit); err != nil {
+			return err
+		}
 		pk, err := runtime.PrimaryKeyColumns(conn, in.Table)
 		if err != nil {
 			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
@@ -373,11 +408,34 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 			names = append(names, name)
 		}
 		sort.Strings(names)
-		if _, ok := meta.cols["updated_at"]; ok {
-			names = append(names, "updated_at")
-			values["updated_at"] = rowJSON(time.Now().UTC().Format(time.RFC3339Nano))
+		updatedAt := "updated_at"
+		if c.Resource.Rules != nil {
+			updatedAt = declaredColumn(meta.cols, updatedAt)
+		}
+		if _, ok := meta.cols[updatedAt]; ok {
+			names = append(names, updatedAt)
+			values[updatedAt] = rowJSON(time.Now().UTC().Format(time.RFC3339Nano))
 		}
 		query, params := runtime.RowUpdateStatement(in.Table, meta.rowid, names, values, rowJSON(in.ID), filter, c.Owner, meta.hold && !c.Owner && !c.OwnerOnSite)
+		if c.rulePlan != nil {
+			read, edit, err := ruleWritePredicates(c, ruleengine.OpEdit)
+			if err != nil {
+				return err
+			}
+			scalars := make([]ruleengine.Value, len(names))
+			for i, name := range names {
+				scalars[i], err = ruleScalar(values[name])
+				if err != nil {
+					return &Error{Code: "invalid_rows", Message: "invalid row request"}
+				}
+			}
+			var args []ruleengine.Value
+			query, args, err = runtime.RuleUpdate(in.Table, meta.rowid, names, scalars, ruleengine.Int(in.ID), read, edit, "")
+			if err != nil {
+				return rulesInvalid()
+			}
+			params = ruleJSONArgs(args)
+		}
 		commit, rollback, err := beginTableWrite(conn)
 		if err != nil {
 			return err
@@ -394,6 +452,9 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 			return &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
 		}
 		if err = checkRowReferences(conn, c, in.Table, meta.rowid, in.ID); err != nil {
+			return err
+		}
+		if err := s.checkWrittenRule(conn, c, in.Table, meta, in.ID, ruleengine.OpEdit); err != nil {
 			return err
 		}
 		_ = conn.SetAuthorizer(nil)
@@ -549,6 +610,9 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 		if err != nil {
 			return err
 		}
+		if err := s.ruleWritePlan(&c, in.Table, meta, ruleengine.OpDelete); err != nil {
+			return err
+		}
 		// Read before the row is gone: filter=="" (the owner's key/connector,
 		// D1's OwnerOnSite, or a visitor under a shared signed_in/anyone
 		// delete grant not scoped to their own rows) means this delete may
@@ -561,6 +625,18 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 			rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
 		}
 		query, params := runtime.RowDeleteStatement(in.Table, meta.rowid, rowJSON(in.ID), filter, meta.hold && !c.Owner && !c.OwnerOnSite)
+		if c.rulePlan != nil {
+			read, del, err := ruleWritePredicates(c, ruleengine.OpDelete)
+			if err != nil {
+				return err
+			}
+			var args []ruleengine.Value
+			query, args, err = runtime.RuleDelete(in.Table, meta.rowid, ruleengine.Int(in.ID), read, del, "")
+			if err != nil {
+				return rulesInvalid()
+			}
+			params = ruleJSONArgs(args)
+		}
 		commit, rollback, err := beginTableWrite(conn)
 		if err != nil {
 			return err

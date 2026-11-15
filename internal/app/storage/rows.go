@@ -101,6 +101,16 @@ type rowMetadata struct {
 	hold  bool
 }
 
+// declaredColumn resolves SQLite's case-insensitive names to their schema spelling.
+func declaredColumn(cols map[string]string, name string) string {
+	for column := range cols {
+		if strings.EqualFold(column, name) {
+			return column
+		}
+	}
+	return ""
+}
+
 func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadata, error) {
 	var m rowMetadata
 	var err error
@@ -131,7 +141,21 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 		return m, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 	}
 	m.hold = c.Resource.Holds(table)
-	if m.hold && m.cols["approved_at"] != "TEXT" {
+	approvalColumn := "approved_at"
+	if c.Resource.Rules != nil {
+		approvalColumn = declaredColumn(m.cols, approvalColumn)
+	}
+	if c.rulePlan != nil {
+		m.hold = c.rulePlan.ReferencesColumn("approved_at") && m.cols[approvalColumn] == "TEXT"
+	} else if c.Resource.Rules != nil {
+		// Owners bypass row rules but keep the same approval stamping.
+		set, errs := ruleengine.DecodeSet(effectiveRules(c, table))
+		if len(errs) == 0 {
+			_, hold, err := ruleengine.RequiredColumns(set, PlatformSchema(true), ruleengine.DefaultLimits())
+			m.hold = err == nil && hold && m.cols[approvalColumn] == "TEXT"
+		}
+	}
+	if m.hold && m.cols[approvalColumn] != "TEXT" {
 		return m, &Error{Code: "approved_at_required", Message: "approve_first needs the approved_at TEXT column; set the policy again so the server adds it"}
 	}
 	return m, nil
@@ -157,6 +181,11 @@ func (s *Service) authorizeTable(ctx context.Context, c Call, table, action stri
 	// happens to already exist.
 	if c.OwnerFor != "" && c.CurrentMatrix.Read != rules.WhoOwn {
 		return c, "", &Error{Code: "for_requires_own", Message: "for only adds a row on a table whose read is own (the records or personal presets); this table's read is " + c.CurrentMatrix.Read}, false
+	}
+	if !c.Owner && c.Resource.RulesStatus() != "preset" {
+		op := map[string]ruleengine.Op{"add": ruleengine.OpAdd, "edit": ruleengine.OpEdit, "delete": ruleengine.OpDelete}[action]
+		err := s.authorizeRuleOperation(ctx, &c, table, op)
+		return c, "", err, err == nil
 	}
 	filter, err := s.Allow(&c, action, c.CurrentMatrix.Value(action))
 	if err != nil {

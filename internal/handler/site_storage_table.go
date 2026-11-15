@@ -182,7 +182,7 @@ func writeTableError(w http.ResponseWriter, e *appstorage.Error) {
 		}
 		storageBusy(w)
 		return
-	case "account_suspended", "sign_in_required":
+	case "account_suspended", "sign_in_required", "add_only", "spam_check_required", "spam_check_failed", "spam_check_unavailable":
 		writeStorageRefusals(w, []*appstorage.Error{e})
 		return
 	case "forbidden", "rules_invalid", "site_locked", "site_private", "csrf_required", "for_requires_own":
