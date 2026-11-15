@@ -59,6 +59,7 @@ func (p *Assets) Hooks() handler.ProductAssetHooks {
 		InstanceText: p.HackInstanceText, RewritePluginZip: p.RewriteHackPluginZip,
 		SkillAvailable: hostedHackSkill, ExpandConnectSteps: expandConnectSteps,
 		PersonalPresentationHTML: hackPersonalPresentationHTML, OpenAPISpec: hackOpenAPISpec,
+		CatalogPlugin: "simple-hack",
 	}
 }
 
@@ -99,7 +100,7 @@ func (p *Assets) BuildHackSkillsZip() ([]byte, error) {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 		for _, name := range HackSkillNames {
-			root, err := fs.Sub(webassets.HackSkills, "skills/"+name)
+			root, err := fs.Sub(hackassets.HackSkills, "skills/"+name)
 			if err != nil {
 				z.err = err
 				break

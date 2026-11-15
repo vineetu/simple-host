@@ -129,6 +129,14 @@ func (p *assetPipeline) SkillsModTime() time.Time { return skillsModTime }
 // ServeStaticPage is serveStaticPage (ui.go), exported for hackPages.
 func (p *assetPipeline) ServeStaticPage(name string) http.Handler { return p.serveStaticPage(name) }
 
+// ChromePage is the static page name as serveStaticPage builds it, before
+// the response's script nonce is stamped: a product route that changes one
+// of its own pages for this install starts from it and stamps the result
+// (httpx.StampNonce).
+func (p *assetPipeline) ChromePage(r *http.Request, name string) ([]byte, error) {
+	return p.chromePage(name, p.chromeDataFor(r, ""))
+}
+
 // RenderPage applies this instance's chrome and text to a product-owned page.
 func (p *assetPipeline) RenderPage(r *http.Request, name string, raw []byte) ([]byte, error) {
 	page, err := withChrome(raw, p.chromeDataFor(r, ""))
@@ -292,7 +300,7 @@ func (s selectedAssets) source(name string) (fs.FS, string) {
 	// docsSiteRoot is the one Replace entry that is not a static file name:
 	// only docsTree reads it, so /docs-site answers as it does with no product.
 	if key := strings.TrimPrefix(name, "static/"); key != docsSiteRoot {
-		if file, ok := s.p.product.replace[key]; ok {
+		if file, ok := s.p.product.file(key); ok {
 			return s.p.product.files, file
 		}
 	}

@@ -1,0 +1,749 @@
+{
+  "slice": "D3-S2b",
+  "entries": [
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "image/jpeg",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "75188d9f5298d41fa06bf6dca28f3549dacb966130adce1e2aa2049e4680efb5",
+        "length": 56576
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/mp4",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "94b6ed85288dc0c77626457bfd6e458103dac5ad729f9e4ad69480cfaf3c1ee5",
+        "length": 3022751
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/webm",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "67dca6ff510d13b0879c617626921279ec986a40d878d76021dee1b8d86647e7",
+        "length": 1896361
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "image/jpeg",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "a222cd23b5b74ddafd252b8d07c617027489497f0bf669537e5976a36466fa79",
+        "length": 87283
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/mp4",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "7f2bb3e1f7cd247c4e8d8d637855c57cbb1af7c4fd4539e148d4bf1c885bccfa",
+        "length": 3827464
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/webm",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "991f65c432c8f6aa593ab1e5ae6ebe48ae65e5c1b320e63ae39e37339584a34c",
+        "length": 2374252
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-companies-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "image/jpeg",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "66e9749610cac7943b7ebc69b64b9c7e8da2a0406fa2225b19cb55a6c25666ab",
+        "length": 58244
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/mp4",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "c5b5c96f6d7e36ce0b4aaa7a9e98a1708b8af8831e21ca6e5612b3b33bc95ddb",
+        "length": 3756883
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/webm",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "b5ea96b84bfbd6b86827a64b33c2bf2019041ed754c7c751238e6fed8765e8be",
+        "length": 2826308
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-1280.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "image/jpeg",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "0cbce962c7aa6abf944233c72c072537567383e004c0230e4b7a8ac46d9d9459",
+        "length": 92963
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390-poster.jpg",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/mp4",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "b6538685dc5d6dd7f35dcef7450ddd94025d1b768b559026a07eed28d8832b0b",
+        "length": 5085752
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.mp4",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "status",
+      "old": 200,
+      "new": 404
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body_kind",
+      "old": "binary",
+      "new": "text"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"content-type\"]",
+      "old": "video/webm",
+      "new": "text/plain; charset=utf-8"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers[\"cache-control\"]",
+      "old": "public, max-age=604800",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "headers.etag",
+      "old": "<etag>",
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "body",
+      "old": {
+        "sha256": "a6cbf0a802f682e7a0dd91470dd1a6595f09a61a5a1377236628e822a2723e71",
+        "length": 3771503
+      },
+      "new": "__absent__"
+    },
+    {
+      "product": "host",
+      "request": "GET /film/hack-film-390.webm",
+      "reason": "D3-S2b moves Hack's landing-film files out of the platform's embed, so a Host install no longer serves them at /film/; no Host page links to them, and Hack serves them unchanged.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "404 page not found",
+        ""
+      ]
+    }
+  ]
+}

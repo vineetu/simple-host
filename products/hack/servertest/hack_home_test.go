@@ -18,6 +18,7 @@ func hackHomeTestMux(t *testing.T, base string) *http.ServeMux {
 	sh := chromeTestHandlerWithBase(edition.Hack, base)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, base, sh)
+	mountHackFiles(mux, sh)
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	return mux
 }
@@ -71,10 +72,10 @@ func TestHackVideoHome(t *testing.T) {
 
 func TestHackVideoFilmAssets(t *testing.T) {
 	mux := hackHomeTestMux(t, "https://simple-hack.app")
-	if len(handler.HackFilmTypes) != 6 {
+	if len(hackhttp.HackFilmTypes) != 6 {
 		t.Fatal("expected six Hack film files")
 	}
-	for name, ctype := range handler.HackFilmTypes {
+	for name, ctype := range hackhttp.HackFilmTypes {
 		rec := get(t, mux, "simple-hack.app", "/film/"+name+"?v=20261013")
 		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != ctype || rec.Body.Len() == 0 || rec.Header().Get("Cache-Control") != "public, max-age=604800" || rec.Header().Get("ETag") == "" {
 			t.Fatalf("%s: status/type/size/cache: %d %q %d %v", name, rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len(), rec.Header())

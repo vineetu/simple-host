@@ -33,7 +33,7 @@ func TestProductAssetPrecedence(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			sh := &SiteHandler{ed: edition.ForKind(edition.Host)}
-			sh.SetProductAssets(tc.replace, tc.files, nil, ProductAssetHooks{}, nil)
+			sh.SetProductAssets(tc.replace, nil, tc.files, nil, ProductAssetHooks{}, nil)
 			got, err := fs.ReadFile(sh.Pages().StaticFS(), "static/llms.txt")
 			if tc.missing {
 				if !errors.Is(err, fs.ErrNotExist) {
@@ -56,7 +56,7 @@ func TestProductAssetPrecedence(t *testing.T) {
 func TestProductDocsRootIsNotAStaticName(t *testing.T) {
 	files := fstest.MapFS{"docs/own/index.html": {Data: []byte("product docs")}}
 	sh := chromeTestHandler(edition.Host)
-	sh.SetProductAssets(map[string]string{docsSiteRoot: "docs/own"}, files, nil, ProductAssetHooks{}, nil)
+	sh.SetProductAssets(map[string]string{docsSiteRoot: "docs/own"}, nil, files, nil, ProductAssetHooks{}, nil)
 	for _, name := range []string{"static/docs-site", "static/docs-site/index.html"} {
 		if _, err := fs.Stat(sh.Pages().StaticFS(), name); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("static lookup of %s reached the docs root: %v", name, err)
@@ -72,7 +72,7 @@ func TestProductDocsRootIsNotAStaticName(t *testing.T) {
 
 func TestProductOnlyAssetRequiresRoute(t *testing.T) {
 	sh := chromeTestHandler(edition.Host)
-	sh.SetProductAssets(nil, fstest.MapFS{"product-only.js": {Data: []byte("private source")}}, nil, ProductAssetHooks{}, nil)
+	sh.SetProductAssets(nil, nil, fstest.MapFS{"product-only.js": {Data: []byte("private source")}}, nil, ProductAssetHooks{}, nil)
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	if r := get(t, mux, "", "/product-only.js"); r.Code != 404 || strings.Contains(r.Body.String(), "private source") {
@@ -105,7 +105,7 @@ func TestProductAssetHookDefaultsAndErrors(t *testing.T) {
 		t.Fatalf("nil presentation hook changed the page: %s", got)
 	}
 	sh := &SiteHandler{ed: edition.ForKind(edition.Host), assets: p}
-	sh.SetProductAssets(nil, nil, nil, ProductAssetHooks{OpenAPISpec: func([]byte) ([]byte, error) { return nil, errors.New("product spec unavailable") }}, nil)
+	sh.SetProductAssets(nil, nil, nil, nil, ProductAssetHooks{OpenAPISpec: func([]byte) ([]byte, error) { return nil, errors.New("product spec unavailable") }}, nil)
 	r := httptest.NewRecorder()
 	p.serveRewrittenAsset("openapi.json", nil, skillsModTime).ServeHTTP(r, httptest.NewRequest("GET", "/openapi.json", nil))
 	if r.Code != http.StatusNotFound {
@@ -128,14 +128,14 @@ func TestAssetServicesInstanceRewriting(t *testing.T) {
 }
 
 // The product stylesheet's version is worked out once, when the contribution
-// is installed, from the file its Replace entry names.
+// is installed, from the file the product's own entry names.
 func TestProductStyleVersionComputedAtInstall(t *testing.T) {
 	sh := chromeTestHandler(edition.Host)
 	if got := sh.pipeline().productStyleVersion(); got != "" {
 		t.Fatalf("no product: version %q", got)
 	}
 	files := fstest.MapFS{"own.css": {Data: []byte("body{}")}}
-	sh.SetProductAssets(map[string]string{productStylesheet: "own.css"}, files, nil, ProductAssetHooks{}, nil)
+	sh.SetProductAssets(nil, map[string]string{productStylesheet: "own.css"}, files, nil, ProductAssetHooks{}, nil)
 	sum := sha256.Sum256([]byte("body{}"))
 	want := hex.EncodeToString(sum[:])[:10]
 	if got := sh.pipeline().productStyleVersion(); got != want {
@@ -144,5 +144,97 @@ func TestProductStyleVersionComputedAtInstall(t *testing.T) {
 	files["own.css"] = &fstest.MapFile{Data: []byte("changed")}
 	if got := sh.pipeline().productStyleVersion(); got != want {
 		t.Fatalf("version recomputed after install: %q", got)
+	}
+}
+
+// A product's own name is read by the page pipeline, is never answered by
+// the platform's file server, and is answered by ProductFiles only at an
+// address where the product mounted it.
+func TestProductOwnFilesAreServedOnlyByTheProductRoute(t *testing.T) {
+	files := fstest.MapFS{
+		"files/own.js":       {Data: []byte("own source")},
+		"files/own.kit/a.js": {Data: []byte("kit a")},
+		"files/own.kit":      {Mode: fs.ModeDir},
+	}
+	own := map[string]string{"own.js": "files/own.js", "own.kit": "files/own.kit", "own.kit/a.js": "files/own.kit/a.js"}
+	sh := chromeTestHandler(edition.Host)
+	sh.SetProductAssets(nil, own, files, nil, ProductAssetHooks{}, nil)
+	if b, err := fs.ReadFile(sh.Pages().StaticFS(), "static/own.js"); err != nil || string(b) != "own source" {
+		t.Fatalf("pipeline read of an own name: %q, %v", b, err)
+	}
+	// Mounted before the platform's routes exist, as a product's Routes is.
+	productFiles := sh.AssetServices().ProductFiles()
+	early := httptest.NewRecorder()
+	productFiles.ServeHTTP(early, httptest.NewRequest("GET", "/own.js", nil))
+	if early.Code != http.StatusNotFound {
+		t.Fatalf("ProductFiles before the routes are built: %d", early.Code)
+	}
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, "https://simple-host.app", sh)
+	for _, path := range []string{"/own.js", "/own.kit/a.js", "/own.kit/"} {
+		if r := get(t, mux, "", path); r.Code != http.StatusNotFound || strings.Contains(r.Body.String(), "own source") || strings.Contains(r.Body.String(), "a.js") {
+			t.Errorf("%s answered by the platform's file server: %d", path, r.Code)
+		}
+	}
+	mux.Handle("GET /own.js", productFiles)
+	mux.Handle("GET /own.kit/a.js", productFiles)
+	if r := get(t, mux, "", "/own.js"); r.Code != http.StatusOK || r.Body.String() != "own source" {
+		t.Errorf("mounted own file: %d %q", r.Code, r.Body.String())
+	}
+	if r := get(t, mux, "", "/own.kit/a.js"); r.Code != http.StatusOK || r.Body.String() != "kit a" {
+		t.Errorf("mounted own file in a folder: %d %q", r.Code, r.Body.String())
+	}
+	// The same handler mounted at a name that is not in the table finds nothing.
+	mux.Handle("GET /unlisted.js", productFiles)
+	if r := get(t, mux, "", "/unlisted.js"); r.Code != http.StatusNotFound {
+		t.Errorf("unlisted name through the product route: %d", r.Code)
+	}
+}
+
+// With no product, or a product with no own names, ProductFiles answers 404.
+func TestProductFilesWithoutOwnNames(t *testing.T) {
+	sh := chromeTestHandler(edition.Host)
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, "https://simple-host.app", sh)
+	r := httptest.NewRecorder()
+	sh.AssetServices().ProductFiles().ServeHTTP(r, httptest.NewRequest("GET", "/site.css", nil))
+	if r.Code != http.StatusNotFound {
+		t.Fatalf("ProductFiles with no own names: %d", r.Code)
+	}
+}
+
+// The skills catalogue reports the platform's plugin name unless a product
+// names its own.
+func TestSkillsCatalogPluginName(t *testing.T) {
+	for _, tc := range []struct{ hook, want string }{{"", `"plugin":"website-deploy"`}, {"own-plugin", `"plugin":"own-plugin"`}} {
+		sh := chromeTestHandler(edition.Host)
+		sh.SetProductAssets(nil, nil, nil, nil, ProductAssetHooks{CatalogPlugin: tc.hook}, nil)
+		r := httptest.NewRecorder()
+		sh.pipeline().serveSkillsCatalog("https://simple-host.app").ServeHTTP(r, httptest.NewRequest("GET", "/v1/skills", nil))
+		if r.Code != http.StatusOK || !strings.Contains(r.Body.String(), tc.want) {
+			t.Errorf("hook %q: %d %s", tc.hook, r.Code, r.Body.String())
+		}
+	}
+}
+
+// The platform's plugin archive and installers are the platform's routes: a
+// product install does not get them from here (the product answers those
+// addresses itself).
+func TestPlatformPluginDownloadsAreNotRegisteredForAProduct(t *testing.T) {
+	host := http.NewServeMux()
+	RegisterUIRoutes(host, "https://simple-host.app", chromeTestHandler(edition.Host))
+	product := http.NewServeMux()
+	RegisterUIRoutes(product, "https://simple-host.app", chromeTestHandler(edition.Hack))
+	for _, path := range []string{"/plugin.zip", "/install.sh", "/install.ps1"} {
+		req := httptest.NewRequest("GET", path, nil)
+		if _, pattern := host.Handler(req); pattern != "GET "+path {
+			t.Errorf("platform: %s is answered by %q", path, pattern)
+		}
+		if r := get(t, host, "", path); r.Code != http.StatusOK {
+			t.Errorf("platform: %s: %d", path, r.Code)
+		}
+		if _, pattern := product.Handler(req); pattern == "GET "+path {
+			t.Errorf("product install: the platform registered %s", path)
+		}
 	}
 }

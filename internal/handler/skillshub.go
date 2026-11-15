@@ -171,8 +171,8 @@ func (p *assetPipeline) serveSkillsCatalog(publicBaseURL string) http.HandlerFun
 			skills[i].URL = base + "/v1/skills/" + skills[i].Name
 		}
 		pluginName := "website-deploy"
-		if hackAssets {
-			pluginName = "simple-hack"
+		if name := p.product.hooks.CatalogPlugin; name != "" {
+			pluginName = name
 		}
 		cat := skillsCatalog{Plugin: pluginName, Version: version, Count: len(skills), Skills: skills}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")

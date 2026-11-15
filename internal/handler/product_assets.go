@@ -16,26 +16,42 @@ type AssetServices interface {
 	PluginVersion() string
 	AdminUICSP(http.Handler) http.Handler
 	ServeCachedZip(build func() ([]byte, error), filename string) http.HandlerFunc
+	// ProductFiles is the one handler that answers the product's own file
+	// names (the own table given to SetProductAssets). It serves them as the
+	// platform's file server serves a platform file: the same chrome on HTML
+	// pages, the same text rewriting, headers and 404 page. The platform's
+	// own file server never answers those names, so each is reachable only
+	// at an address where the product mounted this handler.
+	ProductFiles() http.Handler
 }
 
 // ProductAssetHooks are reverse calls from shared asset code. Nil keeps the platform default.
 type ProductAssetHooks struct {
 	InstanceText func([]byte) []byte
-	// RewritePluginZip is declared by the contract but not read by the
-	// platform yet: the plugin archive routes still build their own (D3-S2b).
+	// RewritePluginZip is declared by the contract and not read by the
+	// platform: the product's own archive routes call it directly.
 	RewritePluginZip         func([]byte) ([]byte, error)
 	SkillAvailable           func(string) bool
 	ExpandConnectSteps       func([]byte) []byte
 	PersonalPresentationHTML func(string, []byte) []byte
 	OpenAPISpec              func([]byte) ([]byte, error)
+	// CatalogPlugin is the plugin name the skills catalogue (/v1/skills)
+	// reports. Empty means the platform's own.
+	CatalogPlugin string
 }
 
 type productAssets struct {
 	replace map[string]string
-	files   fs.FS
-	skills  fs.FS
-	hooks   ProductAssetHooks
-	rewrite func(string, []byte) []byte
+	// own are the product's own file names (name -> file in files). The page
+	// pipeline reads them like any static name; over HTTP only the handler
+	// ProductFiles returns answers them.
+	own map[string]string
+	// fileServer answers the own names; RegisterUIRoutes builds it.
+	fileServer http.Handler
+	files      fs.FS
+	skills     fs.FS
+	hooks      ProductAssetHooks
+	rewrite    func(string, []byte) []byte
 	// styleVersion is the cache-busting version of the product's stylesheet,
 	// worked out once when the contribution is installed.
 	styleVersion string
@@ -44,11 +60,13 @@ type productAssets struct {
 // productStylesheet is the name chrome pages link the product's stylesheet by.
 const productStylesheet = "hack-ink.css"
 
-// SetProductAssets installs the contribution before routes or shared pages are built.
-func (h *SiteHandler) SetProductAssets(replace map[string]string, files, skills fs.FS, hooks ProductAssetHooks, rewrite func(string, []byte) []byte) {
+// SetProductAssets installs the contribution before routes or shared pages
+// are built. replace maps platform names to product files; own lists the
+// product's own names, which only ProductFiles answers over HTTP.
+func (h *SiteHandler) SetProductAssets(replace, own map[string]string, files, skills fs.FS, hooks ProductAssetHooks, rewrite func(string, []byte) []byte) {
 	p := h.pipeline()
-	p.product = productAssets{replace: replace, files: files, skills: skills, hooks: hooks, rewrite: rewrite}
-	if file, ok := replace[productStylesheet]; ok && files != nil {
+	p.product = productAssets{replace: replace, own: own, files: files, skills: skills, hooks: hooks, rewrite: rewrite}
+	if file, ok := p.product.file(productStylesheet); ok && files != nil {
 		if b, err := fs.ReadFile(files, file); err == nil {
 			sum := sha256.Sum256(b)
 			p.product.styleVersion = hex.EncodeToString(sum[:])[:10]
@@ -59,6 +77,29 @@ func (h *SiteHandler) SetProductAssets(replace map[string]string, files, skills 
 	chromeCache.Clear()
 }
 func (h *SiteHandler) AssetServices() AssetServices { return h.pipeline() }
+
+// file is the product file behind a static name: a replaced platform name
+// first, then one of the product's own names. There is no fallback from a
+// listed name to the platform's file.
+func (a productAssets) file(name string) (string, bool) {
+	if file, ok := a.replace[name]; ok {
+		return file, true
+	}
+	file, ok := a.own[name]
+	return file, ok
+}
+
+// ProductFiles answers the product's own names through the file server
+// RegisterUIRoutes built for them; before that, and with no own names, 404.
+func (p *assetPipeline) ProductFiles() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p.product.fileServer == nil {
+			http.NotFound(w, r)
+			return
+		}
+		p.product.fileServer.ServeHTTP(w, r)
+	})
+}
 
 // Static returns a platform file as the product-neutral view serves it: the
 // old base-domain swap (baseText), and for signin.js and auth.js the sign-in

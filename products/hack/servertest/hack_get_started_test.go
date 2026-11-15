@@ -3,16 +3,21 @@ package servertest
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func TestHackGetStartedSkills(t *testing.T) {
@@ -47,7 +52,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want, err := webassets.HackSkills.ReadFile("skills/" + f.Name)
+			want, err := hackassets.HackSkills.ReadFile("skills/" + f.Name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,7 +98,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 		}
 	}
 	name := "simple-hack-skills-only-0.2.6.zip"
-	primary, err := webassets.HackFiles.ReadFile("site/downloads/" + name)
+	primary, err := hackassets.HackFiles.ReadFile("site/downloads/" + name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,5 +285,107 @@ func TestSelfHostedHackGetStartedClaude(t *testing.T) {
 		if strings.Contains(page, w) {
 			t.Errorf("self-hosted Hack Get started says %q", w)
 		}
+	}
+}
+
+// Every historical skills-only archive keeps its published address and its
+// bytes: the checked-in list was recorded before the toolkit moved into the
+// product (D3-S2b), and simple-hack.app serves each file unchanged.
+func TestHackHistoricalArchivesKeepTheirBytes(t *testing.T) {
+	list, err := os.ReadFile("../webassets/testdata/historical-archives.sha256")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{}
+	for _, line := range strings.Split(string(list), "\n") {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		sum, name, ok := strings.Cut(line, "  ")
+		if !ok || len(sum) != 64 {
+			t.Fatalf("malformed line %q", line)
+		}
+		want[name] = sum
+	}
+	versions := []string{"0.2.6", "0.2.7", "0.2.8", "0.2.9", "0.2.10", "0.2.11", "0.2.12", "0.2.13"}
+	if len(want) != len(versions) {
+		t.Fatalf("the list names %d archives, want %d", len(want), len(versions))
+	}
+	embedded, err := fs.Glob(hackassets.HackFiles, "site/downloads/*.zip")
+	if err != nil || len(embedded) != len(versions) {
+		t.Fatalf("embedded archives: %v, %v", embedded, err)
+	}
+	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
+	mux := http.NewServeMux()
+	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
+	for _, version := range versions {
+		name := "simple-hack-skills-only-" + version + ".zip"
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/"+name, nil))
+		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/zip" || rec.Header().Get("Content-Disposition") != `attachment; filename="`+name+`"` {
+			t.Fatalf("%s: %d %v", name, rec.Code, rec.Header())
+		}
+		sum := sha256.Sum256(rec.Body.Bytes())
+		if got := hex.EncodeToString(sum[:]); got != want[name] {
+			t.Errorf("%s: served SHA-256 %s, recorded %s", name, got, want[name])
+		}
+	}
+}
+
+// The platform's plugin archive and installers stay withdrawn on Hack, with
+// the same answers as before Hack registered them itself.
+func TestHackWithdrawnPlatformDownloads(t *testing.T) {
+	sh := chromeTestHandler(edition.Hack)
+	mux := http.NewServeMux()
+	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
+	handler.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
+	for path, want := range map[string]string{
+		"/plugin.zip":  "this legacy plugin download was withdrawn\n",
+		"/install.sh":  "this installer was withdrawn\n",
+		"/install.ps1": "this installer was withdrawn\n",
+	} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusGone || rec.Body.String() != want || rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+			t.Errorf("%s: %d %q %v", path, rec.Code, rec.Body.String(), rec.Header())
+		}
+	}
+}
+
+// /get-started names the hosted service's GitHub skills only on
+// simple-hack.app; another install offers its own ZIP and its own sign-in
+// and cost wording. The change is Hack's (it was a branch in the platform's
+// page handler before D3-S2b).
+func TestHackGetStartedOnAnotherInstall(t *testing.T) {
+	page := func(base string) *httptest.ResponseRecorder {
+		sh := chromeTestHandlerWithBase(edition.Hack, base)
+		mux := http.NewServeMux()
+		hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/get-started", nil))
+		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/html; charset=utf-8" || rec.Header().Get("Cache-Control") != "no-store" || rec.Header().Get("Content-Security-Policy") == "" {
+			t.Fatalf("%s: %d %v", base, rec.Code, rec.Header())
+		}
+		return rec
+	}
+	hosted := page("https://simple-hack.app").Body.String()
+	for _, want := range []string{"<li>Install the five Simple Hack skills", "npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit", "with Google or an email code", "Yes. Running an event, joining, judging and hosting team sites are free."} {
+		if !strings.Contains(hosted, want) {
+			t.Errorf("simple-hack.app page lacks %q", want)
+		}
+	}
+	other := page("https://hack.college.test").Body.String()
+	for _, want := range []string{`<li>Download the <a href="/skills.zip" download>five Simple Hack skill folders</a>, install them in your agent’s skills directory, then restart your agent.</li>`, "with an email code or a configured sign-in provider", "Simple Hack is free software. Server, domain and email costs are your provider’s bill."} {
+		if !strings.Contains(other, want) {
+			t.Errorf("another install's page lacks %q", want)
+		}
+	}
+	for _, gone := range []string{"<li>Install the five Simple Hack skills", "npx -y skills add", "with Google or an email code", "hosting team sites are free."} {
+		if strings.Contains(other, gone) {
+			t.Errorf("another install's page still says %q", gone)
+		}
+	}
+	if strings.Contains(other, "<script>") || !strings.Contains(other, `<script nonce="`) {
+		t.Error("another install's page has an inline script without the response nonce")
 	}
 }

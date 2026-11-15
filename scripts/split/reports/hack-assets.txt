@@ -170,3 +170,80 @@ extension.Assets has no error return in the brief's contract. It runs once,
 inside Build, before any listener opens.
 
 Ruled in NOTES.md, D3-S2a rulings 2026-11-15 12:40 UTC, items 1–4.
+
+D3-S2b: what changed in the sections above
+==========================================
+
+The sections above are kept as D3-S2a wrote them; where they disagree with
+this one, this one is current.
+
+Replace and the product's own names (NOTES ruling 2 of 2026-11-15 12:40).
+products/hack/asset_files.go now has two tables. assetReplacements (12
+entries) holds only platform names. The product's own names (99) are in
+extension.Assets.Own, split into servedOwnFiles (86: 84 files and the folders
+"hack" and "hack/screens") and pageOnlyFiles (13 templates and pages that one
+of Hack's routes renders). The self-mappings are gone from Replace.
+  - The page pipeline still reads an own name (selectedAssets.source looks in
+    Replace, then Own, then the platform's embed), because the platform
+    renders Hack's pages.
+  - The platform's file server never answers an own name: its view of the
+    tree hides them (handlerOnlyFS.hidden). The hack-* names that
+    handlerOnlyPages and handlerOnlyFS.Open listed are deleted from the
+    platform.
+  - Over HTTP an own name is answered by handler.AssetServices.ProductFiles(),
+    a new method: the same chain as the platform's fallback (CSP, chrome on
+    HTML, file server, this install's 404 page) over a view that does not
+    hide them. Hack mounts it in Assets.Routes through RegisterOwnFiles, at
+    "GET /<name>" for each served name and "GET /<name>/{$}" for the two
+    folders. A page-only name gets no address, so it answers the 404 it
+    answered before.
+  - Measured, not argued: 330 requests (every old Replace key with and
+    without a trailing slash, HEAD, Range, conditional and query forms, the
+    film files, the downloads) against the binary before and after, on Host,
+    on simple-hack.app and on a self-hosted Hack. Hack: identical in both
+    modes. Host: only the 12 film files below differ.
+AssetServices therefore has six methods, one more than the brief lists.
+
+Film (review round 3 above). The 12 files moved to
+products/hack/webassets/static/film/. HackFilmTypes and the companies list
+left internal/handler/film.go for products/hack/hackhttp/hack_film.go, which
+registers one exact route per file (the platform keeps "GET /film/{file}" for
+its own films). Hack's answers are byte-identical, headers included. On Host
+the 12 addresses answer 404 instead of 200 (scripts/golden/approved/D3-S2b.json);
+no Host page links to them.
+
+Section B lines assigned to D3-S2b:
+  internal/handler/ui.go:358 (hack-get-started.html on another install)
+      -> products/hack/hackhttp/hack_get_started.go:serveHackGetStarted. The
+         platform exports ChromePage (the chromed page before the nonce) for
+         it; the three swaps run at the same point as before.
+  internal/handler/skillshub.go:166 (catalogue plugin name)
+      -> ProductAssetHooks.CatalogPlugin, a new string field ("" = the
+         platform's "website-deploy"); Hack sets "simple-hack".
+  internal/handler/ui.go:177,179,180 (/plugin.zip, /install.sh, /install.ps1)
+      -> the platform registers its three routes only when no product is
+         installed (as it already did for /skills.zip); Hack registers its
+         own 410 answers in RegisterHackGetStarted, same status and text.
+  internal/handler/ui.go:159 (/skills/version)
+      -> products/hack/extension.go: Assets.Routes registers Hack's response
+         using AssetServices.PluginVersion(), with the same bytes and headers.
+         The platform registers only its own response. The boot-time
+         PluginVersion(product) helper stays until D3-S4; it does not own
+         HTTP registration.
+ProductAssetHooks.RewritePluginZip stays declared and unread by the platform:
+Hack's versioned archive routes call their own function directly.
+
+The toolkit. internal/webassets/hack_embed.go and
+internal/webassets/hack-toolkit/ are now products/hack/webassets/hack_embed.go
+and products/hack/webassets/hack-toolkit/ (HackFiles, HackSkills, the builder,
+metadata and the download site). `find internal/webassets -iname '*hack*'` is
+empty.
+
+NOT moved: the root hack-toolkit/ folder (the brief says -> products/hack/toolkit/).
+It is the published GitHub install address: Hack's /get-started page and
+README.md print `npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit`,
+and scripts/check-docs-sync.sh:317 requires that address in the page. Moving
+the folder breaks that address for everyone who has the command, or changes
+the page (the slice says Golden: none). The slice's goal is "every published
+address still answering", so the folder stays; its README, the sync script
+and the check now read the toolkit's new home. Needs a ruling.

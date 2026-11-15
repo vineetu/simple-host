@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 # Keep the GitHub skill-install URL already printed on /get-started working.
 rm -rf hack-toolkit/skills
 mkdir -p hack-toolkit
-cp -R internal/webassets/hack-toolkit/skills hack-toolkit/skills
+cp -R products/hack/webassets/hack-toolkit/skills hack-toolkit/skills
 
 SRC=internal/webassets/simple-host-website/skills
 DST=plugins/simple-host/skills

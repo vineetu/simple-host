@@ -23,29 +23,6 @@ var FilmTypes = map[string]string{
 	"host-film-1280-poster.jpg": "image/jpeg",
 }
 
-var HackFilmTypes = map[string]string{
-	"hack-film-390.mp4":         "video/mp4",
-	"hack-film-1280.mp4":        "video/mp4",
-	"hack-film-390.webm":        "video/webm",
-	"hack-film-1280.webm":       "video/webm",
-	"hack-film-390-poster.jpg":  "image/jpeg",
-	"hack-film-1280-poster.jpg": "image/jpeg",
-}
-
-// hackCompaniesFilmTypes are the /companies page's film files. The film is
-// produced separately and dropped into static/film/ under these exact names;
-// until then serveFilm answers 404 for them (the page's own poster and video
-// tag degrade the same way any other missing asset would, so the page never
-// breaks for lack of the film).
-var hackCompaniesFilmTypes = map[string]string{
-	"hack-companies-film-390.mp4":         "video/mp4",
-	"hack-companies-film-1280.mp4":        "video/mp4",
-	"hack-companies-film-390.webm":        "video/webm",
-	"hack-companies-film-1280.webm":       "video/webm",
-	"hack-companies-film-390-poster.jpg":  "image/jpeg",
-	"hack-companies-film-1280-poster.jpg": "image/jpeg",
-}
-
 // artifactFilmTypes are the "everything you make with AI" film's files: the
 // home page plays it for visitors sent by artifact-hub.com (/?from=artifact-hub)
 // and by Vercel Ship's post-poll link (/?from=vercel-ship).
@@ -76,12 +53,6 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
 	ctype, ok := FilmTypes[name]
 	if !ok {
-		ctype, ok = HackFilmTypes[name]
-	}
-	if !ok {
-		ctype, ok = hackCompaniesFilmTypes[name]
-	}
-	if !ok {
 		ctype, ok = artifactFilmTypes[name]
 	}
 	if !ok {
@@ -105,7 +76,7 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 
 // filmETags hashes each film file once, on first use.
 var filmETags = sync.OnceValue(func() map[string]string {
-	tags := make(map[string]string, len(FilmTypes)+len(HackFilmTypes)+len(hackCompaniesFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
+	tags := make(map[string]string, len(FilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
 	for name := range landingFilmTypes() {
 		b, err := embeddedStatic.ReadFile(path.Join("static/film", name))
 		if err != nil {
@@ -118,14 +89,8 @@ var filmETags = sync.OnceValue(func() map[string]string {
 })
 
 func landingFilmTypes() map[string]string {
-	types := make(map[string]string, len(FilmTypes)+len(HackFilmTypes)+len(hackCompaniesFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
+	types := make(map[string]string, len(FilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
 	for name, ctype := range FilmTypes {
-		types[name] = ctype
-	}
-	for name, ctype := range HackFilmTypes {
-		types[name] = ctype
-	}
-	for name, ctype := range hackCompaniesFilmTypes {
 		types[name] = ctype
 	}
 	for name, ctype := range artifactFilmTypes {

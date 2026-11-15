@@ -20,7 +20,6 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/internal/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
@@ -46,10 +45,16 @@ func Extension() *extension.Extension {
 		Assets: func(site *handler.SiteHandler) extension.Assets {
 			assets := hackhttp.NewAssets(site.AssetServices(), site.Pages().InkBaseURL())
 			productAssets = assets
-			return extension.Assets{Replace: assetReplacements(), Files: hackassets.Static, Skills: webassets.HackSkills, Hooks: assets.Hooks(), Rewrite: assets.Rewrite,
+			return extension.Assets{Replace: assetReplacements(), Own: ownAssetFiles(), Files: hackassets.Static, Skills: hackassets.HackSkills, Hooks: assets.Hooks(), Rewrite: assets.Rewrite,
 				Routes: func(mux *http.ServeMux, services handler.AssetServices) {
 					mux.HandleFunc("GET /skills.zip", assets.ServeHackSkillsZip())
+					mux.HandleFunc("GET /skills/version", func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						_, _ = w.Write([]byte(`{"version":"` + services.PluginVersion() + `"}`))
+					})
 					mux.Handle("GET /setup/setup.js", services.AdminUICSP(assets.ServeSetupJS()))
+					RegisterOwnFiles(mux, services.ProductFiles())
+					hackhttp.RegisterHackFilm(mux)
 				}}
 		},
 		CheckSchema: func(ctx context.Context, database *sql.DB) error {

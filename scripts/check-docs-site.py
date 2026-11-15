@@ -26,7 +26,7 @@ _spec.loader.exec_module(docs_site)
 dr = docs_site.docs_reference
 
 SKILLS_DIR = {'host': ROOT / 'internal/webassets/simple-host-website/skills',
-              'hack': ROOT / 'internal/webassets/hack-toolkit/skills'}
+              'hack': ROOT / 'products/hack/webassets/hack-toolkit/skills'}
 BRAND_DOMAIN = {'host': 'simple-host.app', 'hack': 'simple-hack.app'}
 
 

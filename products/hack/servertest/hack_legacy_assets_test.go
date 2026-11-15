@@ -50,6 +50,7 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	hackSite := chromeTestHandler(edition.Hack)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-hack.app", hackSite)
+	mountHackFiles(mux, hackSite)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/docs/", nil))
 	if w.Code != http.StatusOK {

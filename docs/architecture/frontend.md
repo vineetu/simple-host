@@ -12,6 +12,12 @@ The browser sources live in `internal/webassets/static/` (the platform) and
 `products/hack/webassets/static/` (Simple Hack: every `hack-*` file and the
 `hack/` folder): handwritten HTML, CSS and JavaScript. `internal/handler/ui.go`
 and `products/hack/webassets` embed them into the Go binary. Changing a file requires rebuilding and restarting the server.
+A product hands the platform two tables (`internal/extension.Assets`): `Replace`, the platform
+names it supplies its own file for, and `Own`, its own file names. The platform's pages can read
+an own name, but its file server never answers one: the product mounts
+`handler.AssetServices.ProductFiles()` at each address it wants served
+(`products/hack/asset_files.go:RegisterOwnFiles`), so the chrome, text rewriting and headers are
+the platform's and the address is the product's.
 There is no browser build step for ordinary Host pages or the Hack website's
 ES modules. MCP Apps have a separate, checked-in generated bundle.
 
@@ -96,6 +102,7 @@ The Hack module app uses its own light kit.
 | Presentation asset | Serving relationship |
 |---|---|
 | `static/film/` | `handler/film.go:serveFilm` serves embedded video/poster files at `/film/{file}`, with Range support and ETags; registered by `ui.go:RegisterUIRoutes` |
+| `static/film/` (Hack) | `products/hack/hackhttp/hack_film.go:RegisterHackFilm` serves Hack's film files from its own embed at one exact `/film/<file>` route each, with the same type, caching, ETag and Range answers |
 | `host-ink.css` / `hack-ink.css` | `chrome.go:addHostInk` supplies Host's local-font presentation; `addHackInk` supplies Hack's separate ink styling, never loaded by Host |
 | `host-status.css` | `chrome.go:hostedStatusPage` embeds the stylesheet and its data font in bare Host status pages; `passcode.go:hostPasscodeGateCSP` permits its style hash and `font-src data:` |
 | First-boot setup styles/fonts | `setup.go:SetupHandler.Register` explicitly serves `/host-ink.css` and `/fonts/{file...}` alongside the setup page |
@@ -278,7 +285,7 @@ the running app, and its sample state is not server policy. Runtime truth is
 the registered routes, real screen modules and server responses/rules.
 Use the [Hack domain guide](hack-domain.md) for transitions and permissions.
 
-The reviewed Hack skill source is `internal/webassets/hack-toolkit/skills`.
+The reviewed Hack skill source is `products/hack/webassets/hack-toolkit/skills`.
 `scripts/sync-claude-plugin.sh` also copies it to `hack-toolkit/skills` to keep
 the published GitHub install address working; `check-claude-plugin.sh` checks
 that compatibility copy. Embedded and downloaded bytes retain their existing paths.

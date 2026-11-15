@@ -68,4 +68,4 @@ fi
 echo "claude plugin in sync ✓"
 
 # The public GitHub install address remains /hack-toolkit.
-diff -r internal/webassets/hack-toolkit/skills hack-toolkit/skills
+diff -r products/hack/webassets/hack-toolkit/skills hack-toolkit/skills

@@ -10,8 +10,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func TestFullHackInstancePresentation(t *testing.T) {
@@ -29,7 +29,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 		}
 	}
 	for _, name := range hackhttp.HackSkillNames {
-		raw, err := webassets.HackSkills.ReadFile("skills/" + name + "/SKILL.md")
+		raw, err := hackassets.HackSkills.ReadFile("skills/" + name + "/SKILL.md")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,42 +1,57 @@
 package hack
 
-// assetReplacements is the explicit list of platform names supplied by Hack.
-// A file added to the product embed never becomes reachable by fallback.
+import "net/http"
+
+// assetReplacements is the explicit list of platform names supplied by Hack:
+// for each, Hack's file is served and the platform's is not consulted.
+// "docs-site" is not a file name: it names Hack's docs tree. ".well-known" and
+// "setup" are the platform's folders, so a directory read lists Hack's.
 func assetReplacements() map[string]string {
 	return map[string]string{
-		".well-known":                                   "static/.well-known",
-		".well-known/api-catalog":                       "static/.well-known/hack-api-catalog",
-		".well-known/ard.json":                          "static/.well-known/hack-ard.json",
-		".well-known/hack-api-catalog":                  "static/.well-known/hack-api-catalog",
-		".well-known/hack-ard.json":                     "static/.well-known/hack-ard.json",
+		".well-known":             "static/.well-known",
+		".well-known/api-catalog": "static/.well-known/hack-api-catalog",
+		".well-known/ard.json":    "static/.well-known/hack-ard.json",
+		"apple-touch-icon.png":    "static/apple-touch-icon-hack.png",
+		"auth.md":                 "static/hack-auth.md",
+		"docs-site":               "docs-site/hack",
+		"favicon-32.png":          "static/favicon-32-hack.png",
+		"favicon.ico":             "static/favicon-hack.ico",
+		"favicon.svg":             "static/favicon-hack.svg",
+		"llms.txt":                "static/hack-llms.txt",
+		"setup":                   "static/setup",
+		"setup/setup.js":          "static/setup/setup-hack.js",
+	}
+}
+
+// ownAssetFiles are Hack's own file names. The platform's page pipeline reads
+// them (the pages it renders for Hack), and its file server never answers
+// them: over HTTP each is reachable only through RegisterOwnFiles or another
+// route Hack registered. A file added to the embed is unreachable until it is
+// listed in one of the two tables below.
+func ownAssetFiles() map[string]string {
+	own := servedOwnFiles()
+	for name, file := range pageOnlyFiles() {
+		own[name] = file
+	}
+	return own
+}
+
+// servedOwnFiles are the own names served by their file name: the file route
+// answers each at its own address.
+func servedOwnFiles() map[string]string {
+	return map[string]string{
 		"apple-touch-icon-hack.png":                     "static/apple-touch-icon-hack.png",
-		"apple-touch-icon.png":                          "static/apple-touch-icon-hack.png",
-		"auth.md":                                       "static/hack-auth.md",
-		"docs-site":                                     "docs-site/hack",
 		"favicon-32-hack.png":                           "static/favicon-32-hack.png",
-		"favicon-32.png":                                "static/favicon-32-hack.png",
 		"favicon-hack.ico":                              "static/favicon-hack.ico",
 		"favicon-hack.svg":                              "static/favicon-hack.svg",
-		"favicon.ico":                                   "static/favicon-hack.ico",
-		"favicon.svg":                                   "static/favicon-hack.svg",
 		"hack":                                          "static/hack",
-		"hack-auth.md":                                  "static/hack-auth.md",
-		"hack-companies.html":                           "static/hack-companies.html",
 		"hack-connect-steps.json":                       "static/hack-connect-steps.json",
-		"hack-directory.html":                           "static/hack-directory.html",
-		"hack-event.html":                               "static/hack-event.html",
 		"hack-film-narration.mp3":                       "static/hack-film-narration.mp3",
 		"hack-get-started-preview.png":                  "static/hack-get-started-preview.png",
-		"hack-get-started.html":                         "static/hack-get-started.html",
-		"hack-home.html":                                "static/hack-home.html",
 		"hack-ink.css":                                  "static/hack-ink.css",
-		"hack-llms.txt":                                 "static/hack-llms.txt",
-		"hack-story.html":                               "static/hack-story.html",
-		"hack-voting.html":                              "static/hack-voting.html",
 		"hack-watch-judge.mp3":                          "static/hack-watch-judge.mp3",
 		"hack-watch-organizer.mp3":                      "static/hack-watch-organizer.mp3",
 		"hack-watch-participant.mp3":                    "static/hack-watch-participant.mp3",
-		"hack-watch.html":                               "static/hack-watch.html",
 		"hack/api.js":                                   "static/hack/api.js",
 		"hack/app.html":                                 "static/hack/app.html",
 		"hack/app.js":                                   "static/hack/app.js",
@@ -109,11 +124,45 @@ func assetReplacements() map[string]string {
 		"hack/tour.js":                                  "static/hack/tour.js",
 		"hack/tours.js":                                 "static/hack/tours.js",
 		"hack/ui.js":                                    "static/hack/ui.js",
-		"hackathons.html":                               "static/hackathons.html",
-		"llms.txt":                                      "static/hack-llms.txt",
 		"og-hack.png":                                   "static/og-hack.png",
-		"setup":                                         "static/setup",
-		"setup/setup.js":                                "static/setup/setup-hack.js",
 		"setup/simple-hack.json":                        "static/setup/simple-hack.json",
+	}
+}
+
+// ownFolders are the folders among servedOwnFiles. A folder also answers at
+// its name with a trailing slash.
+var ownFolders = []string{"hack", "hack/screens"}
+
+// pageOnlyFiles are own names that have no address of their own: each is a
+// template or a page that one of Hack's routes renders (/, /watch,
+// /companies, /get-started, /hackathons, /directory, /voting, the event
+// page, /llms.txt, /auth.md and the two discovery documents).
+func pageOnlyFiles() map[string]string {
+	return map[string]string{
+		".well-known/hack-api-catalog": "static/.well-known/hack-api-catalog",
+		".well-known/hack-ard.json":    "static/.well-known/hack-ard.json",
+		"hack-auth.md":                 "static/hack-auth.md",
+		"hack-companies.html":          "static/hack-companies.html",
+		"hack-directory.html":          "static/hack-directory.html",
+		"hack-event.html":              "static/hack-event.html",
+		"hack-get-started.html":        "static/hack-get-started.html",
+		"hack-home.html":               "static/hack-home.html",
+		"hack-llms.txt":                "static/hack-llms.txt",
+		"hack-story.html":              "static/hack-story.html",
+		"hack-voting.html":             "static/hack-voting.html",
+		"hack-watch.html":              "static/hack-watch.html",
+		"hackathons.html":              "static/hackathons.html",
+	}
+}
+
+// RegisterOwnFiles is Hack's one file route: it mounts files (the platform's
+// handler.AssetServices.ProductFiles) at the address of every own name that
+// is served by its file name, and at a folder's two addresses.
+func RegisterOwnFiles(mux *http.ServeMux, files http.Handler) {
+	for name := range servedOwnFiles() {
+		mux.Handle("GET /"+name, files)
+	}
+	for _, name := range ownFolders {
+		mux.Handle("GET /"+name+"/{$}", files)
 	}
 }

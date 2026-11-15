@@ -976,9 +976,16 @@ func hackAssetsFor(sh *handler.SiteHandler) *hackhttp.Assets {
 	return hackhttp.NewAssets(sh.AssetServices(), sh.Pages().InkBaseURL())
 }
 
+// mountHackFiles mounts Hack's file route and film files on a mux a test
+// builds route by route (the server mounts them through Extension.Assets).
+func mountHackFiles(mux *http.ServeMux, sh *handler.SiteHandler) {
+	hack.RegisterOwnFiles(mux, sh.AssetServices().ProductFiles())
+	hackhttp.RegisterHackFilm(mux)
+}
+
 func installAssets(sh *handler.SiteHandler, mux *http.ServeMux) {
 	a := hack.Extension().Assets(sh)
-	sh.SetProductAssets(a.Replace, a.Files, a.Skills, a.Hooks, a.Rewrite)
+	sh.SetProductAssets(a.Replace, a.Own, a.Files, a.Skills, a.Hooks, a.Rewrite)
 	if mux != nil && a.Routes != nil {
 		a.Routes(mux, sh.AssetServices())
 	}

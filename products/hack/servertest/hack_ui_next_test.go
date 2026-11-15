@@ -20,6 +20,7 @@ func TestHackUINext(t *testing.T) {
 	sh := chromeTestHandler(edition.Hack)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh) // Includes the existing embedded file server.
+	mountHackFiles(mux, sh)
 	hackhttp.RegisterHackUI(mux, sh.Pages(), "")
 	for _, tc := range []struct{ name, path, cookie string }{
 		{"default", "/events", ""},

@@ -265,7 +265,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	if ext != nil && ext.Assets != nil {
 		assets := ext.Assets(siteHandler)
-		siteHandler.SetProductAssets(assets.Replace, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
+		siteHandler.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
 		if assets.Routes != nil {
 			assets.Routes(mux, siteHandler.AssetServices())
 		}

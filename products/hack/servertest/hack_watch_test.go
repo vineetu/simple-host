@@ -17,6 +17,7 @@ func TestHackWatchPage(t *testing.T) {
 	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
+	mountHackFiles(mux, sh)
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	rec := get(t, mux, "simple-hack.app", "/watch")
 	body := rec.Body.String()
@@ -46,6 +47,7 @@ func TestHackWatchPage(t *testing.T) {
 	sh2 := chromeTestHandlerWithBase(edition.Hack, "https://hack.college.test")
 	mux2 := http.NewServeMux()
 	handler.RegisterUIRoutes(mux2, "https://simple-host.app", sh2)
+	mountHackFiles(mux2, sh2)
 	hackhttp.RegisterHackHome(mux2, sh2.Pages(), hackAssetsFor(sh2))
 	rewritten := get(t, mux2, "hack.college.test", "/watch").Body.String()
 	for _, want := range []string{"https://hack.college.test/mcp", "campushack.hack.college.test", "team.campushack.hack.college.test"} {

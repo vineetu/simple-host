@@ -96,7 +96,13 @@ type Hooks struct {
 // a missing replacement never falls back to a platform file. Files outside
 // Replace are exposed only by Routes.
 type Assets struct {
+	// Replace: platform asset name -> file in Files. Only platform names.
 	Replace map[string]string
+	// Own: the product's own file names -> file in Files. The platform's page
+	// pipeline can read them (a product page it renders), and its file
+	// server never answers them: over HTTP each is reachable only where
+	// Routes mounted handler.AssetServices.ProductFiles.
+	Own     map[string]string
 	Files   fs.FS
 	Skills  fs.FS
 	Routes  func(*http.ServeMux, handler.AssetServices)

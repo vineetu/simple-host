@@ -37,6 +37,8 @@ func validateDynamicInputs(root string) error {
 	ui := dynamicSites["internal/handler/ui.go:RegisterUIRoutes"]
 	connector := dynamicSites["internal/handler/connector.go:Register"]
 	hackVersions := dynamicSites["products/hack/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
+	ownFiles := dynamicSites["products/hack/asset_files.go:RegisterOwnFiles"]
+	hackFilm := dynamicSites["products/hack/hackhttp/hack_film.go:RegisterHackFilm"]
 	inputs := []dynamicInput{
 		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
 		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
@@ -48,6 +50,14 @@ func validateDynamicInputs(root string) error {
 		{"products/hack/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["products/hack/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
+		{"products/hack/asset_files.go", "RegisterOwnFiles", "range", nil, 1, "servedOwnFiles()"},
+		{"products/hack/asset_files.go", "servedOwnFiles", "keys", patternInputs(ownFiles[:1], "GET /", ""), 0, ""},
+		{"products/hack/asset_files.go", "RegisterOwnFiles", "range", nil, 2, "ownFolders"},
+		{"products/hack/asset_files.go", "ownFolders", "values", patternInputs(ownFiles[1:], "GET /", "/{$}"), 0, ""},
+		{"products/hack/hackhttp/hack_film.go", "RegisterHackFilm", "range", nil, 1, "hackFilmTypes()"},
+		{"products/hack/hackhttp/hack_film.go", "hackFilmTypes", "keys", patternInputs(hackFilm[:1], "GET /film/", ""), 0, ""},
+		{"products/hack/hackhttp/hack_film.go", "RegisterHackFilm", "range", nil, 2, "hackCompaniesFilmTypes()"},
+		{"products/hack/hackhttp/hack_film.go", "hackCompaniesFilmTypes", "keys", patternInputs(hackFilm[1:], "GET /film/", ""), 0, ""},
 		{"products/hack/hackhttp/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
 	}
 	for registration := 4; registration <= 7; registration++ {
@@ -59,7 +69,7 @@ func validateDynamicInputs(root string) error {
 		}
 	}
 	// bundledSkillDirs reads these embedded directories rather than a Go list.
-	for product, bundle := range map[string]string{"host": "internal/webassets/simple-host-website/skills", "hack": "internal/webassets/hack-toolkit/skills"} {
+	for product, bundle := range map[string]string{"host": "internal/webassets/simple-host-website/skills", "hack": "products/hack/webassets/hack-toolkit/skills"} {
 		var dirs []string
 		entries, err := os.ReadDir(filepath.Join(root, bundle))
 		if err != nil {
