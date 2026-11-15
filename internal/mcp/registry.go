@@ -95,6 +95,9 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 }
 
 func buildRegistry(cfg Config) *toolRegistry {
+	if cfg.Contribution == nil {
+		cfg.Contribution = &Contribution{}
+	}
 	r := &toolRegistry{}
 	r.addFamilies(editionHost, hostFamilies(*cfg.Limits), func(tools []Tool) []Tool { return instanceTools(addressTools(tools)) })
 	if cfg.Events != nil {

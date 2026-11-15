@@ -33,9 +33,11 @@ type agentCardAuth struct {
 }
 
 // RegisterAgentCard serves public DNS-AID discovery metadata for this instance.
-func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server, hostedEvents bool) {
+// server is read on each request, so a tool server installed after registration is the one described.
+func RegisterAgentCard(mux *http.ServeMux, issuer string, server func() *mcp.Server, hostedEvents bool) {
 
 	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
+		mcpServer := server()
 		var tools []mcp.Tool
 		if hostedEvents {
 			tools = mcpServer.HackListedTools()

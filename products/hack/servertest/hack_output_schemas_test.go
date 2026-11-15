@@ -1,6 +1,7 @@
 package servertest
 
 import (
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"net/http"
 	"testing"
 
@@ -33,7 +34,7 @@ func (a *teamSiteApp) mcpCallWithKey(t *testing.T, key, name string, args map[st
 //
 // This test proves that by exercising the real create/read/update/stage/
 // rubric/export path end to end and validating every result against each
-// tool's AUTHORED outputSchema (mcp.HackTools(), additionalProperties: false
+// tool's AUTHORED outputSchema (hackmcp.Tools(), additionalProperties: false
 // as written in outputs.go) -- not the wire copy tools/list now advertises,
 // which openOutputSchemaForWire (outputs.go) deliberately opens so this
 // exact class of client-side rejection can't recur. If a genuine mismatch
@@ -44,7 +45,7 @@ func TestHackOutputSchemasMatchRealResults(t *testing.T) {
 	org := a.newPerson(t, "org")
 
 	schemas := map[string]map[string]any{}
-	for _, tool := range mcp.HackTools() {
+	for _, tool := range hackmcp.Tools() {
 		schemas[tool.Name] = tool.OutputSchema
 	}
 
@@ -56,7 +57,7 @@ func TestHackOutputSchemasMatchRealResults(t *testing.T) {
 		}
 		schema, ok := schemas[name]
 		if !ok {
-			t.Fatalf("%s has no authored outputSchema in mcp.HackTools()", name)
+			t.Fatalf("%s has no authored outputSchema in hackmcp.Tools()", name)
 		}
 		if err := mcp.ValidateOutput(schema, structured, nil); err != nil {
 			t.Fatalf("%s %v: structuredContent does not match its authored outputSchema: %v\nstructuredContent: %v", name, args, err, structured)

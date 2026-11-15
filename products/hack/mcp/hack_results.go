@@ -1,18 +1,22 @@
-package mcp
+package hackmcp
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/vsriram/simple-host/internal/mcp"
+)
 
 func hackPublicReadOnly() map[string]any {
-	annotations := readOnly()
+	annotations := mcp.ReadOnly()
 	annotations["openWorldHint"] = true
 	return annotations
 }
 
 // Filter before serializing either representation. REST responses remain intact
 // for browser pages, and these optional fields need no output schema changes.
-func (c *call) minimiseHackMemberResult(out map[string]any) {
-	userID := c.caller.accountUserID()
-	switch c.policy.memberResult {
+func minimiseHackMemberResult(c *mcp.Call, out map[string]any) {
+	userID := accountUserID(c.Caller())
+	switch c.MemberResult() {
 	case "me":
 		if me, ok := out["me"].(map[string]any); ok {
 			delete(me, "team_key")
@@ -43,7 +47,7 @@ func (c *call) minimiseHackMemberResult(out map[string]any) {
 }
 
 // OAuth callers carry UserID; personal API-key callers carry Owner.
-func (c Caller) accountUserID() string {
+func accountUserID(c mcp.Caller) string {
 	if c.UserID != "" {
 		return c.UserID
 	}
@@ -55,8 +59,8 @@ func hackOwnConflict(conflict map[string]any, userID string) bool {
 	return userID != "" && strings.EqualFold(judgeID, userID)
 }
 
-func (c *call) minimiseHackOrganiserResult(includeEmails bool, out map[string]any) {
-	switch c.policy.organiserResult {
+func minimiseHackOrganiserResult(c *mcp.Call, includeEmails bool, out map[string]any) {
+	switch c.OrganiserResult() {
 	case "decision":
 		delete(out, "user_id")
 	case "teams":
@@ -75,7 +79,7 @@ func (c *call) minimiseHackOrganiserResult(includeEmails bool, out map[string]an
 			case "name", "slug":
 				continue
 			case "site", "deadline", "deadline_override", "frozen", "extended", "pinned_version", "pinned_url":
-				if c.policy.organiserResult != "member" {
+				if c.OrganiserResult() != "member" {
 					continue
 				}
 			}

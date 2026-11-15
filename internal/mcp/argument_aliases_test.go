@@ -32,13 +32,14 @@ func TestStorageToolAcceptsResourceAliasForName(t *testing.T) {
 // the storage_* tools' "name" must be accepted too.
 func TestVisitorToolAcceptsNameAliasForResource(t *testing.T) {
 	var gotResource string
-	s := NewServer(Config{VisitorTool: func(_ *http.Request, _ Caller, _ string, args map[string]any) (map[string]any, error) {
+	s := NewServer(testConfig(Config{VisitorTool: func(_ *http.Request, _ Caller, _ string, args map[string]any) (map[string]any, error) {
 		gotResource, _ = args["resource"].(string)
 		if _, present := args["name"]; present {
 			t.Error("alias not removed before reaching the tool")
 		}
 		return map[string]any{"visitor_data": map[string]any{}, "note": ""}, nil
-	}})
+	}}))
+
 	text, _, isErr := resultOf(t, send(t, s, toolCall("visitor_read_site", map[string]any{"address": "site.example", "name": "wall"}), nil, true))
 	if isErr {
 		t.Fatalf("name alias refused: %s", text)
@@ -54,7 +55,7 @@ func TestVisitorToolAcceptsNameAliasForResource(t *testing.T) {
 // find_tools' argument is "query"; a model guessing "task" (a word other
 // search-style tools use) is accepted the same way.
 func TestFindToolsAcceptsTaskAliasForQuery(t *testing.T) {
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	text, structured, isErr := resultOf(t, send(t, s, toolCall("find_tools", map[string]any{"task": "put my site on my own domain"}), nil, true))
 	if isErr {
 		t.Fatalf("task alias refused: %s", text)
@@ -83,7 +84,7 @@ func TestGetPageRecipeAcceptsKindAliasForTopic(t *testing.T) {
 		{"hack_get_page_recipe", Caller{APIKey: "test", Mode: CallerModeEvents}},
 	} {
 		t.Run(tc.tool, func(t *testing.T) {
-			s := NewServer(Config{Events: &fakeEventsBackend{}})
+			s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 			text, structured, isErr := resultOf(t, sendEvent(t, s, "tools/call", map[string]any{"name": tc.tool, "arguments": map[string]any{"kind": "inbox"}}, tc.caller, false))
 			if isErr {
 				t.Fatalf("kind alias refused: %s", text)
@@ -143,7 +144,7 @@ func TestUnexpectedArgumentNamesTheExpectedFields(t *testing.T) {
 // real tool today) must keep both meanings: the alias guard is driven by
 // the schema, not by the tool's name family.
 func TestArgumentAliasSkipsWhenAliasIsItsOwnDeclaredArgument(t *testing.T) {
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	var gotArgs map[string]any
 	s.byName["storage_test_dual"] = Tool{
 		Name: "storage_test_dual",
@@ -198,7 +199,7 @@ func TestHackEventStorageAliasAcceptsResourceForName(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){
 		"PUT /v1/hack/events/weekend/website/storage/kv/settings/keys/feature": func() (int, string) { return 200, `{"key":"feature","value":true}` },
 	}}
-	s := NewServer(Config{Events: &fakeEventsBackend{}, Upstream: up, APIHost: "simple-hack.app"})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}, Upstream: up, APIHost: "simple-hack.app"}))
 	caller := Caller{APIKey: "test", Mode: CallerModeEvents}
 	text, _, isErr := resultOf(t, sendEvent(t, s, "tools/call", map[string]any{"name": "hack_event_storage_put_kv", "arguments": map[string]any{"event": "weekend", "resource": "settings", "key": "feature", "value": true}}, caller, false))
 	if isErr {

@@ -20,6 +20,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/webassets"
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 )
 
 type route struct {
@@ -75,7 +76,7 @@ func run(args []string) error {
 			return fmt.Errorf("unknown edition: %s", *edition)
 		}
 		var names []string
-		for _, t := range mcp.Inventory() {
+		for _, t := range mcp.Inventory(hackmcp.Contribution()) {
 			if t.Edition == *edition {
 				names = append(names, t.Name)
 			}
@@ -117,7 +118,7 @@ func run(args []string) error {
 	for i := range inv.Routes {
 		inv.Routes[i].FeatureID = placements.resolve(inv.Routes[i].Path, false)
 	}
-	for _, t := range mcp.Inventory() {
+	for _, t := range mcp.Inventory(hackmcp.Contribution()) {
 		inv.Tools = append(inv.Tools, tool{t.Name, t.Family, t.Edition, placements.resolve(t.Name, true)})
 	}
 	sort.Slice(inv.Tools, func(i, j int) bool {
@@ -480,7 +481,7 @@ type docsTool struct {
 // registration order. Hidden declarations are not part of the public surface.
 func writeToolsJSON(edition string) error {
 	tools := []docsTool{}
-	for _, t := range mcp.Inventory() {
+	for _, t := range mcp.Inventory(hackmcp.Contribution()) {
 		if t.Edition != edition || t.Hidden {
 			continue
 		}

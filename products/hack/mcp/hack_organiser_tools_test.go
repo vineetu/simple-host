@@ -1,7 +1,8 @@
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"net/http"
 	"net/url"
 	"strings"
@@ -28,10 +29,10 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 			if route.body && hackRouteBodyDescriptions[route.name] == "" {
 				t.Fatal("body shape is not described")
 			}
-			if err := CheckOutputSchema(tool.InputSchema); err != nil {
+			if err := mcp.CheckOutputSchema(tool.InputSchema); err != nil {
 				t.Fatal(err)
 			}
-			if err := CheckOutputSchema(tool.OutputSchema); err != nil {
+			if err := mcp.CheckOutputSchema(tool.OutputSchema); err != nil {
 				t.Fatal(err)
 			}
 			if route.name == "hack_create_team_key" {
@@ -80,11 +81,11 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 				_, _ = w.Write([]byte(`{"ok":true}`))
 			}
 			s := newTestServer(up)
-			text, result, bad := resultOf(t, sendMode(t, s, toolCall(route.name, args), CallerModeEvents))
+			text, result, bad := resultOf(t, sendMode(t, s, toolCall(route.name, args), mcp.CallerModeEvents))
 			if bad || result == nil {
 				t.Fatalf("success: %s", text)
 			}
-			if err := ValidateOutput(tool.OutputSchema, result, nil); err != nil {
+			if err := mcp.ValidateOutput(tool.OutputSchema, result, nil); err != nil {
 				t.Fatalf("output: %v", err)
 			}
 			recordHackOutputValidated(route.name)
@@ -105,7 +106,7 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 				}
 			}
 			up.ans[route.method+" "+path] = jsonReply(403, `{"error":"REST denied","code":"forbidden"}`)
-			text, _, bad = resultOf(t, sendMode(t, s, toolCall(route.name, args), CallerModeEvents))
+			text, _, bad = resultOf(t, sendMode(t, s, toolCall(route.name, args), mcp.CallerModeEvents))
 			if !bad || !strings.Contains(text, "REST denied") || !strings.Contains(text, "forbidden") {
 				t.Fatalf("REST refusal lost: %s", text)
 			}
@@ -114,7 +115,7 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 }
 
 func TestHackSetEntryExcludedTool(t *testing.T) {
-	var tool Tool
+	var tool mcp.Tool
 	for _, t2 := range HackOrganiserTools() {
 		if t2.Name == "hack_set_entry_excluded" {
 			tool = t2
@@ -123,10 +124,10 @@ func TestHackSetEntryExcludedTool(t *testing.T) {
 	if tool.Name == "" {
 		t.Fatal("hack_set_entry_excluded missing")
 	}
-	if err := CheckOutputSchema(tool.InputSchema); err != nil {
+	if err := mcp.CheckOutputSchema(tool.InputSchema); err != nil {
 		t.Fatal(err)
 	}
-	if err := CheckOutputSchema(tool.OutputSchema); err != nil {
+	if err := mcp.CheckOutputSchema(tool.OutputSchema); err != nil {
 		t.Fatal(err)
 	}
 	if tool.Annotations["readOnlyHint"] != false || tool.Annotations["destructiveHint"] != true || tool.Annotations["openWorldHint"] != false {
@@ -138,11 +139,11 @@ func TestHackSetEntryExcludedTool(t *testing.T) {
 	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/include"] = jsonReply(200, `{"team":{"slug":"alpha"},"excluded":false}`)
 	s := newTestServer(up)
 
-	text, result, bad := resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), CallerModeEvents))
+	text, result, bad := resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), mcp.CallerModeEvents))
 	if bad {
 		t.Fatalf("exclude: %s", text)
 	}
-	if err := ValidateOutput(tool.OutputSchema, result, nil); err != nil {
+	if err := mcp.ValidateOutput(tool.OutputSchema, result, nil); err != nil {
 		t.Fatalf("exclude output: %v", err)
 	}
 	recordHackOutputValidated("hack_set_entry_excluded")
@@ -154,7 +155,7 @@ func TestHackSetEntryExcludedTool(t *testing.T) {
 		t.Fatalf("forwarded %s %s", up.last().method, up.last().path)
 	}
 
-	text, result, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": false}), CallerModeEvents))
+	text, result, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": false}), mcp.CallerModeEvents))
 	if bad {
 		t.Fatalf("include: %s", text)
 	}
@@ -166,13 +167,13 @@ func TestHackSetEntryExcludedTool(t *testing.T) {
 		t.Fatalf("forwarded %s", up.last().path)
 	}
 
-	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha"}), CallerModeEvents))
+	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha"}), mcp.CallerModeEvents))
 	if !bad || !strings.Contains(text, "excluded") {
 		t.Fatalf("missing excluded accepted: %s", text)
 	}
 
 	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/exclude"] = jsonReply(404, `{"error":"this team has no entry","code":"no_entry"}`)
-	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), CallerModeEvents))
+	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), mcp.CallerModeEvents))
 	if !bad || !strings.Contains(text, "no_entry") {
 		t.Fatalf("REST refusal lost: %s", text)
 	}
@@ -188,14 +189,14 @@ func TestHackRemoveOtherJudgeConflictQuery(t *testing.T) {
 		w.WriteHeader(204)
 	}
 	s := newTestServer(up)
-	text, result, bad := resultOf(t, sendMode(t, s, toolCall("hack_remove_judge_conflict", map[string]any{"slug": "spring", "team_id": "team-one", "judge_user_id": "judge-one"}), CallerModeEvents))
+	text, result, bad := resultOf(t, sendMode(t, s, toolCall("hack_remove_judge_conflict", map[string]any{"slug": "spring", "team_id": "team-one", "judge_user_id": "judge-one"}), mcp.CallerModeEvents))
 	if bad || result["status"] != float64(204) {
 		t.Fatalf("%s %v", text, result)
 	}
 }
 
 func TestHackOrganiserConsequentialAnnotations(t *testing.T) {
-	byName := map[string]Tool{}
+	byName := map[string]mcp.Tool{}
 	for _, tool := range HackOrganiserTools() {
 		byName[tool.Name] = tool
 	}
@@ -237,7 +238,7 @@ func TestHackAuditAnnotationTuples(t *testing.T) {
 	for _, name := range []string{"hack_get_people", "hack_get_my_conflicts", "hack_get_judging_dashboard", "hack_get_preferences", "hack_preview_organiser_invite", "hack_export_own_team_archive", "hack_export_projects_archive", "hack_preview_leave_event"} {
 		want[name] = [3]bool{true, false, false}
 	}
-	for _, tool := range HackTools() {
+	for _, tool := range Tools() {
 		expected, ok := want[tool.Name]
 		if !ok {
 			continue
@@ -274,7 +275,7 @@ func TestHackDeleteToolDestructiveConfirmation(t *testing.T) {
 			w.WriteHeader(204)
 		}
 		s := newTestServer(up)
-		text, result, bad := resultOf(t, sendMode(t, s, toolCall(tool.Name, map[string]any{"slug": "spring", "body": map[string]any{"confirm": "spring"}}), CallerModeEvents))
+		text, result, bad := resultOf(t, sendMode(t, s, toolCall(tool.Name, map[string]any{"slug": "spring", "body": map[string]any{"confirm": "spring"}}), mcp.CallerModeEvents))
 		if bad || result["status"] != float64(204) {
 			t.Fatalf("delete result: %s", text)
 		}

@@ -7,7 +7,7 @@ import (
 
 func TestWrappedPasscodeScreenRejectedWhenDisabled(t *testing.T) {
 	t.Setenv("MCP_APP_PASSCODE", "off")
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	caller := screenCaller()
 	_, _, byName := s.forCaller(caller)
 	if _, ok := byName["passcode_screen"]; ok {
@@ -33,7 +33,7 @@ func TestWrappedPasscodeScreenRejectedWhenDisabled(t *testing.T) {
 }
 
 func TestStorageFileAnalyticsDataEditionBoundary(t *testing.T) {
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	const text = "ordinary upload text"
 	for _, tc := range []struct {
 		name string

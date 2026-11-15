@@ -1,10 +1,11 @@
 // famHackEvents organiser administration and shared REST route adapters.
-package mcp
+package hackmcp
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,33 +28,33 @@ type hackRouteTool struct {
 // HackOrganiserTools covers the event administration routes not already
 // exposed by HackTools. A personal connection may call these across events;
 // the REST handler verifies organiser membership for each request.
-func HackOrganiserTools() []Tool {
+func HackOrganiserTools() []mcp.Tool {
 	return append(hackOrganiserEventTools(), hackOrganiserEntryTools()...)
 }
 
-func hackOrganiserEventTools() []Tool {
+func hackOrganiserEventTools() []mcp.Tool {
 	return hackRouteTools(hackOrganiserEventRoutes())
 }
 
-func hackRouteTools(routes []hackRouteTool) []Tool {
-	tools := make([]Tool, 0, len(routes)+1)
+func hackRouteTools(routes []hackRouteTool) []mcp.Tool {
+	tools := make([]mcp.Tool, 0, len(routes)+1)
 	for _, route := range routes {
 		r := route
 		props := map[string]any{}
 		for _, p := range r.params {
-			props[p] = str("REST path parameter: " + p + ".")
+			props[p] = mcp.Str("REST path parameter: " + p + ".")
 		}
 		if r.body {
 			props["body"] = map[string]any{"type": "object", "description": r.bodyDescription + " The REST route validates each field and returns its own errors.", "additionalProperties": true}
 		}
 		if r.policy.judgeParameter {
-			props["judge_user_id"] = str("Optional judge user ID. Omit to remove your own conflict.")
+			props["judge_user_id"] = mcp.Str("Optional judge user ID. Omit to remove your own conflict.")
 		}
 		if r.policy.includeEmails {
 			props["include_emails"] = map[string]any{"type": "boolean", "description": "Set true only when the organiser asks for team members' email addresses."}
 		}
 		if r.name == "hack_post_announcement" || r.name == "hack_edit_announcement" {
-			fields := map[string]any{"title": str("Announcement title (1–120 characters)."), "body": str("Message (1–3000 characters)."), "pinned": map[string]any{"type": "boolean", "description": "Pin to top, replacing the previous pin, or unpin."}}
+			fields := map[string]any{"title": mcp.Str("Announcement title (1–120 characters)."), "body": mcp.Str("Message (1–3000 characters)."), "pinned": map[string]any{"type": "boolean", "description": "Pin to top, replacing the previous pin, or unpin."}}
 			bodySchema := map[string]any{"type": "object", "properties": fields, "additionalProperties": false}
 			if r.name == "hack_post_announcement" {
 				fields["email_participants"] = map[string]any{"type": "boolean", "description": "Also email participants; off by default."}
@@ -63,32 +64,32 @@ func hackRouteTools(routes []hackRouteTool) []Tool {
 			}
 			props["body"] = bodySchema
 		}
-		schema := object(props, append(append([]string{}, r.params...), requiredBody(r.body)...)...)
-		outSchema := outObject(map[string]any{"response": anyJSON("REST JSON response with fields limited to this operation."), "status": outInteger("REST status code.")}, "response", "status")
+		schema := mcp.Object(props, append(append([]string{}, r.params...), requiredBody(r.body)...)...)
+		outSchema := mcp.OutObject(map[string]any{"response": mcp.AnyJSON("REST JSON response with fields limited to this operation."), "status": mcp.OutInteger("REST status code.")}, "response", "status")
 		if r.name == "hack_get_announcements" {
-			item := outObject(map[string]any{"id": outString("Announcement ID."), "title": outString("Title."), "body": outString("Original text."), "body_html": outString("Safe server-rendered HTML; insert as-is."), "pinned": outBool("Pinned to top."), "created_at": outString("Creation time."), "emails_sent": outInteger("Deliveries sent.")}, "id", "title", "body", "body_html", "pinned", "created_at", "emails_sent")
-			outSchema = outObject(map[string]any{"response": outObject(map[string]any{"announcements": outArray("Pinned first, then newest.", item)}, "announcements"), "status": outInteger("REST status code.")}, "response", "status")
+			item := mcp.OutObject(map[string]any{"id": mcp.OutString("Announcement ID."), "title": mcp.OutString("Title."), "body": mcp.OutString("Original text."), "body_html": mcp.OutString("Safe server-rendered HTML; insert as-is."), "pinned": mcp.OutBool("Pinned to top."), "created_at": mcp.OutString("Creation time."), "emails_sent": mcp.OutInteger("Deliveries sent.")}, "id", "title", "body", "body_html", "pinned", "created_at", "emails_sent")
+			outSchema = mcp.OutObject(map[string]any{"response": mcp.OutObject(map[string]any{"announcements": mcp.OutArray("Pinned first, then newest.", item)}, "announcements"), "status": mcp.OutInteger("REST status code.")}, "response", "status")
 		}
 		if r.csv {
 			outSchema = hackEntrySchemas().csv
 		}
 		if r.archive {
-			outSchema = outObject(map[string]any{"url": outString("Short-lived private download link for the complete archive."), "expires_at": outString("Link expiration in RFC3339 format."), "expires_in": outInteger("Seconds until expiration.")}, "url", "expires_at", "expires_in")
+			outSchema = mcp.OutObject(map[string]any{"url": mcp.OutString("Short-lived private download link for the complete archive."), "expires_at": mcp.OutString("Link expiration in RFC3339 format."), "expires_in": mcp.OutInteger("Seconds until expiration.")}, "url", "expires_at", "expires_in")
 		}
 		if r.policy.screenshot {
-			outSchema = outObject(map[string]any{"content_type": outString("Screenshot image MIME type."), "content_base64": outString("Complete screenshot image bytes encoded as base64.")}, "content_type", "content_base64")
+			outSchema = mcp.OutObject(map[string]any{"content_type": mcp.OutString("Screenshot image MIME type."), "content_base64": mcp.OutString("Complete screenshot image bytes encoded as base64.")}, "content_type", "content_base64")
 		}
-		tool := Tool{policy: r.policy, Name: r.name, Title: r.title, Description: r.description, InputSchema: schema, OutputSchema: outSchema,
-			Annotations: writes(r.destructive, r.idempotent, r.public)}
+		tool := withToolPolicy(mcp.Tool{Name: r.name, Title: r.title, Description: r.description, InputSchema: schema, OutputSchema: outSchema,
+			Annotations: mcp.Writes(r.destructive, r.idempotent, r.public)}, r.policy)
 		if r.method == http.MethodGet || r.archive {
-			tool.Annotations = readOnly()
+			tool.Annotations = mcp.ReadOnly()
 			tool.Annotations["openWorldHint"] = r.public
 		}
 		if r.policy.recordsPins {
 			// These reads record deadline pins when due.
-			tool.Annotations = writes(false, true, false)
+			tool.Annotations = mcp.Writes(false, true, false)
 		}
-		tool.run = func(c *call, args map[string]any) (output, error) { return runHackRoute(c, r, args) }
+		tool = mcp.WithRun(tool, func(c *mcp.Call, args map[string]any) (mcp.Output, error) { return runHackRoute(c, r, args) })
 		tools = append(tools, tool)
 	}
 	return tools
@@ -169,12 +170,12 @@ func requiredBody(body bool) []string {
 	return nil
 }
 
-func runHackRoute(c *call, route hackRouteTool, args map[string]any) (output, error) {
+func runHackRoute(c *mcp.Call, route hackRouteTool, args map[string]any) (mcp.Output, error) {
 	path := route.path
 	for _, p := range route.params {
-		value, err := stringArg(args, p)
+		value, err := mcp.StringArg(args, p)
 		if err != nil {
-			return output{}, err
+			return mcp.Output{}, err
 		}
 		if p == "slug" {
 			value = strings.ToLower(value)
@@ -183,7 +184,7 @@ func runHackRoute(c *call, route hackRouteTool, args map[string]any) (output, er
 	}
 	if route.policy.judgeParameter {
 		if judgeID, present, err := presentString(args, "judge_user_id"); err != nil {
-			return output{}, err
+			return mcp.Output{}, err
 		} else if present && judgeID != "" {
 			path += "?judge_user_id=" + url.QueryEscape(judgeID)
 		}
@@ -194,44 +195,44 @@ func runHackRoute(c *call, route hackRouteTool, args map[string]any) (output, er
 	if route.body && (hasBody || !route.policy.optionalBody) {
 		body, ok := args["body"].(map[string]any)
 		if !ok {
-			return output{}, fmt.Errorf("body must be a JSON object")
+			return mcp.Output{}, fmt.Errorf("body must be a JSON object")
 		}
 		var err error
 		raw, err = json.Marshal(body)
 		if err != nil {
-			return output{}, err
+			return mcp.Output{}, err
 		}
 	}
-	res := c.do(route.method, path, raw, nil)
-	if !res.ok() {
-		return output{}, hackRestError(route.name, res)
+	res := c.Do(route.method, path, raw, nil)
+	if !res.OK() {
+		return mcp.Output{}, hackRestError(route.name, res)
 	}
 	if route.csv {
 		return hackCSVOutput(fmt.Sprint(args["slug"]), strings.TrimPrefix(route.name, "hack_export_"), res)
 	}
 	if route.archive {
 		var link map[string]any
-		if err := json.Unmarshal(res.body, &link); err != nil {
-			return output{}, fmt.Errorf("%s: server returned invalid JSON: %w", route.name, err)
+		if err := json.Unmarshal(res.Body(), &link); err != nil {
+			return mcp.Output{}, fmt.Errorf("%s: server returned invalid JSON: %w", route.name, err)
 		}
-		return output{Text: jsonText(link), Structured: link}, nil
+		return mcp.Output{Text: mcp.JSONText(link), Structured: link}, nil
 	}
 	if route.policy.screenshot {
-		structured := map[string]any{"content_type": res.header.Get("Content-Type"), "content_base64": base64.StdEncoding.EncodeToString(res.body)}
-		return output{Text: "Screenshot image in structured result.", Structured: structured}, nil
+		structured := map[string]any{"content_type": res.Header().Get("Content-Type"), "content_base64": base64.StdEncoding.EncodeToString(res.Body())}
+		return mcp.Output{Text: "Screenshot image in structured result.", Structured: structured}, nil
 	}
 	var response any
-	if len(res.body) > 0 {
-		if err := json.Unmarshal(res.body, &response); err != nil {
-			return output{}, fmt.Errorf("%s: server returned invalid JSON: %w", route.name, err)
+	if len(res.Body()) > 0 {
+		if err := json.Unmarshal(res.Body(), &response); err != nil {
+			return mcp.Output{}, fmt.Errorf("%s: server returned invalid JSON: %w", route.name, err)
 		}
 	}
 	if obj, ok := response.(map[string]any); ok {
 		includeEmails, _ := args["include_emails"].(bool)
-		c.minimiseHackOrganiserResult(includeEmails, obj)
+		minimiseHackOrganiserResult(c, includeEmails, obj)
 	}
-	structured := map[string]any{"response": response, "status": res.status}
-	return output{Text: jsonText(structured), Structured: structured}, nil
+	structured := map[string]any{"response": response, "status": res.Status()}
+	return mcp.Output{Text: mcp.JSONText(structured), Structured: structured}, nil
 }
 
 // hackSetEntryExcludedTool is hack_set_entry_excluded: a toggle over the

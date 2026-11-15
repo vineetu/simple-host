@@ -1,6 +1,7 @@
-package mcp
+package hackmcp
 
 import (
+	"github.com/vsriram/simple-host/internal/mcp"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +11,7 @@ import (
 func TestHackWhoAmIEmailOptIn(t *testing.T) {
 	for _, connection := range []string{"personal", "selected-team", "team-key"} {
 		for _, args := range []map[string]any{{}, {"include_email": false}, {"include_email": true}} {
-			t.Run(connection+"/"+jsonText(args), func(t *testing.T) {
+			t.Run(connection+"/"+mcp.JSONText(args), func(t *testing.T) {
 				up := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					body := `{"username":"person@example.test"}`
 					if r.Header.Get("X-API-Key") == "team" {
@@ -18,17 +19,17 @@ func TestHackWhoAmIEmailOptIn(t *testing.T) {
 					}
 					jsonReply(200, body)(w, r)
 				})
-				caller := Caller{APIKey: "personal", Mode: CallerModeEvents, GrantID: "grant"}
+				caller := mcp.Caller{APIKey: "personal", Mode: mcp.CallerModeEvents, GrantID: "grant"}
 				if connection == "selected-team" {
 					caller.TeamAPIKey = "team"
 				}
 				if connection == "team-key" {
-					caller.APIKey, caller.Mode = "team", CallerModeHackSite
+					caller.APIKey, caller.Mode = "team", mcp.CallerModeHackSite
 				}
 				s := newTestServer(up)
 				r := httptest.NewRequest("POST", "/mcp", strings.NewReader(toolCall("who_am_i", args)))
 				r.Header.Set("Content-Type", "application/json")
-				r = r.WithContext(WithCaller(r.Context(), caller))
+				r = r.WithContext(mcp.WithCaller(r.Context(), caller))
 				w := httptest.NewRecorder()
 				s.ServeHTTP(w, r)
 				text, out, bad := resultOf(t, w)
@@ -47,7 +48,7 @@ func TestHackWhoAmIEmailOptIn(t *testing.T) {
 				if hasTeam != (connection != "personal") {
 					t.Fatal("team context changed")
 				}
-				if err := ValidateOutput(hackWhoAmITool().OutputSchema, out, nil); err != nil {
+				if err := mcp.ValidateOutput(hackWhoAmITool().OutputSchema, out, nil); err != nil {
 					t.Fatal(err)
 				}
 			})

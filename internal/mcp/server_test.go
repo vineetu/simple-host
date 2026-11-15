@@ -36,11 +36,12 @@ func (u *recordingUpstream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func newTestServer(up http.Handler) *Server {
-	return NewServer(Config{
+	return NewServer(testConfig(Config{
 		Upstream: up, APIHost: "simple-host.app", ContentOrigin: "https://sites.simple-host.app",
 		SiteBases:    []string{"simple-host.app"},
 		SkillVersion: "9.9.9", ServerName: "simple-host", Version: "9.9.9",
-	})
+	}))
+
 }
 
 func send(t *testing.T, s *Server, body string, headers map[string]string, authed bool) *httptest.ResponseRecorder {

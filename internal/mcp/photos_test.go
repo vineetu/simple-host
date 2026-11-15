@@ -45,14 +45,15 @@ func photoRequest(s *Server, token, method string) *httptest.ResponseRecorder {
 }
 func TestPhotoLinkFixedRequestAndCap(t *testing.T) {
 	calls, minted, revoked := 0, 0, 0
-	s := NewServer(Config{APIHost: "box.example.org", Upstream: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := NewServer(testConfig(Config{APIHost: "box.example.org", Upstream: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if r.Method != "POST" || r.URL.RequestURI() != "/v1/sites/blog/photos" || r.Host != "box.example.org" || r.Header.Get("X-API-Key") != "fresh" || r.Header.Get("Cookie") != "" || r.Header.Get("X-Photo-Token") != "" || r.Header.Get("Origin") != "https://box.example.org" || r.ContentLength != 6 {
 			t.Error("photo proxy escaped its boundary")
 		}
 		w.Header().Set("X-API-Key", "must-not-escape")
 		w.WriteHeader(200)
-	})})
+	})}))
+
 	token := mintPhoto(t, s, Caller{Owner: "owner", MintUpload: func(context.Context, bool) (string, func(), error) {
 		minted++
 		return "fresh", func() { revoked++ }, nil
@@ -180,11 +181,12 @@ func TestPhotoLinkDoesNotExposeAccountQuota(t *testing.T) {
 }
 
 func TestPhotoLinkRetryAfter(t *testing.T) {
-	s := NewServer(Config{APIHost: "box.example.org", Upstream: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := NewServer(testConfig(Config{APIHost: "box.example.org", Upstream: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", "2")
 		w.WriteHeader(429)
 		w.Write([]byte(`{"error":"Busy, try again in a moment"}`))
-	})})
+	})}))
+
 	token := mintPhoto(t, s, Caller{APIKey: "owner"})
 	w := photoRequest(s, token, "POST")
 	if w.Code != 429 || w.Header().Get("Retry-After") != "2" || !strings.Contains(w.Body.String(), "Busy, try again in a moment") {
@@ -200,7 +202,7 @@ func TestPhotoLinkCredentialExpiry(t *testing.T) {
 			if remaining != 0 {
 				caller.CredentialExpiresAt = now.Add(remaining).Truncate(time.Second)
 			}
-			s := NewServer(Config{APIHost: "box.example.org"})
+			s := NewServer(testConfig(Config{APIHost: "box.example.org"}))
 			out, err := createUploadLink(&call{server: s, caller: caller}, map[string]any{"site": "blog"})
 			if err != nil {
 				t.Fatal(err)

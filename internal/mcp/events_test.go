@@ -113,7 +113,7 @@ func TestEventsCapabilitiesAndTools(t *testing.T) {
 					if enabled {
 						cfg.Events = backend
 					}
-					s := NewServer(cfg)
+					s := NewServer(testConfig(cfg))
 					caller := eventTestCaller()
 					caller.Mode, caller.GrantID = mode, "selected-team-grant"
 					want := enabled && mode != CallerModeHackSite
@@ -173,7 +173,7 @@ func TestEventsCapabilitiesAndTools(t *testing.T) {
 }
 
 func TestEventsListSchemas(t *testing.T) {
-	s := NewServer(Config{Events: &fakeEventsBackend{}})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 	for _, modern := range []bool{false, true} {
 		out := eventResult(t, sendEvent(t, s, "events/list", nil, eventTestCaller(), modern), modern)
 		events := out["events"].([]any)
@@ -314,7 +314,7 @@ func TestEventsSiteEventArguments(t *testing.T) {
 	for _, modern := range []bool{false, true} {
 		for _, name := range siteEventNames {
 			backend := &fakeEventsBackend{}
-			s := NewServer(Config{Events: backend})
+			s := NewServer(testConfig(Config{Events: backend}))
 			params := eventTestParams()
 			params["name"] = name
 			// A storage filter means nothing on a site event: InvalidParams, not silently ignored.
@@ -344,7 +344,7 @@ func TestEventsSiteEventArguments(t *testing.T) {
 	}
 	// Record events keep their storage filter.
 	backend := &fakeEventsBackend{}
-	s := NewServer(Config{Events: backend})
+	s := NewServer(testConfig(Config{Events: backend}))
 	eventResult(t, sendEvent(t, s, "events/subscribe", eventTestParams(), eventTestCaller(), false), false)
 	if len(backend.subscribed) != 1 || backend.subscribed[0].Storage != "orders" {
 		t.Fatal("record event lost its storage filter")
@@ -356,7 +356,7 @@ func TestEventsSubscribeAndRefresh(t *testing.T) {
 	cursor := "c_42"
 	for _, modern := range []bool{false, true} {
 		backend := &fakeEventsBackend{result: EventSubscribeResult{ID: "sub_test", RefreshBefore: &deadline, Cursor: &cursor, Truncated: true}}
-		s := NewServer(Config{Events: backend})
+		s := NewServer(testConfig(Config{Events: backend}))
 		params := eventTestParams()
 		params["cursor"], params["ttlMs"] = cursor, 3600000
 		rec := sendEvent(t, s, "events/subscribe", params, eventTestCaller(), modern)
@@ -521,7 +521,7 @@ func TestEventsValidation(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(fmt.Sprintf("%s/modern=%v", tc.name, modern), func(t *testing.T) {
 				backend := &fakeEventsBackend{}
-				s := NewServer(Config{Events: backend})
+				s := NewServer(testConfig(Config{Events: backend}))
 				params := eventTestParams()
 				parts := strings.Split(tc.path, ".")
 				obj := params
@@ -562,7 +562,7 @@ func TestEventsValidation(t *testing.T) {
 
 func TestEventsForbidden(t *testing.T) {
 	backend := &fakeEventsBackend{}
-	s := NewServer(Config{Events: backend})
+	s := NewServer(testConfig(Config{Events: backend}))
 	for _, modern := range []bool{false, true} {
 		for _, caller := range []Caller{{}, {APIKey: "test-key"}, {Owner: "test-owner"}, {APIKey: "test-key", Owner: "test-owner", DeployOnly: true}} {
 			for _, method := range []string{"events/list", "events/subscribe", "events/unsubscribe"} {
@@ -583,14 +583,14 @@ func TestEventsBackendErrors(t *testing.T) {
 			for _, code := range []int{EventCodeNotFound, EventCodeForbidden, EventCodeResourceExhausted, EventCodeUnsupported, EventCodeCallbackEndpoint, codeInvalidParams} {
 				data := map[string]any{"reason": "challenge_failed"}
 				backend := &fakeEventsBackend{err: fmt.Errorf("wrapped: %w", &EventError{Code: code, Message: "backend category", Data: data})}
-				s := NewServer(Config{Events: backend})
+				s := NewServer(testConfig(Config{Events: backend}))
 				err := eventErrorCode(t, sendEvent(t, s, method, eventTestParams(), eventTestCaller(), modern), code)
 				if err["message"] != "backend category" || !reflect.DeepEqual(err["data"], data) {
 					t.Error("EventError changed")
 				}
 			}
 			backend := &fakeEventsBackend{err: errors.New("private backend detail")}
-			rec := sendEvent(t, NewServer(Config{Events: backend}), method, eventTestParams(), eventTestCaller(), modern)
+			rec := sendEvent(t, NewServer(testConfig(Config{Events: backend})), method, eventTestParams(), eventTestCaller(), modern)
 			err := eventErrorCode(t, rec, codeInternalError)
 			if err["message"] != "internal error" || err["data"] != nil || strings.Contains(rec.Body.String(), "private backend detail") {
 				t.Error("internal error exposes backend detail")
@@ -602,7 +602,7 @@ func TestEventsBackendErrors(t *testing.T) {
 func TestEventsUnsubscribe(t *testing.T) {
 	for _, modern := range []bool{false, true} {
 		backend := &fakeEventsBackend{}
-		s := NewServer(Config{Events: backend})
+		s := NewServer(testConfig(Config{Events: backend}))
 		params := eventTestParams()
 		delete(params["delivery"].(map[string]any), "secret")
 		delete(params["delivery"].(map[string]any), "mode")
@@ -625,7 +625,7 @@ func TestNotificationToolsOutputs(t *testing.T) {
 		"GET /v1/sites/bakery/notifications":             func() (int, string) { return 200, body },
 		"DELETE /v1/sites/bakery/notifications/sub_test": func() (int, string) { return 200, `{"deleted":true}` },
 	}}
-	s := NewServer(Config{Events: &fakeEventsBackend{}, Upstream: up})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}, Upstream: up}))
 	for _, modern := range []bool{false, true} {
 		seen := map[string]map[string]bool{}
 		for _, tc := range []struct {
@@ -691,7 +691,7 @@ func TestNotificationToolsOutputs(t *testing.T) {
 
 func TestNotificationToolsErrors(t *testing.T) {
 	up := &recordingUpstream{}
-	s := NewServer(Config{Events: &fakeEventsBackend{}, Upstream: up})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}, Upstream: up}))
 	for _, tc := range []struct {
 		name string
 		args map[string]any
@@ -728,7 +728,7 @@ func TestNotificationToolsErrors(t *testing.T) {
 }
 
 func TestEventsDeployTools(t *testing.T) {
-	s := NewServer(Config{Events: &fakeEventsBackend{}})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 	caller := eventTestCaller()
 	caller.DeployOnly = true
 	if s.offersEvents(caller) {
@@ -763,7 +763,7 @@ func TestNotificationToolRedactsWebhookURL(t *testing.T) {
 			body, _ := json.Marshal(map[string]any{"notifications": []any{map[string]any{"url": tc.raw}}, "limits": map[string]int{}})
 			return 200, string(body)
 		}}}
-		s := NewServer(Config{Events: &fakeEventsBackend{}, Upstream: up})
+		s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}, Upstream: up}))
 		rec := send(t, s, toolCall("list_notifications", nil), nil, true)
 		_, out, isErr := resultOf(t, rec)
 		if isErr || out["notifications"].([]any)[0].(map[string]any)["url"] != tc.want {
@@ -786,7 +786,7 @@ func (b *unavailableEventsBackend) EventsAvailability() error {
 func TestEventsUnavailableOnlyBlocksSubscribe(t *testing.T) {
 	for _, modern := range []bool{false, true} {
 		backend := &unavailableEventsBackend{}
-		s := NewServer(Config{Events: backend})
+		s := NewServer(testConfig(Config{Events: backend}))
 		caller := eventTestCaller()
 		if _, ok := s.capabilities(caller)["events"]; ok {
 			t.Fatal("unavailable events advertised")

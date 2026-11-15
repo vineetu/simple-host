@@ -103,8 +103,8 @@ func callerFrom(ctx context.Context) (Caller, bool) {
 
 // Config wires the server to the application.
 type Config struct {
-	// Contribution is the product tool surface. Nil uses the transitional built-in contribution;
-	// a pointer to the zero value adds no product tools.
+	// Contribution is the product tool surface. Nil, like a pointer to the zero
+	// value, adds no product tools.
 	Contribution *Contribution
 
 	// Limits is the snapshot used for tool descriptions and results.
@@ -214,6 +214,9 @@ type Server struct {
 }
 
 func newServer(cfg Config) *Server {
+	if cfg.Contribution == nil {
+		cfg.Contribution = &Contribution{}
+	}
 	if cfg.MaxBodyBytes <= 0 {
 		cfg.MaxBodyBytes = 16 << 20
 	}

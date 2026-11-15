@@ -16,8 +16,8 @@ import (
 // Captured from the untouched recipes at 54cc3504, before R3-S6b.
 func TestRulesRecipesFlagOffBytes(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "off")
-	defer NewServer(Config{})
-	NewServer(Config{})
+	defer NewServer(testConfig(Config{}))
+	NewServer(testConfig(Config{}))
 	const frozen = `{
   "hack-event": "85e149a6ea85622fc9098a768c7c38509a7383fb6d7386c221327247ec96bd46",
   "inbox": "5e2c32ce6400878501167a57aa62cfc8919d30c0924365b5ae724d1c116f6c2e",
@@ -64,7 +64,7 @@ func TestRulesRecipesFlagOffBytes(t *testing.T) {
 	}
 	// Both public dispatch paths re-read the flag, including a cached tool.
 	for _, tool := range []Tool{pageRecipeTool(), hackPageRecipeTool()} {
-		c := &call{server: NewServer(Config{})}
+		c := &call{server: NewServer(testConfig(Config{}))}
 		args := map[string]any{"topic": "booking", "site": "shop"}
 		before, err := tool.run(c, args)
 		if err != nil {
@@ -120,8 +120,8 @@ func recipeCalls(t *testing.T, text, tool string) []recipeSetup {
 
 func TestRulesRecipeExamples(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
-	defer NewServer(Config{})
-	NewServer(Config{})
+	defer NewServer(testConfig(Config{}))
+	NewServer(testConfig(Config{}))
 	for _, topic := range recipeTopics {
 		t.Run(topic, func(t *testing.T) {
 			text, err := PageRecipe(topic, "shop")
@@ -226,8 +226,8 @@ func TestRulesRecipeExamples(t *testing.T) {
 
 func TestRulesWordPressImportSetupAdvice(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
-	defer NewServer(Config{})
-	NewServer(Config{})
+	defer NewServer(testConfig(Config{}))
+	NewServer(testConfig(Config{}))
 	text, err := PageRecipe("wordpress", "shop")
 	if err != nil {
 		t.Fatal(err)
@@ -264,8 +264,8 @@ func TestRulesWordPressImportSetupAdvice(t *testing.T) {
 
 func TestRulesHackRecipes(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
-	defer NewServer(Config{})
-	NewServer(Config{})
+	defer NewServer(testConfig(Config{}))
+	NewServer(testConfig(Config{}))
 	for _, topic := range append(append([]string{}, recipeTopics...), "event") {
 		text, err := HackPageRecipe(topic, "my-event")
 		switch topic {
@@ -292,8 +292,8 @@ func TestRulesHackRecipes(t *testing.T) {
 
 func TestRulesRecipeAdaptations(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
-	defer NewServer(Config{})
-	NewServer(Config{})
+	defer NewServer(testConfig(Config{}))
+	NewServer(testConfig(Config{}))
 	admin, err := PageRecipe("admin", "shop")
 	if err != nil {
 		t.Fatal(err)

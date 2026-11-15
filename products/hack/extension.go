@@ -28,6 +28,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -130,6 +131,7 @@ func Extension() *extension.Extension {
 					GroupHosts:    groupHosts,
 					GroupGate:     teams.SiteGate{TeamSitesReady: siteHandler.TeamSitesReady, RequestCert: siteHandler.RequestSiteCert, PaperSite: siteHandler.RecordGateSite, PaperState: siteHandler.RecordGateState},
 				},
+				Tools:     hackmcp.Contribution(),
 				PaperHack: func(paper *papermetrics.Collector) { hackmetrics.Install(paper) },
 				PaperRecorder: func(next http.Handler) http.Handler {
 					return hackhttp.WithPaperRecorder(handler.WithPaperRecorder(next, hackhttp.SitePaperRecorder{}), hackmetrics.RequestRecorder{})

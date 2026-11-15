@@ -2757,7 +2757,7 @@ The three Host visitor tools are outside the core and listed individually for Op
 | `visitor_add_entry` | `address`, `kind` (`kv`, `sqlite`, or `collection`), `resource`, `value`; optional `passcode`, `table`, and `key` | Adds a visitor entry. SQLite assigns the ID. |
 | `visitor_change_entry` | `address`, `kind`, `resource`, `action` (`edit` or `delete`); optional `passcode`, `table`, `key`, `id`, and `value` (required for edit) | Changes only the caller's own entry, subject to its preset; destructive annotation. |
 
-The original event tools remain in `internal/mcp/hack_tools.go`:
+The original event tools remain in `products/hack/mcp/hack_event_tools.go`:
 
 | Tool | REST call | § |
 |---|---|---|
@@ -2786,7 +2786,7 @@ personal connection.
 | Voting and private results | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` | `/vote`, `/my-vote`, `/my-results` |
 | Judge | `hack_preview_judge`, `hack_join_judge`, `hack_get_judge_queue`, `hack_get_judge_scores`, `hack_score_team`, `hack_get_my_conflicts`, `hack_declare_my_conflict`, `hack_remove_my_conflict`, `hack_show_judge` (§10, app-only) | Judge-link preview/accept, `/judge/queue`, `/judge/scores/{team}`, `/conflicts` |
 | Public and content | `hack_get_directory`, `hack_get_content`, `hack_set_content`, `hack_get_announcements`, `hack_post_announcement` | `/v1/hack/directory`, `/content`, `/announcements` |
-| Event website and preferences (`HackWebTools`, `internal/mcp/hack_web_tools.go`) | `hack_get_event_website`, `hack_publish_event_website`, `hack_set_event_website_mode`, `hack_set_event_icon`, `hack_clear_event_icon`, `hack_get_public_event`, `hack_get_preferences`, `hack_set_preferences` | `/website`, `/website/files`, `/icon`, `/public`, `/v1/hack/preferences` |
+| Event website and preferences (`HackWebTools`, `products/hack/mcp/hack_web_tools.go`) | `hack_get_event_website`, `hack_publish_event_website`, `hack_set_event_website_mode`, `hack_set_event_icon`, `hack_clear_event_icon`, `hack_get_public_event`, `hack_get_preferences`, `hack_set_preferences` | `/website`, `/website/files`, `/icon`, `/public`, `/v1/hack/preferences` |
 | Registration and tracks | `hack_get_registration`, `hack_set_registration`, `hack_get_applications`, `hack_decide_application`, `hack_get_tracks`, `hack_set_tracks` | `/registration` (`approval_required`/`admit_pending` cover join-link sign-ups only), `/applications`, `/applications/{user_id}/decision`, `/tracks` |
 | Voting and discovery settings | `hack_get_voting_settings`, `hack_set_voting_settings`, `hack_set_directory_listing` | `/voting`, `/directory` |
 | Event people and links | `hack_regenerate_code`, `hack_delete_event`, `hack_get_people`, `hack_remove_person`, `hack_revoke_person_key` | `/codes/{kind}`, event DELETE, `/people` and `/people/{user_id}/key` |

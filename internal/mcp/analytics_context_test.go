@@ -10,7 +10,7 @@ import (
 )
 
 func TestAnalyticsContextListing(t *testing.T) {
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	base, _, _ := s.forCaller(Caller{AppName: "Claude"})
 	before, _ := json.Marshal(base)
 	for _, on := range []bool{false, true} {
@@ -79,7 +79,7 @@ func TestAnalyticsContextCalls(t *testing.T) {
 		for _, app := range []string{"Claude", "ChatGPT", "OpenAI", "Codex"} {
 			for _, wrapped := range []bool{false, true} {
 				for _, own := range []bool{false, true} {
-					s := NewServer(Config{})
+					s := NewServer(testConfig(Config{}))
 					if on {
 						s.analytics = &analyticsSender{queue: make(chan analyticsEvent, 1)}
 					}

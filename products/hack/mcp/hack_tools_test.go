@@ -1,7 +1,8 @@
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"io"
 	"net/http"
@@ -11,12 +12,12 @@ import (
 	"testing"
 )
 
-func sendMode(t *testing.T, s *Server, body, mode string) *httptest.ResponseRecorder {
+func sendMode(t *testing.T, s *mcp.Server, body, mode string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
 	req.RemoteAddr = "203.0.113.7:5555"
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(WithCaller(req.Context(), Caller{APIKey: "user-key", Mode: mode}))
+	req = req.WithContext(mcp.WithCaller(req.Context(), mcp.Caller{APIKey: "user-key", Mode: mode}))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 	return rec
@@ -93,14 +94,11 @@ func jsonReply(status int, body string) func(http.ResponseWriter, *http.Request)
 }
 
 func TestHackToolSchemasAndInventory(t *testing.T) {
-	if !strings.Contains(codeHints["invalid_name"], "1 to 63") {
-		t.Fatal("site invalid_name hint changed")
-	}
 	website := map[string]bool{}
-	for _, tool := range Tools() {
+	for _, tool := range mcp.Tools() {
 		website[tool.Name] = true
 	}
-	hack := HackTools()
+	hack := Tools()
 	if len(hack) == 0 {
 		t.Fatal("no hack tools")
 	}
@@ -111,10 +109,10 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 		if website[tool.Name] {
 			t.Errorf("%s collides with a website tool", tool.Name)
 		}
-		if err := CheckOutputSchema(tool.OutputSchema); err != nil {
+		if err := mcp.CheckOutputSchema(tool.OutputSchema); err != nil {
 			t.Errorf("%s output: %v", tool.Name, err)
 		}
-		if err := CheckOutputSchema(tool.InputSchema); err != nil {
+		if err := mcp.CheckOutputSchema(tool.InputSchema); err != nil {
 			t.Errorf("%s input: %v", tool.Name, err)
 		}
 	}
@@ -141,8 +139,8 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 
 	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
 	listed := listedTools(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, nil, true))
-	if len(listed) != len(coreToolNames) {
-		t.Fatalf("website list has %d tools, want %d", len(listed), len(coreToolNames))
+	if core := len(s.ListedTools()); len(listed) != core {
+		t.Fatalf("website list has %d tools, want %d", len(listed), core)
 	}
 	for _, tool := range listed {
 		name := tool["name"].(string)
@@ -150,17 +148,19 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 			t.Errorf("website list advertises %s", name)
 		}
 	}
-	events := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, CallerModeEvents))
+	events := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeEvents))
 	// hack_app_* twins (hack_app_only_tools.go) are gated the same way as
 	// hack_show_judge/hack_show_organiser: flag, events mode, not ChatGPT/
 	// OpenAI/Codex, UI declared (owner follow-up review, SIM-344 phase 2 --
 	// they used to be listed unconditionally, which this baseline call,
 	// declaring neither flag nor UI support, would otherwise still show).
 	hiddenHere := map[string]bool{"hack_create_team_key": true, "hack_show_judge": true, "hack_show_organiser": true}
-	for _, name := range appOnlyTwinNames() {
-		hiddenHere[name] = true
+	for _, tool := range hack {
+		if strings.HasPrefix(tool.Name, "hack_app_") {
+			hiddenHere[tool.Name] = true
+		}
 	}
-	visibleHack := make([]Tool, 0, len(hack))
+	visibleHack := make([]mcp.Tool, 0, len(hack))
 	for _, tool := range hack {
 		if !hiddenHere[tool.Name] {
 			visibleHack = append(visibleHack, tool)
@@ -184,7 +184,7 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 	req.RemoteAddr = "203.0.113.7:5555"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("MCP-Protocol-Version", "2025-03-26")
-	req = req.WithContext(WithCaller(req.Context(), Caller{APIKey: "user-key", Mode: CallerModeEvents}))
+	req = req.WithContext(mcp.WithCaller(req.Context(), mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents}))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 	for _, tool := range listedTools(t, rec) {
@@ -196,9 +196,9 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 		}
 	}
 
-	init := decode(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, CallerModeEvents))
+	init := decode(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, mcp.CallerModeEvents))
 	instructions := init["result"].(map[string]any)["instructions"].(string)
-	if !strings.Contains(instructions, "Simple Hack on "+s.cfg.APIHost) || !strings.Contains(instructions, "hack_select_team") || strings.Contains(instructions, "create_site") {
+	if !strings.Contains(instructions, "Simple Hack on simple-host.app") || !strings.Contains(instructions, "hack_select_team") || strings.Contains(instructions, "create_site") {
 		t.Fatalf("events instructions: %s", instructions)
 	}
 	web := decode(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, nil, true))
@@ -207,10 +207,10 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 		t.Fatal("website instructions picked up the event inventory")
 	}
 
-	if msg := rpcMessage(t, sendMode(t, s, toolCall("list_sites", map[string]any{}), CallerModeEvents)); !strings.Contains(msg, "unknown tool") {
+	if msg := rpcMessage(t, sendMode(t, s, toolCall("list_sites", map[string]any{}), mcp.CallerModeEvents)); !strings.Contains(msg, "unknown tool") {
 		t.Fatalf("events caller list_sites: %s", msg)
 	}
-	if msg := rpcMessage(t, sendMode(t, s, toolCall("create_site", map[string]any{}), CallerModeEvents)); !strings.Contains(msg, "unknown tool") {
+	if msg := rpcMessage(t, sendMode(t, s, toolCall("create_site", map[string]any{}), mcp.CallerModeEvents)); !strings.Contains(msg, "unknown tool") {
 		t.Fatalf("events caller create_site: %s", msg)
 	}
 	if msg := rpcMessage(t, send(t, s, toolCall("hack_list_events", map[string]any{}), nil, true)); !strings.Contains(msg, "unknown tool") {
@@ -225,8 +225,8 @@ func TestHackToolDispatch(t *testing.T) {
 
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
 	s := newTestServer(up)
-	byName := map[string]Tool{}
-	for _, tool := range HackTools() {
+	byName := map[string]mcp.Tool{}
+	for _, tool := range Tools() {
 		if _, existing := hackOutputSchemas()[tool.Name]; existing {
 			byName[tool.Name] = tool
 		}
@@ -234,7 +234,7 @@ func TestHackToolDispatch(t *testing.T) {
 	seen := map[string]map[string]bool{}
 	call := func(name string, args map[string]any) (string, map[string]any, bool, string) {
 		t.Helper()
-		rec := sendMode(t, s, toolCall(name, args), CallerModeEvents)
+		rec := sendMode(t, s, toolCall(name, args), mcp.CallerModeEvents)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s: %d %s", name, rec.Code, rec.Body.String())
 		}
@@ -253,7 +253,7 @@ func TestHackToolDispatch(t *testing.T) {
 		if seen[name] == nil {
 			seen[name] = map[string]bool{}
 		}
-		if err := ValidateOutput(byName[name].OutputSchema, structured, seen[name]); err != nil {
+		if err := mcp.ValidateOutput(byName[name].OutputSchema, structured, seen[name]); err != nil {
 			t.Fatalf("%s: %v\n%s", name, err, raw)
 		}
 		recordHackOutputValidated(name)
@@ -267,7 +267,7 @@ func TestHackToolDispatch(t *testing.T) {
 	if isErr || structured["count"].(float64) != 0 || !strings.Contains(text, "hack_create_event") {
 		t.Fatalf("empty list: %v %s", isErr, text)
 	}
-	if err := ValidateOutput(byName["hack_list_events"].OutputSchema, structured, nil); err != nil {
+	if err := mcp.ValidateOutput(byName["hack_list_events"].OutputSchema, structured, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -347,7 +347,7 @@ func TestHackToolDispatch(t *testing.T) {
 	if _, ok := structured["organiser"]; ok || strings.Contains(raw, "SECRET-TEAM") || strings.Contains(raw, "/join/") {
 		t.Fatalf("participant view included organiser links: %s", raw)
 	}
-	if err := ValidateOutput(byName["hack_get_event"].OutputSchema, structured, nil); err != nil {
+	if err := mcp.ValidateOutput(byName["hack_get_event"].OutputSchema, structured, nil); err != nil {
 		t.Fatal(err)
 	}
 	up.ans["GET /v1/hack/events/spring"] = jsonReply(200, eventBody)
@@ -463,7 +463,7 @@ func TestHackToolDispatch(t *testing.T) {
 			continue
 		}
 		var unseen []string
-		for _, path := range SchemaPropertyPaths(tool.OutputSchema) {
+		for _, path := range mcp.SchemaPropertyPaths(tool.OutputSchema) {
 			if !seen[name][path] {
 				unseen = append(unseen, path)
 			}
@@ -478,22 +478,33 @@ func TestHackToolDispatch(t *testing.T) {
 // about the team's website, and that wording still names every required argument.
 func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
 	s := newTestServer(nil)
-	if len(s.hackSiteTools) == 0 {
+	site := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeHackSite))
+	if len(site) == 0 {
 		t.Fatal("no Hack website tools")
 	}
-	for _, tool := range s.hackSiteTools {
-		host, ok := s.byName[tool.Name]
+	hostByName := map[string]mcp.Tool{}
+	for _, tool := range mcp.Tools() {
+		hostByName[tool.Name] = tool
+	}
+	deleteSite := ""
+	for _, tool := range site {
+		name := tool["name"].(string)
+		if name == "delete_site" {
+			deleteSite, _ = tool["description"].(string)
+		}
+		host, ok := hostByName[name]
 		if !ok {
 			continue
 		}
+		annotations, _ := tool["annotations"].(map[string]any)
 		for _, key := range []string{"readOnlyHint", "destructiveHint", "openWorldHint", "idempotentHint"} {
-			if tool.Annotations[key] != host.Annotations[key] {
-				t.Errorf("%s %s = %v on Hack, %v on Host", tool.Name, key, tool.Annotations[key], host.Annotations[key])
+			if annotations[key] != host.Annotations[key] {
+				t.Errorf("%s %s = %v on Hack, %v on Host", name, key, annotations[key], host.Annotations[key])
 			}
 		}
 	}
-	if d := s.hackSiteByName["delete_site"].Description; !strings.Contains(d, "confirm_name") {
-		t.Errorf("Hack delete_site does not say to pass confirm_name: %q", d)
+	if !strings.Contains(deleteSite, "confirm_name") {
+		t.Errorf("Hack delete_site does not say to pass confirm_name: %q", deleteSite)
 	}
 }
 
@@ -510,7 +521,7 @@ func TestHackTeamFindingPatch(t *testing.T) {
 func TestHackJudgingLockToolsRemoved(t *testing.T) {
 	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
 	for _, name := range []string{"hack_lock_judging", "hack_unlock_judging"} {
-		for _, tool := range HackTools() {
+		for _, tool := range Tools() {
 			if tool.Name == name {
 				t.Fatalf("retired tool listed: %s", name)
 			}

@@ -12,7 +12,7 @@ import (
 )
 
 func TestFindToolsRanking(t *testing.T) {
-	s := NewServer(Config{Events: &fakeEventsBackend{}})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 	cases := []struct{ query, want string }{
 		{"put my site on my own domain", "connect_domain"},
 		{"shorter link for my site", "connect_domain"},
@@ -136,7 +136,7 @@ func TestCoreListingByRevision(t *testing.T) {
 		if events {
 			cfg.Events = &fakeEventsBackend{}
 		}
-		s := NewServer(cfg)
+		s := NewServer(testConfig(cfg))
 		for _, deploy := range []bool{false, true} {
 			for _, version := range append([]string{""}, supportedVersions...) {
 				t.Run(fmt.Sprintf("events=%v/deploy=%v/%s", events, deploy, version), func(t *testing.T) {
@@ -191,7 +191,7 @@ func TestCoreListingByRevision(t *testing.T) {
 }
 
 func TestFindToolsResults(t *testing.T) {
-	s := NewServer(Config{Events: &fakeEventsBackend{}})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 	for _, query := range []string{"", "zzzzzz", "connect_domain", "create_site", "storage_set_resource", "update_site", "set_keep_versions"} {
 		text, structured, isErr := resultOf(t, send(t, s, toolCall("find_tools", map[string]any{"query": query}), nil, true))
 		if isErr {
@@ -334,7 +334,7 @@ func TestRunToolDispatch(t *testing.T) {
 }
 
 func TestDiscoveryCallerInventories(t *testing.T) {
-	s := NewServer(Config{Events: &fakeEventsBackend{}})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 	caller := Caller{APIKey: "test", DeployOnly: true}
 	for _, name := range []string{"list_notifications", "remove_notification"} {
 		text, _, isErr := resultOf(t, sendEvent(t, s, "tools/call", map[string]any{"name": "run_tool", "arguments": map[string]any{"name": name}}, caller, false))
@@ -429,7 +429,7 @@ func TestInstructionsLength(t *testing.T) {
 	for _, flag := range []string{"off", "on"} {
 		t.Run(flag, func(t *testing.T) {
 			t.Setenv("STORAGE_RULES", flag)
-			defer NewServer(Config{})
+			defer NewServer(testConfig(Config{}))
 			// A long but realistic instance host (one full 63-character label).
 			longHost := strings.Repeat("a", 63) + ".sites.example-company.org"
 			for _, tc := range []struct {
@@ -443,7 +443,7 @@ func TestInstructionsLength(t *testing.T) {
 				{"other instance", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: productionHostRewrite("websites.example.org"), SupportContact: "support@example.org"}},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
-					text := NewServer(tc.cfg).instructionsFor(Caller{})
+					text := NewServer(testConfig(tc.cfg)).instructionsFor(Caller{})
 					t.Logf("instructions: %d characters (%d bytes)", len([]rune(text)), len(text))
 					if !strings.Contains(text, "photo picker in the chat") {
 						t.Error("missing photo handoff")
@@ -476,11 +476,11 @@ func TestHackInstructionsLength(t *testing.T) {
 	for _, flag := range []string{"off", "on"} {
 		t.Run(flag, func(t *testing.T) {
 			t.Setenv("STORAGE_RULES", flag)
-			defer NewServer(Config{})
+			defer NewServer(testConfig(Config{}))
 			for _, host := range []string{"simple-hack.app", "hack.company.example", strings.Repeat("a", 63) + ".sites.example-company.org", strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)} {
 				for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "personal"}, {Mode: CallerModeHackSite}} {
 					t.Run(host+"/"+caller.Mode+"/"+caller.GrantID, func(t *testing.T) {
-						text := NewServer(Config{APIHost: host, SelfHosted: host != "simple-hack.app"}).instructionsFor(caller)
+						text := NewServer(testConfig(Config{APIHost: host, SelfHosted: host != "simple-hack.app"})).instructionsFor(caller)
 						t.Logf("instructions: %d characters", len([]rune(text)))
 						if n := len([]rune(text)); n >= 2000 {
 							t.Fatalf("instructions too long: %d", n)
@@ -506,7 +506,7 @@ func TestHackInstructionsLength(t *testing.T) {
 
 func TestHackPublicInventory(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "off")
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	for _, flag := range []string{"off", "on"} {
 		t.Run(flag, func(t *testing.T) {
 			t.Setenv("STORAGE_RULES", flag)
@@ -551,7 +551,7 @@ func TestHackPublicInventory(t *testing.T) {
 }
 
 func TestSignedOutReconnect(t *testing.T) {
-	defer NewServer(Config{})
+	defer NewServer(testConfig(Config{}))
 	for _, self := range []bool{false, true} {
 		for _, code := range []string{"key_expired", "key_expired_idle", "invalid_api_key", ""} {
 			up := &recordingUpstream{answers: map[string]func() (int, string){"GET /v1/me": func() (int, string) { return 401, `{"error":"connection expired","code":"` + code + `"}` }}}
@@ -559,7 +559,7 @@ func TestSignedOutReconnect(t *testing.T) {
 			if self {
 				cfg.Rewrite = strings.NewReplacer("simple-host.app", "box.example").Replace
 			}
-			s := NewServer(cfg)
+			s := NewServer(testConfig(cfg))
 			text, _, isErr := resultOf(t, send(t, s, toolCall("who_am_i", nil), nil, true))
 			for _, want := range []string{"connection expired", "https://chatgpt.com/plugins", "Add custom MCP server", "never share an API key", "Sign in in the window that opens, then choose Allow."} {
 				if !isErr || !strings.Contains(text, want) {
@@ -581,7 +581,7 @@ func TestSignedOutReconnect(t *testing.T) {
 }
 
 func TestFindPhotoLink(t *testing.T) {
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	for _, query := range []string{"add photos", "upload pictures from my phone", "put my photos on the site", "photo picker", "photos for the menu", "add photos of the house to my listing"} {
 		found := s.search.rank(query, 3)
 		if len(found) == 0 || found[0].tool.Name != "create_upload_link" {

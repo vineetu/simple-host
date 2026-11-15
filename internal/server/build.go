@@ -452,6 +452,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 			return nil, fmt.Errorf("wire extension %s: %w", ext.Name, err)
 		}
 	}
+	connector.SetTools(parts.Tools)
 	if ed.Identity().TeamKeys && parts.Hooks.GroupGate == nil {
 		return nil, fmt.Errorf("team-key edition requires a group gate")
 	}

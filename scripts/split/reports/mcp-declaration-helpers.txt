@@ -1,4 +1,4 @@
-D3-S1a declaration boundary (read beside mcp-identifiers.txt)
+D3-S1a declaration boundary (read beside mcp-identifiers.txt); D3-S1b additions at the end
 
 Schema/declaration helpers: declare.go exposes thin wrappers for the typed
 inventory's schema builders, annotations, argument parsers, description/meta
@@ -40,3 +40,18 @@ Family constants become product-owned family labels at that move.
 Screen methods and call-time gates remain in Hack files until D3-S1c. The Apps
 factory builds their transitional receiver from AppContext once per server.
 No request data or serving Server is passed into the factory.
+
+D3-S1b (declarations moved to products/hack/mcp): the product names its four
+families by label ("hack-events", "hack-entries", "storage", "sites"); no
+family constant, registry or inventory was exported. hackmcp.Tools() is the
+flattened contribution. One helper was added: NewCall(server, request, caller),
+which the moved tests use with CallTool where they used to build a call and
+read the run field. Inventory now takes the product's Contribution. A nil
+Config.Contribution adds nothing; the composition root passes Hack's through
+extension.Parts.Tools and ConnectorHandler.SetTools.
+The remnant families_hack.go appends the app-only family (built from the
+contributed base tools, only for a contribution with the hack-events family)
+and supplies Apps until D3-S1c. It also holds the screens' copies of
+eventSlug, hackRestError and hackAbilitiesSchema, which leave with the screens.
+internal/mcp's in-package tests get the product from the external test file
+hack_wire_test.go (transitional test edge mcp -> products/hack/mcp, D3-S1c).

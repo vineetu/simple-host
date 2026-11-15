@@ -1,7 +1,8 @@
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -38,7 +39,7 @@ func TestHackResultsLimitPersonalData(t *testing.T) {
 		{"hack_get_conflicts", conflicts, conflicts, true},
 		{"hack_accept_organiser_invite", event, event, true},
 	}
-	byName := map[string]Tool{}
+	byName := map[string]mcp.Tool{}
 	for _, tool := range append(HackMemberTools(), HackOrganiserTools()...) {
 		byName[tool.Name] = tool
 	}
@@ -46,9 +47,8 @@ func TestHackResultsLimitPersonalData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tool := byName[tc.name]
 			up := jsonReply(http.StatusOK, tc.response)
-			c := &call{server: newTestServer(http.HandlerFunc(up)), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "test-key", Mode: CallerModeEvents, UserID: "caller"}}
-			c.policy = tool.policy
-			out, err := tool.run(c, map[string]any{"slug": "spring", "code": "invite", "team": "builders", "team_id": "one", "user_id": "applicant", "body": map[string]any{}})
+			c := mcp.NewCall(newTestServer(http.HandlerFunc(up)), httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "test-key", Mode: mcp.CallerModeEvents, UserID: "caller"})
+			out, err := mcp.CallTool(tool, c, map[string]any{"slug": "spring", "code": "invite", "team": "builders", "team_id": "one", "user_id": "applicant", "body": map[string]any{}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -74,7 +74,7 @@ func TestHackGetTeamsEmailsOptIn(t *testing.T) {
 			if err := json.Unmarshal([]byte(input), &args); err != nil {
 				t.Fatal(err)
 			}
-			text, result, bad := resultOf(t, sendMode(t, newTestServer(up), toolCall("hack_get_teams", args), CallerModeEvents))
+			text, result, bad := resultOf(t, sendMode(t, newTestServer(up), toolCall("hack_get_teams", args), mcp.CallerModeEvents))
 			if bad {
 				t.Fatal(text)
 			}
@@ -100,11 +100,11 @@ func TestHackGetTeamsEmailsOptIn(t *testing.T) {
 }
 
 func TestHackMyConflictsCallerScope(t *testing.T) {
-	for _, caller := range []Caller{
+	for _, caller := range []mcp.Caller{
 		{UserID: "judge"}, {UserID: "organiser"}, {UserID: "no-conflicts"}, {},
 		{Owner: "judge"}, {Owner: "organiser"}, {UserID: "judge", Owner: "organiser"},
 	} {
-		caller.APIKey, caller.Mode = "test-key", CallerModeEvents
+		caller.APIKey, caller.Mode = "test-key", mcp.CallerModeEvents
 		userID := caller.UserID
 		if userID == "" {
 			userID = caller.Owner
@@ -128,9 +128,8 @@ func TestHackMyConflictsCallerScope(t *testing.T) {
 				} else if userID == "judge" {
 					want = map[string]any{"team_id": "one", "team_name": "One"}
 				}
-				c := &call{server: newTestServer(http.HandlerFunc(jsonReply(200, response))), orig: httptest.NewRequest("POST", "/mcp", nil), caller: caller}
-				c.policy = tool.policy
-				out, err := tool.run(c, map[string]any{"slug": "spring", "team_id": "one"})
+				c := mcp.NewCall(newTestServer(http.HandlerFunc(jsonReply(200, response))), httptest.NewRequest("POST", "/mcp", nil), caller)
+				out, err := mcp.CallTool(tool, c, map[string]any{"slug": "spring", "team_id": "one"})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -140,7 +139,7 @@ func TestHackMyConflictsCallerScope(t *testing.T) {
 	}
 }
 
-func assertHackResult(t *testing.T, tool Tool, out output, want map[string]any) {
+func assertHackResult(t *testing.T, tool mcp.Tool, out mcp.Output, want map[string]any) {
 	t.Helper()
 	// Normalize integer status codes before comparing JSON representations.
 	wantRaw, err := json.Marshal(want)
@@ -164,7 +163,7 @@ func assertHackResult(t *testing.T, tool Tool, out output, want map[string]any) 
 	if !reflect.DeepEqual(textResult, wantResult) {
 		t.Fatalf("%s text result differs: %s", tool.Name, out.Text)
 	}
-	if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
 		t.Fatalf("%s schema: %v", tool.Name, err)
 	}
 	recordHackOutputValidated(tool.Name)

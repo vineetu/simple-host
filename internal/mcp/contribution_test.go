@@ -34,7 +34,7 @@ func contributionSnapshot(t *testing.T) map[string]string {
 				if events {
 					cfg.Events = inventoryEvents{}
 				}
-				s := NewServer(cfg)
+				s := NewServer(testConfig(cfg))
 				for name, c := range callers {
 					c.Handle = "fixture"
 					c.APIKey = "fixture"
@@ -97,9 +97,9 @@ func TestZeroContributionHostInventory(t *testing.T) {
 		if events {
 			cfg.Events = inventoryEvents{}
 		}
-		composed := NewServer(cfg)
+		composed := NewServer(testConfig(cfg))
 		cfg.Contribution = &Contribution{}
-		host := NewServer(cfg)
+		host := NewServer(testConfig(cfg))
 		for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {AppName: "ChatGPT", DeployOnly: true}} {
 			a, b, _ := composed.forCaller(caller)
 			x, y, _ := host.forCaller(caller)
@@ -147,7 +147,7 @@ func TestContributionNoTarget(t *testing.T) {
 					return original(tool, listable)
 				}
 			}
-			s := NewServer(Config{Contribution: &contribution, Upstream: http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("no-target call reached REST") })})
+			s := NewServer(testConfig(Config{Contribution: &contribution, Upstream: http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("no-target call reached REST") })}))
 			params, _ := json.Marshal(map[string]any{"name": tc.tool, "arguments": tc.args})
 			reply := s.dispatch(httptest.NewRequest("POST", "/mcp", nil), request{ID: json.RawMessage("1"), Method: "tools/call", Params: params}, Caller{Mode: CallerModeEvents, GrantID: "grant", APIKey: "person", Handle: "fixture"})
 			text := "Choose a team with hack_select_team before publishing its site."
@@ -184,7 +184,7 @@ func TestContributionAppsPerServer(t *testing.T) {
 		}
 		return AppContribution{}
 	}}
-	s := NewServer(Config{APIHost: "connector.example.test", Contribution: &contribution})
+	s := NewServer(testConfig(Config{APIHost: "connector.example.test", Contribution: &contribution}))
 	for range 2 {
 		s.forCaller(Caller{})
 		s.productAppResources(Caller{}, true)
@@ -192,7 +192,7 @@ func TestContributionAppsPerServer(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("Apps called %d times for one Server", calls)
 	}
-	NewServer(Config{APIHost: "connector.example.test", Contribution: &contribution})
+	NewServer(testConfig(Config{APIHost: "connector.example.test", Contribution: &contribution}))
 	if calls != 2 {
 		t.Fatalf("Apps called %d times for two Servers", calls)
 	}
@@ -213,7 +213,7 @@ func TestContributionAppMetadataParity(t *testing.T) {
 		}
 		return factory(ctx)
 	}
-	s := NewServer(Config{APIHost: "screens.example.test", Contribution: &contribution})
+	s := NewServer(testConfig(Config{APIHost: "screens.example.test", Contribution: &contribution}))
 	caller := Caller{Mode: CallerModeEvents, Handle: "fixture"}
 	resources := s.productAppResources(caller, true)
 	if len(resources) != len(hackAppScreens) || !reflect.DeepEqual(seen, hackAppScreens) {

@@ -2,14 +2,13 @@ package servertest
 
 import (
 	"encoding/json"
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 // Opt-in fixture for scripts/e2e-hack-event-live.mjs: a real uploaded recipe,
@@ -37,7 +36,7 @@ func TestServeHackEventLiveBrowser(t *testing.T) {
 	}
 	wantTS(t, "gallery", a.api(t, "PATCH", base, map[string]any{"gallery_open": true, "submission_deadline": time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)}, w.org.key), 200, "")
 	wantTS(t, "schedule", a.api(t, "PUT", base+"/content", map[string]any{"schedule": []map[string]string{{"title": "Live kickoff", "start_at": time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339), "end_at": time.Now().Add(25 * time.Hour).UTC().Format(time.RFC3339)}}}, w.org.key), 200, "")
-	recipe, err := mcp.HackPageRecipe("event", w.slug)
+	recipe, err := hackmcp.HackPageRecipe("event", w.slug)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -272,6 +272,13 @@ func (h *ConnectorHandler) OfferSpamCheck(on bool) {
 	h.mcp = mcp.NewServer(h.mcpConfig)
 }
 
+// SetTools installs a product's AI tools. Call once at startup, before
+// serving; the routes Register added read the server at request time.
+func (h *ConnectorHandler) SetTools(product mcp.Contribution) {
+	h.mcpConfig.Contribution = &product
+	h.mcp = mcp.NewServer(h.mcpConfig)
+}
+
 // SetEventsBackend enables MCP Events. Call once at startup, before serving.
 func (h *ConnectorHandler) SetEventsBackend(b mcp.EventsBackend) {
 	h.mcpConfig.Events = b
@@ -339,7 +346,7 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 }
 
 func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
-	RegisterAgentCard(mux, h.issuer, h.mcp, h.hostedEvents)
+	RegisterAgentCard(mux, h.issuer, func() *mcp.Server { return h.mcp }, h.hostedEvents)
 	RegisterMCPServerCard(mux, h.issuer, h.hostedEvents)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", h.protectedResourceMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", h.protectedResourceMetadata)
@@ -368,11 +375,11 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	mux.Handle("POST /v1/imports/{token}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.receiveImport))))
 	mux.Handle("GET /v1/imports/status/{import_id}", h.importOrigin(rateLimitByIP(h.importStatusLimiter, http.HandlerFunc(h.importStatus))))
 
-	photoLinks := photosHostOnly(!h.hostedEvents, accountAuthOnly(h.issuer, rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServePhotoLink))))
+	photoLinks := photosHostOnly(!h.hostedEvents, accountAuthOnly(h.issuer, rateLimitByIP(h.uploadLimiter, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.mcp.ServePhotoLink(w, r) }))))
 	mux.Handle("GET /v1/photo-links", photoLinks)
 	mux.Handle("POST /v1/photo-links", photoLinks)
-	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
-	mux.Handle("POST /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
+	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.mcp.ServeUpload(w, r) })))
+	mux.Handle("POST /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.mcp.ServeUpload(w, r) })))
 
 	mux.Handle("GET /v1/me/connections", authMiddleware(http.HandlerFunc(h.listConnections)))
 	mux.Handle("DELETE /v1/me/connections/{client_id}", authMiddleware(http.HandlerFunc(h.deleteConnection)))

@@ -2,6 +2,7 @@ package servertest
 
 import (
 	"encoding/json"
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -107,7 +108,8 @@ func TestHackPublicDiscovery(t *testing.T) {
 			hackhttp.RegisterHackHome(mux, sh.Pages())
 			sh.Pages().RegisterSkillsHub(mux, base)
 			host := strings.SplitN(base, "://", 2)[1]
-			server := mcp.NewServer(mcp.Config{APIHost: host})
+			product := hackmcp.Contribution()
+			server := mcp.NewServer(mcp.Config{APIHost: host, Contribution: &product})
 			connector := handler.NewConnectorHandlerForTest(base, server, true)
 			connector.Register(mux, func(next http.Handler) http.Handler { return next })
 			readJSON := func(path string, dst any) string {

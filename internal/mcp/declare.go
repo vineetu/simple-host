@@ -158,5 +158,11 @@ func RequiresNotificationID(tool Tool) bool { return tool.policy.notificationID 
 func PageRecipeTool() Tool                  { return pageRecipeTool() }
 func RecipeTopics() []string                { return append([]string(nil), recipeTopics...) }
 
+// NewCall is the context one tool call runs in; the server builds the same
+// value for each tools/call. Product tests run a declaration with it.
+func NewCall(server *Server, r *http.Request, caller Caller) *Call {
+	return &call{server: server, orig: r, caller: caller}
+}
+
 // WithCaller copies this replay context with the supplied credential identity.
 func (c *call) WithCaller(caller Caller) *Call { clone := *c; clone.caller = caller; return &clone }

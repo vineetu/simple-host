@@ -52,7 +52,7 @@ func analyticsTestEndpoint(t *testing.T, status int) <-chan []byte {
 
 func analyticsTestServer(t *testing.T, projectID string, runErr error) *Server {
 	t.Helper()
-	s := NewServer(Config{AnalyticsProjectID: projectID, AnalyticsEnv: "prod", ServerName: "simple-host", Version: "1.2.3"})
+	s := NewServer(testConfig(Config{AnalyticsProjectID: projectID, AnalyticsEnv: "prod", ServerName: "simple-host", Version: "1.2.3"}))
 	if s.analytics != nil {
 		t.Cleanup(func() { close(s.analytics.queue) })
 		if cap(s.analytics.queue) != 512 || s.analytics.client.Timeout != 5*time.Second {

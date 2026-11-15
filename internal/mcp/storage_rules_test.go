@@ -42,7 +42,7 @@ func TestStorageRulesFlagOffHashes(t *testing.T) {
 		"true/events/false//test":  "ddec8f93f7d99ab54ebd8c5b1a6ff061a22935fa9b0017940a21a796da86291a"}
 	t.Setenv("STORAGE_RULES", "off")
 	for _, noSpam := range []bool{false, true} {
-		s := NewServer(Config{NoSpamCheck: noSpam})
+		s := NewServer(testConfig(Config{NoSpamCheck: noSpam}))
 		for _, c := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeHackSite}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "test"}} {
 			full, bare, _ := s.forCaller(c)
 			b, _ := json.Marshal([]any{full, bare, s.instructionsFor(c), s.searchFor(c).find("storage", 10)})
@@ -71,7 +71,7 @@ func TestStorageRulesFlagOffHashes(t *testing.T) {
 func TestStorageRulesTextAtRequestTime(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "off")
 	for _, noSpam := range []bool{false, true} {
-		s := NewServer(Config{NoSpamCheck: noSpam})
+		s := NewServer(testConfig(Config{NoSpamCheck: noSpam}))
 		for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeHackSite}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "test"}} {
 			before, _, _ := s.forCaller(caller)
 			old, _ := json.Marshal(before)
@@ -182,10 +182,10 @@ func TestStorageRulesTextAtRequestTime(t *testing.T) {
 
 func TestStorageRulesInstructionsMaxHostname(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
-	defer NewServer(Config{})
+	defer NewServer(testConfig(Config{}))
 	host := strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)
 	for _, noSpam := range []bool{false, true} {
-		s := NewServer(Config{SelfHosted: true, NoSpamCheck: noSpam, Rewrite: productionHostRewrite(host)})
+		s := NewServer(testConfig(Config{SelfHosted: true, NoSpamCheck: noSpam, Rewrite: productionHostRewrite(host)}))
 		for _, app := range []string{"", "ChatGPT", "OpenAI", "Codex"} {
 			text := s.instructionsFor(Caller{AppName: app})
 			if n := len([]rune(text)); n >= 2000 {
@@ -262,7 +262,7 @@ func TestStorageRulesValidationRefusal(t *testing.T) {
 
 func TestStorageRulesDiscoveryIndexesNewDescriptions(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "off")
-	s := NewServer(Config{})
+	s := NewServer(testConfig(Config{}))
 	for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeHackSite}, {Mode: CallerModeEvents}} {
 		t.Setenv("STORAGE_RULES", "off")
 		before := s.searchFor(caller)

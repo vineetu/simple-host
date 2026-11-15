@@ -10,7 +10,7 @@ import (
 func TestAddressBase(t *testing.T) {
 	defer SetAddressBase("", "")
 	send := func() string {
-		s := NewServer(Config{})
+		s := NewServer(testConfig(Config{}))
 		b, _ := json.Marshal(s.tools)
 		return string(b) + addressText(Instructions()) + addressText(codeHint("custom_domain_required"))
 	}

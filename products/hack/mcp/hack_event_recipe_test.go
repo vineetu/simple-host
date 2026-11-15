@@ -1,6 +1,7 @@
-package mcp
+package hackmcp
 
 import (
+	"github.com/vsriram/simple-host/internal/mcp"
 	"strings"
 	"testing"
 )
@@ -19,14 +20,14 @@ func TestHackEventRecipe(t *testing.T) {
 		t.Fatal("unfilled slug or storage preamble")
 	}
 	for _, topic := range []string{"event", "hack-event"} {
-		if _, err := PageRecipe(topic, "my-hack"); err == nil {
+		if _, err := mcp.PageRecipe(topic, "my-hack"); err == nil {
 			t.Fatalf("Host serves %s", topic)
 		}
 	}
 	for _, tc := range []struct {
-		tool Tool
+		tool mcp.Tool
 		want bool
-	}{{hackPageRecipeTool(), true}, {pageRecipeTool(), false}} {
+	}{{hackPageRecipeTool(), true}, {mcp.PageRecipeTool(), false}} {
 		topics := tc.tool.InputSchema["properties"].(map[string]any)["topic"].(map[string]any)["enum"].([]string)
 		found := false
 		for _, topic := range topics {
@@ -38,9 +39,9 @@ func TestHackEventRecipe(t *testing.T) {
 			t.Fatalf("%s event topic: %v, want %v", tc.tool.Name, found, tc.want)
 		}
 	}
-	s := newTestServer(nil)
-	s.cfg.APIHost = "hack.example.test"
-	out, err := hackPageRecipeTool().run(&call{server: s}, map[string]any{"topic": "event", "site": "my-hack"})
+	product := Contribution()
+	s := mcp.NewServer(mcp.Config{Contribution: &product, APIHost: "hack.example.test"})
+	out, err := mcp.CallTool(hackPageRecipeTool(), mcp.NewCall(s, nil, mcp.Caller{}), map[string]any{"topic": "event", "site": "my-hack"})
 	if err != nil {
 		t.Fatal(err)
 	}

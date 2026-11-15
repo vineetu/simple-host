@@ -1,7 +1,8 @@
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"net/http"
 	"reflect"
 	"testing"
@@ -41,20 +42,20 @@ func TestChecklistMCPReplayAndSchemas(t *testing.T) {
 				_, _ = w.Write(data)
 			}
 			server := newTestServer(up)
-			text, out, bad := resultOf(t, sendMode(t, server, toolCall(tc.name, tc.args), CallerModeEvents))
+			text, out, bad := resultOf(t, sendMode(t, server, toolCall(tc.name, tc.args), mcp.CallerModeEvents))
 			if bad {
 				t.Fatal(text)
 			}
 			if !reflect.DeepEqual(out, expected) {
 				t.Fatalf("REST/MCP differ: %s", text)
 			}
-			var tool Tool
-			for _, v := range HackTools() {
+			var tool mcp.Tool
+			for _, v := range Tools() {
 				if v.Name == tc.name {
 					tool = v
 				}
 			}
-			if err := ValidateOutput(tool.OutputSchema, out, nil); err != nil {
+			if err := mcp.ValidateOutput(tool.OutputSchema, out, nil); err != nil {
 				t.Fatal(err)
 			}
 			recordHackOutputValidated(tc.name)

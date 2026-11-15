@@ -1,9 +1,10 @@
-package mcp
+package hackmcp
 
 import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -74,16 +75,16 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 		{"hack_preview_leave_event", "GET", "/v1/hack/events/spring/leave", map[string]any{"slug": "spring"}, nil},
 		{"hack_leave_event", "POST", "/v1/hack/events/spring/leave", map[string]any{"slug": "spring", "confirm": "spring", "successor_user_id": "person", "close": "end"}, map[string]any{"confirm": "spring", "successor_user_id": "person", "close": "end"}},
 	}
-	tools := map[string]Tool{}
+	tools := map[string]mcp.Tool{}
 	for _, tool := range HackMemberTools() {
 		if _, ok := tools[tool.Name]; ok {
 			t.Fatalf("duplicate %s", tool.Name)
 		}
 		tools[tool.Name] = tool
-		if err := CheckOutputSchema(tool.InputSchema); err != nil {
+		if err := mcp.CheckOutputSchema(tool.InputSchema); err != nil {
 			t.Errorf("%s input: %v", tool.Name, err)
 		}
-		if err := CheckOutputSchema(tool.OutputSchema); err != nil {
+		if err := mcp.CheckOutputSchema(tool.OutputSchema); err != nil {
 			t.Errorf("%s output: %v", tool.Name, err)
 		}
 	}
@@ -101,9 +102,8 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 			if !ok {
 				t.Fatal("missing tool")
 			}
-			c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "member-key", Mode: CallerModeEvents, UserID: "caller"}}
-			c.policy = tool.policy
-			out, err := tool.run(c, tc.args)
+			c := mcp.NewCall(newTestServer(up), httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "member-key", Mode: mcp.CallerModeEvents, UserID: "caller"})
+			out, err := mcp.CallTool(tool, c, tc.args)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,7 +118,7 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 			// as authored). memberTool's schema is deliberately open, so this
 			// mainly guards against a future tool here switching to a closed,
 			// structured schema without a matching run() shape.
-			if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
+			if err := mcp.ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match its outputSchema: %v", tc.name, err)
 			}
 			recordHackOutputValidated(tc.name)
@@ -147,7 +147,7 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 func ioRead(r *http.Request) ([]byte, error) { return io.ReadAll(r.Body) }
 
 func TestHackMemberRESTErrorsAndScreenshot(t *testing.T) {
-	byName := map[string]Tool{}
+	byName := map[string]mcp.Tool{}
 	for _, tool := range HackMemberTools() {
 		byName[tool.Name] = tool
 	}
@@ -170,28 +170,28 @@ func TestHackMemberRESTErrorsAndScreenshot(t *testing.T) {
 		w.WriteHeader(403)
 		_, _ = w.Write([]byte(`{"error":"your application is pending","code":"approval_pending"}`))
 	})
-	c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "member-key", Mode: CallerModeEvents, UserID: "caller"}}
-	_, err := byName["hack_create_team"].run(c, map[string]any{"slug": "spring", "name": "No"})
+	c := mcp.NewCall(newTestServer(up), httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "member-key", Mode: mcp.CallerModeEvents, UserID: "caller"})
+	_, err := mcp.CallTool(byName["hack_create_team"], c, map[string]any{"slug": "spring", "name": "No"})
 	if err == nil || !strings.Contains(err.Error(), "approval_pending") {
 		t.Fatalf("REST permission error changed: %v", err)
 	}
-	got, err := byName["hack_get_entry_screenshot"].run(c, map[string]any{"slug": "spring"})
+	got, err := mcp.CallTool(byName["hack_get_entry_screenshot"], c, map[string]any{"slug": "spring"})
 	if err != nil || got.Structured["base64"] != base64.StdEncoding.EncodeToString([]byte("png")) || got.Structured["content_type"] != "image/png" {
 		t.Fatalf("screenshot read: %v %v", got, err)
 	}
-	if err := ValidateOutput(byName["hack_get_entry_screenshot"].OutputSchema, got.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(byName["hack_get_entry_screenshot"].OutputSchema, got.Structured, nil); err != nil {
 		t.Fatalf("hack_get_entry_screenshot: structuredContent does not match its outputSchema: %v", err)
 	}
 	recordHackOutputValidated("hack_get_entry_screenshot")
-	got, err = byName["hack_set_entry_screenshot"].run(c, map[string]any{"slug": "spring", "base64": base64.StdEncoding.EncodeToString([]byte("png"))})
+	got, err = mcp.CallTool(byName["hack_set_entry_screenshot"], c, map[string]any{"slug": "spring", "base64": base64.StdEncoding.EncodeToString([]byte("png"))})
 	if err != nil || got.Structured["saved"] != true {
 		t.Fatalf("screenshot upload: %v %v", got, err)
 	}
-	if err := ValidateOutput(byName["hack_set_entry_screenshot"].OutputSchema, got.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(byName["hack_set_entry_screenshot"].OutputSchema, got.Structured, nil); err != nil {
 		t.Fatalf("hack_set_entry_screenshot: structuredContent does not match its outputSchema: %v", err)
 	}
 	recordHackOutputValidated("hack_set_entry_screenshot")
-	_, err = byName["hack_set_entry_screenshot"].run(c, map[string]any{"slug": "spring", "base64": "bad!"})
+	_, err = mcp.CallTool(byName["hack_set_entry_screenshot"], c, map[string]any{"slug": "spring", "base64": "bad!"})
 	if err == nil || !strings.Contains(err.Error(), "base64") {
 		t.Fatalf("invalid screenshot: %v", err)
 	}

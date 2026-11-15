@@ -16,7 +16,7 @@ import (
 
 func TestAnalyticsPostedConversation(t *testing.T) {
 	bodies := analyticsTestEndpoint(t, http.StatusNoContent)
-	s := NewServer(Config{AnalyticsProjectID: "conversation-test"})
+	s := NewServer(testConfig(Config{AnalyticsProjectID: "conversation-test"}))
 	t.Cleanup(func() { close(s.analytics.queue) })
 	const planted = "PLANTED_PRIVATE_VALUE"
 	encoded := base64.StdEncoding.EncodeToString([]byte(planted))

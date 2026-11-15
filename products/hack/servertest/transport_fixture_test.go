@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -680,6 +681,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	gated := a.sites.LegacyStorageCutoffGate(hackhttp.LegacyStorageGate(ed, handler.LegacyStoragePath)(auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour)))
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
+	a.conn.SetTools(hackmcp.Contribution())
 	a.conn.SetHackTeams(true)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
 	app := handler.SecurityHeaders(handler.CORS(a.conn.BearerAuth(gated)))

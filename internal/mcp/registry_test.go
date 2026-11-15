@@ -15,7 +15,7 @@ func TestRegistryRejectsDuplicateEditionName(t *testing.T) {
 }
 
 func TestNotificationPolicyLookupKeepsHostSemantics(t *testing.T) {
-	s := NewServer(Config{Events: inventoryEvents{}})
+	s := NewServer(testConfig(Config{Events: inventoryEvents{}}))
 	for _, name := range []string{"list_notifications", "remove_notification"} {
 		t.Run(name, func(t *testing.T) {
 			const email = "person@example.test"

@@ -1,6 +1,7 @@
 package servertest
 
 import (
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"reflect"
 	"testing"
 
@@ -20,7 +21,7 @@ func TestChecklistDatabaseReplayParity(t *testing.T) {
 	access := a.connect(t, organiser, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
 	path := "/v1/hack/events/" + event + "/checklist"
 	var schema any
-	for _, tool := range mcp.HackTools() {
+	for _, tool := range hackmcp.Tools() {
 		if tool.Name == "hack_get_checklist" {
 			schema = tool.OutputSchema
 		}

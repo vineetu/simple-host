@@ -20,7 +20,7 @@ func TestPreviewFrameDomainsFollowInstance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("MCP_APP_SITE_PREVIEW", "on")
-			s := NewServer(Config{APIHost: tc.api, ContentOrigin: tc.content, SiteBases: tc.bases})
+			s := NewServer(testConfig(Config{APIHost: tc.api, ContentOrigin: tc.content, SiteBases: tc.bases}))
 			if got := s.previewFrameDomains(); !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("frame domains = %v, want %v", got, tc.want)
 			}

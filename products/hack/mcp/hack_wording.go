@@ -1,10 +1,14 @@
-package mcp
+package hackmcp
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/vsriram/simple-host/internal/mcp"
+)
 
 func hackPhotoWording(description string) string {
-	description = strings.Replace(description, storageOwnerPhotos, ", a gallery you fill", 1)
-	return strings.Replace(description, storageGalleryLookalike, hackStorageGalleryLookalike, 1)
+	description = strings.Replace(description, mcp.StorageOwnerPhotos, ", a gallery you fill", 1)
+	return strings.Replace(description, mcp.StorageGalleryLookalike, hackStorageGalleryLookalike, 1)
 }
 
 const hackTeamOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means the team: these tools with the selected team, and a team member signed in on the team site's own address with the email they use on Simple Hack, where a page can act as an admin page (all orders, set a status). That stops at the team's submission deadline, with the team's other changes; after it a member there is an ordinary visitor. \"nobody\" keeps data to these tools only. "

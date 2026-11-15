@@ -28,7 +28,7 @@ func TestFlatHostList(t *testing.T) {
 		for _, key := range []string{"MCP_APP_PHOTO_PICKER", "MCP_APP_MY_SITES", "MCP_APP_SITE_PREVIEW", "MCP_APP_DASHBOARD"} {
 			t.Setenv(key, flag)
 		}
-		s := NewServer(Config{Events: &fakeEventsBackend{}})
+		s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 		for _, deploy := range []bool{false, true} {
 			for _, version := range append([]string{""}, supportedVersions...) {
 				for _, app := range []string{"ChatGPT", "Claude"} {
@@ -92,7 +92,7 @@ func TestFlatInstructionsAndDescriptionIsolation(t *testing.T) {
 		t.Run(flag, func(t *testing.T) {
 			t.Setenv("STORAGE_RULES", flag)
 			for _, cfg := range []Config{{}, {NoSpamCheck: true}, {SelfHosted: true}, {NoSpamCheck: true, SelfHosted: true, Rewrite: productionHostRewrite(strings.Repeat("long", 40) + ".example")}} {
-				s := NewServer(cfg)
+				s := NewServer(testConfig(cfg))
 				before, _, _ := s.forCaller(Caller{AppName: "Claude"})
 				encodedBefore, _ := json.Marshal(before)
 				for _, app := range []string{"ChatGPT", "OpenAI", "Codex"} {

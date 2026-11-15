@@ -81,7 +81,7 @@ func recvAnalyticsErrorCode(t *testing.T, bodies <-chan []byte) string {
 
 func TestRunToolUnknownToolAnalyticsCodeNotToolError(t *testing.T) {
 	bodies := analyticsTestEndpoint(t, http.StatusNoContent)
-	s := NewServer(Config{AnalyticsProjectID: "unknown-tool-test", ServerName: "simple-host", Version: "1", Upstream: &recordingUpstream{}, APIHost: "simple-host.app"})
+	s := NewServer(testConfig(Config{AnalyticsProjectID: "unknown-tool-test", ServerName: "simple-host", Version: "1", Upstream: &recordingUpstream{}, APIHost: "simple-host.app"}))
 	t.Cleanup(func() { close(s.analytics.queue) })
 	send(t, s, toolCall("run_tool", map[string]any{"name": "rename_sit"}), nil, true)
 	if code := recvAnalyticsErrorCode(t, bodies); code != "unknown_tool" {
@@ -96,7 +96,7 @@ func TestCreateSiteRecentlyDeletedAnalyticsCodeNotToolError(t *testing.T) {
 			return 409, `{"error":"site recently deleted","code":"recently_deleted","recently_deleted":true}`
 		},
 	}}
-	s := NewServer(Config{AnalyticsProjectID: "recently-deleted-test", ServerName: "simple-host", Version: "1", Upstream: up, APIHost: "simple-host.app"})
+	s := NewServer(testConfig(Config{AnalyticsProjectID: "recently-deleted-test", ServerName: "simple-host", Version: "1", Upstream: up, APIHost: "simple-host.app"}))
 	t.Cleanup(func() { close(s.analytics.queue) })
 	send(t, s, toolCall("create_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "<h1>hi</h1>"}}), nil, true)
 	if code := recvAnalyticsErrorCode(t, bodies); code != "recently_deleted" {
@@ -108,9 +108,10 @@ func TestCreateSiteRecentlyDeletedAnalyticsCodeNotToolError(t *testing.T) {
 // is also recognised by analytics under its real code, not tool_error.
 func TestVisitorToolRefusalAnalyticsCodeNotToolError(t *testing.T) {
 	bodies := analyticsTestEndpoint(t, http.StatusNoContent)
-	s := NewServer(Config{AnalyticsProjectID: "visitor-refusal-test", VisitorTool: func(_ *http.Request, _ Caller, _ string, _ map[string]any) (map[string]any, error) {
+	s := NewServer(testConfig(Config{AnalyticsProjectID: "visitor-refusal-test", VisitorTool: func(_ *http.Request, _ Caller, _ string, _ map[string]any) (map[string]any, error) {
 		return nil, CodedError("site_locked", "site_locked: this site asks for a passcode; the person can open it in their browser and enter it there, or call again with passcode set if they already gave it to you")
-	}})
+	}}))
+
 	t.Cleanup(func() { close(s.analytics.queue) })
 	text, _, isErr := resultOf(t, send(t, s, toolCall("visitor_read_site", map[string]any{"address": "site.example"}), nil, true))
 	if !isErr {
@@ -142,5 +143,13 @@ func TestSQLToolDescriptionsNamePragmaAlternative(t *testing.T) {
 		if !seen {
 			t.Errorf("%s not found in the tool inventory", name)
 		}
+	}
+}
+
+// The site-name hint is the platform's own; Simple Hack words its event-name
+// refusals separately (products/hack/mcp).
+func TestSiteInvalidNameHint(t *testing.T) {
+	if !strings.Contains(codeHints["invalid_name"], "1 to 63") {
+		t.Fatal("site invalid_name hint changed")
 	}
 }

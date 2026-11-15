@@ -159,6 +159,7 @@ The following packages exist today; Hack-only packages live under `products/hack
 | Package (under `internal/` unless prefixed) | Responsibility |
 |---|---|
 | `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, asset presentation, remaining workers |
+| `products/hack/mcp` | Hack's AI tool declarations, instructions and wording, handed to `internal/mcp` as one `mcp.Contribution` through `extension.Parts.Tools`; the screens-in-chat are still in `internal/mcp` |
 | `products/hack/hackhttp` | Hack HTTP/pages and transport mapping; held-site interfaces use the platform's `handler.GroupRef` |
 | `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events; refusal codes (`call.go`: `codedError`/`CodedError`, `codeHints`) let a converted error site carry an AgentCat-visible code instead of the generic `tool_error`, and `server.go`'s `resolveArgAlias` accepts a sibling tool family's name for the same argument before the schema's additionalProperties check runs (SIM-359) |
 | `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |

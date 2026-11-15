@@ -8,7 +8,7 @@ server -> /** !testdb !geoip/geoiptest !server/servertest @/db @/db/migrations
 server -> extension
 @/db -> @/db/migrations
 extension -> @/db/migrations
-extension -> config edition email handler storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
+extension -> config edition email handler mcp storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
 @/cmd/server -> server extension config
 handler -> app/** auth httpx edition model webassets buildinfo workers
 @/products/hack/hackhttp -> app/** auth httpx edition model webassets buildinfo workers
@@ -59,7 +59,7 @@ wpimport -> redirects
 @/cmd/analytics-rebuild -> analytics config
 @/cmd/ip-country-load -> -
 @/scripts/layering -> -
-@/scripts/inventory -> mcp webassets
+@/scripts/inventory -> mcp webassets @/products/hack/mcp
 mcp/apps/gentool -> mcp/apps/bundlegen
 server/servertest -> server config extension
 [test]
@@ -77,4 +77,4 @@ server/servertest -> testdb
 [transitional]
 # Each edge names the slice that removes its final caller.
 @/cmd/server -> @/products/hack production # removal step D3-S6b
-mcp -> @/products/hack/app/events test # removal step D3-S1c
+mcp -> @/products/hack/mcp test # removal step D3-S1c

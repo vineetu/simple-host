@@ -53,7 +53,7 @@ func TestInventoryDump(t *testing.T) {
 					case "hack-site":
 						c.Mode = CallerModeHackSite
 					}
-					s := NewServer(cfg)
+					s := NewServer(testConfig(cfg))
 					_, _, byName := s.forCaller(c)
 					names := make([]string, 0, len(byName))
 					for name := range byName {

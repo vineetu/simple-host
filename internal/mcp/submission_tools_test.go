@@ -8,7 +8,7 @@ import (
 
 func TestSubmissionToolsMatchChatGPTListing(t *testing.T) {
 	// Production Host enables Events, which adds the two notification tools.
-	s := NewServer(Config{Events: &fakeEventsBackend{}})
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 	result := eventResult(t, sendEvent(t, s, "tools/list", nil, eventTestCaller(), false), false)
 	listed := result["tools"].([]any)
 	if len(listed) != 59 {

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"image"
 	"image/png"
 	"net/http"
@@ -402,7 +403,8 @@ func TestProductImagesAfterBuildRESTAndMCP(t *testing.T) {
 				app.Handler.ServeHTTP(rec, req)
 			} else {
 				// This is the same Upstream=bare mux arrangement as ConnectorHandler.
-				rpc := mcp.NewServer(mcp.Config{Upstream: app.Mux, APIHost: cfg.SiteDomain, ServerName: "simple-hack", Version: "test"})
+				product := hackmcp.Contribution()
+				rpc := mcp.NewServer(mcp.Config{Contribution: &product, Upstream: app.Mux, APIHost: cfg.SiteDomain, ServerName: "simple-hack", Version: "test"})
 				body, err := json.Marshal(map[string]any{
 					"jsonrpc": "2.0", "id": 1, "method": "tools/call",
 					"params": map[string]any{

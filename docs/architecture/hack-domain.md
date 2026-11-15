@@ -49,8 +49,8 @@ supply the clock, records and side effects.
 The transport entry points are `products/hack/hackhttp/hack.go` (`Register`, `loadMember`),
 `hack_entries.go`, `hack_judging.go`, `hack_registration.go`, `hack_teams*.go` and
 `hack_voting.go`. MCP registers event and entry families in
-`internal/mcp/families_hack.go` (`hackFamilies`); `hack_event_tools.go` and
-`hack_entry_tools.go` map tools to the same REST operations. Do not implement a
+`products/hack/mcp/contribution.go` (`Contribution`); `hack_event_tools.go` and
+`hack_entry_tools.go` there map tools to the same REST operations. Do not implement a
 second permission or eligibility engine in MCP.
 
 ## Event stage
@@ -357,6 +357,6 @@ and conflicts (`repository/hackentries/options.go`, `EligibleJudgeTeams`).
 prospective assignment pool before settling. Results and score writes use the same
 eligibility source. Browser `internal/webassets/static/hack/screens/organiser-judging.js`
 renders `assigned_count`; judge screens render the returned queue. MCP's
-`hack_get_judge_queue` in `internal/mcp/hack_entry_tools.go` calls that queue route.
+`hack_get_judge_queue` in `products/hack/mcp/hack_entry_tools.go` calls that queue route.
 Clients must consume these fields rather than infer eligibility from stage labels
 or reimplement deadline/completeness rules.

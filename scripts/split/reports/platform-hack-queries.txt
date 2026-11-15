@@ -77,13 +77,12 @@ internal/repository/notifications/notifications.go:721 | UpsertPushSubscription 
 internal/repository/notifications/notifications.go:725 | UpsertPushSubscription | site_notifications.events | UPDATE site_notifications SET events=$2,label=$3,push_p256dh=$4,push_auth=$5,device_label=$6,verified_at=$7,push_family=$8, state='active',suspended_at=NULL,sus…
 
 6. Not SQL: Go lists that name Hack tables or columns (6)
-internal/handler/connector.go:911 | ConnectorHandler.scopesSupported | events (also the platform column site_notifications.events) | events
+internal/handler/connector.go:918 | ConnectorHandler.scopesSupported | events (also the platform column site_notifications.events) | events
 internal/mcp/notification_tools.go:86 | notificationTools | events (also the platform column site_notifications.events) | events
 internal/papermetrics/provenance.go:24 | runConfigKeys | events (also the platform column site_notifications.events) | events
 internal/repository/operations/schemacheck.go:27 | requiredColumns | events (also the platform column site_notifications.events) | events
 internal/repository/operations/schemacheck.go:103 | requiredColumns | oauth_grants.selected_team_id | selected_team_id
 internal/rules/sites/sites.go:100 | reservedSubdomainLabels | events (also the platform column site_notifications.events) | events
 
-7. Other text (137)
-internal/mcp/hack_entry_tools.go:287 | hackOrganiserEntryRoutes | event_members | enabled, opens_at, closes_at, eligibility (all_signed_in, event_members or participants).
-events: 136 other-text strings (use -prose to list)
+7. Other text (120)
+events: 120 other-text strings (use -prose to list)

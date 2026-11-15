@@ -17,6 +17,7 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/workers"
@@ -75,7 +76,9 @@ type Parts struct {
 	SiteSweep     handler.GroupSweep
 	PaperHack     func(*papermetrics.Collector)
 	PaperRecorder func(http.Handler) http.Handler
-	Hooks         Hooks
+	// Tools is the product's AI tools; the zero value adds none.
+	Tools mcp.Contribution
+	Hooks Hooks
 }
 
 type Hooks struct {

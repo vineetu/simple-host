@@ -10,8 +10,8 @@ import (
 // comments preset, so its tools, recipe and instructions never offer it.
 func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 	rewrite := strings.NewReplacer("<site>.<handle>.simple-host.app", "sites.box.example/<handle>/<site>", "simple-host.app", "box.example").Replace
-	s := NewServer(Config{APIHost: "box.example", ContentOrigin: "https://sites.box.example", NoSpamCheck: true, SelfHosted: true, Rewrite: rewrite, SupportContact: "ops@box.example"})
-	defer NewServer(Config{})
+	s := NewServer(testConfig(Config{APIHost: "box.example", ContentOrigin: "https://sites.box.example", NoSpamCheck: true, SelfHosted: true, Rewrite: rewrite, SupportContact: "ops@box.example"}))
+	defer NewServer(testConfig(Config{}))
 	for _, name := range []string{"storage_set_resource", "storage_sql_schema", "get_page_recipe"} {
 		tool := s.byName[name]
 		b, err := json.Marshal(tool.InputSchema)
@@ -60,7 +60,7 @@ func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 		t.Errorf("self-hosted booking recipe does not name this server: %v", err)
 	}
 
-	NewServer(Config{})
+	NewServer(testConfig(Config{}))
 	hosted := newTestServer(nil)
 	text = hosted.instructionsFor(Caller{})
 	for _, w := range []string{"comments, wall,", "find_tools", "run_tool"} {

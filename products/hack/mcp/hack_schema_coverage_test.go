@@ -1,9 +1,10 @@
-package mcp
+package hackmcp
 
 import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,14 +28,14 @@ import (
 // mechanism itself: it fails if openOutputSchemaForWire's call site in
 // Tool.MarshalJSON is ever removed.
 //
-// Most of HackTools() already gets a real-output strict check somewhere:
+// Most of Tools() already gets a real-output strict check somewhere:
 // the base event/entry tools in TestHackToolDispatch, every
 // hackRouteTool-backed organiser tool in TestHackOrganiserToolRoutes,
 // hack_set_entry_excluded in TestHackSetEntryExcludedTool, a good number of
 // organiser/member tools via hack_results_test.go's assertHackResult, the
-// member tools in hack_member_tools_test.go, and the app-only twins and show
-// tools in hack_app_only_tools_test.go/hack_apps_judge_test.go/
-// hack_apps_organiser_test.go. What's left -- the connection tool, the two
+// member tools in hack_member_tools_test.go. (The app-only twins and show
+// tools are still declared in internal/mcp until D3-S1c; that package's
+// tests hold the same check for them.) What's left -- the connection tool, the two
 // website-mode tool families, the storage/recipe family and
 // hack_create_team_key (skipped by its own REST call in
 // TestHackOrganiserToolRoutes) -- is covered below.
@@ -43,7 +44,7 @@ import (
 // (old and new) now also calls recordHackOutputValidated(name) right after
 // its ValidateOutput succeeds, into the package-level hackOutputCoverage
 // set. TestMain fails a full (unfiltered) run of this package the moment
-// any name in HackTools() was never recorded -- enforced, not a hand-kept
+// any name in Tools() was never recorded -- enforced, not a hand-kept
 // name list that could silently drift from what actually gets exercised.
 // A filtered run (go test -run ...) skips the check, since it is only ever
 // exercising a subset on purpose.
@@ -53,7 +54,7 @@ var (
 	hackOutputCoverage   = map[string]bool{}
 )
 
-// recordHackOutputValidated marks name (a HackTools() tool) as having had
+// recordHackOutputValidated marks name (a Tools() tool) as having had
 // its real output checked against its own outputSchema with ValidateOutput,
 // somewhere in this package's tests. See uncoveredHackTools/TestMain.
 func recordHackOutputValidated(name string) {
@@ -62,13 +63,13 @@ func recordHackOutputValidated(name string) {
 	hackOutputCoverageMu.Unlock()
 }
 
-// uncoveredHackTools lists, sorted, every HackTools() name that was never
+// uncoveredHackTools lists, sorted, every Tools() name that was never
 // passed to recordHackOutputValidated during this test run.
-func uncoveredHackTools() []string {
+func uncoveredTools() []string {
 	hackOutputCoverageMu.Lock()
 	defer hackOutputCoverageMu.Unlock()
 	var missing []string
-	for _, tool := range HackTools() {
+	for _, tool := range Tools() {
 		if !hackOutputCoverage[tool.Name] {
 			missing = append(missing, tool.Name)
 		}
@@ -80,7 +81,7 @@ func uncoveredHackTools() []string {
 // TestMain enforces full hack output-schema coverage (SIM-384) after every
 // other test in this package has run, but only for a full, unfiltered run:
 // `go test ./internal/mcp/...` (what CI and the DB-integration script both
-// do) must exercise and record every HackTools() name, or it fails here,
+// do) must exercise and record every Tools() name, or it fails here,
 // naming exactly which tool was missed. `go test -run ...` (chasing one
 // test while debugging) only ever exercises a deliberate subset, so the
 // check is skipped whenever -run is set.
@@ -88,8 +89,8 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	if code == 0 {
 		if runFlag := flag.Lookup("test.run"); runFlag == nil || runFlag.Value.String() == "" {
-			if missing := uncoveredHackTools(); len(missing) > 0 {
-				fmt.Fprintf(os.Stderr, "SIM-384: these HackTools() names were never validated by a strict ValidateOutput call in this package's tests: %s\n", missing)
+			if missing := uncoveredTools(); len(missing) > 0 {
+				fmt.Fprintf(os.Stderr, "SIM-384: these Tools() names were never validated by a strict ValidateOutput call in this package's tests: %s\n", missing)
 				code = 1
 			}
 		}
@@ -109,7 +110,7 @@ func TestMain(m *testing.M) {
 // comment) stay exactly as written.
 func TestWireOutputSchemaOpensOnlyOnTheWire(t *testing.T) {
 	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
-	rec := sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, CallerModeEvents)
+	rec := sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeEvents)
 	var wire map[string]any
 	for _, tool := range listedTools(t, rec) {
 		if tool["name"] == "hack_create_event" {
@@ -148,7 +149,7 @@ func TestWireOutputSchemaOpensOnlyOnTheWire(t *testing.T) {
 	// The authored copy -- what every ValidateOutput call in this package's
 	// tests actually checks against -- must stay closed: the fix only opens
 	// what goes out over the wire, never the map tests validate with.
-	authored := s.hackByName["hack_create_event"].OutputSchema
+	authored := toolNamed(t, "hack_create_event").OutputSchema
 	if authored["additionalProperties"] != false {
 		t.Fatalf("authored outputSchema root additionalProperties = %v, want false", authored["additionalProperties"])
 	}
@@ -163,22 +164,23 @@ func TestWireOutputSchemaOpensOnlyOnTheWire(t *testing.T) {
 
 func TestHackSelectTeamOutputMatchesSchema(t *testing.T) {
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
-	s := NewServer(Config{
-		Upstream: up, APIHost: "simple-host.app", ContentOrigin: "https://sites.simple-host.app",
+	product := Contribution()
+	s := mcp.NewServer(mcp.Config{
+		Contribution: &product,
+		Upstream:     up, APIHost: "simple-host.app", ContentOrigin: "https://sites.simple-host.app",
 		SiteBases: []string{"simple-host.app"}, SkillVersion: "9.9.9", ServerName: "simple-host", Version: "9.9.9",
-		SelectHackTeam: func(_ context.Context, _ Caller, _ string) error { return nil },
+		SelectHackTeam: func(_ context.Context, _ mcp.Caller, _ string) error { return nil },
 	})
-	tool := s.hackByName["hack_select_team"]
-	call := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil),
-		caller: Caller{APIKey: "personal-key", Mode: CallerModeEvents, GrantID: "grant-1", UserID: "user-1"}}
-	out, err := tool.run(call, map[string]any{"team_id": "11111111-1111-4111-8111-111111111111"})
+	tool := toolNamed(t, "hack_select_team")
+	call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "personal-key", Mode: mcp.CallerModeEvents, GrantID: "grant-1", UserID: "user-1"})
+	out, err := mcp.CallTool(tool, call, map[string]any{"team_id": "11111111-1111-4111-8111-111111111111"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out.Structured["team_id"] != "11111111-1111-4111-8111-111111111111" {
 		t.Fatalf("team_id: %v", out.Structured)
 	}
-	if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
 		t.Fatalf("structuredContent does not match outputSchema: %v", err)
 	}
 	recordHackOutputValidated("hack_select_team")
@@ -202,7 +204,7 @@ func TestHackWebEventToolsOutputMatchesSchema(t *testing.T) {
 		"PATCH /v1/hack/preferences":         jsonReply(200, `{"theme":"dark"}`),
 	}}
 	s := newTestServer(up)
-	byName := map[string]Tool{}
+	byName := map[string]mcp.Tool{}
 	for _, tool := range hackWebEventTools() {
 		byName[tool.Name] = tool
 	}
@@ -222,11 +224,11 @@ func TestHackWebEventToolsOutputMatchesSchema(t *testing.T) {
 			if !ok {
 				t.Fatal("tool missing from hackWebEventTools()")
 			}
-			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), CallerModeEvents))
+			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), mcp.CallerModeEvents))
 			if isErr || structured == nil {
 				t.Fatalf("%s: isErr=%v text=%s", tc.name, isErr, text)
 			}
-			if err := ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
+			if err := mcp.ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.name, err)
 			}
 			recordHackOutputValidated(tc.name)
@@ -246,7 +248,7 @@ func TestHackWebsiteModeToolsOutputMatchesSchema(t *testing.T) {
 		"PUT /v1/hack/events/spring/website/files": jsonReply(200, `{"active_version":2}`),
 	}}
 	s := newTestServer(up)
-	byName := map[string]Tool{}
+	byName := map[string]mcp.Tool{}
 	for _, tool := range hackWebTools() {
 		byName[tool.Name] = tool
 	}
@@ -264,11 +266,11 @@ func TestHackWebsiteModeToolsOutputMatchesSchema(t *testing.T) {
 			if !ok {
 				t.Fatal("tool missing from hackWebTools()")
 			}
-			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), CallerModeEvents))
+			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), mcp.CallerModeEvents))
 			if isErr || structured == nil {
 				t.Fatalf("%s: isErr=%v text=%s", tc.name, isErr, text)
 			}
-			if err := ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
+			if err := mcp.ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.name, err)
 			}
 			recordHackOutputValidated(tc.name)
@@ -306,7 +308,7 @@ func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
 		"POST " + base + "/files/store/download-link":   jsonReply(200, `{"url":"https://simple-host.app/v1/storage-download?token=opaque","expires_in":600}`),
 	}}
 	s := newTestServer(up)
-	byName := map[string]Tool{}
+	byName := map[string]mcp.Tool{}
 	for _, tool := range hackStorageTools() {
 		byName[tool.Name] = tool
 	}
@@ -343,11 +345,11 @@ func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s missing from hackStorageTools()", tc.name)
 			}
-			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), CallerModeEvents))
+			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), mcp.CallerModeEvents))
 			if isErr || structured == nil {
 				t.Fatalf("%s: isErr=%v text=%s", tc.name, isErr, text)
 			}
-			if err := ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
+			if err := mcp.ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.name, err)
 			}
 			recordHackOutputValidated(tc.name)
@@ -355,12 +357,12 @@ func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
 	}
 
 	recipeTool := byName["hack_get_page_recipe"]
-	recipeCall := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "k", Mode: CallerModeEvents}}
-	out, err := recipeTool.run(recipeCall, map[string]any{"topic": "wall"})
+	recipeCall := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "k", Mode: mcp.CallerModeEvents})
+	out, err := mcp.CallTool(recipeTool, recipeCall, map[string]any{"topic": "wall"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateOutput(recipeTool.OutputSchema, out.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(recipeTool.OutputSchema, out.Structured, nil); err != nil {
 		t.Fatalf("hack_get_page_recipe: structuredContent does not match outputSchema: %v", err)
 	}
 	recordHackOutputValidated("hack_get_page_recipe")
@@ -377,7 +379,7 @@ func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
 // Its outputSchema is the same generic {"response","status"} wrapper every
 // other organiser route tool uses.
 func TestHackCreateTeamKeyOutputMatchesSchema(t *testing.T) {
-	var tool Tool
+	var tool mcp.Tool
 	for _, candidate := range HackOrganiserTools() {
 		if candidate.Name == "hack_create_team_key" {
 			tool = candidate
@@ -390,12 +392,12 @@ func TestHackCreateTeamKeyOutputMatchesSchema(t *testing.T) {
 		"POST /v1/hack/events/spring/key": jsonReply(200, `{"key":"shk_test_0123456789abcdef"}`),
 	}}
 	s := newTestServer(up)
-	c := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "user-key", Mode: CallerModeEvents}}
-	out, err := tool.run(c, map[string]any{"slug": "spring"})
+	c := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents})
+	out, err := mcp.CallTool(tool, c, map[string]any{"slug": "spring"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
 		t.Fatalf("structuredContent does not match outputSchema: %v", err)
 	}
 	recordHackOutputValidated("hack_create_team_key")
