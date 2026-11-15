@@ -69,8 +69,12 @@ func TestKVRollbackLaterWritesAndRepeatedMoves(t *testing.T) {
 			t.Fatalf("active file remains: %v", err)
 		}
 		moveRun(t, m, c, "verify")
-		if reports := moveRun(t, m, c, "rollback"); len(reports) != 0 {
-			t.Fatalf("second rollback was not a no-op: %+v", reports)
+		snapshot := moveSnapshot(t, m)
+		if reports := moveRun(t, m, c, "rollback"); len(reports) != 1 || reports[0].Site != c.SiteID || reports[0].Resource != c.ResourceName || reports[0].Status != kvAlreadyRestored {
+			t.Fatalf("second rollback did not report already restored: %+v", reports)
+		}
+		if after := moveSnapshot(t, m); after != snapshot {
+			t.Fatalf("second rollback changed data:\nbefore %s\nafter %s", snapshot, after)
 		}
 	}
 }
@@ -132,12 +136,35 @@ func TestKVRollbackRefusesSavedRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A second namespace on the same site, without rules: it must still go back.
+	plain := c
+	plain.ResourceName = "plain"
+	if _, err = m.DB.Exec(`INSERT INTO site_storage_resources(site_id,name,kind) VALUES($1,'plain','kv')`, c.SiteID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = m.DB.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,'plain','k','{"a":1}')`, c.SiteID); err != nil {
+		t.Fatal(err)
+	}
+	moveRun(t, m, c, "apply")
+	moveState(t, m, plain, "sqlite", 0)
+	fileBefore, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sidecarsBefore, _ := filepath.Glob(path + "-*")
 	var log bytes.Buffer
 	err = m.Run(context.Background(), KVMoveOptions{Mode: "rollback", Sites: []string{c.SiteID}, Log: &log})
-	if err == nil || !strings.Contains(err.Error(), "saved rules") || !strings.Contains(log.String(), "saved rules") {
+	if err == nil || !errors.Is(err, repo.ErrKVHasRules) || !strings.Contains(err.Error(), "saved rules") || !strings.Contains(log.String(), "saved rules") {
 		t.Fatalf("saved rules rollback not refused and reported: %v %s", err, &log)
 	}
+	if !strings.Contains(err.Error(), `"`+c.ResourceName+`"`) || !strings.Contains(err.Error(), c.SiteID) || strings.Contains(err.Error(), `"plain"`) {
+		t.Fatalf("refusal does not name the namespace: %v", err)
+	}
+	if sidecarsAfter, _ := filepath.Glob(path + "-*"); !reflect.DeepEqual(sidecarsBefore, sidecarsAfter) {
+		t.Fatalf("refused rollback touched the file's sidecars: %v -> %v", sidecarsBefore, sidecarsAfter)
+	}
 	moveState(t, m, c, "sqlite", 0)
+	moveState(t, m, plain, "postgres", 1)
 	c = reloadMoveCall(t, m, c)
 	if c.Resource.Fingerprint() != beforeResource {
 		t.Fatal("rollback changed resource metadata or rules")
@@ -154,7 +181,7 @@ func TestKVRollbackRefusesSavedRules(t *testing.T) {
 	kvRulesGet(t, s, c, "later", "")
 }
 
-func TestKVRollbackRefusesStrayRowsAndSharedLock(t *testing.T) {
+func TestKVRollbackSkipsAlreadyRestoredAndRefusesSharedLock(t *testing.T) {
 	m, _, c := moveFixture(t)
 	moveRun(t, m, c, "apply")
 	shared, err := runtime.LockMaintenance(m.DataDir, false)
@@ -166,14 +193,68 @@ func TestKVRollbackRefusesStrayRowsAndSharedLock(t *testing.T) {
 	if !errors.Is(err, runtime.ErrDataDirInUse) {
 		t.Fatalf("rollback did not refuse shared lock: %v", err)
 	}
+	// Postgres already holds rows for a namespace still marked sqlite: skipped
+	// and reported, not a failure (exit 0), and neither side is touched.
 	if _, err = m.DB.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,$2,'stray','1')`, c.SiteID, c.ResourceName); err != nil {
 		t.Fatal(err)
 	}
-	err = m.Run(context.Background(), KVMoveOptions{Mode: "rollback", Sites: []string{c.SiteID}, Log: io.Discard})
-	if err == nil || !strings.Contains(err.Error(), "no Postgres rows") {
-		t.Fatalf("stray rows accepted: %v", err)
+	before := moveSnapshot(t, m)
+	reports := moveRun(t, m, c, "rollback")
+	if len(reports) != 1 || reports[0].Status != kvStillOnSQLite || reports[0].Error != "" {
+		t.Fatalf("namespace with Postgres rows not skipped and reported: %+v", reports)
+	}
+	if after := moveSnapshot(t, m); after != before {
+		t.Fatalf("skipped rollback changed something:\nbefore %s\nafter  %s", before, after)
 	}
 	moveState(t, m, c, "sqlite", 1)
+}
+
+// The transaction's own check gives the same answer when the state changes
+// after the first look.
+func TestKVRollbackAlreadyRestoredInsideTransaction(t *testing.T) {
+	m, _, c := moveFixture(t)
+	moveRun(t, m, c, "apply")
+	n := repo.KVNamespace{SiteID: c.SiteID, Name: c.ResourceName}
+	if _, err := m.DB.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,$2,'stray','1')`, c.SiteID, c.ResourceName); err != nil {
+		t.Fatal(err)
+	}
+	err := repo.KVMoveRollback(context.Background(), m.DB, n, nil, func([]repo.KVMoveEntry) error { t.Fatal("compared"); return nil })
+	if !errors.Is(err, repo.ErrKVAlreadyRestored) {
+		t.Fatalf("stray rows: %v", err)
+	}
+	moveState(t, m, c, "sqlite", 1)
+}
+
+func TestKVRollbackSyncsDirectoryAfterRename(t *testing.T) {
+	m, _, c := moveFixture(t)
+	moveRun(t, m, c, "apply")
+	path := runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName)
+	var synced []string
+	var keptAtSync []string
+	real := kvSyncDir
+	kvSyncDir = func(dir string) error {
+		synced = append(synced, dir)
+		keptAtSync, _ = filepath.Glob(path + ".rolledback-*")
+		return real(dir)
+	}
+	t.Cleanup(func() { kvSyncDir = real })
+	var stages []string
+	m.boundary = func(stage string) error { stages = append(stages, stage); return nil }
+	moveRun(t, m, c, "rollback")
+	if len(synced) != 1 || synced[0] != filepath.Dir(path) || len(keptAtSync) != 1 {
+		t.Fatalf("directory not synced once after the rename: synced=%v kept=%v", synced, keptAtSync)
+	}
+	if want := []string{"rollback-compared", "rollback-committed", "rollback-renamed"}; !reflect.DeepEqual(stages, want) {
+		t.Fatalf("stages: %v", stages)
+	}
+	// A failed sync is reported and is not a failure: Postgres is authoritative.
+	moveRun(t, m, c, "apply")
+	kvSyncDir = func(string) error { return errors.New("sync failed") }
+	reports := moveRun(t, m, c, "rollback")
+	if len(reports) != 1 || !strings.Contains(reports[0].Status, "not synced") {
+		t.Fatalf("failed sync not reported: %+v", reports)
+	}
+	moveState(t, m, c, "postgres", 7)
 }
 
 func TestKVRollbackCrashChild(t *testing.T) {
@@ -205,6 +286,7 @@ func TestKVRollbackCrashBeforeAndAfterCommit(t *testing.T) {
 			if !errors.As(err, &exit) || exit.ExitCode() != 86 {
 				t.Fatalf("crash child: %v %s", err, output)
 			}
+			waitInstallLockFree(t, m.DB)
 			if stage == "rollback-compared" {
 				moveState(t, m, c, "sqlite", 0)
 				moveRun(t, m, c, "rollback")

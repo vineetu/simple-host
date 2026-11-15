@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -14,11 +14,11 @@ import (
 	"time"
 	_ "time/tzdata" // Container images have no zoneinfo.
 
-	_ "github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/analytics"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
+	storageapp "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
@@ -34,6 +34,7 @@ import (
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
+	storagerepo "github.com/vsriram/simple-host/internal/repository/storage"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/workers"
 )
@@ -74,7 +75,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		log.Printf("WARNING: %s", w)
 	}
 
-	db, err := sql.Open("postgres", cfg.DBDSN)
+	db, err := storagerepo.OpenServingDB(cfg.DBDSN)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %v", err)
 	}
@@ -117,10 +118,28 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// database does not have fails at the first query, not at startup, which
 	// looks like a 404 on every page rather than a deployment mistake.
 	if err := operationrepo.VerifySchema(context.Background(), db); err != nil {
-		return nil, fmt.Errorf("schema check: %v", err)
+		return nil, fmt.Errorf("schema check: %w", err)
 	}
 	if err := checkProductSchema(context.Background(), db, exts); err != nil {
 		return nil, err
+	}
+	// The install lock (shared): kv-move --apply and --rollback take it
+	// exclusive, so they cannot rewrite this database while any server uses it,
+	// from this data directory or another. Every request/worker pool connection
+	// also holds it shared, including new connections after a database restart.
+	installHold, err := storageapp.HoldInstallShared(context.Background(), cfg.DBDSN)
+	if err != nil {
+		if errors.Is(err, storagerepo.ErrDatabaseMaintenance) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("take the install lock: %v", err)
+	}
+	closeDeps = func() { installHold.Close(); db.Close(); maintenance.Close() }
+	// The install identity ties this database to this data directory. It is
+	// created once, when neither has one. A mismatch does not stop the server
+	// (it serves as before), but maintenance commands refuse until it is fixed.
+	if err := storageapp.EnsureInstallIdentity(context.Background(), db, cfg.DataDir); err != nil {
+		log.Printf("WARNING: INSTALL IDENTITY: %v. This server keeps serving; kv-move refuses to run on this database and data directory until they agree", err)
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
 	// registered, because the dashboard, the chrome and the host dispatch read it.
@@ -498,7 +517,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// Caller location comes from local DB-IP files only (no network lookup);
 	// the watcher picks up the monthly refresh without a restart.
 	geo := geoip.Open(cfg.GeoIPDir)
-	closeDeps = func() { geo.Close(); db.Close(); maintenance.Close() }
+	closeDeps = func() { geo.Close(); installHold.Close(); db.Close(); maintenance.Close() }
 
 	// Sign-in/sign-up country block (SIGNUP_BLOCKED_COUNTRIES): local lookup
 	// only, off by default. A listed country refuses every email-code and

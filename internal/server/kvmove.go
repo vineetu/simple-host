@@ -9,6 +9,7 @@ import (
 	"os"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
+	storagerepo "github.com/vsriram/simple-host/internal/repository/storage"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -56,19 +57,23 @@ func runKVMoveCommand(args []string) int {
 		return 1
 	}
 	defer db.Close()
+	mover := appstorage.KVMover{DB: db, DataDir: dataDir}
+	if err := mover.Preflight(context.Background(), mode); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	log, err := os.OpenFile(*logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	defer log.Close()
-	mover := appstorage.KVMover{DB: db, DataDir: dataDir}
 	err = mover.Run(context.Background(), appstorage.KVMoveOptions{Mode: mode, Scratch: *scratch, Sites: sites, Log: log})
 	if err == nil {
 		return 0
 	}
 	fmt.Fprintln(os.Stderr, err)
-	if errors.Is(err, storage.ErrDataDirInUse) {
+	if errors.Is(err, storage.ErrDataDirInUse) || errors.Is(err, storagerepo.ErrDatabaseInUse) {
 		return 2
 	}
 	if *dry && errors.Is(err, appstorage.ErrKVCopyDifference) {

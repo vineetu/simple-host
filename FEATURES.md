@@ -2896,10 +2896,26 @@ are retained after rollback. The rehearsal script exercises cutover, later write
 rollback and paired-backup restore on scratch copies, recording times and read
 throughput. It asserts the destination markers and empty Postgres KV table after
 apply, all Postgres markers after rollback, and unchanged MCP usage across cutover.
+
 Saved setup hostnames are cleared only in the scratch database. Both installs'
 production-copy rehearsals must pass before this slice is complete; production
 cutover remains a separate step. See
 `docs/advanced/storage-and-backups.md`.
+
+`kv-move` is tied to one install. The server saves a random install identity
+in `DATA_DIR/.install-id` and in the `install_identity` table when neither has
+one; apply, rollback and verify refuse unless both exist and match, and the
+server logs a warning at start when they do not. A serving program holds a
+shared Postgres advisory lock on its database and apply and rollback take it
+exclusively, so they cannot run against a database a server is using from
+another directory. The identity cannot tell a data directory from a copy of
+it, and the lock covers a copy only while a server runs, so the operator
+checks `DATA_DIR` before apply or rollback. The command refuses when its user does not own `DATA_DIR`.
+A server opens the maintenance lock file read-only. Rollback refuses a
+namespace that has saved rules (rules are enforced only on SQLite), naming it,
+and still rolls back the rest; a namespace that already has rows in Postgres
+is skipped and reported without failing the run, with a status that says
+whether it is already on Postgres or still on SQLite.
 
 SQLite table-row operations share a per-site concurrency limit across resources
 (default one, configurable from one to four). Waiting for the site slot and global

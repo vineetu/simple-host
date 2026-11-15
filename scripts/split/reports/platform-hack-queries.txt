@@ -81,7 +81,7 @@ internal/handler/connector.go:919 | ConnectorHandler.scopesSupported | events (a
 internal/mcp/notification_tools.go:86 | notificationTools | events (also the platform column site_notifications.events) | events
 internal/papermetrics/provenance.go:24 | runConfigKeys | events (also the platform column site_notifications.events) | events
 internal/repository/operations/schemacheck.go:27 | requiredColumns | events (also the platform column site_notifications.events) | events
-internal/repository/operations/schemacheck.go:103 | requiredColumns | oauth_grants.selected_team_id | selected_team_id
+internal/repository/operations/schemacheck.go:105 | requiredColumns | oauth_grants.selected_team_id | selected_team_id
 internal/rules/sites/sites.go:100 | reservedSubdomainLabels | events (also the platform column site_notifications.events) | events
 
 7. Other text (119)

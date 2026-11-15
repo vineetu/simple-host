@@ -24,6 +24,7 @@ func moveFixture(t *testing.T) (*KVMover, *Service, Call) {
 	t.Helper()
 	s, c := kvFixture(t, "postgres", false)
 	m := &KVMover{DB: s.db, DataDir: t.TempDir()}
+	seedInstallIdentity(t, m.DB, m.DataDir)
 	c.RuntimeDir = filepath.Join(m.DataDir, "by-id", c.OwnerID, c.SiteName, "runtime")
 	if err := os.MkdirAll(c.RuntimeDir, 0700); err != nil {
 		t.Fatal(err)
@@ -212,6 +213,7 @@ func TestKVMoveCrashEveryBoundary(t *testing.T) {
 			if !errors.As(err, &exit) || exit.ExitCode() != 86 {
 				t.Fatalf("crash child: %v %s", err, output)
 			}
+			waitInstallLockFree(t, m.DB)
 			if stage == "committed" {
 				moveState(t, m, c, "sqlite", 0)
 			} else {

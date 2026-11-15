@@ -63,8 +63,12 @@ existing namespaces.
 
 Run `kv-move` with the currently installed program (`/usr/local/bin/simple-host`
 in the standard installs), using that install's environment,
-including `DB_DSN` and `DATA_DIR`. Keep `KV_STORE=postgres` until the move
-and the rollback rehearsal have been approved.
+including `DB_DSN` and `DATA_DIR`, and as the user the server runs as. Keep
+`KV_STORE=postgres` until the move and the rollback rehearsal have been approved.
+
+`kv-move` refuses, changing nothing, when the user running it does not own
+`DATA_DIR`: files created by another user (root, for example) could not be
+opened by the server afterwards.
 
 ```text
 simple-host kv-move --dry-run --scratch /tmp/kv-check --log /tmp/kv-dry-run.jsonl
@@ -90,7 +94,50 @@ Apply requires every server using the data directory to be stopped. Servers
 hold a shared lock on `DATA_DIR/.maintenance.lock` for their lifetime; apply
 takes an exclusive lock without waiting and exits 2 if it cannot. A server
 also refuses to start while apply holds that lock. The kernel releases the
-lock if the process dies; leave the lock file in place.
+lock if the process dies; leave the lock file in place. The file is empty and
+world-readable, and a server opens it read-only, so a lock file created by
+another user does not stop the server. If the server cannot read the file,
+its error gives the file's path, owner and mode.
+
+Apply and rollback also require every server using the **database** to be
+stopped, whichever data directory it serves from. A server holds a shared
+Postgres advisory lock on its database while it runs; apply and rollback take
+that lock exclusively without waiting and exit 2 if they cannot, and a server
+refuses to start while a command holds it. Postgres releases the lock when
+the process's connection ends.
+
+### The database and the data directory must be the same install
+
+Each install has an identity: one random id, saved in the file
+`DATA_DIR/.install-id` and in the single row of the `install_identity` table.
+The server creates both at start when neither exists, and never changes
+them. Back up and restore the database and the data directory together and
+the pair stays matched.
+
+Apply, rollback and verify refuse, changing nothing and exiting 1, unless both
+copies exist and are equal. This stops a command given one install's `DB_DSN`
+and a different install's `DATA_DIR` from moving data into the wrong place.
+Dry run is not tied to a data directory and does not check.
+
+The identity does **not** tell a data directory from a copy of it. A copy
+(a rehearsal's scratch copy, a restored backup in another path) holds the same
+`.install-id` and passes the check. The database lock above stops a command
+pointed at a copy only while a server is running on that database; with the
+server stopped, nothing does. Before every `--apply` or `--rollback`, check
+that `DATA_DIR` in the env file the command reads is the directory the server
+serves from, not a copy.
+
+When neither copy exists, start the server once on that database and data
+directory, stop it, and run the command again.
+
+When exactly one copy exists, or the two differ, the server writes a
+`WARNING: INSTALL IDENTITY` line to its log at each start and keeps serving.
+Find out which half was replaced before doing anything else: the usual causes
+are a restored database with an older data directory, or an env file that
+points at another install. Only when you are certain the two belong together,
+with the server stopped, make them agree by hand: copy the id from the
+`install_identity` row into `DATA_DIR/.install-id` (one line, owned by the
+server's user), or the other way round.
 
 For each namespace, apply builds a file without a WAL, compares every key,
 normalized JSON value, author and timestamp, checks integrity and the logical
@@ -118,11 +165,28 @@ Rollback also requires the exclusive maintenance lock. It checkpoints and checks
 each SQLite namespace, inserts every current entry into Postgres and reads those
 rows back in the same transaction. It compares values, authors and both timestamps
 before changing the marker to `postgres`. A mismatch or failed JSON cast rolls
-the transaction back and leaves the namespace on SQLite. Existing Postgres rows
-in a SQLite namespace cause a refusal. Later writes, edits and deletes are
-preserved. Repeat `--site` to limit the rollback to selected sites.
+the transaction back and leaves the namespace on SQLite. Later writes, edits
+and deletes are preserved. Repeat `--site` to limit the rollback to selected sites.
 
-After commit the old file is retained as `<namespace>.sqlite.rolledback-<UTC time>`.
+Two kinds of namespace are left as they are:
+
+- **A namespace with saved rules is refused.** Rules are enforced only on the
+  SQLite store, so moving it back would stop enforcing them. The error and the
+  log line name the site and the namespace, neither the file nor the database
+  is touched for it, every other namespace is still rolled back, and the
+  command exits 1.
+- **A namespace that already has rows in Postgres is skipped.** Nothing is
+  changed and it is not a failure: the command exits 0 when that is all it
+  reports. The log line's status says which case it is. `skipped: already
+  restored` means the namespace is already on Postgres. `skipped: still on
+  SQLite; Postgres already holds rows for it (run --verify)` means it was
+  **not** rolled back and is still served from SQLite. Exit 0 therefore does
+  not prove every namespace is back on Postgres: read the log as well as the
+  exit status, and run `--verify` afterwards, which reports a namespace still
+  marked `sqlite` that has Postgres rows.
+
+After commit the old file is retained as `<namespace>.sqlite.rolledback-<UTC time>`
+and its directory is synced, so a crash cannot bring the old name back.
 If the rename fails, the leftover active file is ignored by the Postgres marker;
 a later apply removes it and rebuilds from Postgres. A kill between commit and
 rename has the same safe result. Repeating rollback skips namespaces already on

@@ -36,7 +36,9 @@ var requiredColumns = map[string][]string{
 	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base", "approve_first", "rules", "rules_converted_from", "kv_store"},
 	"site_storage_tables":    {"site_id", "resource_name", "table_name", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base", "rules"},
 	"site_storage_kv":        {"site_id", "resource_name", "key", "value", "writer_id", "created_at"},
-	"site_storage_files":     {"site_id", "resource_name", "path", "writer_id", "created_at"},
+	// 0021-install-identity.sql: the install's id, also in <DATA_DIR>/.install-id.
+	"install_identity":   {"id"},
+	"site_storage_files": {"site_id", "resource_name", "path", "writer_id", "created_at"},
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.
 	// v075-signup-source.sql adds the signup_* columns; zf-signup-detail.sql signup_detail.

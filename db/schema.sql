@@ -2113,3 +2113,12 @@ CREATE TABLE IF NOT EXISTS hack_assistant_spend (
 
 -- Per-namespace KV store (R2-S4a).
 ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS kv_store TEXT NOT NULL DEFAULT 'postgres' CHECK (kv_store IN ('postgres','sqlite'));
+
+-- db/migrations/0021-install-identity.sql (R2-S5c): one random id per install,
+-- also written to <DATA_DIR>/.install-id, so a maintenance command can refuse
+-- a database and a data directory that do not belong together.
+CREATE TABLE IF NOT EXISTS install_identity (
+    singleton  BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    id         TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
