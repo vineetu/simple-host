@@ -113,6 +113,47 @@ func TestKVRollbackMismatchRollsBackTransaction(t *testing.T) {
 	}
 }
 
+func TestKVRollbackRefusesSavedRules(t *testing.T) {
+	m, s, c := moveFixture(t)
+	s.deps.PasscodeAllows = func() bool { return true }
+	s.deps.ViewersAllow = func() bool { return true }
+	moveRun(t, m, c, "apply")
+	c = reloadMoveCall(t, m, c)
+	s.deps.RulesEnabled = true
+	c.Resource = putRules(t, s, ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: kvRuleSet("true", "true", "auth.signed_in", "auth.signed_in", "auth.signed_in")})
+	kvPut(t, s, c, "later", `{"saved":true}`, "")
+	beforeResource := c.Resource.Fingerprint()
+	path := runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName)
+	before, metaBefore, err := runtime.CheckpointKVSnapshot(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileBefore, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var log bytes.Buffer
+	err = m.Run(context.Background(), KVMoveOptions{Mode: "rollback", Sites: []string{c.SiteID}, Log: &log})
+	if err == nil || !strings.Contains(err.Error(), "saved rules") || !strings.Contains(log.String(), "saved rules") {
+		t.Fatalf("saved rules rollback not refused and reported: %v %s", err, &log)
+	}
+	moveState(t, m, c, "sqlite", 0)
+	c = reloadMoveCall(t, m, c)
+	if c.Resource.Fingerprint() != beforeResource {
+		t.Fatal("rollback changed resource metadata or rules")
+	}
+	after, metaAfter, err := runtime.ReadKVSnapshot(context.Background(), path)
+	fileAfter, readErr := os.ReadFile(path)
+	if err != nil || readErr != nil || !reflect.DeepEqual(before, after) || metaBefore != metaAfter || !bytes.Equal(fileBefore, fileAfter) {
+		t.Fatalf("rollback changed the active SQLite file, entries or accounting: %v %v", err, readErr)
+	}
+	if kept, err := filepath.Glob(path + ".rolledback-*"); err != nil || len(kept) != 0 {
+		t.Fatalf("refused rollback renamed the active file: %v %v", kept, err)
+	}
+	c.Owner = false
+	kvRulesGet(t, s, c, "later", "")
+}
+
 func TestKVRollbackRefusesStrayRowsAndSharedLock(t *testing.T) {
 	m, _, c := moveFixture(t)
 	moveRun(t, m, c, "apply")

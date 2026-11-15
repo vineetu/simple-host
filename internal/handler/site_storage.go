@@ -511,7 +511,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		result, e := h.storageRequestSvc(r, c).GetKV(r.Context(), appstorage.KVReadInput{Call: call, Key: key})
 		if auth := result.Authorization; auth != nil {
 			if len(auth.Refusals) == 0 {
-				storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				if !writeKVAdmissionError(w, auth) {
+					storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				}
 				return
 			}
 			writeStorageRefusals(w, auth.Refusals)
@@ -549,7 +551,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		value, auth, e := h.storageRequestSvc(r, c).PutKV(r.Context(), appstorage.KVPutInput{Call: call, Key: key, Requested: r.Header.Get("X-SH-Visitor-Action"), Body: reader})
 		if auth != nil {
 			if len(auth.Refusals) == 0 {
-				storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				if !writeKVAdmissionError(w, auth) {
+					storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				}
 				return
 			}
 			writeStorageRefusals(w, auth.Refusals)
@@ -592,7 +596,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		auth, e := h.storageRequestSvc(r, c).DeleteKV(r.Context(), appstorage.KVDeleteInput{Call: call, Key: key})
 		if auth != nil {
 			if len(auth.Refusals) == 0 {
-				storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				if !writeKVAdmissionError(w, auth) {
+					storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				}
 				return
 			}
 			writeStorageRefusals(w, auth.Refusals)
@@ -637,7 +643,9 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 	result, e := h.storageRequestSvc(r, c).ListKV(r.Context(), appstorage.KVListInput{Call: call, Prefix: prefix, After: after, Limit: limit, ValidLimit: ok})
 	if auth := result.Authorization; auth != nil {
 		if len(auth.Refusals) == 0 {
-			storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+			if !writeKVAdmissionError(w, auth) {
+				storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+			}
 			return
 		}
 		writeStorageRefusals(w, auth.Refusals)
@@ -698,7 +706,11 @@ func writeKVAdmissionError(w http.ResponseWriter, err error) bool {
 		storageBusy(w)
 	case "query_too_expensive":
 		storageError(w, 422, e.Code, e.Message)
-	case "storage_failed":
+	case "account_suspended", "sign_in_required", "add_only", "spam_check_required", "spam_check_failed", "spam_check_unavailable":
+		writeStorageRefusals(w, []*appstorage.Error{e})
+	case "rules_invalid", "forbidden":
+		storageError(w, 403, e.Code, e.Message)
+	case "internal_error", "storage_failed":
 		storageError(w, 500, e.Code, e.Message)
 	default:
 		return false

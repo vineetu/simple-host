@@ -647,6 +647,39 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   if (result && result.status !== status) throw new Error(`${label}: expected ${status}, got ${result.status}`);
  }
 
+ // R3-S3: a disposable SQLite namespace, without changing earlier requests.
+ const kvFolder = path.join(instance.env.DATA_DIR, 'by-id', ownerID, siteName, 'runtime', 'kv');
+ mkdirSync(kvFolder, { recursive: true });
+ const kv = new DatabaseSync(path.join(kvFolder, 'rules_kv.sqlite'));
+ try {
+  kv.exec(`CREATE TABLE kv(key TEXT PRIMARY KEY NOT NULL,value TEXT NOT NULL,visitor_id TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL) WITHOUT ROWID;
+   CREATE TABLE kv_meta(id INTEGER PRIMARY KEY CHECK(id=1),entries INTEGER NOT NULL,logical_bytes INTEGER NOT NULL);
+   INSERT INTO kv_meta VALUES(1,0,0);`);
+ } finally { kv.close(); }
+ const kvRules = JSON.stringify({ policies: [
+  { command: 'read', using: 'key contains "public"' },
+  { command: 'add', check: 'value == "1"' },
+  { command: 'edit', using: 'auth.signed_in' },
+  { command: 'delete', using: 'auth.signed_in' },
+ ] });
+ psql(instance.dbURL, `INSERT INTO site_storage_resources(site_id,name,kind,kv_store,acc_read,acc_add,acc_edit,acc_delete,preset_base,write_mode,rules)
+ SELECT s.id,'rules_kv','kv','sqlite','nobody','nobody','nobody','nobody','rules','add','${kvRules}'::jsonb FROM ${siteWhere}`);
+ const kvBase = `/v1/sites/${name}/storage/kv/rules_kv/keys`;
+ for (const [label, method, suffix, body, status] of [
+  ['kv-add-public', 'PUT', '/public', { value: 1 }, 200],
+  ['kv-add-hidden', 'PUT', '/hidden', { value: 1 }, 200],
+  ['kv-add-check-denied', 'PUT', '/bad', { value: 9 }, 403],
+  ['kv-get-public', 'GET', '/public', undefined, 200],
+  ['kv-get-hidden', 'GET', '/hidden', undefined, 404],
+  ['kv-get-missing', 'GET', '/missing', undefined, 404],
+  ['kv-list', 'GET', '?limit=1', undefined, 200],
+  ['kv-existing-key', 'PUT', '/public', { value: 2 }, 409],
+  ['kv-delete-sign-in', 'DELETE', '/public', undefined, 401],
+ ]) {
+  const result = await at(label, method, kvBase+suffix, { headers: writeHeaders, body });
+  if (result && result.status !== status) throw new Error(`${label}: expected ${status}, got ${result.status} (${result.json?.code})`);
+ }
+
 }
 
 async function seedAndCallMixedStore({ instance, at, registerSecret }) {

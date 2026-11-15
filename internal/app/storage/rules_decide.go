@@ -78,7 +78,7 @@ func (s *Service) compileCallRules(c *Call, table ruleengine.Table) error {
 	return nil
 }
 
-func (s *Service) ruleValues(ctx context.Context, c *Call, op ruleengine.Op, refreshOwner bool) error {
+func (s *Service) ruleValues(ctx context.Context, c *Call, op ruleengine.Op, refreshOwner bool, additional ...ruleengine.Op) error {
 	provider := s.deps.Bindings
 	if provider == nil {
 		provider = DefaultProvider{DB: s.db}
@@ -95,11 +95,16 @@ func (s *Service) ruleValues(ctx context.Context, c *Call, op ruleengine.Op, ref
 	if declared == nil {
 		declared = provider.Schema()
 	}
-	for _, name := range c.rulePlan.Needs(op) {
-		if _, ok := declared[name]; ok {
-			needed = append(needed, name)
+	seen := map[string]bool{}
+	for _, operation := range append([]ruleengine.Op{op}, additional...) {
+		for _, name := range c.rulePlan.Needs(operation) {
+			if _, ok := declared[name]; ok && !seen[name] {
+				needed = append(needed, name)
+				seen[name] = true
+			}
 		}
 	}
+	sort.Strings(needed)
 	if len(needed) > 0 {
 		extra, err := provider.Values(ctx, BindingCall{SiteID: c.SiteID, OwnerID: c.OwnerID, SiteName: c.SiteName, UserID: c.VisitorID}, needed)
 		if err != nil || ctx.Err() != nil {

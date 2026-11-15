@@ -147,7 +147,9 @@ func runtimeKVPrefixEnd(prefix string) string {
 	return ""
 }
 
-func runtimeKVListStatement(conn *sqlite3.Conn, prefix, after string, limit int, filter string) (*sqlite3.Stmt, error) {
+// RuntimeKVListQuery builds the indexed prefix/cursor range shared by preset and
+// rules lists. Callers append visibility predicates before ordering and limiting.
+func RuntimeKVListQuery(prefix, after string) (string, []string) {
 	// Use one effective lower bound so SQLite seeks straight to the prefix or
 	// the cursor, whichever is later, rather than filtering keys before it.
 	lower, op := after, ">"
@@ -160,6 +162,11 @@ func runtimeKVListStatement(conn *sqlite3.Conn, prefix, after string, limit int,
 		query += ` AND key<?`
 		args = append(args, end)
 	}
+	return query, args
+}
+
+func runtimeKVListStatement(conn *sqlite3.Conn, prefix, after string, limit int, filter string) (*sqlite3.Stmt, error) {
+	query, args := RuntimeKVListQuery(prefix, after)
 	query += ` AND (?='' OR visitor_id=?) ORDER BY key COLLATE BINARY LIMIT ?`
 	args = append(args, filter, filter)
 	stmt, err := kvStatement(conn, query, args...)

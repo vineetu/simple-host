@@ -46,7 +46,7 @@ internal/repository/sites/store_families.go:51 | queryFamilies | non-constant: w
 internal/repository/sites/store_families.go:141 | FamilyConflict | non-constant: overlapsSQL("$2", "f.suffix") | SELECT EXISTS (SELECT 1 FROM address_families f WHERE f.user_id <> $1 AND f.verified_at IS NOT NULL AND ‹?overlapsSQL("$2", "f.suffix")›) OR…
 internal/repository/sites/store_families.go:294 | OverlappingPendingFamilies | non-constant: overlapsSQL("$2", "f.suffix") | WHERE f.user_id <> $1 AND f.verified_at IS NULL AND ‹?overlapsSQL("$2", "f.suffix")›
 internal/repository/storage/usage.go:53 | ClearResourceWriters | non-constant: table | UPDATE ‹?table› SET writer_id='' WHERE site_id=$1 AND resource_name=$2
-internal/storage/runtime_kv.go:157 | runtimeKVListStatement | non-constant: op | SELECT key,value,visitor_id FROM kv WHERE key‹?op›?
+internal/storage/runtime_kv.go:159 | RuntimeKVListQuery | non-constant: op | SELECT key,value,visitor_id FROM kv WHERE key‹?op›?
 internal/storage/runtime_matrix.go:59 | PrepareMatrixDatabase | non-constant: Quote(t) | SELECT 1 FROM ‹?Quote(t)› LIMIT 1
 internal/storage/runtime_matrix.go:90 | PrepareMatrixDatabase | non-constant: Quote(t), Quote(column) | UPDATE ‹?Quote(t)› SET ‹?Quote(column)› = NULL
 internal/storage/runtime_row_insert.go:28 | insertRowStatement | non-constant: Quote(table) | INSERT INTO ‹?Quote(table)›

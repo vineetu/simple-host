@@ -107,9 +107,13 @@ func KVMoveRollback(ctx context.Context, db *sql.DB, n KVNamespace, entries []KV
 	}
 	defer tx.Rollback()
 	var store string
-	err = tx.QueryRowContext(ctx, `SELECT kv_store FROM site_storage_resources WHERE site_id=$1 AND name=$2 AND kind='kv' FOR UPDATE`, n.SiteID, n.Name).Scan(&store)
+	var hasRules bool
+	err = tx.QueryRowContext(ctx, `SELECT kv_store,rules IS NOT NULL FROM site_storage_resources WHERE site_id=$1 AND name=$2 AND kind='kv' FOR UPDATE`, n.SiteID, n.Name).Scan(&store, &hasRules)
 	if err != nil {
 		return err
+	}
+	if hasRules {
+		return fmt.Errorf("rollback refuses a namespace with saved rules; remove its rules before moving it to Postgres")
 	}
 	var count int64
 	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2`, n.SiteID, n.Name).Scan(&count); err != nil {

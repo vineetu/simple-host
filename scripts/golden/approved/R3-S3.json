@@ -1,0 +1,113 @@
+{
+  "slice": "R3-S3",
+  "entries": [
+    {
+      "product": "host",
+      "request": "rules-on/kv-add-public",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-add-hidden",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-add-check-denied",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-get-public",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-get-hidden",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-get-missing",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-list",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-existing-key",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "host",
+      "request": "rules-on/kv-delete-sign-in",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-add-public",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-add-hidden",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-add-check-denied",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-get-public",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-get-hidden",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-get-missing",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-list",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-existing-key",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    },
+    {
+      "product": "hack",
+      "request": "rules-on/kv-delete-sign-in",
+      "change": "added",
+      "reason": "R3-S3 adds SQLite key-value rules enforcement requests."
+    }
+  ]
+}

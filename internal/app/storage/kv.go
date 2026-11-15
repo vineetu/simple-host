@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	repository "github.com/vsriram/simple-host/internal/repository/storage"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	runtime "github.com/vsriram/simple-host/internal/storage"
@@ -257,7 +258,12 @@ func (s *Service) ListVisibleKV(ctx context.Context, call Call, prefix, after st
 			rows, next, err = s.listKV(ctx, call.SiteID, call.ResourceName, prefix, after, limit, call.Filter)
 			return err
 		}
-		items, err := runtime.RuntimeKVList(conn, prefix, after, limit+1, call.Filter)
+		var items []runtime.KVEntry
+		if kvHasRules(call) {
+			items, err = s.listRuleKV(ctx, conn, &call, prefix, after, limit+1)
+		} else {
+			items, err = runtime.RuntimeKVList(conn, prefix, after, limit+1, call.Filter)
+		}
 		if err != nil {
 			return err
 		}
@@ -290,7 +296,19 @@ func (s *Service) GetVisibleKV(ctx context.Context, call Call, key string) (Visi
 			item, err = s.getKV(ctx, call.SiteID, call.ResourceName, key, call.Filter)
 			return err
 		}
-		x, err := runtime.RuntimeKVGet(conn, key, call.Filter)
+		var x runtime.KVEntry
+		if kvHasRules(call) {
+			var items []runtime.KVEntry
+			items, err = s.getRuleKV(ctx, conn, &call, key)
+			if err == nil && len(items) == 0 {
+				err = sql.ErrNoRows
+			}
+			if len(items) > 0 {
+				x = items[0]
+			}
+		} else {
+			x, err = runtime.RuntimeKVGet(conn, key, call.Filter)
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return &Error{Code: "key_not_found", Message: "key not found"}
 		}
@@ -319,7 +337,7 @@ type KVReadResult struct {
 // GetKV authorizes and reads a single key.
 func (s *Service) GetKV(ctx context.Context, in KVReadInput) (KVReadResult, error) {
 	in.Call.Context = ctx
-	filter, err := s.Access(&in.Call, "read")
+	filter, err := s.kvAccess(&in.Call, "read", ruleengine.OpRead)
 	result := KVReadResult{}
 	if err != nil {
 		result.Authorization = err.(*Error)
@@ -350,7 +368,7 @@ type KVListResult struct {
 // ListKV authorizes and reads a page of keys.
 func (s *Service) ListKV(ctx context.Context, in KVListInput) (KVListResult, error) {
 	in.Call.Context = ctx
-	filter, err := s.Access(&in.Call, "read")
+	filter, err := s.kvAccess(&in.Call, "read", ruleengine.OpRead)
 	result := KVListResult{}
 	if err != nil {
 		result.Authorization = err.(*Error)
@@ -423,6 +441,27 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	var auth *Error
 	err = s.withKV(ctx, call, true, func(ctx context.Context, conn *sqlite3.Conn, admission *Admission) error {
 		var action string
+		if kvHasRules(call) {
+			if err := conn.Exec("BEGIN IMMEDIATE"); err != nil {
+				return err
+			}
+			defer conn.Exec("ROLLBACK")
+			// Resolve existence and the AI action before active-account checks.
+			writer, exists, action, err = s.prepareKVWrite(ctx, conn, call.SiteID, call.ResourceName, in.Key, requested, false)
+			if err != nil {
+				return err
+			}
+			call.Context = ctx
+			if err := s.prepareKVRuleWrite(&call, action, exists); err != nil {
+				return err
+			}
+			if call.CheckedPost {
+				if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
+					return err
+				}
+			}
+			return s.putKVSQLite(ctx, conn, admission, call, in.Key, value, exists)
+		}
 		writer, exists, action, err = s.prepareKVWrite(ctx, conn, call.SiteID, call.ResourceName, in.Key, requested, kvTaken(call))
 		if err != nil {
 			return err
@@ -485,7 +524,7 @@ type KVDeleteInput struct {
 // DeleteKV authorizes and deletes a key under the shared write lock.
 func (s *Service) DeleteKV(ctx context.Context, in KVDeleteInput) (*Error, error) {
 	in.Call.Context = ctx
-	filter, err := s.Access(&in.Call, "delete")
+	filter, err := s.kvAccess(&in.Call, "delete", ruleengine.OpDelete)
 	var auth *Error
 	if err != nil {
 		auth = err.(*Error)
