@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	entryapp "github.com/vsriram/simple-host/products/hack/app/entries"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // paperHackTimes moved from hack_paper_metrics.go (cleanup 3.2 slice 1c):

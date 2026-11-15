@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )

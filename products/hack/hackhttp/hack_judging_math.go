@@ -3,8 +3,8 @@ package hackhttp
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 func computeResultsWithOptions(ctx context.Context, q entries.Querier, ev model.Event) ([]teamResult, error) {

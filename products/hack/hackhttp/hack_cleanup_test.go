@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Archive cleanup (M4) and the starter rubric seeded when an event is created.

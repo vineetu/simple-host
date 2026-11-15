@@ -5,6 +5,7 @@ import (
 
 	model "github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
@@ -20,46 +21,46 @@ type JudgingSettings struct {
 }
 
 // UpdateJudgingSettings applies settings under the event lock.
-func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req JudgingSettings) (model.Event, error) {
+func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req JudgingSettings) (hackmodel.Event, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.Event{}, err
+		return hackmodel.Event{}, err
 	}
 	defer tx.Rollback()
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
-		return model.Event{}, err
+		return hackmodel.Event{}, err
 	}
 	if ev.Stage == "archived" {
-		return model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+		return hackmodel.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && ev.JudgingLockedAt.Valid {
-		return model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
+		return hackmodel.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
 	}
 	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && (ev.Stage == "judging" || ev.Stage == "results") {
-		return model.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
+		return hackmodel.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
 	}
 	if err := updateOrganiserJudges(ctx, tx, ev.ID, req.OrganiserJudges, req.IncludeOrganisers); err != nil {
-		return model.Event{}, err
+		return hackmodel.Event{}, err
 	}
 	if req.TieCriterionID != nil {
 		if ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived" {
-			return model.Event{}, &Error{Code: "tie_rule_closed", Message: "choose the tie criterion before judging begins"}
+			return hackmodel.Event{}, &Error{Code: "tie_rule_closed", Message: "choose the tie criterion before judging begins"}
 		}
 		if *req.TieCriterionID != "" {
 			valid, err := entryrepo.EventCriterionInEvent(ctx, tx, ev.ID, *req.TieCriterionID)
 			if err != nil {
-				return model.Event{}, err
+				return hackmodel.Event{}, err
 			}
 			if !valid {
-				return model.Event{}, &Error{Code: "criterion_not_found", Message: "criterion not in this event"}
+				return hackmodel.Event{}, &Error{Code: "criterion_not_found", Message: "criterion not in this event"}
 			}
 		}
 	}
 	if req.Mode != nil || req.PerTeam != nil {
 		ev, err = eventrepo.UpdateJudgingSettings(ctx, tx, ev.ID, req.Mode, req.PerTeam)
 		if err != nil {
-			return model.Event{}, err
+			return hackmodel.Event{}, err
 		}
 	}
 	var scoreMode, publicScores, publicRanks any
@@ -79,15 +80,15 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 		}
 		err = eventrepo.UpdateScoreSettings(ctx, tx, ev.ID, scoreMode, req.TieCriterionID != nil, tie, publicScores, publicRanks)
 		if err != nil {
-			return model.Event{}, err
+			return hackmodel.Event{}, err
 		}
 	}
 	ev, err = eventrepo.GetEventForUpdate(ctx, tx, ev.ID)
 	if err != nil {
-		return model.Event{}, err
+		return hackmodel.Event{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return model.Event{}, err
+		return hackmodel.Event{}, err
 	}
 	return ev, nil
 }

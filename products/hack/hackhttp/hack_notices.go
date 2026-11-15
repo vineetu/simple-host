@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Notify people when something waits on them (2026-11-02, audit item 7).

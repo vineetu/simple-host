@@ -1,6 +1,6 @@
 package hackhttp
 
-import "github.com/vsriram/simple-host/internal/model"
+import "github.com/vsriram/simple-host/products/hack/model"
 
 // The film's crayon box, with two ballpoint inks. Stored choices are palette names.
 var hackCrayons = []struct{ Name, Color string }{

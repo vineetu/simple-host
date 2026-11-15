@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 type HackPreferences = model.HackPreferences

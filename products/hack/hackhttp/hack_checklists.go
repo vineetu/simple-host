@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 func (h *HackHandler) registerChecklists(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {

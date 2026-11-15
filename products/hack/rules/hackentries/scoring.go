@@ -2,7 +2,7 @@ package hackentries
 
 import (
 	"fmt"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	"math"
 	"sort"
 )

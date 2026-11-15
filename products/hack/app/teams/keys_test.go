@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 func TestRequestEventCert(t *testing.T) {

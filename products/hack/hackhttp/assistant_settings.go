@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/model"
 	entries "github.com/vsriram/simple-host/products/hack/app/entries"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Organiser assistant v2 (2026-11-09): this event's current settings, as

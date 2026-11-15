@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	hackmodel "github.com/vsriram/simple-host/internal/model"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	hackeventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	hackteamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"

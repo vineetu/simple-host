@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"

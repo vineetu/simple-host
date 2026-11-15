@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Applying to a hackathon without a join link (zp-hack-applications.sql,

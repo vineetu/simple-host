@@ -11,18 +11,19 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entries "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 type Images struct {
 	database    *sql.DB
-	syncMarkers func(context.Context, model.Event) bool
+	syncMarkers func(context.Context, hackmodel.Event) bool
 }
 
 var _ operations.ProductImages = (*Images)(nil)
 
-func New(database *sql.DB, syncMarkers func(context.Context, model.Event) bool) *Images {
+func New(database *sql.DB, syncMarkers func(context.Context, hackmodel.Event) bool) *Images {
 	return &Images{database: database, syncMarkers: syncMarkers}
 }
 

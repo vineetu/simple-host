@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // TeamMessage aliases the shared model record (0003-hack-notices-judges-messages.sql).

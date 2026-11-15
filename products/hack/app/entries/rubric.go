@@ -5,7 +5,7 @@ import (
 
 	"context"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
 	"strings"
@@ -90,4 +90,6 @@ func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []mod
 }
 
 // RubricVersion identifies the ordered content returned to the caller.
-func RubricVersion(criteria []model.RubricCriterion) string { return rules.RubricFingerprint(criteria) }
+func RubricVersion(criteria []model.RubricCriterion) string {
+	return rules.RubricFingerprint(criteria)
+}

@@ -7,10 +7,11 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 type TeamIdentity = model.TeamIdentity
-type TeamWriteState = model.TeamWriteState
+type TeamWriteState = hackmodel.TeamWriteState
 
 var ErrTeamKeyInactive = model.ErrTeamKeyInactive
 

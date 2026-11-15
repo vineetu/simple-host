@@ -8,7 +8,7 @@ import (
 
 	"github.com/vsriram/simple-host/products/hack/app/events"
 
-	model "github.com/vsriram/simple-host/internal/model"
+	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )

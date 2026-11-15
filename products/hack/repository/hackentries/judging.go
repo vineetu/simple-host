@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // RubricCriterion is one row of rubric_criteria, in position order.

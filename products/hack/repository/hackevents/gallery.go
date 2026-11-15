@@ -5,8 +5,8 @@ import (
 	"database/sql"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 

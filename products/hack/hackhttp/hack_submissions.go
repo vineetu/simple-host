@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // An explicit public card keeps judging and organiser metadata out of this view.

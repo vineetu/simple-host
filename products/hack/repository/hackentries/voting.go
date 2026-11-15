@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // VotingSettings holds an event’s voting configuration.

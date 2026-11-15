@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	model "github.com/vsriram/simple-host/internal/model"
+	model "github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Service owns Hack entry and judging workflows.

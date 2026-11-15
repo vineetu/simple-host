@@ -3,8 +3,8 @@ package hackevents
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 type DirectoryEvent = model.DirectoryEvent

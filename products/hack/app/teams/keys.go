@@ -9,15 +9,16 @@ import (
 	"github.com/vsriram/simple-host/internal/app/sites"
 	model "github.com/vsriram/simple-host/internal/model"
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 // MintTeamKey replaces a participant's key under the event and member locks.
-func (s *Service) MintTeamKey(ctx context.Context, event model.Event, userID, key string) (model.EventTeam, model.TeamKeyInfo, error) {
-	var team model.EventTeam
-	var k model.TeamKeyInfo
+func (s *Service) MintTeamKey(ctx context.Context, event hackmodel.Event, userID, key string) (hackmodel.EventTeam, hackmodel.TeamKeyInfo, error) {
+	var team hackmodel.EventTeam
+	var k hackmodel.TeamKeyInfo
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return team, k, err
@@ -59,7 +60,7 @@ func (s *Service) MintTeamKey(ctx context.Context, event model.Event, userID, ke
 }
 
 // SetDeadline changes the override and queues notices in the same transaction.
-func (s *Service) SetDeadline(ctx context.Context, eventID string, team model.EventTeam, t sql.NullTime) (model.EventTeam, error) {
+func (s *Service) SetDeadline(ctx context.Context, eventID string, team hackmodel.EventTeam, t sql.NullTime) (hackmodel.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return team, err
@@ -112,7 +113,7 @@ func (s *Service) BlockedTeamCount(ctx context.Context, userID string, publishab
 }
 
 // RequestEventCert requests a certificate when the event is eligible.
-func (s *Service) RequestEventCert(ev model.Event, request func(string)) {
+func (s *Service) RequestEventCert(ev hackmodel.Event, request func(string)) {
 	if request == nil || ev.TakenDown() {
 		return
 	}
@@ -176,7 +177,7 @@ func (s *Service) NoticeSiteChange(ctx context.Context, eventID, teamID string, 
 // noticeDeadlineChange tells the team about a new, moved or removed
 // extension, in the organiser's transaction. Taking an extension away only
 // reaches members who could have known they had it.
-func noticeDeadlineChange(ctx context.Context, tx *sql.Tx, eventID string, team model.EventTeam, t sql.NullTime) error {
+func noticeDeadlineChange(ctx context.Context, tx *sql.Tx, eventID string, team hackmodel.EventTeam, t sql.NullTime) error {
 	before := team.DeadlineOverride
 	if before.Valid == t.Valid && (!t.Valid || before.Time.Equal(t.Time)) {
 		return nil
@@ -199,15 +200,15 @@ func noticeDeadlineChange(ctx context.Context, tx *sql.Tx, eventID string, team 
 
 // TeamList contains data shared by event team listings.
 type TeamList struct {
-	States   map[string]model.TeamWriteState
-	Members  map[string][]model.EventPerson
+	States   map[string]hackmodel.TeamWriteState
+	Members  map[string][]hackmodel.EventPerson
 	Versions map[string]bool
 	Sites    map[string]model.Site
 }
 
 // LoadTeamList reads the batched data for event team listings.
-func (s *Service) LoadTeamList(ctx context.Context, ev model.Event) (TeamList, error) {
-	tl := TeamList{Sites: map[string]model.Site{}, Versions: map[string]bool{}, Members: map[string][]model.EventPerson{}}
+func (s *Service) LoadTeamList(ctx context.Context, ev hackmodel.Event) (TeamList, error) {
+	tl := TeamList{Sites: map[string]model.Site{}, Versions: map[string]bool{}, Members: map[string][]hackmodel.EventPerson{}}
 	people, err := eventrepo.ListEventPeople(ctx, s.db, ev.ID)
 	if err != nil {
 		return tl, err
@@ -234,7 +235,7 @@ func (s *Service) LoadTeamList(ctx context.Context, ev model.Event) (TeamList, e
 }
 
 // Key reads a participant's key metadata.
-func (s *Service) Key(ctx context.Context, eventID, userID string) (model.TeamKeyInfo, error) {
+func (s *Service) Key(ctx context.Context, eventID, userID string) (hackmodel.TeamKeyInfo, error) {
 	return hackteams.GetTeamKey(ctx, s.db, eventID, userID)
 }
 
@@ -253,22 +254,22 @@ func (s *Service) RevokePersonKey(ctx context.Context, eventID, userID string) e
 }
 
 // TeamBySlug reads an event's team.
-func (s *Service) TeamBySlug(ctx context.Context, eventID, slug string) (model.EventTeam, error) {
+func (s *Service) TeamBySlug(ctx context.Context, eventID, slug string) (hackmodel.EventTeam, error) {
 	return hackteams.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 }
 
 // WriteState reads a team's publishing state.
-func (s *Service) WriteState(ctx context.Context, teamID string) (model.TeamWriteState, error) {
+func (s *Service) WriteState(ctx context.Context, teamID string) (hackmodel.TeamWriteState, error) {
 	return hackteams.TeamWriteStateFor(ctx, s.db, teamID, false)
 }
 
 // Track reads a team's track.
-func (s *Service) Track(ctx context.Context, teamID string) (*model.EventTrack, error) {
+func (s *Service) Track(ctx context.Context, teamID string) (*hackmodel.EventTrack, error) {
 	return eventrepo.TeamTrack(ctx, s.db, teamID)
 }
 
 // MyTeams reads the caller's publishable teams.
-func (s *Service) MyTeams(ctx context.Context, userID string) ([]model.MyTeam, error) {
+func (s *Service) MyTeams(ctx context.Context, userID string) ([]hackmodel.MyTeam, error) {
 	return hackteams.ListMyTeams(ctx, s.db, userID)
 }
 
@@ -278,7 +279,7 @@ func (s *Service) PinDue(ctx context.Context, eventID string) error {
 }
 
 // RemoveOrphanTeamSites moves sites whose teams have gone to Recently deleted.
-func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev model.Event, trash func(context.Context, string, string) error) {
+func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev hackmodel.Event, trash func(context.Context, string, string) error) {
 	if trash == nil {
 		return
 	}
@@ -305,7 +306,7 @@ type TeamSiteChanger interface {
 }
 
 // SetSiteTakenDown changes a site's state and sends the existing team notices.
-func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger, event model.Event, team model.EventTeam, down bool, reason string) error {
+func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger, event hackmodel.Event, team hackmodel.EventTeam, down bool, reason string) error {
 	if err := changer.SuspendHeldSite(ctx, sites.HeldSiteSuspension{
 		AccountID: event.AccountID, Name: team.Slug, Prefix: organiserTakedownPrefix, Reason: reason, On: down,
 		Also: func(tx *sql.Tx) error { return hackteams.SetTeamSiteTakedown(ctx, tx, team.ID, down, reason) },

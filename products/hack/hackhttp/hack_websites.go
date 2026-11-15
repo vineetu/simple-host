@@ -13,6 +13,7 @@ import (
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 type eventWebsitePublisher interface {
@@ -59,7 +60,7 @@ func (h *HackHandler) eventWebsiteStorage(w http.ResponseWriter, r *http.Request
 	storage.ServeEventWebsiteStorage(w, r, groupRef(a.event), a.user.ID)
 }
 
-func (h *HackHandler) eventWebsiteState(ctx context.Context, ev model.Event) (map[string]any, error) {
+func (h *HackHandler) eventWebsiteState(ctx context.Context, ev hackmodel.Event) (map[string]any, error) {
 	site, err := h.eventsSvc().SiteByUser(ctx, ev.AccountID, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": []any{},
@@ -199,14 +200,14 @@ func (h *HackHandler) websiteSitesSvc() *appsites.Service {
 	})
 }
 
-func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev model.Event) int64 {
+func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev hackmodel.Event) int64 {
 	return h.websiteSitesSvc().WebsiteUploadLimit(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
 
-func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev model.Event) string {
+func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev hackmodel.Event) string {
 	return h.websiteSitesSvc().WebsiteUploadLimits(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
 
-func groupRef(ev model.Event) handler.GroupRef {
+func groupRef(ev hackmodel.Event) handler.GroupRef {
 	return handler.GroupRef{ID: ev.ID, Slug: ev.Slug, AccountID: ev.AccountID}
 }

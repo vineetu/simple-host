@@ -2,7 +2,7 @@ package hackevents
 
 import (
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	"strings"
 	"testing"
 	"time"

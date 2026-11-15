@@ -3,8 +3,8 @@ package hackentries
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // TrackPanelMember provides the corresponding track or judging data.

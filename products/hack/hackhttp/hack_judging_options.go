@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 func nullableString(v sql.NullString) any {

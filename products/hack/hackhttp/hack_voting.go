@@ -10,10 +10,11 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 // votingStatus keeps the existing handler callers on the shared voting rule.
-func votingStatus(ev model.Event, s model.VotingSettings, now time.Time) string {
+func votingStatus(ev hackmodel.Event, s hackmodel.VotingSettings, now time.Time) string {
 	return entries.VotingStatus(ev, entries.VotingSettingsValue(s.Enabled, s.OpensAt, s.ClosesAt, s.Eligibility), now)
 }
 

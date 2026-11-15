@@ -20,9 +20,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	entries "github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 

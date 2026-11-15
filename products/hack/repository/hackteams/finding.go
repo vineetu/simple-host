@@ -3,7 +3,7 @@ package hackteams
 import (
 	"context"
 	"errors"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Event aliases the shared model record.

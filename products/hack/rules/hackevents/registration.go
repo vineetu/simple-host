@@ -1,7 +1,7 @@
 package hackevents
 
 import (
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	"regexp"
 	"strconv"
 	"strings"

@@ -27,6 +27,7 @@ import (
 	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 const imageOwnerID = "10000000-0000-0000-0000-000000000001"
@@ -229,7 +230,7 @@ func TestProductImageEvidenceAndMarkerFailure(t *testing.T) {
 				}
 				f := newImageScanFixtureDB(t, db, disk)
 				markers := 0
-				hook := hackimages.New(db, func(_ context.Context, ev model.Event) bool {
+				hook := hackimages.New(db, func(_ context.Context, ev hackmodel.Event) bool {
 					markers++
 					if ev.ID != imageEventID || ev.AccountID != imageOwnerID {
 						t.Errorf("marker identity: %+v", ev)
@@ -314,7 +315,7 @@ func TestProductImageTakeDownTransaction(t *testing.T) {
 				}
 			}
 			markers := 0
-			hook := hackimages.New(db, func(context.Context, model.Event) bool {
+			hook := hackimages.New(db, func(context.Context, hackmodel.Event) bool {
 				markers++
 				statements := rec.Statements()
 				if statements[len(statements)-1] != "COMMIT" {

@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/vsriram/simple-host/internal/model"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
@@ -25,7 +26,7 @@ func (e *BeginAssignmentsError) Error() string { return e.Err.Error() }
 func (e *BeginAssignmentsError) Unwrap() error { return e.Err }
 
 // GenerateAssignments plans and replaces assignments in one transaction.
-func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers *bool, pool map[string]bool, atStageMove bool) ([]model.JudgeAssignment, []string, error) {
+func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers *bool, pool map[string]bool, atStageMove bool) ([]hackmodel.JudgeAssignment, []string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, nil, &BeginAssignmentsError{Err: err}
@@ -65,7 +66,7 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 	}
 	// Only teams that will be judged get judges: a team with no entry would
 	// take a judge's slot and never show in anyone's queue.
-	judgedTeams := make([]model.NamedTeam, 0, len(teams))
+	judgedTeams := make([]hackmodel.NamedTeam, 0, len(teams))
 	for _, t := range teams {
 		if pool[t.ID] {
 			judgedTeams = append(judgedTeams, t)
@@ -97,7 +98,7 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 }
 
 // PutManualAssignments replaces the event's manual assignments.
-func (s *Service) PutManualAssignments(ctx context.Context, eventID string, items []model.JudgeAssignment) ([]model.JudgeAssignment, error) {
+func (s *Service) PutManualAssignments(ctx context.Context, eventID string, items []hackmodel.JudgeAssignment) ([]hackmodel.JudgeAssignment, error) {
 	tx, ev, err := s.optionsTx(ctx, eventID, true)
 	if err != nil {
 		return nil, err
@@ -196,27 +197,27 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 	return rows, nil
 }
 
-func (s *Service) optionsTx(ctx context.Context, eventID string, setup bool) (*sql.Tx, model.Event, error) {
+func (s *Service) optionsTx(ctx context.Context, eventID string, setup bool) (*sql.Tx, hackmodel.Event, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, model.Event{}, err
+		return nil, hackmodel.Event{}, err
 	}
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		tx.Rollback()
-		return nil, model.Event{}, err
+		return nil, hackmodel.Event{}, err
 	}
 	if ev.Stage == "archived" {
 		tx.Rollback()
-		return nil, model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+		return nil, hackmodel.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if ev.JudgingLockedAt.Valid {
 		tx.Rollback()
-		return nil, model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
+		return nil, hackmodel.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
 	}
 	if setup && ev.Stage == "judging" {
 		tx.Rollback()
-		return nil, model.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
+		return nil, hackmodel.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
 	}
 	return tx, ev, nil
 }

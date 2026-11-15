@@ -22,7 +22,6 @@ import (
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
-	"github.com/vsriram/simple-host/internal/model"
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -252,7 +251,7 @@ func TestExportAdmissionTimeoutAbortsHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A throwaway event uses the same site to exercise the event export consumer.
-	ev := model.Event{AccountID: s.ownerID, Slug: uniqueLabel(t, "export")}
+	ev := GroupRef{AccountID: s.ownerID, Slug: uniqueLabel(t, "export")}
 	if err := s.a.database.QueryRow(`INSERT INTO events(slug,account_id,title,organiser_name,contact_email,join_code,judge_code) VALUES($1,$2,'Export','Test','export@example.com',$3,$4) RETURNING id`, ev.Slug, ev.AccountID, uniqueLabel(t, "join"), uniqueLabel(t, "judge")).Scan(&ev.ID); err != nil {
 		t.Fatal(err)
 	}

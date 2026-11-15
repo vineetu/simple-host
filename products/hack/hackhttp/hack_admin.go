@@ -9,8 +9,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // hackAccountAdmin is handler's accountAdmin (accounts.go), duplicated here

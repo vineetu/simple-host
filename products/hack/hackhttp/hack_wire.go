@@ -18,6 +18,7 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 // hackGallerySlug is one label: lowercase letters, digits and hyphens, not
@@ -58,7 +59,7 @@ func hackGalleryImageType(s string) bool {
 // hackGalleryPublic: the event page may list projects, and the event host may
 // serve their screenshots. ready is false until the event's team addresses
 // have a certificate (and asking reports that, the same as a deploy).
-func hackGalleryPublic(ev model.Event, ready func(string) bool) bool {
+func hackGalleryPublic(ev hackmodel.Event, ready func(string) bool) bool {
 	return ev.GalleryOpen && ev.Stage != "draft" && !ev.TakenDown() && ready != nil && ready(ev.Slug)
 }
 
@@ -275,7 +276,7 @@ func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRa
 	return v
 }
 
-func hackGalleryCards(eventSlug string, cards []model.GalleryCard, teamSiteURL func(string, string) string) []hackGalleryCard {
+func hackGalleryCards(eventSlug string, cards []hackmodel.GalleryCard, teamSiteURL func(string, string) string) []hackGalleryCard {
 	var out []hackGalleryCard
 	for _, c := range cards {
 		link := hackGalleryLink(teamSiteURL, eventSlug, c.Slug)

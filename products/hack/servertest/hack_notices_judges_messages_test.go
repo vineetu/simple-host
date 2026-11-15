@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Judge notices, custom reminder offsets and organiser team messages

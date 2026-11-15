@@ -45,6 +45,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
@@ -534,7 +535,7 @@ func sweepNoticeMail(a *teamSiteApp, delay time.Duration) {
 	s := events.New(a.database)
 	s.PruneNotices(ctx)
 	// The caller installs this sink before triggering a sweep.
-	s.DeliverNoticeMail(ctx, a.noticeSink, delay, 15*time.Minute, a.srv.URL, entries.New(a.database, func(ctx context.Context, ev model.Event, slug string, takenDown bool) bool {
+	s.DeliverNoticeMail(ctx, a.noticeSink, delay, 15*time.Minute, a.srv.URL, entries.New(a.database, func(ctx context.Context, ev hackmodel.Event, slug string, takenDown bool) bool {
 		info, _, err := a.sites.TeamSiteInfo(ctx, ev.AccountID, slug)
 		return err == nil && info.Exists && info.ActiveVersion > 0 && !info.Suspended && !takenDown
 	}))

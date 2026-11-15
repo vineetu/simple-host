@@ -2,7 +2,7 @@ package hackentries
 
 import (
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Judgeable reports whether an entry is eligible for judging. The SQL query

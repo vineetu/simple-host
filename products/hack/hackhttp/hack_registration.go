@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 func (h *HackHandler) registerRegistration(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {

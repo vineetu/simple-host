@@ -9,6 +9,7 @@ import (
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 type groupHosts struct {
@@ -22,7 +23,7 @@ func NewGroupHosts(db *sql.DB, page func(http.ResponseWriter, *http.Request, mod
 	return &groupHosts{teams: teams.New(db), page: page, screenshot: screenshot}
 }
 
-func hostGroup(ev model.Event) handler.Group {
+func hostGroup(ev hackmodel.Event) handler.Group {
 	return handler.Group{GroupRef: groupRef(ev), CustomWebsite: ev.WebsiteMode == "custom", TakenDown: ev.TakenDown()}
 }
 func (g *groupHosts) ByAccount(ctx context.Context, id string) (handler.Group, error) {

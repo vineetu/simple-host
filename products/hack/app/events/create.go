@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/vsriram/simple-host/internal/model"
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
+	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"

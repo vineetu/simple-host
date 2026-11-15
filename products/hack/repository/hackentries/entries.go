@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Alias (cleanup 4.1): defined in internal/model.

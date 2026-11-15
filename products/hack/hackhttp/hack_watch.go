@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // RegisterHackWatch is mounted only by the hosted-events homepage. Takes

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"sort"
 
-	model "github.com/vsriram/simple-host/internal/model"
+	model "github.com/vsriram/simple-host/products/hack/model"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 

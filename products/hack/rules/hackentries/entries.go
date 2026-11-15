@@ -2,7 +2,7 @@ package hackentries
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	"strings"
 )
 

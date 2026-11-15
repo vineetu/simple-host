@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // JudgeReminderDue aliases the shared model record

@@ -6,13 +6,14 @@ import (
 	"errors"
 
 	"github.com/vsriram/simple-host/internal/model"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 var ErrTeamKeyInactive = hackevents.ErrTeamKeyInactive
 
 type TeamIdentity = model.TeamIdentity
-type TeamKeyInfo = model.TeamKeyInfo
+type TeamKeyInfo = hackmodel.TeamKeyInfo
 
 // ResolveTeamIdentity checks that memberID is a participant on teamID right
 // now and returns what their team credential acts as. ErrTeamKeyInactive when
@@ -64,7 +65,7 @@ func RevokeStaleTeamKeys(ctx context.Context, q Querier, eventID string) error {
 
 // TeamWriteState is what decides whether a team may change its site or entry
 // now. Read with TeamWriteStateFor.
-type TeamWriteState = model.TeamWriteState
+type TeamWriteState = hackmodel.TeamWriteState
 
 // Frozen: judging has started, the event ended, or the team deadline passed.
 
@@ -300,7 +301,7 @@ func EventKeyHolders(ctx context.Context, q interface {
 }
 
 // MyTeam is one team a person is on, for the connector's team choice.
-type MyTeam = model.MyTeam
+type MyTeam = hackmodel.MyTeam
 
 // ListMyTeams lists the teams userID is on that can still publish: the event
 // has not ended and is not taken down, the team's deadline has not passed and

@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // registerAssistant wires SIM-394's organiser assistant chat. The API

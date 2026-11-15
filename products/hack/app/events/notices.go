@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/vsriram/simple-host/internal/model"
 	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
+	model "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )

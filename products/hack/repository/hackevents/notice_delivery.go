@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Notices: "notify people when something waits on them" (2026-11-02, audit

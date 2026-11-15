@@ -5,14 +5,15 @@ import (
 	"log"
 
 	"github.com/vsriram/simple-host/internal/model"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-func (s *Service) SiteEventBySlug(ctx context.Context, slug string) (model.Event, error) {
+func (s *Service) SiteEventBySlug(ctx context.Context, slug string) (hackmodel.Event, error) {
 	return events.GetEventBySlug(ctx, s.db, slug)
 }
-func (s *Service) SiteEventByAccount(ctx context.Context, accountID string) (model.Event, error) {
+func (s *Service) SiteEventByAccount(ctx context.Context, accountID string) (hackmodel.Event, error) {
 	return events.GetEventByAccount(ctx, s.db, accountID)
 }
 func (s *Service) SiteTeamIdentity(ctx context.Context, memberID, teamID string) (model.TeamIdentity, error) {
@@ -21,7 +22,7 @@ func (s *Service) SiteTeamIdentity(ctx context.Context, memberID, teamID string)
 func (s *Service) SitePinnedVersion(ctx context.Context, accountID, name string) (int, bool, error) {
 	return repo.PinnedVersionOfSite(ctx, s.db, accountID, name)
 }
-func (s *Service) SiteTeams(ctx context.Context, eventID string) ([]model.EventTeam, error) {
+func (s *Service) SiteTeams(ctx context.Context, eventID string) ([]hackmodel.EventTeam, error) {
 	return repo.ListEventTeams(ctx, s.db, eventID)
 }
 

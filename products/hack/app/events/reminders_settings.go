@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
