@@ -1,0 +1,17 @@
+{
+  "slice": "R3-S5a",
+  "entries": [
+    {
+      "product": "host",
+      "scenario": "converted",
+      "change": "added",
+      "reason": "R3-S5a records converted and unconverted SQLite and key-value resources side by side."
+    },
+    {
+      "product": "hack",
+      "scenario": "converted",
+      "change": "added",
+      "reason": "R3-S5a records converted and unconverted SQLite and key-value resources side by side."
+    }
+  ]
+}

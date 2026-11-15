@@ -29,7 +29,7 @@ import (
     "time"
 )
 
-func TestPass(t *testing.T) {}
+func TestPass(t *testing.T) { t.Log("gate-summary: fixture figure PACKAGE") }
 
 func TestFixture(t *testing.T) {
     mode := os.Getenv("FIXTURE_MODE")
@@ -58,6 +58,7 @@ func TestFixture(t *testing.T) {
             }
         }
         if mode == "interrupt" { for { time.Sleep(time.Second) } }
+        t.Log("gate-summary: failing figure " + name)
         t.Fatal("deliberate failure in " + name)
     }
 }
@@ -117,6 +118,10 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(code, 0, output)
         self.assertIn("forcing -p 1 -count=1 -json", output)
         self.assertIn("pass=4 fail=0 skip=0 (db-related-skip=0, other-skip=0)", output)
+        # A passing test's marked line reaches the record, under its heading.
+        _, _, summary = output.partition("== summary lines from passing tests ==")
+        for name in ("one", "two"):
+            self.assertEqual(summary.count(f"gate-summary: fixture figure {name}"), 1, output)
 
     def test_parallel_failures_in_both_packages(self):
         code, output = self.run_fixture("fail")
@@ -128,6 +133,12 @@ class RunnerTest(unittest.TestCase):
             self.assertIn(f"deliberate failure in {name}", output)
         self.assertNotIn("packages did not overlap", output)
         self.assertIn("pass=2 fail=2 skip=0", output)
+        # A failing test's marked line stays in its failure output only.
+        _, _, summary = output.partition("== summary lines from passing tests ==")
+        for name in ("one", "two"):
+            self.assertEqual(output.count(f"gate-summary: failing figure {name}"), 1, output)
+            self.assertNotIn(f"failing figure {name}", summary)
+            self.assertIn(f"gate-summary: fixture figure {name}", summary)
 
     def test_database_skips_fail(self):
         code, output = self.run_fixture("skip")

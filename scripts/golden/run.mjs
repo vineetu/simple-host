@@ -27,6 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FIXED_GETS = fixedGetRoutes(JSON.parse(readFileSync(path.join(REPO_ROOT, 'docs/generated/inventory.json'))));
 const SCENARIOS = {
+ 'converted': { env: { host: { STORAGE_RULES: 'on', KV_STORE: 'sqlite' }, hack: { STORAGE_RULES: 'on', KV_STORE: 'sqlite' } }, host: seedAndCallConverted, hack: seedAndCallConverted },
  'rules-on': { env: { host: { STORAGE_RULES: 'on' }, hack: { STORAGE_RULES: 'on' } }, host: seedAndCallRulesOn, hack: seedAndCallRulesOn },
  base: { env: { host: { KV_STORE: 'postgres' }, hack: { KV_STORE: 'postgres' } }, host: seedAndCallHost, hack: seedAndCallHack },
  'mixed-store': { env: { host: { KV_STORE: 'sqlite' }, hack: { KV_STORE: 'sqlite' } }, host: seedAndCallMixedStore, hack: seedAndCallMixedStore },
@@ -680,6 +681,77 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   if (result && result.status !== status) throw new Error(`${label}: expected ${status}, got ${result.status} (${result.json?.code})`);
  }
 
+}
+
+// R3-S5a: the same public resource before and after Convert, side by side.
+// Exhaustive conversion/service comparisons live in equivalence_db_test.go.
+async function seedAndCallConverted({ instance, at, registerSecret }) {
+ const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['converted-owner@example.com'] } });
+ const owner = created.json.created[0].api_key;
+ const name = 'golden-converted';
+ let base;
+ if (instance.tag === 'hack') {
+  const event = await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
+  for (const code of [event.json?.organiser?.join_code, event.json?.organiser?.judge_code]) {
+   if (code) registerSecret('code', code);
+  }
+  await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Converted storage</h1>' } } });
+  base = `/v1/hack/events/${name}/website/storage`;
+ } else {
+  await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Converted storage</h1>' } } });
+  base = `/v1/sites/${name}/storage`;
+ }
+ // Convert(public), including policy names and the canonical version. Written
+ // as JSON between the markers: TestGoldenConvertedScenarioRules
+ // (internal/app/storage) reads it and compares it with Convert's output.
+ // golden-converted-rules:begin (JSON)
+ const rules = { "version": 1, "policies": [
+  { "name": "read", "command": "read", "using": "true" },
+  { "name": "add", "command": "add", "check": "auth.role == \"owner\"" },
+  { "name": "edit", "command": "edit", "using": "auth.role == \"owner\"" },
+  { "name": "delete", "command": "delete", "using": "auth.role == \"owner\"" }
+ ] };
+ // golden-converted-rules:end
+ for (const kind of ['sqlite', 'kv']) {
+  for (const twin of ['preset', 'converted']) {
+   const resource = `${kind}_${twin}`;
+   const saved = await at(`save-${resource}`, 'PUT', `${base}/resources/${resource}`, { apiKey: owner,
+    body: { kind, ...(twin === 'preset' ? { preset: 'public' } : { rules }) } });
+   if (saved.json?.rules_status !== (twin === 'preset' ? 'preset' : 'rules')) throw new Error(`converted scenario: ${resource} save failed`);
+   if (kind === 'sqlite') {
+    const schema = await at(`schema-${resource}`, 'POST', `${base}/sqlite/${resource}/schema`, { apiKey: owner,
+     body: { sql: 'CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT)' } });
+    if (schema.status !== 200) throw new Error(`converted scenario: ${resource} schema failed`);
+    const added = await at(`seed-${resource}`, 'POST', `${base}/sqlite/${resource}/tables/entries/rows`, { apiKey: owner, body: { body: 'same row' } });
+    if (added.status !== 200) throw new Error(`converted scenario: ${resource} seed failed`);
+   } else {
+    const added = await at(`seed-${resource}`, 'PUT', `${base}/kv/${resource}/keys/one`, { apiKey: owner, body: { value: 'same value' } });
+    if (added.status !== 200) throw new Error(`converted scenario: ${resource} seed failed`);
+   }
+  }
+ }
+ await at('list-twins', 'GET', `${base}/resources`, { apiKey: owner });
+ const siteWhere = instance.tag === 'hack'
+  ? `sites s JOIN events e ON s.user_id=e.account_id AND s.name=e.id::text JOIN users u ON u.id=s.user_id WHERE e.slug='${name}'`
+  : `sites s JOIN users u ON u.id=s.user_id WHERE s.name='${name}'`;
+ const handle = psql(instance.dbURL, `SELECT u.handle FROM ${siteWhere}`);
+ const host = instance.tag === 'hack' ? `${name}.golden-hack.invalid` : `${name}.${handle}.golden-host.invalid`;
+ const headers = { Host: host, Origin: `http://${host}`, 'Sec-Fetch-Site': 'same-origin', 'X-SH-CSRF': '1' };
+ for (const kind of ['sqlite', 'kv']) {
+  for (const twin of ['preset', 'converted']) {
+   const resource = `${kind}_${twin}`;
+   const rows = `/v1/sites/${name}/storage/${kind}/${resource}/` + (kind === 'sqlite' ? 'tables/entries/rows' : 'keys');
+   for (const [action, method, suffix, body, status] of [
+    ['list', 'GET', '', undefined, 200],
+    ['get', 'GET', kind === 'sqlite' ? '/1' : '/one', undefined, 200],
+    ['missing', 'GET', kind === 'sqlite' ? '/99' : '/missing', undefined, 404],
+    ['add-refused', kind === 'sqlite' ? 'POST' : 'PUT', kind === 'sqlite' ? '' : '/new', kind === 'sqlite' ? { body: 'visitor' } : { value: 'visitor' }, 403],
+   ]) {
+    const response = await at(`${resource}-${action}`, method, rows+suffix, { headers, body });
+    if (response.status !== status) throw new Error(`converted scenario: ${resource} ${action} expected ${status}, got ${response.status}`);
+   }
+  }
+ }
 }
 
 async function seedAndCallMixedStore({ instance, at, registerSecret }) {

@@ -8,6 +8,7 @@ Reads one JSON-lines file (path given as argv[1]) produced by
     failed outright -- a build failure, a panic in TestMain, anything not
     attributed to one test -- that package's own output, plus any
     build-output lines go recorded for it)
+  - every "gate-summary: " line a passing test logged
   - pass/fail/skip totals
   - the list of tests that EVER skipped for a DB-related reason (DB_DSN
     unset, or postgres unreachable) in any iteration, even under
@@ -35,6 +36,9 @@ import json
 import re
 import sys
 
+# A passing test's output is dropped, except lines carrying this mark: a test
+# that must leave a figure in the gate's record logs it with the mark.
+SUMMARY_MARK = "gate-summary: "
 DB_SKIP_RE = re.compile(r"DB_DSN|postgres not reachable", re.IGNORECASE)
 
 
@@ -44,6 +48,10 @@ def finalize_test_iteration(test_state, action):
     output = "".join(test_state["cur_output"])
     test_state["cur_output"] = []
     test_state["last_result"] = action
+    if action == "pass":
+        test_state["summary_lines"] += [
+            line.strip() for line in output.splitlines() if SUMMARY_MARK in line
+        ]
     if action == "fail":
         test_state["fail_outputs"].append(output)
     elif action == "skip":
@@ -106,6 +114,7 @@ def main():
                     "fail_outputs": [],
                     "db_skip_outputs": [],
                     "other_skips": 0,
+                    "summary_lines": [],
                 })
                 if action == "run":
                     # Start of a fresh iteration (relevant under -count>1,
@@ -221,6 +230,13 @@ def main():
         print(f"== non-JSON lines in go test output ({len(non_json_lines)}) ==")
         for line in non_json_lines[:200]:
             print(line)
+
+    summary_lines = [(key, line) for key, state in tests.items() for line in state["summary_lines"]]
+    if summary_lines:
+        print()
+        print("== summary lines from passing tests ==")
+        for (pkg, name), line in summary_lines:
+            print(f"{name} ({pkg}): {line}")
 
     print()
     print("== totals ==")

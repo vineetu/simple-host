@@ -725,3 +725,21 @@ with this same harness so the page exists in both recordings.
 Hack has no owner showcase dashboard: its edition routes people to the event
 interface and does not serve this Storage panel. There is no Hack showcase
 approval; the other Hack requests still compare normally.
+
+### R3-S5a converted scenario
+
+`converted` saves a public preset beside its converted rules on SQLite tables
+and SQLite key-value namespaces, on both products. It records owner saves,
+seeding and resource listings, then anonymous list/get/missing/write-refusal
+requests for both twins. `approved/R3-S5a.json` approves only the new scenario
+for each product; existing scenarios have no R3-S5a approvals. Exhaustive
+service equivalence is checked by `TestPresetServiceEquivalence` in the DB suite.
+
+The twins do not answer byte for byte, by ruling (R3-S5a ruling 1, approved
+2026-11-15): a converted resource keeps the rules wording already live.
+Status, code, rows and data agree; only the refusal message differs. The preset
+twin's `forbidden` ends in its preset value (`add is not open to this visitor
+here (owner)`), the converted twin's does not. That and the two sentences of
+`for_requires_own` are the approved wording differences. The service test pins
+both exactly, fails on any other message difference, and counts them in its
+summary line (`refusal_wording_approved`).

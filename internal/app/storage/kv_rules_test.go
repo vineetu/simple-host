@@ -298,7 +298,12 @@ func TestKVRulesVisitorAIActionAndOwnConstraint(t *testing.T) {
 	kvRulesPut(t, s, c, "key", `2`, "edit", "")
 	c.VisitorID = "other"
 	kvRulesPut(t, s, c, "key", `3`, "edit", "key_exists")
-	kvRulesDelete(t, s, c, "key", "") // Binding-only rights: no change, no event.
+	// The AI author term makes this delete depend on the row, so it answers
+	// as today's author-filtered delete does: no change, no event. Before
+	// R3-S5a this answered success; the reversal is R3-S5a ruling 2,
+	// approved 2026-11-15 (a production change in kv_sqlite.go).
+	kvRulesDelete(t, s, c, "key", "key_not_found")
+	kvRulesDelete(t, s, c, "absent", "key_not_found")
 	owner := c
 	owner.Owner = true
 	if string(kvRulesGet(t, s, owner, "key", "").Value) != "2" {
@@ -322,6 +327,34 @@ func TestKVRulesCheckedPostLimitsAndMissingDelete(t *testing.T) {
 	}
 	s, c = kvRulesFixture(t, kvRuleSet(`visitor_id == auth.id || auth.role == "owner"`, "true", `visitor_id == auth.id || auth.role == "owner"`, `visitor_id == auth.id || auth.role == "owner"`, `visitor_id == auth.id || auth.role == "owner"`))
 	kvRulesDelete(t, s, c, "missing", "key_not_found")
+}
+
+// R3-S5a ruling 5: a delete that succeeds without removing anything (a missing
+// key, by a caller whose read and delete rights do not depend on the row)
+// calls the committed hook once, as the preset path does, and changes nothing.
+func TestKVRulesIdleDeleteCallsCommitted(t *testing.T) {
+	own := `visitor_id == auth.id || auth.role == "owner"`
+	s, c := kvRulesFixture(t, kvRuleSet(own, "true", own, own, own))
+	kvRulesPut(t, s, c, "kept", `1`, "", "")
+	owner := c
+	owner.Owner, owner.VisitorID = true, ""
+	rows, meta := kvRulesSnapshot(t, c)
+	committed, notifications := 0, 0
+	s.deps.Committed = func(context.Context) { committed++ }
+	s.deps.Notify = func(Call, string, map[string]any) { notifications++ }
+	kvRulesDelete(t, s, owner, "missing", "")
+	if committed != 1 || notifications != 0 {
+		t.Fatalf("idle delete: committed=%d notifications=%d, want 1 and 0", committed, notifications)
+	}
+	afterRows, afterMeta := kvRulesSnapshot(t, c)
+	if !reflect.DeepEqual(rows, afterRows) || !reflect.DeepEqual(meta, afterMeta) {
+		t.Fatalf("idle delete changed the store: before %+v %+v, after %+v %+v", rows, meta, afterRows, afterMeta)
+	}
+	// A refused idle delete (the right depends on the row) is not a commit.
+	kvRulesDelete(t, s, c, "missing", "key_not_found")
+	if committed != 1 {
+		t.Fatalf("refused delete called committed: %d", committed)
+	}
 }
 
 func TestKVRulesQuotaAtLimit(t *testing.T) {

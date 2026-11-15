@@ -443,9 +443,15 @@ func (s *Service) deleteRuleKVSQLite(ctx context.Context, conn *sqlite3.Conn, a 
 		return err
 	}
 	if conn.Changes() == 0 {
-		if c.rulePlan.Partial(ruleengine.OpDelete, c.ruleValues) != ruleengine.True || c.rulePlan.Partial(ruleengine.OpRead, c.ruleValues) != ruleengine.True {
+		// A visitor's AI deletes only its author's keys (ruleAIConstraint), so
+		// like any other author-filtered delete it reports the key it could
+		// not remove, as the preset path does for a non-empty filter.
+		if c.VisitorAI || c.rulePlan.Partial(ruleengine.OpDelete, c.ruleValues) != ruleengine.True || c.rulePlan.Partial(ruleengine.OpRead, c.ruleValues) != ruleengine.True {
 			return &Error{Code: "key_not_found", Message: "key not found"}
 		}
+		// A delete that succeeds without removing anything still counts as a
+		// committed write, as on the preset path (R3-S5a ruling 5).
+		s.deps.Committed(ctx)
 		return nil
 	}
 	if err := kvRuleExec(conn, `UPDATE kv_meta SET entries=entries-1,logical_bytes=logical_bytes-? WHERE id=1`, []ruleengine.Value{ruleengine.Int(int64(len(key) + len(item.Value)))}); err != nil {
