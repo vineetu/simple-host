@@ -19,7 +19,7 @@ import (
 )
 
 func TestDocsRoutes(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host, edition.Hack} {
+	for _, kind := range []edition.Kind{edition.Host} {
 		t.Run(edition.ForKind(kind).Presentation().ProductName, func(t *testing.T) {
 			mux := chromeTestMux(t, kind)
 			for _, route := range []string{"/docs", "/docs.html"} {
@@ -28,7 +28,7 @@ func TestDocsRoutes(t *testing.T) {
 					t.Errorf("%s: %d, Location %q", route, r.Code, r.Header().Get("Location"))
 				}
 			}
-			for _, route := range webassets.DocsPaths(kind == edition.Hack) {
+			for _, route := range docsPaths(webassets.DocsTree()) {
 				r := get(t, mux, "", route)
 				if r.Code != 200 || !strings.HasPrefix(r.Header().Get("Content-Type"), "text/html") {
 					t.Fatalf("%s: %d %s", route, r.Code, r.Header().Get("Content-Type"))
@@ -87,7 +87,7 @@ func TestDocsRoutes(t *testing.T) {
 }
 
 func TestDocsMarkdownCopies(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host, edition.Hack} {
+	for _, kind := range []edition.Kind{edition.Host} {
 		mux := chromeTestMux(t, kind)
 		r := get(t, mux, "", "/docs/index.md")
 		if r.Code != 200 || !strings.HasPrefix(r.Header().Get("Content-Type"), "text/markdown") {
@@ -118,13 +118,13 @@ func TestDocsMarkdownRuntimeText(t *testing.T) {
 		chromeCache.Clear()
 	})
 	instanceIsHostedService = true
-	host := newAssetPipeline(edition.ForKind(edition.Host), "")
+	host := testAssetPipeline(edition.ForKind(edition.Host), "")
 	host.docs.once.Do(host.buildDocsCache)
 	if !bytes.Contains(host.docs.md["guides/agents.md"], []byte("npx skills add")) {
 		t.Fatal("hosted instructions absent from the .md copy")
 	}
 	SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
-	self := newAssetPipeline(edition.ForKind(edition.Host), "https://docs-box.example")
+	self := testAssetPipeline(edition.ForKind(edition.Host), "https://docs-box.example")
 	self.docs.once.Do(self.buildDocsCache)
 	body := self.docs.md["guides/agents.md"]
 	if bytes.Contains(body, []byte("npx skills add")) || !bytes.Contains(body, []byte("this install")) {
@@ -158,15 +158,15 @@ func TestDocsRuntimeText(t *testing.T) {
 		chromeCache.Clear()
 	})
 	instanceIsHostedService = true
-	host := newAssetPipeline(edition.ForKind(edition.Host), "")
+	host := testAssetPipeline(edition.ForKind(edition.Host), "")
 	host.docs.once.Do(host.buildDocsCache)
 	if !bytes.Contains(host.docs.pages["guides/agents/index.html"], []byte("npx skills add")) {
 		t.Fatal("hosted instructions absent")
 	}
 	SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
 	limits := withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "250", "DOMAIN_UNPROVEN_HOURS": "36"})
-	for _, kind := range []edition.Kind{edition.Host, edition.Hack} {
-		p := newAssetPipeline(edition.ForKindWithLimits(kind, limits), "https://docs-box.example")
+	for _, kind := range []edition.Kind{edition.Host} {
+		p := testAssetPipeline(edition.ForKindWithLimits(kind, limits), "https://docs-box.example")
 		p.docs.once.Do(p.buildDocsCache)
 		if p.docs.err != nil {
 			t.Fatal(p.docs.err)
@@ -212,9 +212,9 @@ func inlineDocsChromeForTest(t *testing.T, mux http.Handler, body string) string
 }
 
 func TestDocsChromeScriptsAfterRestart(t *testing.T) {
-	p := newAssetPipeline(edition.ForKind(edition.Host), "")
+	p := testAssetPipeline(edition.ForKind(edition.Host), "")
 	p.docs.once.Do(p.buildDocsCache)
-	fresh := newAssetPipeline(edition.ForKind(edition.Host), "")
+	fresh := testAssetPipeline(edition.ForKind(edition.Host), "")
 	for name, body := range p.docs.scripts {
 		r := httptest.NewRecorder()
 		fresh.serveDocs(r, httptest.NewRequest("GET", "/docs/"+name, nil))
@@ -225,10 +225,11 @@ func TestDocsChromeScriptsAfterRestart(t *testing.T) {
 }
 
 func TestDocsSitemap(t *testing.T) {
-	for _, hack := range []bool{false, true} {
+	for _, hack := range []bool{false} {
 		r := httptest.NewRecorder()
-		serveSitemapXML(r, httptest.NewRequest("GET", "https://example.org/sitemap.xml", nil), hack)
-		for _, route := range webassets.DocsPaths(hack) {
+		base, _ := sitemapBase(httptest.NewRequest("GET", "https://example.org/sitemap.xml", nil), hack)
+		serveSitemapFile(r, httptest.NewRequest("GET", "https://example.org/sitemap.xml", nil), buildSitemaps(base, sitemapPages(base, hack, webassets.DocsTree()), nil))
+		for _, route := range docsPaths(webassets.DocsTree()) {
 			if !strings.Contains(r.Body.String(), route+"</loc>") {
 				t.Errorf("sitemap missing %s", route)
 			}
@@ -244,7 +245,7 @@ func TestDocsOldAnchors(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node unavailable for anchor compatibility test")
 	}
-	data, err := fs.ReadFile(webassets.DocsTree(false), "old-anchors.js")
+	data, err := fs.ReadFile(webassets.DocsTree(), "old-anchors.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +269,7 @@ func TestDocsOldAnchorHashChange(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node unavailable")
 	}
-	data, err := fs.ReadFile(webassets.DocsTree(false), "old-anchors.js")
+	data, err := fs.ReadFile(webassets.DocsTree(), "old-anchors.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,8 +304,8 @@ func TestDocsNotInStaticTree(t *testing.T) {
 }
 
 func TestDocsAnchorTargetsExist(t *testing.T) {
-	for _, hack := range []bool{false, true} {
-		tree := webassets.DocsTree(hack)
+	for _, hack := range []bool{false} {
+		tree := webassets.DocsTree()
 		script, err := fs.ReadFile(tree, "old-anchors.js")
 		if err != nil {
 			t.Fatal(err)
@@ -347,7 +348,7 @@ func TestDocsAnchorTargetsExist(t *testing.T) {
 }
 
 func TestDocsDirectoryRedirectQuery(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host, edition.Hack} {
+	for _, kind := range []edition.Kind{edition.Host} {
 		r := get(t, chromeTestMux(t, kind), "", "/docs/guides/storage?q=hello%20world&from=old")
 		if r.Code != 301 || r.Header().Get("Location") != "/docs/guides/storage/?q=hello%20world&from=old" {
 			t.Fatalf("redirect: %d %q", r.Code, r.Header().Get("Location"))
@@ -409,8 +410,8 @@ func TestDocsHostPublicBaseURL(t *testing.T) {
 }
 
 func TestDocsBrandAndSearchCopy(t *testing.T) {
-	for _, hack := range []bool{false, true} {
-		tree := webassets.DocsTree(hack)
+	for _, hack := range []bool{false} {
+		tree := webassets.DocsTree()
 		err := fs.WalkDir(tree, ".", func(name string, entry fs.DirEntry, err error) error {
 			if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".html") {
 				return err
@@ -439,7 +440,7 @@ func TestDocsBrandAndSearchCopy(t *testing.T) {
 }
 
 func TestFeaturesConnectDomainLink(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host, edition.Hack} {
+	for _, kind := range []edition.Kind{edition.Host} {
 		body := get(t, chromeTestMux(t, kind), "", "/features.html").Body.String()
 		has := strings.Contains(body, `href="/skills/connect-domain/SKILL.md"`)
 		if has != (kind == edition.Host) {

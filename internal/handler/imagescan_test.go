@@ -547,7 +547,7 @@ func TestImageScanPrivacyItem(t *testing.T) {
 	t.Cleanup(func() { SetImageScanOn(was) })
 	for _, on := range []bool{true, false} {
 		SetImageScanOn(on)
-		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage("privacy.html", ChromeData{})
+		page, err := testAssetPipeline(edition.ForKind(edition.Host), "").chromePage("privacy.html", ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

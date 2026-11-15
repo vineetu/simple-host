@@ -160,13 +160,18 @@ func servedSigninJS() []byte {
 // nil pipeline is the product-neutral view: no hackAuthJS.
 func (p *assetPipeline) transformStatic(name string, b []byte) []byte {
 	b = baseText(b)
+	if p != nil && !isAuthJS(name) && p.product.rewrite != nil {
+		b = p.product.rewrite(name, b)
+	}
 	if isSigninJS(name) {
 		return injectSigninMessages(b)
 	}
 	if isAuthJS(name) {
 		b = bytes.Replace(b, []byte(markerSigninCard), servedSigninJS(), 1)
-		if p != nil && p.pres.HackAssets {
-			b = hackAuthJS(b)
+		if p != nil && p.pres.ProductAssets {
+			if p.product.rewrite != nil {
+				b = p.product.rewrite(name, b)
+			}
 		}
 		baseTextMu.RLock()
 		bases := authJSBases
@@ -183,46 +188,11 @@ func (p *assetPipeline) transformStatic(name string, b []byte) []byte {
 	return b
 }
 
-// Hack serves the same visitor sign-in and new storage helper as Host, without
-// the retired state, collection and declared-data browser methods.
-func hackAuthJS(b []byte) []byte {
-	cut := func(src []byte, start, end string) []byte {
-		i, j := bytes.Index(src, []byte(start)), bytes.Index(src, []byte(end))
-		if i < 0 || j < i {
-			panic("auth.js legacy-storage boundary changed")
-		}
-		return append(append([]byte(nil), src[:i]...), src[j:]...)
-	}
-	end := bytes.Index(b, []byte("*/\n"))
-	if end < 0 {
-		panic("auth.js header changed")
-	}
-	b = append([]byte(`/* Simple Hack visitor sign-in and site storage.
- * SH.mount(target), SH.email and SH.requireSignIn() handle a visitor's session.
- * SH.storage.kv(), SH.storage.sqlite() and SH.storage.files() use each
- * resource's read/write policy. Signed-in access covers a whole resource,
- * not separate records per visitor. A resource may allow anonymous access.
- * Owner-only resource setup happens through the Simple Hack connector.
- */
-`), b[end+3:]...)
-	b = cut(b, "    state: {\n", "    storage: {\n")
-	b = cut(b, "    collection: function (name) {\n", "    mount: function (target) {\n")
-	// Visitor wording on Hack. The two lines stay exact in the embedded file.
-	oldBy := []byte(`var signInBy = "Sign-in by Simple Host";`)
-	oldProduct := []byte(`var signInProduct = "Simple Host";`)
-	if !bytes.Contains(b, oldBy) || !bytes.Contains(b, oldProduct) {
-		panic("auth.js visitor product line changed")
-	}
-	b = bytes.Replace(b, oldBy, []byte(`var signInBy = "Sign-in by Simple Hack";`), 1)
-	b = bytes.Replace(b, oldProduct, []byte(`var signInProduct = "Simple Hack";`), 1)
-	return b
-}
-
 // staticUnchanged: files are served exactly as embedded.
 func (p *assetPipeline) staticUnchanged() bool {
 	baseTextMu.RLock()
 	defer baseTextMu.RUnlock()
-	return baseTextTo == "" && authJSBases == nil && (p == nil || !p.pres.HackAssets)
+	return baseTextTo == "" && authJSBases == nil && (p == nil || p.product.rewrite == nil)
 }
 
 // setBaseText picks what the embedded text says for people's addresses:
@@ -321,7 +291,7 @@ func (f baseTextFS) Open(name string) (fs.File, error) {
 func (f baseTextFS) swapped(name string) ([]byte, error) {
 	key := currentBaseTextTo() + "\x00" + name
 	if f.p != nil {
-		if f.p.pres.HackAssets {
+		if f.p.pres.ProductAssets {
 			key += "\x00hack"
 		}
 		if body, ok := f.p.text.Load(key); ok {

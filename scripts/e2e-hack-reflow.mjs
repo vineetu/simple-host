@@ -17,7 +17,7 @@ const concurrency = Number(process.env.REFLOW_CONCURRENCY ?? 4)
 assert.ok(Number.isInteger(concurrency) && concurrency >= 1, 'REFLOW_CONCURRENCY must be a positive integer')
 const states = new Set((process.env.REFLOW_STATES ?? 'building,judging,results').split(',').map(s => s.trim()))
 if (process.env.REFLOW_BEFORE) for (const name of ['app.js','kit.css']) {
- const file = path.join(process.env.REFLOW_BEFORE, 'internal/webassets/static/hack', name)
+ const file = path.join(process.env.REFLOW_BEFORE, 'products/hack/webassets/static/hack', name)
  assert.ok(fs.existsSync(file) && fs.statSync(file).isFile(), `REFLOW_BEFORE is missing ${file}`)
 }
 const shots = process.env.REFLOW_SHOTS || '.shots/reflow'

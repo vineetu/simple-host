@@ -239,7 +239,14 @@ func TestWebPushRoutingDirections(t *testing.T) {
 // the row so nothing keeps retrying against it.
 func TestWebPushUnregisteredDeletesSubscription(t *testing.T) {
 	s := webPushFixture(t)
-	gone := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(410) }))
+	gone := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The client disables keep-alives. Read the encrypted body before
+		// replying so closing the connection cannot race its remaining writes.
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			t.Errorf("read push request: %v", err)
+		}
+		w.WriteHeader(410)
+	}))
 	defer gone.Close()
 	roots := x509.NewCertPool()
 	roots.AddCert(gone.Certificate())
@@ -474,6 +481,10 @@ func TestWebPushOwnerOnSiteSubscribesSiteWide(t *testing.T) {
 func TestWebPushRejectsRedirect(t *testing.T) {
 	s := webPushFixture(t)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Read the body first, for the same reason as the 410 server above.
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			t.Errorf("read push request: %v", err)
+		}
 		w.Header().Set("Location", "https://example.invalid/elsewhere")
 		w.WriteHeader(302)
 	}))

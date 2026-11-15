@@ -237,17 +237,14 @@ func TestSelfHostMarketingOnlyOnHostedServices(t *testing.T) {
 	}{
 		{"hosted Host", edition.Host, true, "https://simple-hack.app"},
 		{"self Host example.com", edition.Host, false, "https://simple-hack.app"},
-		{"hosted Hack", edition.Hack, false, "https://simple-hack.app"},
-		{"self Hack", edition.Hack, false, "https://hack.example.com"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			instanceIsHostedService = tc.hosted
-			p := newAssetPipeline(edition.ForKind(tc.kind), tc.base)
+			p := testAssetPipeline(edition.ForKind(tc.kind), tc.base)
 			hosted := tc.hosted || tc.base == "https://simple-hack.app" && tc.kind == edition.Hack
 			for _, page := range []struct{ name, marketing string }{
-				{"hack-home.html", "Prefer your own server?"}, {"hack-home.html", "Running this inside a company?"}, {"hack-story.html", "Prefer your own server?"},
-				{"hack-get-started.html", "Can I run my own?"}, {"features.html", `id="self-host"`},
-				{"host-story.html", "Self-host on one small server"}, {"hack-companies.html", `href="#install"`},
+				// A product's pages are tested with the product (products/hack/servertest).
+				{"features.html", `id="self-host"`}, {"host-story.html", "Self-host on one small server"},
 			} {
 				b, err := p.chromePage(page.name, p.chromeDataFor(httptest.NewRequest("GET", "/", nil), ""))
 				if err != nil {

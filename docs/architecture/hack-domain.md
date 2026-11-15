@@ -355,7 +355,7 @@ and conflicts (`repository/hackentries/options.go`, `EligibleJudgeTeams`).
 `app/entries/queue.go`, `JudgeQueue`, applies these decisions on the server;
 `EligibilityCounts` feeds live dashboard counts, and `JudgingPool` computes the
 prospective assignment pool before settling. Results and score writes use the same
-eligibility source. Browser `internal/webassets/static/hack/screens/organiser-judging.js`
+eligibility source. Browser `products/hack/webassets/static/hack/screens/organiser-judging.js`
 renders `assigned_count`; judge screens render the returned queue. MCP's
 `hack_get_judge_queue` in `products/hack/mcp/hack_entry_tools.go` calls that queue route.
 Clients must consume these fields rather than infer eligibility from stage labels

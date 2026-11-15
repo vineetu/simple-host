@@ -84,9 +84,9 @@ def main():
     if failed:
         return 1
 
-    shutil.copyfile(os.path.join(HERE, "../../internal/webassets/static/hack/kit.css"),
+    shutil.copyfile(os.path.join(HERE, "../../products/hack/webassets/static/hack/kit.css"),
                     os.path.join(PROTO, "kit.css"))
-    shutil.copyfile(os.path.join(HERE, "../../internal/webassets/static/hack/themes.css"),
+    shutil.copyfile(os.path.join(HERE, "../../products/hack/webassets/static/hack/themes.css"),
                     os.path.join(PROTO, "themes.css"))
     for name, content in generated.items():
         with open(os.path.join(PROTO, name), "w") as f:

@@ -8,9 +8,10 @@ The tables below group screens rather than repeat that inventory.
 
 ## Asset ownership and serving
 
-The browser sources live in `internal/webassets/static/`: handwritten HTML,
-CSS and JavaScript. `internal/handler/ui.go` embeds `all:static` into the Go
-binary. Changing a file requires rebuilding and restarting the server.
+The browser sources live in `internal/webassets/static/` (the platform) and
+`products/hack/webassets/static/` (Simple Hack: every `hack-*` file and the
+`hack/` folder): handwritten HTML, CSS and JavaScript. `internal/handler/ui.go`
+and `products/hack/webassets` embed them into the Go binary. Changing a file requires rebuilding and restarting the server.
 There is no browser build step for ordinary Host pages or the Hack website's
 ES modules. MCP Apps have a separate, checked-in generated bundle.
 
@@ -53,7 +54,9 @@ output; `scripts/docs-site.py check` checks hashes and guide feature IDs without
 
 ## Browser route to screen map
 
-All source filenames in this table are relative to `internal/webassets/static/`.
+Source filenames in this table are relative to `internal/webassets/static/`,
+except the `hack-*` files and the `hack/` folder, which are relative to
+`products/hack/webassets/static/`.
 Go owners name the registration or rendering function.
 
 | Surface | Source / screen selection | Go owner |
@@ -248,7 +251,7 @@ python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/webassets/s
 ```
 
 Source OpenAPI operations use four `x-audience` values: `public-host`,
-`public-hack`, `internal` and `legacy`. `handler/hack_assets.go:publicOpenAPISpec`
+`public-hack`, `internal` and `legacy`. `handler/public_openapi.go:publicOpenAPISpec`
 selects the product's public operations and removes unused tags/components;
 internal and legacy operations remain in the source for coverage.
 `handler/instancehost.go:serveRewrittenAsset` applies this to both

@@ -41,14 +41,14 @@ func validateDynamicInputs(root string) error {
 		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
 		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
 		{"internal/handler/ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},
-		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles(sh.ed.Presentation().HackAssets)"},
+		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles()"},
 		{"internal/handler/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
 		{"internal/handler/connector.go", "museClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
 		{"internal/handler/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
 		{"products/hack/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["products/hack/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
-		{"internal/handler/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
+		{"products/hack/hackhttp/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
 	}
 	for registration := 4; registration <= 7; registration++ {
 		inputs = append(inputs, dynamicInput{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, registration, "assets.bundledSkillDirs()"})

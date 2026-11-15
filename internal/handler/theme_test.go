@@ -67,10 +67,6 @@ func TestNoPageDecidesItsOwnTheme(t *testing.T) {
 		}
 		b, _ := staticFiles.ReadFile(p)
 		for _, banned := range themeBanned {
-			// The approved film checks motion and hover, never OS colour.
-			if p == "static/hack-story.html" && banned == "matchMedia" {
-				continue
-			}
 			// signin.js (spliced into auth.js at serve time) uses light-dark()
 			// for the visitor "plain" skin, following the page's color-scheme.
 			if p == "static/auth.js" && banned == "light-dark(" {
@@ -164,39 +160,13 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 	// Every page source with chrome is covered, including ones only a handler
 	// serves (connect.html, notfound.html, showcase.html).
 	pages, _ := fs.Glob(staticFiles, "static/*.html")
-	pages = append(pages, "static/hack/app.html")
 	for _, p := range pages {
-		// INTENT 2026-10-30: the rebuilt signed-in Hack app is light-only,
-		// like the Hack landings, and intentionally carries no theme chrome.
-		if p == "static/hack/app.html" {
-			continue
-		}
-		// Same INTENT 2026-10-30 app/kit decision: the redesigned public event
-		// page (hack_eventpage.go) is light-only and rendered on the app kit,
-		// not chromePage's static-file path, so it never gets the shared
-		// theme script either (see TestEveryPageSourceCarriesTheMarkers'
-		// matching skip in chrome_test.go).
-		if p == "static/hack-event.html" {
-			continue
-		}
-		// Same decision for the public directory (polish pass, 2026-10-30):
-		// light-only, on the app kit, with its own top bar/footer — no
-		// chrome, so no shared theme script either.
-		if p == "static/hack-directory.html" {
-			continue
-		}
-		// Same decision for the public vote page (Grok re-test, 2026-10-30):
-		// restyled onto the app kit like the event page and directory —
-		// light-only, its own top bar/footer, no chrome markers.
-		if p == "static/hack-voting.html" {
-			continue
-		}
 		name := strings.TrimPrefix(p, "static/")
-		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage(name, ChromeData{})
+		page, err := testAssetPipeline(edition.ForKind(edition.Host), "").chromePage(name, ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		check(name, string(page), name != "setup.html" && name != "hack-story.html")
+		check(name, string(page), name != "setup.html")
 	}
 	// The 404 as the content host reaches it, and the Go-built pages.
 	h := chromeTestHandler(edition.Host)
@@ -218,27 +188,25 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 
 // Starlight may query viewport size for its mobile sidebar, never the OS theme.
 func TestDocsUseSharedTheme(t *testing.T) {
-	for _, hack := range []bool{false, true} {
-		err := fs.WalkDir(webassets.DocsTree(hack), ".", func(p string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return err
-			}
-			if ext := filepath.Ext(p); ext != ".html" && ext != ".js" && ext != ".css" {
-				return nil
-			}
-			body, _ := fs.ReadFile(webassets.DocsTree(hack), p)
-			for _, banned := range themeBanned {
-				if banned == "matchMedia" {
-					continue
-				} // Starlight's viewport and reduced-motion queries.
-				if bytes.Contains(body, []byte(banned)) {
-					t.Errorf("docs %s contains %s", p, banned)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
+	err := fs.WalkDir(webassets.DocsTree(), ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
 		}
+		if ext := filepath.Ext(p); ext != ".html" && ext != ".js" && ext != ".css" {
+			return nil
+		}
+		body, _ := fs.ReadFile(webassets.DocsTree(), p)
+		for _, banned := range themeBanned {
+			if banned == "matchMedia" {
+				continue
+			} // Starlight's viewport and reduced-motion queries.
+			if bytes.Contains(body, []byte(banned)) {
+				t.Errorf("docs %s contains %s", p, banned)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

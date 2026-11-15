@@ -268,7 +268,7 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
 - Account UI and consent pages use nonce CSP; passcode pages use fixed script hashes. Do not
   assume all apex responses use the same CSP (`handler/ui.go:adminUICSP`, `connector.go:consentHeaders`, `passcode.go`).
 - `openapi.yaml` is the source contract; JSON is generated. Served specs filter `x-audience`
-  operations and unused components (`handler/hack_assets.go:publicOpenAPISpec`).
+  operations and unused components (`handler/public_openapi.go:publicOpenAPISpec`).
 - Deployment versions and runtime saved files are distinct. `storage/disk.go` is not the only
   writer under a site directory (`storage/runtime_files.go`, `app/operations/imagescan.go`).
 - `index.html` and `showcase.html` inline the same analytics parser; showcase also runs on the

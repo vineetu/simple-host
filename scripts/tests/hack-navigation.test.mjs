@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 
 const navigation = JSON.parse(fs.readFileSync('products/hack/rules/hackevents/navigation.json', 'utf8'))
-const navSource = fs.readFileSync('internal/webassets/static/hack/nav.js', 'utf8')
+const navSource = fs.readFileSync('products/hack/webassets/static/hack/nav.js', 'utf8')
   .replace(/^import .*\n/gm, '').replace(/^export \{.*\n/gm, '').replaceAll('export ', '')
 const ctx = vm.createContext({ navigation, URL, URLSearchParams, location: { origin: 'https://simple-hack.test' } })
 vm.runInContext(navSource + ';globalThis.normalize = normalizeURL;globalThis.route = resolveRoute', ctx)
@@ -37,7 +37,7 @@ test('canonical Settings and Event page tabs outrank legacy fragments', () => {
 })
 
 test('sign-in storage distinguishes an absent return from explicit global returns', () => {
-  const source = fs.readFileSync('internal/webassets/static/hack/app.js', 'utf8')
+  const source = fs.readFileSync('products/hack/webassets/static/hack/app.js', 'utf8')
   const funcs = source.slice(source.indexOf('  function safeNext'), source.indexOf('  function goSignIn'))
   function storage() { const data = new Map(); return { getItem: k => data.get(k), setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) } }
   const auth = vm.createContext({ URL, URLSearchParams, Date, sessionStorage: storage(), localStorage: storage(), location: { origin: 'https://simple-hack.test', search: '' } })
@@ -57,9 +57,9 @@ test('sign-in storage distinguishes an absent return from explicit global return
 
 
 test('fixed schedule rows distinguish voting settings from results publication', () => {
- const source = fs.readFileSync('internal/webassets/static/hack/schedule.js', 'utf8').replace(/^import .*\n/gm, '').replaceAll('export ', '')
+ const source = fs.readFileSync('products/hack/webassets/static/hack/schedule.js', 'utf8').replace(/^import .*\n/gm, '').replaceAll('export ', '')
  const scope = vm.createContext({ navigation, encodeURIComponent, href: (role, slug, section) => `/e/${slug}/manage?s=${section}` })
- const resolver = fs.readFileSync('internal/webassets/static/hack/navigation.js', 'utf8').replace(/^import .*\n/gm, '').replaceAll('export ', '')
+ const resolver = fs.readFileSync('products/hack/webassets/static/hack/navigation.js', 'utf8').replace(/^import .*\n/gm, '').replaceAll('export ', '')
  vm.runInContext(resolver, scope)
  vm.runInContext(source + ';globalThis.link = setInLink', scope)
  assert.equal(scope.link('results','demo','voting').href, '/e/demo/manage?s=settings&tab=results#voting')
@@ -68,13 +68,13 @@ test('fixed schedule rows distinguish voting settings from results publication',
 
 test('public event target keeps the authoritative hosted or self-hosted URL', () => {
  const scope=vm.createContext({navigation,encodeURIComponent})
- const source=fs.readFileSync('internal/webassets/static/hack/navigation.js','utf8').replace(/^import .*\n/gm,'').replaceAll('export ','')
+ const source=fs.readFileSync('products/hack/webassets/static/hack/navigation.js','utf8').replace(/^import .*\n/gm,'').replaceAll('export ','')
  vm.runInContext(source+';globalThis.target=resolve',scope)
  for(const url of ['https://demo.simple-hack.app/','https://hack.example.org/e/demo?view=public','https://demo.events.example.org/']) assert.equal(scope.target('o.public-page','demo',{event_url:url}).href,url)
 })
 
 test('no-next-action copy distinguishes archive, inspection and takedown', () => {
- const source=fs.readFileSync('internal/webassets/static/hack/screens/organiser-overview.js','utf8')
+ const source=fs.readFileSync('products/hack/webassets/static/hack/screens/organiser-overview.js','utf8')
  const begin=source.indexOf('function nextStepContent(')
  const end=source.indexOf('\nexport async function render',begin)
  const scope=vm.createContext({})

@@ -19,7 +19,7 @@ import (
 func TestHostedHackStoryHome(t *testing.T) {
 	sh := chromeTestHandlerWithBase(edition.Hack, "https://hack.example.org")
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackHome(mux, sh.Pages())
+	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	rec := get(t, mux, "simple-hack.app", "/")
 	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("home status/cache %d %s", rec.Code, rec.Header().Get("Cache-Control"))
@@ -79,7 +79,7 @@ func TestHostFilmAssets(t *testing.T) {
 }
 
 func TestHackFilmNarrationAsset(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, edition.Hack)
 	rec := get(t, mux, "simple-hack.app", "/hack-film-narration.mp3?v=202610100223")
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "audio/mpeg" || rec.Body.Len() == 0 {
 		t.Fatalf("narration status/type/size: %d %q %d", rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len())
@@ -140,7 +140,7 @@ func TestHostedHackHTMLCache(t *testing.T) {
 // nonce-checking sign-in shell without exposing credentials in page markup.
 func TestHackStorySignInReturn(t *testing.T) {
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackHome(mux, chromeTestHandler(edition.Hack).Pages())
+	hackhttp.RegisterHackHome(mux, chromeTestHandler(edition.Hack).Pages(), hackAssetsFor(chromeTestHandler(edition.Hack)))
 	for _, query := range []string{"token=one-time&cn=browser-hash", "cn=browser-hash", "token=one-time&next=%2Fevents"} {
 		rec := get(t, mux, "simple-hack.app", "/?"+query)
 		if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/signin?"+query || rec.Header().Get("Cache-Control") != "no-store" {

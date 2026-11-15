@@ -71,7 +71,7 @@ func TestAssistantSettingsCoverEveryEntryField(t *testing.T) {
 // lines use are the organiser screens' own words, so renaming one in the UI
 // fails here until assistant_settings.go follows.
 func TestAssistantSettingsLineLabelsInUI(t *testing.T) {
-	files, err := filepath.Glob("../../../internal/webassets/static/hack/screens/*.js")
+	files, err := filepath.Glob("../../../products/hack/webassets/static/hack/screens/*.js")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("read screens: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestAssistantSettingsBehaviourLinesInHelp(t *testing.T) {
 	for _, r := range events.NavigationHelp().Records {
 		help.WriteString(normalise(strings.Join(append(append([]string{r.Explains, r.When}, r.Effects...), r.Limits...), "\n")))
 	}
-	files, err := filepath.Glob("../../../internal/webassets/static/hack/screens/*.js")
+	files, err := filepath.Glob("../../../products/hack/webassets/static/hack/screens/*.js")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("read screens: %v", err)
 	}

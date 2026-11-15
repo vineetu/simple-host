@@ -5,8 +5,8 @@
 // pure helpers in ui.js and schedule.js directly -- no DOM, no server.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import * as ui from '../../internal/webassets/static/hack/ui.js'
-import { merge } from '../../internal/webassets/static/hack/schedule.js'
+import * as ui from '../../products/hack/webassets/static/hack/ui.js'
+import { merge } from '../../products/hack/webassets/static/hack/schedule.js'
 
 const ev = {time_zone:'Asia/Kolkata'}
 // hack_create_event: "A date (2026-10-01) means midnight in time_zone" --

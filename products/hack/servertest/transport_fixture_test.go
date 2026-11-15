@@ -458,13 +458,21 @@ func chromeTestHandler(kind edition.Kind) *handler.SiteHandler {
 }
 
 func chromeTestHandlerWithBase(kind edition.Kind, base string) *handler.SiteHandler {
-	return handler.NewSiteHandler(edition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	sh := handler.NewSiteHandler(edition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	if kind == edition.Hack {
+		installAssets(sh, nil)
+	}
+	return sh
 }
 
 func chromeTestMux(t *testing.T, kind edition.Kind) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(kind))
+	sh := chromeTestHandler(kind)
+	if kind == edition.Hack {
+		installAssets(sh, mux)
+	}
+	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	return mux
 }
 
@@ -670,6 +678,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.sites.SetPersonHosts("canonical")
 	a.sites.SetSiteHosts("canonical", certDir)
 	a.hack = hackhttp.NewHackHandler(database, a.srv.URL, tsDomain)
+	installAssets(a.sites, nil)
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetHandleChecker(hackHandleCheckerForTest)
 	a.hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
@@ -958,5 +967,19 @@ func wantTS(t *testing.T, what string, r resp, status int, code string) {
 		if got, _ := r.json(t)["code"].(string); got != code {
 			t.Fatalf("%s: code %q want %q: %s", what, got, code, r.body)
 		}
+	}
+}
+
+// hackAssetsFor is the product's Assets for a handler whose routes a test
+// registers one by one (the server passes the one from Extension.Assets).
+func hackAssetsFor(sh *handler.SiteHandler) *hackhttp.Assets {
+	return hackhttp.NewAssets(sh.AssetServices(), sh.Pages().InkBaseURL())
+}
+
+func installAssets(sh *handler.SiteHandler, mux *http.ServeMux) {
+	a := hack.Extension().Assets(sh)
+	sh.SetProductAssets(a.Replace, a.Files, a.Skills, a.Hooks, a.Rewrite)
+	if mux != nil && a.Routes != nil {
+		a.Routes(mux, sh.AssetServices())
 	}
 }

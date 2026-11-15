@@ -1,0 +1,172 @@
+D3-S2a: classification of all 16 functions in internal/handler/hack_assets.go
+
+Product-owned receiver hackhttp.Assets (AssetServices, inkBase, private zip cache):
+  HackInstanceText
+  BuildHackSkillsZip
+  ServeHackSkillsZip
+  RewriteHackPluginZip
+
+ProductAssetHooks (bound methods above where applicable):
+  HackInstanceText -> InstanceText
+  RewriteHackPluginZip -> RewritePluginZip
+  hostedHackSkill -> SkillAvailable
+  expandConnectSteps -> ExpandConnectSteps
+  hackPersonalPresentationHTML -> PersonalPresentationHTML
+  hackOpenAPISpec -> OpenAPISpec
+
+Product-only helpers:
+  loadConnectSteps
+  connectAppByID
+  connectCopyRow
+  connectAddressRow
+  connectCommandRow
+  connectStepsListHTML
+
+Shared platform helpers (NOTES.md ruling, unchanged):
+  publicOpenAPISpec -> internal/handler/public_openapi.go
+  openAPIMethod -> internal/handler/public_openapi.go
+
+HackSkillNames and Connect* records move with their product callers.
+
+Review round 1: what became of the old HackAssets branches
+==========================================================
+
+The brief says "each HackAssets branch becomes either a Replace entry or a
+product route". That was done for every branch that CHOOSES A FILE (icons,
+home page, auth.md, llms.txt, the two discovery documents, the docs-site
+root, the social image, the setup script and manifest, the skill tree) and
+for /skills.zip (a product route). The branches below were renamed to
+pres.ProductAssets and stay in the platform: none of them selects a file, so
+neither a Replace entry nor a route can express them. This follows the NOTES
+"follow the intent" ruling (nothing existing changes behaviour); each line
+names the later slice that takes it. Lines are as of this commit.
+
+A. Branches that only pass through to a product hook or to Replace (no
+   product text in the platform; the flag is redundant with "a product is
+   installed" and goes when the edition's product values go, D3-S4):
+  internal/handler/authmd.go:16        fills {sign_in}, then the InstanceText hook
+  internal/handler/basetext.go:171     calls the product Rewrite for auth.js
+  internal/handler/basetext.go:294     cache key separates product text from platform text
+  internal/handler/skillshub.go:210    served skill text goes through the InstanceText hook
+  internal/handler/assets.go:86        chromeHack: the chrome template's product flag
+  internal/handler/ui.go:98            handlerOnlyFS: hides hack-directory.html / hack-voting.html
+                                       from the file server (they have their own routes)
+  internal/handler/ui.go:153,154       discovery documents: which hosts the document names
+  internal/handler/ui.go:234           home page markdown: which landing file is read
+  internal/handler/product_assets.go:82 and internal/server/build.go:222
+                                       PluginVersion(product): which plugin.json is read
+
+B. Branches that hold product TEXT OR LOGIC in the platform (not converted
+   here; each needs a contract this slice does not have):
+  internal/handler/chrome.go:583-588   setup-helper.html on a product install (d.Hack, the
+                                       chromeHack flag): the "Set up Simple Hack" title, the
+                                       description, data-setup-product="hack" and the lede
+                                       are swapped into the platform's page. Product text in
+                                       the platform; the script half of the setup page moved
+                                       in this slice, the page's own words did not. -> D3-S3
+                                       (public text).
+  internal/handler/ui.go:358           hack-get-started.html on another install: swaps the
+                                       "Install the five Simple Hack skills" step and two
+                                       sentences. Wants a per-page product rewrite hook
+                                       (PersonalPresentationHTML is the nearest). -> D3-S2b,
+                                       which owns hack_get_started.go and the toolkit.
+  internal/handler/chrome.go:358       enterprise.html: the link to /hackathons points at this
+                                       install on a product install. -> D3-S3 (public text).
+  internal/handler/instancehost.go:132 the "public-hack" audience name. Dead on Hack: the
+                                       OpenAPISpec hook is always set there and is used
+                                       first. Left byte for byte because D3-S3 replaces the
+                                       whole block ("until D3-S3 replaces it" in the brief).
+  internal/handler/instancehost.go:151,154 features.json markers and the host rewrite for
+                                       features/openapi on a product install. -> D3-S3.
+  internal/handler/instancehost.go:209 the THIS SERVER note is for the platform's llms.txt
+                                       only. -> D3-S3.
+  internal/handler/chrome.go:140       the "made and run by" owner line of the hosted
+                                       platform. -> D3-S4 (hosted-service values).
+  internal/handler/chrome.go:372,378   product chrome: the product stylesheet link and the
+                                       hosted/self blocks. -> D3-S4.
+  internal/handler/docs.go:44,49       docs pages: self-hosted rewrite and hosted/self blocks.
+                                       -> D3-S3 (docs text).
+  internal/handler/skillshub.go:166    catalogue plugin name ("simple-hack"). -> D3-S2b.
+  internal/handler/ui.go:155           the platform registers /skills.zip only when no
+                                       product does (the product route replaces it).
+  internal/handler/ui.go:159,177,179,180 skills version, plugin zip, install.sh, install.ps1:
+                                       product names and archives. -> D3-S2b.
+  internal/handler/ui.go:198           /hackathons redirects to / on the platform; the
+                                       product serves the page. -> D3-S4.
+
+Decision recorded: what Replace holds
+=====================================
+
+products/hack/asset_files.go lists about 110 names, more than the brief's
+description of Replace ("only platform names that a product replaces"). It
+holds two kinds:
+  1. platform names the product replaces (favicon.svg, auth.md, llms.txt,
+     docs-site, setup/setup.js, .well-known/ard.json, ...);
+  2. the product's own names that the platform's file server and page
+     pipeline answered before the move (hack/app.js, hack-ink.css, the
+     mp3s, ...), each mapped to itself, plus the directory names "hack",
+     "hack/screens", "setup", ".well-known" and "docs-site" so a directory
+     read lists the product's entries.
+The one entry that is not a file name is "docs-site": it names the product's
+docs tree and only docsTree reads it. The static lookup (selectedAssets.source)
+skips it, so GET /docs-site on Hack answers 404 directly, as before the move
+(TestProductDocsRootIsNotAStaticName, TestHackDocsRootIsNotServedAsAFile).
+Kind 2 keeps every Hack address answering with the same bytes and headers
+from the same file server (the golden run shows no Hack difference). The
+lookup is still exact with no fallback: a file added to the product's embed
+is unreachable until it is listed. The cost is that "a name only in Files is
+reachable only through Routes" is weaker than the brief intends for kind 2;
+moving those names behind one product file route is a follow-up, not done
+here because it would change which handler answers them. Reading the
+directory "setup" on Hack lists the product's folder, not the platform's;
+nothing reads it today.
+
+Host after the move
+===================
+
+A platform install has no Replace, so every moved file answers 404 there.
+Before the move Host's file server answered them with 200 (all but the few
+handlerOnlyFS hid, for example /hack-llms.txt). No platform page links to
+any of them. scripts/golden/run.mjs requests a representative set on both
+products and scripts/golden/approved/D3-S2a.json pins the Host 200 -> 404 for
+/hack-ink.css, /og-hack.png, /favicon-hack.svg, /hack/app.js, /hack/kit.css,
+/hack-watch-judge.mp3, /hack-directory.html, /hack-voting.html,
+/hack-connect-steps.json and /hack-get-started-preview.png.
+
+Review round 2: what was changed and what waits for a ruling
+============================================================
+
+Moved to products/hack/servertest, over HTTP on the real Hack routes: the
+self-hosted 404 page names no hosted domain; "/", "/companies",
+"/hackathons", "/get-started" and "/watch" carry the one theme script as
+served; the Hack docs limits page states the install's own byte allowances.
+
+The skills zip: AssetServices.InstanceText also runs the old base-domain swap
+(simple-host.site), which the zip did not get before the move. No Hack skill
+names that domain (TestHackSkillsNameNoOldBaseDomain), so the bytes are the
+same. AssetServices has no limits-only call and the brief fixes its methods.
+
+The setup script: the anchors are checked once in hackhttp.NewAssets, so a
+drifted platform setup.js stops the install at start. Both serving paths
+stay because the slice asks for "Replace and a route".
+
+Review round 3
+==============
+
+Hack's landing-film files stay in the platform's embed in this slice:
+internal/webassets/static/film/hack-film-* and hack-companies-film-* (12
+files: mp4, webm and poster at two widths each), served by
+internal/handler/film.go:27-31. They are not in this slice's file list.
+-> D3-S2b, whose done-when is "find internal/webassets -iname '*hack*' is
+empty"; that cannot hold while they are here.
+
+AssetServices.Static returns a platform file as the product-neutral view
+serves it: the base-domain swap (and the sign-in splices for signin.js and
+auth.js), then the instance host pass for the names in rewrittenAssets; not
+a product's Rewrite and not the limits pass (the comment on it says so).
+
+hackhttp.NewAssets panics when the setup anchors have drifted, because
+extension.Assets has no error return in the brief's contract. It runs once,
+inside Build, before any listener opens.
+
+Ruled in NOTES.md, D3-S2a rulings 2026-11-15 12:40 UTC, items 1–4.

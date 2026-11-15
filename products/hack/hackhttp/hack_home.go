@@ -22,7 +22,7 @@ const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternat
 //
 // Takes the hackPages interface, not *SiteHandler (cleanup 3.2 slice 2a):
 // this only ever called sh.pipeline().
-func RegisterHackHome(mux *http.ServeMux, pages hackPages) {
+func RegisterHackHome(mux *http.ServeMux, pages hackPages, product *Assets) {
 	assets := pages
 	registerHackathons(mux, pages)
 	story := assets.ServeStaticPage("hack-story.html")
@@ -57,7 +57,7 @@ func RegisterHackHome(mux *http.ServeMux, pages hackPages) {
 	})))
 	mux.Handle("GET /directory", assets.AdminUICSP(assets.ServeStaticPage("hack-directory.html")))
 	RegisterHackWatch(mux, pages)
-	RegisterHackGetStarted(mux, pages)
+	RegisterHackGetStarted(mux, pages, product)
 	RegisterHackCompanies(mux, pages)
 }
 

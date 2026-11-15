@@ -81,7 +81,7 @@ func TestHackChromeHeader(t *testing.T) {
 func TestHackHomePage(t *testing.T) {
 	sh := chromeTestHandler(edition.Hack)
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackHome(mux, sh.Pages())
+	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	rec := get(t, mux, "simple-hack.app", "/")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)

@@ -24,6 +24,10 @@ SOURCE = ROOT / 'docs/site'
 OUTPUT = ROOT / 'internal/webassets/docs-site'
 BRANDS = ('host', 'hack')
 
+def output_tree(brand):
+    return (ROOT / 'products/hack/webassets/docs-site/hack') if brand == 'hack' else OUTPUT / brand
+
+
 
 def sources():
     paths = [p for p in SOURCE.rglob('*') if p.is_file() and not any(
@@ -98,7 +102,7 @@ SRC = re.compile(r'\bsrc\s*=', re.I)
 
 
 def externalize(brand):
-    tree = OUTPUT / brand
+    tree = output_tree(brand)
     targets = json.loads((SOURCE / "old-anchors.json").read_text())[brand]
     script = (SOURCE / "public/old-anchors.js").read_text()
     (tree / "old-anchors.js").write_text(script.replace("@TARGETS@", json.dumps(targets, sort_keys=True)))
@@ -129,8 +133,8 @@ def externalize(brand):
 def record():
     manifest = {'sources': digest(sources(), ROOT), 'references': reference_digest(), 'brands': {}}
     for brand in BRANDS:
-        files = output_files(OUTPUT / brand)
-        manifest['brands'][brand] = {'sha256': digest(files, OUTPUT), 'bytes': sum(p.stat().st_size for p in files)}
+        files = output_files(output_tree(brand))
+        manifest['brands'][brand] = {'sha256': digest(files, output_tree(brand).parent), 'bytes': sum(p.stat().st_size for p in files)}
     (OUTPUT / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
 
@@ -200,11 +204,11 @@ def check():
         if manifest.get('references') != reference_digest():
             errors.append('docs references are behind: run scripts/build-docs-site.sh')
         for brand in BRANDS:
-            files = output_files(OUTPUT / brand)
-            if not (OUTPUT / brand / 'index.html').is_file() or digest(files, OUTPUT) != manifest['brands'][brand]['sha256']:
+            files = output_files(output_tree(brand))
+            if not (output_tree(brand) / 'index.html').is_file() or digest(files, output_tree(brand).parent) != manifest['brands'][brand]['sha256']:
                 errors.append(f'{brand} docs output missing or changed: rebuild')
-            errors.extend(check_pagefind(OUTPUT / brand))
-            for page in (OUTPUT / brand).rglob('*.html'):
+            errors.extend(check_pagefind(output_tree(brand)))
+            for page in (output_tree(brand)).rglob('*.html'):
                 body = page.read_text()
                 for marker in ('head', 'header', 'footer'):
                     if body.count(f'<!--sh:{marker}-->') != 1:
@@ -218,13 +222,13 @@ def check():
                 # ships index.html's sibling next to its directory, not
                 # inside it, so an agent's slug-derived .md URL resolves.
                 if page.name == 'index.html':
-                    tree_root = OUTPUT / brand
+                    tree_root = output_tree(brand)
                     if page.parent == tree_root:
                         md_sibling = tree_root / 'index.md'
                     else:
                         md_sibling = page.parent.parent / (page.parent.name + '.md')
                     if not md_sibling.is_file():
-                        errors.append(f'{page}: missing .md sibling {md_sibling.relative_to(OUTPUT)}')
+                        errors.append(f'{page}: missing .md sibling {md_sibling.relative_to(output_tree(brand))}')
     except (FileNotFoundError, KeyError):
         errors.append('docs build missing: run scripts/build-docs-site.sh')
     if errors:

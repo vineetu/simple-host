@@ -11,9 +11,9 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
+	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // Apply to a hackathon without a join link (zp-hack-applications.sql, owner

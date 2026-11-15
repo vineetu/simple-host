@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -95,15 +96,15 @@ type cachedSitemaps struct {
 // serveSitemapXML preserves the pages-only helper used by standalone callers.
 func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
 	base, hack := sitemapBase(r, hostedEvents)
-	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, hack), nil))
+	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, hack, webassets.DocsTree()), nil))
 }
 
-func sitemapPages(base string, hack bool) []sitemapURL {
+func sitemapPages(base string, hack bool, tree fs.FS) []sitemapURL {
 	paths := hostSitemapPaths
 	if hack {
 		paths = hackSitemapPaths
 	}
-	paths = append(append([]string{}, paths...), webassets.DocsPaths(hack)...)
+	paths = append(append([]string{}, paths...), docsPaths(tree)...)
 	lastmod := ""
 	if built, err := time.Parse(time.RFC3339, buildinfo.BuildTime); err == nil {
 		lastmod = built.UTC().Format(time.RFC3339)
@@ -214,7 +215,7 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 				urls = append(urls, sitemapURL{address, lastmod})
 			}
 		}
-		cached = cachedSitemaps{time.Now().Add(sitemapTTL), buildSitemaps(base, sitemapPages(base, hack), urls)}
+		cached = cachedSitemaps{time.Now().Add(sitemapTTL), buildSitemaps(base, sitemapPages(base, hack, h.pipeline().docsTree()), urls)}
 		if h.sitemaps.byBrand == nil {
 			h.sitemaps.byBrand = make(map[string]cachedSitemaps)
 		}

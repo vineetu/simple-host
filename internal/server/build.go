@@ -219,7 +219,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		auth.SetSupportContact(contact, cfg.ResendAPIKey != "")
 	}
 
-	pluginVersion, err := handler.PluginVersion(ed.Presentation().HackAssets)
+	pluginVersion, err := handler.PluginVersion(ed.Presentation().ProductAssets)
 	if err != nil {
 		return nil, fmt.Errorf("read plugin.json version: %v", err)
 	}
@@ -263,6 +263,14 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	userHandler.SetPasswordSignIn(cfg.PasswordSignIn == "on", cfg.PasswordSelfSignup != "off")
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	if ext != nil && ext.Assets != nil {
+		assets := ext.Assets(siteHandler)
+		siteHandler.SetProductAssets(assets.Replace, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
+		if assets.Routes != nil {
+			assets.Routes(mux, siteHandler.AssetServices())
+		}
+	}
+
 	siteHandler.SetOperationsNetwork(operations.NewNetworkUsage(db, ed))
 	siteHandler.SetOperationsReporting(operations.NewReporting(db))
 	userHandler.ShareAssets(siteHandler)

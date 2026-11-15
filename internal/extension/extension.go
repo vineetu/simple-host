@@ -5,6 +5,7 @@ package extension
 import (
 	"context"
 	"database/sql"
+	"io/fs"
 	"net/http"
 
 	"github.com/vsriram/simple-host/db/migrations"
@@ -24,6 +25,7 @@ import (
 )
 
 type Extension struct {
+	Assets func(*handler.SiteHandler) Assets
 	// CheckSchema runs after platform verification, before other database reads.
 	// It also runs after migration verification; nil adds no product checks.
 	CheckSchema func(context.Context, *sql.DB) error
@@ -88,4 +90,16 @@ type Hooks struct {
 	Notifications notifications.GroupSites
 	GroupHosts    handler.GroupHosts
 	GroupGate     sites.GroupGate
+}
+
+// Assets describes the product's file contribution. Replace is authoritative:
+// a missing replacement never falls back to a platform file. Files outside
+// Replace are exposed only by Routes.
+type Assets struct {
+	Replace map[string]string
+	Files   fs.FS
+	Skills  fs.FS
+	Routes  func(*http.ServeMux, handler.AssetServices)
+	Hooks   handler.ProductAssetHooks
+	Rewrite func(string, []byte) []byte
 }

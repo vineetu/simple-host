@@ -310,7 +310,7 @@ class Onboarding(HTMLParser):
         if self.in_command:
             self.command += data
 
-page = Path('internal/webassets/static/hack-get-started.html').read_text()
+page = Path('products/hack/webassets/static/hack-get-started.html').read_text()
 parsed = Onboarding()
 parsed.feed(page)
 assert parsed.command and parsed.command in Path('README.md').read_text(), 'README install command differs from onboarding'

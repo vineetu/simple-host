@@ -35,27 +35,19 @@ func TestAuthMarkdownConfiguration(t *testing.T) {
 	})
 	for _, tc := range []struct {
 		name, base   string
-		hack, email  bool
+		email        bool
 		providers    []string
 		want, absent []string
 	}{
-		{"host unchanged", "https://simple-host.app", false, true, []string{"google"}, []string{"POST `/v1/auth`"}, nil},
-		{"host no email", "https://box.example", false, false, nil, []string{"Email-code sign-in is unavailable", "supplied locally by the operator"}, []string{"POST `/v1/auth`", "type in a", "whose human operator can read an email"}},
-		{"host OIDC", "https://box.example", false, false, []string{"oidc"}, []string{"Acme SSO (company OpenID Connect)", "Email-code sign-in is unavailable"}, []string{"POST `/v1/auth`"}},
-		{"hosted Hack", "https://simple-hack.app", true, true, []string{"google"}, []string{"an emailed code or Google", "https://simple-hack.app/mcp"}, []string{"Email-code sign-in is unavailable"}},
-		{"company Hack", "https://hack.company.example", true, false, []string{"oidc"}, []string{"Acme SSO (company OpenID Connect)", "EMAIL_SIGNIN=off", "https://hack.company.example/mcp"}, []string{"simple-host.app", "simple-hack.app", "an emailed code or Google"}},
-		{"company Hack with email", "https://hack.company.example", true, true, []string{"oidc"}, []string{"an emailed code or Acme SSO", "OIDC_CLIENT_ID"}, []string{"Email-code sign-in is unavailable"}},
-		{"Hack no sign-in", "http://localhost:18480", true, false, nil, []string{"Browser sign-in is unavailable", "Email-code sign-in is unavailable"}, []string{"an emailed code or Google"}},
+		{"host unchanged", "https://simple-host.app", true, []string{"google"}, []string{"POST `/v1/auth`"}, nil},
+		{"host no email", "https://box.example", false, nil, []string{"Email-code sign-in is unavailable", "supplied locally by the operator"}, []string{"POST `/v1/auth`", "type in a", "whose human operator can read an email"}},
+		{"host OIDC", "https://box.example", false, []string{"oidc"}, []string{"Acme SSO (company OpenID Connect)", "Email-code sign-in is unavailable"}, []string{"POST `/v1/auth`"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			SetEmailSignIn(tc.email)
 			instanceFacts = InstanceFacts{SignInProviders: tc.providers, OIDCLabel: "Acme SSO"}
-			kind := edition.Host
-			if tc.hack {
-				kind = edition.Hack
-			}
-			sh := chromeTestHandler(kind)
-			sh.assets = newAssetPipeline(sh.ed, tc.base)
+			sh := chromeTestHandler(edition.Host)
+			sh.assets = testAssetPipeline(sh.ed, tc.base)
 			mux := http.NewServeMux()
 			RegisterUIRoutes(mux, tc.base, sh)
 			rec := get(t, mux, "", "/auth.md")
@@ -73,16 +65,7 @@ func TestAuthMarkdownConfiguration(t *testing.T) {
 					t.Errorf("unexpected %q", absent)
 				}
 			}
-			if tc.hack {
-				for _, want := range []string{"hack_get_my_teams", "hack_select_team", "deadline", "code_challenge_method=S256", "Never request codes", "/oauth/revoke"} {
-					if !strings.Contains(body, want) {
-						t.Errorf("missing %q", want)
-					}
-				}
-				if strings.Contains(body, "{sign_in}") {
-					t.Error("unfilled template")
-				}
-			} else if tc.email {
+			if tc.email {
 				original, _ := staticFiles.ReadFile("static/auth.md")
 				if body != string(original) {
 					t.Error("hosted Host text changed")

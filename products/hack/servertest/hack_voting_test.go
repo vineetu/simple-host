@@ -10,7 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func voteSettings(t *testing.T, a *teamSiteApp, slug string, org person, open, close time.Time, eligibility string) {

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,51 +54,28 @@ func TestSetupHelper(t *testing.T) {
 	}
 }
 
-func TestSetupHelperEditions(t *testing.T) {
-	for _, tc := range []struct {
-		edition edition.Kind
-		name    string
-		product string
-	}{
-		{edition.Host, "Simple Host", "small"},
-		{edition.Hack, "Simple Hack", "hack"},
+// The platform's setup page offers no product choice: a product adds its own
+// through its asset contribution (products/hack/servertest covers Simple Hack's).
+func TestSetupHelperPlatformEdition(t *testing.T) {
+	mux := chromeTestMux(t, edition.Host)
+	page := get(t, mux, "example.test", "/setup")
+	for _, want := range []string{
+		"<title>Set up Simple Host</title>",
+		"<h1>Set up Simple Host</h1>",
+		`data-setup-product="small"`,
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			mux := chromeTestMux(t, tc.edition)
-			page := get(t, mux, "example.test", "/setup")
-			for _, want := range []string{
-				"<title>Set up " + tc.name + "</title>",
-				"<h1>Set up " + tc.name + "</h1>",
-				`data-setup-product="` + tc.product + `"`,
-			} {
-				if !strings.Contains(page.Body.String(), want) {
-					t.Errorf("/setup missing %q", want)
-				}
-			}
-			rec := get(t, mux, "example.test", "/setup/simple-hack.json")
-			if rec.Code != http.StatusOK {
-				t.Fatalf("/setup/simple-hack.json: status %d", rec.Code)
-			}
-			var steps struct {
-				Version string              `json:"version"`
-				Steps   []map[string]string `json:"steps"`
-				After   []string            `json:"after"`
-			}
-			if err := json.Unmarshal(rec.Body.Bytes(), &steps); err != nil {
-				t.Fatal(err)
-			}
-			if len(steps.Steps) != 5 || len(steps.After) != 2 {
-				t.Fatalf("want five steps and two after-install lines, got %d and %d", len(steps.Steps), len(steps.After))
-			}
-			compose, err := os.ReadFile("../../deploy/hack/standalone/compose.yaml")
-			if err != nil {
-				t.Fatal(err)
-			}
-			pin := regexp.MustCompile(`simple-hack:([0-9]+\.[0-9]+\.[0-9]+)`).FindSubmatch(compose)
-			if pin == nil || steps.Version != string(pin[1]) {
-				t.Errorf("helper version %q differs from compose image pin %q", steps.Version, pin)
-			}
-		})
+		if !strings.Contains(page.Body.String(), want) {
+			t.Errorf("/setup missing %q", want)
+		}
+	}
+	if rec := get(t, mux, "example.test", "/setup/simple-hack.json"); rec.Code != 404 {
+		t.Fatalf("Host product manifest: %d", rec.Code)
+	}
+	js := get(t, mux, "example.test", "/setup/setup.js").Body.String()
+	for _, absent := range []string{"renderHackBasics", "renderHackOutput", "simple-hack.json", "Simple Hack"} {
+		if strings.Contains(js, absent) {
+			t.Errorf("platform setup.js names the product: %q", absent)
+		}
 	}
 }
 

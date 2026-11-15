@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/webassets"
+	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // TestServeHackContentForBrowser is an opt-in local fixture for mobile theme checks.
@@ -54,7 +55,7 @@ func TestServeHackContentForBrowser(t *testing.T) {
 	for _, name := range []string{"kit.css", "public.css", "themes.css"} {
 		name := name
 		mux.HandleFunc("/hack/"+name, func(w http.ResponseWriter, r *http.Request) {
-			css, err := fs.ReadFile(webassets.Static, "static/hack/"+name)
+			css, err := fs.ReadFile(hackassets.Static, "static/hack/"+name)
 			if err != nil {
 				http.Error(w, "missing CSS", 500)
 				return

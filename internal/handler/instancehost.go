@@ -126,21 +126,17 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 			if name == "openapi.yaml" || name == "openapi.json" {
 				sourceName = "openapi.json"
 			}
-			if p.pres.HackAssets {
-				switch name {
-				case "llms.txt":
-					sourceName = "hack-llms.txt"
-				case "openapi.yaml", "openapi.json":
-					sourceName = "openapi.json"
-				}
-			}
 			body, err = p.staticFS().ReadFile("static/" + sourceName)
 			if err == nil && (name == "openapi.yaml" || name == "openapi.json") {
 				audience := "public-host"
-				if p.pres.HackAssets {
+				if p.pres.ProductAssets {
 					audience = "public-hack"
 				}
-				body, err = publicOpenAPISpec(body, audience)
+				if hook := p.product.hooks.OpenAPISpec; hook != nil {
+					body, err = hook(body)
+				} else {
+					body, err = publicOpenAPISpec(body, audience)
+				}
 			}
 			if err == nil && name == "features.json" {
 				// Reached only on a self-hosted instance (features.json is
@@ -152,10 +148,10 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 				// would otherwise appear literally, and [[hosted]]'s
 				// content (hosted-only domain names, the plugin/directory
 				// copy) with them.
-				body = featureJSONMarkers(body, p.pres.HackAssets)
+				body = featureJSONMarkers(body, p.pres.ProductAssets)
 			}
 			if err == nil {
-				if p.pres.HackAssets {
+				if p.pres.ProductAssets {
 					// features.json and openapi.yaml/json carry the same
 					// shared, cross-cutting Host-level prose (handles,
 					// sites, sign-in, the API, support@) that the Host
@@ -193,7 +189,7 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 					if rw != nil && instanceSiteDomain != "simple-hack.app" {
 						body = rw.apply(body)
 					}
-					body = p.HackInstanceText(p.limitsText.apply(body))
+					body = p.productInstanceText(p.limitsText.apply(body))
 				} else {
 					if name == "llms.txt" && rw != nil {
 						body = selfHostedClaudeSetup(body)
@@ -210,7 +206,7 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 					body = p.limitsText.apply(rw.apply([]byte(supportText(string(body)))))
 				}
 			}
-			if err == nil && !p.pres.HackAssets && name == "llms.txt" && instanceNote != "" {
+			if err == nil && !p.pres.ProductAssets && name == "llms.txt" && instanceNote != "" {
 				body = append([]byte(instanceNote), body...)
 			}
 		}

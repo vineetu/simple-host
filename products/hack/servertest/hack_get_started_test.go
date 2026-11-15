@@ -11,13 +11,13 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
 func TestHackGetStartedSkills(t *testing.T) {
-	assets := handler.NewPages(edition.ForKind(edition.Hack), "")
+	sh := chromeTestHandler(edition.Hack)
+	assets := hackhttp.NewAssets(sh.AssetServices(), "")
 	first, err := assets.BuildHackSkillsZip()
 	if err != nil {
 		t.Fatal(err)
@@ -51,13 +51,13 @@ func TestHackGetStartedSkills(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !bytes.Equal(data, assets.SkillServedText(f.Name, want)) {
+			if !bytes.Equal(data, sh.Pages().SkillServedText(f.Name, want)) {
 				t.Fatalf("%s differs from served canonical source", f.Name)
 			}
 		}
 	}
 	want := map[string]bool{}
-	for _, name := range handler.HackSkillNames {
+	for _, name := range hackhttp.HackSkillNames {
 		want[name] = true
 	}
 	if !reflect.DeepEqual(tops, want) {
@@ -65,9 +65,9 @@ func TestHackGetStartedSkills(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackGetStarted(mux, assets)
-	assets.RegisterSkillsHub(mux, "https://simple-hack.app")
-	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { assets.ServeSkillsZip(w, r, true) })
+	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
+	sh.Pages().RegisterSkillsHub(mux, "https://simple-hack.app")
+	mux.HandleFunc("GET /skills.zip", assets.ServeHackSkillsZip())
 	get := func(path string) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRecorder()
@@ -106,7 +106,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 	if other := get("/v1/skills/connect-domain/SKILL.md"); other.Code != http.StatusNotFound {
 		t.Fatalf("foreign skill exposed on Simple Hack: %d", other.Code)
 	}
-	for _, name := range handler.HackSkillNames {
+	for _, name := range hackhttp.HackSkillNames {
 		if raw := get("/v1/skills/" + name + "/SKILL.md"); raw.Code != 200 || !strings.Contains(raw.Body.String(), "name: "+name) {
 			t.Fatalf("raw %s: %d", name, raw.Code)
 		}
@@ -114,9 +114,9 @@ func TestHackGetStartedSkills(t *testing.T) {
 }
 
 func TestHackGetStartedOnboarding(t *testing.T) {
-	assets := handler.NewPages(edition.ForKind(edition.Hack), "")
+	sh := chromeTestHandler(edition.Hack)
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackGetStarted(mux, assets)
+	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	r := httptest.NewRecorder()
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()
@@ -181,7 +181,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			t.Errorf("download/reference %s missing from other installs", url)
 		}
 	}
-	for _, name := range handler.HackSkillNames {
+	for _, name := range hackhttp.HackSkillNames {
 		if !strings.Contains(other, `href="/v1/skills/`+name+`/SKILL.md"`) {
 			t.Errorf("skill %s missing from other installs", name)
 		}
@@ -206,9 +206,9 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 // shows only its own https://<host>/mcp, never a plugin, ZIP, directory or
 // app-review mention, and never the hosted service's own domain.
 func TestHackGetStartedOnboardingSelfHosted(t *testing.T) {
-	assets := handler.NewPages(edition.ForKind(edition.Hack), "http://hack.example.test:18201")
+	sh := chromeTestHandlerWithBase(edition.Hack, "http://hack.example.test:18201")
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackGetStarted(mux, assets)
+	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	r := httptest.NewRecorder()
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()
@@ -267,7 +267,7 @@ func checkOtherAIApps(t *testing.T, page, address string) {
 func TestSelfHostedHackGetStartedClaude(t *testing.T) {
 	sh := chromeTestHandlerWithBase(edition.Hack, "https://hack.example")
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackGetStarted(mux, sh.Pages())
+	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	r := httptest.NewRecorder()
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()

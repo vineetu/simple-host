@@ -698,7 +698,7 @@ def slug_for_source(rel_posix, text=''):
 
 def write_md_copies(root, brand):
     source_dir = root / 'docs/site/.generated-content'
-    out_dir = root / 'internal/webassets/docs-site' / brand
+    out_dir = root / ('products/hack/webassets/docs-site/hack' if brand == 'hack' else 'internal/webassets/docs-site/host')
     assets = source_dir / '_assets'
     if assets.is_dir():
         for p in sorted(assets.iterdir()):

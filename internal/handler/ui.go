@@ -95,7 +95,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
 	mux.Handle("GET /docs.html", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
 	sub, _ := fs.Sub(assets.staticFS(), "static")
-	handlerOnly := handlerOnlyFS{sub, sh.ed.Presentation().HackAssets, assets.rewritten()}
+	handlerOnly := handlerOnlyFS{sub, sh.ed.Presentation().ProductAssets, assets.rewritten()}
 	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnly))
 	staticServer := fileServer
 	fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +142,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// same four addresses. A day of caching plus the ?v= on every link
 	// (partials/head.html and the 13 pages with their own head) means a
 	// future icon change is picked up by bumping that letter, not renaming.
-	for name, file := range iconFiles(sh.ed.Presentation().HackAssets) {
+	for name, file := range iconFiles() {
 		mux.Handle("GET /"+name, serveIcon(sub, file))
 	}
 
@@ -150,13 +150,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /sitemap.xml", sh.serveSitemap)
 	mux.HandleFunc("GET /sitemap-pages.xml", sh.serveSitemap)
 
-	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument(assets, sh.ed.Presentation().HackAssets, "ard.json", "application/json", publicBaseURL))
-	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(assets, sh.ed.Presentation().HackAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
-	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) {
-		serveSkillsZip(assets, w, r, sh.ed.Presentation().HackAssets)
-	})
+	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument(assets, sh.ed.Presentation().ProductAssets, "ard.json", "application/json", publicBaseURL))
+	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(assets, sh.ed.Presentation().ProductAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
+	if !sh.ed.Presentation().ProductAssets {
+		mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(assets, w, r) })
+	}
 	mux.HandleFunc("GET /skills/version", func(w http.ResponseWriter, r *http.Request) {
-		serveSkillsVersion(w, r, sh.ed.Presentation().HackAssets)
+		serveSkillsVersion(w, r, sh.ed.Presentation().ProductAssets)
 	})
 	// The landing film's video and poster files (film.go).
 	mux.HandleFunc("GET /film/{file}", serveFilm)
@@ -174,10 +174,10 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		})
 	}
 	mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) {
-		servePluginZip(assets, w, r, sh.ed.Presentation().HackAssets)
+		servePluginZip(assets, w, r, sh.ed.Presentation().ProductAssets)
 	})
-	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL, sh.ed.Presentation().HackAssets))
-	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL, sh.ed.Presentation().HackAssets))
+	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL, sh.ed.Presentation().ProductAssets))
+	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL, sh.ed.Presentation().ProductAssets))
 	// Admin dashboard: all signed-up users + their sites. This shell is public —
 	// a browser navigation carries no API key, so it cannot be gated server-side.
 	// It renders nothing until /v1/admin/users answers, and that IS gated; a
@@ -195,7 +195,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /enterprise", assets.adminUICSP(assets.serveStaticPage("enterprise.html")))
 	mux.Handle("GET /enterprise/brief", assets.adminUICSP(assets.serveStaticPage("enterprise-brief.html")))
 	mux.Handle("GET /enterprise/architecture", assets.adminUICSP(assets.serveStaticPage("enterprise-architecture.html")))
-	if !assets.pres.HackAssets {
+	if !assets.pres.ProductAssets {
 		mux.Handle("GET /hackathons", http.RedirectHandler("/", http.StatusFound))
 		mux.Handle("GET /hackathons.html", http.RedirectHandler("/", http.StatusFound))
 	}
@@ -231,7 +231,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		// place is their events (RegisterHackUI's app shell, static/hack/app.html).
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
-		markdown := homepageMarkdownHandler(assets, publicBaseURL, sh.ed.Presentation().HackAssets)
+		markdown := homepageMarkdownHandler(assets, publicBaseURL, sh.ed.Presentation().ProductAssets)
 		mux.HandleFunc("GET /index.md", markdown)
 		mux.HandleFunc("GET /llms.md", markdown)
 		mux.Handle("GET /dashboard", assets.adminUICSP(assets.serveStaticPage("index.html")))
@@ -266,17 +266,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 }
 
 // iconFiles maps the icon addresses every page links to the physical file
-// served at that address: Simple Hack serves its own red-dot files at the
-// same four names Simple Host serves its teal ones at.
-func iconFiles(hackAssets bool) map[string]string {
-	if hackAssets {
-		return map[string]string{
-			"favicon.svg":          "favicon-hack.svg",
-			"favicon.ico":          "favicon-hack.ico",
-			"favicon-32.png":       "favicon-32-hack.png",
-			"apple-touch-icon.png": "apple-touch-icon-hack.png",
-		}
-	}
+// served at that address. A product serves its own icons at the same four
+// names by listing them in its Replace table.
+func iconFiles() map[string]string {
 	return map[string]string{
 		"favicon.svg":          "favicon.svg",
 		"favicon.ico":          "favicon.ico",
@@ -363,7 +355,7 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 		if name == "pricing.html" {
 			body = applyPricingNumbers(body, p.hostedEvents, p.limits)
 		}
-		if p.pres.HackAssets && name == "hack-get-started.html" && p.inkBaseURL() != canonicalHackBaseURL {
+		if p.pres.ProductAssets && name == "hack-get-started.html" && p.inkBaseURL() != canonicalHackBaseURL {
 			// GitHub skills name the hosted service. Install the local ZIP instead.
 			start := bytes.Index(body, []byte("<li>Install the five Simple Hack skills"))
 			if start >= 0 {
@@ -447,11 +439,7 @@ func serveSkillsVersion(w http.ResponseWriter, r *http.Request, hackAssets bool)
 
 // serveSkillsZip returns a flat zip of the skill folders, suitable for
 // extraction directly into ~/.claude/skills or ~/.agents/skills.
-func serveSkillsZip(assets *assetPipeline, w http.ResponseWriter, r *http.Request, hackAssets bool) {
-	if hackAssets {
-		assets.ServeHackSkillsZip()(w, r)
-		return
-	}
+func serveSkillsZip(assets *assetPipeline, w http.ResponseWriter, r *http.Request) {
 	data, err := assets.buildSkillsZip()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -645,7 +633,7 @@ func (p *assetPipeline) buildSkillsZip() ([]byte, error) {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 
-		skillsRoot, err := fs.Sub(webassets.Host, "skills")
+		skillsRoot, err := fs.Sub(p.servedSkillFS(), "skills")
 		if err != nil {
 			z.err = err
 			return

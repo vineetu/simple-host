@@ -18,7 +18,7 @@ func hackHomeTestMux(t *testing.T, base string) *http.ServeMux {
 	sh := chromeTestHandlerWithBase(edition.Hack, base)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, base, sh)
-	hackhttp.RegisterHackHome(mux, sh.Pages())
+	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	return mux
 }
 

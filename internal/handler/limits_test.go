@@ -265,7 +265,7 @@ func TestDefaultLimitsRewriteNothing(t *testing.T) {
 	if rw := newLimitsRewriter(config.DefaultLimits()); rw != nil {
 		t.Fatal("the rewriter should be nil at the defaults")
 	}
-	p := newAssetPipeline(edition.ForKind(edition.Host), "")
+	p := testAssetPipeline(edition.ForKind(edition.Host), "")
 	if p.rewritten() {
 		t.Fatal("defaults switched serve-time rewriting on")
 	}
@@ -439,7 +439,7 @@ func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
 	t.Cleanup(func() { SetSiteLimit(old) })
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
-	newAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
+	testAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
 	for _, c := range []struct{ path, want string }{
 		{"/v1/skills/website-deploy", "**Archive limit** is 300 MB."},
 		{"/v1/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},

@@ -105,7 +105,7 @@ func TestHackPublicDiscovery(t *testing.T) {
 			sh := chromeTestHandlerWithBase(edition.Hack, base)
 			mux := http.NewServeMux()
 			handler.RegisterUIRoutes(mux, base, sh)
-			hackhttp.RegisterHackHome(mux, sh.Pages())
+			hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 			sh.Pages().RegisterSkillsHub(mux, base)
 			host := strings.SplitN(base, "://", 2)[1]
 			product := hackmcp.Contribution()

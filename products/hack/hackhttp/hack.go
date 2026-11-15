@@ -202,16 +202,6 @@ type hackPages interface {
 	AdminUICSP(next http.Handler) http.Handler
 	// UICSP is AdminUICSP with an extended frame-src.
 	UICSP(next http.Handler, frameSrc string) http.Handler
-	// HackInstanceText rewrites simple-hack.app's own address to this
-	// instance's, in served Hack text.
-	HackInstanceText(data []byte) []byte
-	// BuildHackSkillsZip is the cached hack-skills.zip body.
-	BuildHackSkillsZip() ([]byte, error)
-	// ServeHackSkillsZip serves BuildHackSkillsZip at /hack-skills.zip.
-	ServeHackSkillsZip() http.HandlerFunc
-	// RewriteHackPluginZip rewrites a downloaded plugin zip's text assets
-	// (.md/.yaml/.json) for this instance.
-	RewriteHackPluginZip(data []byte) ([]byte, error)
 	// RenderAppShell is static/hack/app.html with its chrome applied: the
 	// kit's own presentation, not the product chrome, and the sign-in
 	// script tag only when signin is true.
@@ -232,10 +222,6 @@ type hackPages interface {
 	// hack_ink_browser_test.go, which registered it through
 	// sh.pipeline() before the move.
 	RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string)
-	// ServeSkillsZip is ui.go's serveSkillsZip, exported for hackPages:
-	// the moved hack_get_started_test.go served the standard
-	// (non-hosted) /skills.zip alias through it before the move.
-	ServeSkillsZip(w http.ResponseWriter, r *http.Request, hackAssets bool)
 }
 
 // pipeline is h's asset pipeline, for the Hack edition at publicBaseURL.

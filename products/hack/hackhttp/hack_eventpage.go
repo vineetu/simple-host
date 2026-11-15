@@ -188,10 +188,9 @@ type hackGalleryCard struct {
 // is an explicit value built from the caller's fs.FS instead of a global
 // embeddedStaticFS set through SetEmbeddedStatic — same narrow-value
 // pattern as SetHackEventPage/SetHackScreenshot, now a constructor
-// argument instead of a setter). main.go builds one from
-// handler.EmbeddedStatic(); test fixtures (hack_test.go, hack_m2_test.go,
-// main_test.go) build one the same way, from their test-only handler
-// import.
+// argument instead of a setter). The extension builds one from the
+// product's own embed (products/hack/webassets.Static); the test fixtures
+// build one the same way.
 type HackEventPages struct {
 	fsys fs.FS
 	once sync.Once
@@ -200,8 +199,7 @@ type HackEventPages struct {
 }
 
 // NewHackEventPages builds a template cache for hack-event.html, read from
-// fsys (ui.go's staticFiles in internal/handler, reached through assets.go's
-// exported EmbeddedStatic()) on first use.
+// fsys (the product's embed, products/hack/webassets.Static) on first use.
 func NewHackEventPages(fsys fs.FS) *HackEventPages {
 	return &HackEventPages{fsys: fsys}
 }

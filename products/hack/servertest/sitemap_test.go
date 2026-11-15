@@ -117,6 +117,10 @@ func TestHostedHackSitemapOnlyTeamSites(t *testing.T) {
 			if w.Code != http.StatusOK {
 				t.Fatalf("sitemap: %d %s", w.Code, w.Body)
 			}
+			// The pages come from the product's docs, never the platform's.
+			if !strings.Contains(w.Body.String(), "/docs/start/judge/</loc>") || strings.Contains(w.Body.String(), "/docs/guides/addresses/</loc>") {
+				t.Error("sitemap does not list the Hack docs pages")
+			}
 			for _, name := range []string{"team", "event-page", "orphan", "second-team"} {
 				included := strings.Contains(w.Body.String(), "<loc>https://"+name+".sitemap-event."+tc.domain+"/</loc>")
 				want := tc.domain == "simple-hack.app" && (name == "second-team" || name == "team" && !tc.takenDown)

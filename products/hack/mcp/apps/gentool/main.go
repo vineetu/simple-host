@@ -1,5 +1,5 @@
 // Command gentool regenerates the judge MCP App's bundled script and
-// stylesheet from internal/webassets/static/hack. Run it with
+// stylesheet from products/hack/webassets/static/hack. Run it with
 // `go generate ./products/hack/mcp/...` (see the go:generate directive in
 // products/hack/mcp/hack_apps.go) after editing any of the judge screens or
 // kit.css; TestHackJudgeBundleFresh fails the build if someone forgets.

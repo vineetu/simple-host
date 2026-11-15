@@ -15,8 +15,9 @@ import (
 
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/llm"
-	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/webassets"
+	"io/fs"
 )
 
 // assistantEvalCase is one row of testdata/assistant_eval.json (organiser
@@ -430,7 +431,8 @@ func TestAssistantEvalRunCapsUnsure(t *testing.T) {
 // so the eval tests the exact production prompt rather than a second,
 // maybe-drifted copy of the same logic.
 func evalDocsText() string {
-	return AssistantDocsText(webassets.DocsTree(true))
+	tree, _ := fs.Sub(webassets.Static, "docs-site/hack")
+	return AssistantDocsText(tree)
 }
 
 // assistantEvalFixture is one event the eval asks questions about.

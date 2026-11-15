@@ -8,16 +8,13 @@ import (
 
 func (h *SiteHandler) serveAuthMarkdown(w http.ResponseWriter, r *http.Request) {
 	name := "auth.md"
-	if h.ed.Presentation().HackAssets {
-		name = "hack-auth.md"
-	}
-	body, err := staticFiles.ReadFile("static/" + name)
+	body, err := h.pipeline().staticFS().ReadFile("static/" + name)
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	if h.ed.Presentation().HackAssets {
-		body = h.pipeline().HackInstanceText(bytes.ReplaceAll(body, []byte("{sign_in}"), []byte(authSignInMethods())))
+	if h.ed.Presentation().ProductAssets {
+		body = h.pipeline().productInstanceText(bytes.ReplaceAll(body, []byte("{sign_in}"), []byte(authSignInMethods())))
 	} else if !emailSignInEnabled {
 		body = hostAuthWithoutEmail(body)
 	}

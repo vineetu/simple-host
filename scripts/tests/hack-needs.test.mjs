@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { splitNeed } from '../../internal/webassets/static/hack/needs.js'
+import { splitNeed } from '../../products/hack/webassets/static/hack/needs.js'
 
 test('team messages retain the full text and ordinary link label', () => {
   const text = 'Message from the organisers: Please do X. Thanks!'

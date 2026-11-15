@@ -1327,7 +1327,7 @@ apps/...`) writes the checked-in result (`hack-judge-bundle.js`, plus
 `hack-judge-kit.css`), and `TestHackJudgeBundleFresh` rebuilds it in the test
 binary and fails if the checked-in copy has drifted. Screens are reused
 unmodified except for calls to a small platform adapter
-(`internal/webassets/static/hack/platform.js` on the website,
+(`products/hack/webassets/static/hack/platform.js` on the website,
 `products/hack/mcp/apps/frame/platform.js` here) where the real browser
 environment does not hold inside this frame — ordinary source in both
 screen and adapter, not a generation-time patch: `judge-scoring.js`'s
@@ -1545,7 +1545,7 @@ Home previews, orders ties and publishes through `hack_app_preview_results`, `ha
 
 The view is built the same way as the judge app, by `products/hack/mcp/apps/
 bundlegen` (`GenerateOrganiserJS`/`products/hack/mcp/apps/gentool`), from
-`internal/webassets/static/hack/{ui.js, schedule.js, screens/_orgA-util.js,
+`products/hack/webassets/static/hack/{ui.js, schedule.js, screens/_orgA-util.js,
 screens/{organiser-overview,organiser-people,organiser-judging}.js}` via its
 own entry module (`products/hack/mcp/apps/entry/organiser.js`) —
 `_orgB-util.js` (teams/entries) is not needed yet. `TestHackOrganiserBundleFresh`
@@ -2022,7 +2022,7 @@ the hosted platform below, and self-hosting is its second option.
 |---|---|
 | Routes | `GET /hackathons` and `GET /hackathons.html` (302 to `/` on every Host install; unchanged pages on Hack) · `GET /v1/events` · `POST /v1/events` (`{name, ip, domain}` → Vercel A records for `<name>.<domain>` and `sites.<name>.<domain>`; 21-day claim, max 5 per account) · `DELETE /v1/events/{name}` · setup mode only (no hostname configured): `/` (`setup.html`), `GET /v1/setup/state`, `POST /v1/setup/verify`, `POST /v1/setup/own-domain`, `GET /v1/setup/dns-check`, `POST /v1/setup/free-name` (proxies to `SETUP_PUBLIC_API` `/v1/events`), `POST /v1/setup/finish` · admin routes in §11 · export in §1 |
 | Skill | Hack serves `internal/webassets/hack-toolkit/skills/run-hackathon/`; the former Host role-skill sources are retained in `products/hack/webassets/skills/`. Host no longer serves the organiser guide. |
-| Pages | `products/hack/webassets/static/hackathons.html` (organiser prompt, swaps in `location.host`), `st/og-hack.png`, `st/setup.html`, `st/admin.html` |
+| Pages | `products/hack/webassets/static/hackathons.html` (organiser prompt, swaps in `location.host`), `products/hack/webassets/static/og-hack.png`, `st/setup.html`, `st/admin.html` |
 | Go | `h/eventdomain.go` (claim/release/list, hourly sweep), `internal/eventdns/{vercel,inuse}.go`, `h/setup.go` (`InstanceConfigured`, setup restart), `h/instancehost.go` (host rewriting for non-canonical instances; `SetInstanceNote`: llms.txt opens with a THIS SERVER block — one shared browser origin, previews need per-site addresses, how visitors sign in or that they cannot, whether email is sent, who to ask) |
 | No sign-in, no email | With no email and no Google/GitHub sign-in, Submissions, Personal, Shared boards and making a list private are 409 `visitor_sign_in_unavailable`; with no email, Submissions emails default off and `notify` each/daily is 409 `email_unavailable`. Off simple-host.app, messages, emails, the export README and connector hints name `IDLE_REPLY_TO` or "whoever runs this server" (`auth.SetSupportContact`), and `invalid_api_key` says to ask for a new key where no email sign-in exists. |
 | Self-hosted contact, 2026-11-05 | Optional `SUPPORT_EMAIL` and `PRIVACY_URL` settings (`h/limits.go`) name this install's own contact and privacy policy; `PRIVACY_URL` unset hides the footer's Privacy link on a self-hosted instance rather than linking ours. A centralized chrome rewrite (`selfHostedChromeRewrite`, `h/chrome.go`, run on every chromed page, not just the enumerated rewritten assets) replaces every `support@simple-host.app` mailto link and plain-text mention — support, terms, privacy, features, pricing, docs, report — with `SUPPORT_EMAIL`/`IDLE_REPLY_TO` when set, else "the person who runs this server"; this pass runs before the generic host-domain rewrite, since that would otherwise mangle the address into a nonexistent `support@<this domain>` first. |
@@ -2454,9 +2454,10 @@ Static audience pages shared as direct links. **Status: live.**
 | `GET /costs` | `st/costs.html` + `st/costs/calc.js`, `st/costs/costs.js`, `st/costs/prices.json` (the cost calculator, below) |
 | `GET /diagrams/{name}.svg` | `st/diagrams/` (file server): one architecture diagram per place Simple Host runs (`fly`, `render`, `upcloud`, `enterprise-aws`), shown at the top of each GitHub guide (`docs/platforms/*.md`, the enterprise repo's `docs/cloud/aws.md`); `diagrams_test.go` checks each is served as `image/svg+xml` with a `<title>` and `<desc>` |
 
-Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/favicon-32.png`, `st/favicon.ico`, `st/apple-touch-icon.png` (Hack: `st/favicon-hack.*`, `st/favicon-32-hack.png`, `st/apple-touch-icon-hack.png`), `st/site.css`.
+Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/favicon-32.png`, `st/favicon.ico`, `st/apple-touch-icon.png` (Hack, in `products/hack/webassets/static/`: `favicon-hack.*`, `favicon-32-hack.png`, `apple-touch-icon-hack.png`), `st/site.css`.
 
 **Setup helper (`/setup`).** Choose **Small box** (one server with Docker Compose) or <a id="setup-helper"></a>
+<!-- Asset route: `GET /setup/setup.js`. -->
 **Enterprise** (an existing Kubernetes cluster). Enterprise offers **Helm** or **Kubernetes <a id="enterprise"></a>
 YAML**, rendered from the same pinned chart (`ENT_CHART_VERSION`, `ENT_CHART` in
 `st/setup/setup.js`). It connects existing Postgres with verified TLS and a supplied CA,
@@ -2556,7 +2557,11 @@ checked by `scripts/settings_docs.py --check` (in `check-docs-sync.sh`) and `h/s
 Compose box passes through and the installer keeps are offered for a small box. Linked from `install.html` (FAQ),
 "Try it in your organization → Set up" on `enterprise.html`, `enterprise-brief.html` and
 `enterprise-architecture.html` (`?product=enterprise`), "Run your own → Set up" on `features.html` and
-`architecture.html` (`?product=small-box`), both READMEs and `docs/advanced/`. **Status: built.**
+`architecture.html` (`?product=small-box`), both READMEs and `docs/advanced/`. A third choice, **Simple Hack on one
+server**, is offered only by a Simple Hack install: the product adds it to this page through its asset contribution
+(`products/hack/webassets/static/setup/{setup-hack.js,simple-hack.json}`, put into `setup.js` at named insertion
+points by `products/hack/hackhttp/hack_assets.go`). A Simple Host install's `/setup` does not show it and answers 404
+for `/setup/simple-hack.json`. **Status: built.**
 
 **Cost calculator (`/costs`).** What Simple Host Enterprise costs to run, for the companies it is sold to. Inputs: people <a id="cost-calculator"></a>
 who sign in, sites, a traffic level (Light 5 pages a person a working day of 0.5 MB, Typical 20 of 1 MB, Heavy 50 of 2 MB,

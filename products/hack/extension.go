@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -32,12 +33,25 @@ import (
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
+	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // Extension describes the hosted Hack routes, workers and product policy.
 func Extension() *extension.Extension {
+	// The one Assets of this install: made when the platform asks for the
+	// product's files (before Wire), then used by the product's own routes.
+	var productAssets *hackhttp.Assets
 	return &extension.Extension{
 		Name: "simple-hack",
+		Assets: func(site *handler.SiteHandler) extension.Assets {
+			assets := hackhttp.NewAssets(site.AssetServices(), site.Pages().InkBaseURL())
+			productAssets = assets
+			return extension.Assets{Replace: assetReplacements(), Files: hackassets.Static, Skills: webassets.HackSkills, Hooks: assets.Hooks(), Rewrite: assets.Rewrite,
+				Routes: func(mux *http.ServeMux, services handler.AssetServices) {
+					mux.HandleFunc("GET /skills.zip", assets.ServeHackSkillsZip())
+					mux.Handle("GET /setup/setup.js", services.AdminUICSP(assets.ServeSetupJS()))
+				}}
+		},
 		CheckSchema: func(ctx context.Context, database *sql.DB) error {
 			if err := hackdb.VerifyHackSchema(ctx, database); err != nil {
 				return fmt.Errorf("schema check (EVENTS=hosted): %w", err)
@@ -112,9 +126,12 @@ func Extension() *extension.Extension {
 			handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 				return hack.NameTaken(ctx, name)
 			})
-			hackPages := hackhttp.NewHackEventPages(handler.EmbeddedStatic())
+			hackPages := hackhttp.NewHackEventPages(hackassets.Static)
 			groupHosts := hackhttp.NewGroupHosts(d.DB, hackhttp.HackEventPage(d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages), hackhttp.HackScreenshot(d.DB, siteHandler.TeamSitesReady, hack))
-			hackhttp.RegisterHackHome(mux, siteHandler.Pages())
+			if productAssets == nil {
+				return extension.Parts{}, fmt.Errorf("simple-hack: Assets must be installed before Wire")
+			}
+			hackhttp.RegisterHackHome(mux, siteHandler.Pages(), productAssets)
 			hackhttp.RegisterHackPublic(mux, d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages)
 			hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
 			if d.ImageScan != nil {
@@ -154,7 +171,7 @@ func newAssistantDocsTextFunc() func() string {
 	var text string
 	return func() string {
 		once.Do(func() {
-			text = hackhttp.AssistantDocsText(webassets.DocsTree(true))
+			text = hackhttp.AssistantDocsText(func() fs.FS { tree, _ := fs.Sub(hackassets.Static, "docs-site/hack"); return tree }())
 		})
 		return text
 	}

@@ -21,7 +21,7 @@
 // than the fixed, narrow import/export shapes the old transform could.
 //
 // The screens are reused byte-for-byte from disk except for calls to a
-// small platform adapter (internal/webassets/static/hack/platform.js on the
+// small platform adapter (products/hack/webassets/static/hack/platform.js on the
 // website side, products/hack/mcp/apps/frame/platform.js on this side) where
 // the real browser environment (a real pathname, a same-origin document,
 // a page the browser can navigate to, a <form> that can submit) does not
@@ -86,7 +86,7 @@ func moduleRoot() (string, error) {
 }
 
 func webRoot(root string) string {
-	return filepath.Join(root, "internal", "webassets", "static", "hack")
+	return filepath.Join(root, "products", "hack", "webassets", "static", "hack")
 }
 func frameRoot(root string) string {
 	return filepath.Join(root, "products", "hack", "mcp", "apps", "frame")
@@ -101,7 +101,7 @@ func entryRoot(root string) string {
 // "file not found" deep in a resolve error.
 func checkRoot(root string) error {
 	if _, err := os.Stat(filepath.Join(webRoot(root), "kit.css")); err != nil {
-		return fmt.Errorf("bundlegen: internal/webassets/static/hack not found under module root %s", root)
+		return fmt.Errorf("bundlegen: products/hack/webassets/static/hack not found under module root %s", root)
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func buildBundle(root, entry, navFile string) (string, error) {
 	// bundles are served to the views, so their bytes do not change when
 	// only a source directory does.
 	return strings.NewReplacer(
-		"// internal/webassets/static/hack/", "// internal/handler/static/hack/",
+		"// products/hack/webassets/static/hack/", "// internal/handler/static/hack/",
 		"// products/hack/mcp/apps/", "// internal/mcp/apps/",
 	).Replace(string(result.OutputFiles[0].Contents)), nil
 }

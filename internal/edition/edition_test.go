@@ -13,7 +13,7 @@ func TestNew(t *testing.T) {
 		routes RoutePolicy
 		pres   PresentationPolicy
 	}{
-		{"hosted", Hack, RoutePolicy{HostedEvents: true}, PresentationPolicy{ProductName: "Simple Hack", HackAssets: true}},
+		{"hosted", Hack, RoutePolicy{HostedEvents: true}, PresentationPolicy{ProductName: "Simple Hack", ProductAssets: true}},
 		{"off", Host, RoutePolicy{}, PresentationPolicy{ProductName: "Simple Host"}},
 		{"", Host, RoutePolicy{}, PresentationPolicy{ProductName: "Simple Host"}},
 	} {

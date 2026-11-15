@@ -17,7 +17,7 @@ func TestHackWatchPage(t *testing.T) {
 	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
-	hackhttp.RegisterHackHome(mux, sh.Pages())
+	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	rec := get(t, mux, "simple-hack.app", "/watch")
 	body := rec.Body.String()
 	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
@@ -46,7 +46,7 @@ func TestHackWatchPage(t *testing.T) {
 	sh2 := chromeTestHandlerWithBase(edition.Hack, "https://hack.college.test")
 	mux2 := http.NewServeMux()
 	handler.RegisterUIRoutes(mux2, "https://simple-host.app", sh2)
-	hackhttp.RegisterHackHome(mux2, sh2.Pages())
+	hackhttp.RegisterHackHome(mux2, sh2.Pages(), hackAssetsFor(sh2))
 	rewritten := get(t, mux2, "hack.college.test", "/watch").Body.String()
 	for _, want := range []string{"https://hack.college.test/mcp", "campushack.hack.college.test", "team.campushack.hack.college.test"} {
 		if !strings.Contains(rewritten, want) {
@@ -59,7 +59,7 @@ func TestHackWatchPage(t *testing.T) {
 }
 
 func TestHackWatchNarration(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, edition.Hack)
 	for _, role := range []string{"organizer", "judge", "participant"} {
 		path := "/hack-watch-" + role + ".mp3?v=202610102330"
 		rec := get(t, mux, "simple-hack.app", path)

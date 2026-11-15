@@ -1,6 +1,7 @@
-package handler
+package hackhttp
 
 import (
+	"github.com/vsriram/simple-host/products/hack/webassets"
 	"strings"
 	"testing"
 )
@@ -33,7 +34,7 @@ func TestHackConnectStepsJSON(t *testing.T) {
 			t.Fatalf("%s: missing or not a tab app", id)
 		}
 	}
-	raw, err := staticFiles.ReadFile("static/hack-get-started.html")
+	raw, err := webassets.Static.ReadFile("static/hack-get-started.html")
 	if err != nil {
 		t.Fatal(err)
 	}

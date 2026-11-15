@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 15:** The setup page on a Simple Host install (simple-host.app/setup) offers Small box and Enterprise only. The "Simple Hack on one server" choice and its step list (`/setup/simple-hack.json`) are now offered by a Simple Hack install's own `/setup`, where the page is unchanged; on Simple Host that file answers 404. Simple Hack's pages, screens, icons and docs moved out of the platform's embedded files into the product, so a Simple Host install no longer serves them (for example `/hack-ink.css`, `/og-hack.png`, `/hack/app.js` now answer 404 there; no Simple Host page linked to them). Simple Hack installs serve everything as before (D3-S2a).
+
 - **Nov 14:** Document row rules for SQLite and key-value data, including per-table policies, approval stamps and privacy limits. Update website skills and the Storage guide; file buckets keep presets. Prepared on the R3-S7a branch for activation with R4-S2.
 
 - **Nov 14:** Add optional row rules to the storage API and tool schemas, with structured errors and a 256 KiB save limit (R2-S3). The API reference includes these fields; rules saves remain off by default.

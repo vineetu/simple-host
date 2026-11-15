@@ -69,7 +69,7 @@ func hackApps(ctx mcp.AppContext) mcp.AppContribution {
 //
 // apps/hack-judge-bundle.js/apps/hack-judge-kit.css and
 // apps/hack-organiser-bundle.js/apps/hack-organiser-kit.css are generated
-// from internal/webassets/static/hack by products/hack/mcp/apps/bundlegen; after
+// from products/hack/webassets/static/hack by products/hack/mcp/apps/bundlegen; after
 // changing any judge or organiser screen, or kit.css, regenerate with:
 //
 //go:generate go run ./apps/gentool

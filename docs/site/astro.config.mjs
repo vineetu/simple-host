@@ -23,7 +23,7 @@ const subgroup = (key) => ({
 export default defineConfig({
   base: '/docs/',
   trailingSlash: 'always',
-  outDir: `../../internal/webassets/docs-site/${brand}`,
+  outDir: brand === 'hack' ? '../../products/hack/webassets/docs-site/hack' : '../../internal/webassets/docs-site/host',
   compressHTML: false,
   build: { inlineStylesheets: 'never' },
   vite: { resolve: { alias: { '@docs': new URL('./src/components', import.meta.url).pathname } }, build: { sourcemap: false } },

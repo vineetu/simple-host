@@ -3,5 +3,5 @@ package webassets
 
 import "embed"
 
-//go:embed static/hackathons.html
+//go:embed all:static all:docs-site
 var Static embed.FS

@@ -29,7 +29,7 @@ func TestSelfHostedGetStartedAndLLMS(t *testing.T) {
 	defer SetInstanceHosts("simple-host.app", "", "")
 	for _, name := range []string{"install.html", "llms.txt"} {
 		rec := httptest.NewRecorder()
-		newAssetPipeline(edition.ForKind(edition.Host), "").serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
+		testAssetPipeline(edition.ForKind(edition.Host), "").serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
 		body := rec.Body.String()
 		if rec.Code != 200 {
 			t.Fatalf("%s: %d", name, rec.Code)

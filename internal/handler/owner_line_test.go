@@ -29,7 +29,7 @@ func TestOwnerLineOnlyOnHostedServices(t *testing.T) {
 		if c.hack {
 			kind = edition.Hack
 		}
-		assets := newAssetPipeline(edition.ForKind(kind), c.hackBase)
+		assets := testAssetPipeline(edition.ForKind(kind), c.hackBase)
 		for _, name := range []string{"privacy.html", "support.html", "index.html"} {
 			src, err := staticFiles.ReadFile("static/" + name)
 			if err != nil {

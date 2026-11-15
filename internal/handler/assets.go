@@ -28,7 +28,8 @@ const canonicalHackBaseURL = "https://simple-hack.app"
 // the host rewriter) stay package settings: they describe the instance's
 // addresses, not the product.
 type assetPipeline struct {
-	// pres is the edition's presentation policy: HackAssets selects Simple
+	product productAssets
+	// pres is the edition's presentation policy: ProductAssets selects Simple
 	// Hack's skills, auth.js, docs and copy.
 	pres edition.PresentationPolicy
 	// hostedEvents is the edition's Routes().HostedEvents (pricing numbers).
@@ -40,7 +41,7 @@ type assetPipeline struct {
 	limits     edition.Limits
 	limitsText *limitsRewriter
 	// chromeHack renders the simple-hack.app header, footer and ink: always
-	// pres.HackAssets, kept as its own field because that is the question
+	// pres.ProductAssets, kept as its own field because that is the question
 	// this pipeline's callers ask.
 	chromeHack bool
 	// inkBase is this Hack instance's public address (the instanceURL
@@ -53,11 +54,10 @@ type assetPipeline struct {
 
 	docs docsCache
 
-	// skillsZip, pluginZip and hackSkillsZip are this instance's cached zip
-	// downloads (ui.go, hack_get_started.go), each built once.
-	skillsZip     cachedZip
-	pluginZip     cachedZip
-	hackSkillsZip cachedZip
+	// skillsZip and pluginZip are this instance's platform downloads,
+	// each built once. Product download caches belong to the product.
+	skillsZip cachedZip
+	pluginZip cachedZip
 }
 
 // cachedZip is a sync.Once-guarded zip build: bytes on success, err on
@@ -83,7 +83,7 @@ func newAssetPipeline(ed *edition.Edition, instanceURL string) *assetPipeline {
 		hostedEvents: ed.Routes().HostedEvents,
 		limits:       lim,
 		limitsText:   newLimitsRewriter(lim),
-		chromeHack:   ed.Presentation().HackAssets,
+		chromeHack:   ed.Presentation().ProductAssets,
 		inkBase:      strings.TrimRight(instanceURL, "/"),
 	}
 	assetRegistry.mu.Lock()
@@ -219,7 +219,7 @@ func (h *SiteHandler) SetEditionForTest(ed *edition.Edition) { h.ed = ed }
 
 // staticFS is the embedded tree as this pipeline serves it.
 func (p *assetPipeline) staticFS() baseTextFS {
-	return baseTextFS{fsys: embeddedStatic, p: p}
+	return baseTextFS{fsys: selectedAssets{p}, p: p}
 }
 
 // assetRegistry tracks every live pipeline, weakly, so the base-text setters
@@ -277,14 +277,6 @@ func (p *assetPipeline) RegisterSkillsHub(mux *http.ServeMux, publicBaseURL stri
 	p.registerSkillsHub(mux, publicBaseURL)
 }
 
-// ServeSkillsZip is ui.go's serveSkillsZip, exported for hackPages
-// (internal/hackhttp): a test hook (cleanup 3.2 slice 3) for the moved
-// hack_get_started_test.go, which served the standard (non-hosted)
-// /skills.zip alias through it before the move.
-func (p *assetPipeline) ServeSkillsZip(w http.ResponseWriter, r *http.Request, hackAssets bool) {
-	serveSkillsZip(p, w, r, hackAssets)
-}
-
 // RebasePagesForTest rebuilds h's asset pipeline for instanceURL, keeping
 // its edition. Test hook (cleanup 3.2 slice 3): the moved
 // hack_ink_browser_test.go rebased a *SiteHandler's pipeline onto its test
@@ -292,4 +284,29 @@ func (p *assetPipeline) ServeSkillsZip(w http.ResponseWriter, r *http.Request, h
 // that field is unexported, so a cross-package test needs this instead.
 func (h *SiteHandler) RebasePagesForTest(instanceURL string) {
 	h.assets = newAssetPipeline(h.ed, instanceURL)
+}
+
+type selectedAssets struct{ p *assetPipeline }
+
+func (s selectedAssets) source(name string) (fs.FS, string) {
+	// docsSiteRoot is the one Replace entry that is not a static file name:
+	// only docsTree reads it, so /docs-site answers as it does with no product.
+	if key := strings.TrimPrefix(name, "static/"); key != docsSiteRoot {
+		if file, ok := s.p.product.replace[key]; ok {
+			return s.p.product.files, file
+		}
+	}
+	return embeddedStatic, name
+}
+func (s selectedAssets) Open(name string) (fs.File, error) {
+	tree, file := s.source(name)
+	return tree.Open(file)
+}
+func (s selectedAssets) ReadFile(name string) ([]byte, error) {
+	tree, file := s.source(name)
+	return fs.ReadFile(tree, file)
+}
+func (s selectedAssets) ReadDir(name string) ([]fs.DirEntry, error) {
+	tree, file := s.source(name)
+	return fs.ReadDir(tree, file)
 }

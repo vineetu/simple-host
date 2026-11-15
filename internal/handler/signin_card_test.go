@@ -89,7 +89,7 @@ func TestSigninJSVersionHashesServedBytes(t *testing.T) {
 	}
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Host = "simple-host.app"
-	d := newAssetPipeline(edition.ForKind(edition.Host), "").chromeDataFor(req, "")
+	d := testAssetPipeline(edition.ForKind(edition.Host), "").chromeDataFor(req, "")
 	if d.SigninVersion != want {
 		t.Fatalf("chrome SigninVersion=%q want %q", d.SigninVersion, want)
 	}
@@ -119,23 +119,4 @@ func TestServedSigninAndAuthJSParse(t *testing.T) {
 	check("signin.js", signin)
 	check("auth.js", auth)
 	check("auth-raw.js", rawAuth)
-}
-
-func TestHackModeAuthJSStillHasCard(t *testing.T) {
-	got, err := newAssetPipeline(edition.ForKind(edition.Hack), "").staticFS().ReadFile("static/auth.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Contains(got, []byte("window.SHSignIn")) {
-		t.Fatal("hack-mode auth.js is missing the sign-in card")
-	}
-	if !bytes.Contains(got, []byte("Simple Hack visitor sign-in")) {
-		t.Fatal("hack-mode auth.js was not cut by hackAuthJS")
-	}
-	if !bytes.Contains(got, []byte(`var signInBy = "Sign-in by Simple Hack";`)) || bytes.Contains(got, []byte(`var signInBy = "Sign-in by Simple Host";`)) {
-		t.Fatal("hack-mode auth.js kept the Host visitor wording")
-	}
-	if !bytes.Contains(got, []byte(`var signInProduct = "Simple Hack";`)) {
-		t.Fatal("hack-mode auth.js kept the Host product name")
-	}
 }

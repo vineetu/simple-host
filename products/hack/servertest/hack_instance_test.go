@@ -17,7 +17,7 @@ import (
 func TestFullHackInstancePresentation(t *testing.T) {
 	sh := chromeTestHandlerWithBase(edition.Hack, "http://localhost:18480")
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackHome(mux, sh.Pages())
+	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	for _, path := range []string{"/", "/get-started"} {
 		rec := get(t, mux, "localhost:18480", path)
 		body := rec.Body.String()
@@ -28,7 +28,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 			t.Fatalf("%s navigation differs", path)
 		}
 	}
-	for _, name := range handler.HackSkillNames {
+	for _, name := range hackhttp.HackSkillNames {
 		raw, err := webassets.HackSkills.ReadFile("skills/" + name + "/SKILL.md")
 		if err != nil {
 			t.Fatal(err)
@@ -61,7 +61,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 		}
 	}
 	hostAssets := handler.NewPages(edition.ForKind(edition.Host), "")
-	if string(hostAssets.HackInstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
+	if string(hostAssets.InstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
 		t.Fatal("Host text changed")
 	}
 }

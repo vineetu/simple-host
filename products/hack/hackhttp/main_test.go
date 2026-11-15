@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/testdb"
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // testHackPages is the shared event template cache built from embedded assets.

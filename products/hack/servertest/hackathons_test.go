@@ -18,7 +18,7 @@ func TestHackathonsPage(t *testing.T) {
 			sh := chromeTestHandlerWithBase(edition.Hack, base)
 			mux := http.NewServeMux()
 			handler.RegisterUIRoutes(mux, base, sh)
-			hackhttp.RegisterHackHome(mux, sh.Pages())
+			hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 			for _, path := range []string{"/hackathons", "/hackathons.html"} {
 				rec := get(t, mux, strings.TrimPrefix(base, "https://"), path)
 				if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Hackathons, now for everyone.") {
@@ -38,7 +38,7 @@ func TestHackathonsPage(t *testing.T) {
 func TestHackSelfHostingLinksReachInstructions(t *testing.T) {
 	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackHome(mux, sh.Pages())
+	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	links := regexp.MustCompile(`href="([^"]+)"[^>]*>(Self-host[^<]*|For hackathons)</a>`)
 	for _, page := range []struct {
 		file  string

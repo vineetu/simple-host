@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -40,12 +41,12 @@ var docsScriptSrcRE = regexp.MustCompile(`(?i)\bsrc\s*=`)
 func (p *assetPipeline) docsRuntimeText(body []byte) []byte {
 	// Replace the full origin before the hostname-only chrome pass, as
 	// discovery documents do, preserving PUBLIC_BASE_URL's scheme and port.
-	if !p.pres.HackAssets && p.docs.baseURL != "" && p.hostedOwner() == "" {
+	if !p.pres.ProductAssets && p.docs.baseURL != "" && p.hostedOwner() == "" {
 		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(p.docs.baseURL))
 	}
 	body = p.docsStorageLimits(body)
-	body = hostedBlocks(p.HackInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
-	body = hasHackBlocks(body, p.hostedOwner() != "" || p.pres.HackAssets)
+	body = hostedBlocks(p.productInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
+	body = hasHackBlocks(body, p.hostedOwner() != "" || p.pres.ProductAssets)
 	if p.hostedOwner() == "" {
 		body = p.selfHostedChromeRewrite(body)
 	}
@@ -60,12 +61,12 @@ func (p *assetPipeline) buildDocsCache() {
 	p.docs.scripts = make(map[string][]byte)
 	p.docs.md = make(map[string][]byte)
 	d := p.chromeDataFor(&http.Request{URL: &url.URL{Path: "/docs/"}}, "")
-	p.docs.err = fs.WalkDir(webassets.DocsTree(p.pres.HackAssets), ".", func(name string, entry fs.DirEntry, err error) error {
+	p.docs.err = fs.WalkDir(p.docsTree(), ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
 		}
 		if strings.HasSuffix(name, ".md") {
-			body, err := fs.ReadFile(webassets.DocsTree(p.pres.HackAssets), name)
+			body, err := fs.ReadFile(p.docsTree(), name)
 			if err != nil {
 				return err
 			}
@@ -81,7 +82,7 @@ func (p *assetPipeline) buildDocsCache() {
 		if !strings.HasSuffix(name, ".html") {
 			return nil
 		}
-		body, err := fs.ReadFile(webassets.DocsTree(p.pres.HackAssets), name)
+		body, err := fs.ReadFile(p.docsTree(), name)
 		if err != nil {
 			return err
 		}
@@ -145,10 +146,10 @@ func (p *assetPipeline) serveDocs(w http.ResponseWriter, r *http.Request) {
 	body, ok := p.docs.scripts[name]
 	if !ok {
 		var err error
-		body, err = fs.ReadFile(webassets.DocsTree(p.pres.HackAssets), name)
+		body, err = fs.ReadFile(p.docsTree(), name)
 		if err != nil {
 			// Canonical directory URLs, without exposing directory listings.
-			if _, err := fs.Stat(webassets.DocsTree(p.pres.HackAssets), name+"/index.html"); err == nil {
+			if _, err := fs.Stat(p.docsTree(), name+"/index.html"); err == nil {
 				target := r.URL.Path + "/"
 				if r.URL.RawQuery != "" {
 					target += "?" + r.URL.RawQuery
@@ -167,4 +168,28 @@ func (p *assetPipeline) serveDocs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	http.ServeContent(w, r, path.Base(name), time.Time{}, bytes.NewReader(body))
+}
+
+// docsSiteRoot is the Replace name for a product's docs tree. It names a
+// tree, not a static file: docsTree is its only reader.
+const docsSiteRoot = "docs-site"
+
+func (p *assetPipeline) docsTree() fs.FS {
+	if root, ok := p.product.replace[docsSiteRoot]; ok {
+		tree, _ := fs.Sub(p.product.files, root)
+		return tree
+	}
+	return webassets.DocsTree()
+}
+
+func docsPaths(tree fs.FS) []string {
+	var paths []string
+	_ = fs.WalkDir(tree, ".", func(name string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && (name == "index.html" || strings.HasSuffix(name, "/index.html")) {
+			paths = append(paths, "/docs/"+strings.TrimSuffix(name, "index.html"))
+		}
+		return err
+	})
+	sort.Strings(paths)
+	return paths
 }

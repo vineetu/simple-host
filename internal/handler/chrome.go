@@ -56,14 +56,6 @@ var (
 		"hostedStart": func() template.HTML { return template.HTML("<!--sh:hosted-->") },
 		"hostedEnd":   func() template.HTML { return template.HTML("<!--/sh:hosted-->") },
 	}).ParseFS(staticFiles, "static/partials/*.html"))
-	hackInkVersion = func() string {
-		b, err := staticFiles.ReadFile("static/hack-ink.css")
-		if err != nil {
-			panic(err)
-		}
-		sum := sha256.Sum256(b)
-		return hex.EncodeToString(sum[:])[:10]
-	}()
 	hostInkVersion = func() string {
 		b, err := staticFiles.ReadFile("static/host-ink.css")
 		if err != nil {
@@ -109,6 +101,7 @@ func SigninJSVersion() string {
 // ChromeData is everything the partials vary on. Every field is drawn from a
 // small fixed set, so it is also a safe cache key.
 type ChromeData struct {
+	ProductStyleVersion string
 	// Base prefixes every chrome link. Empty on the main origin; the main
 	// site's absolute URL when the page is served from the content host or a
 	// custom domain, where "/install.html" would resolve to the wrong server.
@@ -117,7 +110,7 @@ type ChromeData struct {
 	// page is not in the nav (a showcase, a 404).
 	Current string
 	// Hack is the simple-hack.app chrome (the pipeline's chromeHack, fixed at
-	// construction from the edition's Presentation().HackAssets); false
+	// construction from the edition's Presentation().ProductAssets); false
 	// leaves the header and footer as they are.
 	Hack       bool
 	CSSVersion string
@@ -144,7 +137,7 @@ func (p *assetPipeline) hostedOwner() string {
 		}
 		return ""
 	}
-	if !p.pres.HackAssets && instanceIsHostedService {
+	if !p.pres.ProductAssets && instanceIsHostedService {
 		return "Simple Host"
 	}
 	return ""
@@ -180,13 +173,14 @@ func (p *assetPipeline) chromeDataFor(r *http.Request, base string) ChromeData {
 		current = "docs"
 	}
 	return ChromeData{
-		Base:          base,
-		Current:       current,
-		Hack:          p.chromeHack,
-		CSSVersion:    siteCSSVersion,
-		SigninVersion: SigninJSVersion(),
-		Owner:         p.hostedOwner(),
-		PrivacyURL:    p.limits.PrivacyURL,
+		ProductStyleVersion: p.productStyleVersion(),
+		Base:                base,
+		Current:             current,
+		Hack:                p.chromeHack,
+		CSSVersion:          siteCSSVersion,
+		SigninVersion:       SigninJSVersion(),
+		Owner:               p.hostedOwner(),
+		PrivacyURL:          p.limits.PrivacyURL,
 	}
 }
 
@@ -272,7 +266,7 @@ func withChrome(page []byte, d ChromeData) ([]byte, error) {
 		page = bytes.Replace(page, []byte("</head>"), append(tag, []byte("</head>")...), 1)
 	}
 	if d.Hack {
-		page = addHackInk(page, d.Base)
+		page = addHackInk(page, d.Base, d.ProductStyleVersion)
 	} else if hasHead {
 		page = addHostInk(page, d.Base)
 	}
@@ -294,11 +288,11 @@ func addHostInk(page []byte, base string) []byte {
 }
 
 // Add the hosted-only theme after a page's layout CSS. Simple Host never loads it.
-func addHackInk(page []byte, base string) []byte {
+func addHackInk(page []byte, base, version string) []byte {
 	if bytes.Contains(page, []byte("/hack-ink.css?v=")) {
 		return page
 	}
-	tag := []byte(`<link rel="stylesheet" href="` + template.HTMLEscapeString(base) + `/hack-ink.css?v=` + hackInkVersion + `"><script>document.documentElement.classList.add('sh-hack');</script>`)
+	tag := []byte(`<link rel="stylesheet" href="` + template.HTMLEscapeString(base) + `/hack-ink.css?v=` + version + `"><script>document.documentElement.classList.add('sh-hack');</script>`)
 	if bytes.Contains(page, []byte("</head>")) {
 		return bytes.Replace(page, []byte("</head>"), append(tag, []byte("</head>")...), 1)
 	}
@@ -308,7 +302,7 @@ func addHackInk(page []byte, base string) []byte {
 // Go-built status pages were themed at package init, before hosted mode is known.
 func (p *assetPipeline) hostedStatusPage(page string) []byte {
 	if p.chromeHack {
-		d := ChromeData{Hack: true, Base: p.inkBaseURL(), CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
+		d := ChromeData{Hack: true, ProductStyleVersion: p.productStyleVersion(), Base: p.inkBaseURL(), CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
 			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
 		} else {
@@ -321,9 +315,9 @@ func (p *assetPipeline) hostedStatusPage(page string) []byte {
 		page = strings.Replace(page, "</body>", "</main>"+markerFooter+"</body>", 1)
 		out, err := withChrome([]byte(page), d)
 		if err == nil {
-			return p.HackInstanceText(out)
+			return p.productInstanceText(out)
 		}
-		return addHackInk([]byte(page), p.inkBaseURL())
+		return addHackInk([]byte(page), p.inkBaseURL(), p.productStyleVersion())
 	}
 	if strings.Contains(page, "</head>") && !strings.Contains(page, `name="viewport"`) {
 		page = strings.Replace(page, "</head>", `<meta name="viewport" content="width=device-width,initial-scale=1"></head>`, 1)
@@ -360,8 +354,8 @@ var chromeCache sync.Map
 // this install's limits in its copy (limitstext.go). The enterprise-* pages
 // describe the other product, whose limits are its own, so they keep theirs.
 func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
-	page, err := chromePageRaw(name, d)
-	if err == nil && name == "enterprise.html" && p.pres.HackAssets {
+	page, err := p.chromePageRaw(name, d)
+	if err == nil && name == "enterprise.html" && p.pres.ProductAssets {
 		// Simple Hack serves /hackathons itself, so its copy of this shared
 		// page links to this install's own address (simple-hack.app only on
 		// simple-hack.app itself); Simple Host, which no longer has the
@@ -375,11 +369,13 @@ func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
 }
 
 func (p *assetPipeline) presentChromePage(name string, page []byte) []byte {
-	if p.pres.HackAssets {
-		page = hackPersonalPresentationHTML(name, page)
+	if p.pres.ProductAssets {
+		if hook := p.product.hooks.PersonalPresentationHTML; hook != nil {
+			page = hook(name, page)
+		}
 	}
-	page = hostedBlocks(p.HackInstanceText(p.limitsText.apply(page)), p.hostedOwner() != "")
-	page = hasHackBlocks(page, p.hostedOwner() != "" || p.pres.HackAssets)
+	page = hostedBlocks(p.productInstanceText(p.limitsText.apply(page)), p.hostedOwner() != "")
+	page = hasHackBlocks(page, p.hostedOwner() != "" || p.pres.ProductAssets)
 	if p.hostedOwner() == "" {
 		page = p.selfHostedChromeRewrite(page)
 	}
@@ -575,12 +571,14 @@ func stripMarkedBlocks(page []byte, keepName, dropName string) []byte {
 	return bytes.ReplaceAll(page, []byte("<!--/sh:"+keepName+"-->"), nil)
 }
 
-func chromePageRaw(name string, d ChromeData) ([]byte, error) {
+// The cache key carries no product identity: it assumes one product's files
+// per process (ChromeData.Hack and ProductStyleVersion separate the editions).
+func (p *assetPipeline) chromePageRaw(name string, d ChromeData) ([]byte, error) {
 	key := chromeCacheKey{name, d}
 	if v, ok := chromeCache.Load(key); ok {
 		return v.([]byte), nil
 	}
-	raw, err := staticFiles.ReadFile("static/" + name)
+	raw, err := p.staticFS().ReadFile("static/" + name)
 	if err != nil {
 		return nil, err
 	}
@@ -591,7 +589,9 @@ func chromePageRaw(name string, d ChromeData) ([]byte, error) {
 		raw = bytes.Replace(raw, []byte(`<p class="lede">Answer a few questions and get what to run: the install command and settings for a small box, or the configuration for Simple Host Enterprise on Kubernetes. Anything you skip keeps its default.</p>`), []byte(`<p class="lede">Answer a few questions and get the steps to set up Simple Hack on your own server.</p>`), 1)
 	}
 	if name == "hack-get-started.html" {
-		raw = expandConnectSteps(raw)
+		if hook := p.product.hooks.ExpandConnectSteps; hook != nil {
+			raw = hook(raw)
+		}
 	}
 	page, err := withChrome(raw, d)
 	if err != nil {

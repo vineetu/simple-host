@@ -14,7 +14,7 @@ const AssistantDocsTextCapBytes = 16 * 1024
 
 // AssistantDocPages are the Hack docs pages the assistant knows about
 // (api-contract.md). Path is relative to the docs filesystem passed to
-// AssistantDocsText (webassets.DocsTree(true) in production); URL is the
+// AssistantDocsText (the product's docs-site/hack tree in production); URL is the
 // public /docs/... address included in the prompt's DOCS section.
 var AssistantDocPages = []struct{ Path, URL string }{
 	{"start/index.html", "/docs/start/"},
@@ -28,7 +28,7 @@ var AssistantDocPages = []struct{ Path, URL string }{
 // the one place this HTML-to-text extraction lives: cmd/server calls it to
 // build the real server's prompt (internal/app/hack/events may not import
 // internal/webassets -- scripts/layering/rules.txt -- so cmd/server passes
-// webassets.DocsTree(true) in), and internal/hackhttp's own eval test
+// the product's docs-site/hack tree in), and internal/hackhttp's own eval test
 // (assistant_eval_test.go) calls it too, so the eval runs against the
 // exact production prompt instead of a second, maybe-drifted copy of this
 // extraction.

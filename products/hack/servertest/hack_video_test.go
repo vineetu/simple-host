@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
@@ -32,7 +32,7 @@ func TestHackAppCSP(t *testing.T) {
 		return ""
 	}
 	mux := http.NewServeMux()
-	hackhttp.RegisterHackUI(mux, handler.NewPages(nil, ""), "Simple-Hack.app.")
+	hackhttp.RegisterHackUI(mux, chromeTestHandler(edition.Hack).Pages(), "Simple-Hack.app.")
 	want := "frame-src 'self' blob: https://*.simple-hack.app https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com https://drive.google.com"
 	judge := cspOf(mux, "/e/demo/judge")
 	if got := frameSrc(judge); got != want {
@@ -49,7 +49,7 @@ func TestHackAppCSP(t *testing.T) {
 	// No per-site hosts, or a base that is not a plain DNS name: no wildcard.
 	for _, base := range []string{"", "localhost", "a b.test", "x.test; script-src *", "*.test"} {
 		m := http.NewServeMux()
-		hackhttp.RegisterHackUI(m, handler.NewPages(nil, ""), base)
+		hackhttp.RegisterHackUI(m, chromeTestHandler(edition.Hack).Pages(), base)
 		if got := frameSrc(cspOf(m, "/e/demo/judge")); got != "frame-src 'self' blob: https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com https://drive.google.com" {
 			t.Errorf("base %q: frame-src = %q", base, got)
 		}

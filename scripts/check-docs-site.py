@@ -52,7 +52,7 @@ def expected_markers(brand):
 def problems_markers():
     errors = []
     for brand in BRANDS:
-        tree = OUTPUT / brand
+        tree = docs_site.output_tree(brand)
         if not tree.is_dir():
             errors.append(f'{brand}: no built tree, run scripts/build-docs-site.sh')
             continue
@@ -111,7 +111,7 @@ def split_href(href):
 
 def check_docs_link(brand, path, frag, cache):
     """path is the /docs/... part (no leading /docs), already brand-relative."""
-    tree = OUTPUT / brand
+    tree = docs_site.output_tree(brand)
     key = (brand, path)
     if key not in cache:
         cache[key] = resolve_docs_path(tree, path)
@@ -142,7 +142,7 @@ def problems_links():
     errors = []
     cache = {}
     for brand in BRANDS:
-        tree = OUTPUT / brand
+        tree = docs_site.output_tree(brand)
         if not tree.is_dir():
             continue
         for page in sorted(tree.rglob('*.html')):
@@ -187,7 +187,7 @@ def problems_links():
 
     per_brand_docs = {
         'host': [ROOT / 'internal/webassets/static/llms.txt'],
-        'hack': [ROOT / 'internal/webassets/static/hack-llms.txt'],
+        'hack': [ROOT / 'products/hack/webassets/static/hack-llms.txt'],
     }
     for brand in BRANDS:
         for doc in per_brand_docs.get(brand, []):
@@ -229,7 +229,7 @@ def problems_limitstext():
     phrases = limits_phrases()
     mdx_files = sorted((SOURCE / 'src/content/docs').rglob('*.mdx'))
     for brand in BRANDS:
-        tree = OUTPUT / brand
+        tree = docs_site.output_tree(brand)
         if not tree.is_dir():
             continue
         built = '\n'.join(p.read_text() for p in tree.rglob('*.html'))

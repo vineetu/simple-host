@@ -25,7 +25,7 @@ func chromeTestHandler(kind edition.Kind) *SiteHandler {
 // chromeTestHandlerFor is chromeTestHandler for an explicit edition (e.g.
 // edition.ForKindWithLimits with an override).
 func chromeTestHandlerFor(ed *edition.Edition) *SiteHandler {
-	return &SiteHandler{ed: ed, limitSet: newLimitSet(ed.Limits()), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	return &SiteHandler{ed: ed, assets: testAssetPipeline(ed, ""), limitSet: newLimitSet(ed.Limits()), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 }
 
 func chromeTestMux(t *testing.T, kind edition.Kind) *http.ServeMux {
@@ -303,72 +303,6 @@ func TestChromeOnRewrittenInstallPage(t *testing.T) {
 	}
 }
 
-// TestHackAppShellCarriesInstallContact covers the Hack SPA shell
-// (hack/app.html, mounted through RenderAppShell, not chromePage): its
-// data-support-contact attribute is what shell.js's Help menu reads instead
-// of a literal mailto: (finding 4 -- the HTML rewrite otherwise never
-// reaches a static JS file). On the real hosted simple-hack.app it must
-// stay the literal default; on a self-hosted instance it must carry that
-// install's own contact, the same as every other chromed page.
-func TestHackAppShellCarriesInstallContact(t *testing.T) {
-	prevContact := auth.SupportContact
-	t.Cleanup(func() { auth.SupportContact = prevContact })
-
-	appHTML, err := staticFiles.ReadFile("static/hack/app.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(appHTML), `data-support-contact="support@simple-host.app"`) {
-		t.Fatal("hack/app.html lost its default data-support-contact attribute")
-	}
-
-	t.Run("hosted", func(t *testing.T) {
-		auth.SupportContact = "support@simple-host.app"
-		sh := chromeTestHandler(edition.Hack) // defaults to canonicalHackBaseURL: hostedOwner() == "Simple Hack"
-		req := httptest.NewRequest(http.MethodGet, "/account", nil)
-		page, err := sh.Pages().RenderAppShell(req, appHTML, false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(string(page), `data-support-contact="support@simple-host.app"`) {
-			t.Error("hosted app shell must keep the literal default byte-for-byte")
-		}
-	})
-
-	t.Run("self-hosted", func(t *testing.T) {
-		auth.SupportContact = "ops@example.org"
-		sh := chromeTestHandler(edition.Hack)
-		sh.RebasePagesForTest("https://hack.example.test")
-		req := httptest.NewRequest(http.MethodGet, "/account", nil)
-		page, err := sh.Pages().RenderAppShell(req, appHTML, false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		body := string(page)
-		if strings.Contains(body, "support@simple-host.app") {
-			t.Error("self-hosted app shell still names the hosted support address")
-		}
-		if !strings.Contains(body, `data-support-contact="ops@example.org"`) {
-			t.Errorf("self-hosted app shell does not carry the configured contact: %s", body)
-		}
-	})
-}
-
-// hackTestHandler is a self-hosted Hack-edition *SiteHandler whose asset
-// pipeline is rebased off the canonical https://simple-hack.app address, the
-// same way RebasePagesForTest lets a real self-hosted Hack instance (EVENTS=
-// hosted, SITE_DOMAIN=<its own domain>) differ from the real hosted service:
-// hostedOwner() == "" here, where chromeTestHandler(edition.Hack) alone
-// would still read as the real hosted simple-hack.app (inkBaseURL defaults
-// to canonicalHackBaseURL).
-func hackTestHandler(t *testing.T, domain string) *SiteHandler {
-	t.Helper()
-	ed := edition.ForKind(edition.Hack)
-	sh := &SiteHandler{ed: ed, limitSet: newLimitSet(ed.Limits()), siteDomain: domain, contentHost: "sites." + domain}
-	sh.RebasePagesForTest("https://" + domain)
-	return sh
-}
-
 // assertNoHostedDomain fails label if body names either real hosted service,
 // case-insensitively (a hosted-domain hit the self-host audit's end-to-end
 // script also checks for, scripts/../shots/selfhost-e2e.mjs).
@@ -469,62 +403,6 @@ func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertNoHostedDomain(t, "index.html (landing)", string(page))
-	})
-
-	t.Run("self-hosted Hack", func(t *testing.T) {
-		sh := hackTestHandler(t, "hack.example.test")
-		SetInstanceHosts("hack.example.test", "", "")
-		defer SetInstanceHosts("simple-host.app", "", "")
-		mux := http.NewServeMux()
-		RegisterUIRoutes(mux, "https://hack.example.test", sh)
-		for _, p := range []string{
-			"/support", "/privacy.html", "/terms", "/docs/", "/features",
-			"/pricing", "/report", "/architecture.html", "/llms.txt",
-			// features.json and openapi.json used to be checked only with
-			// assertNoSupportOrOwnershipLeak (and openapi.json not at all):
-			// the Hack branch of serveRewrittenAsset never ran the generic
-			// simple-host.app -> siteDomain rewrite (rw.apply) that the
-			// Host branch already had, so a self-hosted Hack install's
-			// shared, cross-cutting Host-level prose (handles, sites,
-			// sign-in, the API) kept naming simple-host.app verbatim.
-			// Fixed (instancehost.go); both now get the full check, same
-			// as every other asset here.
-			"/features.json", "/openapi.json",
-		} {
-			assertNoHostedDomain(t, p, get(t, mux, "hack.example.test", p).Body.String())
-		}
-		rec := httptest.NewRecorder()
-		sh.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
-		assertNoHostedDomain(t, "404", rec.Body.String())
-
-		// hack-get-started.html and connect.html are registered by
-		// internal/hackhttp and ConnectorHandler, not RegisterUIRoutes;
-		// rendered directly through the same chromePage pipeline instead.
-		for _, name := range []string{"hack-get-started.html", "connect.html"} {
-			req := httptest.NewRequest(http.MethodGet, "/x", nil)
-			req.Host = "hack.example.test"
-			page, err := sh.Pages().chromePage(name, sh.Pages().chromeDataFor(req, ""))
-			if err != nil {
-				t.Fatalf("%s: %v", name, err)
-			}
-			assertNoHostedDomain(t, name, string(page))
-		}
-
-		// The Hack SPA shell (hack/app.html via RenderAppShell) and its
-		// sign-in variant.
-		appHTML, err := staticFiles.ReadFile("static/hack/app.html")
-		if err != nil {
-			t.Fatal(err)
-		}
-		req := httptest.NewRequest(http.MethodGet, "/account", nil)
-		req.Host = "hack.example.test"
-		for _, signin := range []bool{false, true} {
-			page, err := sh.Pages().RenderAppShell(req, appHTML, signin)
-			if err != nil {
-				t.Fatal(err)
-			}
-			assertNoHostedDomain(t, "hack/app.html", string(page))
-		}
 	})
 }
 
@@ -686,7 +564,7 @@ func TestSetupPageHasNoChrome(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	newAssetPipeline(edition.ForKind(edition.Host), "").serveStaticPage("setup.html").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	testAssetPipeline(edition.ForKind(edition.Host), "").serveStaticPage("setup.html").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	body := rec.Body.String()
 	if strings.Contains(body, `class="sh-header"`) || strings.Contains(body, `class="sh-footer"`) || strings.Contains(body, "site.css") {
 		t.Error("setup.html gained chrome")
@@ -797,15 +675,12 @@ func TestAbsentPostEndpoint(t *testing.T) {
 // Each product serves its own icon at the same addresses: teal dot for
 // Simple Host, red dot for Simple Hack.
 func TestProductIconPerMode(t *testing.T) {
+	// A product's own icons are tested with the product (products/hack/servertest).
 	for _, mode := range []struct {
 		hack bool
 		dot  string
-	}{{false, "#157e8a"}, {true, "#d15d48"}} {
-		kind := edition.Host
-		if mode.hack {
-			kind = edition.Hack
-		}
-		mux := chromeTestMux(t, kind)
+	}{{false, "#157e8a"}} {
+		mux := chromeTestMux(t, edition.Host)
 		rec := get(t, mux, "", "/favicon.svg?v=c")
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), mode.dot) || !strings.HasPrefix(rec.Header().Get("Content-Type"), "image/svg+xml") {
 			t.Fatalf("hack=%v favicon.svg: %d %q %q", mode.hack, rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
@@ -854,7 +729,7 @@ func TestEnterpriseHackathonsLinkPerProduct(t *testing.T) {
 		{edition.Hack, "", `href="https://simple-hack.app/hackathons"`, `href="/hackathons"`},
 		{edition.Hack, "https://hack.example.org", `href="https://hack.example.org/hackathons"`, `simple-hack.app/hackathons`},
 	} {
-		page, err := newAssetPipeline(edition.ForKind(tc.kind), tc.base).chromePage("enterprise.html", ChromeData{})
+		page, err := testAssetPipeline(edition.ForKind(tc.kind), tc.base).chromePage("enterprise.html", ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

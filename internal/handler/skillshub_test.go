@@ -14,7 +14,7 @@ import (
 
 func TestSkillsBundleExcludesControlPlaneSkills(t *testing.T) {
 	// The Simple Host bundle contains only its three website skills.
-	data, err := newAssetPipeline(edition.ForKind(edition.Host), "").buildSkillsZip()
+	data, err := testAssetPipeline(edition.ForKind(edition.Host), "").buildSkillsZip()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestSkillsBundleExcludesControlPlaneSkills(t *testing.T) {
 
 func TestHostSkillsExcludeHackathonGuides(t *testing.T) {
 	mux := http.NewServeMux()
-	newAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
+	testAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
 	get := func(path string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
@@ -96,7 +96,7 @@ func TestHostSkillsExcludeHackathonGuides(t *testing.T) {
 
 func TestHostMissingSkillResponses(t *testing.T) {
 	mux := http.NewServeMux()
-	newAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
+	testAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
 	for _, tc := range []struct {
 		path    string
 		message string

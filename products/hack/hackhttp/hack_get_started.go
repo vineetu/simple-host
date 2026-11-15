@@ -7,18 +7,15 @@ import (
 	"github.com/vsriram/simple-host/internal/webassets"
 )
 
-// RegisterHackGetStarted is mounted only when EVENTS=hosted. Takes the
-// hackPages interface, not *SiteHandler (cleanup 3.2 slice 2a): this only
-// ever called sh.pipeline(). hostedHackSkill, BuildHackSkillsZip,
-// ServeHackSkillsZip and RewriteHackPluginZip moved to hack_assets.go
-// (staying): ui.go (staying) also calls them, and BuildHackSkillsZip and
-// RewriteHackPluginZip are *assetPipeline methods, which must live in
-// handler regardless of who calls them.
-func RegisterHackGetStarted(mux *http.ServeMux, pages hackPages) {
+// RegisterHackGetStarted mounts Hack onboarding and the preserved toolkit URLs.
+// product is the one Assets of this install (Extension.Assets): it owns the
+// skill bundle, built once and shared with /skills.zip, and the
+// instance-specific archive rewriting.
+func RegisterHackGetStarted(mux *http.ServeMux, pages hackPages, product *Assets) {
 	assets := pages
+	mux.HandleFunc("GET /hack-skills.zip", product.ServeHackSkillsZip())
 	mux.Handle("GET /get-started", assets.AdminUICSP(assets.ServeStaticPage("hack-get-started.html")))
 	mux.Handle("GET /skills", http.RedirectHandler("/get-started", http.StatusMovedPermanently))
-	mux.HandleFunc("GET /hack-skills.zip", assets.ServeHackSkillsZip())
 	for _, version := range []string{"0.2.0", "0.2.1", "0.2.2", "0.2.3", "0.2.4", "0.2.5"} {
 		mux.HandleFunc("GET /simple-hack-skills-only-"+version+".zip", func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "this older download was withdrawn", http.StatusGone)
@@ -32,7 +29,7 @@ func RegisterHackGetStarted(mux *http.ServeMux, pages hackPages) {
 				return
 			}
 			if !assets.IsCanonicalInstance() {
-				data, err = assets.RewriteHackPluginZip(data)
+				data, err = product.RewriteHackPluginZip(data)
 				if err != nil {
 					http.Error(w, "Could not prepare the download", 500)
 					return

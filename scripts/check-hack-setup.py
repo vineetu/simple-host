@@ -21,7 +21,7 @@ def main():
         if not ok:
             failures.append(message)
 
-    data = json.loads((ROOT / 'internal/webassets/static/setup/simple-hack.json').read_text())
+    data = json.loads((ROOT / 'products/hack/webassets/static/setup/simple-hack.json').read_text())
     compose = (ROOT / 'deploy/hack/standalone/compose.yaml').read_text()
     installer = (ROOT / 'deploy/hack/standalone/install.sh').read_text()
     compose_pin = re.search(r'simple-hack:(\d+\.\d+\.\d+)', compose)
@@ -57,7 +57,7 @@ def main():
     check(domain in docs and '*.' + domain in docs,
           f'{docs_path.relative_to(ROOT)} must name {domain} and *.{domain}')
 
-    js = (ROOT / 'internal/webassets/static/setup/setup.js').read_text()
+    js = (ROOT / 'products/hack/webassets/static/setup/setup-hack.js').read_text()
     example = (ROOT / 'deploy/hack/standalone/.env.example').read_text()
     environment = re.search(r'^  environment: &environment\n(.*?)(?=^\S)', compose, re.M | re.S)
     for key in SETTINGS:

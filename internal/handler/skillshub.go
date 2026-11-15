@@ -13,8 +13,8 @@ import (
 // servedSkillFS keeps Simple Host's maintained skill bundle intact while Simple Hack
 // serves the reviewed connector-only snapshot bundled with its toolkit.
 func (p *assetPipeline) servedSkillFS() webassets.Files {
-	if p.pres.HackAssets {
-		return webassets.HackSkills
+	if p.product.skills != nil {
+		return assetFiles{p.product.skills}
 	}
 	return webassets.Host
 }
@@ -43,8 +43,8 @@ type skillsCatalog struct {
 }
 
 func (p *assetPipeline) skillAvailable(name string) bool {
-	if p.pres.HackAssets {
-		return hostedHackSkill(name)
+	if hook := p.product.hooks.SkillAvailable; hook != nil {
+		return hook(name)
 	}
 	return name != "join-hackathon" && name != "judge-hackathon" && name != "run-hackathon"
 }
@@ -163,7 +163,7 @@ func validSkillName(s string) bool {
 
 func (p *assetPipeline) serveSkillsCatalog(publicBaseURL string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
-	hackAssets := p.pres.HackAssets
+	hackAssets := p.pres.ProductAssets
 	return func(w http.ResponseWriter, r *http.Request) {
 		version, _ := PluginVersion(hackAssets)
 		skills := p.listBundledSkills()
@@ -207,8 +207,8 @@ func (p *assetPipeline) serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 // /skills/<name>/SKILL.md do, except for a control-plane skill, which states
 // the public instance's (see copyRewritten). path is relative to skills/.
 func (p *assetPipeline) skillServedText(path string, data []byte) []byte {
-	if p.pres.HackAssets {
-		return p.HackInstanceText(p.limitsText.apply(data))
+	if p.pres.ProductAssets {
+		return p.productInstanceText(p.limitsText.apply(data))
 	}
 	if controlPlaneSkill(path) {
 		return data

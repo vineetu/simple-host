@@ -12,7 +12,7 @@ import (
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // Opt-in server for scripts/e2e-hack-forms.mjs, using real editable event APIs.

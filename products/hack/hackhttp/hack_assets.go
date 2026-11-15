@@ -1,9 +1,10 @@
-package handler
+package hackhttp
 
 import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"html"
 	"io"
 	"io/fs"
@@ -13,33 +14,60 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/webassets"
+	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
-// Site-side asset/text code for the Hack edition. Stays in internal/handler
-// (cleanup 3.2 slice 2a): every function and method here is either a method
-// on *assetPipeline (assets.go's type, which must stay in this package
-// until it moves to the proposed internal/webassets per
-// docs/architecture/target.md §2) or a free function staying files
-// (authmd.go, chrome.go, discovery.go, instancehost.go, skillshub.go,
-// ui.go) call directly. Moving Hack code (internal/hackhttp, once the real
-// `git mv` happens) reaches the exported methods through the hackPages
-// interface (hack.go); nothing here is duplicated, only relocated from
-// hack_instance.go, hack_get_started.go, hack_connect_steps.go and
-// hack_docs.go, which either move verbatim or shrink to their
-// registrar/business-logic remainder.
+// Assets owns Hack's text rewriting and download caches.
+type Assets struct {
+	services      handler.AssetServices
+	inkBase       string
+	hackSkillsZip struct {
+		once  sync.Once
+		bytes []byte
+		err   error
+	}
+}
+
+func NewAssets(services handler.AssetServices, inkBase string) *Assets {
+	if inkBase == "" {
+		inkBase = "https://simple-hack.app"
+	}
+	// The setup script is assembled from the platform's file. Check the
+	// anchors now, so a drifted platform file stops the install at start
+	// rather than panicking on a visitor's request.
+	product, err := hackassets.Static.ReadFile("static/setup/setup-hack.js")
+	if err != nil {
+		panic("setup-hack.js: the product file is missing")
+	}
+	shared, ok := services.Static("setup/setup.js")
+	if !ok {
+		panic("setup.js: the platform file is missing")
+	}
+	if _, err := buildSetupJS(shared, product); err != nil {
+		panic(err.Error())
+	}
+	return &Assets{services: services, inkBase: strings.TrimRight(inkBase, "/")}
+}
+func (p *Assets) inkBaseURL() string { return p.inkBase }
+
+func (p *Assets) Hooks() handler.ProductAssetHooks {
+	return handler.ProductAssetHooks{
+		InstanceText: p.HackInstanceText, RewritePluginZip: p.RewriteHackPluginZip,
+		SkillAvailable: hostedHackSkill, ExpandConnectSteps: expandConnectSteps,
+		PersonalPresentationHTML: hackPersonalPresentationHTML, OpenAPISpec: hackOpenAPISpec,
+	}
+}
 
 // HackInstanceText rewrites simple-hack.app's own address to this Hack
 // instance's, in served Hack text. Full Hack instances serve the same UI
 // and skills, with their own connector and event addresses. Simple Host's
 // hosted-product and control-plane links keep their existing meaning.
-//
-// Moved verbatim from hack_instance.go (cleanup 3.2 slice 2a) and exported:
-// a method with an *assetPipeline receiver must live in this package, and
-// moving code (hack_get_started.go) reaches it through hackPages.
-func (p *assetPipeline) HackInstanceText(data []byte) []byte {
-	if !p.pres.HackAssets || p.inkBaseURL() == canonicalHackBaseURL {
+func (p *Assets) HackInstanceText(data []byte) []byte {
+	if p.inkBaseURL() == "https://simple-hack.app" {
 		return data
 	}
 	u, err := url.Parse(p.inkBaseURL())
@@ -50,13 +78,10 @@ func (p *assetPipeline) HackInstanceText(data []byte) []byte {
 }
 
 // HackSkillNames are the five Simple Hack skills bundled in the hosted zip.
-// Moved verbatim from hack_get_started.go: skillshub.go's hostedHackSkill
-// (staying) needs it, and BuildHackSkillsZip below (a *assetPipeline
-// method) must live in this package regardless.
 var HackSkillNames = []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}
 
 // hostedHackSkill reports whether name is one of the five bundled Hack
-// skills. Moved verbatim from hack_get_started.go: skillshub.go calls it.
+// skills. The platform skills hub reaches it through ProductAssetHooks.
 func hostedHackSkill(name string) bool {
 	for _, skill := range HackSkillNames {
 		if name == skill {
@@ -67,9 +92,8 @@ func hostedHackSkill(name string) bool {
 }
 
 // BuildHackSkillsZip is the hosted bundle's five Simple Hack skills from the
-// canonical embed, built once and cached. Moved verbatim from
-// hack_get_started.go (a *assetPipeline method must live in this package).
-func (p *assetPipeline) BuildHackSkillsZip() ([]byte, error) {
+// canonical embed, built once and cached by this product receiver.
+func (p *Assets) BuildHackSkillsZip() ([]byte, error) {
 	z := &p.hackSkillsZip
 	z.once.Do(func() {
 		var buf bytes.Buffer
@@ -92,7 +116,11 @@ func (p *assetPipeline) BuildHackSkillsZip() ([]byte, error) {
 				if err != nil {
 					return err
 				}
-				_, err = dst.Write(p.skillServedText(name+"/"+path, data))
+				// services.InstanceText is the platform's limits pass plus its
+				// old base-domain swap (simple-host.site). No Hack skill names
+				// that domain (TestHackSkillsNameNoOldBaseDomain), so the bytes
+				// are those of the limits pass alone, as before the move.
+				_, err = dst.Write(p.HackInstanceText(p.services.InstanceText(data)))
 				return err
 			})
 			if err != nil {
@@ -110,32 +138,14 @@ func (p *assetPipeline) BuildHackSkillsZip() ([]byte, error) {
 	return z.bytes, z.err
 }
 
-// ServeHackSkillsZip serves BuildHackSkillsZip at /hack-skills.zip.
-//
-// Exported, a method rather than a free function taking *assetPipeline
-// (cleanup 3.2 slice 2a): moved verbatim from hack_get_started.go (ui.go,
-// staying, also calls this; RegisterHackGetStarted, moving, reaches it
-// through hackPages).
-func (p *assetPipeline) ServeHackSkillsZip() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		data, err := p.BuildHackSkillsZip()
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills.zip"`)
-		http.ServeContent(w, r, "simple-hack-skills.zip", skillsModTime, bytes.NewReader(data))
-	}
+// ServeHackSkillsZip serves the product bundle through the generic cache mechanics.
+func (p *Assets) ServeHackSkillsZip() http.HandlerFunc {
+	return p.services.ServeCachedZip(p.BuildHackSkillsZip, "simple-hack-skills.zip")
 }
 
 // RewriteHackPluginZip keeps binary assets intact and rewrites only our
-// text (.md/.yaml/.json), for a self-hosted instance's own address.
-//
-// Exported, a method rather than a free function taking *assetPipeline
-// (cleanup 3.2 slice 2a): moved verbatim from hack_get_started.go, which
-// (moving) reaches it through hackPages.
-func (p *assetPipeline) RewriteHackPluginZip(data []byte) ([]byte, error) {
+// text (.md/.yaml/.json) for a self-hosted instance's own address.
+func (p *Assets) RewriteHackPluginZip(data []byte) ([]byte, error) {
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
@@ -179,8 +189,7 @@ func (p *assetPipeline) RewriteHackPluginZip(data []byte) ([]byte, error) {
 // in signin_hint. html, after and fallback are our own trusted markup,
 // never user input.
 //
-// Moved verbatim from hack_connect_steps.go (cleanup 3.2 slice 2a):
-// chrome.go (staying) calls expandConnectSteps.
+// The platform chrome pipeline reaches expansion through ProductAssetHooks.
 
 // ConnectCopy is an extra copyable value inside a step (a client id, an
 // install command).
@@ -251,7 +260,7 @@ var (
 // served copy (static file server) and this copy are the same bytes.
 func loadConnectSteps() (ConnectStepsDoc, error) {
 	connectStepsOnce.Do(func() {
-		raw, err := embeddedStatic.ReadFile("static/hack-connect-steps.json")
+		raw, err := hackassets.Static.ReadFile("static/hack-connect-steps.json")
 		if err != nil {
 			connectStepsErr = err
 			return
@@ -354,24 +363,11 @@ func expandConnectSteps(page []byte) []byte {
 	return page
 }
 
-// Moved verbatim from hack_docs.go (cleanup 3.2 slice 2a): ui.go,
-// chrome.go and instancehost.go (all staying) call these; none of it is
-// Hack-HTTP transport code, just shared OpenAPI-contract filtering and two
-// small HTML text patches.
-
 // hackOpenAPISpec derives the hosted Hack reference from the shared contract.
 // JSON is valid YAML 1.2; both spec URLs serve the same filtered document.
 func hackOpenAPISpec(source []byte) ([]byte, error) {
-	return publicOpenAPISpec(source, "public-hack")
+	return webassets.PublicOpenAPISpec(source, "public-hack")
 }
-
-// publicOpenAPISpec selects operations from the single contract by audience
-// (webassets.PublicOpenAPISpec, shared with the docs reference generator).
-func publicOpenAPISpec(source []byte, audience string) ([]byte, error) {
-	return webassets.PublicOpenAPISpec(source, audience)
-}
-
-func openAPIMethod(method string) bool { return webassets.OpenAPIMethod(method) }
 
 // hackPersonalPresentationHTML: shared help pages omit personal
 // presentation when served on Hack.
@@ -391,4 +387,117 @@ func hackPersonalPresentationHTML(name string, body []byte) []byte {
 		return bytes.ReplaceAll(body, []byte("showcase or selected home, with a live feed, bio, pins and order"), []byte("showcase"))
 	}
 	return body
+}
+
+// Hack serves the same visitor sign-in and new storage helper as Host, without
+// the retired state, collection and declared-data browser methods.
+func hackAuthJS(b []byte) []byte {
+	cut := func(src []byte, start, end string) []byte {
+		i, j := bytes.Index(src, []byte(start)), bytes.Index(src, []byte(end))
+		if i < 0 || j < i {
+			panic("auth.js legacy-storage boundary changed")
+		}
+		return append(append([]byte(nil), src[:i]...), src[j:]...)
+	}
+	end := bytes.Index(b, []byte("*/\n"))
+	if end < 0 {
+		panic("auth.js header changed")
+	}
+	b = append([]byte(`/* Simple Hack visitor sign-in and site storage.
+ * SH.mount(target), SH.email and SH.requireSignIn() handle a visitor's session.
+ * SH.storage.kv(), SH.storage.sqlite() and SH.storage.files() use each
+ * resource's read/write policy. Signed-in access covers a whole resource,
+ * not separate records per visitor. A resource may allow anonymous access.
+ * Owner-only resource setup happens through the Simple Hack connector.
+ */
+`), b[end+3:]...)
+	b = cut(b, "    state: {\n", "    storage: {\n")
+	b = cut(b, "    collection: function (name) {\n", "    mount: function (target) {\n")
+	// Visitor wording on Hack. The two lines stay exact in the embedded file.
+	oldBy := []byte(`var signInBy = "Sign-in by Simple Host";`)
+	oldProduct := []byte(`var signInProduct = "Simple Host";`)
+	if !bytes.Contains(b, oldBy) || !bytes.Contains(b, oldProduct) {
+		panic("auth.js visitor product line changed")
+	}
+	b = bytes.Replace(b, oldBy, []byte(`var signInBy = "Sign-in by Simple Hack";`), 1)
+	b = bytes.Replace(b, oldProduct, []byte(`var signInProduct = "Simple Hack";`), 1)
+	return b
+}
+
+// setupInsertions are the places where the platform's setup.js takes Simple
+// Hack's choice: each anchor appears exactly once in the platform file and is
+// replaced by the product's text. The last anchor, setupProductAnchor, takes
+// the whole of setup-hack.js.
+var setupInsertions = [][2]string{
+	{"// lists are generated from code.", "// lists are generated from code; Simple Hack steps live in simple-hack.json."},
+	{"var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json' };", "var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json', hack: '/setup/simple-hack.json' };"},
+	{"product: 'small',", "product: document.body.getAttribute('data-setup-product') === 'hack' ? 'hack' : 'small',"},
+	{"    /*sh:product-state*/\n", "      hack: { SITE_DOMAIN: '', SUPPORT_EMAIL: '', PRIVACY_URL: '', RESEND_API_KEY: '', MAIL_FROM: '', assistant: false, ASSISTANT_BASE_URL: '', ASSISTANT_MODEL: '', ASSISTANT_API_KEY: '' },\n"},
+	{"    /*sh:product-choice*/\n", "    else if (want === 'simple-hack') S.product = 'hack';\n"},
+	{"S.mode === 'advanced' /*sh:product-progress*/", "S.mode === 'advanced' && S.product !== 'hack'"},
+	{"    /*sh:product-render*/\n    [renderChoose, renderBasics, renderAdvanced, renderOutput][S.step]();", "    if (S.product === 'hack' && S.step === 1) renderHackBasics();\n    else if (S.product === 'hack' && S.step === 3) renderHackOutput();\n    else [renderChoose, renderBasics, renderAdvanced, renderOutput][S.step]();"},
+	{"    /*sh:product-mode*/ app.appendChild", "    if (S.product !== 'hack') app.appendChild"},
+}
+
+const setupProductAnchor = "  function productChoices(choices) { return choices; }\n  /*sh:product-setup*/\n\n"
+
+// buildSetupJS puts Simple Hack's choice into the platform's setup.js. An
+// anchor that is missing or repeated is an error: the page must never be
+// served with half of the choice.
+func buildSetupJS(shared, product []byte) ([]byte, error) {
+	once := func(anchor string, with []byte) error {
+		if n := bytes.Count(shared, []byte(anchor)); n != 1 {
+			return fmt.Errorf("setup.js: anchor %q appears %d times, want 1", anchor, n)
+		}
+		shared = bytes.Replace(shared, []byte(anchor), with, 1)
+		return nil
+	}
+	for _, in := range setupInsertions {
+		if err := once(in[0], []byte(in[1])); err != nil {
+			return nil, err
+		}
+	}
+	if err := once(setupProductAnchor, product); err != nil {
+		return nil, err
+	}
+	return shared, nil
+}
+
+// Rewrite builds the product view of shared assets. Like hackAuthJS, the
+// setup script fails loudly when the platform text it builds on has drifted;
+// NewAssets has already checked the anchors once, at install.
+//
+// The setup script is reachable two ways, as the slice asks ("through
+// Replace and a route"): the Replace entry makes the platform's file server
+// and page pipeline read it, and the product route (ServeSetupJS) answers
+// GET /setup/setup.js. Both end here, so they serve the same script.
+func (p *Assets) Rewrite(name string, body []byte) []byte {
+	switch name {
+	case "static/auth.js", "auth.js":
+		return hackAuthJS(body)
+	case "static/setup/setup.js", "setup/setup.js":
+		shared, ok := p.services.Static("setup/setup.js")
+		if !ok {
+			panic("setup.js: the platform file is missing")
+		}
+		out, err := buildSetupJS(shared, body)
+		if err != nil {
+			panic(err.Error())
+		}
+		return out
+	}
+	return body
+}
+
+// ServeSetupJS serves the product setup script assembled from the shared helper.
+func (p *Assets) ServeSetupJS() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := hackassets.Static.ReadFile("static/setup/setup-hack.js")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		body = p.Rewrite("setup/setup.js", body)
+		http.ServeContent(w, r, "setup.js", time.Time{}, bytes.NewReader(body))
+	}
 }

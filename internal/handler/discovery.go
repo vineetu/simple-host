@@ -92,12 +92,12 @@ func homepageMarkdownHandler(assets *assetPipeline, publicBaseURL string, hackAs
 // it through the hackPages interface (hack.go), whose methods must be
 // exported and must not name assetPipeline itself.
 func (p *assetPipeline) LandingMarkdownHandler(file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc {
-	page, err := staticFiles.ReadFile("static/" + file)
+	page, err := p.staticFS().ReadFile("static/" + file)
 	if err != nil {
 		panic(err)
 	}
 	if hackAssets {
-		page = p.HackInstanceText(page)
+		page = p.productInstanceText(page)
 	}
 	body, err := homepageMarkdown(page)
 	if err != nil {
@@ -114,15 +114,12 @@ func (p *assetPipeline) LandingMarkdownHandler(file, title, description, publicB
 // Both discovery files name the configured server, like the served API spec.
 func discoveryDocument(assets *assetPipeline, hackAssets bool, name, contentType, publicBaseURL string) http.HandlerFunc {
 	source := name
-	if hackAssets {
-		source = "hack-" + name
-	}
-	body, err := staticFiles.ReadFile("static/.well-known/" + source)
+	body, err := assets.staticFS().ReadFile("static/.well-known/" + source)
 	if err != nil {
 		panic(err)
 	}
 	if hackAssets {
-		body = assets.HackInstanceText(body)
+		body = assets.productInstanceText(body)
 	} else {
 		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(strings.TrimRight(publicBaseURL, "/")))
 	}

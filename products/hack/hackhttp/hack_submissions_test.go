@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func TestHackSubmissions(t *testing.T) {

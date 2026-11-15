@@ -25,7 +25,7 @@ func TestServeHackInkBrowser(t *testing.T) {
 	a.hack.SetMailer(mb)
 	handler.RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
 	a.sites.Pages().RegisterSkillsHub(a.mux, a.srv.URL)
-	hackhttp.RegisterHackHome(a.mux, a.sites.Pages())
+	hackhttp.RegisterHackHome(a.mux, a.sites.Pages(), hackAssetsFor(a.sites))
 	hackhttp.RegisterHackUI(a.mux, a.sites.Pages(), "")
 	hackhttp.RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages)
 	a.mux.HandleFunc("GET /_fixture/mail", func(w http.ResponseWriter, r *http.Request) {
