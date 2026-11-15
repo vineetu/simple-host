@@ -12,7 +12,7 @@ import (
 // site's own address with visitor sign-in and no API key. They exist so a chat
 // with the connector alone, and no skill files, builds the right thing.
 //
-//go:embed recipes/*.md
+//go:embed recipes/*.md recipes/rules/*.md
 var recipeFiles embed.FS
 
 // One recipe per everyday job first (booking, inbox, public, portal), then one
@@ -31,10 +31,10 @@ func PageRecipe(topic, site string) (string, error) {
 	if alias, ok := recipeAliases[topic]; ok {
 		file = alias
 	}
-	if file == "hack-event" {
+	if file == "hack-event" || strings.Contains(file, "/") {
 		return "", fmt.Errorf("topic must be one of: %s", strings.Join(recipeTopics, ", "))
 	}
-	data, err := recipeFiles.ReadFile("recipes/" + file + ".md")
+	data, err := readRecipe(file)
 	if err != nil {
 		return "", fmt.Errorf("topic must be one of: %s", strings.Join(recipeTopics, ", "))
 	}
@@ -42,6 +42,15 @@ func PageRecipe(topic, site string) (string, error) {
 		site = "my-site"
 	}
 	return addressText(strings.ReplaceAll(string(data), "{site}", site)), nil
+}
+
+// Choose at request time: switching the flag never changes the legacy files.
+func readRecipe(topic string) ([]byte, error) {
+	dir := "recipes/"
+	if storageRulesEnabled() {
+		dir += "rules/"
+	}
+	return recipeFiles.ReadFile(dir + topic + ".md")
 }
 
 // hostPageRecipe is PageRecipe for a Simple Host server, which names itself.
@@ -72,7 +81,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 		if !eventRecipeSlug.MatchString(site) {
 			return "", fmt.Errorf("site must be the event slug (lowercase letters, digits and hyphens)")
 		}
-		data, err := recipeFiles.ReadFile("recipes/hack-event.md")
+		data, err := readRecipe("hack-event")
 		if err != nil {
 			return "", err
 		}
@@ -104,12 +113,16 @@ func HackPageRecipe(topic, site string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	photoAdvice := "For photos, a files resource with the same preset and storage_put_file (under 1,000,000 bytes each; resize first)."
+	if storageRulesEnabled() {
+		photoAdvice = "For photos, use a files resource with preset public and storage_put_file (under 1,000,000 bytes each; resize first). Files keep presets; do not copy the key-value rules onto a files resource."
+	}
 	text = strings.NewReplacer(
 		"Pass returned visitor_id values directly in storage_sql_query or storage_sql_execute params for the same site.\n\n", "",
 		"each row's visitor_id in connector results is an opaque reference scoped to this site. Only when the owner asks who sent particular entries, storage_visitor_emails resolves their references to sign-in emails. References change after a server restart, so read the row again if needed.", "each row's visitor_id is the customer's sign-in, and storage_visitor_emails turns it into the email they signed in with.",
 		"REST uses its existing visitor IDs, not connector references. ", "",
 		"Stop first: if the person is adding their own photos (a menu, listing, portfolio, team), do not use this recipe or build an upload page. Call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them); then get_site and place the images/ files with update_site (keep_other_files: true).\n\n", "",
-		"For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.", "For photos, a files resource with the same preset and storage_put_file (under 1,000,000 bytes each; resize first).",
+		"For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.", photoAdvice,
 		" Photos never go into SQLite", " For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public). Photos never go into SQLite",
 		"https://simple-host.app/auth.js", "https://simple-hack.app/auth.js",
 		"<site>.<handle>.simple-host.app", "<team>.<event>.simple-hack.app",

@@ -1,0 +1,88 @@
+# R3-S6b: run against the local MCP fixture with STORAGE_RULES=on.
+# Existing core/advanced cases also remain valid with the flag off.
+schemaVersion: "2"
+mode: agentWorkflow
+reportingMode: standard
+suite:
+  id: s_simple_host_storage_rules
+  name: Simple Host saved-data rules
+target:
+  servers:
+    - name: simplehost
+defaults:
+  judge:
+    enabled: false
+  model: anthropic/claude-haiku-4.5
+  iterations: 1
+  passThreshold: 1
+  validity: {}
+cases:
+  - id: r_ask_access
+    title: asks who may read and write before choosing rules
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: I want a page on eval-cafe that saves customer notes. What do you need to know before setting up access? Do not change anything yet.
+    assertions:
+      - type: responseMatches
+        pattern: '([Ww]ho|[Ww]hich people).*(read|see)'
+      - type: responseMatches
+        pattern: '([Ww]rite|[Aa]dd|[Ee]dit|[Cc]hange|[Dd]elete)'
+      - type: toolNeverCalled
+        toolName: storage_set_resource
+  - id: r_booking
+    title: uses the booking recipe for private customer histories
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Read the booking page recipe for eval-cafe and explain its access rules. Signed-in customers should add bookings and read only their own; only the owner changes status. Do not publish or change resources yet.
+    assertions:
+      - type: toolCalledWith
+        toolName: get_page_recipe
+        args: {mode: partial, args: {topic: booking}}
+      - type: responseMatches
+        pattern: 'auth\.(id|role|signed_in)|visitor_id'
+      - type: toolNeverCalled
+        toolName: storage_set_resource
+  - id: r_public_kv
+    title: teaches rules for a menu everyone reads
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Read the public page recipe for eval-cafe. Explain the key-value rules for a menu everyone reads and only the owner changes. Do not change resources yet.
+    assertions:
+      - type: toolCalledWith
+        toolName: get_page_recipe
+        args: {mode: partial, args: {topic: public}}
+      - type: responseMatches
+        pattern: 'auth\.role|policies'
+      - type: toolNeverCalled
+        toolName: storage_set_resource
+  - id: r_personal
+    title: teaches author checks for personal rows
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Read the personal page recipe for eval-cafe and explain the rules. Each signed-in visitor should read, edit and delete only their own saved favourites. Do not change anything yet.
+    assertions:
+      - type: toolCalledWith
+        toolName: get_page_recipe
+        args: {mode: partial, args: {topic: personal}}
+      - type: responseMatches
+        pattern: 'visitor_id|auth\.id'
+      - type: toolNeverCalled
+        toolName: storage_set_resource
+  - id: r_gallery
+    title: keeps file presets for visitor photos
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Read the gallery recipe for eval-cafe and explain its file access configuration. Everyone reads the gallery, signed-in visitors upload, and each author may remove their own photos. Do not set it up yet.
+    assertions:
+      - type: toolCalledWith
+        toolName: get_page_recipe
+        args: {mode: partial, args: {topic: gallery}}
+      - type: responseMatches
+        pattern: '[Pp]reset.*wall|wall.*[Pp]reset'
+      - type: toolNeverCalled
+        toolName: storage_set_resource

@@ -610,6 +610,18 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   const result = await at(label, 'GET', `${visitorBase}/${route}`, { headers });
   if (result && result.status !== status) throw new Error(`${label}: expected ${status}, got ${result.status}`);
  }
+ // R3-S6b: keep the topic names and aliases, including product refusals.
+ const recipeTool = instance.tag === 'hack' ? 'hack_get_page_recipe' : 'get_page_recipe';
+ const topics = ['booking', 'inbox', 'public', 'portal', 'wall', 'comments', 'board', 'personal', 'private', 'records', 'admin', 'people', 'gallery', 'wordpress',
+  'reservation', 'appointment', 'quote', 'waitlist', 'contact', 'form', 'menu', 'guestbook'];
+ if (instance.tag === 'hack') topics.push('event');
+ for (const topic of topics) {
+  const response = await rpc(`tools/call ${recipeTool} ${topic}`, 'tools/call', { name: recipeTool, arguments: { topic, site: name } });
+  // The fixture has no spam-check credentials on either product.
+  const refused = ['comments', 'guestbook'].includes(topic) || (instance.tag === 'hack' && ['portal', 'people', 'wordpress'].includes(topic));
+  // A reference recording omits newly added requests via --skip-request.
+  if (response && (response.json?.error || Boolean(response.json?.result?.isError) !== refused)) throw new Error(`rules-on recipe ${recipeTool} ${topic} returned an unexpected result`);
+ }
 }
 
 async function seedAndCallMixedStore({ instance, at, registerSecret }) {

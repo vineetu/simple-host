@@ -166,7 +166,6 @@ tool hack hack_get_my_teams | Additional hack-events operation; the replay calls
 tool hack hack_get_my_todos | Additional hack-events operation; the replay calls hack_get_event.
 tool hack hack_get_my_vote | Additional hack-entries operation; the replay calls hack_get_rubric.
 tool hack hack_get_navigation | Additional hack-events operation; the replay calls hack_get_event.
-tool hack hack_get_page_recipe | Additional storage operation; the replay calls get_page_recipe or hack_event_storage_list_resources.
 tool hack hack_get_panels | Additional hack-entries operation; the replay calls hack_get_rubric.
 tool hack hack_get_people | Additional hack-events operation; the replay calls hack_get_event.
 tool hack hack_get_preferences | Additional hack-events operation; the replay calls hack_get_event.
