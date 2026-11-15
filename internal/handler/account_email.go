@@ -86,7 +86,7 @@ func (h *UserHandler) emailChangeRefused(w http.ResponseWriter, r *http.Request,
 		return true
 	}
 	if t.Event {
-		return refuse("event_account", "an event account's name is set by its organiser and cannot be changed")
+		return refuse("event_account", accounts.HoldingText("email"))
 	}
 	return false
 }

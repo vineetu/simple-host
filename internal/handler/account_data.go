@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/vsriram/simple-host/internal/app/accounts"
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/products/hack/app/members"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -78,7 +77,7 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	deleted, err := h.storeAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: user.ID, AdminID: h.adminUserID, Confirm: req.Confirm, HoldingAccounts: h.ed.Identity().HoldingAccounts, Teams: members.AccountErasure{}})
+	deleted, err := h.storeAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: user.ID, AdminID: h.adminUserID, Confirm: req.Confirm})
 	if writeLifecycleFailure(w, err) {
 		return
 	}
@@ -127,7 +126,7 @@ func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e model.ErasedAccou
 // capability itself (Grok security review, 2026-11-01). Logs and
 // continues on error, the same as the ordinary per-event sweep.
 func (h *SiteHandler) sweepOrphanTeamSites(ctx context.Context, ids []string) {
-	(members.AccountErasure{}).SweepOrphanSites(ctx, h.database, ids, h.TrashTeamSite)
+	h.storeAccounts().SweepErasedGroups(ctx, ids, h.TrashTeamSite)
 }
 
 func (h *SiteHandler) emailAccountDeleted(to string) {

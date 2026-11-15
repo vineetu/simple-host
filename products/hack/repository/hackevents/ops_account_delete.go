@@ -47,3 +47,8 @@ func AccountHoldsEvent(ctx context.Context, q sqlkit.Querier, userID string) (bo
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE account_id::text = lower($1))`, userID).Scan(&held)
 	return held, err
 }
+
+func EraseAccountRows(ctx context.Context, q sqlkit.Querier, userID string) error {
+	_, err := q.ExecContext(ctx, `DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1`, userID)
+	return err
+}

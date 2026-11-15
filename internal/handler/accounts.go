@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/products/hack/app/members"
 	"log"
 	"net/http"
 	"strconv"
@@ -145,7 +144,7 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	deleted, err := h.storeAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: id, AdminID: h.adminUserID, Operator: true, HoldingAccounts: h.ed.Identity().HoldingAccounts, Teams: members.AccountErasure{}})
+	deleted, err := h.storeAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: id, AdminID: h.adminUserID, Operator: true})
 	if writeLifecycleFailure(w, err) {
 		return
 	}
@@ -167,7 +166,7 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	if !accountAdmin(w, r) {
 		return
 	}
-	out, err := h.storeAccounts().ReissueAccountKey(r.Context(), r.PathValue("id"), h.adminUserID, h.ed.Identity().HoldingAccounts)
+	out, err := h.storeAccounts().ReissueAccountKey(r.Context(), r.PathValue("id"), h.adminUserID)
 	if writeLifecycleFailure(w, err) {
 		return
 	}

@@ -3,8 +3,7 @@
 # Objects: scripts/split/hack-objects.txt
 # Line numbers move when files are edited; regenerate this file, do not hand-edit it.
 
-1. SQL that names a Hack object (1)
-internal/repository/accounts/account_lifecycle.go:265 | EraseAccount | event_checklist_acknowledgements | DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1
+1. SQL that names a Hack object (0)
 
 2. SQL built at run time that names a Hack object (0)
 
@@ -85,6 +84,6 @@ internal/repository/operations/schemacheck.go:27 | requiredColumns | events (als
 internal/repository/operations/schemacheck.go:103 | requiredColumns | oauth_grants.selected_team_id | selected_team_id
 internal/rules/sites/sites.go:100 | reservedSubdomainLabels | events (also the platform column site_notifications.events) | events
 
-7. Other text (143)
+7. Other text (137)
 internal/mcp/hack_entry_tools.go:287 | hackOrganiserEntryRoutes | event_members | enabled, opens_at, closes_at, eligibility (all_signed_in, event_members or participants).
-events: 142 other-text strings (use -prose to list)
+events: 136 other-text strings (use -prose to list)

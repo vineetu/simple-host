@@ -1,0 +1,7 @@
+[
+  "begin",
+  "lock-account",
+  "check-hostnames",
+  "check-taken-down-sites",
+  "rollback"
+]

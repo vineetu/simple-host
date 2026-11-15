@@ -40,16 +40,16 @@ func (s *Service) PhotoTarget(ctx context.Context, userID, name string) (model.S
 }
 
 // SuspensionGate excludes malformed identities and event holding accounts before mutation.
-func (s *Service) SuspensionGate(ctx context.Context, id string, holdingAccounts bool) error {
+func (s *Service) SuspensionGate(ctx context.Context, id string) error {
 	if !rules.UUIDShape.MatchString(id) {
 		return sql.ErrNoRows
 	}
-	held, err := accountapp.HoldingAccount(ctx, s.database, id, holdingAccounts)
+	held, err := accountapp.HoldingAccount(ctx, s.database, id)
 	if err != nil {
 		return err
 	}
 	if held {
-		return &Error{Code: "event_account", Message: "this account holds an event; take the event down or restore it from the admin Events tab"}
+		return &Error{Code: "event_account", Message: accountapp.HoldingText("address")}
 	}
 	return nil
 }

@@ -827,7 +827,8 @@ func TestHackAccountErasurePromotesNewAdmin(t *testing.T) {
 	a.joinTeamByCode(t, slug, code, member)
 	leaderID := a.userID(t, leader)
 
-	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: leaderID, Operator: true, HoldingAccounts: false, Teams: members.AccountErasure{}})
+	accounts.SetGroupHooks(accounts.GroupHooks{Erasure: afterCascadeErasure{}})
+	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: leaderID, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -869,7 +870,8 @@ func TestHackAccountErasureSoleMemberBeforeDeadlineDeletesTeam(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true, HoldingAccounts: false, Teams: members.AccountErasure{}})
+	accounts.SetGroupHooks(accounts.GroupHooks{Erasure: afterCascadeErasure{}})
+	out, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -917,7 +919,8 @@ func TestHackAccountErasureSoleMemberAfterDeadlineKeepsAndLocksTeam(t *testing.T
 	// TeamKeepableSQL/TeamFrozenForLeave agree with what a raw UPDATE would not.
 	wantTS(t, "close", a.at(t, "POST", base+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
 
-	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true, HoldingAccounts: false, Teams: members.AccountErasure{}})
+	accounts.SetGroupHooks(accounts.GroupHooks{Erasure: afterCascadeErasure{}})
+	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -943,4 +946,12 @@ func TestHackAccountErasureSoleMemberAfterDeadlineKeepsAndLocksTeam(t *testing.T
 	if members != 0 {
 		t.Fatalf("team should now have no members, got %d", members)
 	}
+}
+
+// These fixtures isolate the after-cascade cleanup, as their old
+// HoldingAccounts:false input did before the hook extraction.
+type afterCascadeErasure struct{ members.AccountErasure }
+
+func (afterCascadeErasure) Block(context.Context, *sql.Tx, string, bool) (string, string, error) {
+	return "", "", nil
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/vsriram/simple-host/internal/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
+	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
@@ -47,7 +48,7 @@ func Extension() *extension.Extension {
 			return hackhttp.LegacyStorageGate(d.Edition, handler.LegacyStoragePath)
 		},
 		Early: func(d extension.EarlyDeps) extension.EarlyHooks {
-			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}}}
+			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Erasure: members.AccountErasure{}, Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}}}
 		},
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition

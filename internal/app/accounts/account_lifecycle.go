@@ -36,14 +36,9 @@ func lifecycleFail(status int, message, code string) error {
 	return &LifecycleError{Status: status, Message: message, Code: code}
 }
 
-type MembershipErasure interface {
-	AdminTeamIDs(context.Context, *sql.Tx, string) ([]string, error)
-	FinishTeams(context.Context, *sql.Tx, []string) ([]string, error)
-}
 type DeleteAccountInput struct {
-	ID, AdminID, Confirm      string
-	Operator, HoldingAccounts bool
-	Teams                     MembershipErasure
+	ID, AdminID, Confirm string
+	Operator             bool
 }
 type DeletedAccount struct {
 	Erased   model.ErasedAccount
@@ -80,16 +75,21 @@ func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (Del
 	if acct.EventClaims > 0 {
 		return DeletedAccount{}, lifecycleFail(409, "this account still holds event hostnames; release them first so their DNS records are removed", "event_hostnames")
 	}
-	if code, msg, err := CheckHackAccountDeletion(ctx, tx, acct.ID, in.HoldingAccounts); err != nil {
+	if held, err := HoldingAccount(ctx, tx, acct.ID); err != nil {
 		return DeletedAccount{}, err
-	} else if code != "" {
+	} else if held {
+		action := "delete"
 		if in.Operator {
-			msg = "this account organises an event that has not ended; end it or delete it from the Events tab first"
-			if code == "event_account" {
-				msg = "this account holds an event; delete the event from the Events tab"
-			}
+			action = "delete_operator"
 		}
-		return DeletedAccount{}, lifecycleFail(409, msg, code)
+		return DeletedAccount{}, lifecycleFail(409, HoldingText(action), "event_account")
+	}
+	if groupHooks.Erasure != nil {
+		if code, msg, err := groupHooks.Erasure.Block(ctx, tx, acct.ID, in.Operator); err != nil {
+			return DeletedAccount{}, err
+		} else if code != "" {
+			return DeletedAccount{}, lifecycleFail(409, msg, code)
+		}
 	}
 	if !in.Operator {
 		want, what := acct.Handle, "your handle"
@@ -100,9 +100,13 @@ func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (Del
 			return DeletedAccount{}, lifecycleFail(400, "type "+what+" ("+want+") as confirm to delete the account", "confirm_mismatch")
 		}
 	}
-	erased, err := repo.EraseAccount(ctx, tx, acct, repo.ErasureOperations{RetireSiteNames: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
+	ops := repo.ErasureOperations{RetireSiteNames: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
 		return sites.RetireSiteNames(ctx, tx, id, repo.PlatformDomains()...)
-	}, AdminTeamIDs: in.Teams.AdminTeamIDs, FinishTeams: in.Teams.FinishTeams})
+	}}
+	if h := groupHooks.Erasure; h != nil {
+		ops.Before, ops.Rows, ops.After = h.Before, h.Rows, h.After
+	}
+	erased, err := repo.EraseAccount(ctx, tx, acct, ops)
 	if err == nil {
 		err = tx.Commit()
 	}
@@ -170,7 +174,7 @@ type ReissuedAccount struct {
 	Key  string
 }
 
-func (s *Service) ReissueAccountKey(ctx context.Context, id, adminID string, holdingAccounts bool) (ReissuedAccount, error) {
+func (s *Service) ReissueAccountKey(ctx context.Context, id, adminID string) (ReissuedAccount, error) {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return ReissuedAccount{}, err
@@ -183,10 +187,10 @@ func (s *Service) ReissueAccountKey(ctx context.Context, id, adminID string, hol
 	if err != nil {
 		return ReissuedAccount{}, err
 	}
-	if held, err := HoldingAccount(ctx, tx, u.ID, holdingAccounts); err != nil {
+	if held, err := HoldingAccount(ctx, tx, u.ID); err != nil {
 		return ReissuedAccount{}, err
 	} else if held {
-		return ReissuedAccount{}, lifecycleFail(409, "this account holds an event and never signs in; manage the event from the admin Events tab", "event_account")
+		return ReissuedAccount{}, lifecycleFail(409, HoldingText("reissue"), "event_account")
 	}
 	if u.IsAdmin || u.ID == adminID {
 		return ReissuedAccount{}, lifecycleFail(400, "cannot reissue an admin account's key here", "")
@@ -221,10 +225,12 @@ type SuspendedAccount struct {
 }
 
 func (s *Service) SuspendAccount(ctx context.Context, in SuspensionInput) (SuspendedAccount, error) {
-	if held, err := HoldingAccount(ctx, s.database, in.ID, in.HoldingAccounts); err != nil {
-		return SuspendedAccount{}, err
-	} else if held {
-		return SuspendedAccount{}, lifecycleFail(409, "this account holds an event; take the event down or restore it from the admin Events tab", "event_account")
+	if in.HoldingAccounts {
+		if held, err := HoldingAccount(ctx, s.database, in.ID); err != nil {
+			return SuspendedAccount{}, err
+		} else if held {
+			return SuspendedAccount{}, lifecycleFail(409, HoldingText("suspend"), "event_account")
+		}
 	}
 	target, err := repo.GetUserByID(ctx, s.database, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {

@@ -79,6 +79,13 @@ the REST/MCP scope gate. The platform keeps the route allowlist and holding-acco
 impersonation; Hack owns membership, write refusals and organiser file-link checks.
 With no product hook, stored team keys cannot authenticate and scoped links fail.
 
+Account deletion uses `accounts.Erasure`, installed through `Extension.Early`.
+Hack's `members.AccountErasure` owns holding-account lookup, running-event
+refusals, membership cleanup and orphan-site sweeping. The platform keeps
+transaction and statement order; sweeping follows commit. With no hook,
+account erasure issues no product-table queries. `users.event_account` retains
+its meaning for accounts that do not sign in and is not a holding-account test.
+
 No CLI-proxy sidecar is needed by the Go request path; deployment-specific integrations belong
 with the proxy configuration.
 

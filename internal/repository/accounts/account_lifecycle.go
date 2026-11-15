@@ -140,9 +140,10 @@ func ListSubmissionsElsewhere(ctx context.Context, database *sql.DB, userID stri
 }
 
 type ErasureOperations struct {
+	Rows            func(context.Context, *sql.Tx, string) error
 	RetireSiteNames func(context.Context, *sql.Tx, string) ([]string, error)
-	AdminTeamIDs    func(context.Context, *sql.Tx, string) ([]string, error)
-	FinishTeams     func(context.Context, *sql.Tx, []string) ([]string, error)
+	Before          func(context.Context, *sql.Tx, string) ([]string, error)
+	After           func(context.Context, *sql.Tx, []string) ([]string, error)
 }
 
 // EraseAccount deletes the account locked by LockAccountForDelete and
@@ -230,17 +231,13 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops
 		return out, err
 	}
 
-	// Hack event membership (event_members.user_id REFERENCES users(id) ON
-	// DELETE CASCADE) disappears with the account below, same as leaving a
-	// team -- but with no handler in between to run hackteams.EnsureTeamAdmin. Read
-	// which teams this person currently admins before the cascade, so a
-	// successor can be chosen for each once the cascade has actually run
-	// (Codex review, 2026-11-01; this account may hold no event membership
-	// at all, in which case the slice is empty and the loop below is a
-	// no-op).
-	adminTeamIDs, err := ops.AdminTeamIDs(ctx, tx, a.ID)
-	if err != nil {
-		return out, err
+	// Capture product identifiers before the account cascade removes them.
+	var ids []string
+	if ops.Before != nil {
+		ids, err = ops.Before(ctx, tx, a.ID)
+		if err != nil {
+			return out, err
+		}
 	}
 
 	steps := []struct {
@@ -262,8 +259,6 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops
 		// row's own cascade takes keys, connected apps (grants, tokens,
 		// codes), sign-in identities and visitor sessions.
 		{`DELETE FROM sites WHERE user_id = $1`, []any{a.ID}},
-		{`DELETE FROM event_checklist_acknowledgements WHERE subject_id = $1`, []any{a.ID}},
-		{`DELETE FROM users WHERE id = $1`, []any{a.ID}},
 	}
 	if a.Handle != "" {
 		// The handle itself joins the retired names.
@@ -279,15 +274,20 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops
 			return out, err
 		}
 	}
-	// The cascade above already took this person's membership off each team
-	// they admined. Run the same cleanup LeaveMembership runs for a
-	// voluntary last-member leave, in the same order (Grok security review,
-	// 2026-11-01: hackteams.EnsureTeamAdmin alone is not enough when the erased
-	// account was the team's only member -- an empty, unlocked team with a
-	// live code would otherwise survive the account that used to run it).
-	out.AffectedEventAccounts, err = ops.FinishTeams(ctx, tx, adminTeamIDs)
-	if err != nil {
+	if ops.Rows != nil {
+		if err := ops.Rows(ctx, tx, a.ID); err != nil {
+			return out, err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, a.ID); err != nil {
 		return out, err
+	}
+	// Product cleanup follows the account cascade, in the same transaction.
+	if ops.After != nil {
+		out.AffectedEventAccounts, err = ops.After(ctx, tx, ids)
+		if err != nil {
+			return out, err
+		}
 	}
 
 	return out, nil

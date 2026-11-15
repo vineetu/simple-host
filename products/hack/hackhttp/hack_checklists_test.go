@@ -587,19 +587,11 @@ func TestChecklistRemainingOrganiserFacts(t *testing.T) {
 	}
 }
 
-type checklistDeletionTeams struct{}
-
-func (checklistDeletionTeams) AdminTeamIDs(context.Context, *sql.Tx, string) ([]string, error) {
-	return nil, nil
-}
-func (checklistDeletionTeams) FinishTeams(context.Context, *sql.Tx, []string) ([]string, error) {
-	return nil, nil
-}
 func TestChecklistAccountDeletionClearsTextSubjects(t *testing.T) {
 	w := newJudgingWorld(t, 0, 1)
 	j := w.judges[0]
 	checklistItems(t, w.call(t, "POST", "/checklist/acknowledgements/j.conflicts", map[string]any{}, j.person))
-	_, err := accountapp.New(w.a.database).DeleteAccount(context.Background(), accountapp.DeleteAccountInput{ID: j.id, Operator: true, Teams: checklistDeletionTeams{}})
+	_, err := accountapp.New(w.a.database).DeleteAccount(context.Background(), accountapp.DeleteAccountInput{ID: j.id, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -207,7 +207,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			}
 		}
 		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
-		if err := h.sitesSvc().SuspensionGate(r.Context(), id, h.ed.Identity().HoldingAccounts); err != nil {
+		if err := h.sitesSvc().SuspensionGate(r.Context(), id); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 			} else if e, ok := err.(*appsites.Error); ok && e.Code == "event_account" {

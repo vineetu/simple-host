@@ -32,8 +32,9 @@ type GroupKeys interface {
 }
 
 type GroupHooks struct {
-	Keys   GroupKeys
-	Target ConnectorTarget
+	Erasure Erasure
+	Keys    GroupKeys
+	Target  ConnectorTarget
 }
 
 var groupHooks GroupHooks

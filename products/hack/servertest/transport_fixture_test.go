@@ -40,6 +40,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
@@ -606,7 +607,7 @@ func newTeamSiteApp(t *testing.T) *teamSiteApp {
 // mailer (nil: an unconfigured sender, as in most tests).
 func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	t.Helper()
-	accountapp.SetGroupHooks(accountapp.GroupHooks{Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}})
+	accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}, Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}})
 	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
