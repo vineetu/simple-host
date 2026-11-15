@@ -30,7 +30,7 @@ func PageRecipe(topic, site string) (string, error) {
 	if alias, ok := recipeAliases[topic]; ok {
 		file = alias
 	}
-	if file == "hack-event" || strings.Contains(file, "/") {
+	if strings.Contains(file, "/") {
 		return "", fmt.Errorf("topic must be one of: %s", strings.Join(recipeTopics, ", "))
 	}
 	data, err := readRecipe(file)

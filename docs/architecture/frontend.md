@@ -192,11 +192,12 @@ Hack shell did not remove the shared sign-in component.
 
 ## Browser and MCP App platforms
 
-`internal/mcp/apps/entry/{judge,organiser}.js` import selected real screens.
+`products/hack/mcp/apps/entry/{judge,organiser}.js` import selected real screens.
 `hack-judge-view.js` and `hack-organiser-view.js` construct their contexts and
 map screen API calls to tools through the MCP bridge. These are embedded
 frames, not deployments of the full browser app. Resource assembly lives in
-`internal/mcp/hack_apps.go:readHackApp` and `apps.go`.
+`products/hack/mcp/hack_apps.go:readHackApp`; the tool server's own screens
+are in `internal/mcp/apps.go`.
 
 `apps/bundlegen/bundle.go:framePlugin` substitutes exactly three modules:
 `hack/nav.js`, `hack/tour.js` and `hack/platform.js`. Other screen imports
@@ -227,7 +228,7 @@ and `apps/bundlegen/bundle.go:esbuildVersion`; it is not a floating CLI.
 
 | Authored source | Generated, checked-in output | Regenerate | Freshness guard |
 |---|---|---|---|
-| Hack screens, `hack/kit.css`, MCP entries/adapters | `internal/mcp/apps/hack-{judge,organiser}-bundle.js`, `hack-{judge,organiser}-kit.css` | `go run ./internal/mcp/apps/gentool` | `internal/mcp`: `TestHackJudgeBundleFresh`, `TestHackOrganiserBundleFresh` |
+| Hack screens, `hack/kit.css`, MCP entries/adapters | `products/hack/mcp/apps/hack-{judge,organiser}-bundle.js`, `hack-{judge,organiser}-kit.css` | `go run ./products/hack/mcp/apps/gentool` | `products/hack/mcp`: `TestHackJudgeBundleFresh`, `TestHackOrganiserBundleFresh` |
 | `static/openapi.yaml` | `static/openapi.json` | Command below | `scripts/check-docs-sync.sh`, parsed YAML/JSON equality |
 | `static/features.json`, `scripts/features-page.tmpl.html` | `static/features.html` | `python3 scripts/build-features-page.py` | `scripts/check-features-page.py` |
 | `web/analytics-parse.js` | Marked script blocks in `index.html`, `showcase.html`, `analytics.html` | `bash scripts/inline-analytics-parser.sh` | `--check` plus Node parser fixtures in docs-sync |
@@ -238,7 +239,7 @@ Do not hand-edit the generated bundle/CSS, JSON contract, public feature
 page, copied parser blocks, plugin copies or inventories. `gentool/main.go`
 writes all four MCP assets; `GenerateCSS` removes `@font-face` from the
 shared kit for the embedded frame. The `go:generate` directives are in
-`internal/mcp/hack_apps*.go`; direct `go run` above regenerates both once.
+`products/hack/mcp/hack_apps*.go`; direct `go run` above regenerates both once.
 
 Exact OpenAPI conversion (PyYAML required):
 

@@ -1,12 +1,12 @@
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/mcp"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 // appOnlyMarkers is every secret/personal-data marker the fixture upstream
@@ -88,20 +88,20 @@ func appOnlyUpstream() *http.ServeMux {
 
 // Owner "j1" matches the fixture conflict's judge_id below, so hack_app_
 // get_my_conflicts' own minimisation (hack_get_my_conflicts keeps only
-// the caller's OWN conflicts, Caller.accountUserID()) does not filter the
+// the caller's OWN conflicts, mcp.Caller.accountUserID()) does not filter the
 // fixture row out before this test can assert on it.
-func appOnlyCaller() Caller {
-	return Caller{APIKey: "app-only-key", Mode: CallerModeEvents, Handle: "alice", Owner: "j1"}
+func appOnlyCaller() mcp.Caller {
+	return mcp.Caller{APIKey: "app-only-key", Mode: mcp.CallerModeEvents, Handle: "alice", Owner: "j1"}
 }
 
-func runAppOnlyTool(t *testing.T, s *Server, name string, args map[string]any) output {
+func runAppOnlyTool(t *testing.T, s *mcp.Server, name string, args map[string]any) mcp.Output {
 	t.Helper()
-	tool, ok := s.hackByName[name]
+	tool, ok := findServerTool(s, name)
 	if !ok {
 		t.Fatalf("%s: not a registered tool", name)
 	}
-	call := &call{server: s, caller: appOnlyCaller(), orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-	out, err := tool.run(call, args)
+	call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), appOnlyCaller()).WithUICapable(true)
+	out, err := mcp.CallTool(tool, call, args)
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
@@ -115,7 +115,7 @@ func runAppOnlyTool(t *testing.T, s *Server, name string, args map[string]any) o
 func TestHackAppOnlyTwinsAreMarkedAppOnly(t *testing.T) {
 	s := newTestServer(appOnlyUpstream())
 	for _, name := range appOnlyTwinNames() {
-		tool, ok := s.hackByName[name]
+		tool, ok := findServerTool(s, name)
 		if !ok {
 			t.Fatalf("%s: not a registered tool", name)
 		}
@@ -186,13 +186,13 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 			if out.Text == "" {
 				t.Fatalf("%s: empty text summary", tc.tool)
 			}
-			// SIM-384: every hack_* tool's real output, checked against its
+			// SIM-384: every hack_* tool's real mcp.Output, checked against its
 			// own declared outputSchema in strict mode (additionalProperties:
 			// false as authored, outputs.go) -- the class of bug where an
 			// added field breaks a client that cached an older schema can
 			// only recur in the wire copy; the authored one here must still
 			// agree with what the tool actually sends.
-			if err := ValidateOutput(s.hackByName[tc.tool].OutputSchema, out.Structured, nil); err != nil {
+			if err := mcp.ValidateOutput(serverTool(t, s, tc.tool).OutputSchema, out.Structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.tool, err)
 			}
 			recordHackOutputValidated(tc.tool)
@@ -230,10 +230,10 @@ func TestHackAppOnlyTwinsRefuseWithoutUIDeclared(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_ORGANISER", "on")
 	s := newTestServer(appOnlyUpstream())
 	for _, name := range appOnlyTwinNames() {
-		tool := s.hackByName[name]
-		call := &call{server: s, caller: appOnlyCaller(), orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: false}
+		tool := serverTool(t, s, name)
+		call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), appOnlyCaller()).WithUICapable(false)
 		args := map[string]any{"slug": "mockjam", "kind": "join", "stage": "open", "team_id": "t1"}
-		if _, err := tool.run(call, args); err == nil {
+		if _, err := mcp.CallTool(tool, call, args); err == nil {
 			t.Fatalf("%s: ran for a connection with no declared UI support", name)
 		}
 	}
@@ -251,10 +251,10 @@ func TestHackAppOnlyTwinsListingGating(t *testing.T) {
 	s := newTestServer(appOnlyUpstream())
 	allTwins := appOnlyTwinNames()
 
-	listedNames := func(c Caller) map[string]bool {
+	listedNames := func(c mcp.Caller) map[string]bool {
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(WithCaller(req.Context(), c))
+		req = req.WithContext(mcp.WithCaller(req.Context(), c))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		out := map[string]bool{}
@@ -267,7 +267,7 @@ func TestHackAppOnlyTwinsListingGating(t *testing.T) {
 	t.Run("non-UI client sees none", func(t *testing.T) {
 		t.Setenv("MCP_APP_HACK_JUDGE", "on")
 		t.Setenv("MCP_APP_HACK_ORGANISER", "on")
-		noUI := Caller{APIKey: "k-noui", Mode: CallerModeEvents, Handle: "alice"}
+		noUI := mcp.Caller{APIKey: "k-noui", Mode: mcp.CallerModeEvents, Handle: "alice"}
 		listed := listedNames(noUI)
 		for _, name := range allTwins {
 			if listed[name] {
@@ -280,8 +280,8 @@ func TestHackAppOnlyTwinsListingGating(t *testing.T) {
 		t.Setenv("MCP_APP_HACK_JUDGE", "on")
 		t.Setenv("MCP_APP_HACK_ORGANISER", "on")
 		for _, appName := range []string{"ChatGPT", "OpenAI", "Codex"} {
-			c := Caller{APIKey: "k-" + appName, Mode: CallerModeEvents, Handle: "alice", AppName: appName}
-			s.clientUI.remember(c, true, time.Now())
+			c := mcp.Caller{APIKey: "k-" + appName, Mode: mcp.CallerModeEvents, Handle: "alice", AppName: appName}
+			initializeAs(t, s, c, true)
 			listed := listedNames(c)
 			for _, name := range allTwins {
 				if listed[name] {
@@ -294,8 +294,8 @@ func TestHackAppOnlyTwinsListingGating(t *testing.T) {
 	t.Run("UI client with only MCP_APP_HACK_JUDGE sees just the judge twins", func(t *testing.T) {
 		t.Setenv("MCP_APP_HACK_JUDGE", "on")
 		t.Setenv("MCP_APP_HACK_ORGANISER", "off")
-		c := Caller{APIKey: "k-judgeonly", Mode: CallerModeEvents, Handle: "alice"}
-		s.clientUI.remember(c, true, time.Now())
+		c := mcp.Caller{APIKey: "k-judgeonly", Mode: mcp.CallerModeEvents, Handle: "alice"}
+		initializeAs(t, s, c, true)
 		listed := listedNames(c)
 		// hack_app_get_rubric is shared: available whenever EITHER app's
 		// gate passes, so a judge-only connection sees it too.
@@ -314,8 +314,8 @@ func TestHackAppOnlyTwinsListingGating(t *testing.T) {
 	t.Run("UI client with only MCP_APP_HACK_ORGANISER sees just the organiser twins", func(t *testing.T) {
 		t.Setenv("MCP_APP_HACK_JUDGE", "off")
 		t.Setenv("MCP_APP_HACK_ORGANISER", "on")
-		c := Caller{APIKey: "k-organiseronly", Mode: CallerModeEvents, Handle: "alice"}
-		s.clientUI.remember(c, true, time.Now())
+		c := mcp.Caller{APIKey: "k-organiseronly", Mode: mcp.CallerModeEvents, Handle: "alice"}
+		initializeAs(t, s, c, true)
 		listed := listedNames(c)
 		for _, name := range append(append([]string{}, hackAppOnlyOrganiserNames...), hackAppOnlySharedNames...) {
 			if !listed[name] {

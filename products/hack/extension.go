@@ -79,7 +79,7 @@ func Extension() *extension.Extension {
 			// teams at their deadline, removes sites of removed teams and asks
 			// for open events' certificates.
 			hack.SetSites(siteHandler)
-			d.Connector.SetHackTeams(true)
+			d.Connector.SetTeamConnections(true)
 			// SIM-394 organiser assistant: off unless both are set. Built here
 			// (not in hackhttp) because the client needs internal/llm and the
 			// docs text needs internal/webassets, neither of which hackhttp may

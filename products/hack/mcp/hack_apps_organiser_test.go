@@ -1,4 +1,4 @@
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/vsriram/simple-host/internal/mcp/apps/bundlegen"
+	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/products/hack/mcp/apps/bundlegen"
 )
 
 // organiserUpstream mirrors judgeUpstream for the organiser app: one event,
@@ -25,21 +25,21 @@ func organiserUpstream() *http.ServeMux {
 	return mux
 }
 
-func organiserCaller(handle, appName string) Caller {
-	return Caller{APIKey: "organiser-key", Mode: CallerModeEvents, Handle: handle, AppName: appName}
+func organiserCaller(handle, appName string) mcp.Caller {
+	return mcp.Caller{APIKey: "organiser-key", Mode: mcp.CallerModeEvents, Handle: handle, AppName: appName}
 }
 
 func TestHackOrganiserResourceGating(t *testing.T) {
 	s := newTestServer(organiserUpstream())
 	for _, flag := range []string{"", "off", "unknown", "accounts:bob", "accounts:alice", "on"} {
 		t.Setenv("MCP_APP_HACK_ORGANISER", flag)
-		for _, c := range []Caller{
+		for _, c := range []mcp.Caller{
 			organiserCaller("alice", ""),
-			{APIKey: "k", Mode: CallerModeHackSite, Handle: "alice"},
+			{APIKey: "k", Mode: mcp.CallerModeHackSite, Handle: "alice"},
 			{APIKey: "k", Handle: "alice"}, // Mode "": Simple Host, must never see this screen
 		} {
-			screenEnabled := c.Mode == CallerModeEvents && appFlag(flag, c.Handle)
-			screens := s.hackEnabledScreens(c)
+			screenEnabled := c.Mode == mcp.CallerModeEvents && mcp.AppFlag(flag, c.Handle)
+			screens := screensOf(s).hackEnabledScreens(c)
 			hasOrganiser := false
 			for _, scr := range screens {
 				if scr.ID == "hack-organiser" {
@@ -56,11 +56,11 @@ func TestHackOrganiserResourceGating(t *testing.T) {
 			// screenEnabled's mode-only half as the common gate and relying
 			// on hackEnabledScreens to narrow by flag mirrors the judge
 			// test's own approach.
-			commonAllowed := c.Mode == CallerModeEvents
-			resources := s.hackAppResources(c, commonAllowed)
+			commonAllowed := c.Mode == mcp.CallerModeEvents
+			resources := screensOf(s).hackAppResources(c, commonAllowed)
 			foundResource := false
 			for _, raw := range resources {
-				if raw.(map[string]any)["uri"] == "ui://simple-hack/organiser" {
+				if raw["uri"] == "ui://simple-hack/organiser" {
 					foundResource = true
 				}
 			}
@@ -68,7 +68,7 @@ func TestHackOrganiserResourceGating(t *testing.T) {
 				t.Fatalf("flag=%q mode=%q handle=%q: hackAppResources organiser present=%v, want %v", flag, c.Mode, c.Handle, foundResource, screenEnabled)
 			}
 			params, _ := json.Marshal(map[string]string{"uri": "ui://simple-hack/organiser"})
-			resp := s.readHackApp(request{ID: json.RawMessage(`1`), Params: params}, c, commonAllowed)
+			resp := screensOf(s).readHackApp(mcp.Request{ID: json.RawMessage(`1`), Params: params}, c, commonAllowed)
 			if (resp.Error == nil) != screenEnabled {
 				t.Fatalf("flag=%q mode=%q handle=%q: readHackApp error=%v, want enabled=%v", flag, c.Mode, c.Handle, resp.Error, screenEnabled)
 			}
@@ -100,10 +100,10 @@ func TestHackJudgeAndOrganiserFlagsAreIndependent(t *testing.T) {
 		t.Setenv("MCP_APP_HACK_ORGANISER", tc.organiserFlag)
 		s := newTestServer(organiserUpstream())
 		c := organiserCaller("alice", "")
-		s.clientUI.remember(c, true, time.Now())
+		initializeAs(t, s, c, true)
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"resources/list","params":{}}`))
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(WithCaller(req.Context(), c))
+		req = req.WithContext(mcp.WithCaller(req.Context(), c))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		resources := decode(t, rec)["result"].(map[string]any)["resources"].([]any)
@@ -129,10 +129,10 @@ func TestHackJudgeAndOrganiserFlagsAreIndependent(t *testing.T) {
 func TestHackOrganiserResourceNeverReadableWithoutGate(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_ORGANISER", "on")
 	s := newTestServer(organiserUpstream())
-	readResource := func(c Caller) (listed bool, readErr bool) {
+	readResource := func(c mcp.Caller) (listed bool, readErr bool) {
 		listReq := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"resources/list","params":{}}`))
 		listReq.Header.Set("Content-Type", "application/json")
-		listReq = listReq.WithContext(WithCaller(listReq.Context(), c))
+		listReq = listReq.WithContext(mcp.WithCaller(listReq.Context(), c))
 		listRec := httptest.NewRecorder()
 		s.ServeHTTP(listRec, listReq)
 		resources := decode(t, listRec)["result"].(map[string]any)["resources"].([]any)
@@ -144,26 +144,26 @@ func TestHackOrganiserResourceNeverReadableWithoutGate(t *testing.T) {
 		readBody, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "resources/read", "params": map[string]any{"uri": "ui://simple-hack/organiser"}})
 		readReq := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(string(readBody)))
 		readReq.Header.Set("Content-Type", "application/json")
-		readReq = readReq.WithContext(WithCaller(readReq.Context(), c))
+		readReq = readReq.WithContext(mcp.WithCaller(readReq.Context(), c))
 		readRec := httptest.NewRecorder()
 		s.ServeHTTP(readRec, readReq)
 		_, readErr = decode(t, readRec)["error"]
 		return listed, readErr
 	}
 
-	excluded := Caller{APIKey: "organiser-key-excluded", Mode: CallerModeEvents, Handle: "alice", AppName: "ChatGPT"}
-	s.clientUI.remember(excluded, true, time.Now())
+	excluded := mcp.Caller{APIKey: "organiser-key-excluded", Mode: mcp.CallerModeEvents, Handle: "alice", AppName: "ChatGPT"}
+	initializeAs(t, s, excluded, true)
 	if listed, readErr := readResource(excluded); listed || !readErr {
 		t.Fatalf("ChatGPT: listed=%v readErr=%v, want listed=false readErr=true", listed, readErr)
 	}
 
-	noUI := Caller{APIKey: "organiser-key-noui", Mode: CallerModeEvents, Handle: "alice"}
+	noUI := mcp.Caller{APIKey: "organiser-key-noui", Mode: mcp.CallerModeEvents, Handle: "alice"}
 	if listed, readErr := readResource(noUI); listed || !readErr {
 		t.Fatalf("no UI declared: listed=%v readErr=%v, want listed=false readErr=true", listed, readErr)
 	}
 
-	allowed := Caller{APIKey: "organiser-key-allowed", Mode: CallerModeEvents, Handle: "alice"}
-	s.clientUI.remember(allowed, true, time.Now())
+	allowed := mcp.Caller{APIKey: "organiser-key-allowed", Mode: mcp.CallerModeEvents, Handle: "alice"}
+	initializeAs(t, s, allowed, true)
 	if listed, readErr := readResource(allowed); !listed || readErr {
 		t.Fatalf("flagged, UI-declared, allowed app name: listed=%v readErr=%v, want listed=true readErr=false", listed, readErr)
 	}
@@ -178,7 +178,7 @@ func TestHackOrganiserResourceRendersAndCSP(t *testing.T) {
 	var nonces []string
 	var pages []string
 	for i := 0; i < 2; i++ {
-		resp := s.readHackApp(request{ID: json.RawMessage(`1`), Params: params}, c, true)
+		resp := screensOf(s).readHackApp(mcp.Request{ID: json.RawMessage(`1`), Params: params}, c, true)
 		if resp.Error != nil {
 			t.Fatalf("read %d: %v", i, resp.Error)
 		}
@@ -229,7 +229,7 @@ func TestHackShowOrganiserNotListedWithoutUISupport(t *testing.T) {
 	s := newTestServer(organiserUpstream())
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(WithCaller(req.Context(), organiserCaller("alice", "")))
+	req = req.WithContext(mcp.WithCaller(req.Context(), organiserCaller("alice", "")))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 	listed := listedTools(t, rec)
@@ -244,10 +244,10 @@ func TestHackShowOrganiserListedOnceUIDeclared(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_ORGANISER", "on")
 	s := newTestServer(organiserUpstream())
 	c := organiserCaller("alice", "")
-	s.clientUI.remember(c, true, time.Now())
+	initializeAs(t, s, c, true)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(WithCaller(req.Context(), c))
+	req = req.WithContext(mcp.WithCaller(req.Context(), c))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 	listed := listedTools(t, rec)
@@ -277,9 +277,9 @@ func TestHackShowOrganiserModernPerCallCapability(t *testing.T) {
 		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": params})
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(string(body)))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("MCP-Protocol-Version", protocolVersion)
+		req.Header.Set("MCP-Protocol-Version", mcp.ProtocolVersion)
 		req.Header.Set("Mcp-Method", "tools/list")
-		req = req.WithContext(WithCaller(req.Context(), organiserCaller("alice", "")))
+		req = req.WithContext(mcp.WithCaller(req.Context(), organiserCaller("alice", "")))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		listed := listedTools(t, rec)
@@ -300,10 +300,10 @@ func TestHackShowOrganiserNeverForExcludedAppNames(t *testing.T) {
 	s := newTestServer(organiserUpstream())
 	for _, name := range []string{"ChatGPT", "OpenAI", "Codex", "codex-cli", "chatgpt-connector"} {
 		c := organiserCaller("alice", name)
-		s.clientUI.remember(c, true, time.Now())
+		initializeAs(t, s, c, true)
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(WithCaller(req.Context(), c))
+		req = req.WithContext(mcp.WithCaller(req.Context(), c))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		for _, tool := range listedTools(t, rec) {
@@ -314,10 +314,10 @@ func TestHackShowOrganiserNeverForExcludedAppNames(t *testing.T) {
 	}
 	for _, name := range []string{"", "Claude", "Claude for Desktop"} {
 		c := organiserCaller("alice", name)
-		s.clientUI.remember(c, true, time.Now())
+		initializeAs(t, s, c, true)
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(WithCaller(req.Context(), c))
+		req = req.WithContext(mcp.WithCaller(req.Context(), c))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		found := false
@@ -336,12 +336,12 @@ func TestHackShowOrganiserRunPerView(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_ORGANISER", "on")
 	s := newTestServer(organiserUpstream())
 	c := organiserCaller("alice", "")
-	run := func(args map[string]any) (output, error) {
-		call := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-		return s.hackByName["hack_show_organiser"].run(call, args)
+	run := func(args map[string]any) (mcp.Output, error) {
+		call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(true)
+		return mcp.CallTool(serverTool(t, s, "hack_show_organiser"), call, args)
 	}
 
-	schema := s.hackByName["hack_show_organiser"].OutputSchema
+	schema := serverTool(t, s, "hack_show_organiser").OutputSchema
 
 	for _, view := range []string{"overview", "people", "judging"} {
 		out, err := run(map[string]any{"view": view, "slug": "mockjam"})
@@ -351,9 +351,9 @@ func TestHackShowOrganiserRunPerView(t *testing.T) {
 		if out.Structured["view"] != view || out.Structured["slug"] != "mockjam" {
 			t.Fatalf("%s structured content: %#v", view, out.Structured)
 		}
-		// SIM-384: real output checked against its own declared outputSchema
+		// SIM-384: real mcp.Output checked against its own declared outputSchema
 		// in strict mode (additionalProperties: false as authored).
-		if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+		if err := mcp.ValidateOutput(schema, out.Structured, nil); err != nil {
 			t.Fatalf("%s: structuredContent does not match outputSchema: %v", view, err)
 		}
 		recordHackOutputValidated("hack_show_organiser")
@@ -406,9 +406,9 @@ func TestHackShowOrganiserContentNeverCarriesSensitiveData(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_ORGANISER", "on")
 	s := newTestServer(organiserUpstream())
 	c := organiserCaller("alice", "")
-	run := func(args map[string]any) (output, error) {
-		call := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-		return s.hackByName["hack_show_organiser"].run(call, args)
+	run := func(args map[string]any) (mcp.Output, error) {
+		call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(true)
+		return mcp.CallTool(serverTool(t, s, "hack_show_organiser"), call, args)
 	}
 
 	markers := []string{"ORGANISER-SECRET-JOIN", "ORGANISER-SECRET-JUDGE", "ORGANISER-OWN-NAME"}
@@ -459,8 +459,8 @@ func TestHackShowOrganiserRequiresOrganiserRole(t *testing.T) {
 			_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"open"},"role":"` + role + `"}`))
 		})
 		s := newTestServer(mux)
-		c := &call{server: s, caller: organiserCaller("alice", ""), orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-		out, err := s.hackByName["hack_show_organiser"].run(c, map[string]any{"view": "overview", "slug": "mockjam"})
+		c := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), organiserCaller("alice", "")).WithUICapable(true)
+		out, err := mcp.CallTool(serverTool(t, s, "hack_show_organiser"), c, map[string]any{"view": "overview", "slug": "mockjam"})
 		if err == nil {
 			t.Fatalf("hack_show_organiser opened overview for role %q", role)
 		}
@@ -468,7 +468,7 @@ func TestHackShowOrganiserRequiresOrganiserRole(t *testing.T) {
 			t.Fatalf("refusal carries structuredContent: %#v", out.Structured)
 		}
 		for _, view := range []string{"people", "judging"} {
-			if _, err := s.hackByName["hack_show_organiser"].run(c, map[string]any{"view": view, "slug": "mockjam"}); err == nil {
+			if _, err := mcp.CallTool(serverTool(t, s, "hack_show_organiser"), c, map[string]any{"view": view, "slug": "mockjam"}); err == nil {
 				t.Fatalf("hack_show_organiser opened %s for role %q", view, role)
 			}
 		}
@@ -478,17 +478,17 @@ func TestHackShowOrganiserRequiresOrganiserRole(t *testing.T) {
 func TestHackShowOrganiserRefusesNonUIAndDisabled(t *testing.T) {
 	s := newTestServer(organiserUpstream())
 	c := organiserCaller("alice", "")
-	tool := s.hackByName["hack_show_organiser"]
+	tool := serverTool(t, s, "hack_show_organiser")
 
 	t.Setenv("MCP_APP_HACK_ORGANISER", "on")
-	textOnly := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: false}
-	if _, err := tool.run(textOnly, map[string]any{"view": "overview", "slug": "mockjam"}); err == nil {
+	textOnly := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(false)
+	if _, err := mcp.CallTool(tool, textOnly, map[string]any{"view": "overview", "slug": "mockjam"}); err == nil {
 		t.Fatal("text-only connection allowed to run hack_show_organiser")
 	}
 
 	t.Setenv("MCP_APP_HACK_ORGANISER", "off")
-	uiCall := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-	if _, err := tool.run(uiCall, map[string]any{"view": "overview", "slug": "mockjam"}); err == nil {
+	uiCall := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(true)
+	if _, err := mcp.CallTool(tool, uiCall, map[string]any{"view": "overview", "slug": "mockjam"}); err == nil {
 		t.Fatal("hack_show_organiser ran with its flag off")
 	}
 }
@@ -498,23 +498,23 @@ func TestHackOrganiserBundleFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotJS, err := appFiles.ReadFile("apps/hack-organiser-bundle.js")
+	gotJS, err := hackAppFiles.ReadFile("apps/hack-organiser-bundle.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if js != string(gotJS) {
-		t.Fatal("apps/hack-organiser-bundle.js is stale; run: go run ./internal/mcp/apps/gentool")
+		t.Fatal("apps/hack-organiser-bundle.js is stale; run: go run ./products/hack/mcp/apps/gentool")
 	}
 	css, err := bundlegen.GenerateCSS()
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotCSS, err := appFiles.ReadFile("apps/hack-organiser-kit.css")
+	gotCSS, err := hackAppFiles.ReadFile("apps/hack-organiser-kit.css")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if css != string(gotCSS) {
-		t.Fatal("apps/hack-organiser-kit.css is stale; run: go run ./internal/mcp/apps/gentool")
+		t.Fatal("apps/hack-organiser-kit.css is stale; run: go run ./products/hack/mcp/apps/gentool")
 	}
 }
 
@@ -577,7 +577,7 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"judging","judging_ends_at":"2026-01-01T00:00:00Z"},"role":"organiser"}`))
 	})
 	s := newTestServer(mux)
-	c := &call{server: s, caller: organiserCaller("alice", ""), orig: httptest.NewRequest("POST", "/mcp", nil)}
+	c := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), organiserCaller("alice", ""))
 	calls := []struct {
 		tool string
 		args map[string]any
@@ -623,8 +623,7 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		"PATCH /v1/hack/events/mockjam",
 	}
 	for i, call := range calls {
-		c.policy = s.hackByName[call.tool].policy
-		if _, err := s.hackByName[call.tool].run(c, call.args); err != nil {
+		if _, err := mcp.CallTool(serverTool(t, s, call.tool), c, call.args); err != nil {
 			t.Fatalf("%s: %v", call.tool, err)
 		}
 		if !seen[wantPaths[i]] {
@@ -654,13 +653,13 @@ func TestHackOrganiserViewRouteBodyKeysMatchToolSchema(t *testing.T) {
 		// hack_app_set_judging_ends_at, not hack_update_event: the route
 		// table calls the app-only twin for this write too (0003-hack-
 		// notices-judges-messages.sql round 2, Codex review -- the general
-		// event-patch tool's output carries the organiser's join/judge
+		// event-patch tool's mcp.Output carries the organiser's join/judge
 		// codes), with its own narrowed InputSchema (slug, judging_ends_at
 		// only; see hack_app_only_tools.go).
 		"hack_app_set_judging_ends_at": {"judging_ends_at"},
 	}
 	for tool, keys := range flatBodyKeys {
-		schema, ok := s.hackByName[tool]
+		schema, ok := findServerTool(s, tool)
 		if !ok {
 			t.Fatalf("%s: not a registered tool", tool)
 		}
@@ -676,7 +675,7 @@ func TestHackOrganiserViewRouteBodyKeysMatchToolSchema(t *testing.T) {
 		"hack_set_judge_conflict", "hack_generate_assignments", "hack_delete_former_judge_scores",
 	}
 	for _, tool := range wrappedBodyTools {
-		schema, ok := s.hackByName[tool]
+		schema, ok := findServerTool(s, tool)
 		if !ok {
 			t.Fatalf("%s: not a registered tool", tool)
 		}
@@ -687,7 +686,7 @@ func TestHackOrganiserViewRouteBodyKeysMatchToolSchema(t *testing.T) {
 	}
 	// hack_remove_judge_conflict's judge_user_id is a flat query-forwarded
 	// argument (HackOrganiserTools' own special case), not a body field.
-	schema := s.hackByName["hack_remove_judge_conflict"]
+	schema := serverTool(t, s, "hack_remove_judge_conflict")
 	props, _ := schema.InputSchema["properties"].(map[string]any)
 	if _, ok := props["judge_user_id"]; !ok {
 		t.Errorf("hack_remove_judge_conflict: route table forwards judge_user_id, which is not in this tool's InputSchema properties: %v", props)

@@ -1,4 +1,4 @@
-package mcp
+package hackmcp
 
 // Expected screen groups, kept as test fixtures independently of listing policy.
 var (

@@ -356,11 +356,11 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 	}
 	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {Mode: CallerModeHackSite}} {
 		full, bare, byName := s.forCaller(caller)
-		expected := append([]Tool{}, s.hackTools...)
+		expected := append([]Tool{}, s.productTools...)
 		if caller.Mode == CallerModeHackSite {
-			expected = s.hackSiteTools
+			expected = s.groupSiteTools
 		} else if caller.GrantID != "" {
-			for _, tool := range s.hackSiteTools {
+			for _, tool := range s.groupSiteTools {
 				if tool.Name != "get_page_recipe" {
 					expected = append(expected, tool)
 				}
@@ -467,84 +467,6 @@ func TestInstructionsLength(t *testing.T) {
 						t.Error("missing signed-out advice")
 					}
 				})
-			}
-		})
-	}
-}
-
-func TestHackInstructionsLength(t *testing.T) {
-	for _, flag := range []string{"off", "on"} {
-		t.Run(flag, func(t *testing.T) {
-			t.Setenv("STORAGE_RULES", flag)
-			defer NewServer(testConfig(Config{}))
-			for _, host := range []string{"simple-hack.app", "hack.company.example", strings.Repeat("a", 63) + ".sites.example-company.org", strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)} {
-				for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "personal"}, {Mode: CallerModeHackSite}} {
-					t.Run(host+"/"+caller.Mode+"/"+caller.GrantID, func(t *testing.T) {
-						text := NewServer(testConfig(Config{APIHost: host, SelfHosted: host != "simple-hack.app"})).instructionsFor(caller)
-						t.Logf("instructions: %d characters", len([]rune(text)))
-						if n := len([]rune(text)); n >= 2000 {
-							t.Fatalf("instructions too long: %d", n)
-						}
-						for _, want := range []string{host, "membership", "deadline", "Ask before"} {
-							if !strings.Contains(text, want) {
-								t.Errorf("missing %q", want)
-							}
-						}
-						if caller.Mode == CallerModeEvents {
-							for _, want := range []string{"organiser", "participant", "judge", "hack_select_team", "hack_event_storage_*", "code of conduct", "Archiving is final", "keep scores unless you confirm deletions", "Stage results does not publish"} {
-								if !strings.Contains(text, want) {
-									t.Errorf("missing %q", want)
-								}
-							}
-						}
-					})
-				}
-			}
-		})
-	}
-}
-
-func TestHackPublicInventory(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "off")
-	s := NewServer(testConfig(Config{}))
-	for _, flag := range []string{"off", "on"} {
-		t.Run(flag, func(t *testing.T) {
-			t.Setenv("STORAGE_RULES", flag)
-			public := s.HackListedTools()
-			personal, _, _ := s.forCaller(Caller{Mode: CallerModeEvents, GrantID: "test"})
-			if len(public) != len(personal) {
-				t.Fatalf("public inventory %d != personal %d", len(public), len(personal))
-			}
-			for i, tool := range public {
-				if tool.Name != personal[i].Name || tool.Title != personal[i].Title || tool.Description != personal[i].Description {
-					t.Fatalf("tool %d differs", i)
-				}
-			}
-			for _, name := range []string{"storage_set_resource", "hack_event_storage_set_resource"} {
-				found := false
-				for _, tool := range public {
-					if tool.Name != name {
-						continue
-					}
-					found = true
-					want := "Create a storage resource or set its preset"
-					if flag == "on" {
-						want = "Create a storage resource or set its rules"
-					}
-					if strings.HasPrefix(name, "hack_event_") {
-						want = "Event website: " + want
-					}
-					if tool.Title != want {
-						t.Errorf("%s title = %q, want %q", name, tool.Title, want)
-					}
-				}
-				if !found {
-					t.Errorf("missing public tool %s", name)
-				}
-			}
-			public[0].Name = "changed"
-			if s.HackListedTools()[0].Name == "changed" {
-				t.Fatal("returned slice aliases server inventory")
 			}
 		})
 	}

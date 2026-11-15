@@ -110,8 +110,9 @@ type ConnectorHandler struct {
 	importStatusLimiter *rateLimiter
 
 	now func() time.Time
-	// hackTeams gates hosted hackathon grants and tools (EVENTS=hosted).
-	hackTeams bool
+	// teamConnections is on when the product has team connections: a new
+	// grant is personal and selects a team (SetTeamConnections).
+	teamConnections bool
 
 	// assets is the asset/chrome pipeline for ed and issuer (the consent
 	// screen and import page); read it through pipeline().
@@ -219,12 +220,12 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// limit, plus JSON/base64 overhead. The largest any account has
 		// (MAX_ARCHIVE_MB_OVERRIDES), since the account is not known yet; the
 		// deploy route then holds each account to its own.
-		MaxBodyBytes:   h.largestSiteLimit()*4/3 + (1 << 20),
-		SelectHackTeam: h.selectHackTeam,
+		MaxBodyBytes: h.largestSiteLimit()*4/3 + (1 << 20),
+		SelectTarget: h.selectConnectionTeam,
 		// internal/mcp is a leaf package (check-layering.sh) and may not
 		// import internal/papermetrics directly; this is the same hook it
 		// used to call inline from internal/mcp/tools.go.
-		MutationResultHook: func(ctx context.Context, method, path string, status int) {
+		MutationResult: func(ctx context.Context, method, path string, status int) {
 			paperRecorder(ctx).MutationResult(ctx, method, path, status)
 		},
 		// main sets it from the server's Turnstile keys (OfferSpamCheck).
@@ -233,7 +234,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	// Another Simple Host server names itself in the connector's text, with
 	// the rewriter its llms.txt and Get started use (SetInstanceHosts runs
 	// first). Simple Hack rewrites its own simple-hack.app mentions
-	// separately (hackInstanceTools, server.go); this pass covers the
+	// separately (Contribution.Rewrite); this pass covers the
 	// site-management tools' simple-host.app mentions (list_sites,
 	// create_site, connect_domain, ...), which a Hack edition's MCP surface
 	// serves too (a team's Website tab publishes through the same site
@@ -914,7 +915,7 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 // events, the marker of an event-management grant. The challenge itself
 // stays "sites": clients already ask for that, and the consent page chooses.
 func (h *ConnectorHandler) scopesSupported() []string {
-	if h.hackTeams {
+	if h.teamConnections {
 		return []string{auth.OAuthScope, auth.HackEventsScope}
 	}
 	return []string{auth.OAuthScope}
@@ -1009,7 +1010,7 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		if h.reviewer != nil {
 			data["reviewer_signin"] = true
 		}
-		if h.hackTeams {
+		if h.teamConnections {
 			data["hack"] = true
 		}
 		if h.brainResource != "" && req.Resource == h.brainResource {
@@ -1051,8 +1052,9 @@ func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request,
 	_, _ = w.Write(page)
 }
 
-// SetHackTeams turns on hosted hackathon grants (EVENTS=hosted).
-func (h *ConnectorHandler) SetHackTeams(on bool) { h.hackTeams = on }
+// SetTeamConnections turns on personal grants that select a team. The
+// product that has teams calls it at startup.
+func (h *ConnectorHandler) SetTeamConnections(on bool) { h.teamConnections = on }
 
 // SetSignInAlerts shares the sign-in alert sender (UserHandler.SignInAlerts).
 func (h *ConnectorHandler) SetSignInAlerts(a *SignInAlerts) { h.alerts = a }
@@ -1168,7 +1170,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scope := auth.OAuthScope
-	if h.hackTeams {
+	if h.teamConnections {
 		// A consent page left open across deployment may still submit the old
 		// team-only choice. Do not silently turn that narrower approval into a
 		// personal grant; ask the person to reload the current consent page.
@@ -1334,13 +1336,14 @@ func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token str
 // personal hosted grant and "" otherwise. A malformed hosted grant cannot
 // authenticate. The returned grant also carries the selected team, if any.
 func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
-	return h.accountsSvc().ConnectorAccess(ctx, token, h.now, h.hackTeams, audiences...)
+	return h.accountsSvc().ConnectorAccess(ctx, token, h.now, h.teamConnections, audiences...)
 }
 
-// selectHackTeam is called only by the hosted MCP team-selection tool. A
+// selectConnectionTeam is the tool server's SelectTarget: it is called only by
+// the product's team-selection tool. A
 // grant cannot select a team unless its person is a current participant on it.
-func (h *ConnectorHandler) selectHackTeam(ctx context.Context, caller mcp.Caller, teamID string) error {
-	return appsites.New(h.database, nil, nil, 0, appsites.Deps{}).SelectConnectionTeam(ctx, h.hackTeams, caller.GrantID, caller.UserID, teamID)
+func (h *ConnectorHandler) selectConnectionTeam(ctx context.Context, caller mcp.Caller, teamID string) error {
+	return appsites.New(h.database, nil, nil, 0, appsites.Deps{}).SelectConnectionTeam(ctx, h.teamConnections, caller.GrantID, caller.UserID, teamID)
 }
 
 // internalKeyFor mints the per-request credential for a connection: bound to
@@ -1490,7 +1493,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			}
 			return h.internalKeyFor(u.ID, currentTeam)
 		}
-		if h.hackTeams && grantMode == mcp.CallerModeEvents {
+		if h.teamConnections && grantMode == mcp.CallerModeEvents {
 			grantID, userID = grant.GrantID, user.ID
 			if grant.SelectedTeamID.Valid {
 				if _, err := h.accountsSvc().ResolveTeamIdentity(r.Context(), user.ID, grant.SelectedTeamID.String); err == nil {
@@ -1534,7 +1537,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 					credentialExpiresAt = *u.KeyExpiresAt
 				}
 				deployOnly = u.KeyScope == "deploy"
-				if h.hackTeams && u.Team == nil && u.KeyScope != "deploy" {
+				if h.teamConnections && u.Team == nil && u.KeyScope != "deploy" {
 					mode = mcp.CallerModeEvents
 				}
 			}
@@ -1552,7 +1555,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		h.mcpUnauthorized(w, false)
 		return
 	}
-	if h.hackTeams && mode != mcp.CallerModeEvents {
+	if h.teamConnections && mode != mcp.CallerModeEvents {
 		mode = mcp.CallerModeHackSite
 	}
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
@@ -1663,7 +1666,7 @@ func analyticsEnv(issuer string) string {
 
 func (h *ConnectorHandler) accountsSvc() *accounts.Service { return accounts.New(h.database) }
 func (h *ConnectorHandler) connectorSvc() *accounts.Connector {
-	return accounts.NewConnector(h.database, h.now, h.normalizeResource, h.hackTeams, h.oauthAccessTTL(), h.oauthRefreshTTL())
+	return accounts.NewConnector(h.database, h.now, h.normalizeResource, h.teamConnections, h.oauthAccessTTL(), h.oauthRefreshTTL())
 }
 func (h *ConnectorHandler) writeConnectorTokens(w http.ResponseWriter, reply accounts.ConnectorTokens, err error) {
 	if err != nil {

@@ -79,9 +79,6 @@ func runTestStorageToolsScopedToSelectedHackTeam(t *testing.T) {
 	if _, ok := s.byName["storage_sql_schema"]; !ok {
 		t.Fatal("Host connection lost storage schema tool")
 	}
-	if _, ok := s.hackByName["hack_event_storage_sql_schema"]; !ok {
-		t.Fatal("organiser connection lost event website storage tool")
-	}
 }
 
 func TestStorageToolRejectsOversizedInlineFile(t *testing.T) {

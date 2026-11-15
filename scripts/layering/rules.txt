@@ -60,7 +60,6 @@ wpimport -> redirects
 @/cmd/ip-country-load -> -
 @/scripts/layering -> -
 @/scripts/inventory -> mcp webassets @/products/hack/mcp
-mcp/apps/gentool -> mcp/apps/bundlegen
 server/servertest -> server config extension
 [test]
 handler -> @/host/storage/rules
@@ -69,7 +68,8 @@ app/sites -> @/host/storage/rules
 @/** -> testdb geoip/geoiptest
 {handler,auth,mcp} -> config repository/** storage sitelocks email llm
 @/products/hack/hackhttp -> config repository/** storage sitelocks email llm
-mcp -> mcp/apps/bundlegen @/host/storage/rules
+mcp -> @/host/storage/rules
+@/products/hack/mcp -> @/host/storage/rules
 server -> server/servertest
 server/servertest -> testdb
 @/products/hack/servertest -> server/servertest
@@ -77,4 +77,3 @@ server/servertest -> testdb
 [transitional]
 # Each edge names the slice that removes its final caller.
 @/cmd/server -> @/products/hack production # removal step D3-S6b
-mcp -> @/products/hack/mcp test # removal step D3-S1c

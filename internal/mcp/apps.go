@@ -196,12 +196,14 @@ func (s *Server) readApp(req request, caller Caller) response {
 		if screen.ID == "site-preview" {
 			bridge += "\n" + asset("frames.js")
 		}
-		hack, product := "", "Simple Host"
-		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
-			hack, product = asset("hack-sites.js"), "Simple Hack"
+		// On a product's connection the product supplies its own script and
+		// name for these screens (AppContribution.SitesPage).
+		productScript, product := "", "Simple Host"
+		if sitesPage := s.apps.SitesPage; sitesPage != nil && (caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite) {
+			productScript, product = sitesPage()
 		}
 		page := strings.NewReplacer(
-			"__HACK__", hack, "__MODE__", html.EscapeString(caller.Mode), "__PRODUCT__", product,
+			"__HACK__", productScript, "__MODE__", html.EscapeString(caller.Mode), "__PRODUCT__", product,
 			"__STYLE__", asset("shared.css"), "__BRIDGE__", bridge,
 			"__SCREEN__", asset(strings.TrimSuffix(screen.HTML, ".html")+".js"), "__CONFIG__", string(config),
 			"__DASHBOARD__", strconv.FormatBool(s.dashboardEnabled(caller)),

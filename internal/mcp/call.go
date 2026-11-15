@@ -64,7 +64,7 @@ func (c *call) do(method, path string, body []byte, extra map[string]string) ups
 	}
 	rec := &capture{header: http.Header{}, status: http.StatusOK}
 	c.server.cfg.Upstream.ServeHTTP(rec, req)
-	if hook := c.server.cfg.MutationResultHook; hook != nil {
+	if hook := c.server.cfg.MutationResult; hook != nil {
 		hook(c.orig.Context(), method, path, rec.status)
 	}
 	return upstreamResult{status: rec.status, header: rec.header, body: rec.body.Bytes()}

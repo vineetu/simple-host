@@ -9,10 +9,10 @@
 // this frame's own internal/mcp/apps/frame/judge-nav.js and tour.js by the
 // esbuild OnResolve plugin (bundlegen's framePlugin) -- nothing here asks
 // for them directly.
-import * as ui from '../../../webassets/static/hack/ui.js'
-import * as publicJudge from '../../../webassets/static/hack/screens/public-judge.js'
-import * as queue from '../../../webassets/static/hack/screens/judge-queue.js'
-import * as scoring from '../../../webassets/static/hack/screens/judge-scoring.js'
-import * as rubric from '../../../webassets/static/hack/screens/judge-rubric.js'
+import * as ui from '../../../../../internal/webassets/static/hack/ui.js'
+import * as publicJudge from '../../../../../internal/webassets/static/hack/screens/public-judge.js'
+import * as queue from '../../../../../internal/webassets/static/hack/screens/judge-queue.js'
+import * as scoring from '../../../../../internal/webassets/static/hack/screens/judge-scoring.js'
+import * as rubric from '../../../../../internal/webassets/static/hack/screens/judge-rubric.js'
 
 window.__HACKJ = { ui, screens: { invite: publicJudge, queue, score: scoring, rubric } }

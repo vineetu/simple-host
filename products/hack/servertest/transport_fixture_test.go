@@ -682,7 +682,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetTools(hackmcp.Contribution())
-	a.conn.SetHackTeams(true)
+	a.conn.SetTeamConnections(true)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
 	app := handler.SecurityHeaders(handler.CORS(a.conn.BearerAuth(gated)))
 	root = a.sites.FamilyHosts(app, a.sites.SiteBaseHosts(a.sites.BoundSubdomains(app, a.sites.SiteHosts(app, a.sites.PersonHosts(app, a.sites.LegacyHostRedirect(app))))))

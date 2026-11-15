@@ -37,7 +37,6 @@ func TestAnalyticsPostedConversation(t *testing.T) {
 		{"create_upload_link", map[string]any{"site": "ordinary-site"}, map[string]any{"upload_url": planted, "photos_url": planted, "how": "curl " + planted}, planted},
 		{"create_import_link", map[string]any{"site": "ordinary-site"}, map[string]any{"import_url": planted}, planted},
 		{"storage_file_download_link", map[string]any{"site": "ordinary-site"}, map[string]any{"url": planted}, planted},
-		{"hack_create_team_key", map[string]any{"slug": "ordinary-site"}, map[string]any{"key": planted}, planted},
 		{"grant_site_viewer", map[string]any{"emails": []any{planted}}, map[string]any{"added": []any{planted}, "already_listed": []any{planted}}, planted},
 		{"revoke_site_viewer", map[string]any{"email": planted}, map[string]any{"removed": planted}, planted},
 		{"list_site_viewers", nil, map[string]any{"viewers": []any{map[string]any{"email": planted}}}, planted},
@@ -46,14 +45,7 @@ func TestAnalyticsPostedConversation(t *testing.T) {
 		{"storage_sql_execute", map[string]any{"for": planted + "@example.com", "table": "entries", "values": map[string]any{"note": "ordinary text"}}, map[string]any{"response": map[string]any{"changes": 1}}, "ordinary text"},
 		{"who_am_i", map[string]any{"include_email": true}, map[string]any{"email": planted}, planted},
 		{"storage_sql_query", nil, map[string]any{"columns": []any{"visitor_id", "visitor_email", "email", "token"}, "rows": []any{[]any{ref, planted, planted, planted}}}, `{"columns":["visitor_id","email"],"rows":[["v_opaque-visitor","PLANTED_PRIVATE_VALUE"]]}`},
-		{"hack_create_event", map[string]any{"contact_email": planted}, map[string]any{"organiser": map[string]any{"contact_email": planted}}, planted},
-		{"hack_update_event", map[string]any{"contact_email": planted}, map[string]any{"organiser": map[string]any{"contact_email": planted}}, planted},
-		{"hack_get_event", nil, map[string]any{"organiser": map[string]any{"contact_email": planted}}, planted},
 		{"set_site_access", map[string]any{"emails": []any{planted}}, map[string]any{"added": []any{planted}}, planted},
-		{"hack_export_results", nil, map[string]any{"csv": planted, "filename": "results.csv"}, planted},
-		{"hack_export_scores", nil, map[string]any{"csv": planted, "filename": "scores.csv"}, planted},
-		{"hack_regenerate_code", nil, map[string]any{"url": planted, "code": planted}, planted},
-		{"hack_export_participants", nil, map[string]any{"csv": planted, "filename": "participants.csv"}, planted},
 		{"visitor_read_site", map[string]any{"address": "ordinary-site", "page": "index.html"}, map[string]any{"visitor_data": map[string]any{"page_text": planted}}, `{"visitor_data":{"page_text":"PLANTED_PRIVATE_VALUE"}}`},
 		{"visitor_add_entry", map[string]any{"address": "ordinary-site", "passcode": planted, "value": "ordinary text"}, map[string]any{"visitor_data": map[string]any{"mine": true}, "note": "ordinary text"}, `{"visitor_data":{"mine":true},"note":"ordinary text"}`},
 	} {
@@ -213,61 +205,6 @@ func TestAnalyticsFileMetadataAndFields(t *testing.T) {
 	}
 	if analyticsSecretField("storage_put_kv", "key") {
 		t.Fatal("plain KV key removed")
-	}
-}
-
-// Apply to a hackathon (2026-10-31 owner decision 5): hack_apply_to_event's
-// arguments must not reach AgentCat with the applicant's city, country, age
-// range or gender, the same removal policy as a passcode or key. Security
-// review (Grok 6): answers and display_name can carry the same information
-// in prose ("I'm 14, a girl, in Jakarta"), so for this tool -- and
-// hack_get_applications, the organiser's read of the queue -- those two are
-// removed from the analytics copy as well. The tool result the model
-// actually sees (hack_get_applications's real response) is unaffected; only
-// the telemetry copy changes, checked separately below.
-func TestAnalyticsHackApplyFieldsRemoved(t *testing.T) {
-	args := map[string]any{
-		"slug": "spring", "accept_coc": true, "display_name": "Dewi",
-		"city": "Jakarta", "country": "ID", "age_range": "under_18", "gender": "woman",
-		"answers": map[string]any{"why": "I want to build an app for my school library."},
-	}
-	got := analyticsParameters("hack_apply_to_event", args)
-	body, err := json.Marshal(got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := string(body)
-	for _, leaked := range []string{"Jakarta", "\"ID\"", "under_18", "woman", "Dewi", "school library"} {
-		if strings.Contains(s, leaked) {
-			t.Errorf("AgentCat payload still carries %q: %s", leaked, s)
-		}
-	}
-	if !strings.Contains(s, "spring") {
-		t.Errorf("unrelated fields were also removed: %s", s)
-	}
-}
-
-// TestAnalyticsHackGetApplicationsFieldsRemoved is the response-side half of
-// the same fix: the organiser's own hack_get_applications call must keep
-// seeing real city/age/gender/answers (that is what the tool is for), but
-// the analytics copy of that same response strips them, including answers
-// and display_name.
-func TestAnalyticsHackGetApplicationsFieldsRemoved(t *testing.T) {
-	text := `{"response":[{"user_id":"u1","display_name":"Dewi","city":"Jakarta","country":"ID","age_range":"under_18","gender":"woman","answers":[{"id":"why","prompt":"Why?","answer":"I want to build an app for my school library."}]}],"status":200}`
-	reply := toolResult(nil, text, nil, false, false)
-	got := analyticsResponse("hack_get_applications", reply.Result).(map[string]any)
-	body, err := json.Marshal(got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := string(body)
-	for _, leaked := range []string{"Jakarta", "\"ID\"", "under_18", "woman", "Dewi", "school library"} {
-		if strings.Contains(s, leaked) {
-			t.Errorf("AgentCat payload still carries %q: %s", leaked, s)
-		}
-	}
-	if !strings.Contains(s, "u1") {
-		t.Errorf("unrelated fields were also removed: %s", s)
 	}
 }
 

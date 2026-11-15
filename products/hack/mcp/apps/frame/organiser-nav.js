@@ -1,4 +1,4 @@
-import { resolve as resolveTarget } from '../../../webassets/static/hack/navigation.js'
+import { resolve as resolveTarget } from '../../../../../internal/webassets/static/hack/navigation.js'
 // Frame stand-in for internal/handler/static/hack/nav.js, swapped in by
 // the esbuild OnResolve plugin in internal/mcp/apps/bundlegen for the
 // organiser app only: this frame renders three sections in-frame

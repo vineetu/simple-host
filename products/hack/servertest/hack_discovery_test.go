@@ -136,7 +136,7 @@ func TestHackPublicDiscovery(t *testing.T) {
 					t.Errorf("missing role overview %q", role)
 				}
 			}
-			tools := server.HackListedTools()
+			tools := server.ProductListedTools()
 			if len(agent.Tools) != len(tools) || len(tools) <= 20 {
 				t.Fatalf("Hack tools truncated: %d", len(agent.Tools))
 			}

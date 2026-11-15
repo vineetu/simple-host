@@ -35,10 +35,5 @@ func TestCreateSitePrivateInputs(t *testing.T) {
 		if props["viewers"].(map[string]any)["maxItems"] != 3 {
 			t.Fatal("viewer cap missing")
 		}
-		hack := hackSiteCreateSite(tool, Limits{})
-		hp := hack.InputSchema["properties"].(map[string]any)
-		if hp["access"] != nil || hp["viewers"] != nil {
-			t.Fatal("Hack exposes named viewers")
-		}
 	}
 }

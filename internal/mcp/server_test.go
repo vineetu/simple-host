@@ -526,21 +526,13 @@ func TestStaleSchemaCallGetsCurrentSchema(t *testing.T) {
 	}
 }
 
-// Simple Hack has no photos link, so its deploy tools keep the compress line.
-func TestHackDeployToolsDoNotOfferPhotosLink(t *testing.T) {
+// The hosted create_site carries the photos link line. A product may swap it
+// for its own wording on its group-site connections (Contribution.SiteVariants).
+func TestHostedCreateSiteOffersPhotosLink(t *testing.T) {
 	s := newTestServer(&recordingUpstream{})
 	_, _, host := s.forCaller(Caller{})
 	if !strings.Contains(host["create_site"].Description, deployPhotoTip) {
 		t.Fatal("hosted create_site lost the photos link line")
-	}
-	for _, mode := range []string{CallerModeHackSite, CallerModeEvents} {
-		_, _, tools := s.forCaller(Caller{Mode: mode, GrantID: "grant", APIKey: "owner"})
-		for _, name := range []string{"create_site", "update_site"} {
-			d := tools[name].Description
-			if strings.Contains(d, "photos_url") || !strings.Contains(d, hackPhotoTip) || !strings.Contains(d, deployFormTip) {
-				t.Fatalf("%s %s: %q", mode, name, d)
-			}
-		}
 	}
 }
 

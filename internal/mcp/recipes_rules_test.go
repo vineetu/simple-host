@@ -19,7 +19,6 @@ func TestRulesRecipesFlagOffBytes(t *testing.T) {
 	defer NewServer(testConfig(Config{}))
 	NewServer(testConfig(Config{}))
 	const frozen = `{
-  "hack-event": "85e149a6ea85622fc9098a768c7c38509a7383fb6d7386c221327247ec96bd46",
   "inbox": "5e2c32ce6400878501167a57aa62cfc8919d30c0924365b5ae724d1c116f6c2e",
   "people": "fa23c69c9b5adc3338e4e7b50c20e174d8f2f62da16e350c3befc215749efa6a",
   "wall": "0b04b64653e7eb664c12d5cea1dbcb6eec24ae78640d99c949f75e101dfc5923",
@@ -62,8 +61,8 @@ func TestRulesRecipesFlagOffBytes(t *testing.T) {
 			t.Errorf("%s flag-off response changed", topic)
 		}
 	}
-	// Both public dispatch paths re-read the flag, including a cached tool.
-	for _, tool := range []Tool{pageRecipeTool(), hackPageRecipeTool()} {
+	// The dispatch path re-reads the flag, including a cached tool.
+	for _, tool := range []Tool{pageRecipeTool()} {
 		c := &call{server: NewServer(testConfig(Config{}))}
 		args := map[string]any{"topic": "booking", "site": "shop"}
 		before, err := tool.run(c, args)
@@ -262,34 +261,6 @@ func TestRulesWordPressImportSetupAdvice(t *testing.T) {
 	}
 }
 
-func TestRulesHackRecipes(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	defer NewServer(testConfig(Config{}))
-	NewServer(testConfig(Config{}))
-	for _, topic := range append(append([]string{}, recipeTopics...), "event") {
-		text, err := HackPageRecipe(topic, "my-event")
-		switch topic {
-		case "portal", "comments", "guestbook", "people", "wordpress":
-			if err == nil {
-				t.Errorf("%s product refusal lost", topic)
-			}
-		default:
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(text, "Ask who should read") {
-				t.Errorf("%s missing question", topic)
-			}
-			if topic != "event" && topic != "gallery" && !strings.Contains(text, `"policies"`) {
-				t.Errorf("%s has no rules", topic)
-			}
-			if strings.Contains(text, "https://simple-host.app/auth.js") || strings.Contains(text, "Simple Host account") {
-				t.Errorf("%s has Host wording", topic)
-			}
-		}
-	}
-}
-
 func TestRulesRecipeAdaptations(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
 	defer NewServer(testConfig(Config{}))
@@ -302,19 +273,5 @@ func TestRulesRecipeAdaptations(t *testing.T) {
 		if !strings.Contains(admin, advice) {
 			t.Errorf("admin recipe lacks %q", advice)
 		}
-	}
-	for _, topic := range []string{"public", "menu"} {
-		text, err := HackPageRecipe(topic, "my-event")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(text, "files resource with preset public") || strings.Contains(text, "same preset") {
-			t.Errorf("%s has ambiguous file access advice", topic)
-		}
-	}
-	t.Setenv("STORAGE_RULES", "off")
-	text, err := HackPageRecipe("public", "my-event")
-	if err != nil || !strings.Contains(text, "files resource with the same preset") {
-		t.Fatalf("flag-off Hack photo advice changed: %v", err)
 	}
 }

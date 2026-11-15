@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/mcp"
@@ -15,12 +16,62 @@ import (
 
 func newTestServer(up http.Handler) *mcp.Server {
 	product := Contribution()
-	return mcp.NewServer(mcp.Config{
+	// Keep the screens the server was given, for the tests that read a
+	// screen or run a screen tool directly (screensOf).
+	var screens *hackScreens
+	product.Apps = func(ctx mcp.AppContext) mcp.AppContribution {
+		screens = &hackScreens{ctx: ctx}
+		return hackApps(ctx)
+	}
+	s := mcp.NewServer(mcp.Config{
 		Contribution: &product,
 		Upstream:     up, APIHost: "simple-host.app", ContentOrigin: "https://sites.simple-host.app",
 		SiteBases:    []string{"simple-host.app"},
 		SkillVersion: "9.9.9", ServerName: "simple-host", Version: "9.9.9",
 	})
+	serverScreens.Store(s, screens)
+	return s
+}
+
+// serverScreens maps a server built by newTestServer to its screens.
+var serverScreens sync.Map
+
+// screensOf is the product's screens as s was given them: the same API host
+// and the tool server's own screen metadata.
+func screensOf(s *mcp.Server) *hackScreens {
+	screens, _ := serverScreens.Load(s)
+	return screens.(*hackScreens)
+}
+
+// serverTool finds one declaration a connection can call, by name, among the
+// base tools and the app-only family built for s. A declaration hidden from
+// the connector is not found, as in the server's own lookup.
+func serverTool(t *testing.T, s *mcp.Server, name string) mcp.Tool {
+	t.Helper()
+	tool, ok := findServerTool(s, name)
+	if !ok {
+		t.Fatalf("no tool named %s", name)
+	}
+	return tool
+}
+
+func findServerTool(s *mcp.Server, name string) (mcp.Tool, bool) {
+	callable := false
+	for _, entry := range mcp.Inventory(Contribution()) {
+		if entry.Edition == "hack" && entry.Name == name && !entry.Hidden {
+			callable = true
+		}
+	}
+	if !callable {
+		return mcp.Tool{}, false
+	}
+	base := Tools()
+	for _, tool := range append(append([]mcp.Tool{}, base...), screensOf(s).hackAppFamilyTools(base)...) {
+		if tool.Name == name {
+			return tool, true
+		}
+	}
+	return mcp.Tool{}, false
 }
 
 func send(t *testing.T, s *mcp.Server, body string, headers map[string]string, authed bool) *httptest.ResponseRecorder {

@@ -117,9 +117,9 @@ func (c *call) UICapable() bool        { return c.uiClient }
 func (c *call) MaxBodyBytes() int64    { return c.server.cfg.MaxBodyBytes }
 func (c *call) APIHost() string        { return c.server.cfg.APIHost }
 func (c *call) SelectTarget(team string) error {
-	return c.server.cfg.SelectHackTeam(c.orig.Context(), c.caller, team)
+	return c.server.cfg.SelectTarget(c.orig.Context(), c.caller, team)
 }
-func (c *call) CanSelectTarget() bool               { return c.server.cfg.SelectHackTeam != nil }
+func (c *call) CanSelectTarget() bool               { return c.server.cfg.SelectTarget != nil }
 func (c *call) MemberResult() string                { return c.policy.memberResult }
 func (c *call) OrganiserResult() string             { return c.policy.organiserResult }
 func (u upstreamResult) OK() bool                   { return u.ok() }
@@ -166,3 +166,12 @@ func NewCall(server *Server, r *http.Request, caller Caller) *Call {
 
 // WithCaller copies this replay context with the supplied credential identity.
 func (c *call) WithCaller(caller Caller) *Call { clone := *c; clone.caller = caller; return &clone }
+
+// WithUICapable copies this context as a call from a client that did, or did
+// not, declare MCP Apps support. The server sets the same fact on each
+// tools/call; product tests run a screen tool with it.
+func (c *call) WithUICapable(ui bool) *Call {
+	clone := *c
+	clone.uiClient, clone.textOnlyClient = ui, !ui
+	return &clone
+}

@@ -1,11 +1,28 @@
 package hackmcp
 
 import (
+	"embed"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"regexp"
 	"strings"
 )
+
+// hackRecipeFiles holds the one recipe that is Simple Hack's own: the
+// organiser's event website, in its preset and its rules wording.
+//
+//go:embed recipes/*.md recipes/rules/*.md
+var hackRecipeFiles embed.FS
+
+// readEventRecipe chooses at request time, as the tool server does for its
+// own recipes: switching the flag never changes the legacy file.
+func readEventRecipe() ([]byte, error) {
+	dir := "recipes/"
+	if mcp.StorageRulesEnabled() {
+		dir += "rules/"
+	}
+	return hackRecipeFiles.ReadFile(dir + "hack-event.md")
+}
 
 // hackRecipeNote opens every recipe on Simple Hack: who "owner" is there and
 // which tools stand in for the Simple Host ones (owner decision 2026-10-10).
@@ -26,7 +43,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 		if !eventRecipeSlug.MatchString(site) {
 			return "", fmt.Errorf("site must be the event slug (lowercase letters, digits and hyphens)")
 		}
-		data, err := mcp.ReadRecipe("hack-event")
+		data, err := readEventRecipe()
 		if err != nil {
 			return "", err
 		}

@@ -40,7 +40,7 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, server func() *mcp.Ser
 		mcpServer := server()
 		var tools []mcp.Tool
 		if hostedEvents {
-			tools = mcpServer.HackListedTools()
+			tools = mcpServer.ProductListedTools()
 		} else {
 			tools = mcpServer.ListedTools()
 		}

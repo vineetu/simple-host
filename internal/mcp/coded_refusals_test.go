@@ -122,16 +122,14 @@ func TestVisitorToolRefusalAnalyticsCodeNotToolError(t *testing.T) {
 	}
 }
 
-// storage_sql_query, storage_sql_execute and storage_sql_schema (Host and
-// the Hack event-website copies) say upfront that PRAGMA is not available
+// storage_sql_query, storage_sql_execute and storage_sql_schema say upfront that PRAGMA is not available
 // and what to use instead, so a model does not have to hit the refusal
 // first (SIM-359, AgentCat sql_not_available review).
 func TestSQLToolDescriptionsNamePragmaAlternative(t *testing.T) {
 	want := map[string]bool{
 		"storage_sql_query": false, "storage_sql_execute": false, "storage_sql_schema": false,
-		"hack_event_storage_sql_query": false, "hack_event_storage_sql_execute": false, "hack_event_storage_sql_schema": false,
 	}
-	for _, tool := range append(append([]Tool{}, Tools()...), HackTools()...) {
+	for _, tool := range Tools() {
 		if _, tracked := want[tool.Name]; tracked {
 			if !strings.Contains(tool.Description, "PRAGMA") || !strings.Contains(tool.Description, "sqlite_schema") {
 				t.Errorf("%s description lacks the PRAGMA hint: %s", tool.Name, tool.Description)

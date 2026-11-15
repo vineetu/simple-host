@@ -16,7 +16,6 @@ func TestRegistryExportsPreserveDeclarations(t *testing.T) {
 	}{
 		{"Tools", Tools(), hostFamilies(DefaultLimits())},
 		{"ToolsWithLimits", ToolsWithLimits(limits), hostFamilies(limits)},
-		{"HackTools", HackTools(), hackFamilies()},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

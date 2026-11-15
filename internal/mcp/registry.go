@@ -1,7 +1,8 @@
 package mcp
 
 // toolFamily names one capability family of MCP tools (docs/architecture/
-// target.md §6). Every registered tool belongs to exactly one family.
+// target.md §6). Every registered tool belongs to exactly one family. A
+// product names its own families in its contribution.
 type toolFamily string
 
 const (
@@ -14,9 +15,6 @@ const (
 	famNotifications toolFamily = "notifications" // notifications and MCP Events
 	famAdmin         toolFamily = "admin"         // admin and brain
 	famDiscovery     toolFamily = "discovery"     // find_tools, run_tool
-	famHackEvents    toolFamily = "hack-events"   // Hack events, members, teams
-	famHackEntries   toolFamily = "hack-entries"  // Hack entries, judging, results
-	famHackAppOnly   toolFamily = "hack-app-only" // Hack app-only screen tools
 )
 
 // familyTools is one family's tool declarations, in listing order.
@@ -94,7 +92,10 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 	}
 }
 
-func buildRegistry(cfg Config) *toolRegistry {
+// buildRegistry registers every declaration. appFamily, when not nil, is the
+// product's AppContribution.AppFamily for this server: its family follows the
+// product's own.
+func buildRegistry(cfg Config, appFamily func(base []Tool) FamilyTools) *toolRegistry {
 	if cfg.Contribution == nil {
 		cfg.Contribution = &Contribution{}
 	}
@@ -104,7 +105,15 @@ func buildRegistry(cfg Config) *toolRegistry {
 		r.add(editionHost, famNotifications, instanceTools(addressTools(notificationTools())))
 	}
 	r.add(editionHost, famDiscovery, instanceTools(discoveryTools()))
-	r.addFamilies(editionHack, cfg.Contribution.Families, addressTools)
+	families := cfg.Contribution.Families
+	if appFamily != nil {
+		var base []Tool
+		for _, family := range families {
+			base = append(base, family.Tools...)
+		}
+		families = append(append([]familyTools(nil), families...), appFamily(base))
+	}
+	r.addFamilies(editionHack, families, addressTools)
 	if cfg.Events != nil {
 		r.add(editionHack, famNotifications, cfg.Contribution.Notifications)
 	}
@@ -228,8 +237,8 @@ type InventoryTool struct {
 
 // Inventory returns every registered tool with Events enabled. Listed describes
 // edition listing policy; caller-specific core and screen gates still apply.
-func inventoryTools(cfg Config) []InventoryTool {
-	r := buildRegistry(cfg)
+func inventoryTools(cfg Config, appFamily func(base []Tool) FamilyTools) []InventoryTool {
+	r := buildRegistry(cfg, appFamily)
 	var out []InventoryTool
 	for _, entry := range r.entries {
 		edition := "host"

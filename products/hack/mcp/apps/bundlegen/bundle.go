@@ -1,6 +1,6 @@
 // Package bundlegen builds the judge and organiser MCP Apps' bundled
 // script and stylesheet from the real static/hack web app files, at
-// build time, from internal/mcp/apps/entry/{judge,organiser}.js, each a
+// build time, from products/hack/mcp/apps/entry/{judge,organiser}.js, each a
 // small hand-written entry module that imports the screens it needs and
 // sets window.__HACKJ / window.__HACKO for the hand-written glue
 // (hack-{judge,organiser}-view.js) to drive.
@@ -22,7 +22,7 @@
 //
 // The screens are reused byte-for-byte from disk except for calls to a
 // small platform adapter (internal/webassets/static/hack/platform.js on the
-// website side, internal/mcp/apps/frame/platform.js on this side) where
+// website side, products/hack/mcp/apps/frame/platform.js on this side) where
 // the real browser environment (a real pathname, a same-origin document,
 // a page the browser can navigate to, a <form> that can submit) does not
 // hold inside an MCP App frame (an isolated, sandboxed iframe with its
@@ -61,10 +61,10 @@ const esbuildVersion = "esbuild v0.28.2"
 // bundle is a path relative to the repo root (e.g. "internal/handler/
 // static/hack/ui.js"), never an absolute one -- the same bytes from any
 // checkout directory, which is what the freshness tests (TestHackJudge
-// BundleFresh, TestHackOrganiserBundleFresh, internal/mcp) depend on.
+// BundleFresh, TestHackOrganiserBundleFresh, products/hack/mcp) depend on.
 func moduleRoot() (string, error) {
 	if _, self, _, ok := runtime.Caller(0); ok && filepath.IsAbs(self) {
-		root := filepath.Join(filepath.Dir(self), "..", "..", "..", "..")
+		root := filepath.Join(filepath.Dir(self), "..", "..", "..", "..", "..")
 		if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
 			return filepath.Clean(root), nil
 		}
@@ -88,8 +88,12 @@ func moduleRoot() (string, error) {
 func webRoot(root string) string {
 	return filepath.Join(root, "internal", "webassets", "static", "hack")
 }
-func frameRoot(root string) string { return filepath.Join(root, "internal", "mcp", "apps", "frame") }
-func entryRoot(root string) string { return filepath.Join(root, "internal", "mcp", "apps", "entry") }
+func frameRoot(root string) string {
+	return filepath.Join(root, "products", "hack", "mcp", "apps", "frame")
+}
+func entryRoot(root string) string {
+	return filepath.Join(root, "products", "hack", "mcp", "apps", "entry")
+}
 
 // checkRoot confirms root actually is this repo (kit.css is the same
 // landmark the old webRoot() checked), so a wrong guess from moduleRoot's
@@ -104,7 +108,7 @@ func checkRoot(root string) error {
 
 // framePlugin resolves the website's nav.js, tour.js and platform.js
 // imports to this frame's own implementations under
-// internal/mcp/apps/frame, for exactly one app (judge or organiser) at a
+// products/hack/mcp/apps/frame, for exactly one app (judge or organiser) at a
 // time: navFile names that app's own nav.js stand-in (judge-nav.js or
 // organiser-nav.js); tour.js and platform.js are shared by both apps.
 // Matched by the resolved filesystem path, not by the literal import
@@ -174,13 +178,19 @@ func buildBundle(root, entry, navFile string) (string, error) {
 	if len(result.OutputFiles) != 1 {
 		return "", fmt.Errorf("bundlegen: esbuild produced %d output files for %s, want exactly 1", len(result.OutputFiles), entry)
 	}
-	// Keep the generated source labels stable across the asset-only move.
-	return strings.ReplaceAll(string(result.OutputFiles[0].Contents), "// internal/webassets/static/hack/", "// internal/handler/static/hack/"), nil
+	// Keep the generated source labels stable across the asset-only move
+	// and across this package's own move out of products/hack/mcp/apps: the
+	// bundles are served to the views, so their bytes do not change when
+	// only a source directory does.
+	return strings.NewReplacer(
+		"// internal/webassets/static/hack/", "// internal/handler/static/hack/",
+		"// products/hack/mcp/apps/", "// internal/mcp/apps/",
+	).Replace(string(result.OutputFiles[0].Contents)), nil
 }
 
 // GenerateJS builds the judge app's single bundled script: ui.js and the
 // four judge screens (public-judge, judge-queue, judge-scoring,
-// judge-rubric), reached from internal/mcp/apps/entry/judge.js, which
+// judge-rubric), reached from products/hack/mcp/apps/entry/judge.js, which
 // also sets `window.__HACKJ = { ui, screens: { invite, queue, score,
 // rubric } }` for the hand-written glue (hack-judge-view.js) to drive --
 // that assignment is part of the bundled entry file, not added here.
@@ -199,7 +209,7 @@ func GenerateJS() (string, error) {
 	// The judge frame has no real-website fallback (every section it asks
 	// nav.js for is answered in-frame), so unlike the organiser bundle
 	// below it must never carry the organiser frame's __ORIGIN__
-	// placeholder -- readHackApp (internal/mcp/hack_apps.go) only
+	// placeholder -- readHackApp (products/hack/mcp/hack_apps.go) only
 	// substitutes that token for the organiser screen.
 	if strings.Contains(body, "__ORIGIN__") {
 		return "", fmt.Errorf("bundlegen: judge bundle unexpectedly carries __ORIGIN__ (that placeholder belongs to the organiser frame only; see frame/organiser-nav.js)")
@@ -213,7 +223,7 @@ const generatedHeader = "// GENERATED by internal/mcp/apps/bundlegen (go generat
 // GenerateOrganiserJS builds the organiser app's single bundled script:
 // ui.js, schedule.js and the three Phase 2 organiser screens
 // (organiser-overview, organiser-people, organiser-judging), reached from
-// internal/mcp/apps/entry/organiser.js, which also sets `window.__HACKO =
+// products/hack/mcp/apps/entry/organiser.js, which also sets `window.__HACKO =
 // { ui, screens: { overview, people, judging } }` for the hand-written
 // glue (hack-organiser-view.js) to drive. Teams, entries, results and the
 // event page (and their own _orgB-util.js) are later phases; this bundle
@@ -231,7 +241,7 @@ func GenerateOrganiserJS() (string, error) {
 		return "", err
 	}
 	// frame/organiser-nav.js carries exactly one __ORIGIN__ placeholder,
-	// substituted by readHackApp (internal/mcp/hack_apps.go) at serve time
+	// substituted by readHackApp (products/hack/mcp/hack_apps.go) at serve time
 	// -- counted, not just checked for presence, so a future edit that
 	// duplicates it (or a screen that coincidentally contains the same
 	// literal text) fails generation loudly instead of leaving an

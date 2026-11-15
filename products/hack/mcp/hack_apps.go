@@ -1,8 +1,9 @@
 // famHackAppOnly registers the judge screen alongside its app resources.
-package mcp
+package hackmcp
 
 import (
 	"crypto/rand"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -11,18 +12,49 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/vsriram/simple-host/internal/mcp"
 )
 
-// Simple Hack's own MCP Apps, extending the machinery in apps.go and
-// clientui.go rather than duplicating it: the same appScreen shape, the
-// same per-connection flag format (appFlag: "on" or "accounts:a,b"), the
-// same appFiles embed.FS (apps/*.html, apps/*.js, apps/*.css already
-// covers the new hack-judge.* files alongside the Simple Host ones), and
-// the same clientUIMemory that remembers whether a connection declared
-// MCP Apps UI support.
+// hackAppFiles holds Simple Hack's own screen files. The bridge every screen
+// shares stays with the tool server (mcp.AppFiles).
 //
-// Kept separate from apps.go's appScreens/enabledScreens because those are
-// deliberately Simple-Host-only: enabledScreens refuses every screen but
+//go:embed apps/*.html apps/*.js apps/*.css
+var hackAppFiles embed.FS
+
+// hackScreens is one tool server's Simple Hack screens, built once per
+// server from what the server says about itself (Contribution.Apps). It
+// holds no request data.
+type hackScreens struct{ ctx mcp.AppContext }
+
+// hackApps is Contribution.Apps.
+func hackApps(ctx mcp.AppContext) mcp.AppContribution {
+	s := &hackScreens{ctx: ctx}
+	return mcp.AppContribution{
+		Screens:   s.hackEnabledScreens,
+		Resources: s.hackAppResources,
+		Gate:      s.hackAppsGate,
+		Read: func(req mcp.Request, c mcp.Caller, allowed bool) (mcp.Response, bool) {
+			return s.readHackApp(req, c, allowed), true
+		},
+		AppFamily: func(base []mcp.Tool) mcp.FamilyTools {
+			return mcp.FamilyTools{Family: "hack-app-only", Tools: s.hackAppFamilyTools(base)}
+		},
+		SitesPage: func() (string, string) {
+			script, _ := hackAppFiles.ReadFile("apps/hack-sites.js")
+			return string(script), "Simple Hack"
+		},
+	}
+}
+
+// Simple Hack's own MCP Apps, extending the tool server's machinery
+// (internal/mcp's apps.go and clientui.go) rather than duplicating it: the
+// same screen shape (mcp.AppScreen), the same per-connection flag format
+// (mcp.AppFlag: "on" or "accounts:a,b"), the same shared bridge.js, and the
+// server's own memory of whether a connection declared MCP Apps UI support.
+//
+// Kept separate from the tool server's own screens because those are
+// deliberately Simple-Host-only: its enabledScreens refuses every screen but
 // my-sites/dashboard once c.Mode is set, which is exactly the boundary
 // TestHackAppsGatesAndUnchangedInventory holds a Hack connection to. Hack's
 // own screens get their own small, parallel gate instead of loosening that
@@ -37,7 +69,7 @@ import (
 //
 // apps/hack-judge-bundle.js/apps/hack-judge-kit.css and
 // apps/hack-organiser-bundle.js/apps/hack-organiser-kit.css are generated
-// from internal/webassets/static/hack by internal/mcp/apps/bundlegen; after
+// from internal/webassets/static/hack by products/hack/mcp/apps/bundlegen; after
 // changing any judge or organiser screen, or kit.css, regenerate with:
 //
 //go:generate go run ./apps/gentool
@@ -50,7 +82,7 @@ import (
 // below derives "<ID>-kit.css", "<ID>-stubs.js", "<ID>-bundle.js" and
 // "<ID>-view.js" from it, so adding a screen here needs no change to the
 // serving code, only the asset files themselves.
-var hackAppScreens = []appScreen{
+var hackAppScreens = []mcp.AppScreen{
 	{
 		ID: "hack-judge", Flag: "MCP_APP_HACK_JUDGE", URI: "ui://simple-hack/judge", Label: "Judge", HTML: "hack-judge.html",
 		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
@@ -71,13 +103,13 @@ var hackAppScreens = []appScreen{
 // judge tools are listed under; see server.go's forCaller) with its flag
 // on for this account. Unlike enabledScreens, there is no my-sites/
 // dashboard exception to protect, since this list has nothing else in it.
-func (s *Server) hackEnabledScreens(c Caller) []appScreen {
-	if s.fixed != nil || c.Mode != CallerModeEvents {
+func (s *hackScreens) hackEnabledScreens(c mcp.Caller) []mcp.AppScreen {
+	if s.ctx.Fixed || c.Mode != mcp.CallerModeEvents {
 		return nil
 	}
-	var screens []appScreen
+	var screens []mcp.AppScreen
 	for _, screen := range hackAppScreens {
-		if appFlag(os.Getenv(screen.Flag), c.Handle) {
+		if mcp.AppFlag(os.Getenv(screen.Flag), c.Handle) {
 			screens = append(screens, screen)
 		}
 	}
@@ -86,17 +118,13 @@ func (s *Server) hackEnabledScreens(c Caller) []appScreen {
 
 // allowed mirrors readHackApp's: resources/list must not even name a
 // resource a connection could not read (Grok security review, SIM-344).
-func (s *Server) hackAppResources(c Caller, allowed bool) []any {
-	return s.hackAppResourcesWithMeta(c, allowed, s.appMeta)
-}
-
-func (s *Server) hackAppResourcesWithMeta(c Caller, allowed bool, meta func(AppScreen) map[string]any) []any {
-	resources := []any{}
+func (s *hackScreens) hackAppResources(c mcp.Caller, allowed bool) []map[string]any {
+	resources := []map[string]any{}
 	if !allowed {
 		return resources
 	}
 	for _, screen := range s.hackEnabledScreens(c) {
-		resources = append(resources, map[string]any{"uri": screen.URI, "name": screen.Label, "mimeType": appMIME, "_meta": meta(screen)})
+		resources = append(resources, map[string]any{"uri": screen.URI, "name": screen.Label, "mimeType": mcp.AppMIME, "_meta": s.ctx.Meta(screen)})
 	}
 	return resources
 }
@@ -118,7 +146,7 @@ func freshNonce() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// readHackApp mirrors readApp (apps.go) for Simple Hack's own screens: it
+// readHackApp mirrors the tool server's readApp for Simple Hack's own screens: it
 // is tried by dispatch only after readApp itself reports the URI is not
 // one of its (Simple Host) screens, so neither function's tests need to
 // know about the other's resources. allowed is the common three-part gate
@@ -130,28 +158,25 @@ func freshNonce() (string, error) {
 // per-screen flag (MCP_APP_HACK_JUDGE, MCP_APP_HACK_ORGANISER, ...) is
 // checked separately, inside hackEnabledScreens, so one flag being off
 // never hides a screen whose own flag is on.
-func (s *Server) readHackApp(req request, caller Caller, allowed bool) response {
-	return s.readHackAppWithMeta(req, caller, allowed, s.appMeta)
-}
-
-func (s *Server) readHackAppWithMeta(req request, caller Caller, allowed bool, meta func(AppScreen) map[string]any) response {
+func (s *hackScreens) readHackApp(req mcp.Request, caller mcp.Caller, allowed bool) mcp.Response {
 	if !allowed {
-		return failure(req.ID, codeInvalidParams, "resource not available", nil)
+		return mcp.Failure(req.ID, mcp.CodeInvalidParams, "resource not available", nil)
 	}
 	var params struct {
 		URI string `json:"uri"`
 	}
 	if json.Unmarshal(req.Params, &params) != nil {
-		return failure(req.ID, codeInvalidParams, "invalid resource params", nil)
+		return mcp.Failure(req.ID, mcp.CodeInvalidParams, "invalid resource params", nil)
 	}
 	for _, screen := range s.hackEnabledScreens(caller) {
 		if params.URI != screen.URI {
 			continue
 		}
-		asset := func(name string) string { b, _ := appFiles.ReadFile("apps/" + name); return string(b) }
+		asset := func(name string) string { b, _ := hackAppFiles.ReadFile("apps/" + name); return string(b) }
+		bridge, _ := mcp.AppFiles().ReadFile("apps/bridge.js")
 		nonce, err := freshNonce()
 		if err != nil {
-			return failure(req.ID, codeInternalError, "could not prepare this view; try again", nil)
+			return mcp.Failure(req.ID, mcp.CodeInternalError, "could not prepare this view; try again", nil)
 		}
 		// The organiser bundle (only, so far) carries its own __ORIGIN__
 		// placeholder for the real website's origin (frame/organiser-
@@ -163,19 +188,19 @@ func (s *Server) readHackAppWithMeta(req request, caller Caller, allowed bool, m
 		// otherwise never be touched. The judge bundle never contains this
 		// token (bundlegen.GenerateJS fails generation if it ever does),
 		// so this ReplaceAll is a no-op there.
-		bundle := strings.ReplaceAll(asset(screen.ID+"-bundle.js"), "__ORIGIN__", "https://"+s.cfg.APIHost)
+		bundle := strings.ReplaceAll(asset(screen.ID+"-bundle.js"), "__ORIGIN__", "https://"+s.ctx.APIHost)
 		page := strings.NewReplacer(
 			"__NONCE__", nonce,
 			"__STYLE__", asset(screen.ID+"-kit.css"),
-			"__BRIDGE__", asset("bridge.js"),
+			"__BRIDGE__", string(bridge),
 			"__BUNDLE__", bundle,
 			"__VIEW__", asset(screen.ID+"-view.js"),
 		).Replace(asset(screen.HTML))
-		return result(req.ID, map[string]any{"contents": []any{map[string]any{
-			"uri": screen.URI, "mimeType": appMIME, "text": page, "_meta": meta(screen),
+		return mcp.Result(req.ID, map[string]any{"contents": []any{map[string]any{
+			"uri": screen.URI, "mimeType": mcp.AppMIME, "text": page, "_meta": s.ctx.Meta(screen),
 		}}})
 	}
-	return failure(req.ID, codeInvalidParams, "resource not available", nil)
+	return mcp.Failure(req.ID, mcp.CodeInvalidParams, "resource not available", nil)
 }
 
 // --- hack_show_judge: the one tool that opens the judge app -------------
@@ -199,57 +224,55 @@ func (s *Server) readHackAppWithMeta(req request, caller Caller, allowed bool, m
 // app's resource or show tool, and a resource read's shared `allowed`
 // parameter (readHackApp, hackAppResources) can stay a single bool that
 // hackEnabledScreens then narrows per screen.
-func (s *Server) hackAppsGate(c Caller, uiCapable bool) bool {
-	return s.fixed == nil && c.Mode == CallerModeEvents && !flatListApp(c.AppName) && uiCapable
+func (s *hackScreens) hackAppsGate(c mcp.Caller, uiCapable bool) bool {
+	return !s.ctx.Fixed && c.Mode == mcp.CallerModeEvents && !mcp.FlatListApp(c.AppName) && uiCapable
 }
 
 // hackShowJudgeAppAllowed is hackAppsGate plus the judge screen's own flag.
-func (s *Server) hackShowJudgeAppAllowed(c Caller, uiCapable bool) bool {
-	return s.hackAppsGate(c, uiCapable) && appFlag(os.Getenv("MCP_APP_HACK_JUDGE"), c.Handle)
+func (s *hackScreens) hackShowJudgeAppAllowed(c mcp.Caller, uiCapable bool) bool {
+	return s.hackAppsGate(c, uiCapable) && mcp.AppFlag(os.Getenv("MCP_APP_HACK_JUDGE"), c.Handle)
 }
 
-func hackShowJudgeTool() Tool {
-	return Tool{
-		policy: toolPolicy{screen: "hack-judge", showAllowed: func(c Caller, ui bool) bool { return hackAppOnlyJudgeAllowed(&Server{}, c, ui) }},
-		Name:   "hack_show_judge",
-		Title:  "Show the judge view",
+func (s *hackScreens) hackShowJudgeTool() mcp.Tool {
+	return mcp.WithRun(mcp.WithPolicy(mcp.Tool{
+		Name:  "hack_show_judge",
+		Title: "Show the judge view",
 		Description: "Open the judge app view in chat: invite (accept a judge invite, needs code), queue (My teams), score (one entry's scoring, optional team_id) or rubric. " +
 			"Only offered to a connection whose app can render it; every judging action also has a plain tool (hack_get_judge_queue, hack_score_team, hack_declare_my_conflict, hack_get_rubric, hack_preview_judge, hack_join_judge) that works the same everywhere.",
-		InputSchema: object(map[string]any{
-			"slug":    str("Event name. Required for view queue, score or rubric."),
-			"code":    str("Code from the judge invite link. Required for view invite."),
+		InputSchema: mcp.Object(map[string]any{
+			"slug":    mcp.Str("Event name. Required for view queue, score or rubric."),
+			"code":    mcp.Str("Code from the judge invite link. Required for view invite."),
 			"view":    map[string]any{"type": "string", "enum": []string{"invite", "queue", "score", "rubric"}, "description": "Which judge view to open."},
-			"team_id": str("Team ID from the judge queue. Optional for view score: opens that team directly instead of the first unscored one."),
+			"team_id": mcp.Str("Team ID from the judge queue. Optional for view score: opens that team directly instead of the first unscored one."),
 		}, "view"),
-		OutputSchema: outObject(map[string]any{
-			"view":    outString("The view that was opened."),
-			"slug":    outString("Event name, once known."),
-			"code":    outString("The judge invite code, for view invite."),
-			"team_id": outString("Team ID passed through, for view score."),
-			"event":   anyJSON("Event detail for the opened view (omitted for view invite, which has not joined yet)."),
+		OutputSchema: mcp.OutObject(map[string]any{
+			"view":    mcp.OutString("The view that was opened."),
+			"slug":    mcp.OutString("Event name, once known."),
+			"code":    mcp.OutString("The judge invite code, for view invite."),
+			"team_id": mcp.OutString("Team ID passed through, for view score."),
+			"event":   mcp.AnyJSON("Event detail for the opened view (omitted for view invite, which has not joined yet)."),
 		}, "view"),
-		Annotations: writes(false, true, false),
-		run:         runHackShowJudge,
-	}
+		Annotations: mcp.Writes(false, true, false),
+	}, mcp.Screen("hack-judge"), mcp.ShowAllowed(s.hackShowJudgeAppAllowed)), s.runHackShowJudge)
 }
 
-func runHackShowJudge(c *call, args map[string]any) (output, error) {
-	if !c.server.hackShowJudgeAppAllowed(c.caller, c.uiClient) {
-		return output{}, errors.New("hack_show_judge only opens in an app that can render it; use hack_get_judge_queue, hack_score_team, hack_get_rubric, hack_preview_judge or hack_join_judge instead")
+func (s *hackScreens) runHackShowJudge(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	if !s.hackShowJudgeAppAllowed(c.Caller(), c.UICapable()) {
+		return mcp.Output{}, errors.New("hack_show_judge only opens in an app that can render it; use hack_get_judge_queue, hack_score_team, hack_get_rubric, hack_preview_judge or hack_join_judge instead")
 	}
-	view, err := stringArg(args, "view")
+	view, err := mcp.StringArg(args, "view")
 	if err != nil {
-		return output{}, err
+		return mcp.Output{}, err
 	}
 	switch view {
 	case "invite":
-		code, err := stringArg(args, "code")
+		code, err := mcp.StringArg(args, "code")
 		if err != nil {
-			return output{}, errors.New("code is required for view invite")
+			return mcp.Output{}, errors.New("code is required for view invite")
 		}
-		res := c.do(http.MethodGet, "/v1/hack/judge/"+url.PathEscape(code), nil, nil)
-		if !res.ok() {
-			return output{}, hackRestError("hack_show_judge", res)
+		res := c.Do(http.MethodGet, "/v1/hack/judge/"+url.PathEscape(code), nil, nil)
+		if !res.OK() {
+			return mcp.Output{}, hackRestError("hack_show_judge", res)
 		}
 		structured := map[string]any{"view": "invite", "code": code}
 		// No organiser-authored title (or anything else from the REST body)
@@ -257,15 +280,15 @@ func runHackShowJudge(c *call, args map[string]any) (output, error) {
 		// SIM-344) -- that text is as visible to the model as to the
 		// frame, and an event title is free text an organiser chose, not
 		// something this tool should ever need to repeat back.
-		return output{Text: "Opened the judge invite.", Structured: structured}, nil
+		return mcp.Output{Text: "Opened the judge invite.", Structured: structured}, nil
 	case "queue", "score", "rubric":
 		slug, err := eventSlug(args)
 		if err != nil {
-			return output{}, err
+			return mcp.Output{}, err
 		}
-		res := c.do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug), nil, nil)
-		if !res.ok() {
-			return output{}, hackRestError("hack_show_judge", res)
+		res := c.Do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug), nil, nil)
+		if !res.OK() {
+			return mcp.Output{}, hackRestError("hack_show_judge", res)
 		}
 		var body struct {
 			Event map[string]any `json:"event"`
@@ -274,12 +297,12 @@ func runHackShowJudge(c *call, args map[string]any) (output, error) {
 				Judge bool `json:"judge"`
 			} `json:"can"`
 		}
-		if err := json.Unmarshal(res.body, &body); err != nil {
-			return output{}, errors.New("hack_show_judge: server returned invalid JSON")
+		if err := json.Unmarshal(res.Body(), &body); err != nil {
+			return mcp.Output{}, errors.New("hack_show_judge: server returned invalid JSON")
 		}
 		// Personal judging views use the same canonical capability as the website.
 		if !body.Can.Judge {
-			return output{}, errors.New("hack_show_judge is for a judge of this event")
+			return mcp.Output{}, errors.New("hack_show_judge is for a judge of this event")
 		}
 		structured := map[string]any{"view": view, "slug": slug, "event": hackShowJudgeEventFields(body.Event)}
 		if teamID, _ := args["team_id"].(string); teamID != "" {
@@ -291,7 +314,7 @@ func runHackShowJudge(c *call, args map[string]any) (output, error) {
 		// hyphens; hack_check_event_name enforces the shape), not open
 		// text, so it stays.
 		verb := map[string]string{"queue": "the judging queue", "score": "scoring", "rubric": "the rubric"}[view]
-		out := output{Text: "Opened " + verb + " for " + slug + ".", Structured: structured}
+		out := mcp.Output{Text: "Opened " + verb + " for " + slug + ".", Structured: structured}
 		// About/rules/prizes (judge-rubric.js's brief card) ride in _meta,
 		// not content or structuredContent (coordinator follow-up, SIM-344:
 		// Grok finding 2 was "no organiser prose reaches the model", and
@@ -313,7 +336,7 @@ func runHackShowJudge(c *call, args map[string]any) (output, error) {
 		}
 		return out, nil
 	default:
-		return output{}, errors.New("view must be invite, queue, score or rubric")
+		return mcp.Output{}, errors.New("view must be invite, queue, score or rubric")
 	}
 }
 

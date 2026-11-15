@@ -81,7 +81,6 @@ func TestGetPageRecipeAcceptsKindAliasForTopic(t *testing.T) {
 		caller Caller
 	}{
 		{"get_page_recipe", Caller{APIKey: "test"}},
-		{"hack_get_page_recipe", Caller{APIKey: "test", Mode: CallerModeEvents}},
 	} {
 		t.Run(tc.tool, func(t *testing.T) {
 			s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
@@ -193,23 +192,6 @@ func TestStorageAliasAcceptedThroughRunTool(t *testing.T) {
 	}
 }
 
-// hack_event_storage_* tools share the storage_* builder (storageToolsFor),
-// so the alias must work on the organiser's event-website copies too.
-func TestHackEventStorageAliasAcceptsResourceForName(t *testing.T) {
-	up := &recordingUpstream{answers: map[string]func() (int, string){
-		"PUT /v1/hack/events/weekend/website/storage/kv/settings/keys/feature": func() (int, string) { return 200, `{"key":"feature","value":true}` },
-	}}
-	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}, Upstream: up, APIHost: "simple-hack.app"}))
-	caller := Caller{APIKey: "test", Mode: CallerModeEvents}
-	text, _, isErr := resultOf(t, sendEvent(t, s, "tools/call", map[string]any{"name": "hack_event_storage_put_kv", "arguments": map[string]any{"event": "weekend", "resource": "settings", "key": "feature", "value": true}}, caller, false))
-	if isErr {
-		t.Fatalf("resource alias refused for hack_event_storage_put_kv: %s", text)
-	}
-	if req := up.requests[0]; req.URL.Path != "/v1/hack/events/weekend/website/storage/kv/settings/keys/feature" {
-		t.Fatalf("alias did not resolve to name: %s", req.URL.Path)
-	}
-}
-
 // Aliasing operates on the top-level arguments map only: a caller-supplied
 // JSON value that happens to contain keys named "name" or "resource" is
 // opaque data to the server and must reach the REST call byte-for-byte.
@@ -234,7 +216,7 @@ func TestArgumentAliasLeavesNestedValuesUntouched(t *testing.T) {
 // second real argument instead of a silently-accepted guess, changing the
 // frozen schema some clients cache.
 func TestArgumentAliasNeverAppearsInAnyAdvertisedSchema(t *testing.T) {
-	for _, tool := range append(append([]Tool{}, Tools()...), HackTools()...) {
+	for _, tool := range Tools() {
 		canonical, alias := argAliasFor(tool.Name)
 		if canonical == "" {
 			continue

@@ -1318,17 +1318,17 @@ flags-off and non-UI listings are byte for byte what they are today.
 The view is built at generation time from the real screens (`internal/
 handler/static/hack/{ui.js, screens/_judge-util.js, screens/{public-judge,
 judge-queue,judge-scoring,judge-rubric}.js}`) with a pinned `esbuild` (its Go
-API, no Node, no network at build time: `internal/mcp/apps/bundlegen` calls
-`github.com/evanw/esbuild` from `internal/mcp/apps/entry/judge.js`, a small
+API, no Node, no network at build time: `products/hack/mcp/apps/bundlegen` calls
+`github.com/evanw/esbuild` from `products/hack/mcp/apps/entry/judge.js`, a small
 hand-written entry module that imports the screens it needs and sets
-`window.__HACKJ`). `internal/mcp/apps/gentool` (`go generate ./internal/mcp/
+`window.__HACKJ`). `products/hack/mcp/apps/gentool` (`go generate ./products/hack/mcp/
 apps/...`) writes the checked-in result (`hack-judge-bundle.js`, plus
 `kit.css` inlined with its one `@font-face` rule stripped as
 `hack-judge-kit.css`), and `TestHackJudgeBundleFresh` rebuilds it in the test
 binary and fails if the checked-in copy has drifted. Screens are reused
 unmodified except for calls to a small platform adapter
 (`internal/webassets/static/hack/platform.js` on the website,
-`internal/mcp/apps/frame/platform.js` here) where the real browser
+`products/hack/mcp/apps/frame/platform.js` here) where the real browser
 environment does not hold inside this frame — ordinary source in both
 screen and adapter, not a generation-time patch: `judge-scoring.js`'s
 `history.replaceState` (via `platform.replaceUrl`) is wrapped in `try/catch`
@@ -1348,7 +1348,7 @@ blocks native form submission before that event ever reaches a listener —
 confirmed live when "accept the invite" hung with `hack_join_judge` never
 called at all — the same fix `passcode.js` already carries for the same
 reason. `nav.js` and `tour.js` are swapped for this frame's own
-`internal/mcp/apps/frame/{judge-nav.js,tour.js}` by an esbuild `OnResolve`
+`products/hack/mcp/apps/frame/{judge-nav.js,tour.js}` by an esbuild `OnResolve`
 plugin (`bundlegen`'s `framePlugin`), not a global: `href()` returns an
 in-frame `#v=<view>` the glue script's own click handler intercepts (and,
 since `judge-queue.js`'s "Score this team" link and `public-judge.js`'s
@@ -1475,7 +1475,7 @@ resizes the host's iframe by measuring `document.body`'s own box, which a
 `height:100%` body reports as whatever the iframe's current height already is,
 forever, so content past the first paint would silently clip without this.
 
-Tests: `internal/mcp/hack_apps_judge_test.go` covers resource/show-tool gating
+Tests: `products/hack/mcp/hack_apps_judge_test.go` covers resource/show-tool gating
 (flag off/on/`accounts:`, `CallerModeEvents` only), the resource-read gate
 matching the show tool's (`TestHackJudgeResourceNeverReadableWithoutGate`),
 the three-part show-tool visibility gate including ChatGPT/OpenAI/Codex
@@ -1543,11 +1543,11 @@ them), with no event data in the refusal.
 
 Home previews, orders ties and publishes through `hack_app_preview_results`, `hack_app_get_results` and `hack_app_publish_results`; these app-only companions keep standings in the view and send only counts to chat.
 
-The view is built the same way as the judge app, by `internal/mcp/apps/
-bundlegen` (`GenerateOrganiserJS`/`internal/mcp/apps/gentool`), from
+The view is built the same way as the judge app, by `products/hack/mcp/apps/
+bundlegen` (`GenerateOrganiserJS`/`products/hack/mcp/apps/gentool`), from
 `internal/webassets/static/hack/{ui.js, schedule.js, screens/_orgA-util.js,
 screens/{organiser-overview,organiser-people,organiser-judging}.js}` via its
-own entry module (`internal/mcp/apps/entry/organiser.js`) —
+own entry module (`products/hack/mcp/apps/entry/organiser.js`) —
 `_orgB-util.js` (teams/entries) is not needed yet. `TestHackOrganiserBundleFresh`
 rebuilds `hack-organiser-bundle.js`/`hack-organiser-kit.css` in the test
 binary and fails if the checked-in copies have drifted. The same platform
@@ -1572,7 +1572,7 @@ can't go on to replace `main` with a now-stale screen — the same guard
 `organiser-overview.js` already had.
 
 `nav.js` and `tour.js` are swapped for this frame's own
-`internal/mcp/apps/frame/{organiser-nav.js,tour.js}` by the same esbuild
+`products/hack/mcp/apps/frame/{organiser-nav.js,tour.js}` by the same esbuild
 `OnResolve` plugin the judge app uses. `organiser-nav.js` answers `nav.js`'s
 `href(role, slug, section)` differently depending on the section:
 `overview`, `people` and `judging` switch in-frame (`#v=<section>`, the same
@@ -1656,7 +1656,7 @@ for this URI are gated by the same shared three-part check (flag, events
 mode, not ChatGPT/OpenAI/Codex, UI declared) the show tool uses, not only
 the tool's own listing.
 
-Tests: `internal/mcp/hack_apps_organiser_test.go` covers resource/show-tool
+Tests: `products/hack/mcp/hack_apps_organiser_test.go` covers resource/show-tool
 gating, the judge/organiser flag independence fix above, the organiser-only
 role requirement, the event-and-counts whitelist, the sensitive-data-only-
 via-`_meta` channel, CSP and nonce freshness, the route-table-to-tool-call

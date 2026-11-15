@@ -1,7 +1,7 @@
 // Command gentool regenerates the judge MCP App's bundled script and
 // stylesheet from internal/webassets/static/hack. Run it with
-// `go generate ./internal/mcp/apps/...` (see the go:generate directive in
-// internal/mcp/hack_apps.go) after editing any of the judge screens or
+// `go generate ./products/hack/mcp/...` (see the go:generate directive in
+// products/hack/mcp/hack_apps.go) after editing any of the judge screens or
 // kit.css; TestHackJudgeBundleFresh fails the build if someone forgets.
 package main
 
@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/vsriram/simple-host/internal/mcp/apps/bundlegen"
+	"github.com/vsriram/simple-host/products/hack/mcp/apps/bundlegen"
 )
 
 // moduleRoot walks up from the working directory to the nearest go.mod.
@@ -40,7 +40,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gentool:", err)
 		os.Exit(1)
 	}
-	appsDir := filepath.Join(root, "internal", "mcp", "apps")
+	appsDir := filepath.Join(root, "products", "hack", "mcp", "apps")
 
 	js, err := bundlegen.GenerateJS()
 	if err != nil {

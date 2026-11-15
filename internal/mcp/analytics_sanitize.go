@@ -591,3 +591,16 @@ type analyticsPolicy struct {
 	fileResult, pageText, applicationAnswers, fileArguments   bool
 	edits, fileData, fileContentSize                          bool
 }
+
+// AnalyticsCopy is what usage telemetry keeps of one call to the named tool:
+// its arguments and its result, after the analytics options the tool was
+// declared with and the secret redaction, exactly as a tools/call records
+// them. A product's tests use it to pin what its declarations keep out of
+// telemetry; nothing is sent.
+func (s *Server) AnalyticsCopy(tool string, args map[string]any, text string, structured map[string]any) (parameters, response any) {
+	policy := s.policy(tool)
+	secrets := analyticsSecretValues(policy, args, s.policy)
+	reply := toolResult(nil, text, structured, false, false)
+	return redactAnalyticsSecrets(analyticsParametersForPolicy(policy, args), secrets),
+		redactAnalyticsSecrets(analyticsResponseForPolicy(policy, reply.Result), secrets)
+}

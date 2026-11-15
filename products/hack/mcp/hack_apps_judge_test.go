@@ -1,4 +1,4 @@
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/vsriram/simple-host/internal/mcp/apps/bundlegen"
+	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/products/hack/mcp/apps/bundlegen"
 )
 
 func judgeUpstream() *http.ServeMux {
@@ -26,21 +26,21 @@ func judgeUpstream() *http.ServeMux {
 	return mux
 }
 
-func judgeCaller(handle, appName string) Caller {
-	return Caller{APIKey: "judge-key", Mode: CallerModeEvents, Handle: handle, AppName: appName}
+func judgeCaller(handle, appName string) mcp.Caller {
+	return mcp.Caller{APIKey: "judge-key", Mode: mcp.CallerModeEvents, Handle: handle, AppName: appName}
 }
 
 func TestHackJudgeResourceGating(t *testing.T) {
 	s := newTestServer(judgeUpstream())
 	for _, flag := range []string{"", "off", "unknown", "accounts:bob", "accounts:alice", "on"} {
 		t.Setenv("MCP_APP_HACK_JUDGE", flag)
-		for _, c := range []Caller{
+		for _, c := range []mcp.Caller{
 			judgeCaller("alice", ""),
-			{APIKey: "k", Mode: CallerModeHackSite, Handle: "alice"},
+			{APIKey: "k", Mode: mcp.CallerModeHackSite, Handle: "alice"},
 			{APIKey: "k", Handle: "alice"}, // Mode "": Simple Host, must never see this screen
 		} {
-			enabled := c.Mode == CallerModeEvents && appFlag(flag, c.Handle)
-			if got := len(s.hackEnabledScreens(c)); (got > 0) != enabled {
+			enabled := c.Mode == mcp.CallerModeEvents && mcp.AppFlag(flag, c.Handle)
+			if got := len(screensOf(s).hackEnabledScreens(c)); (got > 0) != enabled {
 				t.Fatalf("flag=%q mode=%q handle=%q: hackEnabledScreens=%d, want enabled=%v", flag, c.Mode, c.Handle, got, enabled)
 			}
 			// hackAppResources/readHackApp take the full three-part gate
@@ -50,11 +50,11 @@ func TestHackJudgeResourceGating(t *testing.T) {
 			// straight through -- TestHackJudgeResourceNeverReadableWithoutGate
 			// below exercises the app-name/UI-declared half through the
 			// real dispatch path.
-			if got := len(s.hackAppResources(c, enabled)); (got > 0) != enabled {
+			if got := len(screensOf(s).hackAppResources(c, enabled)); (got > 0) != enabled {
 				t.Fatalf("flag=%q mode=%q handle=%q: hackAppResources=%d, want enabled=%v", flag, c.Mode, c.Handle, got, enabled)
 			}
 			params, _ := json.Marshal(map[string]string{"uri": "ui://simple-hack/judge"})
-			resp := s.readHackApp(request{ID: json.RawMessage(`1`), Params: params}, c, enabled)
+			resp := screensOf(s).readHackApp(mcp.Request{ID: json.RawMessage(`1`), Params: params}, c, enabled)
 			if (resp.Error == nil) != enabled {
 				t.Fatalf("flag=%q mode=%q handle=%q: readHackApp error=%v, want enabled=%v", flag, c.Mode, c.Handle, resp.Error, enabled)
 			}
@@ -71,10 +71,10 @@ func TestHackJudgeResourceGating(t *testing.T) {
 func TestHackJudgeResourceNeverReadableWithoutGate(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_JUDGE", "on")
 	s := newTestServer(judgeUpstream())
-	readResource := func(c Caller) (listed bool, readErr bool) {
+	readResource := func(c mcp.Caller) (listed bool, readErr bool) {
 		listReq := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"resources/list","params":{}}`))
 		listReq.Header.Set("Content-Type", "application/json")
-		listReq = listReq.WithContext(WithCaller(listReq.Context(), c))
+		listReq = listReq.WithContext(mcp.WithCaller(listReq.Context(), c))
 		listRec := httptest.NewRecorder()
 		s.ServeHTTP(listRec, listReq)
 		resources := decode(t, listRec)["result"].(map[string]any)["resources"].([]any)
@@ -86,7 +86,7 @@ func TestHackJudgeResourceNeverReadableWithoutGate(t *testing.T) {
 		readBody, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "resources/read", "params": map[string]any{"uri": "ui://simple-hack/judge"}})
 		readReq := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(string(readBody)))
 		readReq.Header.Set("Content-Type", "application/json")
-		readReq = readReq.WithContext(WithCaller(readReq.Context(), c))
+		readReq = readReq.WithContext(mcp.WithCaller(readReq.Context(), c))
 		readRec := httptest.NewRecorder()
 		s.ServeHTTP(readRec, readReq)
 		_, readErr = decode(t, readRec)["error"]
@@ -95,21 +95,21 @@ func TestHackJudgeResourceNeverReadableWithoutGate(t *testing.T) {
 
 	// Distinct API keys: clientUIMemory is keyed by credential
 	// (OAuthGrantID, else APIKey -- see clientui.go's clientUIKey), not by
-	// the full Caller, so three callers sharing one key would share one
+	// the full mcp.Caller, so three callers sharing one key would share one
 	// remembered UI answer regardless of AppName.
-	excluded := Caller{APIKey: "judge-key-excluded", Mode: CallerModeEvents, Handle: "alice", AppName: "ChatGPT"}
-	s.clientUI.remember(excluded, true, time.Now())
+	excluded := mcp.Caller{APIKey: "judge-key-excluded", Mode: mcp.CallerModeEvents, Handle: "alice", AppName: "ChatGPT"}
+	initializeAs(t, s, excluded, true)
 	if listed, readErr := readResource(excluded); listed || !readErr {
 		t.Fatalf("ChatGPT: listed=%v readErr=%v, want listed=false readErr=true", listed, readErr)
 	}
 
-	noUI := Caller{APIKey: "judge-key-noui", Mode: CallerModeEvents, Handle: "alice"}
+	noUI := mcp.Caller{APIKey: "judge-key-noui", Mode: mcp.CallerModeEvents, Handle: "alice"}
 	if listed, readErr := readResource(noUI); listed || !readErr {
 		t.Fatalf("no UI declared: listed=%v readErr=%v, want listed=false readErr=true", listed, readErr)
 	}
 
-	allowed := Caller{APIKey: "judge-key-allowed", Mode: CallerModeEvents, Handle: "alice"}
-	s.clientUI.remember(allowed, true, time.Now())
+	allowed := mcp.Caller{APIKey: "judge-key-allowed", Mode: mcp.CallerModeEvents, Handle: "alice"}
+	initializeAs(t, s, allowed, true)
 	if listed, readErr := readResource(allowed); !listed || readErr {
 		t.Fatalf("flagged, UI-declared, allowed app name: listed=%v readErr=%v, want listed=true readErr=false", listed, readErr)
 	}
@@ -124,7 +124,7 @@ func TestHackJudgeResourceRendersAndCSP(t *testing.T) {
 	var nonces []string
 	var pages []string
 	for i := 0; i < 2; i++ {
-		resp := s.readHackApp(request{ID: json.RawMessage(`1`), Params: params}, c, true)
+		resp := screensOf(s).readHackApp(mcp.Request{ID: json.RawMessage(`1`), Params: params}, c, true)
 		if resp.Error != nil {
 			t.Fatalf("read %d: %v", i, resp.Error)
 		}
@@ -179,7 +179,7 @@ func TestHackShowJudgeNotListedWithoutUISupport(t *testing.T) {
 	s := newTestServer(judgeUpstream())
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(WithCaller(req.Context(), judgeCaller("alice", "")))
+	req = req.WithContext(mcp.WithCaller(req.Context(), judgeCaller("alice", "")))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 	listed := listedTools(t, rec)
@@ -198,10 +198,10 @@ func TestHackShowJudgeListedOnceUIDeclared(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_JUDGE", "on")
 	s := newTestServer(judgeUpstream())
 	c := judgeCaller("alice", "")
-	s.clientUI.remember(c, true, time.Now())
+	initializeAs(t, s, c, true)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(WithCaller(req.Context(), c))
+	req = req.WithContext(mcp.WithCaller(req.Context(), c))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 	listed := listedTools(t, rec)
@@ -234,9 +234,9 @@ func TestHackShowJudgeModernPerCallCapability(t *testing.T) {
 		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": params})
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(string(body)))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("MCP-Protocol-Version", protocolVersion)
+		req.Header.Set("MCP-Protocol-Version", mcp.ProtocolVersion)
 		req.Header.Set("Mcp-Method", "tools/list")
-		req = req.WithContext(WithCaller(req.Context(), judgeCaller("alice", "")))
+		req = req.WithContext(mcp.WithCaller(req.Context(), judgeCaller("alice", "")))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		listed := listedTools(t, rec)
@@ -257,16 +257,16 @@ func TestHackShowJudgeModernPerCallCapability(t *testing.T) {
 // hack_show_judge, even flagged in and UI-declared, and the ChatGPT app's
 // pinned tools/list (TestSubmissionToolsMatchChatGPTListing) stays
 // unaffected because that test's caller has Mode == "" (flatListApp's own
-// surface), never CallerModeEvents.
+// surface), never mcp.CallerModeEvents.
 func TestHackShowJudgeNeverForExcludedAppNames(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_JUDGE", "on")
 	s := newTestServer(judgeUpstream())
 	for _, name := range []string{"ChatGPT", "OpenAI", "Codex", "codex-cli", "chatgpt-connector"} {
 		c := judgeCaller("alice", name)
-		s.clientUI.remember(c, true, time.Now())
+		initializeAs(t, s, c, true)
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(WithCaller(req.Context(), c))
+		req = req.WithContext(mcp.WithCaller(req.Context(), c))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		for _, tool := range listedTools(t, rec) {
@@ -277,10 +277,10 @@ func TestHackShowJudgeNeverForExcludedAppNames(t *testing.T) {
 	}
 	for _, name := range []string{"", "Claude", "Claude for Desktop"} {
 		c := judgeCaller("alice", name)
-		s.clientUI.remember(c, true, time.Now())
+		initializeAs(t, s, c, true)
 		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(WithCaller(req.Context(), c))
+		req = req.WithContext(mcp.WithCaller(req.Context(), c))
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, req)
 		found := false
@@ -299,12 +299,12 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_JUDGE", "on")
 	s := newTestServer(judgeUpstream())
 	c := judgeCaller("alice", "")
-	run := func(args map[string]any) (output, error) {
-		call := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-		return s.hackByName["hack_show_judge"].run(call, args)
+	run := func(args map[string]any) (mcp.Output, error) {
+		call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(true)
+		return mcp.CallTool(serverTool(t, s, "hack_show_judge"), call, args)
 	}
 
-	schema := s.hackByName["hack_show_judge"].OutputSchema
+	schema := serverTool(t, s, "hack_show_judge").OutputSchema
 
 	out, err := run(map[string]any{"view": "invite", "code": "invite-code"})
 	if err != nil {
@@ -316,10 +316,10 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 	if out.Text == "" {
 		t.Fatal("invite: empty text summary")
 	}
-	// SIM-384: every hack_* tool's real output, checked against its own
+	// SIM-384: every hack_* tool's real mcp.Output, checked against its own
 	// declared outputSchema in strict mode (additionalProperties: false as
 	// authored, outputs.go).
-	if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(schema, out.Structured, nil); err != nil {
 		t.Fatalf("invite: structuredContent does not match outputSchema: %v", err)
 	}
 
@@ -331,7 +331,7 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 		if out.Structured["view"] != view || out.Structured["slug"] != "mockjam" {
 			t.Fatalf("%s structured content: %#v", view, out.Structured)
 		}
-		if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+		if err := mcp.ValidateOutput(schema, out.Structured, nil); err != nil {
 			t.Fatalf("%s: structuredContent does not match outputSchema: %v", view, err)
 		}
 		event, ok := out.Structured["event"].(map[string]any)
@@ -371,7 +371,7 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 	if out.Structured["team_id"] != "team-1" {
 		t.Fatalf("team_id not passed through: %#v", out.Structured)
 	}
-	if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+	if err := mcp.ValidateOutput(schema, out.Structured, nil); err != nil {
 		t.Fatalf("score+team_id: structuredContent does not match outputSchema: %v", err)
 	}
 	recordHackOutputValidated("hack_show_judge")
@@ -400,9 +400,9 @@ func TestHackShowJudgeContentNeverCarriesEventProse(t *testing.T) {
 	t.Setenv("MCP_APP_HACK_JUDGE", "on")
 	s := newTestServer(judgeUpstream())
 	c := judgeCaller("alice", "")
-	run := func(args map[string]any) (output, error) {
-		call := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-		return s.hackByName["hack_show_judge"].run(call, args)
+	run := func(args map[string]any) (mcp.Output, error) {
+		call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(true)
+		return mcp.CallTool(serverTool(t, s, "hack_show_judge"), call, args)
 	}
 
 	markers := []string{"ORGANISER-PROSE-ABOUT", "ORGANISER-PROSE-RULES", "ORGANISER-PROSE-PRIZES"}
@@ -454,8 +454,8 @@ func TestHackShowJudgeRequiresJudgeOrOrganiserRole(t *testing.T) {
 		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"closed"},"role":"participant"}`))
 	})
 	s := newTestServer(mux)
-	c := &call{server: s, caller: judgeCaller("alice", ""), orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-	out, err := s.hackByName["hack_show_judge"].run(c, map[string]any{"view": "queue", "slug": "mockjam"})
+	c := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), judgeCaller("alice", "")).WithUICapable(true)
+	out, err := mcp.CallTool(serverTool(t, s, "hack_show_judge"), c, map[string]any{"view": "queue", "slug": "mockjam"})
 	if err == nil {
 		t.Fatal("hack_show_judge opened a view for a participant")
 	}
@@ -463,7 +463,7 @@ func TestHackShowJudgeRequiresJudgeOrOrganiserRole(t *testing.T) {
 		t.Fatalf("refusal carries structuredContent: %#v", out.Structured)
 	}
 	for _, view := range []string{"score", "rubric"} {
-		if _, err := s.hackByName["hack_show_judge"].run(c, map[string]any{"view": view, "slug": "mockjam"}); err == nil {
+		if _, err := mcp.CallTool(serverTool(t, s, "hack_show_judge"), c, map[string]any{"view": view, "slug": "mockjam"}); err == nil {
 			t.Fatalf("hack_show_judge opened %s for a participant", view)
 		}
 	}
@@ -477,17 +477,17 @@ func TestHackShowJudgeRequiresJudgeOrOrganiserRole(t *testing.T) {
 func TestHackShowJudgeRefusesNonUIAndDisabled(t *testing.T) {
 	s := newTestServer(judgeUpstream())
 	c := judgeCaller("alice", "")
-	tool := s.hackByName["hack_show_judge"]
+	tool := serverTool(t, s, "hack_show_judge")
 
 	t.Setenv("MCP_APP_HACK_JUDGE", "on")
-	textOnly := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: false}
-	if _, err := tool.run(textOnly, map[string]any{"view": "queue", "slug": "mockjam"}); err == nil {
+	textOnly := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(false)
+	if _, err := mcp.CallTool(tool, textOnly, map[string]any{"view": "queue", "slug": "mockjam"}); err == nil {
 		t.Fatal("text-only connection allowed to run hack_show_judge")
 	}
 
 	t.Setenv("MCP_APP_HACK_JUDGE", "off")
-	uiCall := &call{server: s, caller: c, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
-	if _, err := tool.run(uiCall, map[string]any{"view": "queue", "slug": "mockjam"}); err == nil {
+	uiCall := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), c).WithUICapable(true)
+	if _, err := mcp.CallTool(tool, uiCall, map[string]any{"view": "queue", "slug": "mockjam"}); err == nil {
 		t.Fatal("hack_show_judge ran with its flag off")
 	}
 }
@@ -497,23 +497,23 @@ func TestHackJudgeBundleFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotJS, err := appFiles.ReadFile("apps/hack-judge-bundle.js")
+	gotJS, err := hackAppFiles.ReadFile("apps/hack-judge-bundle.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if js != string(gotJS) {
-		t.Fatal("apps/hack-judge-bundle.js is stale; run: go run ./internal/mcp/apps/gentool")
+		t.Fatal("apps/hack-judge-bundle.js is stale; run: go run ./products/hack/mcp/apps/gentool")
 	}
 	css, err := bundlegen.GenerateCSS()
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotCSS, err := appFiles.ReadFile("apps/hack-judge-kit.css")
+	gotCSS, err := hackAppFiles.ReadFile("apps/hack-judge-kit.css")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if css != string(gotCSS) {
-		t.Fatal("apps/hack-judge-kit.css is stale; run: go run ./internal/mcp/apps/gentool")
+		t.Fatal("apps/hack-judge-kit.css is stale; run: go run ./products/hack/mcp/apps/gentool")
 	}
 }
 
@@ -560,7 +560,7 @@ func TestHackJudgeRouteMapCoversCalls(t *testing.T) {
 		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"closed"},"role":"judge","can":{"judge":true}}`))
 	})
 	s := newTestServer(mux)
-	c := &call{server: s, caller: judgeCaller("alice", ""), orig: httptest.NewRequest("POST", "/mcp", nil)}
+	c := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), judgeCaller("alice", ""))
 	calls := []struct {
 		tool string
 		args map[string]any
@@ -586,8 +586,7 @@ func TestHackJudgeRouteMapCoversCalls(t *testing.T) {
 		"GET /v1/hack/events/mockjam/teams/t1/screenshot",
 	}
 	for i, call := range calls {
-		c.policy = s.hackByName[call.tool].policy
-		if _, err := s.hackByName[call.tool].run(c, call.args); err != nil {
+		if _, err := mcp.CallTool(serverTool(t, s, call.tool), c, call.args); err != nil {
 			t.Fatalf("%s: %v", call.tool, err)
 		}
 		if !seen[wantPaths[i]] {
@@ -619,7 +618,7 @@ func TestHackJudgeViewRouteBodyKeysMatchToolSchema(t *testing.T) {
 		"hack_declare_my_conflict": {"team_id"},
 	}
 	for tool, keys := range routeBodyKeys {
-		schema, ok := s.hackByName[tool]
+		schema, ok := findServerTool(s, tool)
 		if !ok {
 			t.Fatalf("%s: not a registered tool", tool)
 		}

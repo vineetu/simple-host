@@ -55,3 +55,20 @@ and supplies Apps until D3-S1c. It also holds the screens' copies of
 eventSlug, hackRestError and hackAbilitiesSchema, which leave with the screens.
 internal/mcp's in-package tests get the product from the external test file
 hack_wire_test.go (transitional test edge mcp -> products/hack/mcp, D3-S1c).
+
+D3-S1c (screens moved to products/hack/mcp): families_hack.go is gone. The
+product's Contribution.Apps builds its screens once per server from AppContext
+and supplies AppFamily; the registry appends that family after the product's
+own (buildRegistry), and Inventory composes it the same way. Added to the
+contract: AppContribution.SitesPage (the script and product name the
+platform's own screens carry on a product connection; the product's
+hack-sites.js moved with it), Contribution.MutationNames with RetiredMutation
+(the answer for a retired tool name; today the two judging-lock names).
+Config.SelectHackTeam and Config.MutationResultHook became SelectTarget and
+MutationResult; Server.HackListedTools became ProductListedTools. Two helpers
+were added for the product's tests: Call.WithUICapable and
+Server.AnalyticsCopy. The product embeds its own screen files and its event
+recipe (recipes/hack-event.md, both wordings); the shared bridge.js stays in
+the platform (AppFiles). The family constants for Hack left registry.go.
+internal/mcp's tests use a fixture product (product_fixture_test.go); the test
+edge mcp -> products/hack/mcp is removed from [transitional].

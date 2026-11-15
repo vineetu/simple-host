@@ -6,7 +6,7 @@ import (
 )
 
 // uiDeclaredForListing reports whether this connection has declared MCP
-// Apps UI support, for gating hack_show_judge's presence in tools/list
+// Apps UI support, for gating a screen tool's presence in tools/list
 // (never its behaviour -- that stays c.uiClient, set at call time from
 // the same two sources). A modern (stateless) request carries its
 // capabilities on every call, including tools/list, since every modern

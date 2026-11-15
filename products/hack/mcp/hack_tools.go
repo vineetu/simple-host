@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// Tools returns every tool this package declares, hidden ones included, in
-// family order. The app-only screen tools are not among them: the tool server
-// still adds that family itself.
+// Tools returns every base tool this package declares, hidden ones included,
+// in family order. The app-only screen tools are not among them: they are
+// built per tool server (Contribution.Apps, hack_apps.go).
 func Tools() []mcp.Tool {
 	var tools []mcp.Tool
 	for _, family := range Contribution().Families {

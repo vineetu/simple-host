@@ -98,7 +98,7 @@ func TestHackAppsRealPermissionsAndFlags(t *testing.T) {
 		// hack_app_* twin's _meta.ui.visibility (SIM-344 phase 2, Grok
 		// security review) is a different, unconditional field under the
 		// same "ui" key, so it is not what this invariant is about (see
-		// internal/mcp/apps_hack_test.go's own TestHackAppsGatesAndUnchangedInventory
+		// products/hack/mcp/apps_hack_test.go's own TestHackAppsGatesAndUnchangedInventory
 		// for the same narrowing).
 		meta, _ := tool["_meta"].(map[string]any)
 		ui, _ := meta["ui"].(map[string]any)

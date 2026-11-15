@@ -1,5 +1,5 @@
 // famHackAppOnly registers the organiser screen alongside its app resources.
-package mcp
+package hackmcp
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+
+	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 // Phase 2 (organiser core, SIM-344): one resource, ui://simple-hack/
@@ -17,7 +19,7 @@ import (
 // are later phases (plan section 4's Organiser row covers all of them;
 // this file only ever opens the three above).
 //
-// Follows hack_apps.go's judge pattern exactly: the same appScreen shape
+// Follows hack_apps.go's judge pattern exactly: the same screen shape
 // (registered in hackAppScreens), the same per-connection flag format, the
 // same gating machinery (hackAppsGate, now shared rather than
 // judge-specific -- see that file's comment), and the same show-tool
@@ -26,7 +28,7 @@ import (
 // ... -- keeps its own full-text result for a host or model with no UI).
 //
 // apps/hack-organiser-bundle.js and apps/hack-organiser-kit.css are
-// generated from internal/webassets/static/hack by internal/mcp/apps/
+// generated from internal/webassets/static/hack by products/hack/mcp/apps/
 // bundlegen; after changing organiser-overview.js, organiser-people.js,
 // organiser-judging.js, _orgA-util.js or kit.css, regenerate with:
 //
@@ -38,52 +40,50 @@ import (
 // hackShowOrganiserAppAllowed is hackAppsGate plus the organiser screen's
 // own flag (2026-10-31 owner decision, same three-part shape as judge's:
 // flag, events mode, not ChatGPT/OpenAI/Codex, UI declared).
-func (s *Server) hackShowOrganiserAppAllowed(c Caller, uiCapable bool) bool {
-	return s.hackAppsGate(c, uiCapable) && appFlag(os.Getenv("MCP_APP_HACK_ORGANISER"), c.Handle)
+func (s *hackScreens) hackShowOrganiserAppAllowed(c mcp.Caller, uiCapable bool) bool {
+	return s.hackAppsGate(c, uiCapable) && mcp.AppFlag(os.Getenv("MCP_APP_HACK_ORGANISER"), c.Handle)
 }
 
-func hackShowOrganiserTool() Tool {
-	return Tool{
-		policy: toolPolicy{screen: "hack-organiser", showAllowed: func(c Caller, ui bool) bool { return hackAppOnlyOrganiserAllowed(&Server{}, c, ui) }},
-		Name:   "hack_show_organiser",
-		Title:  "Show the organiser view",
+func (s *hackScreens) hackShowOrganiserTool() mcp.Tool {
+	return mcp.WithRun(mcp.WithPolicy(mcp.Tool{
+		Name:  "hack_show_organiser",
+		Title: "Show the organiser view",
 		Description: "Open the organiser app view in chat: overview (next step, snapshot, stage), people (applications and the member list) or judging (assignments, progress and former judges; rubric in website Settings). " +
 			"Only offered to a connection whose app can render it; every organiser action also has a plain tool (hack_get_event, hack_set_event_stage, hack_get_applications, hack_decide_application, hack_get_judging_dashboard, hack_set_event_stage, ...) that works the same everywhere.",
-		InputSchema: object(map[string]any{
-			"slug": str("Event name."),
+		InputSchema: mcp.Object(map[string]any{
+			"slug": mcp.Str("Event name."),
 			"view": map[string]any{"type": "string", "enum": []string{"overview", "people", "judging"}, "description": "Which organiser view to open."},
 		}, "slug", "view"),
-		OutputSchema: outObject(map[string]any{
+		OutputSchema: mcp.OutObject(map[string]any{
 			"can":        hackAbilitiesSchema(),
-			"view":       outString("The view that was opened."),
-			"slug":       outString("Event name."),
+			"view":       mcp.OutString("The view that was opened."),
+			"slug":       mcp.OutString("Event name."),
 			"admin_view": map[string]any{"type": "boolean", "description": "True when a platform admin is inspecting without real membership; every write is refused."},
-			"event":      anyJSON("Event detail for the opened view."),
-			"organiser":  anyJSON("Organiser-only counts for the opened view."),
+			"event":      mcp.AnyJSON("Event detail for the opened view."),
+			"organiser":  mcp.AnyJSON("Organiser-only counts for the opened view."),
 		}, "view", "slug"),
-		Annotations: writes(false, true, false),
-		run:         runHackShowOrganiser,
-	}
+		Annotations: mcp.Writes(false, true, false),
+	}, mcp.Screen("hack-organiser"), mcp.ShowAllowed(s.hackShowOrganiserAppAllowed)), s.runHackShowOrganiser)
 }
 
-func runHackShowOrganiser(c *call, args map[string]any) (output, error) {
-	if !c.server.hackShowOrganiserAppAllowed(c.caller, c.uiClient) {
-		return output{}, errors.New("hack_show_organiser only opens in an app that can render it; use hack_get_event, hack_get_applications, hack_get_people or hack_get_judging_dashboard instead")
+func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	if !s.hackShowOrganiserAppAllowed(c.Caller(), c.UICapable()) {
+		return mcp.Output{}, errors.New("hack_show_organiser only opens in an app that can render it; use hack_get_event, hack_get_applications, hack_get_people or hack_get_judging_dashboard instead")
 	}
-	view, err := stringArg(args, "view")
+	view, err := mcp.StringArg(args, "view")
 	if err != nil {
-		return output{}, err
+		return mcp.Output{}, err
 	}
 	if view != "overview" && view != "people" && view != "judging" {
-		return output{}, errors.New("view must be overview, people or judging")
+		return mcp.Output{}, errors.New("view must be overview, people or judging")
 	}
 	slug, err := eventSlug(args)
 	if err != nil {
-		return output{}, err
+		return mcp.Output{}, err
 	}
-	res := c.do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug), nil, nil)
-	if !res.ok() {
-		return output{}, hackRestError("hack_show_organiser", res)
+	res := c.Do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug), nil, nil)
+	if !res.OK() {
+		return mcp.Output{}, hackRestError("hack_show_organiser", res)
 	}
 	var body struct {
 		Event     map[string]any  `json:"event"`
@@ -93,8 +93,8 @@ func runHackShowOrganiser(c *call, args map[string]any) (output, error) {
 		AdminView bool            `json:"admin_view"`
 		Me        map[string]any  `json:"me"`
 	}
-	if err := json.Unmarshal(res.body, &body); err != nil {
-		return output{}, errors.New("hack_show_organiser: server returned invalid JSON")
+	if err := json.Unmarshal(res.Body(), &body); err != nil {
+		return mcp.Output{}, errors.New("hack_show_organiser: server returned invalid JSON")
 	}
 	// This show tool's whole job is opening an ORGANISER view, so it
 	// refuses outright for anyone else -- including a judge or
@@ -107,7 +107,7 @@ func runHackShowOrganiser(c *call, args map[string]any) (output, error) {
 	// review pattern from the judge app, SIM-344): a refusal carries no
 	// structuredContent at all, same as every other tool's.
 	if body.Role != "organiser" {
-		return output{}, errors.New("hack_show_organiser is for an organiser of this event")
+		return mcp.Output{}, errors.New("hack_show_organiser is for an organiser of this event")
 	}
 	structured := map[string]any{
 		"view": view, "slug": slug, "admin_view": body.AdminView,
@@ -118,7 +118,7 @@ func runHackShowOrganiser(c *call, args map[string]any) (output, error) {
 		structured["can"] = body.Can
 	}
 	verb := map[string]string{"overview": "the organiser overview", "people": "the applications and people list", "judging": "the judging dashboard"}[view]
-	out := output{Text: "Opened " + verb + " for " + slug + ".", Structured: structured}
+	out := mcp.Output{Text: "Opened " + verb + " for " + slug + ".", Structured: structured}
 	// join_url/judge_url carry the event's own join and judge codes --
 	// organiser-only secrets a model must never be asked to repeat back
 	// (same reasoning as hack_show_judge never putting join_code/

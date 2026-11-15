@@ -397,7 +397,7 @@ Atlas files changed during implementation: `spec.json`, `features.json`, `protot
 
 New atlas feature IDs: `persistent-event-navigation`, `role-aware-signin-landing`, `shared-hack-navigation-map`, `organiser-judge-access`, `organiser-stage-checklist`, `judge-stage-checklist`, `dismiss-optional-checklist-item`, `acknowledge-checklist-item`. Extend existing `follow-entry-checklist`, do not replace its ID. Move existing feature IDs with their controls (including `add-tracks-and-challenges`, `set-reminder-times`, `set-judging-closes`, `entry-rules-first-step`, `choose-entry-preset`, signup/co-organiser/result-setting IDs). Associate new records with valid stable FEATURES anchors during implementation; no orphan atlas features. Add one plain changelog entry per slice and update BUILD's route table with aliases, not replacements.
 
-Slice 1 includes `internal/webassets/static/hack/tours.js`, `internal/mcp/apps/frame/organiser-nav.js`, affected frame links and `internal/mcp/apps/bundlegen` integration. Shared resolver imports must bundle successfully; absent in-frame destinations retain website links.
+Slice 1 includes `internal/webassets/static/hack/tours.js`, `products/hack/mcp/apps/frame/organiser-nav.js`, affected frame links and `products/hack/mcp/apps/bundlegen` integration. Shared resolver imports must bundle successfully; absent in-frame destinations retain website links.
 
 ## 9. Verification required for implementation
 

@@ -152,9 +152,10 @@ type Config struct {
 	// MaxBodyBytes bounds one message. Inline deploys travel in the body, so
 	// it sits above the per-site upload limit.
 	MaxBodyBytes int64
-	// SelectHackTeam validates current event membership and saves a team's
-	// selection on the authenticated OAuth grant. It is hosted-mode only.
-	SelectHackTeam func(context.Context, Caller, string) error
+	// SelectTarget validates the caller's current membership and saves the
+	// chosen group (a team) on the authenticated OAuth grant. Nil when the
+	// install has no group connections.
+	SelectTarget func(context.Context, Caller, string) error
 	// NoSpamCheck: this server has no Turnstile keys, so the comments
 	// preset is refused; its tools and instructions leave it out, as on
 	// Simple Hack. A self-hosted box starts this way.
@@ -170,12 +171,12 @@ type Config struct {
 	// Events serves MCP Events webhook subscriptions. Nil: events are not
 	// offered (no capability, no events/* methods, no notification tools).
 	Events EventsBackend
-	// MutationResultHook, when set, runs after every in-process tool call
-	// with the REST method, path and the status it got back. It exists so
-	// the Hack paper-metrics collector can see successful hack-event writes
-	// without this leaf package importing internal/papermetrics; the
+	// MutationResult, when set, runs after every in-process tool call with
+	// the REST method, path and the status it got back. It exists so a
+	// product's metrics collector can see successful writes made through a
+	// tool without this leaf package importing internal/papermetrics; the
 	// handler package wires it to the product metrics recorder. Nil-safe.
-	MutationResultHook func(ctx context.Context, method, path string, status int)
+	MutationResult func(ctx context.Context, method, path string, status int)
 }
 
 type Server struct {
@@ -198,16 +199,18 @@ type Server struct {
 	coreTools            []Tool
 	deployByName         map[string]Tool
 	search, deploySearch *toolSearch
-	// hackTools is the hosted organiser inventory. It is listed only when
-	// the caller mode is CallerModeEvents, so an ordinary instance and a
-	// team connection keep the website tools.
-	hackTools      []Tool
-	hackByName     map[string]Tool
-	hackBare       []Tool
-	hackSiteTools  []Tool
-	hackSiteBare   []Tool
-	hackSiteByName map[string]Tool
-	apps           AppContribution
+	// productTools is the contributed product's inventory. It is listed
+	// only when the caller mode is CallerModeEvents, so an ordinary instance
+	// and a group-site connection keep the website tools. groupSiteTools is
+	// the website inventory of a group-site connection, with the product's
+	// variants (Contribution.SiteVariants).
+	productTools    []Tool
+	productByName   map[string]Tool
+	productBare     []Tool
+	groupSiteTools  []Tool
+	groupSiteBare   []Tool
+	groupSiteByName map[string]Tool
+	apps            AppContribution
 	// fixed is set on a server that is not the site connector (the owner's
 	// knowledge server): one tool set for every caller.
 	fixed *inventory
@@ -229,10 +232,16 @@ func newServer(cfg Config) *Server {
 		l := *cfg.Limits
 		cfg.Limits = &l
 	}
-	r := buildRegistry(cfg)
+	// The product's screens are built once, before the registry: their
+	// family of tools is registered with the product's own.
+	s := &Server{cfg: cfg}
+	if factory := cfg.Contribution.Apps; factory != nil {
+		s.apps = factory(AppContext{APIHost: cfg.APIHost, Fixed: s.fixed != nil, Meta: s.appMeta})
+	}
+	r := buildRegistry(cfg, s.apps.AppFamily)
 	host := r.view(cfg, editionHost, false, false, false)
 	deploy := r.view(cfg, editionHost, false, false, true)
-	hack := r.view(cfg, editionHack, false, false, false)
+	product := r.view(cfg, editionHack, false, false, false)
 	site := r.view(cfg, editionHost, true, false, false)
 	core, coreBare := make([]Tool, 0, len(coreToolNames)), make([]Tool, 0, len(coreToolNames))
 	for _, name := range coreToolNames {
@@ -241,23 +250,17 @@ func newServer(cfg Config) *Server {
 		tool.OutputSchema = nil
 		coreBare = append(coreBare, tool)
 	}
-	var analytics *analyticsSender
 	if cfg.AnalyticsProjectID != "" {
-		analytics = newAnalyticsSender(cfg)
+		s.analytics = newAnalyticsSender(cfg)
 	}
-	s := &Server{
-		registry: r, policies: r.policyIndex(),
-		coreTools: core, deployByName: deploy.byName,
-		search: newToolSearch(host.tools), deploySearch: newToolSearch(deploy.tools),
-		analytics: analytics, cfg: cfg, tools: host.tools, byName: host.byName, preOutputSchemaTools: coreBare,
-		hackTools:     productInstanceTools(hack.tools, cfg.APIHost, cfg.Contribution.Rewrite),
-		hackByName:    productInstanceToolMap(hack.byName, cfg.APIHost, cfg.Contribution.Rewrite),
-		hackBare:      productInstanceTools(hack.bare, cfg.APIHost, cfg.Contribution.Rewrite),
-		hackSiteTools: site.tools, hackSiteBare: site.bare, hackSiteByName: site.byName,
-	}
-	if factory := cfg.Contribution.Apps; factory != nil {
-		s.apps = factory(AppContext{APIHost: cfg.APIHost, Fixed: s.fixed != nil, Meta: s.appMeta})
-	}
+	s.registry, s.policies = r, r.policyIndex()
+	s.coreTools, s.deployByName = core, deploy.byName
+	s.search, s.deploySearch = newToolSearch(host.tools), newToolSearch(deploy.tools)
+	s.tools, s.byName, s.preOutputSchemaTools = host.tools, host.byName, coreBare
+	s.productTools = productInstanceTools(product.tools, cfg.APIHost, cfg.Contribution.Rewrite)
+	s.productByName = productInstanceToolMap(product.byName, cfg.APIHost, cfg.Contribution.Rewrite)
+	s.productBare = productInstanceTools(product.bare, cfg.APIHost, cfg.Contribution.Rewrite)
+	s.groupSiteTools, s.groupSiteBare, s.groupSiteByName = site.tools, site.bare, site.byName
 	return s
 }
 
@@ -269,22 +272,23 @@ func (s *Server) ListedTools() []Tool {
 	return append([]Tool(nil), full...)
 }
 
-// HackListedTools returns the generic personal Hack inventory, including selected-team
-// tools. It reads no caller, grant, membership, or event data.
-func (s *Server) HackListedTools() []Tool {
-	full, bare, byName := s.hackPersonalInventory()
+// ProductListedTools returns the generic personal inventory of the contributed
+// product, including selected-target website tools. It reads no caller, grant,
+// membership, or event data.
+func (s *Server) ProductListedTools() []Tool {
+	full, bare, byName := s.productPersonalInventory()
 	if storageRulesEnabled() {
 		full, _, _ = s.storageRulesInventory(full, bare, byName, Caller{Mode: CallerModeEvents})
 	}
 	return full
 }
 
-func (s *Server) hackPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
-	// A selected Hack team acts as owner of its own website resources.
-	all := append([]Tool{}, s.hackTools...)
-	withoutSchemas := append([]Tool{}, s.hackBare...)
-	byName := make(map[string]Tool, len(s.hackByName)+len(s.hackSiteByName))
-	for name, tool := range s.hackByName {
+func (s *Server) productPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
+	// A selected group acts as owner of its own website resources.
+	all := append([]Tool{}, s.productTools...)
+	withoutSchemas := append([]Tool{}, s.productBare...)
+	byName := make(map[string]Tool, len(s.productByName)+len(s.groupSiteByName))
+	for name, tool := range s.productByName {
 		byName[name] = tool
 	}
 	site := s.registry.view(s.cfg, editionHost, true, true, false)
@@ -338,10 +342,10 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			full = appToolMetadata(full, screens)
 			bare = appToolMetadata(bare, screens)
 		}
-		hackScreens := s.productScreens(caller)
-		if len(hackScreens) > 0 {
-			full = appToolMetadata(full, hackScreens)
-			bare = appToolMetadata(bare, hackScreens)
+		productScreens := s.productScreens(caller)
+		if len(productScreens) > 0 {
+			full = appToolMetadata(full, productScreens)
+			bare = appToolMetadata(bare, productScreens)
 		}
 		if s.fixed == nil && storageRulesEnabled() {
 			full, bare, byName = s.storageRulesInventory(full, bare, byName, caller)
@@ -352,12 +356,12 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 	}
 	if caller.Mode == CallerModeEvents {
 		if caller.GrantID != "" {
-			return s.hackPersonalInventory()
+			return s.productPersonalInventory()
 		}
-		return s.hackTools, s.hackBare, s.hackByName
+		return s.productTools, s.productBare, s.productByName
 	}
 	if caller.Mode == CallerModeHackSite {
-		return s.hackSiteTools, s.hackSiteBare, s.hackSiteByName
+		return s.groupSiteTools, s.groupSiteBare, s.groupSiteByName
 	}
 	if flatListApp(caller.AppName) {
 		allowed := s.byName
@@ -716,8 +720,8 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 
 	case "tools/list":
 		full, bare, _ := s.forCaller(caller)
-		hackShowAllowed := s.showToolsAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-		full, bare = filterShowTools(full, hackShowAllowed), filterShowTools(bare, hackShowAllowed)
+		showAllowed := s.showToolsAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		full, bare = filterShowTools(full, showAllowed), filterShowTools(bare, showAllowed)
 		if modern {
 			return result(req.ID, s.withMeta(map[string]any{
 				"resultType": "complete",
@@ -739,9 +743,9 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	// the declared capabilities; an empty list is the true answer and keeps
 	// them from treating the connector as broken.
 	case "resources/list":
-		hackResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-		payload := map[string]any{"resources": append(s.appResources(caller), s.productAppResources(caller, hackResourceAllowed)...)}
-		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.productScreens(caller)) > 0)) {
+		productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		payload := map[string]any{"resources": append(s.appResources(caller), s.productAppResources(caller, productResourceAllowed)...)}
+		if modern && (len(s.enabledScreens(caller)) > 0 || (productResourceAllowed && len(s.productScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
 			payload["ttlMs"] = cacheTTLMillis
 			payload["cacheScope"] = "private"
@@ -750,9 +754,9 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	case "resources/read":
 		reply := s.readApp(req, caller)
 		if reply.Error != nil {
-			hackResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+			productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 			if read := s.apps.Read; read != nil {
-				if productReply, handled := read(req, caller, hackResourceAllowed); handled {
+				if productReply, handled := read(req, caller, productResourceAllowed); handled {
 					reply = productReply
 				}
 			}
@@ -765,9 +769,9 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		}
 		return reply
 	case "resources/templates/list":
-		hackResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		payload := map[string]any{"resourceTemplates": []any{}}
-		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.productScreens(caller)) > 0)) {
+		if modern && (len(s.enabledScreens(caller)) > 0 || (productResourceAllowed && len(s.productScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
 			payload["ttlMs"] = cacheTTLMillis
 			payload["cacheScope"] = "private"
@@ -885,12 +889,15 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		intent = inner
 	}
 	if !known {
-		if params.Name == "hack_lock_judging" || params.Name == "hack_unlock_judging" {
-			message := "Judging locks when you finish judging (move to Results) and unlocks when you move the event back. [judging_lock_removed]"
+		var retiredMutations map[string]RetiredMutation
+		if s.cfg.Contribution != nil {
+			retiredMutations = s.cfg.Contribution.MutationNames
+		}
+		if retired, ok := retiredMutations[params.Name]; ok {
 			if wrapped {
-				record(codedError("judging_lock_removed", message))
+				record(codedError(retired.Code, retired.Message))
 			}
-			return toolResult(req.ID, message, nil, true, modern)
+			return toolResult(req.ID, retired.Message, nil, true, modern)
 		}
 		if s.fixed == nil && retiredSavedDataTool(params.Name) {
 			message := params.Name + " is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code)."

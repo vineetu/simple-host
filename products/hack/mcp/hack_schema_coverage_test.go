@@ -33,9 +33,9 @@ import (
 // hackRouteTool-backed organiser tool in TestHackOrganiserToolRoutes,
 // hack_set_entry_excluded in TestHackSetEntryExcludedTool, a good number of
 // organiser/member tools via hack_results_test.go's assertHackResult, the
-// member tools in hack_member_tools_test.go. (The app-only twins and show
-// tools are still declared in internal/mcp until D3-S1c; that package's
-// tests hold the same check for them.) What's left -- the connection tool, the two
+// member tools in hack_member_tools_test.go; the app-only twins and show
+// tools in the screens tests (hack_app_only_tools_test.go,
+// hack_apps_*_test.go). What's left -- the connection tool, the two
 // website-mode tool families, the storage/recipe family and
 // hack_create_team_key (skipped by its own REST call in
 // TestHackOrganiserToolRoutes) -- is covered below.
@@ -63,13 +63,17 @@ func recordHackOutputValidated(name string) {
 	hackOutputCoverageMu.Unlock()
 }
 
-// uncoveredHackTools lists, sorted, every Tools() name that was never
-// passed to recordHackOutputValidated during this test run.
+// uncoveredTools lists, sorted, every Tools() name and every app-only tool
+// that was never passed to recordHackOutputValidated during this test run.
 func uncoveredTools() []string {
 	hackOutputCoverageMu.Lock()
 	defer hackOutputCoverageMu.Unlock()
 	var missing []string
-	for _, tool := range Tools() {
+	base := Tools()
+	// The app-only family (hack_apps.go) is built per tool server from the
+	// base tools; its screens tests record it the same way.
+	appOnly := hackApps(mcp.AppContext{}).AppFamily(base).Tools
+	for _, tool := range append(append([]mcp.Tool{}, base...), appOnly...) {
 		if !hackOutputCoverage[tool.Name] {
 			missing = append(missing, tool.Name)
 		}
@@ -80,8 +84,8 @@ func uncoveredTools() []string {
 
 // TestMain enforces full hack output-schema coverage (SIM-384) after every
 // other test in this package has run, but only for a full, unfiltered run:
-// `go test ./internal/mcp/...` (what CI and the DB-integration script both
-// do) must exercise and record every Tools() name, or it fails here,
+// `go test ./products/hack/mcp/...` (what CI and the DB-integration script
+// both do) must exercise and record every Tools() name, or it fails here,
 // naming exactly which tool was missed. `go test -run ...` (chasing one
 // test while debugging) only ever exercises a deliberate subset, so the
 // check is skipped whenever -run is set.
@@ -169,7 +173,7 @@ func TestHackSelectTeamOutputMatchesSchema(t *testing.T) {
 		Contribution: &product,
 		Upstream:     up, APIHost: "simple-host.app", ContentOrigin: "https://sites.simple-host.app",
 		SiteBases: []string{"simple-host.app"}, SkillVersion: "9.9.9", ServerName: "simple-host", Version: "9.9.9",
-		SelectHackTeam: func(_ context.Context, _ mcp.Caller, _ string) error { return nil },
+		SelectTarget: func(_ context.Context, _ mcp.Caller, _ string) error { return nil },
 	})
 	tool := toolNamed(t, "hack_select_team")
 	call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "personal-key", Mode: mcp.CallerModeEvents, GrantID: "grant-1", UserID: "user-1"})

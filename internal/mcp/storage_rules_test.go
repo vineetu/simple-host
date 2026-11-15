@@ -29,21 +29,15 @@ import (
 // Hashes were captured at 40077d00 before R3-S6a changed any server text.
 func TestStorageRulesFlagOffHashes(t *testing.T) {
 	want := map[string]string{"false//false//": "32b716438d032d39c72ca9d8ad9af9a867d6e17674bbd4a41734dd8227aebcda",
-		"false//true//":            "32b716438d032d39c72ca9d8ad9af9a867d6e17674bbd4a41734dd8227aebcda",
-		"false//false/ChatGPT/":    "595c926812429187a98adf4f56345a5e8c0689f156ac208569d411d04476434d",
-		"false/hack_site/false//":  "58e0cf6b661f1dfeb65d17bca62607d10790bfa898626c07835742a3f39f5039",
-		"false/events/false//":     "e7c25d9b09feb455fa624c236794609a4d02caf62b276ddbe4955664888cff18",
-		"false/events/false//test": "62e86beadae9db75d56e2d1c561f66915e6fc337e508eb901dc5e5cf562388a0",
-		"true//false//":            "39bfb4a2caaac5ff89e3267fb00bb371b974adb5b15888edc13590fb7c306d97",
-		"true//true//":             "39bfb4a2caaac5ff89e3267fb00bb371b974adb5b15888edc13590fb7c306d97",
-		"true//false/ChatGPT/":     "e49d0a91dcb147a258c0132ff8b7d6ecb1bf034b7ba01814a3cb62d3da03dac1",
-		"true/hack_site/false//":   "e3a2ce297a0ffa89a4ee524a366ebbb48367b90ca8f9df2d1e02f0b5712a604a",
-		"true/events/false//":      "853c8b669b233a360dfaff0c628caa046a033fcefe310522a91446598efc9917",
-		"true/events/false//test":  "ddec8f93f7d99ab54ebd8c5b1a6ff061a22935fa9b0017940a21a796da86291a"}
+		"false//true//":         "32b716438d032d39c72ca9d8ad9af9a867d6e17674bbd4a41734dd8227aebcda",
+		"false//false/ChatGPT/": "595c926812429187a98adf4f56345a5e8c0689f156ac208569d411d04476434d",
+		"true//false//":         "39bfb4a2caaac5ff89e3267fb00bb371b974adb5b15888edc13590fb7c306d97",
+		"true//true//":          "39bfb4a2caaac5ff89e3267fb00bb371b974adb5b15888edc13590fb7c306d97",
+		"true//false/ChatGPT/":  "e49d0a91dcb147a258c0132ff8b7d6ecb1bf034b7ba01814a3cb62d3da03dac1"}
 	t.Setenv("STORAGE_RULES", "off")
 	for _, noSpam := range []bool{false, true} {
 		s := NewServer(testConfig(Config{NoSpamCheck: noSpam}))
-		for _, c := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeHackSite}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "test"}} {
+		for _, c := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}} {
 			full, bare, _ := s.forCaller(c)
 			b, _ := json.Marshal([]any{full, bare, s.instructionsFor(c), s.searchFor(c).find("storage", 10)})
 			key := fmt.Sprintf("%t/%s/%t/%s/%s", noSpam, c.Mode, c.DeployOnly, c.AppName, c.GrantID)
@@ -72,7 +66,8 @@ func TestStorageRulesTextAtRequestTime(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "off")
 	for _, noSpam := range []bool{false, true} {
 		s := NewServer(testConfig(Config{NoSpamCheck: noSpam}))
-		for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeHackSite}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "test"}} {
+		// The platform's own connections; a product's are tested with the product.
+		for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}} {
 			before, _, _ := s.forCaller(caller)
 			old, _ := json.Marshal(before)
 			oldInstructions := s.instructionsFor(caller)
@@ -82,7 +77,7 @@ func TestStorageRulesTextAtRequestTime(t *testing.T) {
 				t.Fatal("tool inventory shape changed")
 			}
 			for i, tool := range after {
-				name := strings.TrimPrefix(tool.Name, "hack_event_")
+				name := tool.Name
 				changed := name == "storage_set_resource" || name == "storage_list_resources" || name == "storage_sql_query" || name == "storage_sql_schema"
 				if !changed {
 					a, _ := json.Marshal(before[i])
@@ -94,9 +89,6 @@ func TestStorageRulesTextAtRequestTime(t *testing.T) {
 				}
 				if name != "storage_set_resource" && tool.Title != before[i].Title {
 					t.Errorf("unrelated title changed: %s", tool.Name)
-				}
-				if strings.Count(tool.Title, "Event website:") > 1 {
-					t.Errorf("duplicated event title: %s", tool.Title)
 				}
 				if tool.Description == before[i].Description {
 					t.Errorf("stale description: %s", tool.Name)
@@ -130,11 +122,7 @@ func TestStorageRulesTextAtRequestTime(t *testing.T) {
 							t.Errorf("%s lacks %q", tool.Name, phrase)
 						}
 					}
-					prefix := ""
-					if strings.HasPrefix(tool.Name, "hack_event_") {
-						prefix = "hack_event_"
-					}
-					if !strings.Contains(tool.Description, "Create the resource with "+prefix+"storage_set_resource, then create its tables with "+prefix+"storage_sql_schema only for SQLite") {
+					if !strings.Contains(tool.Description, "Create the resource with storage_set_resource, then create its tables with storage_sql_schema only for SQLite") {
 						t.Errorf("incorrect resource creation instructions: %s", tool.Name)
 					}
 					count := 0
@@ -196,7 +184,8 @@ func TestStorageRulesInstructionsMaxHostname(t *testing.T) {
 }
 
 func TestStorageRulesRefusedResourceHints(t *testing.T) {
-	for _, event := range []bool{false, true} {
+	// The site tool here; a product's copy of it is tested with the product.
+	for _, event := range []bool{false} {
 		for _, kind := range []string{"files", "sqlite", "kv"} {
 			for _, code := range []string{"invalid_resource", "storage_busy", "invalid_rules"} {
 				t.Run(fmt.Sprintf("event=%t/%s/%s", event, kind, code), func(t *testing.T) {
@@ -205,12 +194,6 @@ func TestStorageRulesRefusedResourceHints(t *testing.T) {
 					args := map[string]any{"site": "test", "name": "data", "body": map[string]any{"kind": kind, "site_passcode": "invalid"}}
 					if code == "invalid_rules" {
 						args["body"] = map[string]any{"kind": kind, "rules": map[string]any{"version": 1, "policies": []any{}}}
-					}
-					if event {
-						tool, path = "hack_event_storage_set_resource", "/v1/hack/events/test/website/storage/resources/data"
-						caller.Mode = CallerModeEvents
-						delete(args, "site")
-						args["event"] = "test"
 					}
 					s := newTestServer(&recordingUpstream{answers: map[string]func() (int, string){
 						"PUT " + path: func() (int, string) {

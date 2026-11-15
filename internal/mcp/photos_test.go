@@ -129,21 +129,6 @@ func TestPhotoLinkConcurrentSave(t *testing.T) {
 		t.Fatal("concurrent save accepted")
 	}
 }
-func TestHackPhotoToolRemainsArchive(t *testing.T) {
-	s := newTestServer(&recordingUpstream{})
-	for _, mode := range []string{CallerModeHackSite, CallerModeEvents} {
-		caller := Caller{Mode: mode, GrantID: "grant", APIKey: "owner"}
-		_, _, tools := s.forCaller(caller)
-		if tools["create_upload_link"].Description != archiveUploadDescription {
-			t.Fatal("Hack description changed")
-		}
-		out, err := createUploadLink(&call{server: s, caller: caller}, map[string]any{"site": "blog"})
-		if err != nil || out.Structured["upload_url"] == nil || out.Structured["photos_url"] != nil || len(out.Structured) != 4 {
-			t.Fatal("Hack default changed")
-		}
-	}
-}
-
 func TestPhotoLinkDoesNotExposeAccountQuota(t *testing.T) {
 	for _, tc := range []struct {
 		status int

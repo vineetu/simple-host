@@ -44,7 +44,7 @@ function mountSites(callTool=async()=>({}), hack=false) {
  const app={hostCapabilities:{serverTools:{}},on:(k,fn)=>handlers[k]=fn,start:async()=>{},
   callTool:async(name,args)=>{queries.push({...args,tool:name});return callTool(name,args);},callToolResult:async(name,args)=>{queries.push({...args,tool:name});return callTool(name,args);},openLink:async url=>{queries.push({open:url});}};
  const ctx=vm.createContext({document:{getElementById:get,createElement:tag=>{assert.notEqual(tag,'iframe');return element();},addEventListener(){},body:{dataset:{dashboard:'true',mode:hack?'events':''}}},SHApp:app,URL,IntersectionObserver:class {constructor(){throw Error('My sites must not observe thumbnails');}}});
- if(hack)vm.runInContext(fs.readFileSync('internal/mcp/apps/hack-sites.js','utf8'),ctx);
+ if(hack)vm.runInContext(fs.readFileSync('products/hack/mcp/apps/hack-sites.js','utf8'),ctx);
  vm.runInContext(fs.readFileSync('internal/mcp/apps/my-sites.js','utf8'),ctx);
  return {get,handlers,queries,app};
 }

@@ -13,8 +13,8 @@ import (
 
 func TestImportToolsAndHashedLinks(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	if len(s.tools) != 57 || len(s.hackSiteTools) != 38 {
-		t.Fatal("tool counts", len(s.tools), len(s.hackSiteTools))
+	if len(s.tools) != 57 || len(s.groupSiteTools) != 38 {
+		t.Fatal("tool counts", len(s.tools), len(s.groupSiteTools))
 	}
 	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeHackSite}} {
 		tools, _, _ := s.forCaller(caller)
