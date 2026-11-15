@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
 type recoveryConnHookKey struct{}
@@ -81,7 +82,7 @@ func TestRowMetadataStepPanicClosesStatements(t *testing.T) {
 	for _, query := range []string{
 		`PRAGMA foreign_key_list("child")`,
 		`PRAGMA table_info("parent")`,
-		`SELECT (c."parent_id" IS NULL), (c."parent_id" IS NULL), p."id" IS NOT NULL, '' FROM "child" c LEFT JOIN "parent" p ON p."id" = c."parent_id" WHERE c._rowid_ = ?`,
+		`SELECT (c."parent_id" IS NULL), (c."parent_id" IS NULL), p."id" IS NOT NULL FROM "child" c LEFT JOIN (SELECT * FROM "parent" WHERE 1) p ON p."id" = c."parent_id" WHERE c._rowid_ = ?`,
 		`PRAGMA table_info("child")`,
 	} {
 		t.Run(query, func(t *testing.T) {
@@ -98,15 +99,9 @@ func TestRowMetadataStepPanicClosesStatements(t *testing.T) {
 			if err := conn.Exec(`CREATE TABLE parent(id INTEGER PRIMARY KEY); CREATE TABLE child(id INTEGER PRIMARY KEY, parent_id REFERENCES parent); INSERT INTO parent VALUES(1); INSERT INTO child VALUES(1, 1)`); err != nil {
 				t.Fatal(err)
 			}
-			seen := 0
 			if err := conn.Trace(sqlite3.TRACE_STMT, func(event sqlite3.TraceEvent, _, sql any) error {
 				if sql == query {
-					seen++
-					// The first parent table_info belongs to TableColumns;
-					// the second resolves the implicit foreign-key target.
-					if query != `PRAGMA table_info("parent")` || seen == 2 {
-						panic("metadata step")
-					}
+					panic("metadata step")
 				}
 				return nil
 			}); err != nil {
@@ -121,7 +116,7 @@ func TestRowMetadataStepPanicClosesStatements(t *testing.T) {
 				if query == `PRAGMA table_info("child")` {
 					_, err = PrimaryKeyColumns(conn, "child")
 				} else {
-					_, err = CheckReferences(conn, "child", "_rowid_", 1, func(string) (string, bool, bool) { return "", true, false })
+					_, err = CheckReferences(conn, "child", "_rowid_", 1, func(string) (ruleengine.Predicate, error) { return ruleengine.Predicate{SQL: "1"}, nil })
 				}
 				t.Errorf("helper returned instead of panicking: %v", err)
 			}()

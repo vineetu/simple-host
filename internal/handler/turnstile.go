@@ -170,7 +170,7 @@ var turnstileMessages = map[string]string{
 func (h *SiteHandler) storageSpamCheck(w http.ResponseWriter, r *http.Request, c *storageCall) bool {
 	token := r.Header.Get(turnstileHeader)
 	// Without CSRF the gate refuses the write anyway: no Cloudflare call.
-	if token == "" || c.owner || !storageVisitorWrite(r) || !c.resource.hasChecked() || r.Header.Get("X-SH-CSRF") != "1" {
+	if token == "" || c.owner || !storageVisitorWrite(r) || !h.storageSvc().HasChecked(h.storageServiceCall(*c)) || r.Header.Get("X-SH-CSRF") != "1" {
 		return true
 	}
 	if h.turnstile == nil {

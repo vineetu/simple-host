@@ -40,7 +40,11 @@ func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput, 
 			// for use, not only on a resaved preset. authorizeTable already
 			// refused for on anything but an own-read table, so this never
 			// touches a wall/board/etc. table.
-			if err := runtime.EnsureWrittenByColumn(conn, in.Table); err != nil {
+			ensureWrittenBy := runtime.EnsureWrittenByColumn
+			if c.Resource.Rules != nil {
+				ensureWrittenBy = runtime.EnsureRuleWrittenByColumn
+			}
+			if err := ensureWrittenBy(conn, in.Table); err != nil {
 				if errors.Is(err, runtime.ErrWrittenBySchemaLocked) {
 					return &Error{Code: "written_by_blocked", Message: "a trigger or view on this table may depend on its exact columns; remove or recreate it before adding a row with for"}
 				}
@@ -119,15 +123,54 @@ func rowMayRead(c Call, value string) (string, bool) {
 }
 
 // checkRowReferences enforces the parent table's read policy on a row write.
-func checkRowReferences(conn *sqlite3.Conn, c Call, table, rowid string, id int64) error {
+func (s *Service) checkRowReferences(conn *sqlite3.Conn, c Call, table, rowid string, id int64) error {
 	if c.Owner {
 		return nil
 	}
 	_ = conn.SetAuthorizer(nil)
-	status, err := runtime.CheckReferences(conn, table, rowid, id, func(parent string) (string, bool, bool) {
+	status, err := runtime.CheckReferences(conn, table, rowid, id, func(parent string) (ruleengine.Predicate, error) {
+		if c.Resource.RulesStatus() != "preset" {
+			parentCall := c
+			// Compile against the parent's actual columns and its own override.
+			cols, order, err := runtime.TableXInfo(conn, parent)
+			if err != nil {
+				return ruleengine.Predicate{}, err
+			}
+			key, err := runtime.RowID(conn, parent, cols)
+			if err != nil {
+				return ruleengine.Predicate{}, err
+			}
+			predicate, err := s.ruleReadPredicate(c.Context, &parentCall, parent, rowMetadata{cols: cols, order: order, rowid: key})
+			if e, ok := err.(*Error); ok && e.Code != "internal_error" && e.Code != "rules_invalid" {
+				return ruleengine.Predicate{}, &Error{Code: "invalid_reference", Message: "referenced row not found"}
+			}
+			return predicate, err
+		}
 		filter, ok := rowMayRead(c, c.Resource.TableMatrix(parent).Read)
-		return filter, ok, c.Resource.Holds(parent) && !c.OwnerOnSite
+		cols, err := runtime.TableColumns(conn, parent)
+		if err != nil {
+			return ruleengine.Predicate{}, err
+		}
+		if !ok || filter != "" && cols["visitor_id"] != "TEXT" {
+			return ruleengine.Predicate{}, &Error{Code: "invalid_reference", Message: "referenced row not found"}
+		}
+		predicate := ruleengine.Predicate{SQL: "1"}
+		if filter != "" {
+			// The preset check historically compared ColumnText, including BLOB authors.
+			predicate.SQL = `CAST("visitor_id" AS TEXT) COLLATE BINARY = ?`
+			predicate.Args = []ruleengine.Value{ruleengine.Text(filter)}
+		}
+		if c.Resource.Holds(parent) && !c.OwnerOnSite {
+			if cols["approved_at"] != "TEXT" {
+				return ruleengine.Predicate{}, &Error{Code: "invalid_reference", Message: "referenced row not found"}
+			}
+			predicate.SQL += ` AND "approved_at" IS NOT NULL`
+		}
+		return predicate, nil
 	})
+	if e, ok := err.(*Error); ok {
+		return e
+	}
 	return rowReferenceError(status, err)
 }
 
@@ -315,7 +358,7 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 	if err != nil {
 		return err
 	}
-	if err = checkRowReferences(conn, c, in.Table, meta.rowid, id); err != nil {
+	if err = s.checkRowReferences(conn, c, in.Table, meta.rowid, id); err != nil {
 		return err
 	}
 	if err = s.checkWrittenRule(conn, c, in.Table, meta, id, ruleengine.OpAdd); err != nil {
@@ -451,7 +494,7 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 		if !c.Owner && conn.TotalChanges()-before != 1 {
 			return &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
 		}
-		if err = checkRowReferences(conn, c, in.Table, meta.rowid, in.ID); err != nil {
+		if err = s.checkRowReferences(conn, c, in.Table, meta.rowid, in.ID); err != nil {
 			return err
 		}
 		if err := s.checkWrittenRule(conn, c, in.Table, meta, in.ID, ruleengine.OpEdit); err != nil {

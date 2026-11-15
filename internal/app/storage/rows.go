@@ -125,14 +125,19 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 	if !c.Owner && len(m.cols) > 100 {
 		return m, &Error{Code: "invalid_rows", Message: "too many columns"}
 	}
-	if filter != "" && m.cols["visitor_id"] != "TEXT" {
+	visitorColumn, writtenByColumn := "visitor_id", "written_by"
+	if c.Resource.Rules != nil {
+		visitorColumn = declaredColumn(m.cols, visitorColumn)
+		writtenByColumn = declaredColumn(m.cols, writtenByColumn)
+	}
+	if filter != "" && m.cols[visitorColumn] != "TEXT" {
 		return m, &Error{Code: "visitor_id_required", Message: "own needs the visitor_id TEXT column; set the policy again so the server adds it"}
 	}
 	if c.OwnerFor != "" {
-		if m.cols["visitor_id"] != "TEXT" {
+		if m.cols[visitorColumn] != "TEXT" {
 			return m, &Error{Code: "visitor_id_required", Message: "adding for someone needs the visitor_id TEXT column; set the policy again so the server adds it"}
 		}
-		if m.cols["written_by"] != "TEXT" {
+		if m.cols[writtenByColumn] != "TEXT" {
 			return m, &Error{Code: "written_by_required", Message: "adding for someone needs the written_by TEXT column; set the policy again so the server adds it"}
 		}
 	}
@@ -173,14 +178,19 @@ func (s *Service) authorizeTable(ctx context.Context, c Call, table, action stri
 		return c, "", err, err == nil
 	}
 	c.CurrentMatrix = c.Resource.TableMatrix(table)
-	// for (ResolveOwnerFor) only applies to a table whose read is own
-	// (records, personal): anywhere wider, the row the owner "adds for"
-	// someone would be visible, or attributed, beyond that one visitor,
-	// which is exactly what own exists to prevent. Checked here, on the
-	// table's actual matrix, not on whether a visitor_id/written_by column
-	// happens to already exist.
-	if c.OwnerFor != "" && c.CurrentMatrix.Read != rules.WhoOwn {
-		return c, "", &Error{Code: "for_requires_own", Message: "for only adds a row on a table whose read is own (the records or personal presets); this table's read is " + c.CurrentMatrix.Read}, false
+	if c.OwnerFor != "" {
+		if c.Resource.RulesStatus() != "preset" {
+			if err := s.compileBindingRules(&c, table); err != nil {
+				return c, "", err.(*Error), false
+			}
+			if !c.rulePlan.ReadIsOwnOrOwner() {
+				return c, "", &Error{Code: "for_requires_own", Message: "for needs read rules limited to the row's visitor or owner"}, false
+			}
+			// Owner tools still bypass row rules after the structural check.
+			c.rulePlan = nil
+		} else if c.CurrentMatrix.Read != rules.WhoOwn {
+			return c, "", &Error{Code: "for_requires_own", Message: "for only adds a row on a table whose read is own (the records or personal presets); this table's read is " + c.CurrentMatrix.Read}, false
+		}
 	}
 	if !c.Owner && c.Resource.RulesStatus() != "preset" {
 		op := map[string]ruleengine.Op{"add": ruleengine.OpAdd, "edit": ruleengine.OpEdit, "delete": ruleengine.OpDelete}[action]

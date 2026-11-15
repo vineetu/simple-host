@@ -15,6 +15,7 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -140,9 +141,12 @@ func TestStorageSecurityReferencesCatalogAndOraclePOC(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownCall := storageCall{visitorID: "alice", resource: storageResource{Kind: "sqlite", Read: "own", Write: "signed-in", WriteMode: "add"}}
-	if _, err = storage.CheckReferences(conn, "child", "rowid", 1, func(parent string) (string, bool, bool) {
+	if _, err = storage.CheckReferences(conn, "child", "rowid", 1, func(parent string) (ruleengine.Predicate, error) {
 		filter, ok := ownCall.storageMayRead(ownCall.resource.tableMatrix(parent).Read)
-		return filter, ok, ownCall.resource.holds(parent) && !ownCall.ownerOnSite
+		if !ok {
+			return ruleengine.Predicate{}, fmt.Errorf("referenced row not found")
+		}
+		return ruleengine.Predicate{SQL: `"visitor_id" COLLATE BINARY = ?`, Args: []ruleengine.Value{ruleengine.Text(filter)}}, nil
 	}); err == nil {
 		t.Fatal("parent without visitor_id accepted")
 	}

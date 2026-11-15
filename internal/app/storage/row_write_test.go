@@ -88,11 +88,36 @@ func TestCheckRowReferencesVisibility(t *testing.T) {
 	}
 	matrix := rules.AccessMatrix{Read: rules.WhoOwn}
 	c := Call{VisitorID: "visitor", Resource: rules.Resource{Access: &matrix}}
-	if err := checkRowReferences(conn, c, "child", "id", 2); err != nil {
+	if err := (&Service{}).checkRowReferences(conn, c, "child", "id", 2); err != nil {
 		t.Fatalf("own parent: %v", err)
 	}
-	if err := checkRowReferences(conn, c, "child", "id", 1); err == nil || err.(*Error).Code != "invalid_reference" {
+	if err := (&Service{}).checkRowReferences(conn, c, "child", "id", 1); err == nil || err.(*Error).Code != "invalid_reference" {
 		t.Fatalf("other parent: %v", err)
+	}
+}
+
+func TestCheckRowReferencesPresetBlobAuthor(t *testing.T) {
+	conn, err := sqlite3.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if err := conn.Exec(`CREATE TABLE parent (id INTEGER PRIMARY KEY, visitor_id TEXT COLLATE NOCASE);
+		CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id));
+		INSERT INTO parent VALUES (1, CAST('caller' AS BLOB)), (2, CAST('other' AS BLOB)), (3, CAST('CALLER' AS BLOB));
+		INSERT INTO child VALUES (1, 1), (2, 2), (3, 3)`); err != nil {
+		t.Fatal(err)
+	}
+	c := Call{VisitorID: "caller", Resource: rules.Resource{Access: &rules.AccessMatrix{Read: rules.WhoOwn}}}
+	for _, id := range []int64{1, 2, 3} {
+		err := (&Service{}).checkRowReferences(conn, c, "child", "id", id)
+		if id == 1 {
+			if err != nil {
+				t.Fatalf("own BLOB author: %v", err)
+			}
+		} else if e, ok := err.(*Error); !ok || e.Code != "invalid_reference" {
+			t.Fatalf("other BLOB author %d: %v", id, err)
+		}
 	}
 }
 

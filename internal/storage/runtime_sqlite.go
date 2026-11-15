@@ -15,6 +15,7 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
 // Quote provides the existing runtime storage helper.
@@ -181,14 +182,28 @@ var ErrWrittenBySchemaLocked = fmt.Errorf("a trigger or view on this table may d
 // A false positive only means the owner removes or recreates that trigger
 // or view before using for here; it never applies the ALTER.
 func EnsureWrittenByColumn(conn *sqlite3.Conn, table string) error {
+	return ensureWrittenByColumn(conn, table, false)
+}
+
+// EnsureRuleWrittenByColumn prepares the lazy author marker using SQLite's
+// case-insensitive column names for rules resources.
+func EnsureRuleWrittenByColumn(conn *sqlite3.Conn, table string) error {
+	return ensureWrittenByColumn(conn, table, true)
+}
+
+func ensureWrittenByColumn(conn *sqlite3.Conn, table string, rulesResource bool) error {
 	cols, err := TableColumns(conn, table)
 	if err != nil {
 		return err
 	}
-	if cols["written_by"] == "TEXT" {
+	column := "written_by"
+	if rulesResource {
+		column = schemaColumn(cols, column)
+	}
+	if cols[column] == "TEXT" {
 		return nil
 	}
-	if _, ok := cols["written_by"]; ok {
+	if _, ok := cols[column]; ok {
 		return fmt.Errorf("written_by TEXT required")
 	}
 	dependent, err := tableHasSchemaDependents(conn, table)
@@ -362,11 +377,10 @@ func CreateIfNotExists(sql string) bool {
 
 // CheckReferences reads the table's declared foreign keys, then
 // checks the added or edited row against each parent: the parent row must
-// exist and be readable by this caller under the parent table's read value
-// (own: the caller added it). It runs inside the write's transaction, so a
-// refused reference leaves no change. Reading the row back also covers
+// exist and satisfy the parent table's read predicate for this caller. It runs
+// inside the write's transaction, so a refused reference leaves no change. Reading the row back also covers
 // foreign-key values supplied by SQLite defaults.
-func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access func(string) (string, bool, bool)) (int, error) {
+func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access func(string) (ruleengine.Predicate, error)) (int, error) {
 	stmt, _, err := conn.Prepare("PRAGMA foreign_key_list(" + Quote(table) + ")")
 	if err != nil {
 		return 400, err
@@ -393,16 +407,9 @@ func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access f
 		return 400, err
 	}
 	for _, ref := range refs {
-		parent, err := TableColumns(conn, ref.table)
-		if errors.Is(err, sqlite3.NOMEM) {
-			return 400, err
-		}
+		predicate, err := access(ref.table)
 		if err != nil {
-			return 404, fmt.Errorf("referenced row not found")
-		}
-		filter, ok, held := access(ref.table)
-		if !ok || filter != "" && parent["visitor_id"] != "TEXT" {
-			return 404, fmt.Errorf("referenced row not found")
+			return 404, err
 		}
 		if ref.to[0] == "" {
 			info, _, err := conn.Prepare("PRAGMA table_info(" + Quote(ref.table) + ")")
@@ -433,31 +440,25 @@ func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access f
 			joins = append(joins, "p."+Quote(ref.to[i])+" = c."+Quote(from))
 			nulls = append(nulls, "c."+Quote(from)+" IS NULL")
 		}
-		if held {
-			if parent["approved_at"] != "TEXT" {
-				return 404, fmt.Errorf("referenced row not found")
-			}
-			joins = append(joins, "p.approved_at IS NOT NULL")
-		}
-		writer := "''"
-		if parent["visitor_id"] != "" {
-			writer = "COALESCE(p.visitor_id,'')"
-		}
-		// Optional links are all NULL. Partial composite NULLs are refused.
-		query := "SELECT (" + strings.Join(nulls, " OR ") + "), (" + strings.Join(nulls, " AND ") + "), p." + Quote(ref.to[0]) + " IS NOT NULL, " + writer + " FROM " + Quote(table) +
-			" c LEFT JOIN " + Quote(ref.table) + " p ON " + strings.Join(joins, " AND ") + " WHERE c." + rowid + " = ?"
+		// Keep the predicate inside the parent subquery so its unqualified
+		// columns cannot resolve to the child. Optional links are all NULL;
+		// partial composite NULLs are refused.
+		query := "SELECT (" + strings.Join(nulls, " OR ") + "), (" + strings.Join(nulls, " AND ") + "), p." + Quote(ref.to[0]) + " IS NOT NULL FROM " + Quote(table) +
+			" c LEFT JOIN (SELECT * FROM " + Quote(ref.table) + " WHERE " + predicate.SQL + ") p ON " + strings.Join(joins, " AND ") + " WHERE c." + rowid + " = ?"
 		check, _, err := conn.Prepare(query)
 		if err != nil {
 			return 404, err
 		}
 		defer check.Close()
-		if err = check.BindInt64(1, id); err != nil {
+		if err = BindRuleArgs(check, 1, predicate.Args); err == nil {
+			err = check.BindInt64(len(predicate.Args)+1, id)
+		}
+		if err != nil {
 			check.Close()
 			return 404, err
 		}
 		found := check.Step()
 		anyNull, allNull, exists := found && check.ColumnBool(0), found && check.ColumnBool(1), found && check.ColumnBool(2)
-		author := check.ColumnText(3)
 		err = check.Err()
 		check.Close()
 		if err != nil {
@@ -466,7 +467,7 @@ func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access f
 		if allNull {
 			continue
 		}
-		if !found || anyNull || !exists || filter != "" && author != filter {
+		if !found || anyNull || !exists {
 			return 404, fmt.Errorf("referenced row not found")
 		}
 	}

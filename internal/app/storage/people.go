@@ -146,8 +146,8 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 	return out, nil
 }
 
-// sqliteRowVisitors scans every SQLite resource's own tables (those whose
-// matrix uses own, or lets visitors add) for distinct, nonempty visitor_id
+// sqliteRowVisitors scans every SQLite resource's author-tracked tables
+// (as declared by its rules or preset) for distinct, nonempty visitor_id
 // values. Opened read-only, directly by site runtime path (not through
 // s.deps.SQLitePath, which is bound to one resource): the pick list spans
 // every resource on the site.
@@ -171,7 +171,7 @@ func (s *Service) sqliteRowVisitors(ctx context.Context, c Call) ([]string, erro
 			}
 			defer closeSQLite(func() { defer done(); s.sqliteStage("close") })
 			s.sqliteStage("after_open")
-			ids, err = distinctRowVisitors(conn, r)
+			ids, err = s.distinctRowVisitors(conn, r)
 			return err
 		})
 		if err != nil {
@@ -187,7 +187,7 @@ func (s *Service) sqliteRowVisitors(ctx context.Context, c Call) ([]string, erro
 	return out, nil
 }
 
-func distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]string, error) {
+func (s *Service) distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]string, error) {
 	tables, err := runtime.SQLTables(conn)
 	if err != nil {
 		return nil, err
@@ -197,11 +197,23 @@ func distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]string, error)
 	}
 	var out []string
 	for table := range tables {
-		if !r.TableMatrix(table).RecordsAuthor() {
+		tracked := r.TableMatrix(table).RecordsAuthor()
+		if r.RulesStatus() != "preset" {
+			c := Call{Resource: r}
+			if err := s.compileBindingRules(&c, table); err != nil {
+				continue
+			}
+			tracked = c.rulePlan.AuthorTracked()
+		}
+		if !tracked {
 			continue
 		}
 		cols, err := runtime.TableColumns(conn, table)
-		if err != nil || cols["visitor_id"] != "TEXT" {
+		author := "visitor_id"
+		if r.RulesStatus() != "preset" {
+			author = declaredColumn(cols, author)
+		}
+		if err != nil || cols[author] != "TEXT" {
 			continue
 		}
 		stmt, _, err := conn.Prepare(`SELECT DISTINCT visitor_id FROM ` + runtime.Quote(table) + ` WHERE visitor_id IS NOT NULL AND visitor_id <> ''`)

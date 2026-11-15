@@ -15,12 +15,12 @@ internal/analytics/ingest.go:459 | Ingester.commitLines (strings.Builder) | non-
 internal/app/storage/legacy_sql_errors.go:136 | sqlFailure | non-constant: timeout | the statement ran longer than %s and was stopped: add a LIMIT, a narrower WHERE, or an index
 internal/app/storage/legacy_sql_errors.go:192 | sqlFailure | non-constant: m[1] | a row with the same ‹?m[1]› already exists (UNIQUE): use another value, or change the existing row with UPDATE (or INSERT ... ON CONFLICT DO…
 internal/app/storage/legacy_sql_errors.go:219 | sqlFailure | non-constant: msg | ‹?msg›: name the columns, e.g. INSERT INTO t (a, b) VALUES (?, ?)
-internal/app/storage/people.go:207 | distinctRowVisitors | non-constant: runtime.Quote(table) | SELECT DISTINCT visitor_id FROM ‹?runtime.Quote(table)› WHERE visitor_id IS NOT NULL AND visitor_id <> ''
-internal/app/storage/row_write.go:346 | verifyOwnerForRow | non-constant: runtime.Quote(table), rowid | SELECT visitor_id, written_by FROM ‹?runtime.Quote(table)› WHERE ‹?rowid› = ?
-internal/app/storage/row_write.go:497 | lookupRowVisitorID | non-constant: runtime.Quote(table), rowid | SELECT visitor_id FROM ‹?runtime.Quote(table)› WHERE ‹?rowid› = ?
-internal/app/storage/rows.go:220 | Service.TableGet | non-constant: rowid, runtime.Quote(in.Table), rowid | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)› WHERE ‹?rowid› = ?
-internal/app/storage/rows.go:422 | Service.TableList | non-constant: rowid, runtime.Quote(in.Table) | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)›
-internal/app/storage/rows.go:424 | Service.TableList | non-constant: query, strings.Join(where, " AND ") | ‹?query› WHERE ‹?strings.Join(where, " AND ")›
+internal/app/storage/people.go:219 | Service.distinctRowVisitors | non-constant: runtime.Quote(table) | SELECT DISTINCT visitor_id FROM ‹?runtime.Quote(table)› WHERE visitor_id IS NOT NULL AND visitor_id <> ''
+internal/app/storage/row_write.go:389 | verifyOwnerForRow | non-constant: runtime.Quote(table), rowid | SELECT visitor_id, written_by FROM ‹?runtime.Quote(table)› WHERE ‹?rowid› = ?
+internal/app/storage/row_write.go:540 | lookupRowVisitorID | non-constant: runtime.Quote(table), rowid | SELECT visitor_id FROM ‹?runtime.Quote(table)› WHERE ‹?rowid› = ?
+internal/app/storage/rows.go:230 | Service.TableGet | non-constant: rowid, runtime.Quote(in.Table), rowid | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)› WHERE ‹?rowid› = ?
+internal/app/storage/rows.go:432 | Service.TableList | non-constant: rowid, runtime.Quote(in.Table) | SELECT *, ‹?rowid› FROM ‹?runtime.Quote(in.Table)›
+internal/app/storage/rows.go:434 | Service.TableList | non-constant: query, strings.Join(where, " AND ") | ‹?query› WHERE ‹?strings.Join(where, " AND ")›
 internal/handler/entry_operations.go:82 | SiteHandler.writeEntrySelection | non-constant: in.SiteName, in.Name | each visitor changes their own record with PUT, PATCH or DELETE /v1/sites/‹?in.SiteName›/data/‹?in.Name›
 internal/handler/kinds.go:770 | SiteHandler.putContent | non-constant: siteName, name, siteName, name | add items with POST /v1/sites/‹?siteName›/data/‹?name›; only the owner empties it, with DELETE /v1/sites/‹?siteName›/collections/‹?name›
 internal/handler/personal.go:357 | SiteHandler.writePersonalRequestError | non-constant: siteName, name, siteName, name | change or delete one item with PATCH or DELETE /v1/sites/‹?siteName›/data/‹?name›/items/{id}; the owner empties the whole list with DELETE /…
@@ -61,14 +61,14 @@ internal/storage/runtime_row_rules.go:88 | RuleSelectPage | non-constant: rowKey
 internal/storage/runtime_row_rules.go:107 | RuleUpdate | non-constant: Quote(table), strings.Join(sets, ", "), rowKey, read.SQL, edit.SQL | UPDATE OR ABORT ‹?Quote(table)› SET ‹?strings.Join(sets, ", ")› WHERE ‹?rowKey› = ? AND (‹?read.SQL›) AND (‹?edit.SQL›)
 internal/storage/runtime_row_rules.go:116 | RuleDelete | non-constant: Quote(table), rowKey, read.SQL, del.SQL | DELETE FROM ‹?Quote(table)› WHERE ‹?rowKey› = ? AND (‹?read.SQL›) AND (‹?del.SQL›)
 internal/storage/runtime_row_rules.go:123 | RuleCheck | non-constant: Quote(table), rowKey, check.SQL | SELECT 1 FROM ‹?Quote(table)› WHERE ‹?rowKey› = ? AND (‹?check.SQL›)
-internal/storage/runtime_sqlite.go:118 | ensureOwnTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN visitor_id TEXT
-internal/storage/runtime_sqlite.go:127 | ensureOwnTables | non-constant: Quote("sh_visitor_" + table), Quote(table), Quote(column) | CREATE INDEX IF NOT EXISTS ‹?Quote("sh_visitor_" + table)› ON ‹?Quote(table)› (‹?Quote(column)›)
-internal/storage/runtime_sqlite.go:201 | EnsureWrittenByColumn | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN written_by TEXT NOT NULL DEFAULT ''
-internal/storage/runtime_sqlite.go:252 | ensureHoldTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN approved_at TEXT
-internal/storage/runtime_sqlite.go:255 | ensureHoldTables | non-constant: Quote(table) | UPDATE ‹?Quote(table)› SET approved_at = ?
-internal/storage/runtime_sqlite.go:347 | RowID | non-constant: name, Quote(table) | SELECT ‹?name› FROM ‹?Quote(table)› LIMIT 0
-internal/storage/runtime_sqlite.go:447 | CheckReferences | non-constant: strings.Join(nulls, " OR "), strings.Join(nulls, " AND "), Quote(ref.to[0]), writer, Quote(table), Quote(ref.table), strings.Join(joins, " AND "), rowid | SELECT (‹?strings.Join(nulls, " OR ")›), (‹?strings.Join(nulls, " AND ")›), p.‹?Quote(ref.to[0])› IS NOT NULL, ‹?writer› FROM ‹?Quote(table)…
-internal/storage/runtime_sqlite.go:651 | TableInfo | non-constant: Quote(table) | SELECT * FROM ‹?Quote(table)› LIMIT 0
+internal/storage/runtime_sqlite.go:119 | ensureOwnTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN visitor_id TEXT
+internal/storage/runtime_sqlite.go:128 | ensureOwnTables | non-constant: Quote("sh_visitor_" + table), Quote(table), Quote(column) | CREATE INDEX IF NOT EXISTS ‹?Quote("sh_visitor_" + table)› ON ‹?Quote(table)› (‹?Quote(column)›)
+internal/storage/runtime_sqlite.go:216 | ensureWrittenByColumn | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN written_by TEXT NOT NULL DEFAULT ''
+internal/storage/runtime_sqlite.go:267 | ensureHoldTables | non-constant: Quote(table) | ALTER TABLE ‹?Quote(table)› ADD COLUMN approved_at TEXT
+internal/storage/runtime_sqlite.go:270 | ensureHoldTables | non-constant: Quote(table) | UPDATE ‹?Quote(table)› SET approved_at = ?
+internal/storage/runtime_sqlite.go:362 | RowID | non-constant: name, Quote(table) | SELECT ‹?name› FROM ‹?Quote(table)› LIMIT 0
+internal/storage/runtime_sqlite.go:446 | CheckReferences | non-constant: strings.Join(nulls, " OR "), strings.Join(nulls, " AND "), Quote(ref.to[0]), Quote(table), Quote(ref.table), predicate.SQL, strings.Join(joins, " AND "), rowid | SELECT (‹?strings.Join(nulls, " OR ")›), (‹?strings.Join(nulls, " AND ")›), p.‹?Quote(ref.to[0])› IS NOT NULL FROM ‹?Quote(table)› c LEFT JO…
+internal/storage/runtime_sqlite.go:652 | TableInfo | non-constant: Quote(table) | SELECT * FROM ‹?Quote(table)› LIMIT 0
 internal/testdb/testdb.go:129 | clone | non-constant: pq.QuoteIdentifier(name) | DROP DATABASE IF EXISTS ‹?pq.QuoteIdentifier(name)› WITH (FORCE)
 
 5. Same word as a platform column, for a person to confirm (4)

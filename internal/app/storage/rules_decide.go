@@ -146,14 +146,7 @@ func (s *Service) authorizeRuleRead(ctx context.Context, c *Call, table string) 
 
 // authorizeRuleOperation is stage 1, before locks and idempotent replay.
 func (s *Service) authorizeRuleOperation(ctx context.Context, c *Call, table string, op ruleengine.Op) *Error {
-	if c.Resource.RulesStatus() != "rules" {
-		return rulesInvalid()
-	}
-	set, errs := ruleengine.DecodeSet(effectiveRules(*c, table))
-	if len(errs) != 0 {
-		return rulesInvalid()
-	}
-	if err := s.compileCallRules(c, ruleBindingTable(set, table)); err != nil {
+	if err := s.compileBindingRules(c, table); err != nil {
 		return err.(*Error)
 	}
 	if c.VisitorID != "" && c.rulePlan.NeedsIdentity(op) {
