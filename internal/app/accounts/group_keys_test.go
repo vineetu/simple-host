@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,35 @@ import (
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/testdb"
 )
+
+// productEventsTable matches the product's events table named as a table (after
+// FROM, JOIN, UPDATE or INTO, across any whitespace, quoted or not, with or
+// without the public schema in front), and not the word inside a value such as
+// the scope 'sites events'.
+var productEventsTable = regexp.MustCompile(`(?i)\b(from|join|update|into)\s+("?public"?\.)?"?events\b`)
+
+// The cases carry a placeholder for the table name, filled in at run time, so
+// that no statement naming a product table is written in a platform package.
+func TestProductEventsTablePattern(t *testing.T) {
+	for form, want := range map[string]bool{
+		"SELECT 1 FROM {t} WHERE id=$1":                         true,
+		"SELECT 1\nFROM\n\t{t} e":                               true,
+		`SELECT 1 FROM t JOIN "{t}" e ON true`:                  true,
+		"update {t} set name=$1":                                true,
+		"INSERT INTO {t} (id) VALUES ($1)":                      true,
+		"SELECT 1 FROM public.{t}":                              true,
+		`SELECT 1 FROM "public"."{t}"`:                          true,
+		"INSERT INTO oauth_grants (scope) VALUES ('sites {t}')": false,
+		"SELECT 1 FROM site_{t}":                                false,
+		"SELECT 1 FROM {t}ource":                                false,
+		"SELECT 1 FROM other.{t}":                               false,
+	} {
+		stmt := strings.ReplaceAll(form, "{t}", "events")
+		if got := productEventsTable.MatchString(stmt); got != want {
+			t.Errorf("%q: matched=%v, want %v", stmt, got, want)
+		}
+	}
+}
 
 type keysStub struct {
 	err    error
@@ -67,7 +97,7 @@ func TestGroupKeysNilAndErrors(t *testing.T) {
 		t.Fatalf("nil write refusal: %d %s %s %v", status, code, msg, err)
 	}
 	for _, stmt := range rec.Statements() {
-		if strings.Contains(stmt, "event_") || strings.Contains(stmt, "FROM events") {
+		if strings.Contains(stmt, "event_") || productEventsTable.MatchString(stmt) {
 			t.Fatalf("nil hook queried product: %s", stmt)
 		}
 	}

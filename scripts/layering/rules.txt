@@ -78,4 +78,3 @@ server/servertest -> testdb
 # Each edge names the slice that removes its final caller.
 @/cmd/server -> @/products/hack production # removal step D3-S6b
 mcp -> @/products/hack/app/events test # removal step D3-S1c
-mcp -> @/products/hack/app/entries test # removal step D3-S1c

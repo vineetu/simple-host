@@ -1,0 +1,56 @@
+# Platform tests that still build the Hack edition by kind (D2-S10d).
+#
+# Each test below has a platform subject (a route, a page, a storage or
+# notification rule) and runs it under the product's policy with
+# edition.ForKind(edition.Hack). None of them reads a Hack table and none
+# imports products/hack. They stay where they are until D3-S4 adds the
+# constructor from policy values (edition.FromPolicies); D3-S4 switches each
+# one to it and deletes its line. The list is empty when D3-S4 is done.
+#
+# To re-derive: git grep -n 'edition\.Hack' -- 'internal/**_test.go', plus the
+# callers of the helpers hackFlatApp, asHackFlat and hackTestHandler.
+# Line numbers are left out on purpose: they move.
+#
+# file | test | the policy it needs
+internal/handler/authmd_test.go | TestAuthMarkdownConfiguration | presentation: product name and base address in auth.md
+internal/handler/chrome_test.go | TestNotFoundLabelHostedVsSelfHosted | presentation: the not-found label on a hosted product
+internal/handler/chrome_test.go | TestHackAppShellCarriesInstallContact | presentation: support contact on the product app shell (shell template still served by the platform until D3-S2a)
+internal/handler/chrome_test.go | TestSelfHostedNoHostedDomainAcrossPages | presentation: no hosted domain on a self-hosted product (helper hackTestHandler)
+internal/handler/chrome_test.go | TestProductIconPerMode | presentation: icon per product
+internal/handler/chrome_test.go | TestEnterpriseHackathonsLinkPerProduct | presentation: hackathons link per product
+internal/handler/connector_test.go | TestConnectionsTeamsByEdition | identity: team labels on connections only with team keys (labels come from a fake hook)
+internal/handler/create_access_test.go | TestCreateAccessRefusalsAndDefault | routes: create-time access on a product without personal sites
+internal/handler/docs_test.go | TestDocsRoutes | presentation: which docs tree is served
+internal/handler/docs_test.go | TestDocsMarkdownCopies | presentation: which docs tree is served
+internal/handler/docs_test.go | TestDocsRuntimeText | presentation: limits text in the docs for each product
+internal/handler/docs_test.go | TestDocsDirectoryRedirectQuery | presentation: which docs tree is served
+internal/handler/docs_test.go | TestFeaturesConnectDomainLink | presentation: features page per product
+internal/handler/grouphost_flat_test.go | TestTeamSiteURLFlatHosts | routes: flat group hosts (helper hackFlatApp)
+internal/handler/grouphost_flat_test.go | TestTeamSitesReadyDoesNotWaitOnPerEventCert | routes: flat group hosts (helper hackFlatApp)
+internal/handler/grouphost_flat_test.go | TestRequestSiteCertSkipsPerEventUnderFlatHosts | routes: flat group hosts (helper hackFlatApp)
+internal/handler/grouphost_flat_test.go | TestSiteHostPartsFlatHosts | routes: flat group hosts (helper hackFlatApp)
+internal/handler/grouphost_flat_test.go | TestSiteHostsFlatServesWithoutPerEventCertMarker | routes: flat group hosts (helper asHackFlat)
+internal/handler/grouphost_flat_test.go | TestSiteHostsFlatModeExactHandleWins | routes: flat group hosts (helper asHackFlat)
+internal/handler/grouphost_flat_test.go | TestSiteHostPartsFlatHostsLegacyEventSlugWithDoubleHyphen | routes: flat group hosts (helper asHackFlat)
+internal/handler/grouphost_flat_test.go | TestOriginIsSiteHostIDFlatHosts | routes: flat group hosts (helper asHackFlat)
+internal/handler/grouphost_test.go | TestGroupHostsNilAndErrors | routes: group hosts hook, nil and failing
+internal/handler/grouphost_test.go | TestGroupNotificationAddresses | routes: group addresses in notifications (helper hackFlatApp)
+internal/handler/hack_legacy_assets_test.go | TestHackPublicDocsShowCurrentStorage | presentation: the product's public docs (files still embedded in the platform until D3-S2a and D3-S3)
+internal/handler/hack_legacy_assets_test.go | TestHelpPagesExcludePersonalPresentationOnHack | presentation: help pages per product
+internal/handler/legacy_cutoff_test.go | TestLegacyStorageCutoffGateSkipsOptionsAndHack | storage: the legacy cutoff gate is off without legacy routes
+internal/handler/notify_hooks_test.go | TestNotifyHooksHackModeSilent | notifications: event-scoped policy silences site hooks
+internal/handler/notify_site_events_test.go | TestNotifySiteEventsHack | notifications: event-scoped policy
+internal/handler/notify_test.go | TestNotifyRESTOwnershipValidationAndHack | notifications: event-scoped policy refuses the REST routes
+internal/handler/opaque_tokens_test.go | TestMCPNotificationVisitorReferences | notifications: event-scoped policy
+internal/handler/owner_line_test.go | TestOwnerLineOnlyOnHostedServices | presentation: owner line per product and base address
+internal/handler/password_test.go | TestSelfHostMarketingOnlyOnHostedServices | presentation: self-host marketing per product and base address
+internal/handler/redirects_test.go | TestRedirectsOnFamilyAndHackTeam | routes: redirects on a flat group host (helper asHackFlat)
+internal/handler/setuphelper_test.go | TestSetupHelperEditions | presentation: setup helper per product
+internal/handler/signin_card_test.go | TestHackModeAuthJSStillHasCard | presentation: auth.js served for the product (file still embedded in the platform until D3-S2a)
+internal/handler/site_storage_bindings_test.go | TestStorageBindingRequestGuards | storage: event owners policy with a fake bindings provider
+internal/handler/site_storage_owner_for_test.go | TestStorageOwnerForHackRefused | storage: event owners policy refuses "for"
+internal/handler/site_storage_story_test.go | TestStorageStorySeparateAllowances | storage: combined pool allowance
+
+# The edition package's own test of the per-kind tables. It moves to
+# products/hack with Kind, Hack and ForKind in D3-S4.
+internal/edition/edition_test.go | TestNew | the per-kind policy tables themselves

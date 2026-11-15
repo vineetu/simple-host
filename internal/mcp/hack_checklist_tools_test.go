@@ -1,18 +1,10 @@
 package mcp
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
-	"github.com/vsriram/simple-host/internal/testdb"
-	"github.com/vsriram/simple-host/products/hack/app/entries"
-	"github.com/vsriram/simple-host/products/hack/app/events"
 	"net/http"
-	"os"
 	"reflect"
 	"testing"
-	"time"
 )
 
 func TestChecklistMCPReplayAndSchemas(t *testing.T) {
@@ -74,77 +66,3 @@ func TestChecklistMCPReplayAndSchemas(t *testing.T) {
 }
 
 const hackChecklistFixtureJSON = `{"role":"organiser","stage":"draft","map_version":1,"items":[{"id":"o.entry-rules","label":"Choose what teams hand in","state":"todo","optional":false,"can_dismiss":false,"origin_stage":"draft","group":"current","actionable":true,"target_id":"o.entry-rules","link":{"screen":"organiser-settings","section":"settings","tab":"entries","href":"/e/spring/manage?s=settings&tab=entries#entry-rules"},"detail":"","count":null,"total":null,"settled":false,"blocked_reason":null,"version":"current"}],"next":{"kind":"link","item_id":"o.entry-rules","target_id":"o.entry-rules","label":"Choose what teams hand in","link":{"screen":"organiser-settings","section":"settings","tab":"entries","href":"/e/spring/manage?s=settings&tab=entries#entry-rules"},"confirmation_required":false,"blocked_reason":null,"stage":"open","deadline_passed":false,"cue":null}}`
-
-// The replay contract is also checked against a real database computation,
-// including the state change after an event-wide mark.
-func TestChecklistDatabaseReplayParity(t *testing.T) {
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	if os.Getenv("TESTDB_ISOLATE") == "1" {
-		dsn = testdb.Fresh(t)
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer database.Close()
-	ctx := context.Background()
-	slug := fmt.Sprintf("check-mcp-%d", time.Now().UnixNano())
-	var actor, holding, eventID string
-	if err = database.QueryRow(`INSERT INTO users(username) VALUES($1) RETURNING id`, slug+"-actor").Scan(&actor); err != nil {
-		t.Fatal(err)
-	}
-	defer database.Exec(`DELETE FROM users WHERE id=$1`, actor)
-	if err = database.QueryRow(`INSERT INTO users(username) VALUES($1) RETURNING id`, slug+"-holding").Scan(&holding); err != nil {
-		t.Fatal(err)
-	}
-	defer database.Exec(`DELETE FROM users WHERE id=$1`, holding)
-	if err = database.QueryRow(`INSERT INTO events(slug,account_id,created_by,title,organiser_name,contact_email,join_code,judge_code) VALUES($1,$2,$3,'Demo','Organiser','test@example.test',$4,$5) RETURNING id`, slug, holding, actor, slug+"-join", slug+"-judge").Scan(&eventID); err != nil {
-		t.Fatal(err)
-	}
-	defer database.Exec(`DELETE FROM events WHERE id=$1`, eventID)
-	if _, err = database.Exec(`INSERT INTO event_members(event_id,user_id,role) VALUES($1,$2,'organiser')`, eventID, actor); err != nil {
-		t.Fatal(err)
-	}
-	svc := events.NewChecklist(database, entries.New(database, nil), nil)
-	path := "/v1/hack/events/" + slug + "/checklist"
-	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
-	var rest map[string]any
-	up.ans["GET "+path] = func(w http.ResponseWriter, r *http.Request) {
-		list, err := svc.Read(ctx, eventID, actor, "organiser", false, nil, time.Now())
-		if err != nil {
-			t.Error(err)
-			http.Error(w, "read", 500)
-			return
-		}
-		raw, _ := json.Marshal(map[string]any{"can": events.AbilitiesForRole("organiser"), "checklist": list})
-		_ = json.Unmarshal(raw, &rest)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(raw)
-	}
-	server := newTestServer(up)
-	for _, marked := range []bool{false, true} {
-		if marked {
-			if err = svc.Write(ctx, eventID, actor, "o.faq", "", &marked); err != nil {
-				t.Fatal(err)
-			}
-		}
-		text, out, bad := resultOf(t, sendMode(t, server, toolCall("hack_get_checklist", map[string]any{"slug": slug}), CallerModeEvents))
-		if bad {
-			t.Fatal(text)
-		}
-		if !reflect.DeepEqual(out, rest) {
-			t.Fatal("REST/MCP checklist items or next differ")
-		}
-		for _, tool := range HackTools() {
-			if tool.Name == "hack_get_checklist" {
-				if err = ValidateOutput(tool.OutputSchema, out, nil); err != nil {
-					t.Fatal(err)
-				}
-				recordHackOutputValidated(tool.Name)
-			}
-		}
-	}
-}

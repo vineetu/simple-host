@@ -250,14 +250,9 @@ func TestExportAdmissionTimeoutAbortsHTTP(t *testing.T) {
 	if _, err := s.a.database.Exec(`UPDATE sites SET state=$2 WHERE id=$1`, s.sid, string(state)); err != nil {
 		t.Fatal(err)
 	}
-	// A throwaway event uses the same site to exercise the event export consumer.
-	ev := GroupRef{AccountID: s.ownerID, Slug: uniqueLabel(t, "export")}
-	if err := s.a.database.QueryRow(`INSERT INTO events(slug,account_id,title,organiser_name,contact_email,join_code,judge_code) VALUES($1,$2,'Export','Test','export@example.com',$3,$4) RETURNING id`, ev.Slug, ev.AccountID, uniqueLabel(t, "join"), uniqueLabel(t, "judge")).Scan(&ev.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.a.database.Exec(`INSERT INTO event_teams(event_id,slug,name,code) VALUES($1,'shop','Shop',$2)`, ev.ID, uniqueLabel(t, "team")); err != nil {
-		t.Fatal(err)
-	}
+	// A group reference over the same site exercises the group export consumer.
+	// The export reads only the holding account's sites, so no product row is needed.
+	ev := GroupRef{ID: "00000000-0000-4000-8000-000000000021", AccountID: s.ownerID, Slug: uniqueLabel(t, "export")}
 	for _, tc := range []struct {
 		name, path, key string
 		zip             bool

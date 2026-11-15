@@ -1328,18 +1328,11 @@ func TestConnectionsTeamsByEdition(t *testing.T) {
 			if err := a.database.QueryRow(`SELECT id FROM users WHERE username=$1`, p.email).Scan(&uid); err != nil {
 				t.Fatal(err)
 			}
-			var eventID, teamID string
-			label := strconv.FormatInt(time.Now().UnixNano(), 36)
-			if err := a.database.QueryRow(`INSERT INTO events (slug,account_id,title,organiser_name,contact_email,join_code,judge_code) VALUES ($1,$2,'Practice','Org','org@example.com',$3,$4) RETURNING id`, "connections-"+label, uid, "join-"+label, "judge-"+label).Scan(&eventID); err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM events WHERE id=$1`, eventID) })
-			if err := a.database.QueryRow(`INSERT INTO event_teams (event_id,slug,name,code) VALUES ($1,'p2','P2',$2) RETURNING id`, eventID, "team-"+label).Scan(&teamID); err != nil {
-				t.Fatal(err)
-			}
 			bolt, claude := a.registerClient(t, testRedirect), a.registerClient(t, testRedirect)
-			for _, g := range []struct{ client, team string }{{bolt, teamID}, {bolt, teamID}, {claude, ""}} {
-				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id) VALUES ($1,$2,'sites events',$3,NULLIF($4,'')::uuid)`, uid, g.client, a.srv.URL+"/mcp", g.team); err != nil {
+			// Two grants for one app and one for another: the product's labels
+			// arrive through the hook below, so no product row is seeded here.
+			for _, client := range []string{bolt, bolt, claude} {
+				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource) VALUES ($1,$2,'sites events',$3)`, uid, client, a.srv.URL+"/mcp"); err != nil {
 					t.Fatal(err)
 				}
 			}

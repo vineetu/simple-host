@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -34,6 +35,9 @@ func (h *targetStub) Labels(_ context.Context, q sqlkit.Querier, _ string) (map[
 	return nil, h.err
 }
 
+// selectsEveryColumn matches a star in a select list or a RETURNING clause, bare or after an alias.
+var selectsEveryColumn = regexp.MustCompile(`(?i)\b(select|returning)\s+(distinct\s+)?([^;]*?,\s*)?(\w+\.)?\*`)
+
 func TestConnectorTargetHooks(t *testing.T) {
 	dsn := testdb.Fresh(t)
 	db, rec := testdb.OpenRecording(dsn)
@@ -47,7 +51,7 @@ func TestConnectorTargetHooks(t *testing.T) {
 	if _, err := db.Exec(`INSERT INTO oauth_clients (client_id,client_name,redirect_uris) VALUES ('target-hooks','Test',ARRAY['https://example.com/cb'])`); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.QueryRow(`INSERT INTO oauth_grants (user_id,client_id,scope,resource,selected_team_id) VALUES ($1,'target-hooks','sites events','https://example.com/mcp','00000000-0000-4000-8000-000000000011') RETURNING id`, user).Scan(&grant); err != nil {
+	if err := db.QueryRow(`INSERT INTO oauth_grants (user_id,client_id,scope,resource) VALUES ($1,'target-hooks','sites events','https://example.com/mcp') RETURNING id`, user).Scan(&grant); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`INSERT INTO oauth_tokens (token_hash,grant_id,kind,expires_at) VALUES ('target-token',$1,'access',now()+interval '1 hour')`, grant); err != nil {
@@ -73,6 +77,10 @@ func TestConnectorTargetHooks(t *testing.T) {
 	for _, stmt := range rec.Statements() {
 		if strings.Contains(stmt, "selected_team_id") || strings.Contains(stmt, "hack_grant_teams") || strings.Contains(stmt, "event_teams") {
 			t.Fatalf("platform query: %s", stmt)
+		}
+		// A query that reads every column would return the product's column without naming it.
+		if strings.Contains(stmt, "oauth_grants") && selectsEveryColumn.MatchString(stmt) {
+			t.Fatalf("platform query reads every column: %s", stmt)
 		}
 	}
 	hook := &targetStub{}
