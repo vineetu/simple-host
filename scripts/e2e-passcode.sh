@@ -38,7 +38,7 @@ trap cleanup EXIT
 
 BIN=${BIN:-}
 if [ -z "$BIN" ]; then
-  (cd "$ROOT" && CGO_ENABLED=0 go build -o "$WORK/simple-host" ./cmd/server)
+  (cd "$ROOT" && CGO_ENABLED=0 go build -o "$WORK/simple-host" ./cmd/simple-host)
   BIN=$WORK/simple-host
 fi
 mkdir -p "$WORK/sites" "$WORK/certs/ready" "$WORK/certs/requests" "$WORK/fam/ready" "$WORK/fam/requests" "$WORK/fam/failed"

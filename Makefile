@@ -89,7 +89,7 @@ boundary-report:
 	else \
 		set -eu; : "$${TEST_PG_URL:?set TEST_PG_URL or GOLDEN_TEXT_DIR for boundary-report}"; \
 		work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; \
-		go build -o "$$work/server" ./cmd/server; \
-		GOLDEN_PG_URL="$$TEST_PG_URL" node scripts/golden/run.mjs --host "$$work/server" --out "$$work/recording" --scenario all; \
+		go build -o "$$work/" ./cmd/simple-host ./cmd/simple-hack; \
+		GOLDEN_PG_URL="$$TEST_PG_URL" node scripts/golden/run.mjs --host "$$work/simple-host" --hack "$$work/simple-hack" --out "$$work/recording" --scenario all; \
 		bash scripts/check-public-text.sh "$$work/recording/text/host"; \
 	fi

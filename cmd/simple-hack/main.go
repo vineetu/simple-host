@@ -4,33 +4,19 @@ import (
 	"os"
 
 	"github.com/vsriram/simple-host/internal/brain"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/extension"
 	"github.com/vsriram/simple-host/internal/server"
 	"github.com/vsriram/simple-host/products/hack"
 )
 
-func main() {
-	hosted := config.EventsHosted()
-	os.Exit(server.Run(os.Args[1:], programExtensions(hosted), programOptions(hosted)))
+func main() { os.Exit(server.Run(os.Args[1:], programExtensions(), programOptions())) }
+
+func programExtensions() []*extension.Extension {
+	return []*extension.Extension{hack.Extension()}
 }
 
-func programExtensions(hosted bool) []*extension.Extension {
-	if hosted {
-		return []*extension.Extension{hack.Extension()}
-	}
-	return nil
-}
-
-func programOptions(hosted bool) server.Options {
-	return server.Options{KnowledgeProducts: knowledgeProducts, Redirects: compatibilityRedirects(hosted)}
-}
-
-func compatibilityRedirects(hosted bool) map[string]string {
-	if hosted {
-		return nil
-	}
-	return map[string]string{"GET /hackathons": "/", "GET /hackathons.html": "/"}
+func programOptions() server.Options {
+	return server.Options{KnowledgeProducts: knowledgeProducts}
 }
 
 // The owner knowledge server describes these products, independently of which extension serves this install.

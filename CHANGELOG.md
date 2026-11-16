@@ -4,6 +4,8 @@
 
 2026-11-16: Add storage-retirement notice drafts and an operator command that writes private recipient lists without sending mail. Startup reports how many SQLite and key-value resources still use presets. A preset save warns during a configured notice period; no switch date is set and access is unchanged (R4-S3).
 
+- 2026-11-16: Build separate `simple-host` and `simple-hack` programs from the same commit. The program now chooses the product; `EVENTS` leaves the settings list. Existing Hack image commands retain a temporary alias.
+
 2026-11-16: Installs record their product and refuse startup or migration by another product with exit code 3. Existing installs explicitly record their product once; fresh installers create the schema and product record together (D3-S6a).
 
 2026-11-15: Simple Host’s API reference, feature list and agent text now describe Simple Host alone. Simple Hack’s API and feature references are generated from shared sources plus its own authored parts, with the same published content (D3-S3).

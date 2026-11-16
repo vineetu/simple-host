@@ -7,9 +7,9 @@
 # `make check` fails until this has been run after a setting changes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-EVENTS=off go run ./cmd/server settings --json > docs/advanced/settings.json.new
+go run ./cmd/simple-host settings --json > docs/advanced/settings.json.new
 mv docs/advanced/settings.json.new docs/advanced/settings.json
 mkdir -p products/hack/docs/advanced
-EVENTS=hosted go run ./cmd/server settings --json > products/hack/docs/advanced/settings.json
+go run ./cmd/simple-hack settings --json > products/hack/docs/advanced/settings.json
 cp products/hack/docs/advanced/settings.json products/hack/webassets/static/setup/small-box-settings.json
 python3 scripts/settings_docs.py --local-only

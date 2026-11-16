@@ -13,5 +13,5 @@ func TestHackWiring(t *testing.T) {
 	cfg := platformtest.Config(t, testdb.Fresh(t))
 	t.Setenv("EVENTS", "hosted")
 	app := platformtest.Build(t, cfg, []*extension.Extension{hack.Extension()})
-	platformtest.CheckWiring(t, app, "../../..", "hack")
+	platformtest.CheckWiring(t, app, "../../..", "products/hack/servertest/testdata", "hack")
 }

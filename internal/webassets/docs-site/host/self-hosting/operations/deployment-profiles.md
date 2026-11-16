@@ -1,60 +1,30 @@
 # Deployment profiles
 
-These are the three existing deployment layouts for the same server binary.
-The settings registry is [settings.json](https://github.com/vineetu/simple-host/blob/main/docs/advanced/settings.json); its only
-`required: true` entries are `ADMIN_API_KEY` and `DB_DSN`
-(`docs/advanced/settings.json:585`, `docs/advanced/settings.json:3130`).
-Addresses, persistence and sign-in still need the profile-specific choices below.
-The offline check is `bash scripts/check-profiles.sh`.
+These are the three existing deployment layouts. Build Host with `go build -o simple-host ./cmd/simple-host`. The settings registry is [settings.json](https://github.com/vineetu/simple-host/blob/main/docs/advanced/settings.json); its only `required: true` entries are `ADMIN_API_KEY` and `DB_DSN` (`docs/advanced/settings.json:585`, `docs/advanced/settings.json:3130`). Addresses, persistence and sign-in still need the profile-specific choices below. The offline check is `bash scripts/check-profiles.sh`.
 
 ## Hosted systemd
 
 ### What runs
 
-Workers run inside each server process; see the shared worker list below.
+Simple Host at simple-host.app uses `/usr/local/bin/simple-host`. Workers run inside each server process; see the shared worker list below.
 
 ### How settings are supplied
 
-systemd loads the respective EnvironmentFile. Neither inspected unit exposes individual setting names or values; the env files were not opened. Each must supply `ADMIN_API_KEY` and `DB_DSN`, with different databases for the two instances. Hosted family addresses use `PERSON_HOSTS=canonical` and `SITE_HOSTS=canonical` (`ARCHITECTURE.md`, Deploy).
+systemd loads the respective EnvironmentFile. Neither inspected unit exposes individual setting names or values; the env files were not opened. Each must supply `ADMIN_API_KEY` and `DB_DSN`, with different databases for the two instances. Host refuses `EVENTS=hosted`; the program selects the product, not the environment. Hosted family addresses use `PERSON_HOSTS=canonical` and `SITE_HOSTS=canonical` (`ARCHITECTURE.md`, Deploy).
 
 ### Migration ownership
 
-Hosted: the operator owns migrations; startup migration is off.
-Neither inspected unit sets MIGRATE_ON_START. Apply release SQL before installing
-the binary, then record each hand-applied file with `simple-host migrate -mark FILE`;
-alternatively run the release's `simple-host migrate` against each database.
-The migration command takes the advisory lock; hand-applied SQL does not acquire
-that lock automatically. A fresh empty database needs `db/schema.sql`, or
-`simple-host migrate -init`; ordinary startup only checks the schema
-(`CLAUDE.md:46`, `db/migrations/migrations.go:38`, `cmd/server/migrate.go:17`,
-`cmd/server/main.go:119`). The shared migration rules below apply.
+Hosted: the operator owns migrations; startup migration is off. Neither inspected unit sets MIGRATE_ON_START. Before installing, run the candidate's `migrate -status` and then `migrate`, once per database, as that unit's user with its environment. Host uses `/tmp/simple-host.new`. The migration command takes the advisory lock. Use `migrate -mark FILE` only for SQL already applied by hand. A fresh empty database needs the matching program's `migrate -init -record-product`; do not load schema.sql separately. An existing database with no product record needs that program's explicit `migrate -record-product` once. Ordinary startup checks the recorded product and schema (`internal/server/migrate.go`, `internal/server/build.go`). The shared migration rules below apply.
 
 ### Upgrade steps and rollback
 
-Before changing either instance, take paired database and site-directory backups
-and retain its settings/sealing keys. Build under the memory cap, apply schema
-changes to each target database, back up the installed binary, install and restart
-the target services. The installed path is shared, so the next restart of either
-service uses that binary (`CLAUDE.md:62`, unit ExecStart lines above).
-Rollback installs the saved `.bak-<timestamp>` binary and restarts the affected
-services; it does not undo SQL. See the shared compatibility limits below.
-Verify `/healthz`, `/readyz`, the changed route and site/person/legacy addresses
-from a client, check neighbouring sites and startup logs, and run
-`/usr/local/bin/simple-host version` (`CLAUDE.md:93`, `CLAUDE.md:98`,
-`internal/handler/health.go:14`).
+Before changing either instance, take paired database and site-directory backups and retain its settings/sealing keys. Build both programs from one commit under the memory cap and migrate each target database with its matching candidate. Back up `/usr/local/bin/simple-host` with a `.bak-<timestamp>` suffix. Install both candidates at their respective paths, and restart both services. See CLAUDE.md for the paired command. Rollback restores both programs from the same timestamp and restarts both services, provided their commit is no older than the coordination file's oldest-safe floor. Binary rollback does not undo SQL or data moves. See the shared compatibility limits below; a data restore includes the matching database, site directory, configuration/keys and program together. Verify `/healthz`, `/readyz`, the changed route and site/person/legacy addresses from a client, and check neighbouring sites and startup logs. Run `/usr/local/bin/simple-host version`. Both programs must print the same release and commit.
 
 ## Docker Compose small box
 
 ### What runs
 
-The root `compose.yaml` runs Postgres 16, one server container and Caddy.
-The server image is the nonroot Go binary, HTTP 8090, `DATA_DIR=/data/sites`;
-Caddy publishes 80/443 by default. Named volumes hold the database, sites,
-Caddy logs, certificates and config. Caddy proxies APIs and can serve site files
-from its read-only sites mount (`compose.yaml:14`, `compose.yaml:37`,
-`compose.yaml:277`, `Dockerfile:31`, `deploy/compose/Caddyfile:86`).
-Edition comes from settings: root Compose passes `EVENTS` through.
-Workers run inside the server process, as listed below.
+The root `compose.yaml` runs Postgres 16, one server container and Caddy. The server image is the nonroot Go binary, HTTP 8090, `DATA_DIR=/data/sites`; Caddy publishes 80/443 by default. Named volumes hold the database, sites, Caddy logs, certificates and config. Caddy proxies APIs and can serve site files from its read-only sites mount (`compose.yaml:14`, `compose.yaml:37`, `compose.yaml:277`, `Dockerfile:31`, `deploy/compose/Caddyfile:86`). Workers run inside the server process, as listed below.
 
 The entrypoint sets `EVENTS=hosted`. Its `/data` volume holds sites, logs and Caddy state; the server listens on 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080. Default published ports are 80/443 and loopback 18080.
 
@@ -68,7 +38,7 @@ Compose: the installer migrates before starting the new app. The root installer 
 
 ### Upgrade steps and rollback
 
-Take paired DB/files backups and keep `.env` and sealing keys. Re-run the versioned installer; root Compose uses the published image, not a local build. SQL stays applied, subject to the compatibility limits below. If restoring data, restore the DB and sites volume together (standalone: DB and `/data`). The database records live versions while files hold those versions and runtime SQLite/uploads (`ARCHITECTURE.md`, Data model; `compose.yaml:290`). Check public HTTPS, `/healthz`, `/readyz`, a deployed site and logs; check the actual image's release with `docker compose exec app simple-host version` (`deploy/install/install.sh:293`, `cmd/server/migrate.go:148`).
+Take paired DB/files backups and keep `.env` and sealing keys. Re-run the versioned installer; root Compose uses the published image, not a local build. SQL stays applied, subject to the compatibility limits below. If restoring data, restore the DB and sites volume together (standalone: DB and `/data`). The database records live versions while files hold those versions and runtime SQLite/uploads (`ARCHITECTURE.md`, Data model; `compose.yaml:290`).
 
 ## Kubernetes
 
@@ -86,7 +56,7 @@ Kubernetes: the server migrates before listening. The default `migrateOnStart: t
 
 ### Upgrade steps and rollback
 
-Back up Postgres and the `/data` volume as a pair, preferably with the pod scaled to zero, and preserve the Secret, especially PASSCODE_ENC_KEY. Change the image tag with `helm upgrade` (or update/apply rendered YAML), wait for rollout and inspect logs. Recreate means downtime during migration/startup. Use `helm rollback` or restore the previous manifest/image for binary rollback; SQL stays applied. Earlier successful migration files remain committed if a later file fails. Restore DB plus volume together if data rollback is needed (`docs/kubernetes.md:152`, `docs/kubernetes.md:187`, `db/migrations/migrations.go:20`). Check external `/healthz`, `/readyz`, a team site, and `kubectl exec` the pod's `/usr/local/bin/simple-host version`.
+Back up Postgres and the `/data` volume as a pair, preferably with the pod scaled to zero, and preserve the Secret, especially PASSCODE_ENC_KEY. Change the image tag with `helm upgrade` (or update/apply rendered YAML), wait for rollout and inspect logs. Recreate means downtime during migration/startup. Use `helm rollback` or restore the previous manifest/image for binary rollback; SQL stays applied. Earlier successful migration files remain committed if a later file fails. Restore DB plus volume together if data rollback is needed (`docs/kubernetes.md:152`, `docs/kubernetes.md:187`, `db/migrations/migrations.go:20`).
 
 ## Shared worker and migration details
 
@@ -103,13 +73,13 @@ An older binary is intended to work on the newer additive schema, but startup do
 
 | Choice | Hosted systemd | Compose small box | Kubernetes |
 |---|---|---|---|
-| Server | Two services, shared binary | One app; standalone bundles Caddy | One pod, Recreate |
+| Server | Two services, one program per product | One app; standalone bundles Caddy | One pod, Recreate |
 | Settings | Separate env files | .env substitution, explicit environment | ConfigMap + Secret from values |
 | Database | Separate DB per instance | Bundled Postgres 16 | Operator's Postgres 16 |
 | Files | Separate /srv site trees | Named sites or data volume | /data persistent volume |
 | Migrations | Operator before restart | Installer/release before app | Server on start by default |
-| Empty DB | schema.sql or migrate -init | Postgres init or standalone release | Server migrate -init path |
-| Rollback | Saved binary + restart | Previous image/package | Helm rollback/previous image |
+| Empty DB | Matching program: migrate -init -record-product | Postgres init or standalone release | Server migrate -init path |
+| Rollback | Paired program backups + restart | Previous image/package | Helm rollback/previous image |
 | Restore | Paired DB + site tree + keys | Paired DB + files volume + keys | Paired DB + /data + Secret |
 
 ## Password sign-in by profile

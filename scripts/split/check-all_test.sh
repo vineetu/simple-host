@@ -175,9 +175,9 @@ unset GOLDEN_REF_HACK_BIN GOLDEN_HACK_BIN
 : >"$STUB_LOG"
 check 'golden stub comparison passes' run 0 --golden --slice X
 cat >"$tmp/expected" <<EOF
-go [0] <build> <-o> <$tmp/out/golden/candidate.bin> <./cmd/server>
+go [0] <build> <-o> <$tmp/out/golden/> <./cmd/simple-host> <./cmd/simple-hack>
 node <$tmp/golden/run.mjs> <--host> <$GOLDEN_REF_BIN> <--out> <$tmp/out/golden/ref> <--scenario> <all>
-node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/candidate.bin> <--out> <$tmp/out/golden/cand> <--scenario> <all>
+node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/simple-host> <--hack> <$tmp/out/golden/simple-hack> <--out> <$tmp/out/golden/cand> <--scenario> <all>
 node <$tmp/golden/coverage.mjs> <$tmp/out/golden/cand>
 node <$tmp/golden/diff.mjs> <$tmp/out/golden/ref> <$tmp/out/golden/cand> <--slice> <X>
 EOF
@@ -192,9 +192,9 @@ cp "$repo/scripts/golden/approved/R2-S4b.json" "$tmp/golden/approved/R2-S4b.json
 : >"$STUB_LOG"
 check 'golden with request and scenario additions passes' run 0 --golden --slice Y,R2-S4b
 cat >"$tmp/expected" <<EOF
-go [0] <build> <-o> <$tmp/out/golden/candidate.bin> <./cmd/server>
+go [0] <build> <-o> <$tmp/out/golden/> <./cmd/simple-host> <./cmd/simple-hack>
 node <$tmp/golden/run.mjs> <--host> <$GOLDEN_REF_BIN> <--out> <$tmp/out/golden/ref> <--scenario> <all> <--skip-scenario> <new-one> <--skip-request> <host/mixed-store/mixed-site-export,host/mixed-store/mixed-people,host/mixed-store/mixed-visitor-emails,hack/mixed-store/mixed-site-export,hack/mixed-store/mixed-people,hack/mixed-store/mixed-visitor-emails>
-node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/candidate.bin> <--out> <$tmp/out/golden/cand> <--scenario> <all>
+node <$tmp/golden/run.mjs> <--host> <$tmp/out/golden/simple-host> <--hack> <$tmp/out/golden/simple-hack> <--out> <$tmp/out/golden/cand> <--scenario> <all>
 node <$tmp/golden/coverage.mjs> <$tmp/out/golden/cand>
 node <$tmp/golden/diff.mjs> <$tmp/out/golden/ref> <$tmp/out/golden/cand> <--slice> <Y,R2-S4b>
 EOF
@@ -203,7 +203,7 @@ export GOLDEN_REF_HACK_BIN="$tmp/reference hack" GOLDEN_HACK_BIN="$tmp/candidate
 : >"$STUB_LOG"
 check 'golden with hack overrides passes' run 0 --golden
 check 'reference hack argument' has "$STUB_LOG" "<--host> <$GOLDEN_REF_BIN> <--hack> <$GOLDEN_REF_HACK_BIN> <--out>"
-check 'candidate hack argument' has "$STUB_LOG" "<--host> <$tmp/out/golden/candidate.bin> <--hack> <$GOLDEN_HACK_BIN> <--out>"
+check 'candidate hack argument' has "$STUB_LOG" "<--host> <$tmp/out/golden/simple-host> <--hack> <$GOLDEN_HACK_BIN> <--out>"
 export COVERAGE_STATUS=1
 check 'golden coverage failure fails gate' run 1 --golden
 unset COVERAGE_STATUS

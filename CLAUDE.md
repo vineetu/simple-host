@@ -88,10 +88,10 @@ join them (`Wait`) in a `t.Cleanup` registered after the one that closes the dat
 flaky test: `make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5` (packages go in
 `PKGS`/`TEST_PKGS`, never as a bare argument to the script).
 
-Build, back up, install, restart (one line, from the repo root):
+Build, back up, install, restart both programs from one commit (one line, from the repo root; after the initial two-program deployment has installed both paths):
 
 ```
-sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-host.new ./cmd/server' && TS=$(date +%Y%m%d-%H%M%S) && sudo cp -p /usr/local/bin/simple-host /usr/local/bin/simple-host.bak-$TS && sudo install -m 755 -o root -g root /tmp/simple-host.new /usr/local/bin/simple-host && sudo systemctl restart simple-host
+sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-host.new ./cmd/simple-host && CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-hack.new ./cmd/simple-hack' && TS=$(date +%Y%m%d-%H%M%S) && sudo cp -p /usr/local/bin/simple-host /usr/local/bin/simple-host.bak-$TS && sudo cp -p /usr/local/bin/simple-hack /usr/local/bin/simple-hack.bak-$TS && sudo install -m 755 -o root -g root /tmp/simple-host.new /usr/local/bin/simple-host && sudo install -m 755 -o root -g root /tmp/simple-hack.new /usr/local/bin/simple-hack && sudo systemctl restart simple-host simple-hack
 ```
 
 After a hosted deploy, refresh the owner's product knowledge (`/brain/mcp`) so a change to
@@ -157,7 +157,7 @@ Never report branch work as fixed; only what a client can see is shipped.
 - `PERSON_HOSTS` and `SITE_HOSTS` default to `off` so event and self-hosted instances keep the
   path model. simple-host.app runs both as `canonical`.
 
-Background owners satisfy `workers.Owner` and are registered in `cmd/server/workers.go`; `GET /v1/admin/usage` reports their `workers` status. Drain HTTP before stopping/joining workers and closing dependencies.
+Background owners satisfy `workers.Owner` and are registered in `internal/server/workers.go`; `GET /v1/admin/usage` reports their `workers` status. Drain HTTP before stopping/joining workers and closing dependencies.
 
 ### Skill staleness notice
 
@@ -183,7 +183,7 @@ and Settings > Actions > General > "Allow GitHub Actions to create and approve p
 docker run -d --name simple-host-postgres -p 5432:5432 -e POSTGRES_USER=simplehost -e POSTGRES_PASSWORD=simplehost -e POSTGRES_DB=simplehost postgres:16-alpine
 ```
 ```
-DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' DATA_DIR=./data/sites SITE_DOMAIN=localhost ADMIN_API_KEY=$(openssl rand -hex 32) go run ./cmd/server
+DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' DATA_DIR=./data/sites SITE_DOMAIN=localhost ADMIN_API_KEY=$(openssl rand -hex 32) go run ./cmd/simple-host
 ```
 Apply `db/schema.sql` to the fresh database first. Without `SITE_DOMAIN` the binary starts in
 setup mode.

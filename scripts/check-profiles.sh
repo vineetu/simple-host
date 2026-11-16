@@ -9,8 +9,8 @@ from pathlib import Path
 import yaml
 
 settings = json.loads(Path('docs/advanced/settings.json').read_text())['settings']
-# Deployment profiles still support both products until D3-S6b splits the program.
-# Hack's generated list composes the platform and product settings.
+# Deployment profiles cover both programs. Hack's generated list composes the
+# platform and product settings.
 settings += json.loads(Path('products/hack/docs/advanced/settings.json').read_text())['settings']
 registered = {s['name'] for s in settings}
 required = {s['name'] for s in settings if s['required']}
@@ -22,11 +22,16 @@ nonserver = set('POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DB_PASSWORD IMAGE '
                 'SIMPLE_HACK_IMAGE HTTP_BIND HTTPS_BIND HEALTH_BIND '
                 'TLS_MODE ACME_CA CADDY_PROXY_PROTOCOL COMPOSE_PROJECT_NAME'.split())
 
+# D3-S6b removes EVENTS from the registry, but existing deployment environments
+# keep it: simple-hack accepts hosted or unset, and simple-host refuses hosted.
+# It is an entry-point compatibility variable, no longer a product selector.
+compatibility = {'EVENTS'}
+
 def read(path):
     return Path(path).read_text()
 
 def names_ok(names, source):
-    for name in sorted(set(names) - registered - nonserver):
+    for name in sorted(set(names) - registered - nonserver - compatibility):
         errors.append(f'{source}: unregistered setting {name}')
 
 def supplied(names, source):

@@ -1,7 +1,7 @@
 # simple-hack.app instance
 
-Repo files for a second Simple Host binary on this box, listening on
-`127.0.0.1:8091` with `EVENTS=hosted`. Nothing here is applied by itself:
+Repo files for the `simple-hack` program on this box, listening on
+`127.0.0.1:8091`. It accepts `EVENTS=hosted` or unset. Nothing here is applied by itself:
 the integrator reviews and runs the scripts.
 
 | File | What it is |
@@ -22,20 +22,27 @@ The weekly demo reset is in `deploy/prod/hack-demo-reset.{sh,service,timer}`; [i
 
 ## Order
 
-1. `sudo bash deploy/hack/setup-instance.sh` — read the dry run
-2. `sudo bash deploy/hack/setup-instance.sh --apply` — user, dirs, database
+1. Build both candidates from one commit using the line in [CLAUDE.md](../../CLAUDE.md).
+   `sudo bash deploy/hack/setup-instance.sh` — read the dry run
+2. `sudo env SIMPLE_HOST=/tmp/simple-hack.new bash deploy/hack/setup-instance.sh --apply` — user, dirs, database
    `simplehack`, `/etc/simple-hack.env`, the unit, logrotate, site-certs conf
-   and units. Enables the site-certs `.path` and `.timer`. Does **not** start
+   and units. The legacy `SIMPLE_HOST` script variable selects the Hack candidate;
+   setup runs its `migrate -init -record-product`. Enables the site-certs `.path` and `.timer`. Does **not** start
    `simple-hack.service` and does **not** touch nginx or DNS.
 3. Install the site-certs issuer from this repo (it gained `REQUESTS_OWNER`), after a backup:
    `sudo cp -p /usr/local/sbin/simple-host-site-certs /usr/local/sbin/simple-host-site-certs.bak-$(date +%Y%m%d-%H%M%S) && sudo install -m 755 deploy/site-certs/issue.sh /usr/local/sbin/simple-host-site-certs`
 4. Issue the platform wildcard `simple-hack.app` + `*.simple-hack.app` (certbot DNS-01, the
    Vercel hooks, lineage `simple-hack.app`).
-5. Deploy this build as `/usr/local/bin/simple-host` (the same binary as simple-host.app: back up,
-   install, restart simple-host.service and verify it first; the old binary has no hosted mode),
-   then record and apply the migrations against the hack database:
-   `sudo bash -c 'DB_DSN=$(grep "^DB_DSN=" /etc/simple-hack.env | cut -d= -f2-) /usr/local/bin/simple-host migrate'`
-   (it must list `hack1-events.sql`; the server refuses to start in hosted mode without its index).
+5. For an upgrade, run the Hack candidate's status and migrations as `simplehack`
+   with its environment before installing:
+   `sudo systemd-run --wait --pipe --collect -p User=simplehack -p EnvironmentFile=/etc/simple-hack.env /tmp/simple-hack.new migrate -status`
+   then `sudo systemd-run --wait --pipe --collect -p User=simplehack -p EnvironmentFile=/etc/simple-hack.env /tmp/simple-hack.new migrate`.
+   Run `/tmp/simple-host.new` against Host's database with Host's unit user and
+   environment. Back up both installed programs with one timestamp, install
+   `/tmp/simple-host.new` as `/usr/local/bin/simple-host` and `/tmp/simple-hack.new`
+   as `/usr/local/bin/simple-hack`, then restart both services as in CLAUDE.md.
+   Verify both `version` commands print the same release and commit. Host cannot
+   migrate Hack's database.
 6. Start the app: `sudo systemctl enable --now simple-hack.service`, and check
    `curl -s -H 'Host: simple-hack.app' http://127.0.0.1:8091/healthz`.
 7. nginx, in one reload: back up and unlink the old hand-written
@@ -49,3 +56,14 @@ The weekly demo reset is in `deploy/prod/hack-demo-reset.{sh,service,timer}`; [i
    restart it, so its self-host claims and hosted events share one name list.
    simple-host.app's `EVENT_DOMAINS` must include `simple-hack.app`: it answers the peer only for
    its own event zones, and would otherwise call every name free.
+
+## Rollback
+
+Restore both programs from the same `.bak-<timestamp>` pair and restart both
+services, staying at or above the coordination file's oldest-safe commit.
+To undo the initial split, restore the previous Hack unit (whose ExecStart
+used `/usr/local/bin/simple-host`) and the saved combined program, reload
+systemd, and restart both services. This does not undo SQL or data moves;
+restore the matching database, site directory, configuration/keys and program
+together when data recovery is required. See the
+[deployment profiles](../../docs/operations/deployment-profiles.md).

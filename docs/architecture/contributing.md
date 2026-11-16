@@ -173,8 +173,10 @@ both aggregate targets and skips if the directory is unreadable.
 [scripts/golden/README.md](../../scripts/golden/README.md) documents the
 folder-based REST/MCP recordings. The harness needs Node 22, psql, openssl and a
 disposable local Postgres. Record the supplied reference with
-`node scripts/golden/run.mjs --host /tmp/reference.bin --out /tmp/reference` and
-the candidate with `node scripts/golden/run.mjs --host /tmp/candidate.bin --out /tmp/candidate`.
+`node scripts/golden/run.mjs --host /tmp/reference-host.bin --hack /tmp/reference-hack.bin --out /tmp/reference --scenario all` and
+the candidate with `node scripts/golden/run.mjs --host /tmp/candidate-host.bin --hack /tmp/candidate-hack.bin --out /tmp/candidate --scenario all`.
+For a reference from before the split, supply its combined program as `--host`
+and omit `--hack`; see the README for both build forms.
 Then run `node scripts/golden/coverage.mjs /tmp/candidate` and compare with
 `node scripts/golden/diff.mjs /tmp/reference /tmp/candidate --slice <slice id>`.
 There is no checked-in response baseline. Differences require investigation and
@@ -213,7 +215,8 @@ latest origin/main before pushing. Do not revert another session's commits.
 
 The hosted machine is aarch64 with limited RAM. CLAUDE.md's exact build
 command uses a transient systemd unit with MemoryMax=2G, preserves Go cache
-settings, sets CGO_ENABLED=0 and builds `./cmd/server`. Use that memory cap
+settings, sets CGO_ENABLED=0 and builds `./cmd/simple-host` and
+`./cmd/simple-hack` from the same commit. Use that memory cap
 for heavy local runs. Embedded HTML changes require the same rebuild.
 
 Release `-ldflags -X` fields are:
@@ -224,22 +227,31 @@ Release `-ldflags -X` fields are:
 | `Commit` | `git rev-parse --short HEAD` |
 | `BuildTime` | UTC `date -u +%Y-%m-%dT%H:%M:%SZ` |
 
-`simple-host version` needs no DB/config. Its first line is
+`simple-host version` and `simple-hack version` need no DB/config. Their first line is
 `simple-host VERSION (commit COMMIT)`; the second reports embedded migration
 count/last file and points to `migrate -status`. Startup/admin show the same
 build identity (`internal/buildinfo/buildinfo.go:String`,
-`cmd/server/migrate.go:runVersionCommand`). A checkout is not evidence of
+`internal/server/migrate.go:runVersionCommand`). A checkout is not evidence of
 what binary is running.
 
-For hosted systemd, migrate each affected database before installing the
-new binary. Back up `/usr/local/bin/simple-host` to its timestamped `.bak`,
-install the new binary with root ownership and executable mode, then restart
-**both simple-host and simple-hack**: they share the installed path. CLAUDE.md
-has the copy/build/install command; the coordination file requires paired
-restarts, while that command's final restart names only simple-host.
-Rollback reinstalls the saved `.bak` and restarts both services. It does not
-undo SQL; paired DB/site-tree restore and retained keys are a separate
-recovery operation described in the deployment profiles.
+For hosted systemd, run each candidate's `migrate -status` and then `migrate`
+against its own database, as that unit's user with its environment, before
+installing: `/tmp/simple-host.new` for Host and `/tmp/simple-hack.new` for Hack.
+Back up both installed programs, `/usr/local/bin/simple-host` and
+`/usr/local/bin/simple-hack`, with the same `.bak-<timestamp>` suffix. Install
+both candidates with root ownership and executable mode, then restart
+**both simple-host and simple-hack**. Each unit uses its own program path;
+replacing Host alone does not update Hack. CLAUDE.md has the paired
+build/backup/install command. Check that both `version` commands print the
+same release and commit.
+
+Rollback restores both programs from the same backup timestamp and restarts
+both services, provided their commit is at or above the coordination file's
+oldest-safe floor. To undo the initial split, restore the previous Hack unit
+(which used `/usr/local/bin/simple-host`), reload systemd, restore the saved
+combined program and restart both services. Binary rollback does not undo SQL
+or data moves; a data rollback needs the matching database, site tree,
+configuration/keys and program together, as described in the deployment profiles.
 
 The checked-in Host systemd unit runs as `simplehost`, with
 `ProtectSystem=strict` and `/srv/simple-host/sites` as its writable site

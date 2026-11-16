@@ -84,5 +84,5 @@ internal/papermetrics/provenance.go:24 | runConfigKeys | events (also the platfo
 internal/repository/operations/schemacheck.go:27 | requiredColumns | events (also the platform column site_notifications.events) | events
 internal/rules/sites/sites.go:100 | reservedSubdomainLabels | events (also the platform column site_notifications.events) | events
 
-7. Other text (80)
-events: 80 other-text strings (use -prose to list)
+7. Other text (78)
+events: 78 other-text strings (use -prose to list)

@@ -28,7 +28,7 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 	// testdb and geoiptest contain test-only database/GeoIP fixture helpers.
 	// Product environment reads are checked against the composed catalogue in
 	// products/hack/config/settings_test.go.
-	for _, root := range []string{"..", "../../cmd/server"} {
+	for _, root := range []string{"..", "../../cmd/simple-host"} {
 		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -85,6 +85,9 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// EVENTS is a retired selector: the Host entry point reads it only to
+	// refuse a mistaken launch of the old combined program.
+	delete(read, "EVENTS")
 	listed := map[string]bool{}
 	for _, s := range Settings() {
 		if listed[s.Name] {

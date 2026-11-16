@@ -16,17 +16,28 @@ ARG VERSION=dev
 ARG COMMIT=unknown
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w -X github.com/vsriram/simple-host/internal/buildinfo.Version=${VERSION} -X github.com/vsriram/simple-host/internal/buildinfo.Commit=${COMMIT} -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    -o /out/simple-host ./cmd/server
+    -o /out/ ./cmd/simple-host ./cmd/simple-hack
 # The runtime stage cannot run commands, so the data directory is made here and
 # copied in. This stage is always native, so nothing is emulated.
-RUN mkdir -p /data-empty
+RUN mkdir -p /data-empty && ln -s simple-hack /out/simple-host-alias
 
 # Runtime. distroless/static rather than alpine specifically so this stage runs
 # NO commands: an Alpine `apk add` executes on the TARGET architecture, which
 # means QEMU emulation for every non-native platform in a multi-arch build.
 # distroless/static already ships CA certificates, timezone data and a nonroot
 # user, so the whole stage is two COPYs and nothing is ever emulated.
-FROM gcr.io/distroless/static-debian12:nonroot
+# The alias keeps the existing chart/Compose commands working for this release.
+FROM gcr.io/distroless/static-debian12:nonroot AS hack
+COPY --from=build --chown=nonroot:nonroot /data-empty /data/sites
+COPY --from=build /out/simple-hack /usr/local/bin/simple-hack
+COPY --from=build /out/simple-host-alias /usr/local/bin/simple-host
+USER nonroot
+ENV DATA_DIR=/data/sites PORT=8090
+EXPOSE 8090
+ENTRYPOINT ["/usr/local/bin/simple-hack"]
+
+# Keep Host last: an unqualified build is the platform alone.
+FROM gcr.io/distroless/static-debian12:nonroot AS host
 COPY --from=build --chown=nonroot:nonroot /data-empty /data/sites
 COPY --from=build /out/simple-host /usr/local/bin/simple-host
 USER nonroot

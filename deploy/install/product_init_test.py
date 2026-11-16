@@ -55,8 +55,8 @@ def database():
 
 with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
     work = Path(tmp)
-    binary = work / 'simple-host'
-    run(['go', 'build', '-o', str(binary), './cmd/server'], cwd=ROOT)
+    run(['go', 'build', '-o', str(work) + '/', './cmd/simple-host', './cmd/simple-hack'], cwd=ROOT)
+    binary = work / ('simple-hack' if MODE in ('hack', 'chart') else 'simple-host')
     env = {k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'GOCACHE', 'GOMODCACHE')}
     env.update(PATH=str(work) + ':' + env['PATH'], ADMIN_API_KEY='install-fixture-only',
                DATA_DIR=str(work / 'sites'), GEOIP_DIR=str(work / 'geo'),
@@ -160,7 +160,7 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                     sql(url, (ROOT / 'db/schema.sql').read_text())
                     sql(url, (ROOT / 'products/hack/db/schema.sql').read_text())
                     sql(url, 'DROP TABLE install_product')
-                setup_env = dict(env, dsn=url, SIMPLE_HOST=str(binary))
+                setup_env = dict(env, dsn=url, SIMPLE_HOST=str(work / 'simple-hack'))
                 for _ in range(2):
                     run(['bash', '-ec', 'say() { :; }; die() { exit 1; }; ' + phase], env=setup_env)
                     assert sql(url, 'SELECT product FROM install_product') == 'simple-hack'
@@ -192,9 +192,14 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
         host_image, hack_image = tag + ':host', tag + ':hack'
         images = [host_image]
         try:
-            run(['docker', 'build', '-q', '-t', host_image, '.'], cwd=ROOT, env=docker_env)
+            run(['docker', 'build', '-q', '-t', host_image, '--target', 'hack' if MODE == 'hack' else 'host', '.'], cwd=ROOT, env=docker_env)
             image = host_image
             if MODE == 'hack':
+                version = run(['docker', 'run', '--rm', host_image, 'version'], env=docker_env)
+                alias = run(['docker', 'run', '--rm', '--entrypoint', '/usr/local/bin/simple-host',
+                             host_image, 'version'], env=docker_env)
+                assert alias == version
+                print('PASS: Hack base image retains the simple-host command alias')
                 images.append(hack_image)
                 run(['docker', 'build', '-q', '-t', hack_image, '-f',
                      'deploy/hack/standalone/Dockerfile', '--build-arg',

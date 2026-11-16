@@ -123,13 +123,13 @@ On a company's Kubernetes cluster, run Simple Host Enterprise instead; https://s
 ```bash
 docker run -d --name simple-host-postgres -p 5432:5432 -e POSTGRES_USER=simplehost -e POSTGRES_PASSWORD=simplehost -e POSTGRES_DB=simplehost postgres:16-alpine
 docker exec -i simple-host-postgres psql -U simplehost -d simplehost < db/schema.sql
-DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' DATA_DIR=./data/sites SITE_DOMAIN=localhost:8090 PUBLIC_BASE_URL=http://localhost:8090 ADMIN_API_KEY=$(openssl rand -hex 32) go run ./cmd/server
+DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' DATA_DIR=./data/sites SITE_DOMAIN=localhost:8090 PUBLIC_BASE_URL=http://localhost:8090 ADMIN_API_KEY=$(openssl rand -hex 32) go run ./cmd/simple-host
 ```
 
 Open http://localhost:8090 and sign in with that `ADMIN_API_KEY` (the admin key). Production build:
 
 ```bash
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/simple-host
 ```
 
 ### Configuration and advanced settings

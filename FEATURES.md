@@ -2034,7 +2034,9 @@ the hosted platform below, and self-hosting is its second option.
 | External | Vercel DNS API; Docker Compose + Caddy (`deploy/compose/`, `deploy/install/install.sh`; container logs capped at 3 × 10 MB per service, Caddy access log rolled daily and rolls deleted after 28 days, so raw IPs ≤30 days); live nginx `/etc/nginx/sites-enabled/simple-hack.app`; `scripts/e2e-hackathon.sh`, `scripts/check-fresh-install.sh` |
 | Limits | event claims 10 burst, 1/min; setup 5 burst, 1/min |
 
-### Hosted events: simple-hack.app (`EVENTS=hosted`) <a id="hosted-events-simple-hack-app"></a>
+### Hosted events: simple-hack.app (`simple-hack`) <a id="hosted-events-simple-hack-app"></a>
+
+The `simple-hack` program includes the platform and Hack; `simple-host` includes only the platform. Both are built from the same commit. `EVENTS` no longer selects the product or appears in the settings list: Hack accepts the existing `EVENTS=hosted` environment, while Host refuses it with an instruction to unset it.
 
 Join and judge links open the app at `GET /join/{code}` and `GET /judge/{code}`.
 

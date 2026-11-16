@@ -28,6 +28,12 @@ result. Other forms:
 | `bash scripts/split/check-all.sh --only <step id>` | re-run one step alone, e.g. to see whether a failure is a flake |
 | `bash scripts/split/check-all.sh --list` | step ids and commands |
 
+The default golden reference also uses `/usr/local/bin/simple-hack` when that
+executable is installed. Before the split, it uses the combined `simple-host`
+program for both products. `GOLDEN_REF_BIN` selects an explicit Host or older
+combined reference; set `GOLDEN_REF_HACK_BIN` as well for an explicit split pair.
+`GOLDEN_REF_HACK_BIN` always overrides the default Hack reference.
+
 A failure that is not in the list is re-run alone before anything else. If it
 passes alone it is a flake: report it, do not list it. `known-red.txt` holds
 only failures that reproduce on untouched main.

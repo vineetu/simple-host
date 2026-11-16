@@ -1,11 +1,10 @@
 #!/bin/sh
 set -eu
-export EVENTS=hosted
 if [ "${1:-}" = release ]; then
   : "${DB_DSN:?}"
-  exec simple-host migrate -init -record-product
+  exec simple-hack migrate -init -record-product
 fi
-if [ "$#" -gt 0 ]; then exec simple-host "$@"; fi
+if [ "$#" -gt 0 ]; then exec simple-hack "$@"; fi
 : "${SITE_DOMAIN:?}"
 # Resend is only required when there is no other way to sign in: company
 # sign-in (OIDC_ISSUER + OIDC_CLIENT_ID + OIDC_CLIENT_SECRET) does not need it.
@@ -73,7 +72,7 @@ export MCP_APP_SITE_PREVIEW="${MCP_APP_SITE_PREVIEW:-off}"
 # Caddy manages certificates during the handshake; there is no external
 # wildcard issuer or ready-marker directory in this installation.
 unset SITE_CERT_DIR EVENT_NAME_PEER EVENT_DNS_TOKEN EVENT_DNS_TEAM_ID EVENT_DOMAINS
-simple-host &
+simple-hack &
 app_pid=$!
 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
 web_pid=$!

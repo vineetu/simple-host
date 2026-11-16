@@ -138,11 +138,6 @@ type Config struct {
 	// that person's certificate is ready (SiteCertDir).
 	SiteHosts string
 
-	// Events is off | hosted (docs/designs/simple-hack-platform.md). hosted
-	// runs this instance as simple-hack.app: anyone signed in creates an
-	// event, <event>.<SITE_DOMAIN> is its public page, and accounts own no
-	// personal sites. off (default) is every other instance.
-	Events string
 	// EventNamePeer (EVENT_NAME_PEER) is the loopback address of the other
 	// instance that hands out names under the same zone: simple-host.app's
 	// self-host claims (/v1/events) and simple-hack.app's hosted events ask
@@ -334,7 +329,7 @@ func Load() (Config, error) {
 		validateAccountSignIn,
 		loadDataWriteAuth,
 		loadServerPersonHosts,
-		loadEvents,
+		loadGroupAddresses,
 		loadServerSiteAddresses,
 		loadCleanup,
 		loadDataLegacyCutoff,
@@ -569,21 +564,7 @@ func loadServerPersonHosts(cfg *Config) error {
 	return nil
 }
 
-// EventsHosted reports whether the composition root should include hosted events.
-// loadEvents still validates the setting when the full configuration is loaded.
-func EventsHosted() bool {
-	return strings.ToLower(strings.TrimSpace(os.Getenv("EVENTS"))) == "hosted"
-}
-
-func loadEvents(cfg *Config) error {
-	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("EVENTS"))); mode {
-	case "off", "hosted":
-		cfg.Events = mode
-	case "":
-		cfg.Events = "off"
-	default:
-		return fmt.Errorf("EVENTS must be off or hosted, not %q", mode)
-	}
+func loadGroupAddresses(cfg *Config) error {
 	cfg.EventNamePeer = strings.TrimRight(strings.TrimSpace(os.Getenv("EVENT_NAME_PEER")), "/")
 	if p := cfg.EventNamePeer; p != "" {
 		u, err := url.Parse(p)

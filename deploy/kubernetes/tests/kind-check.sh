@@ -50,7 +50,7 @@ kubectl config use-context "kind-$cluster" >/dev/null
 echo "== image =="
 if [ -z "$image" ]; then
   image=simple-hack-k8s:check
-  docker build -q -t "$image" --build-arg VERSION=v0.0.0-kind-check --build-arg COMMIT="$(git rev-parse --short HEAD)" . >/dev/null
+  docker build --target hack -q -t "$image" --build-arg VERSION=v0.0.0-kind-check --build-arg COMMIT="$(git rev-parse --short HEAD)" . >/dev/null
   ok "built $image"
 fi
 kind load docker-image "$image" --name "$cluster" >/dev/null 2>&1

@@ -14,24 +14,21 @@ func TestMain(m *testing.M) { testdb.Main(m) }
 
 func TestHostWiring(t *testing.T) {
 	cfg := servertest.Config(t, testdb.Fresh(t))
-	app, err := server.Build(cfg, nil, programOptions(false))
+	app, err := server.Build(cfg, nil, programOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(app.Close)
-	servertest.CheckWiring(t, app, "../..", "host")
+	servertest.CheckWiring(t, app, "../..", "internal/server/testdata", "host")
 }
 
 func TestCompatibilityRedirects(t *testing.T) {
-	if redirects := compatibilityRedirects(true); redirects != nil {
-		t.Fatalf("product compatibility redirects = %v, want none", redirects)
-	}
 	for _, domain := range []string{"simple-host.app", "host.example.test"} {
 		t.Run(domain, func(t *testing.T) {
 			cfg := servertest.Config(t, testdb.Fresh(t))
 			cfg.SiteDomain = domain
 			cfg.PublicBaseURL = "https://" + domain
-			app, err := server.Build(cfg, nil, programOptions(false))
+			app, err := server.Build(cfg, nil, programOptions())
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -7,9 +7,10 @@ comparison pass.
 ## The gate, step by step
 
 Use Node 22 with `node:zlib.crc32`, `psql`, `openssl`, and the programs you want to compare. The
-recorder (`run.mjs` and `lib.mjs`) starts both products locally. Without `--hack`, it runs Hack
-from the Host program with `EVENTS=hosted`. A base recording of both products takes about 35 to 60
-seconds.
+recorder (`run.mjs` and `lib.mjs`) starts both products locally. Supply both `--host` and
+`--hack` for the separate programs. Only older combined-program references omit `--hack`: in
+that case the recorder runs Hack from the `--host` program with `EVENTS=hosted`. A base
+recording of both products takes about 35 to 60 seconds.
 
 Use disposable Postgres at `127.0.0.1:55412`; the default connection prefix is
 `postgres://postgres:postgres@127.0.0.1:55412`. Set `GOLDEN_PG_URL` to use another local instance.
@@ -17,17 +18,23 @@ It must have the form `postgres://user:password@localhost:port` or use `127.0.0.
 `localhost`. Include an explicit port, with no database path, query or fragment. Port `5432` is
 refused because it is shared production Postgres.
 
-1. Build the deployed commit in its own checkout for the reference. Build the branch for the
-   candidate. In each checkout, use the build part of the standard line in
-   `CLAUDE.md`, “Build, test, deploy”, from the repo root:
+1. Build the deployed commit in its own checkout for the reference, and the branch in its
+   checkout for the candidate. From each repo root, build both products from that checkout's
+   commit. Use the memory cap from CLAUDE.md for heavy builds. For the candidate:
 
    ```sh
-   sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-host.new ./cmd/server'
+   CGO_ENABLED=0 go build -o /tmp/candidate-host.bin ./cmd/simple-host
+   CGO_ENABLED=0 go build -o /tmp/candidate-hack.bin ./cmd/simple-hack
    ```
 
-   Save each result before building the next program:
-   `cp /tmp/simple-host.new /tmp/reference.bin` in the deployed checkout, then
-   `cp /tmp/simple-host.new /tmp/candidate-host.bin` in the branch checkout.
+   In the deployed checkout, use the same targets with outputs `/tmp/reference-host.bin` and
+   `/tmp/reference-hack.bin`. If the deployed reference predates the split and still has the
+   combined entry point, build that reference only with:
+
+   ```sh
+   CGO_ENABLED=0 go build -o /tmp/reference.bin ./cmd/server
+   ```
+
    Any build works: the harness normalizes build version and commit at the specific response
    fields listed below. Do not build the reference from the candidate checkout.
 
@@ -35,9 +42,10 @@ refused because it is shared production Postgres.
    the branch's slices. For example, when the branch adds `rules-on`:
 
    ```sh
-   node scripts/golden/run.mjs --host /tmp/reference.bin --out /tmp/golden-reference --scenario all --skip-scenario rules-on
+   node scripts/golden/run.mjs --host /tmp/reference-host.bin --hack /tmp/reference-hack.bin --out /tmp/golden-reference --scenario all --skip-scenario rules-on
    ```
 
+   For an older combined-program reference, use `--host /tmp/reference.bin` and omit `--hack`.
    Replace `rules-on` with the actual added names, separated by commas. Omit `--skip-scenario`
    when there are none. Run `base`, `mixed-store` and `hosted-pages` against the reference too; unknown scenario names fail.
 
@@ -51,17 +59,10 @@ refused because it is shared production Postgres.
 3. Record the candidate with all scenarios:
 
    ```sh
-   node scripts/golden/run.mjs --host /tmp/candidate-host.bin --out /tmp/golden-candidate --scenario all
-   ```
-
-   When Host and Hack are separate programs, supply `--hack` too:
-
-   ```sh
    node scripts/golden/run.mjs --host /tmp/candidate-host.bin --hack /tmp/candidate-hack.bin --out /tmp/golden-candidate --scenario all
    ```
 
-   Use `--hack` for the reference too if its products are separate. Output folders must be
-   absent or empty. The recorder rejects positional arguments and repeated flags.
+   Output folders must be absent or empty. The recorder rejects positional arguments and repeated flags.
 
 4. Check the candidate's inventory coverage:
 
@@ -203,8 +204,8 @@ Record the candidate with `--scenario all`. Record the reference with
 comma-separated `--skip-scenario` list for multiple scenarios. For example:
 
 ```sh
-node scripts/golden/run.mjs --host /tmp/reference.bin --out /tmp/golden-reference --scenario all --skip-scenario rules-on
-node scripts/golden/run.mjs --host /tmp/candidate-host.bin --out /tmp/golden-candidate --scenario all
+node scripts/golden/run.mjs --host /tmp/reference-host.bin --hack /tmp/reference-hack.bin --out /tmp/golden-reference --scenario all --skip-scenario rules-on
+node scripts/golden/run.mjs --host /tmp/candidate-host.bin --hack /tmp/candidate-hack.bin --out /tmp/golden-candidate --scenario all
 ```
 
 A whole-scenario `added` entry requires the scenario to be absent from the reference folder. A

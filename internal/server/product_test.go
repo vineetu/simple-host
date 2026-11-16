@@ -145,7 +145,7 @@ func TestProductRefusalProcessExit(t *testing.T) {
 	productConfig(t, dsn)
 	t.Setenv("EVENTS", "")
 	binary := t.TempDir() + "/simple-host"
-	build := exec.Command("go", "build", "-o", binary, "../../cmd/server")
+	build := exec.Command("go", "build", "-o", binary, "../../cmd/simple-host")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v: %s", err, out)
 	}

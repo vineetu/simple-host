@@ -2712,21 +2712,6 @@
       "small_box": false
     },
     {
-      "name": "EVENTS",
-      "group": "events",
-      "description": "Transitional product selector used only by the composition root until the programs separate.",
-      "type": "enum",
-      "default": "off",
-      "allowed": [
-        "off",
-        "hosted"
-      ],
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
       "name": "EVENT_NAME_PEER",
       "group": "events",
       "description": "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise.",

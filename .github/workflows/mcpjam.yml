@@ -49,7 +49,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/server
+      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/simple-host
       - run: bash scripts/mcpjam/fixture.sh
       - run: bash scripts/check-release.sh --mcpjam
       - if: failure()
@@ -85,7 +85,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/server
+      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/simple-host
       - run: bash scripts/mcpjam/fixture.sh
       - run: python3 scripts/mcpjam/seed.py "$FIX/user.key"
       - name: eval suite on ${{ matrix.model }}

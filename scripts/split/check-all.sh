@@ -265,10 +265,11 @@ try:
             steps.append((ident, command))
         if golden == '1':
             root = out + '/golden'
-            candidate = root + '/candidate.bin'
+            candidate = root + '/simple-host'
+            candidate_hack = root + '/simple-hack'
             def shell(words):
                 return shlex.join(words)
-            steps.append(('golden:build', 'CGO_ENABLED=0 ' + shell(['go', 'build', '-o', candidate, './cmd/server'])))
+            steps.append(('golden:build', 'CGO_ENABLED=0 ' + shell(['go', 'build', '-o', root + '/', './cmd/simple-host', './cmd/simple-hack'])))
             # Both sides record every scenario. The reference skips the ones a
             # named slice approves whole as added: its program cannot run them.
             # Request additions likewise belong only to the candidate recording.
@@ -289,6 +290,11 @@ try:
             ]:
                 words = ['node', golden_dir + '/run.mjs', '--host', host]
                 if os.environ.get(hack): words += ['--hack', os.environ[hack]]
+                elif side == 'candidate': words += ['--hack', candidate_hack]
+                elif not os.environ.get('GOLDEN_REF_BIN') and os.path.isfile('/usr/local/bin/simple-hack') and os.access('/usr/local/bin/simple-hack', os.X_OK):
+                    # Default to the installed pair after the split. An explicit
+                    # reference may still be an older combined program.
+                    words += ['--hack', '/usr/local/bin/simple-hack']
                 words += ['--out', root + '/' + target, '--scenario', 'all']
                 if side == 'reference' and added: words += ['--skip-scenario', ','.join(dict.fromkeys(added))]
                 if side == 'reference' and added_requests: words += ['--skip-request', ','.join(dict.fromkeys(added_requests))]

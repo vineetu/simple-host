@@ -9,7 +9,8 @@ server -> extension
 @/db -> @/db/migrations
 extension -> @/db/migrations
 extension -> config edition email handler mcp storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
-@/cmd/server -> server extension config brain
+@/cmd/simple-host -> server brain
+@/cmd/simple-hack -> server extension brain @/products/hack
 handler -> app/** auth httpx edition model webassets buildinfo workers
 @/products/hack/hackhttp -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp redirects
@@ -72,10 +73,10 @@ app/sites -> @/host/storage/rules
 mcp -> @/host/storage/rules
 @/products/hack/mcp -> @/host/storage/rules
 server -> server/servertest
-@/cmd/server -> server/servertest
+@/cmd/simple-host -> server/servertest
+@/cmd/simple-hack -> server/servertest @/products/hack/testdb
 server/servertest -> testdb
 @/products/hack/servertest -> server/servertest
 @/products/hack/servertest -> @/host/storage/rules
 [transitional]
 # Each edge names the slice that removes its final caller.
-@/cmd/server -> @/products/hack production # removal step D3-S6b

@@ -308,9 +308,6 @@ func otherSettings() []Setting {
 			Description: "Earlier public IPv4s of this server, comma-separated. Domains still pointed at one keep working; only CUSTOM_DOMAIN_IP is handed out."},
 		{Name: "PERSON_HOSTS", Group: "server", Type: "enum", Default: "off", Allowed: []string{"off", "serve", "canonical"},
 			Description: "Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out."},
-		{Name: "EVENTS", Group: "events", Type: "enum", Default: "off", Allowed: []string{"off", "hosted"},
-			Description: "Transitional product selector used only by the composition root until the programs separate."},
-
 		{Name: "EVENT_NAME_PEER", Group: "events", Type: "string",
 			Description: "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise."},
 		{Name: "TEAM_SITE_FLAT_HOSTS", Group: "events", Type: "bool", Default: "false", Allowed: []string{"true", "false"},

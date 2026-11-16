@@ -1,6 +1,7 @@
 # Deployment profiles
 
-These are the three existing deployment layouts for the same server binary.
+These are the three existing deployment layouts. Build Host with `go build -o simple-host ./cmd/simple-host`.
+Build Hack with `go build -o simple-hack ./cmd/simple-hack`.
 The settings registry is [settings.json](https://github.com/vineetu/simple-host/blob/main/docs/advanced/settings.json); its only
 `required: true` entries are `ADMIN_API_KEY` and `DB_DSN`
 (`docs/advanced/settings.json:585`, `docs/advanced/settings.json:3130`).
@@ -11,9 +12,10 @@ The offline check is `bash scripts/check-profiles.sh`.
 
 ### What runs
 
-Two instances use `/usr/local/bin/simple-host`: Simple Host at simple-host.app
-and Simple Hack at simple-hack.app (`EVENTS=hosted`), with separate accounts,
-databases and data directories (`INTENT.md:36`, `deploy/hack/README.md:4`).
+Simple Host at simple-host.app uses `/usr/local/bin/simple-host`.
+Simple Hack at simple-hack.app uses `/usr/local/bin/simple-hack`. The programs come from
+one commit, with separate accounts, databases and data directories
+(`deploy/prod/simple-host.service`, `deploy/hack/simple-hack.service`).
 The Host unit runs as `simplehost`, writes `/srv/simple-host/sites` and reads
 `/etc/simple-host.env`; Hack runs as `simplehack`, writes `/srv/simple-hack/sites`
 and reads `/etc/simple-hack.env`. Both restart on failure and have a 768M memory
@@ -31,7 +33,8 @@ individual setting names or values; the env files were not opened.
 Each must supply `ADMIN_API_KEY` and `DB_DSN`, with different databases for the
 two instances. Set `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `DATA_DIR`, `PORT` and
 `BIND_ADDR` to that instance's address, directory and loopback listener; Hack
-also needs `EVENTS=hosted`. This describes the required operator contract,
+accepts `EVENTS=hosted` or unset for compatibility. Host refuses `EVENTS=hosted`;
+the program selects the product, not the environment. This describes the required operator contract,
 not a verification of secret-file contents (`deploy/prod/simple-host.service:11`,
 `/etc/systemd/system/simple-hack.service:9`, `internal/config/config.go:16`,
 `deploy/hack/README.md:4`). Hosted family addresses use `PERSON_HOSTS=canonical`
@@ -40,28 +43,38 @@ and `SITE_HOSTS=canonical` (`ARCHITECTURE.md`, Deploy).
 ### Migration ownership
 
 Hosted: the operator owns migrations; startup migration is off.
-Neither inspected unit sets MIGRATE_ON_START. Apply release SQL before installing
-the binary, then record each hand-applied file with `simple-host migrate -mark FILE`;
-alternatively run the release's `simple-host migrate` against each database.
-The migration command takes the advisory lock; hand-applied SQL does not acquire
-that lock automatically. A fresh empty database needs `db/schema.sql`, or
-`simple-host migrate -init`; ordinary startup only checks the schema
-(`CLAUDE.md:46`, `db/migrations/migrations.go:38`, `cmd/server/migrate.go:17`,
-`cmd/server/main.go:119`). The shared migration rules below apply.
+Neither inspected unit sets MIGRATE_ON_START. Before installing, run the
+candidate's `migrate -status` and then `migrate`, once per database, as that
+unit's user with its environment. Host uses `/tmp/simple-host.new`.
+Hack uses `/tmp/simple-hack.new`. Each candidate embeds its own migration set;
+Host refuses Hack's recorded database. The migration command takes the
+advisory lock. Use `migrate -mark FILE` only for SQL already applied by hand.
+A fresh empty database needs the matching program's
+`migrate -init -record-product`; do not load schema.sql separately. An existing
+database with no product record needs that program's explicit
+`migrate -record-product` once. Ordinary startup checks the recorded product
+and schema (`internal/server/migrate.go`, `internal/server/build.go`).
+The shared migration rules below apply.
 
 ### Upgrade steps and rollback
 
 Before changing either instance, take paired database and site-directory backups
-and retain its settings/sealing keys. Build under the memory cap, apply schema
-changes to each target database, back up the installed binary, install and restart
-the target services. The installed path is shared, so the next restart of either
-service uses that binary (`CLAUDE.md:62`, unit ExecStart lines above).
-Rollback installs the saved `.bak-<timestamp>` binary and restarts the affected
-services; it does not undo SQL. See the shared compatibility limits below.
+and retain its settings/sealing keys. Build both programs from one commit under
+the memory cap and migrate each target database with its matching candidate.
+Back up `/usr/local/bin/simple-host` with a `.bak-<timestamp>` suffix.
+Back up `/usr/local/bin/simple-hack` with the same timestamp. Install both
+candidates at their respective paths, and restart both services. See CLAUDE.md for the paired command.
+Rollback restores both programs from the same timestamp and restarts both
+services, provided their commit is no older than the coordination file's
+oldest-safe floor. To undo the initial split, restore the previous Hack unit
+and the saved combined program, reload systemd and restart both services.
+Binary rollback does not undo SQL or data moves. See the shared compatibility
+limits below; a data restore includes the matching database, site directory,
+configuration/keys and program together.
 Verify `/healthz`, `/readyz`, the changed route and site/person/legacy addresses
-from a client, check neighbouring sites and startup logs, and run
-`/usr/local/bin/simple-host version` (`CLAUDE.md:93`, `CLAUDE.md:98`,
-`internal/handler/health.go:14`).
+from a client, and check neighbouring sites and startup logs. Run
+`/usr/local/bin/simple-host version`. Also run `/usr/local/bin/simple-hack version`.
+Both programs must print the same release and commit.
 
 ## Docker Compose small box
 
@@ -73,7 +86,9 @@ Caddy publishes 80/443 by default. Named volumes hold the database, sites,
 Caddy logs, certificates and config. Caddy proxies APIs and can serve site files
 from its read-only sites mount (`compose.yaml:14`, `compose.yaml:37`,
 `compose.yaml:277`, `Dockerfile:31`, `deploy/compose/Caddyfile:86`).
-Edition comes from settings: root Compose passes `EVENTS` through.
+The image selects the product: the root Dockerfile defaults to its `host`
+target; build with `--target hack` for Hack. Root Compose passes `EVENTS` through
+for compatibility, but it cannot turn a Host image into Hack.
 Workers run inside the server process, as listed below.
 
 Standalone Hack and its Coolify variant are the same Compose profile, with a
@@ -130,8 +145,8 @@ volume together (standalone: DB and `/data`). The database records live versions
 while files hold those versions and runtime SQLite/uploads
 (`ARCHITECTURE.md`, Data model; `compose.yaml:290`).
 Check public HTTPS, `/healthz`, `/readyz`, a deployed site and logs; check the
-actual image's release with `docker compose exec app simple-host version`
-(`deploy/install/install.sh:293`, `cmd/server/migrate.go:148`).
+actual image's release with `docker compose exec app simple-host version` for
+Host or `docker compose exec app simple-hack version` for standalone Hack.
 
 ## Kubernetes
 
@@ -187,7 +202,9 @@ SQL stays applied. Earlier successful migration files remain committed if a
 later file fails. Restore DB plus volume together if data rollback is needed
 (`docs/kubernetes.md:152`, `docs/kubernetes.md:187`,
 `db/migrations/migrations.go:20`). Check external `/healthz`, `/readyz`, a team
-site, and `kubectl exec` the pod's `/usr/local/bin/simple-host version`.
+site, and `kubectl exec` the pod's `/usr/local/bin/simple-hack version`.
+The Hack image keeps a `simple-host` alias for existing chart commands for
+this release only; a locally built chart image must use `--target hack`.
 The chart probes healthz for startup/liveness and readyz for readiness
 (`deploy/kubernetes/simple-hack/templates/deployment.yaml:91`).
 
@@ -224,13 +241,13 @@ no database and prints release/commit plus embedded migration information
 
 | Choice | Hosted systemd | Compose small box | Kubernetes |
 |---|---|---|---|
-| Server | Two services, shared binary | One app; standalone bundles Caddy | One pod, Recreate |
+| Server | Two services, one program per product | One app; standalone bundles Caddy | One pod, Recreate |
 | Settings | Separate env files | .env substitution, explicit environment | ConfigMap + Secret from values |
 | Database | Separate DB per instance | Bundled Postgres 16 | Operator's Postgres 16 |
 | Files | Separate /srv site trees | Named sites or data volume | /data persistent volume |
 | Migrations | Operator before restart | Installer/release before app | Server on start by default |
-| Empty DB | schema.sql or migrate -init | Postgres init or standalone release | Server migrate -init path |
-| Rollback | Saved binary + restart | Previous image/package | Helm rollback/previous image |
+| Empty DB | Matching program: migrate -init -record-product | Postgres init or standalone release | Server migrate -init path |
+| Rollback | Paired program backups + restart | Previous image/package | Helm rollback/previous image |
 | Restore | Paired DB + site tree + keys | Paired DB + files volume + keys | Paired DB + /data + Secret |
 
 ## Password sign-in by profile

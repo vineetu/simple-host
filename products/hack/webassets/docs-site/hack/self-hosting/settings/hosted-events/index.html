@@ -599,10 +599,13 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p><code>EVENTS=hosted</code> runs a server as a hosted hackathon platform, the way simple-hack.app runs:
+								<div class="sl-markdown-content"><p>Run <code>simple-hack</code> (built from <code>cmd/simple-hack</code>) as a hosted hackathon platform, the way simple-hack.app runs:
 anyone who signs in creates an event, the event’s public page is <code>&lt;event&gt;.&lt;SITE_DOMAIN&gt;</code>, and
 (from the team-sites milestone) each team’s site is <code>&lt;team&gt;.&lt;event&gt;.&lt;SITE_DOMAIN&gt;</code>. Accounts on
 such a server own no personal sites. Design: <code>docs/designs/simple-hack-platform.md</code>.</p>
+<p><code>simple-host</code> (built from <code>cmd/simple-host</code>) runs the hosting platform without the events product.
+<code>EVENTS</code> is compatibility-only and no longer selects the product: <code>simple-hack</code> accepts
+<code>EVENTS=hosted</code> or unset, while <code>simple-host</code> refuses <code>EVENTS=hosted</code> at startup.</p>
 <p>There are no caps on how many participants, teams or judges an event has. The limits below only
 keep one account from flooding the server, and every one is an environment setting.</p>
 <!-- settings:group=events -->
@@ -616,12 +619,6 @@ keep one account from flooding the server, and every one is an environment setti
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>EVENTS</code></td>
-<td><code>off</code></td>
-<td><code>off</code> / <code>hosted</code></td>
-<td>hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at &lt;event&gt;.&lt;SITE_DOMAIN&gt;, and accounts own no personal sites.</td>
-</tr>
 <tr>
 <td><code>EVENT_NAME_PEER</code></td>
 <td>none</td>

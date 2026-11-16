@@ -76,7 +76,7 @@ func RecordProduct(t *testing.T, cfg config.Config, exts []*extension.Extension)
 }
 
 // CheckWiring compares route registration and worker order with the original snapshots.
-func CheckWiring(t *testing.T, app *server.App, root, product string) {
+func CheckWiring(t *testing.T, app *server.App, root, snapshots, product string) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(root, "docs/generated/inventory.json"))
 	if err != nil {
@@ -104,7 +104,7 @@ func CheckWiring(t *testing.T, app *server.App, root, product string) {
 		_, matched := mux.Handler(req)
 		fmt.Fprintf(&routes, "%s %s -> %q\n", route.Method, route.Path, matched)
 	}
-	checkWiringSnapshot(t, root, "routes-"+product+".txt", routes.String())
+	checkWiringSnapshot(t, filepath.Join(root, snapshots), "routes-"+product+".txt", routes.String())
 	var names strings.Builder
 	names.WriteString("registration order\n")
 	for _, name := range set.Order() {
@@ -114,11 +114,11 @@ func CheckWiring(t *testing.T, app *server.App, root, product string) {
 	for _, status := range set.Status() {
 		fmt.Fprintln(&names, status.Name)
 	}
-	checkWiringSnapshot(t, root, "workers-"+product+".txt", names.String())
+	checkWiringSnapshot(t, filepath.Join(root, snapshots), "workers-"+product+".txt", names.String())
 }
 func checkWiringSnapshot(t *testing.T, root, name, got string) {
 	t.Helper()
-	path := filepath.Join(root, "internal/server/testdata", name)
+	path := filepath.Join(root, name)
 
 	want, err := os.ReadFile(path)
 	if err != nil {

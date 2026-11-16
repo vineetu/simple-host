@@ -1,5 +1,5 @@
 [Unit]
-Description=simple-hack.app (Simple Host, hosted events)
+Description=simple-hack.app (Simple Hack)
 After=network.target postgresql.service
 
 [Service]
@@ -7,7 +7,7 @@ Type=simple
 User=simplehack
 Group=simplehack
 EnvironmentFile=/etc/simple-hack.env
-ExecStart=/usr/local/bin/simple-host
+ExecStart=/usr/local/bin/simple-hack
 Restart=on-failure
 RestartSec=2
 MemoryMax=768M

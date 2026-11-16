@@ -8,11 +8,15 @@ its planned packages are not all present yet.
 
 ## What runs
 
-`internal/server/build.go:Build` wires one Go binary around one `http.ServeMux`, Postgres and a local
-site directory. `cmd/server/main.go` passes arguments to `server.Run`, which owns CLI dispatch and the process lifecycle. Hosted Simple Host and Simple Hack run separate instances of that binary,
-with separate databases and file roots. Self-hosted installations use the same implementation.
+`internal/server/build.go:Build` wires each Go program around one `http.ServeMux`, Postgres and a local
+site directory. `cmd/simple-host/main.go` and `cmd/simple-hack/main.go` pass arguments to
+`server.Run`, which owns CLI dispatch and the process lifecycle. Hosted Simple Host and Simple Hack
+run their respective programs with separate databases and file roots. Self-hosted installations
+use the same entry points.
 
-`cmd/server` passes `hack.Extension()` from `products/hack` when `EVENTS=hosted`;
+`cmd/simple-host` passes no extension; `cmd/simple-hack` always passes `hack.Extension()` from `products/hack`.
+`EVENTS` is compatibility-only and no longer selects the product: `simple-hack` accepts
+`EVENTS=hosted` or unset, while `simple-host` refuses `EVENTS=hosted` at startup.
 `server.Build` selects its edition after the schema check and before registering routes.
 Without an extension the server uses the Host edition.
 The injected `*edition.Edition` holds fixed route, presentation, identity, storage, notification

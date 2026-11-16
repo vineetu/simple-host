@@ -75,7 +75,8 @@ class RehearsalIntegration(unittest.TestCase):
         cls.addClassCleanup(cls.tmp.cleanup)
         cls.root = Path(cls.tmp.name)
         cls.program = cls.root / 'simple-host'
-        subprocess.run(['go', 'build', '-o', cls.program, './cmd/server'], cwd=ROOT, check=True)
+        cls.hack_program = cls.root / 'simple-hack'
+        subprocess.run(['go', 'build', '-o', str(cls.root) + '/', './cmd/simple-host', './cmd/simple-hack'], cwd=ROOT, check=True)
         cls.dump = cls.root / 'configured.dump'
         cls.data = cls.root / 'sites'
         cls.data.mkdir()
@@ -103,14 +104,15 @@ class RehearsalIntegration(unittest.TestCase):
         return cls.run_pg(['psql', '-XAt', '-v', 'ON_ERROR_STOP=1'], database, query.encode())
 
     def rehearse(self, product, skip=None):
-        program = self.program
+        program = self.hack_program if product == 'hack' else self.program
         if skip:
+            underlying = program
             program = self.root / ('skip-' + skip)
             program.write_text('#!/usr/bin/env python3\nimport os, sys\n'
                                'if sys.argv[1:2] == ["kv-move"] and '
                                + repr('--' + skip) + ' in sys.argv: sys.exit(0)\n'
-                               'os.execv(' + repr(str(self.program)) + ', '
-                               '[' + repr(str(self.program)) + '] + sys.argv[1:])\n')
+                               'os.execv(' + repr(str(underlying)) + ', '
+                               '[' + repr(str(underlying)) + '] + sys.argv[1:])\n')
             program.chmod(0o700)
         out = self.root / (product + '-' + (skip or 'complete'))
         result = subprocess.run(['bash', SCRIPT, '--program', program, '--product', product,

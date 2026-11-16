@@ -48,7 +48,7 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 	// testdb and geoiptest contain test-only database/GeoIP fixture helpers.
 	// Scan product sources as well as the platform, so a new literal env read
 	// missing from both Settings and the generated docs still fails.
-	for _, root := range []string{"..", "../../../internal", "../../../cmd/server"} {
+	for _, root := range []string{"..", "../../../internal", "../../../cmd/simple-hack"} {
 		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err

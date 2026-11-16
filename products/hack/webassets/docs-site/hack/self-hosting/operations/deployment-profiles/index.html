@@ -623,7 +623,8 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p>These are the three existing deployment layouts for the same server binary.
+								<div class="sl-markdown-content"><p>These are the three existing deployment layouts. Build Host with <code>go build -o simple-host ./cmd/simple-host</code>.
+Build Hack with <code>go build -o simple-hack ./cmd/simple-hack</code>.
 The settings registry is <a href="https://github.com/vineetu/simple-host/blob/main/docs/advanced/settings.json">settings.json</a>; its only
 <code>required: true</code> entries are <code>ADMIN_API_KEY</code> and <code>DB_DSN</code>
 (<code>docs/advanced/settings.json:585</code>, <code>docs/advanced/settings.json:3130</code>).
@@ -631,9 +632,10 @@ Addresses, persistence and sign-in still need the profile-specific choices below
 The offline check is <code>bash scripts/check-profiles.sh</code>.</p>
 <h2 id="hosted-systemd">Hosted systemd</h2>
 <h3 id="what-runs">What runs</h3>
-<p>Two instances use <code>/usr/local/bin/simple-host</code>: Simple Host at simple-host.app
-and Simple Hack at simple-hack.app (<code>EVENTS=hosted</code>), with separate accounts,
-databases and data directories (<code>INTENT.md:36</code>, <code>deploy/hack/README.md:4</code>).
+<p>Simple Host at simple-host.app uses <code>/usr/local/bin/simple-host</code>.
+Simple Hack at simple-hack.app uses <code>/usr/local/bin/simple-hack</code>. The programs come from
+one commit, with separate accounts, databases and data directories
+(<code>deploy/prod/simple-host.service</code>, <code>deploy/hack/simple-hack.service</code>).
 The Host unit runs as <code>simplehost</code>, writes <code>/srv/simple-host/sites</code> and reads
 <code>/etc/simple-host.env</code>; Hack runs as <code>simplehack</code>, writes <code>/srv/simple-hack/sites</code>
 and reads <code>/etc/simple-hack.env</code>. Both restart on failure and have a 768M memory
@@ -649,33 +651,44 @@ individual setting names or values; the env files were not opened.
 Each must supply <code>ADMIN_API_KEY</code> and <code>DB_DSN</code>, with different databases for the
 two instances. Set <code>SITE_DOMAIN</code>, <code>PUBLIC_BASE_URL</code>, <code>DATA_DIR</code>, <code>PORT</code> and
 <code>BIND_ADDR</code> to that instance’s address, directory and loopback listener; Hack
-also needs <code>EVENTS=hosted</code>. This describes the required operator contract,
+accepts <code>EVENTS=hosted</code> or unset for compatibility. Host refuses <code>EVENTS=hosted</code>;
+the program selects the product, not the environment. This describes the required operator contract,
 not a verification of secret-file contents (<code>deploy/prod/simple-host.service:11</code>,
 <code>/etc/systemd/system/simple-hack.service:9</code>, <code>internal/config/config.go:16</code>,
 <code>deploy/hack/README.md:4</code>). Hosted family addresses use <code>PERSON_HOSTS=canonical</code>
 and <code>SITE_HOSTS=canonical</code> (<code>ARCHITECTURE.md</code>, Deploy).</p>
 <h3 id="migration-ownership">Migration ownership</h3>
 <p>Hosted: the operator owns migrations; startup migration is off.
-Neither inspected unit sets MIGRATE_ON_START. Apply release SQL before installing
-the binary, then record each hand-applied file with <code>simple-host migrate -mark FILE</code>;
-alternatively run the release’s <code>simple-host migrate</code> against each database.
-The migration command takes the advisory lock; hand-applied SQL does not acquire
-that lock automatically. A fresh empty database needs <code>db/schema.sql</code>, or
-<code>simple-host migrate -init</code>; ordinary startup only checks the schema
-(<code>CLAUDE.md:46</code>, <code>db/migrations/migrations.go:38</code>, <code>cmd/server/migrate.go:17</code>,
-<code>cmd/server/main.go:119</code>). The shared migration rules below apply.</p>
+Neither inspected unit sets MIGRATE_ON_START. Before installing, run the
+candidate’s <code>migrate -status</code> and then <code>migrate</code>, once per database, as that
+unit’s user with its environment. Host uses <code>/tmp/simple-host.new</code>.
+Hack uses <code>/tmp/simple-hack.new</code>. Each candidate embeds its own migration set;
+Host refuses Hack’s recorded database. The migration command takes the
+advisory lock. Use <code>migrate -mark FILE</code> only for SQL already applied by hand.
+A fresh empty database needs the matching program’s
+<code>migrate -init -record-product</code>; do not load schema.sql separately. An existing
+database with no product record needs that program’s explicit
+<code>migrate -record-product</code> once. Ordinary startup checks the recorded product
+and schema (<code>internal/server/migrate.go</code>, <code>internal/server/build.go</code>).
+The shared migration rules below apply.</p>
 <h3 id="upgrade-steps-and-rollback">Upgrade steps and rollback</h3>
 <p>Before changing either instance, take paired database and site-directory backups
-and retain its settings/sealing keys. Build under the memory cap, apply schema
-changes to each target database, back up the installed binary, install and restart
-the target services. The installed path is shared, so the next restart of either
-service uses that binary (<code>CLAUDE.md:62</code>, unit ExecStart lines above).
-Rollback installs the saved <code>.bak-&lt;timestamp&gt;</code> binary and restarts the affected
-services; it does not undo SQL. See the shared compatibility limits below.
+and retain its settings/sealing keys. Build both programs from one commit under
+the memory cap and migrate each target database with its matching candidate.
+Back up <code>/usr/local/bin/simple-host</code> with a <code>.bak-&lt;timestamp&gt;</code> suffix.
+Back up <code>/usr/local/bin/simple-hack</code> with the same timestamp. Install both
+candidates at their respective paths, and restart both services. See CLAUDE.md for the paired command.
+Rollback restores both programs from the same timestamp and restarts both
+services, provided their commit is no older than the coordination file’s
+oldest-safe floor. To undo the initial split, restore the previous Hack unit
+and the saved combined program, reload systemd and restart both services.
+Binary rollback does not undo SQL or data moves. See the shared compatibility
+limits below; a data restore includes the matching database, site directory,
+configuration/keys and program together.
 Verify <code>/healthz</code>, <code>/readyz</code>, the changed route and site/person/legacy addresses
-from a client, check neighbouring sites and startup logs, and run
-<code>/usr/local/bin/simple-host version</code> (<code>CLAUDE.md:93</code>, <code>CLAUDE.md:98</code>,
-<code>internal/handler/health.go:14</code>).</p>
+from a client, and check neighbouring sites and startup logs. Run
+<code>/usr/local/bin/simple-host version</code>. Also run <code>/usr/local/bin/simple-hack version</code>.
+Both programs must print the same release and commit.</p>
 <h2 id="docker-compose-small-box">Docker Compose small box</h2>
 <h3 id="what-runs-1">What runs</h3>
 <p>The root <code>compose.yaml</code> runs Postgres 16, one server container and Caddy.
@@ -684,7 +697,9 @@ Caddy publishes 80/443 by default. Named volumes hold the database, sites,
 Caddy logs, certificates and config. Caddy proxies APIs and can serve site files
 from its read-only sites mount (<code>compose.yaml:14</code>, <code>compose.yaml:37</code>,
 <code>compose.yaml:277</code>, <code>Dockerfile:31</code>, <code>deploy/compose/Caddyfile:86</code>).
-Edition comes from settings: root Compose passes <code>EVENTS</code> through.
+The image selects the product: the root Dockerfile defaults to its <code>host</code>
+target; build with <code>--target hack</code> for Hack. Root Compose passes <code>EVENTS</code> through
+for compatibility, but it cannot turn a Host image into Hack.
 Workers run inside the server process, as listed below.</p>
 <p>Standalone Hack and its Coolify variant are the same Compose profile, with a
 different package: Postgres plus an app container running both Caddy and the
@@ -734,8 +749,8 @@ volume together (standalone: DB and <code>/data</code>). The database records li
 while files hold those versions and runtime SQLite/uploads
 (<code>ARCHITECTURE.md</code>, Data model; <code>compose.yaml:290</code>).
 Check public HTTPS, <code>/healthz</code>, <code>/readyz</code>, a deployed site and logs; check the
-actual image’s release with <code>docker compose exec app simple-host version</code>
-(<code>deploy/install/install.sh:293</code>, <code>cmd/server/migrate.go:148</code>).</p>
+actual image’s release with <code>docker compose exec app simple-host version</code> for
+Host or <code>docker compose exec app simple-hack version</code> for standalone Hack.</p>
 <h2 id="kubernetes">Kubernetes</h2>
 <h3 id="what-runs-2">What runs</h3>
 <p>The Simple Hack Helm chart and rendered manifests run one server container,
@@ -782,7 +797,9 @@ SQL stays applied. Earlier successful migration files remain committed if a
 later file fails. Restore DB plus volume together if data rollback is needed
 (<code>docs/kubernetes.md:152</code>, <code>docs/kubernetes.md:187</code>,
 <code>db/migrations/migrations.go:20</code>). Check external <code>/healthz</code>, <code>/readyz</code>, a team
-site, and <code>kubectl exec</code> the pod’s <code>/usr/local/bin/simple-host version</code>.
+site, and <code>kubectl exec</code> the pod’s <code>/usr/local/bin/simple-hack version</code>.
+The Hack image keeps a <code>simple-host</code> alias for existing chart commands for
+this release only; a locally built chart image must use <code>--target hack</code>.
 The chart probes healthz for startup/liveness and readyz for readiness
 (<code>deploy/kubernetes/simple-hack/templates/deployment.yaml:91</code>).</p>
 <h2 id="shared-worker-and-migration-details">Shared worker and migration details</h2>
@@ -824,7 +841,7 @@ no database and prints release/commit plus embedded migration information
 <tbody>
 <tr>
 <td>Server</td>
-<td>Two services, shared binary</td>
+<td>Two services, one program per product</td>
 <td>One app; standalone bundles Caddy</td>
 <td>One pod, Recreate</td>
 </tr>
@@ -854,13 +871,13 @@ no database and prints release/commit plus embedded migration information
 </tr>
 <tr>
 <td>Empty DB</td>
-<td>schema.sql or migrate -init</td>
+<td>Matching program: migrate -init -record-product</td>
 <td>Postgres init or standalone release</td>
 <td>Server migrate -init path</td>
 </tr>
 <tr>
 <td>Rollback</td>
-<td>Saved binary + restart</td>
+<td>Paired program backups + restart</td>
 <td>Previous image/package</td>
 <td>Helm rollback/previous image</td>
 </tr>

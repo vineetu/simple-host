@@ -205,7 +205,7 @@ test_count="${TEST_COUNT:-1}"
 platform_packages=()
 product_packages=()
 # Resolve patterns before selecting a database. An import path, ./..., or an
-# explicit directory all give the same schema for a package under products/.
+# explicit directory all give the same schema for a package under products/ or its program entry point.
 # $test_pkgs is intentionally split into package patterns.
 if ! package_list=$(go list -f '{{.ImportPath}} {{.Dir}}' $test_pkgs); then
   echo "FAIL: could not resolve TEST_PKGS" >&2
@@ -215,7 +215,7 @@ repo_root="$PWD"
 while read -r import_path package_dir; do
   [ -n "$import_path" ] || continue
   case "$package_dir" in
-    "$repo_root"/products/*) product_packages+=("$import_path") ;;
+    "$repo_root"/products/*|"$repo_root"/cmd/simple-hack) product_packages+=("$import_path") ;;
     *) platform_packages+=("$import_path") ;;
   esac
 done <<< "$package_list"

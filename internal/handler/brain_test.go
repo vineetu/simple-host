@@ -58,7 +58,7 @@ func brainFixture(t *testing.T) string {
 		}
 	}
 	out := filepath.Join(root, "bundle.json")
-	if output, err := exec.Command("go", "run", "../../cmd/server", "brain-build", "-host", filepath.Join(root, "host"), "-enterprise", filepath.Join(root, "ent"), "-out", out).CombinedOutput(); err != nil {
+	if output, err := exec.Command("go", "run", "../../cmd/simple-host", "brain-build", "-host", filepath.Join(root, "host"), "-enterprise", filepath.Join(root, "ent"), "-out", out).CombinedOutput(); err != nil {
 		t.Fatalf("build brain fixture: %v %s", err, output)
 	}
 	return out
