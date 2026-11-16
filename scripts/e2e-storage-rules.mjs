@@ -86,9 +86,22 @@ try {
     assert.match(await converted.locator('[data-policies]').first().innerText(), /active: read · restrictive · using true/);
     assert.equal(await converted.getByLabel('Table: kept', { exact: true }).count(), 1);
     assert.equal(await card('kv_rules').locator('select[name="preset"]').count(), 0);
-    for (const name of ['unconverted', 'kv_presets']) {
-      assert.match(await card(name).innerText(), /Not converted\. Presets are ending; rules replace them\./);
-      assert.equal(await card(name).locator('select[name="preset"]').count(), 1);
+    assert.equal(await page.evaluate(() => window.__SHOWCASE__.storageSwitchSet), false);
+    // Until R4-S3 registers the switch date, exercise its future server fact
+    // on the same panel. No replacement notice appears while it is false.
+    for (const switchSet of [false, true, false]) {
+      await page.evaluate(async ({ site, switchSet }) => {
+        window.__SHOWCASE__.storageSwitchSet = switchSet;
+        hideRowPanel(site);
+        await openStorage(site, false);
+      }, { site, switchSet });
+      for (const name of ['unconverted', 'kv_presets']) {
+        assert.equal((await card(name).innerText()).includes('Not converted. Presets are ending; rules replace them.'), switchSet);
+        assert.equal(await card(name).locator('select[name="preset"]').count(), 1);
+      }
+      for (const name of ['converted', 'kv_rules', 'photos']) {
+        assert(!/Not converted|Presets are ending/.test(await card(name).innerText()));
+      }
     }
     await page.screenshot({ fullPage: true, path: `${shots}/rules-${width}.png` });
     // Valid JSON containing a broken expression must reach server validation.

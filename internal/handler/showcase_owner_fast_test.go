@@ -1,11 +1,31 @@
 package handler
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"golang.org/x/net/html"
 )
+
+func TestShowcaseStorageSwitchUnset(t *testing.T) {
+	h := chromeTestHandler(platformTestEdition())
+	data := showcaseData{Handle: "owner", MainURL: "https://simple-host.app"}
+	page, err := h.pipeline().showcasePage(ChromeData{}, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), `"storageSwitchSet":false`) {
+		t.Fatal("dashboard must receive an unset storage switch until R4-S3 lands")
+	}
+	feed, err := json.Marshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(feed), "storageSwitchSet") {
+		t.Fatal("dashboard notice setting leaked into the public showcase feed")
+	}
+}
 
 // TestShowcaseOwnerFastPath pins the owner dashboard's load shape: the public
 // gallery is hidden before first paint for the handle this browser signed in

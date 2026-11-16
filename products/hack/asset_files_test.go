@@ -1,6 +1,7 @@
 package hack
 
 import (
+	"bytes"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"net/http"
@@ -13,6 +14,34 @@ import (
 	"github.com/vsriram/simple-host/internal/webassets"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
+
+func TestStoragePanelSharesNoticeGate(t *testing.T) {
+	sh := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	assets := Extension().Assets(sh)
+	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
+	page, err := sh.Pages().ChromePage(httptest.NewRequest(http.MethodGet, "/owner", nil), "showcase.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shared, err := webassets.Static.ReadFile("static/showcase.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	panel := func(page []byte) []byte {
+		start := bytes.Index(page, []byte("async function openStorage("))
+		if start < 0 {
+			t.Fatal("Storage panel missing")
+		}
+		end := bytes.Index(page[start:], []byte("var ruleEditors"))
+		if end < 0 {
+			t.Fatal("Storage cards missing")
+		}
+		return page[start : start+end]
+	}
+	if !bytes.Equal(panel(page), panel(shared)) {
+		t.Fatal("Hack must use the same Storage notice gate as Host")
+	}
+}
 
 // The two tables keep the contract's meaning: Replace holds platform names
 // only, Own holds names the platform does not have, no name is in both, and

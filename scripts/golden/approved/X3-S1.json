@@ -1,0 +1,33 @@
+{
+  "slice": "X3-S1",
+  "entries": [
+    {
+      "product": "host",
+      "request": "showcase-page",
+      "reason": "X3-S1 supplies an unset page-only switch boolean and gates the preset retirement line on it until R4-S3 registers the switch date.",
+      "at": "text",
+      "removed": [
+        "    var SHOWCASE = window.__SHOWCASE__ = {\"handle\":\"owner\",\"bio\":\"\",\"sitesBaseUrl\":\"https://sites.golden-host.invalid\",\"publicShowcaseUrl\":\"https://sites.golden-host.invalid/owner\",\"ownerAppUrl\":\"https://golden-host.invalid/owner\",\"mainUrl\":\"https://golden-host.invalid\",\"sites\":[{\"name\":\"redirect-site\",\"url\":\"https://sites.golden-host.invalid/owner/redirect-site/\",\"created_at\":\"<ts>\",\"visibility\":\"public\",\"updated_at\":\"<ts>\",\"pinned\":false,\"order\":0}]};",
+        "            (resource.name && resource.kind !== 'files' ? '<p class=\"panel-note\">Not converted. Presets are ending; rules replace them.</p>' : '') +"
+      ],
+      "added": [
+        "    var SHOWCASE = window.__SHOWCASE__ = {\"handle\":\"owner\",\"bio\":\"\",\"sitesBaseUrl\":\"https://sites.golden-host.invalid\",\"publicShowcaseUrl\":\"https://sites.golden-host.invalid/owner\",\"ownerAppUrl\":\"https://golden-host.invalid/owner\",\"mainUrl\":\"https://golden-host.invalid\",\"sites\":[{\"name\":\"redirect-site\",\"url\":\"https://sites.golden-host.invalid/owner/redirect-site/\",\"created_at\":\"<ts>\",\"visibility\":\"public\",\"updated_at\":\"<ts>\",\"pinned\":false,\"order\":0}],\"storageSwitchSet\":false};",
+        "            (SHOWCASE.storageSwitchSet && resource.name && resource.kind !== 'files' ? '<p class=\"panel-note\">Not converted. Presets are ending; rules replace them.</p>' : '') +"
+      ]
+    },
+    {
+      "product": "host",
+      "request": "rules-on/showcase-page",
+      "reason": "X3-S1 supplies an unset page-only switch boolean and gates the preset retirement line on it until R4-S3 registers the switch date.",
+      "at": "text",
+      "removed": [
+        "    var SHOWCASE = window.__SHOWCASE__ = {\"handle\":\"rules-owner\",\"bio\":\"\",\"sitesBaseUrl\":\"https://sites.golden-host.invalid\",\"publicShowcaseUrl\":\"https://sites.golden-host.invalid/rules-owner\",\"ownerAppUrl\":\"https://golden-host.invalid/rules-owner\",\"mainUrl\":\"https://golden-host.invalid\",\"sites\":[]};",
+        "            (resource.name && resource.kind !== 'files' ? '<p class=\"panel-note\">Not converted. Presets are ending; rules replace them.</p>' : '') +"
+      ],
+      "added": [
+        "    var SHOWCASE = window.__SHOWCASE__ = {\"handle\":\"rules-owner\",\"bio\":\"\",\"sitesBaseUrl\":\"https://sites.golden-host.invalid\",\"publicShowcaseUrl\":\"https://sites.golden-host.invalid/rules-owner\",\"ownerAppUrl\":\"https://golden-host.invalid/rules-owner\",\"mainUrl\":\"https://golden-host.invalid\",\"sites\":[],\"storageSwitchSet\":false};",
+        "            (SHOWCASE.storageSwitchSet && resource.name && resource.kind !== 'files' ? '<p class=\"panel-note\">Not converted. Presets are ending; rules replace them.</p>' : '') +"
+      ]
+    }
+  ]
+}

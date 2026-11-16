@@ -334,7 +334,12 @@ func (p *assetPipeline) showcasePage(d ChromeData, data showcaseData) ([]byte, e
 	}
 	// json.Marshal HTML-escapes <, >, & by default, so the injected blob cannot
 	// break out of the <script> even if a value somehow contained markup.
-	blob, err := json.Marshal(data)
+	// R4-S3 will set this from STORAGE_SWITCH_AT when that setting lands.
+	// Keep it page-only so the public showcase feed is unchanged.
+	blob, err := json.Marshal(struct {
+		showcaseData
+		StorageSwitchSet bool `json:"storageSwitchSet"`
+	}{showcaseData: data})
 	if err != nil {
 		return nil, err
 	}
