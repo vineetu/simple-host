@@ -3,7 +3,7 @@ package papermetrics
 import (
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/testdb"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 // TestMain runs this package's tests in a disposable per-process database

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/testdb"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 

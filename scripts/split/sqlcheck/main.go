@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func findRoot(dir string) (string, error) {
@@ -62,14 +63,16 @@ func run(root string, args []string, out, errs io.Writer) int {
 	if e != nil {
 		return fail(e)
 	}
-	// Ownership analysis needs both halves after the schema split.
+	// Ownership analysis needs both halves; the product schema itself is the
+	// authoritative object list for the enforced platform query scan.
+	var productSchema schemaInfo
 	if o.Schema == "db/schema.sql" {
 		product, err := os.ReadFile(path("products/hack/db/schema.sql"))
-		if err == nil {
-			b = append(append(b, '\n'), product...)
-		} else if !os.IsNotExist(err) {
+		if err != nil {
 			return fail(err)
 		}
+		productSchema = parseSchema(string(product))
+		b = append(append(b, '\n'), product...)
 	}
 	z := parseSchema(string(b))
 	objects, e := readObjects(path(o.Objects))
@@ -137,6 +140,26 @@ func run(root string, args []string, out, errs io.Writer) int {
 	}
 	if *fix {
 		return fail(fmt.Errorf("-fix requires -migrations"))
+	}
+	if o.Schema == "db/schema.sql" && o.Objects == "scripts/split/hack-objects.txt" {
+		objects = nil
+		for _, name := range sortedKeys(productSchema.Tables) {
+			objects = append(objects, object{Kind: "table", Name: name})
+		}
+		for _, name := range sortedKeys(productSchema.Functions) {
+			objects = append(objects, object{Kind: "function", Name: name})
+		}
+		for _, name := range sortedKeys(productSchema.Triggers) {
+			objects = append(objects, object{Kind: "trigger", Name: name})
+		}
+		for _, column := range sortedKeys(productSchema.Columns) {
+			for _, qualified := range productSchema.Columns[column] {
+				if !productSchema.Tables[strings.SplitN(qualified, ".", 2)[0]] {
+					objects = append(objects, object{Kind: "column", Name: qualified})
+				}
+			}
+		}
+		o.Objects = "products/hack/db/schema.sql"
 	}
 	r, e := scan(root, o, objects, z)
 	if e != nil {

@@ -25,10 +25,11 @@ import (
 	opsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
 	"github.com/vsriram/simple-host/internal/storage"
-	"github.com/vsriram/simple-host/internal/testdb"
+	recording "github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 const imageOwnerID = "10000000-0000-0000-0000-000000000001"
@@ -307,7 +308,7 @@ func assertProductTakenDown(t *testing.T, db *sql.DB, want bool) {
 func TestProductImageTakeDownTransaction(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(fmt.Sprint("suspension failure=", fail), func(t *testing.T) {
-			db, rec := testdb.OpenRecording(testdb.Fresh(t))
+			db, rec := recording.OpenRecording(testdb.Fresh(t))
 			t.Cleanup(func() { db.Close() })
 			seedProductImage(t, db)
 			if fail {

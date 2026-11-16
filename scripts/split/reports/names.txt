@@ -6,14 +6,9 @@
 Findings: 0
 
 ## Test files and fixtures
-db/migrations/migrations_test.go:265 | identifier | TestZPHackApplicationsMigratesPreExistingRows
-db/migrations/migrations_test.go:441 | identifier | TestUpgradeFromHackV0813
-db/migrations/one_name_test.go:10 | identifier | TestHackOneNameBackfill
-db/migrations/testdata/hack-v0.8.13-schema.sql:0 | filename | hack-v0.8.13-schema.sql
-db/migrations/testdata/hack-v0.8.13-tracked.txt:0 | filename | hack-v0.8.13-tracked.txt
 internal/server/testdata/routes-hack.txt:0 | filename | routes-hack.txt
 internal/server/testdata/workers-hack.txt:0 | filename | workers-hack.txt
-Findings: 7
+Findings: 2
 
 ## Generated inventories
 Not scanned: docs/generated/ is the union of both products.

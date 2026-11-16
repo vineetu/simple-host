@@ -17,8 +17,9 @@
 #      its anonymous volume) on exit.
 #   3. Otherwise, this script fails loudly -- it never silently skips.
 #
-# A uniquely named database is created inside that server, db/schema.sql is
-# applied with `psql -v ON_ERROR_STOP=1`, and it is dropped on exit. Nothing
+# Two uniquely named templates are created inside that server: the platform
+# schema alone, and the platform followed by the product schema. The resolved
+# package directory selects its template; both are dropped on exit. Nothing
 # here ever touches a database named anything but its own throwaway one, and
 # it never uses sudo or the box's shared/production Postgres. Cleanup only
 # ever acts on resources THIS run actually created (recorded by ID, not by a
@@ -54,7 +55,7 @@ container_id=""
 dbname=""
 admin_url=""
 json_file=""
-db_created=0
+created_databases=()
 go_test_pid=""
 
 cleanup() {
@@ -65,16 +66,16 @@ cleanup() {
     kill -TERM -- "-$go_test_pid" 2>/dev/null || true
     wait "$go_test_pid" 2>/dev/null || true
   fi
-  if [ "$db_created" -eq 1 ] && [ -n "$dbname" ] && [ -n "$admin_url" ]; then
+  for owned_db in "${created_databases[@]}"; do
     # An interrupted test cannot run testdb's deferred cleanup. Remove only
-    # clones of THIS run's uniquely named template, before the template.
+    # clones of THIS run's uniquely named templates, before the templates.
     psql "$admin_url" -XAt -v ON_ERROR_STOP=1 -c \
-      "SELECT format('DROP DATABASE %I WITH (FORCE);', datname) FROM pg_database WHERE starts_with(datname, '${dbname}_t');" \
+      "SELECT format('DROP DATABASE %I WITH (FORCE);', datname) FROM pg_database WHERE starts_with(datname, '${owned_db}_t');" \
       | psql "$admin_url" -X -v ON_ERROR_STOP=1 >/dev/null 2>&1 \
-      || echo "warning: failed to drop clones of $dbname -- clean up manually" >&2
-    psql "$admin_url" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$dbname\";" >/dev/null 2>&1 \
-      || echo "warning: failed to drop throwaway database $dbname -- clean up manually" >&2
-  fi
+      || echo "warning: failed to drop clones of $owned_db -- clean up manually" >&2
+    psql "$admin_url" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$owned_db\";" >/dev/null 2>&1 \
+      || echo "warning: failed to drop throwaway database $owned_db -- clean up manually" >&2
+  done
   if [ -n "$container_id" ]; then
     # -v also removes the image's anonymous data volume; without it every
     # run leaks one.
@@ -101,7 +102,7 @@ if [ -n "${TEST_PG_URL:-}" ]; then
   rest="${rest#*@}"
   if [[ "$rest" == *"/"* || "$rest" == *"?"* ]]; then
     echo "FAIL: TEST_PG_URL must be a bare server URL with no path or query string," >&2
-    echo "      e.g. postgres://postgres:postgres@127.0.0.1:5432 -- got: $TEST_PG_URL" >&2
+    echo "      e.g. postgres://postgres:postgres@127.0.0.1:5432 " >&2
     exit 1
   fi
   base="${TEST_PG_URL%/}"
@@ -161,76 +162,103 @@ fi
 
 dbname="sh_it_$$_$(openssl rand -hex 4)"
 admin_url="${base}/postgres?sslmode=disable"
-target_url="${base}/${dbname}?sslmode=disable"
+platform_url="${base}/${dbname}_platform?sslmode=disable"
+product_url="${base}/${dbname}_product?sslmode=disable"
 
-echo "== creating throwaway database $dbname =="
-# Bash runs a pending signal trap when psql returns, before the next command.
-# Record CREATE's result and ownership before honoring an interrupted setup.
-setup_signal=0
-trap 'setup_signal=130' INT
-trap 'setup_signal=143' TERM
-if psql "$admin_url" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$dbname\";" >/dev/null; then
-  db_created=1
-fi
-trap 'exit 130' INT
-trap 'exit 143' TERM
-if [ "$setup_signal" -ne 0 ]; then
-  exit "$setup_signal"
-fi
-if [ "$db_created" -ne 1 ]; then
-  echo "FAIL: could not create database $dbname" >&2
-  exit 1
-fi
-
-echo "== applying db/schema.sql =="
-if ! psql "$target_url" -v ON_ERROR_STOP=1 -f db/schema.sql >/dev/null; then
-  echo "FAIL: db/schema.sql failed to apply to the throwaway database" >&2
-  exit 1
-fi
-# Until D3-S5d separates package templates, the suite uses the composed schema.
-if [ -f products/hack/db/schema.sql ]; then
-  if ! psql "$target_url" -v ON_ERROR_STOP=1 -f products/hack/db/schema.sql >/dev/null; then
-    echo "FAIL: product schema failed to apply to the throwaway database" >&2
+for schema_set in platform product; do
+  template_name="${dbname}_${schema_set}"
+  target_url="${base}/${template_name}?sslmode=disable"
+  echo "== creating throwaway database $template_name =="
+  # Record CREATE's result before honoring an interrupt during psql.
+  setup_signal=0
+  trap 'setup_signal=130' INT
+  trap 'setup_signal=143' TERM
+  if psql "$admin_url" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$template_name\";" >/dev/null; then
+    created_databases+=("$template_name")
+  fi
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  if [ "$setup_signal" -ne 0 ]; then
+    exit "$setup_signal"
+  fi
+  if [ "${#created_databases[@]}" -eq 0 ] || [ "${created_databases[-1]}" != "$template_name" ]; then
+    echo "FAIL: could not create $schema_set template" >&2
     exit 1
   fi
-fi
+
+  echo "== applying db/schema.sql ($schema_set template) =="
+  if ! psql "$target_url" -v ON_ERROR_STOP=1 -f db/schema.sql >/dev/null; then
+    echo "FAIL: platform schema failed to apply to the throwaway database" >&2
+    exit 1
+  fi
+  if [ "$schema_set" = product ]; then
+    echo "== applying products/hack/db/schema.sql (product template) =="
+    if ! psql "$target_url" -v ON_ERROR_STOP=1 -f products/hack/db/schema.sql >/dev/null; then
+      echo "FAIL: product schema failed to apply to the throwaway database" >&2
+      exit 1
+    fi
+  fi
+done
 
 test_pkgs="${TEST_PKGS:-./...}"
 test_count="${TEST_COUNT:-1}"
+platform_packages=()
+product_packages=()
+# Resolve patterns before selecting a database. An import path, ./..., or an
+# explicit directory all give the same schema for a package under products/.
+# $test_pkgs is intentionally split into package patterns.
+if ! package_list=$(go list -f '{{.ImportPath}} {{.Dir}}' $test_pkgs); then
+  echo "FAIL: could not resolve TEST_PKGS" >&2
+  exit 1
+fi
+repo_root="$PWD"
+while read -r import_path package_dir; do
+  [ -n "$import_path" ] || continue
+  case "$package_dir" in
+    "$repo_root"/products/*) product_packages+=("$import_path") ;;
+    *) platform_packages+=("$import_path") ;;
+  esac
+done <<< "$package_list"
+
 echo "== running go test $test_pkgs (DB_DSN set; TESTDB_ISOLATE=1; forcing -p $test_workers -count=$test_count -json) =="
 json_file=$(mktemp)
-# "$@" comes first so our own -p/-count/-json always win over anything in
-# it trying to turn JSON output off -- go's flag parser takes the last
-# occurrence of a repeated flag. Packages go LAST, after every flag: go test
-# stops parsing its own flags at the first package path, so a path inside
-# "$@" would hand -json to the test binary instead. Pass packages via
-# TEST_PKGS (space-separated), never in "$@".
-# TESTDB_ISOLATE=1 makes each test package's TestMain (internal/testdb)
-# clone this database into its own throwaway copy, so this one stays an
-# untouched, connection-free template.
-# MIGRATE_TEST_DSN is cleared: the migration tests drop columns and need an
-# EMPTY database, so they belong to scripts/check-fresh-install.sh (also run
-# by `make check`), never to a database inherited from the caller's shell.
-# $test_pkgs is unquoted on purpose: it may list several packages.
-# Job control gives this job a separate process group. Waiting on a background
-# job lets the signal traps run immediately, instead of after go test finishes.
-set -m
-# Record the job's PID before honoring an interrupt so cleanup always stops
-# and waits for the runner before dropping its databases.
-launch_signal=0
-trap 'launch_signal=130' INT
-trap 'launch_signal=143' TERM
-DB_DSN="$target_url" MIGRATE_TEST_DSN= TESTDB_ISOLATE=1 go test "$@" -p "$test_workers" -count="$test_count" -json $test_pkgs >"$json_file" 2>&1 &
-go_test_pid=$!
-trap 'exit 130' INT
-trap 'exit 143' TERM
-if [ "$launch_signal" -ne 0 ]; then
-  exit "$launch_signal"
-fi
-set +m
-wait "$go_test_pid"
-go_test_exit=$?
-go_test_pid=""
+go_test_exit=0
+for schema_set in platform product; do
+  if [ "$schema_set" = platform ]; then
+    packages=("${platform_packages[@]}")
+    target_url="$platform_url"
+  else
+    packages=("${product_packages[@]}")
+    target_url="$product_url"
+  fi
+  [ "${#packages[@]}" -gt 0 ] || continue
+  echo "== $schema_set schema: ${#packages[@]} packages =="
+  # Packages choose DB_DSN here; the fixture helpers also receive the two
+  # schema sets explicitly, so Fresh always clones the caller's schema.
+  # Clear inherited migration DSNs: those tests require empty databases and
+  # belong to check-fresh-install.sh, never to a schema template.
+  # Forced flags follow caller arguments; package paths come last.
+  set -m
+  launch_signal=0
+  trap 'launch_signal=130' INT
+  trap 'launch_signal=143' TERM
+  DB_DSN="$target_url" MIGRATE_TEST_DSN= TESTDB_ISOLATE=1 \
+    TESTDB_PLATFORM_DSN="$platform_url" TESTDB_PRODUCT_DSN="$product_url" \
+    go test "$@" -p "$test_workers" -count="$test_count" -json "${packages[@]}" >>"$json_file" 2>&1 &
+  go_test_pid=$!
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  if [ "$launch_signal" -ne 0 ]; then
+    exit "$launch_signal"
+  fi
+  set +m
+  wait "$go_test_pid"
+  test_exit=$?
+  if [ "$test_exit" -ne 0 ]; then
+    go_test_exit="$test_exit"
+  fi
+  go_test_pid=""
+done
 
 echo
 python3 scripts/lib/summarize-go-test.py "$json_file" "$go_test_exit"

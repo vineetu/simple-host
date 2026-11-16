@@ -14,8 +14,8 @@ import (
 	schema "github.com/vsriram/simple-host/db"
 	"github.com/vsriram/simple-host/db/migrations"
 	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
-	"github.com/vsriram/simple-host/internal/testdb"
 	productmigrations "github.com/vsriram/simple-host/products/hack/db/migrations"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 func TestProductCatalogOrder(t *testing.T) {

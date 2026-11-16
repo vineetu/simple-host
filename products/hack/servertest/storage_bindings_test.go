@@ -16,10 +16,10 @@ import (
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/server"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 const bindingWebsite = "00000000-0000-4000-8000-000000000026"

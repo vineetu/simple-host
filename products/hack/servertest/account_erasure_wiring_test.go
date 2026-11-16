@@ -18,10 +18,10 @@ import (
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 type observedErasure struct {

@@ -11,8 +11,8 @@ import (
 	"github.com/vsriram/simple-host/internal/extension"
 	"github.com/vsriram/simple-host/internal/server"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 func TestExtensionGateExactlyOnce(t *testing.T) {

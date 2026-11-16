@@ -7,8 +7,9 @@
 # `test` is the fast loop: go test ./... with no database, so the ~15 DB-backed
 # fixtures (see scripts/test-integration.sh) skip. `test-integration` gives
 # them a disposable Postgres (TEST_PG_URL, or Docker if that's unset) and
-# fails if any of them still skip -- that's what `check` runs. `test-db` is the
-# same run narrowed for chasing a flaky test, e.g.
+# fails if any of them still skip -- that's what `check` runs. Platform packages
+# use the platform schema alone; products/ packages use the composed schema.
+# `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5
 .PHONY: check check-release inventory test test-rules test-integration test-db boundary-report
 
@@ -46,7 +47,7 @@ check:
 	bash scripts/check-layering.sh
 	bash scripts/split/check-all_test.sh
 	bash scripts/split/move_test.sh
-	go run ./scripts/split/sqlcheck -warn -report -
+	go run ./scripts/split/sqlcheck -tests -report -
 	go run ./scripts/split/sqlcheck -migrations
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh

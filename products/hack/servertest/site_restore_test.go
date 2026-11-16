@@ -15,10 +15,10 @@ import (
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
 	"github.com/vsriram/simple-host/internal/storage"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 // Exercise the services built by the handler after Build installs the hook.

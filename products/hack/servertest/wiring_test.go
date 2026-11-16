@@ -5,8 +5,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/extension"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 func TestHackWiring(t *testing.T) {

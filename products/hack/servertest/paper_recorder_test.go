@@ -13,8 +13,8 @@ import (
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 // The platform's handlers reach Hack's counters only through the recorder the

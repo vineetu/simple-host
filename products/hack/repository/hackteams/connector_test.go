@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/testdb"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 func TestMain(m *testing.M) { testdb.Main(m) }

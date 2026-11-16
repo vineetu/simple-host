@@ -11,8 +11,9 @@ import (
 	"testing"
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/testdb"
+	recording "github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack/app/members"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 // Recorded before D2-S8 on the seeded fixture. Roles distinguish every statement,
@@ -69,7 +70,7 @@ func erasureRole(t *testing.T, query string) string {
 func TestAccountErasureStatementOrder(t *testing.T) {
 	for _, name := range []string{"last-member", "only-admin", "running-organiser", "holding-account", "operator-delete", "event-hostname"} {
 		t.Run(name, func(t *testing.T) {
-			db, rec := testdb.OpenRecording(testdb.Fresh(t))
+			db, rec := recording.OpenRecording(testdb.Fresh(t))
 			defer db.Close()
 			seedGroupKeys(t, db)
 			accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}})
@@ -131,7 +132,7 @@ func TestAccountErasureStatementOrder(t *testing.T) {
 }
 
 func TestAccountErasureSeededRehearsal(t *testing.T) {
-	db, _ := testdb.OpenRecording(testdb.Fresh(t))
+	db, _ := recording.OpenRecording(testdb.Fresh(t))
 	defer db.Close()
 	seedGroupKeys(t, db)
 	accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}})

@@ -78,6 +78,8 @@ class RunnerTest(unittest.TestCase):
             shutil.copyfile(ROOT / rel, dest)
         (self.root / "db").mkdir()
         (self.root / "db/schema.sql").write_text("-- empty fixture template\n")
+        (self.root / "products/hack/db").mkdir(parents=True)
+        (self.root / "products/hack/db/schema.sql").write_text("-- empty product fixture\n")
         go_version = re.search(r"^go .+$", (ROOT / "go.mod").read_text(), re.MULTILINE)[0]
         (self.root / "go.mod").write_text(f"module runnerfixture\n\n{go_version}\n")
         for name in ("one", "two"):
@@ -92,9 +94,12 @@ class RunnerTest(unittest.TestCase):
         self.command = ["bash", str(self.root / "scripts/test-integration.sh")]
 
     def assert_databases_removed(self, output):
-        match = re.search(r"creating throwaway database (sh_it_\w+)", output)
-        self.assertIsNotNone(match, output)
-        name = match[1]
+        names = re.findall(r"creating throwaway database (sh_it_\w+)", output)
+        self.assertTrue(names, output)
+        for name in names:
+            self.assert_database_removed(name)
+
+    def assert_database_removed(self, name):
         result = subprocess.run([
             "psql", self.env["TEST_PG_URL"] + "/postgres?sslmode=disable", "-XAt",
             "-v", "ON_ERROR_STOP=1", "-c",
@@ -184,6 +189,7 @@ class RunnerTest(unittest.TestCase):
         bin_dir.mkdir()
         wrapper = bin_dir / "go"
         wrapper.write_text('''#!/usr/bin/env bash
+if [ "$1" = list ]; then exec "$REAL_GO" "$@"; fi
 printf '%s' "$$" > "$LAUNCH_READY"
 exec sleep 60
 ''')
@@ -191,7 +197,7 @@ exec sleep 60
         ready_file = self.root / "launch-ready"
         pid_file = self.root / "launched-pid"
         self.env.update(PATH=str(bin_dir) + os.pathsep + self.env["PATH"],
-                        LAUNCH_READY=str(ready_file), LAUNCH_PID=str(pid_file))
+                        LAUNCH_READY=str(ready_file), LAUNCH_PID=str(pid_file), REAL_GO=shutil.which("go"))
         runner = self.root / "scripts/test-integration.sh"
         source = runner.read_text()
         self.assertEqual(source.count("go_test_pid=$!"), 1)

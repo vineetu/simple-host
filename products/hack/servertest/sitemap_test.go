@@ -15,8 +15,8 @@ import (
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
 	"github.com/vsriram/simple-host/internal/storage"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 // SIM-441's Hack fixture lives with the product so the platform's tests do

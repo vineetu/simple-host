@@ -8,7 +8,7 @@ import (
 
 	_ "github.com/lib/pq"
 	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
-	"github.com/vsriram/simple-host/internal/testdb"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 func TestMain(m *testing.M) { testdb.Main(m) }

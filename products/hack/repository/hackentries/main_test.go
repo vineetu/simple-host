@@ -1,7 +1,7 @@
 package hackentries
 
 import (
-	"github.com/vsriram/simple-host/internal/testdb"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 	"testing"
 )
 

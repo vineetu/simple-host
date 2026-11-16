@@ -19,9 +19,9 @@ import (
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/server"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 type siteGateFunc func(context.Context, *sql.Tx, *model.User, string) *sites.GateError

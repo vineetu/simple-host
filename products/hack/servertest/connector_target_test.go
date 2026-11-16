@@ -18,9 +18,9 @@ import (
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/server"
 	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
+	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 type observedTarget struct {

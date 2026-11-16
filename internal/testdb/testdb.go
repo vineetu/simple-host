@@ -1,5 +1,7 @@
 // Package testdb gives each DB-backed test process its own disposable
-// Postgres database, cloned from the database named in DB_DSN.
+// Postgres database, cloned from the platform-only schema template.
+// Product fixtures supply their composed template through MainWithSchema and
+// FreshWithSchema. The integration runner assigns DB_DSN by package directory.
 //
 // DB-backed test packages call Main from their TestMain:
 //
@@ -38,8 +40,18 @@ func isolating() bool { return os.Getenv("TESTDB_ISOLATE") == "1" }
 // Main runs the package's tests, inside a per-process clone of the DB_DSN
 // database when TESTDB_ISOLATE=1. It never returns.
 func Main(m *testing.M) {
-	dsn := os.Getenv("DB_DSN")
-	if !isolating() || dsn == "" {
+	MainWithSchema(m, os.Getenv("TESTDB_PLATFORM_DSN"))
+}
+
+// MainWithSchema runs tests with the caller's schema set, represented by an
+// already-built template DSN. An empty template uses DB_DSN for ad-hoc runs.
+// The integration runner selects DB_DSN by package independently of this helper.
+func MainWithSchema(m *testing.M, template string) {
+	dsn := template
+	if dsn == "" {
+		dsn = os.Getenv("DB_DSN")
+	}
+	if !isolating() || os.Getenv("DB_DSN") == "" {
 		os.Exit(m.Run())
 	}
 	cloneDSN, drop, err := clone(dsn)
@@ -66,7 +78,17 @@ func Main(m *testing.M) {
 // one DB-backed test may call Fresh without installing Main.
 func Fresh(t *testing.T) string {
 	t.Helper()
-	tmpl := os.Getenv(templateEnv)
+	return FreshWithSchema(t, os.Getenv("TESTDB_PLATFORM_DSN"))
+}
+
+// FreshWithSchema clones the caller's schema set. With no explicit template it
+// uses the process's original template, or DB_DSN outside MainWithSchema.
+func FreshWithSchema(t *testing.T, template string) string {
+	t.Helper()
+	tmpl := template
+	if tmpl == "" {
+		tmpl = os.Getenv(templateEnv)
+	}
 	if tmpl == "" {
 		tmpl = os.Getenv("DB_DSN")
 	}
