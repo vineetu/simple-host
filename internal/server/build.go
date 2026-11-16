@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"time"
 	_ "time/tzdata" // Container images have no zoneinfo.
 
+	"github.com/vsriram/simple-host/db/migrations"
 	"github.com/vsriram/simple-host/internal/analytics"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
@@ -114,20 +116,30 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 
 	mux := http.NewServeMux()
 
-	// MIGRATE_ON_START=true (Kubernetes, where no install command runs before
-	// the pod): build an empty database from the embedded schema.sql and apply
+	// Product identity is checked before migration or any other database write.
+	// Migration takes the same lock again and rechecks, so a concurrent first
+	// start cannot pass this check and then adopt the other program's schema.
+	if cfg.MigrateOnStart {
+		if err := waitForDB(db, 2*time.Minute); err != nil {
+			return nil, err
+		}
+	}
+	if err := migrations.WithLock(context.Background(), db, func(conn *sql.Conn) error {
+		return checkProduct(context.Background(), conn, exts, false)
+	}); err != nil {
+		return nil, fmt.Errorf("product check: %w", err)
+	}
+
+	// MIGRATE_ON_START=true: build an empty database from the embedded schema.sql and apply
 	// every pending migration, under the migrate advisory lock, before the
 	// schema check below. A database that is still starting is waited for.
 	if cfg.MigrateOnStart {
 		log.Printf("MIGRATE_ON_START: building the schema if the database is empty, then applying pending migrations")
-		if err := waitForDB(db, 2*time.Minute); err != nil {
-			return nil, fmt.Errorf("migrate on start: database not reachable: %v", err)
-		}
 		migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), 15*time.Minute)
-		migrateErr := migrateDatabase(migrateCtx, db, exts, true, log.Printf)
+		migrateErr := migrateDatabase(migrateCtx, db, exts, true, log.Printf, false)
 		cancelMigrate()
 		if migrateErr != nil {
-			return nil, fmt.Errorf("migrate on start: %v", migrateErr)
+			return nil, fmt.Errorf("migrate on start: %w", migrateErr)
 		}
 	}
 

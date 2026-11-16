@@ -70,11 +70,12 @@ internal/storage/runtime_sqlite.go:446 | CheckReferences | non-constant: strings
 internal/storage/runtime_sqlite.go:674 | TableInfo | non-constant: Quote(table) | SELECT * FROM ‹?Quote(table)› LIMIT 0
 internal/testdb/testdb.go:151 | clone | non-constant: pq.QuoteIdentifier(name) | DROP DATABASE IF EXISTS ‹?pq.QuoteIdentifier(name)› WITH (FORCE)
 
-5. Same word as a platform column, for a person to confirm (4)
+5. Same word as a platform column, for a person to confirm (5)
 internal/repository/notifications/notifications.go:140 | SaveNotification | site_notifications.events (name lines: 140, 145) | INSERT INTO site_notifications(id,site_id,owner_id,source,grant_id,app_name,label,url,events,storage,args_canonical,secret,auth_header_name,auth_header_value,ve…
 internal/repository/notifications/notifications.go:444 | emitSiteEvent | site_notifications.events (name lines: 445) | INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications WHERE site_id=$2 AND state IN ('active','suspended') AND $3=AN…
 internal/repository/notifications/notifications.go:721 | UpsertPushSubscription | site_notifications.events | INSERT INTO site_notifications(id,site_id,owner_id,source,label,url,events,storage,secret,kind,subscriber_role,push_p256dh,push_auth,device_label,verified_at,st…
 internal/repository/notifications/notifications.go:725 | UpsertPushSubscription | site_notifications.events | UPDATE site_notifications SET events=$2,label=$3,push_p256dh=$4,push_auth=$5,device_label=$6,verified_at=$7,push_family=$8, state='active',suspended_at=NULL,sus…
+internal/server/product.go:91 | productEvidence | site_notifications.events | SELECT to_regclass('public.events') IS NOT NULL
 
 6. Not SQL: Go lists that name Hack tables or columns (5)
 internal/handler/connector.go:919 | ConnectorHandler.scopesSupported | events (also the platform column site_notifications.events) | events

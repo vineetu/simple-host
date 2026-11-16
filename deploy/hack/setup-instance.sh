@@ -19,7 +19,6 @@ for a in "$@"; do
 done
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-REPO=$(cd "$HERE/../.." && pwd)
 
 HACK_USER=${HACK_USER:-simplehack}
 HACK_GROUP=${HACK_GROUP:-$HACK_USER}
@@ -31,8 +30,6 @@ SYSTEMD_DIR=${SYSTEMD_DIR:-/etc/systemd/system}
 LOGROTATE_DEST=${LOGROTATE_DEST:-/etc/logrotate.d/simple-hack}
 SITE_CERTS_CONF=${SITE_CERTS_CONF:-/etc/simple-host-site-certs-hack.conf}
 SITE_CERTS_DIR=${SITE_CERTS_DIR:-$HERE/../site-certs}
-SCHEMA=${SCHEMA:-$REPO/db/schema.sql}
-PRODUCT_SCHEMA=${PRODUCT_SCHEMA:-$REPO/products/hack/db/schema.sql}
 SIMPLE_HOST=${SIMPLE_HOST:-/usr/local/bin/simple-host}
 PSQL=${PSQL:-sudo -u postgres psql}
 PG_ROLE=${PG_ROLE:-simplehack}
@@ -65,11 +62,6 @@ db_exists() {
   local out
   out=$(psql_super -tAc "SELECT 1 FROM pg_database WHERE datname='${PG_DB}'") || die "cannot reach Postgres to look up database $PG_DB"
   [[ "$out" == *1* ]]
-}
-users_table_exists() {
-  local out
-  out=$(psql_super -d "$PG_DB" -tAc "SELECT to_regclass('public.users')" 2>/dev/null || true)
-  [[ "$out" == *users* ]]
 }
 user_exists() {
   getent passwd "$HACK_USER" >/dev/null 2>&1
@@ -169,9 +161,7 @@ if [ "$MODE" = dry ]; then
   else say "would create Postgres role $PG_ROLE (generated password)"; fi
   if db_exists; then say "ok: Postgres database $PG_DB exists"
   else say "would create Postgres database $PG_DB owned by $PG_ROLE"; fi
-  if db_exists && users_table_exists; then say "ok: $PG_DB already has a users table"
-  else say "would apply $SCHEMA then $PRODUCT_SCHEMA to $PG_DB as $PG_ROLE (if no users table)"; fi
-  say "would run $SIMPLE_HOST migrate"
+  say "would run $SIMPLE_HOST migrate -init -record-product"
   if [ -f "$ENV_FILE" ]; then say "ok: $ENV_FILE exists (left untouched)"
   else
     say "would write $ENV_FILE (0600 root:root) with generated secrets"
@@ -239,19 +229,8 @@ fi
 dsn=$(dsn_from_env)
 [ -n "$dsn" ] || die "$ENV_FILE has no DB_DSN"
 
-if users_table_exists; then
-  say "ok: $PG_DB already has a users table"
-else
-  [ -f "$SCHEMA" ] || die "missing $SCHEMA"
-  [ -f "$PRODUCT_SCHEMA" ] || die "missing $PRODUCT_SCHEMA"
-  # As the superuser, switched to the app role, so the app role owns every
-  # object and no password travels on a command line.
-  { printf 'SET ROLE %s;\n' "$PG_ROLE"; cat "$SCHEMA" "$PRODUCT_SCHEMA"; } | psql_super -q -v ON_ERROR_STOP=1 -d "$PG_DB" >/dev/null
-  say "applied schema to $PG_DB"
-fi
-
-EVENTS=hosted DB_DSN="$dsn" "$SIMPLE_HOST" migrate
-say "ran $SIMPLE_HOST migrate"
+EVENTS=hosted DB_DSN="$dsn" "$SIMPLE_HOST" migrate -init -record-product
+say "ran $SIMPLE_HOST migrate -init -record-product"
 
 install_units
 say "installed unit, logrotate, site-certs conf and units; path and timer enabled"

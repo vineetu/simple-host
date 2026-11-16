@@ -18,7 +18,6 @@ chk() { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 R="$T/root"
 mkdir -p "$T/bin" "$T/pg" "$R/etc" "$R/etc/systemd/system" "$R/etc/logrotate.d" \
   "$R/srv" "$R/var/log"
-echo "CREATE TABLE users (id int);" > "$T/schema.sql"
 cat > "$T/host.env" <<'EOF'
 RESEND_API_KEY=re_test_secret_do_not_print
 GOOGLE_OAUTH_CLIENT_ID=gid.apps.googleusercontent.com
@@ -109,9 +108,6 @@ export SYSTEMD_DIR="$R/etc/systemd/system"
 export LOGROTATE_DEST="$R/etc/logrotate.d/simple-hack"
 export SITE_CERTS_CONF="$R/etc/simple-host-site-certs-hack.conf"
 export SITE_CERTS_DIR="$HERE/../site-certs"
-export SCHEMA="$T/schema.sql"
-export PRODUCT_SCHEMA="$T/product-schema.sql"
-printf '%s\n' '-- product schema fixture' > "$PRODUCT_SCHEMA"
 export SIMPLE_HOST="$T/bin/simple-host"
 
 run() { bash "$S" "$@"; }
@@ -161,7 +157,7 @@ done
 chk "no secret printed to stdout/stderr" "[ $secret_printed = 0 ]"
 chk "sites dir created" "[ -d '$R/srv/simple-hack/sites' ]"
 chk "log dir created" "[ -d '$R/var/log/simple-hack' ]"
-chk "useradd, migrate, daemon-reload, enable path and timer" "grep -q 'useradd --system' '$T/calls' && grep -q 'simple-host migrate' '$T/calls' && grep -q 'systemctl daemon-reload' '$T/calls' && grep -q 'systemctl enable --now simple-host-site-certs-hack.path simple-host-site-certs-hack.timer' '$T/calls'"
+chk "useradd, migrate, daemon-reload, enable path and timer" "grep -q 'useradd --system' '$T/calls' && grep -qx 'simple-host migrate -init -record-product' '$T/calls' && grep -q 'systemctl daemon-reload' '$T/calls' && grep -q 'systemctl enable --now simple-host-site-certs-hack.path simple-host-site-certs-hack.timer' '$T/calls'"
 chk "simple-hack.service was not started" "! grep -q 'systemctl start simple-hack' '$T/calls' && ! grep -q 'systemctl enable --now simple-hack.service' '$T/calls'"
 chk "unit, logrotate and site-certs conf installed" "[ -f '$R/etc/systemd/system/simple-hack.service' ] && [ -f '$R/etc/logrotate.d/simple-hack' ] && [ -f '$R/etc/simple-host-site-certs-hack.conf' ]"
 chk "site-certs path and timer units installed" "[ -f '$R/etc/systemd/system/simple-host-site-certs-hack.path' ] && [ -f '$R/etc/systemd/system/simple-host-site-certs-hack.timer' ]"
@@ -173,6 +169,6 @@ meta=$(stat -c '%Y %s %a' "$ENVF")
 out=$(run --apply 2>&1) || { echo "$out"; bad "second --apply exited non-zero"; }
 chk "second --apply leaves the env file untouched" "cmp -s '$ENVF' '$T/env.first' && [ \"\$(stat -c '%Y %s %a' '$ENVF')\" = '$meta' ]"
 chk "second --apply does not create the user again" "! grep -q useradd '$T/calls'"
-chk "second --apply still migrates" "grep -q 'simple-host migrate' '$T/calls'"
+chk "second --apply still migrates" "grep -qx 'simple-host migrate -init -record-product' '$T/calls'"
 
 [ "$fail" = 0 ] && echo "setup-instance: ok" || { echo "setup-instance: FAILED"; exit 1; }

@@ -37,7 +37,9 @@ type Extension struct {
 	// It also runs after migration verification; nil adds no product checks.
 	CheckSchema func(context.Context, *sql.DB) error
 	Name        string
-	Edition     func(config.Limits) *edition.Edition
+	// ValidateProduct checks product evidence before adopting an existing database.
+	ValidateProduct func(context.Context, *sql.Conn) error
+	Edition         func(config.Limits) *edition.Edition
 	// Migrations and MigrationOrder supply the product catalogue and the frozen
 	// combined order of platform and product unnumbered migrations.
 	Migrations     *migrations.Catalog

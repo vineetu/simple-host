@@ -254,7 +254,7 @@ say "fetching compose files"
 # Every directory first, then every fetch. A transient failure part-way through
 # used to leave a half-populated directory that the next step then failed on
 # for a different reason, which is a miserable thing to debug over SSH.
-mkdir -p "$DIR/deploy/compose" "$DIR/db"
+mkdir -p "$DIR/deploy/compose"
 fetch() {
   local dest=$1 path=$2
   for attempt in 1 2 3; do
@@ -268,7 +268,6 @@ fetch() {
 }
 fetch "$DIR/compose.yaml" compose.yaml
 fetch "$DIR/deploy/compose/Caddyfile" deploy/compose/Caddyfile
-fetch "$DIR/db/schema.sql" db/schema.sql
 
 # The published image is what runs; nothing is ever compiled on this box.
 say "pulling $IMAGE"
@@ -279,11 +278,11 @@ docker compose pull --quiet
 # server refuses to start against a database behind it. So the database is
 # brought up first and `simple-host migrate` (from the image just pulled) applies
 # whatever that release added, each file once, before the new app starts. On a
-# new volume Postgres loads schema.sql first; migrate then runs and records each
-# file, and a file whose effect schema.sql already has changes nothing.
+# new volume migrate builds the schema and product record atomically. An
+# existing install is explicitly recorded after its product evidence is checked.
 say "updating the database"
 docker compose up -d --no-build db
-if ! docker compose run --rm -T app migrate; then
+if ! docker compose run --rm -T app migrate -init -record-product; then
   echo "FAILED: the database could not be brought up to $VERSION." >&2
   echo "The app was not restarted. Diagnose with: cd $DIR && docker compose logs --tail 50 db" >&2
   exit 1

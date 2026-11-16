@@ -26,6 +26,7 @@ func TestProductToolsAfterBuild(t *testing.T) {
 			if product == "hack" {
 				exts = []*extension.Extension{hack.Extension()}
 			}
+			platformtest.RecordProduct(t, cfg, exts)
 			app, err := server.Build(cfg, exts)
 			if err != nil {
 				t.Fatal(err)

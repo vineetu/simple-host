@@ -326,9 +326,9 @@ func (s Set) Status(ctx context.Context, db *sql.DB) ([]Entry, error) {
 	return out, nil
 }
 
-// locked runs fn on one connection holding the migrate advisory lock, with the
-// tracking table in place.
-func locked(ctx context.Context, db *sql.DB, fn func(*sql.Conn) error) error {
+// WithLock runs fn under the migration advisory lock. Taking the lock writes
+// no schema or rows, so callers can validate install identity before any change.
+func WithLock(ctx context.Context, db *sql.DB, fn func(*sql.Conn) error) error {
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return err
@@ -338,9 +338,6 @@ func locked(ctx context.Context, db *sql.DB, fn func(*sql.Conn) error) error {
 		return fmt.Errorf("take the migrate lock: %w", err)
 	}
 	defer conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lockKey)
-	if _, err := conn.ExecContext(ctx, createTable); err != nil {
-		return fmt.Errorf("create schema_migrations: %w", err)
-	}
 	return fn(conn)
 }
 
@@ -349,47 +346,58 @@ func locked(ctx context.Context, db *sql.DB, fn func(*sql.Conn) error) error {
 // left pending, and reports the files applied before it.
 func (s Set) Apply(ctx context.Context, db *sql.DB, logf func(string, ...any)) ([]string, error) {
 	var ran []string
-	err := locked(ctx, db, func(conn *sql.Conn) error {
-		// Read under the lock: a run that waited on another sees its work.
-		done, err := applied(ctx, conn)
-		if err != nil {
-			return err
-		}
-		// Every recorded name counts, including ones this build does not
-		// embed (applied by another branch or a newer build), and a pending
-		// file in the same slot is refused too.
-		tracked := s.Tracked()
-		var newest string
-		for name := range done {
-			if number(name) > number(newest) {
-				newest = name
-			}
-		}
-		for _, name := range tracked {
-			if _, ok := done[name]; !ok && number(name) > 0 && number(name) <= number(newest) {
-				return fmt.Errorf("pending %s is not above applied %s; renumber the new file above the newest applied one", name, newest)
-			}
-		}
-		files := s.files()
-		for _, name := range tracked {
-			if _, ok := done[name]; ok {
-				continue
-			}
-			body, err := files[name].ReadFile(name)
-			if err != nil {
-				return err
-			}
-			if logf != nil {
-				logf("applying %s", name)
-			}
-			if err := applyOne(ctx, conn, name, string(body)); err != nil {
-				return fmt.Errorf("%s: %w (rolled back; nothing after it was run)", name, err)
-			}
-			ran = append(ran, name)
-		}
-		return nil
+	err := WithLock(ctx, db, func(conn *sql.Conn) error {
+		var err error
+		ran, err = s.ApplyConn(ctx, conn, logf)
+		return err
 	})
 	return ran, err
+}
+
+// ApplyConn applies migrations on a connection already holding WithLock.
+func (s Set) ApplyConn(ctx context.Context, conn *sql.Conn, logf func(string, ...any)) ([]string, error) {
+	var ran []string
+	if _, err := conn.ExecContext(ctx, createTable); err != nil {
+		return nil, err
+	}
+	// Read under the lock: a run that waited on another sees its work.
+	done, err := applied(ctx, conn)
+	if err != nil {
+		return ran, err
+	}
+	// Every recorded name counts, including ones this build does not
+	// embed (applied by another branch or a newer build), and a pending
+	// file in the same slot is refused too.
+	tracked := s.Tracked()
+	var newest string
+	for name := range done {
+		if number(name) > number(newest) {
+			newest = name
+		}
+	}
+	for _, name := range tracked {
+		if _, ok := done[name]; !ok && number(name) > 0 && number(name) <= number(newest) {
+			return ran, fmt.Errorf("pending %s is not above applied %s; renumber the new file above the newest applied one", name, newest)
+		}
+	}
+	files := s.files()
+	for _, name := range tracked {
+		if _, ok := done[name]; ok {
+			continue
+		}
+		body, err := files[name].ReadFile(name)
+		if err != nil {
+			return ran, err
+		}
+		if logf != nil {
+			logf("applying %s", name)
+		}
+		if err := applyOne(ctx, conn, name, string(body)); err != nil {
+			return ran, fmt.Errorf("%s: %w (rolled back; nothing after it was run)", name, err)
+		}
+		ran = append(ran, name)
+	}
+	return ran, nil
 }
 
 // applyOne runs one file and records it in a single transaction. The
@@ -416,6 +424,17 @@ func applyOne(ctx context.Context, conn *sql.Conn, name, body string) error {
 // Mark records a file as applied without running it: for a database where the
 // SQL was applied by hand (hosted production).
 func (s Set) Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
+	var added bool
+	err := WithLock(ctx, db, func(conn *sql.Conn) error {
+		var err error
+		added, err = s.MarkConn(ctx, conn, name)
+		return err
+	})
+	return added, err
+}
+
+// MarkConn records a migration on a connection already holding WithLock.
+func (s Set) MarkConn(ctx context.Context, conn *sql.Conn, name string) (bool, error) {
 	known := false
 	for _, n := range s.Tracked() {
 		if n == name {
@@ -428,18 +447,15 @@ func (s Set) Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
 		}
 		return false, fmt.Errorf("%s is not a migration file in this build", name)
 	}
-	var added bool
-	err := locked(ctx, db, func(conn *sql.Conn) error {
-		res, err := conn.ExecContext(ctx,
-			`INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, name)
-		if err != nil {
-			return err
-		}
-		n, _ := res.RowsAffected()
-		added = n == 1
-		return nil
-	})
-	return added, err
+	if _, err := conn.ExecContext(ctx, createTable); err != nil {
+		return false, err
+	}
+	res, err := conn.ExecContext(ctx, `INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, name)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
 }
 
 // Init builds an empty database from the platform then product schema in
@@ -451,31 +467,44 @@ func (s Set) Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
 // tracked file as applied.
 func (s Set) Init(ctx context.Context, db *sql.DB, logf func(string, ...any)) (bool, error) {
 	built := false
-	err := locked(ctx, db, func(conn *sql.Conn) error {
-		var empty bool
-		if err := conn.QueryRowContext(ctx, `SELECT to_regclass('public.users') IS NULL`).Scan(&empty); err != nil {
-			return fmt.Errorf("look for the users table: %w", err)
-		}
-		if !empty {
-			return nil
-		}
-		if logf != nil {
-			logf("empty database: applying schema.sql")
-		}
-		if _, err := conn.ExecContext(ctx, `BEGIN`); err != nil {
-			return err
-		}
-		for _, catalog := range s.catalogs() {
-			if _, err := conn.ExecContext(ctx, catalog.Schema); err != nil {
-				conn.ExecContext(context.Background(), `ROLLBACK`)
-				return fmt.Errorf("schema.sql: %w (rolled back)", err)
-			}
-		}
-		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
-			return err
-		}
-		built = true
-		return nil
+	err := WithLock(ctx, db, func(conn *sql.Conn) error {
+		var err error
+		built, err = s.InitConn(ctx, conn, "", logf)
+		return err
 	})
 	return built, err
+}
+
+// InitConn builds the schema and its product record atomically, on a connection
+// already holding WithLock. An empty product is for schema-only test callers.
+func (s Set) InitConn(ctx context.Context, conn *sql.Conn, product string, logf func(string, ...any)) (bool, error) {
+	var empty bool
+	if err := conn.QueryRowContext(ctx, `SELECT to_regclass('public.users') IS NULL`).Scan(&empty); err != nil {
+		return false, fmt.Errorf("look for the users table: %w", err)
+	}
+	if !empty {
+		return false, nil
+	}
+	if logf != nil {
+		logf("empty database: applying schema.sql")
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	for _, catalog := range s.catalogs() {
+		if _, err := tx.ExecContext(ctx, catalog.Schema); err != nil {
+			return false, fmt.Errorf("schema.sql: %w (rolled back)", err)
+		}
+	}
+	if product != "" {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO install_product (product) VALUES ($1)`, product); err != nil {
+			return false, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }

@@ -20,12 +20,25 @@ services:
       POSTGRES_DB: simplehost
     volumes:
       - db:/var/lib/postgresql/data
-      - ./db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U simplehost -d simplehost"]
       interval: 3s
       timeout: 3s
       retries: 30
+
+  # An explicit install/upgrade step, including first recording on older boxes.
+  migrate:
+    build: .
+    image: ${IMAGE:-simple-host:local}
+    logging: *logging
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["migrate", "-init", "-record-product"]
+    environment:
+      DB_DSN: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
+      EVENTS: ${EVENTS:-}
 
   app:
     build: .
@@ -35,6 +48,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DB_DSN: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
       DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-25}

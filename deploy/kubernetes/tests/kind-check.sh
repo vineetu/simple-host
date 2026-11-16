@@ -107,8 +107,9 @@ helm upgrade --install simple-hack deploy/kubernetes/simple-hack \
 ok "installed"
 if kubectl -n "$ns" rollout status deploy/simple-hack --timeout=180s >/dev/null; then ok "pod ready"; else bad "pod not ready"; kubectl -n "$ns" logs deploy/simple-hack | tail -30; exit 1; fi
 
-log=$(kubectl -n "$ns" logs deploy/simple-hack)
-grep -q 'built the schema from db/schema.sql' <<<"$log" && ok "empty database: schema built on start" || bad "schema not built"
+log=$(kubectl -n "$ns" logs deploy/simple-hack -c simple-hack)
+migration_log=$(kubectl -n "$ns" logs deploy/simple-hack -c migrate)
+grep -q 'built the schema from db/schema.sql' <<<"$migration_log" && ok "empty database: schema built by init container" || bad "schema not built"
 grep -q 'hosted events: on' <<<"$log" && ok "hack mode on" || bad "hack mode off"
 grep -q 'trusted proxies:' <<<"$log" && ok "trusted proxies set" || bad "trusted proxies not set"
 status=$(kubectl -n "$ns" exec deploy/simple-hack -- /usr/local/bin/simple-host migrate -status 2>&1 | tail -1)
@@ -120,7 +121,7 @@ owner=$(kubectl -n theirdb exec deploy/postgres -- psql -U postgres -d "$db" -tA
 # Starting again on a built database is a no-op, and the start proves it.
 kubectl -n "$ns" rollout restart deploy/simple-hack >/dev/null
 kubectl -n "$ns" rollout status deploy/simple-hack --timeout=180s >/dev/null
-log2=$(kubectl -n "$ns" logs deploy/simple-hack)
+log2=$(kubectl -n "$ns" logs deploy/simple-hack -c simple-hack)
 grep -q 'database is up to date; nothing to apply' <<<"$log2" && ok "second start: nothing to apply" || bad "second start migrated again"
 
 echo "== the product through a port-forward on 127.0.0.1:$port =="

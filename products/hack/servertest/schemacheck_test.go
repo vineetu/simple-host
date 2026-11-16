@@ -21,9 +21,10 @@ func TestHackMissingColumnStopsStartup(t *testing.T) {
 	defer database.Close()
 	exts := []*extension.Extension{hack.Extension()}
 	t.Setenv("DB_DSN", cfg.DBDSN)
+	platformtest.RecordProduct(t, cfg, exts)
 	// Record the current migrations before damaging the schema so migrating
 	// again cannot repair the missing column and hide a missing product check.
-	if code := server.Run([]string{"migrate"}, exts); code != 0 {
+	if code := server.Run([]string{"migrate", "-record-product"}, exts); code != 0 {
 		t.Fatalf("migrate complete schema: exit %d", code)
 	}
 	if _, err := database.Exec(`ALTER TABLE events DROP COLUMN theme`); err != nil {
@@ -36,6 +37,7 @@ func TestHackMissingColumnStopsStartup(t *testing.T) {
 	if err := exts[0].CheckSchema(context.Background(), database); err == nil || err.Error() != want {
 		t.Fatalf("product schema error = %v; want %s", err, want)
 	}
+	platformtest.RecordProduct(t, cfg, exts)
 	app, err := server.Build(cfg, exts)
 	if app != nil {
 		app.Close()

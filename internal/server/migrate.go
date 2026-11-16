@@ -16,7 +16,7 @@ import (
 	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 )
 
-const migrateUsage = `usage: simple-host migrate [-init | -status | -mark FILE]
+const migrateUsage = `usage: simple-host migrate [-init] [-record-product] | -status | -mark FILE
 
   (no flag)   Apply every pending file in db/migrations/, in order, each once,
               each in its own transaction, under a lock so two runs cannot race.
@@ -25,6 +25,7 @@ const migrateUsage = `usage: simple-host migrate [-init | -status | -mark FILE]
               (a database that already has the users table is left alone),
               then apply as above. For a container with no psql; safe to run
               on every start, and safe when two starts race.
+  -record-product  Explicitly adopt an existing database after checking product evidence.
   -status     List every migration file as applied, pending or baseline
               (historical files applied by hand before this tool; never run).
   -mark FILE  Record FILE as applied without running it, for a database where
@@ -41,7 +42,8 @@ func runMigrateCommand(args []string, exts []*extension.Extension) int {
 	status := fs.Bool("status", false, "")
 	mark := fs.String("mark", "", "")
 	initSchema := fs.Bool("init", false, "")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || (*status && *mark != "") || (*initSchema && (*status || *mark != "")) {
+	record := fs.Bool("record-product", false, "")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || (*status && *mark != "") || ((*initSchema || *record) && (*status || *mark != "")) {
 		fs.Usage()
 		return 2
 	}
@@ -57,8 +59,7 @@ func runMigrateCommand(args []string, exts []*extension.Extension) int {
 	}
 	defer database.Close()
 
-	// A database container that has only just started (or is still loading
-	// schema.sql into a new volume) refuses connections for a while.
+	// A database container that has only just started may refuse connections.
 	if err := waitForDB(database, 2*time.Minute); err != nil {
 		fmt.Fprintln(os.Stderr, "database not reachable:", err)
 		return 1
@@ -66,8 +67,7 @@ func runMigrateCommand(args []string, exts []*extension.Extension) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
-	switch {
-	case *status:
+	if *status {
 		entries, err := set.Status(ctx, database)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -75,11 +75,20 @@ func runMigrateCommand(args []string, exts []*extension.Extension) int {
 		}
 		writeMigrationStatus(os.Stdout, entries)
 		return 0
-	case *mark != "":
-		added, err := set.Mark(ctx, database, *mark)
+	}
+	if *mark != "" {
+		var added bool
+		err := migrations.WithLock(ctx, database, func(conn *sql.Conn) error {
+			if err := checkProduct(ctx, conn, exts, false); err != nil {
+				return err
+			}
+			var err error
+			added, err = set.MarkConn(ctx, conn, *mark)
+			return err
+		})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return 1
+			return productExitCode(err)
 		}
 		if added {
 			fmt.Printf("recorded %s as applied\n", *mark)
@@ -90,9 +99,9 @@ func runMigrateCommand(args []string, exts []*extension.Extension) int {
 	}
 
 	fmt.Println(buildinfo.String())
-	if err := migrateDatabase(ctx, database, exts, *initSchema, func(f string, a ...any) { fmt.Printf(f+"\n", a...) }); err != nil {
+	if err := migrateDatabase(ctx, database, exts, *initSchema, func(f string, a ...any) { fmt.Printf(f+"\n", a...) }, *record); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return productExitCode(err)
 	}
 	return 0
 }
@@ -102,26 +111,39 @@ func runMigrateCommand(args []string, exts []*extension.Extension) int {
 // asked, apply every pending migration file, then check the database has
 // everything this build reads. The server runs it before listening when
 // MIGRATE_ON_START=true.
-func migrateDatabase(ctx context.Context, database *sql.DB, exts []*extension.Extension, initSchema bool, logf func(string, ...any)) error {
+func migrateDatabase(ctx context.Context, database *sql.DB, exts []*extension.Extension, initSchema bool, logf func(string, ...any), explicit bool) error {
 	set := migrationSet(exts)
-	if initSchema {
-		built, err := set.Init(ctx, database, logf)
+	err := migrations.WithLock(ctx, database, func(conn *sql.Conn) error {
+		if err := checkProduct(ctx, conn, exts, explicit); err != nil {
+			return err
+		}
+		if initSchema {
+			if built, err := set.InitConn(ctx, conn, programProduct(exts), logf); err != nil {
+				return fmt.Errorf("init failed: %w", err)
+			} else if built && logf != nil {
+				logf("built the schema from db/schema.sql")
+			}
+		}
+		if explicit {
+			return recordProduct(ctx, conn, set, exts, logf)
+		}
+		ran, err := set.ApplyConn(ctx, conn, logf)
 		if err != nil {
-			return fmt.Errorf("init failed: %w", err)
+			return fmt.Errorf("migrate failed: %w", err)
 		}
-		if built {
-			logf("built the schema from db/schema.sql")
+		if logf != nil {
+			if len(ran) == 0 {
+				logf("database is up to date; nothing to apply")
+			} else {
+				logf("applied %d migration(s)", len(ran))
+			}
 		}
-	}
-	ran, err := set.Apply(ctx, database, logf)
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("migrate failed: %w", err)
+		return err
 	}
-	if len(ran) == 0 {
-		logf("database is up to date; nothing to apply")
-	} else {
-		logf("applied %d migration(s)", len(ran))
-	}
+
 	if err := operationrepo.VerifySchema(ctx, database); err != nil {
 		return err
 	}

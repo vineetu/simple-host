@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 16:** Installs record their product and refuse startup or migration by another product with exit code 3. Existing installs explicitly record their product once; fresh installers create the schema and product record together (D3-S6a).
+
 - **Nov 14:** Document row rules for SQLite and key-value data, including per-table policies, approval stamps and privacy limits. Update website skills and the Storage guide; file buckets keep presets. Prepared on the R3-S7a branch for activation with R4-S2.
 
 - **Nov 14:** Add optional row rules to the storage API and tool schemas, with structured errors and a 256 KiB save limit (R2-S3). The API reference includes these fields; rules saves remain off by default.

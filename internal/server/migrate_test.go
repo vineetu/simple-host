@@ -75,6 +75,12 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	const name = "catalog-product.sql"
 	product := &migrations.Catalog{FS: fstest.MapFS{name: {Data: []byte(`INSERT INTO instance_config(key,value) VALUES ('catalog-product','ran')`)}}, Legacy: []string{name}}
 	exts := []*extension.Extension{{Migrations: product, MigrationOrder: append(append([]string{}, migrations.Legacy...), name)}}
+	if err := migrateDatabase(context.Background(), database, exts, false, t.Logf, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`DELETE FROM schema_migrations WHERE name=$1`, name); err != nil {
+		t.Fatal(err)
+	}
 	if code := Run([]string{"migrate", "-mark", name}, exts); code != 0 {
 		t.Fatalf("mark product exit = %d", code)
 	}
@@ -83,6 +89,9 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 		t.Fatalf("product was not marked: %d, %v", count, err)
 	}
 	if _, err := database.Exec(`DELETE FROM schema_migrations WHERE name=$1`, name); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`DELETE FROM instance_config WHERE key='catalog-product'`); err != nil {
 		t.Fatal(err)
 	}
 	if code := Run([]string{"migrate"}, exts); code != 0 {
@@ -94,7 +103,7 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	}
 	// Startup uses this same composed set and must tolerate recorded product
 	// files when it is subsequently run with only the platform catalogue.
-	if err := migrateDatabase(context.Background(), database, nil, true, t.Logf); err != nil {
+	if err := migrateDatabase(context.Background(), database, nil, true, t.Logf, false); err != nil {
 		t.Fatal(err)
 	}
 	if code := Run([]string{"migrate", "-mark", name}, nil); code != 1 {
@@ -103,7 +112,7 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	product.FS.(fstest.MapFS)["catalog-failure.sql"] = &fstest.MapFile{Data: []byte("SELECT no_such_catalog_function()")}
 	product.Legacy = append(product.Legacy, "catalog-failure.sql")
 	exts[0].MigrationOrder = append(exts[0].MigrationOrder, "catalog-failure.sql")
-	if err := migrateDatabase(context.Background(), database, exts, false, t.Logf); err == nil || !strings.Contains(err.Error(), "catalog-failure.sql") {
+	if err := migrateDatabase(context.Background(), database, exts, false, t.Logf, false); err == nil || !strings.Contains(err.Error(), "catalog-failure.sql") {
 		t.Fatalf("product failure = %v", err)
 	}
 }
@@ -115,8 +124,8 @@ func TestMigrateSchemaCheck(t *testing.T) {
 	}
 	defer database.Close()
 	ctx := context.Background()
-	for _, exts := range [][]*extension.Extension{nil, {nil}, {{Name: "no schema check"}}} {
-		if err := migrateDatabase(ctx, database, exts, true, t.Logf); err != nil {
+	for _, exts := range [][]*extension.Extension{nil, {nil}, {{}}} {
+		if err := migrateDatabase(ctx, database, exts, true, t.Logf, true); err != nil {
 			t.Fatalf("nil hook: %v", err)
 		}
 	}
@@ -136,13 +145,13 @@ func TestMigrateSchemaCheck(t *testing.T) {
 		}
 		return wantErr
 	}}}
-	if err := migrateDatabase(ctx, database, exts, false, t.Logf); !errors.Is(err, wantErr) || calls != 1 {
+	if err := migrateDatabase(ctx, database, exts, false, t.Logf, false); !errors.Is(err, wantErr) || calls != 1 {
 		t.Fatalf("product schema failure: %v, calls=%d", err, calls)
 	}
 	if _, err := database.Exec(`ALTER TABLE account_passwords DROP COLUMN login`); err != nil {
 		t.Fatal(err)
 	}
-	if err := migrateDatabase(ctx, database, exts, false, t.Logf); err == nil || !strings.Contains(err.Error(), "account_passwords.login") || calls != 1 {
+	if err := migrateDatabase(ctx, database, exts, false, t.Logf, false); err == nil || !strings.Contains(err.Error(), "account_passwords.login") || calls != 1 {
 		t.Fatalf("platform check must fail before product check: err=%v, calls=%d", err, calls)
 	}
 }

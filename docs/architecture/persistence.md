@@ -285,6 +285,31 @@ startup's required-column check refuses an incompatible schema.
 See [deployment profiles](../operations/deployment-profiles.md) for who runs each
 step under systemd, Compose and Kubernetes; do not infer it from the edition.
 
+## Install product identity
+
+`install_product` holds one row naming `simple-host` or the product extension's
+name. Startup and every changing form of `migrate` check it under the migration
+advisory lock before any database write. A mismatch or a populated database
+without a record exits with code 3. `migrate -status` stays read-only.
+
+Fresh installs use `migrate -init -record-product`; initialization creates the
+schema and its record in one transaction. Re-running an installer explicitly
+records an older database after checking its product evidence. `-init` alone
+and `MIGRATE_ON_START` initialize an empty database but never adopt a populated
+one without a record. For an existing install, run the matching program's
+`migrate -record-product` once before starting the new build.
+
+Changing an existing record is a deliberate manual SQL operation, after the
+operator has established which program owns this install. For example, to set
+it to the platform product:
+
+```sql
+UPDATE install_product SET product = 'simple-host' WHERE "only";
+```
+
+The record cannot be changed by an environment setting or a command flag.
+Older programs ignore this additive table; reverting the program preserves it.
+
 ## Backup and recovery boundary
 
 Back up PostgreSQL and the matching data directory together: rows alone lack

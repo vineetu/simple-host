@@ -57,6 +57,30 @@ spec:
       # requests within 10 s; the grace period leaves room for that and for
       # the ingress to notice the endpoint is gone.
       terminationGracePeriodSeconds: 30
+      {{- if .Values.migrateOnStart }}
+      # Running the chart is an explicit install/upgrade action. Adoption is
+      # performed here; the server's MIGRATE_ON_START never adopts old tables.
+      initContainers:
+        - name: migrate
+          image: {{ include "hack.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["migrate", "-init", "-record-product"]
+          securityContext:
+            {{- include "hack.containerSecurity" . | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "hack.configName" . }}
+            - secretRef:
+                name: {{ include "hack.secretName" . }}
+          {{- if .Values.database.existingSecret }}
+          env:
+            - name: DB_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+          {{- end }}
+      {{- end }}
       containers:
         - name: simple-hack
           image: {{ include "hack.image" . }}

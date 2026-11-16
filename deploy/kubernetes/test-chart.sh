@@ -52,6 +52,7 @@ has "data volume at /data"             'mountPath: /data$'
 has "tmp emptyDir"                     'mountPath: /tmp$'
 has "PVC ReadWriteOnce"                '- ReadWriteOnce'
 has "PVC kept on uninstall"            'helm.sh/resource-policy: keep'
+has "explicit product initialization"  'args: \["migrate", "-init", "-record-product"\]'
 has "MIGRATE_ON_START"                 'MIGRATE_ON_START: "true"'
 has "EVENTS=hosted"                    'EVENTS: hosted'
 has "SITE_HOSTS canonical"             'SITE_HOSTS: canonical'
@@ -71,6 +72,11 @@ if grep -q 'spring-hack' <<<"$path"; then bad "no event wildcard by default"; el
 if grep -q 'kind: NetworkPolicy' <<<"$path"; then bad "network policy off by default"; else ok "network policy off by default"; fi
 if grep -q 'TEAM_SITE_FLAT_HOSTS: "false"' <<<"$path"; then ok "flat hosts off by default"; else bad "flat hosts off by default"; fi
 
+echo "== migrateOnStart=false =="
+manual=$(helm template hack "$chart" "${base[@]}" --set migrateOnStart=false 2>&1)
+if grep -q 'initContainers:' <<<"$manual"; then bad "migration init container disabled"; else ok "migration init container disabled"; fi
+if grep -q 'MIGRATE_ON_START: "false"' <<<"$manual"; then ok "startup migrations disabled"; else bad "startup migrations disabled"; fi
+
 echo "== teamSites.flatHosts =="
 flat=$(helm template hack "$chart" --namespace hack "${base[@]}" --set 'ingress.events={spring-hack}' --set ingress.catchAll=true --set teamSites.flatHosts=true 2>&1) || { bad "flat render"; echo "$flat" | tail -3; }
 hasFlat() { if grep -qE -- "$2" <<<"$flat"; then ok "$1"; else bad "$1"; fi; }
@@ -87,6 +93,8 @@ if grep -q 'key: uri' <<<"$ext"; then ok "database.existingSecret key"; else bad
 
 echo "== rendered manifests current =="
 if ./render.sh --check >/dev/null 2>&1; then ok "manifests/simple-hack.yaml"; else bad "manifests/simple-hack.yaml is stale (run deploy/kubernetes/render.sh)"; fi
+
+python3 ../install/product_init_test.py chart || fail=1
 
 echo
 [ "$fail" -eq 0 ] && echo "chart ok ✓" || { echo "CHART CHECK FAILED"; exit 1; }

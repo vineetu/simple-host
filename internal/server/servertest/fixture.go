@@ -2,6 +2,7 @@
 package servertest
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 // Callers supply the extensions; this package imports no product.
 func Build(t *testing.T, cfg config.Config, exts []*extension.Extension) *server.App {
 	t.Helper()
+	RecordProduct(t, cfg, exts)
 	app, err := server.Build(cfg, exts)
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +52,27 @@ func Config(t *testing.T, dsn string) config.Config {
 	if err != nil {
 		t.Fatal(err)
 	}
+	RecordProduct(t, cfg, nil)
 	return cfg
+}
+
+// RecordProduct explicitly sets the identity on a disposable fixture. Some hook
+// tests intentionally reuse a schema with and without a product; that is no
+// longer a supported operator transition, so those tests set their record here.
+func RecordProduct(t *testing.T, cfg config.Config, exts []*extension.Extension) {
+	t.Helper()
+	product := "simple-host"
+	if len(exts) == 1 && exts[0] != nil && exts[0].Name != "" {
+		product = exts[0].Name
+	}
+	db, err := sql.Open("postgres", cfg.DBDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`INSERT INTO install_product (product) VALUES ($1) ON CONFLICT ("only") DO UPDATE SET product=EXCLUDED.product`, product); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // CheckWiring compares route registration and worker order with the original snapshots.

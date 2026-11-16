@@ -80,6 +80,7 @@ func TestConnectorTargetAfterBuildRESTAndMCP(t *testing.T) {
 		hooks.Accounts.Target = observed
 		return hooks
 	}
+	platformtest.RecordProduct(t, cfg, []*extension.Extension{ext})
 	app, err := server.Build(cfg, []*extension.Extension{ext})
 	if err != nil {
 		t.Fatal(err)
@@ -137,6 +138,7 @@ func TestConnectorTargetAfterBuildRESTAndMCP(t *testing.T) {
 	}
 	// Build without a product clears the process hook; even a stale old column
 	// or its absence does not send a platform-only request back into Hack.
+	platformtest.RecordProduct(t, cfg, nil)
 	host, err := server.Build(cfg, nil)
 	if err != nil {
 		t.Fatal(err)

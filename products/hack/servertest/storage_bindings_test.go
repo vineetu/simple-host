@@ -81,6 +81,7 @@ func TestHackBuildRequiresStorageBindings(t *testing.T) {
 		return parts, err
 	}
 	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
+	platformtest.RecordProduct(t, cfg, []*extension.Extension{ext})
 	app, err := server.Build(cfg, []*extension.Extension{ext})
 	if app != nil {
 		app.Close()

@@ -62,6 +62,7 @@ func TestExtensionConstructionOrderAndWireError(t *testing.T) {
 			return extension.Parts{}, wantErr
 		},
 	}
+	servertest.RecordProduct(t, cfg, []*extension.Extension{ext})
 	app, err := server.Build(cfg, []*extension.Extension{ext})
 	if app != nil || !errors.Is(err, wantErr) {
 		t.Fatalf("Build = %v, %v; want wiring failure", app, err)
@@ -100,6 +101,7 @@ func TestExtensionSchemaCheckFailure(t *testing.T) {
 					return extension.EarlyHooks{}
 				},
 			}
+			servertest.RecordProduct(t, cfg, []*extension.Extension{ext})
 			app, err := server.Build(cfg, []*extension.Extension{ext})
 			if app != nil || err == nil {
 				t.Fatalf("Build = %v, %v; want schema failure", app, err)

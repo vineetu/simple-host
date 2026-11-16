@@ -41,6 +41,7 @@ func TestExtensionGateExactlyOnce(t *testing.T) {
 					})
 				}
 			}
+			platformtest.RecordProduct(t, cfg, []*extension.Extension{ext})
 			app, err := server.Build(cfg, []*extension.Extension{ext})
 			if err != nil {
 				t.Fatal(err)

@@ -227,3 +227,52 @@ func TestPlatformTypeErrorsExitTwo(t *testing.T) {
 		t.Fatalf("code %d, %s", code, errs.String())
 	}
 }
+
+func TestProductEvidenceAllowlist(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module evidencefixture\n\ngo 1.23\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "internal/server")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	objects := []object{{Kind: "table", Name: "events"}, {Kind: "table", Name: "event_teams"}}
+	z := parseSchema("CREATE TABLE events(id int); CREATE TABLE event_teams(id int);")
+	o := options{}
+	run := func(query, declaration string) scanResult {
+		t.Helper()
+		src := "package server\nfunc " + declaration + "() { _ = `" + query + "` }\n"
+		if err := os.WriteFile(filepath.Join(dir, "product.go"), []byte(src), 0600); err != nil {
+			t.Fatal(err)
+		}
+		result, err := scan(root, o, objects, z)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	if len(productProbeAllowlist) != 1 {
+		t.Fatal("allowlist must contain exactly the adoption probe")
+	}
+	const probe = "SELECT EXISTS (SELECT 1 FROM public.events)"
+	if result := run(probe, "productEvidence"); scanCode(result, false) != 0 {
+		t.Fatal("designated evidence probe rejected")
+	}
+	saved := productProbeAllowlist
+	productProbeAllowlist = nil
+	t.Cleanup(func() { productProbeAllowlist = saved })
+	if result := run(probe, "productEvidence"); scanCode(result, false) != 1 {
+		t.Fatal("removing the exception did not reject the probe")
+	}
+	productProbeAllowlist = saved
+	for _, tc := range []struct{ query, decl string }{
+		{"SELECT * FROM event_teams", "productEvidence"},
+		{"SELECT * FROM events", "productEvidence"},
+		{probe, "otherFunction"},
+	} {
+		if result := run(tc.query, tc.decl); scanCode(result, false) != 1 {
+			t.Fatalf("unrelated platform SQL escaped: %+v", tc)
+		}
+	}
+}

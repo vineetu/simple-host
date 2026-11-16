@@ -124,6 +124,19 @@ type constDef struct {
 	Name string
 }
 
+// The sole product-table query allowed in platform code: D3-S6a's read-only
+// adoption evidence probe. refactor-board/NOTES.md, 2026-11-16 07:20 UTC.
+var productProbeAllowlist = []finding{{File: "internal/server/product.go", Decl: "productEvidence", Text: "SELECT EXISTS (SELECT 1 FROM public.events)"}}
+
+func allowedProductProbe(f finding) bool {
+	for _, allowed := range productProbeAllowlist {
+		if f.File == allowed.File && f.Decl == allowed.Decl && f.Text == allowed.Text {
+			return true
+		}
+	}
+	return false
+}
+
 func scan(root string, o options, objects []object, z schemaInfo) (scanResult, error) {
 	result := scanResult{ProseCounts: map[string]int{}}
 	cfg := &packages.Config{Dir: root, Tests: o.Tests, Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedEmbedPatterns | packages.NeedEmbedFiles | packages.NeedModule, Env: append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")}
@@ -223,6 +236,9 @@ func scan(root string, o options, objects []object, z schemaInfo) (scanResult, e
 		return sortedKeys(found)
 	}
 	add := func(f finding, runtime bool, list bool) {
+		if allowedProductProbe(f) {
+			return
+		}
 		good, ambiguous := map[string]bool{}, map[string]bool{}
 		matchText := f.Text
 		if routeRE.MatchString(matchText) {

@@ -46,7 +46,7 @@ func Run(args []string, exts []*extension.Extension, options ...Options) int {
 	app, err := Build(cfg, exts, options...)
 	if err != nil {
 		log.Print(err)
-		return 1
+		return productExitCode(err)
 	}
 	defer app.Close()
 	server := &http.Server{Addr: net.JoinHostPort(cfg.BindAddr, cfg.Port), Handler: app.Handler}

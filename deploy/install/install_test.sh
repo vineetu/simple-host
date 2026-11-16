@@ -98,3 +98,5 @@ with tempfile.TemporaryDirectory(prefix='notify-install-test-') as tmp:
 
 print('PASS: installer generates and preserves PASSCODE_ENC_KEY, upgrades existing .env, passes the key through compose, and replaces .env privately and atomically')
 PY
+
+python3 "$ROOT/deploy/install/product_init_test.py" root

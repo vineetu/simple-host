@@ -43,6 +43,7 @@ func TestHackBuildRequiresGroupGate(t *testing.T) {
 		parts.Hooks.GroupGate = nil
 		return parts, err
 	}
+	platformtest.RecordProduct(t, cfg, []*extension.Extension{ext})
 	app, err := server.Build(cfg, []*extension.Extension{ext})
 	if app != nil {
 		app.Close()

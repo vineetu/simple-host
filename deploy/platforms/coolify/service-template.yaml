@@ -289,35 +289,10 @@ services:
   # each start of the app; if it fails, the app does not start.
   migrate:
     image: ghcr.io/vineetu/simple-host:0.7.19
-    command: ["migrate"]
+    command: ["migrate", "-init", "-record-product"]
     restart: "no"
     environment:
       - DB_DSN=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@db:5432/simplehost?sslmode=disable
-    depends_on:
-      schema:
-        condition: service_completed_successfully
-    exclude_from_hc: true
-
-  # Schema snapshot includes zh-site-notifications and zi-site-search-summary.
-  # Keep its immutable source and checksum together when cutting a release.
-  # Loads the schema, checked against its sha256, into a new empty
-  # database. Does nothing once the schema is there.
-  schema:
-    image: postgres:16.11-alpine
-    restart: "no"
-    environment:
-      - PGPASSWORD=${SERVICE_PASSWORD_POSTGRES}
-      - PGUSER=${SERVICE_USER_POSTGRES}
-      - PGHOST=db
-      - PGDATABASE=simplehost
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        if [ "$$(psql -tAc "SELECT to_regclass('public.users') IS NULL")" != "t" ]; then echo "schema already loaded"; exit 0; fi
-        wget -qO /tmp/schema.sql https://raw.githubusercontent.com/vineetu/simple-host/98975db1fe133fa688c04dbbda741fd18dbaf646/db/schema.sql
-        echo "c2d5edf7ab0704e7ea379663616b6bdf2f5a3a5cb05e47f242adb3af717e564c  /tmp/schema.sql" | sha256sum -c -
-        psql -v ON_ERROR_STOP=1 -q -f /tmp/schema.sql
-        echo "schema loaded"
     depends_on:
       db:
         condition: service_healthy

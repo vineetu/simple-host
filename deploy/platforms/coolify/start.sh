@@ -2,8 +2,8 @@
 # Entry point for the small box on Coolify.
 #
 #   start.sh            run the server and Caddy (the container's normal job)
-#   start.sh release    load the schema into a new, empty database, then
-#                       `simple-host migrate`. The compose file runs it as a
+#   start.sh release    initialise or adopt the database with
+#                       `simple-host migrate -init -record-product`. The compose file runs it as a
 #                       one-shot service before the server starts; if it
 #                       fails, the server does not start.
 #   start.sh <args>     any other simple-host command, e.g. `version`.
@@ -11,13 +11,7 @@ set -eu
 
 if [ "${1:-}" = "release" ]; then
   : "${DB_DSN:?DB_DSN is not set: the compose file sets it}"
-  # A new database gets schema.sql first, exactly as the compose Postgres
-  # container does on a new volume; migrate then records each file.
-  if [ "$(psql "$DB_DSN" -tAc "SELECT to_regclass('public.users') IS NULL")" = "t" ]; then
-    echo "empty database: loading schema.sql"
-    psql "$DB_DSN" -v ON_ERROR_STOP=1 -q -f /opt/simple-host/schema.sql
-  fi
-  exec simple-host migrate
+  exec simple-host migrate -init -record-product
 fi
 if [ $# -gt 0 ]; then
   exec su-exec app simple-host "$@"

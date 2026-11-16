@@ -33,7 +33,7 @@ func TestRunUnknownDatabase(t *testing.T) {
 	if code := Run(nil, nil); code == 0 {
 		t.Fatal("Run succeeded with an unknown database address")
 	}
-	if !strings.Contains(logs.String(), "schema check:") {
+	if !strings.Contains(logs.String(), "product check:") {
 		t.Fatalf("Run did not reach the database: %s", logs.String())
 	}
 }

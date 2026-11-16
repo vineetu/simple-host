@@ -123,3 +123,5 @@ if PASSWORD_SIGNIN=off bash "$HERE/install.sh" --dir "$WORK/partial-oidc" --conf
   echo 'Partial OIDC configuration (missing client id/secret) accepted without Resend' >&2; exit 1
 fi
 echo 'PASS: company sign-in makes Resend optional only once OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET are all set'
+
+python3 "$HERE/../../install/product_init_test.py" hack

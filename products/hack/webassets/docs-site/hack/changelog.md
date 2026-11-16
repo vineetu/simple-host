@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 16:** Installs record their product and refuse startup or migration by another product with exit code 3. Existing installs explicitly record their product once; fresh installers create the schema and product record together (D3-S6a).
+
 - **Nov 15:** Simple Host’s API reference, feature list and agent text now describe Simple Host alone. Simple Hack’s API and feature references are generated from shared sources plus its own authored parts, with the same published content (D3-S3).
 
 - **Nov 15:** Simple Hack's skill toolkit (the five skills, the builder and the eight earlier `simple-hack-skills-only-0.2.6` to `0.2.13` downloads) and its landing films moved out of the platform's embedded files into Simple Hack's own (D3-S2b). Every Simple Hack address answers as before, each earlier download with the same bytes. A Simple Host install no longer serves the twelve `/film/hack-*` files (404); no Simple Host page used them. Simple Hack now registers its own file names itself, through one file route, and answers the withdrawn `/plugin.zip`, `/install.sh` and `/install.ps1` itself.

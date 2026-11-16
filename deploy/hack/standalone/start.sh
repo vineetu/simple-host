@@ -3,10 +3,7 @@ set -eu
 export EVENTS=hosted
 if [ "${1:-}" = release ]; then
   : "${DB_DSN:?}"
-  if [ "$(psql "$DB_DSN" -tAc "SELECT to_regclass('public.users') IS NULL")" = t ]; then
-    psql "$DB_DSN" -v ON_ERROR_STOP=1 -q -f /opt/simple-hack/schema.sql
-  fi
-  exec simple-host migrate
+  exec simple-host migrate -init -record-product
 fi
 if [ "$#" -gt 0 ]; then exec simple-host "$@"; fi
 : "${SITE_DOMAIN:?}"

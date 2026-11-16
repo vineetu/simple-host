@@ -47,9 +47,10 @@ func Extension() *extension.Extension {
 	var productConfig productconfig.Config
 	catalog := hackdb.Catalog()
 	return &extension.Extension{
-		Name:           "simple-hack",
-		Migrations:     &catalog,
-		MigrationOrder: hackmigrations.ProductOrder,
+		Name:            "simple-hack",
+		ValidateProduct: validateInstallProduct,
+		Migrations:      &catalog,
+		MigrationOrder:  hackmigrations.ProductOrder,
 		Config: extension.ConfigSpec{Settings: productconfig.Settings(), Load: func(getenv func(string) string) ([]string, error) {
 			var warnings []string
 			var err error
@@ -210,4 +211,16 @@ func newAssistantDocsTextFunc() func() string {
 		})
 		return text
 	}
+}
+
+// validateInstallProduct is read-only evidence for adopting an existing install.
+func validateInstallProduct(ctx context.Context, conn *sql.Conn) error {
+	var exists bool
+	if err := conn.QueryRowContext(ctx, `SELECT to_regclass('public.events') IS NOT NULL`).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("this database has no events table; cannot record simple-hack")
+	}
+	return nil
 }

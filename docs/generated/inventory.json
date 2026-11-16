@@ -1732,7 +1732,7 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/server/build.go:432",
+      "source": "internal/server/build.go:444",
       "package": "internal/server",
       "dynamic": true
     },
@@ -1748,7 +1748,7 @@
       "method": "GET",
       "path": "/hackathons.html",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/server/build.go:432",
+      "source": "internal/server/build.go:444",
       "package": "internal/server",
       "dynamic": true
     },
@@ -2132,7 +2132,7 @@
       "method": "GET",
       "path": "/setup/setup.js",
       "feature_id": "setup-helper",
-      "source": "products/hack/extension.go:74",
+      "source": "products/hack/extension.go:75",
       "package": "products/hack",
       "dynamic": false
     },
@@ -2316,7 +2316,7 @@
       "method": "GET",
       "path": "/skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/extension.go:69",
+      "source": "products/hack/extension.go:70",
       "package": "products/hack",
       "dynamic": false
     },
@@ -2460,7 +2460,7 @@
       "method": "GET",
       "path": "/skills/version",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/extension.go:70",
+      "source": "products/hack/extension.go:71",
       "package": "products/hack",
       "dynamic": false
     },
@@ -2564,7 +2564,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:562",
+      "source": "internal/server/build.go:574",
       "package": "internal/server",
       "dynamic": false
     },
@@ -2588,7 +2588,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:563",
+      "source": "internal/server/build.go:575",
       "package": "internal/server",
       "dynamic": false
     },
@@ -2620,7 +2620,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "internal/server/build.go:581",
+      "source": "internal/server/build.go:593",
       "package": "internal/server",
       "dynamic": false
     },
