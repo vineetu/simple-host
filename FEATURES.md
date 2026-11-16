@@ -2927,7 +2927,10 @@ lists resources that need a person, and writes a plan. Apply needs the server
 stopped (the exclusive maintenance lock), converts only resources unchanged
 since the dry run, records their original settings and can be rerun after an
 interruption. Revert restores those settings unless the owner has changed the
-rules since. File buckets are never converted, and the command is not a route,
+rules since. Plan-based apply and revert require a regular file owned by the
+command user or root, no group or other write permission, and no directory
+writable by others without the sticky bit. The plan must record the running
+program's commit. File buckets are never converted, and the command is not a route,
 an AI tool or a recipe (`docs/advanced/storage-and-backups.md`).
 
 The operator can draft storage-retirement notices with `migrate-rules

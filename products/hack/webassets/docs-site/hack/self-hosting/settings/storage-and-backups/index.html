@@ -974,6 +974,11 @@ never read or changed by it.</p>
 <span class="line"><span>simple-host migrate-rules --revert  --plan rules-plan.json</span></span>
 <span class="line"><span>simple-host migrate-rules --revert  --site &lt;site id&gt; --resource &lt;name&gt;</span></span></code></pre>
 <p>Repeat <code>--account</code> for several accounts. Sites in Recently deleted are included.</p>
+<p>Apply and revert with <code>--plan</code> require a regular file owned by the command’s
+user or root, with no group or other write permission. Its directories must
+not be writable by others unless the sticky bit is set (as on <code>/tmp</code>). The
+plan must record the same commit as the running program. Use the same program
+for the dry run, apply and plan-based revert. A refused plan changes no resource.</p>
 <p><strong>Dry run.</strong> The server may be running. Nothing is changed: Postgres is only
 read, each SQLite database is opened read-only, no saved row is read, and no
 request is sent. For every SQLite or key-value resource still on a preset it

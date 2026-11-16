@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
+	"github.com/vsriram/simple-host/internal/buildinfo"
 	repo "github.com/vsriram/simple-host/internal/repository/storage"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -117,6 +120,92 @@ func TestMigrateRulesCommandModesAndExitCodes(t *testing.T) {
 	if err != nil || len(read.Resources) != 1 || read.Resources[0].Name != "menu" || read.Resources[0].Account != handle {
 		t.Fatalf("plan: %+v %v", read, err)
 	}
+	if read.Commit == "" || read.Commit != buildinfo.Commit {
+		t.Fatalf("dry run commit = %q, want %q", read.Commit, buildinfo.Commit)
+	}
+	// Every plan refusal must leave all resource columns and table overrides
+	// unchanged, both before conversion and when reverting converted resources.
+	snapshot := func() string {
+		t.Helper()
+		var result string
+		if err := db.QueryRow(`SELECT jsonb_build_object(
+			'resources', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.name) FROM site_storage_resources r WHERE site_id=$1),
+			'tables', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.resource_name,t.table_name) FROM site_storage_tables t WHERE site_id=$1))::text`, site).Scan(&result); err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	refusals := func(mode string) {
+		t.Helper()
+		for _, kind := range []string{"wrong owner", "group writable", "world writable", "world writable directory", "other commit", "missing commit", "not regular"} {
+			t.Run(mode+"/"+kind, func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "plan.json")
+				candidate := read
+				uid := os.Geteuid()
+				switch kind {
+				case "other commit":
+					candidate.Commit = buildinfo.Commit + "-different"
+				case "missing commit":
+					candidate.Commit = ""
+				case "wrong owner":
+					if os.Geteuid() == 0 {
+						t.Skip("root-owned plans are allowed for every command user")
+					}
+					// Exercise the actual UID check without requiring chown/root.
+					uid++
+				}
+				if err := appstorage.WriteConvertPlan(path, candidate); err != nil {
+					t.Fatal(err)
+				}
+				switch kind {
+				case "group writable":
+					if err := os.Chmod(path, 0620); err != nil {
+						t.Fatal(err)
+					}
+				case "world writable":
+					if err := os.Chmod(path, 0602); err != nil {
+						t.Fatal(err)
+					}
+				case "world writable directory":
+					if err := os.Chmod(filepath.Dir(path), 0777); err != nil {
+						t.Fatal(err)
+					}
+				case "missing commit":
+					raw, err := os.ReadFile(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var fields map[string]json.RawMessage
+					if err := json.Unmarshal(raw, &fields); err != nil {
+						t.Fatal(err)
+					}
+					delete(fields, "commit")
+					raw, err = json.Marshal(fields)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, raw, 0600); err != nil {
+						t.Fatal(err)
+					}
+				case "not regular":
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Mkdir(path, 0700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				before := snapshot()
+				if code := runMigrateRulesCommandWithPlanUser([]string{mode, "--plan", path}, nil, uid); code != 1 {
+					t.Fatalf("refused plan exit = %d, want 1", code)
+				}
+				if after := snapshot(); after != before {
+					t.Fatal("a refused plan changed resources or table overrides")
+				}
+			})
+		}
+	}
+	refusals("--apply")
 	run(2, "--apply", "--plan", plan)
 	run(2, "--revert", "--plan", plan)
 	run(2, "--revert", "--site", site, "--resource", "menu")
@@ -136,6 +225,7 @@ func TestMigrateRulesCommandModesAndExitCodes(t *testing.T) {
 	if rules, record := state(); !rules || !record {
 		t.Fatal("apply did not convert")
 	}
+	refusals("--revert")
 	run(0, "--apply", "--plan", plan) // already converted
 	run(0, "--revert", "--site", site, "--resource", "menu")
 	if rules, record := state(); rules || record {
@@ -158,6 +248,77 @@ func TestMigrateRulesCommandModesAndExitCodes(t *testing.T) {
 		t.Fatalf("a failed dry run replaced the plan: %v", err)
 	}
 	run(1, "--apply", "--plan", filepath.Join(t.TempDir(), "missing.json"))
+}
+
+func TestMigrateRulesPlanChecksBeforeDecode(t *testing.T) {
+	for _, kind := range []string{"group", "others", "directory", "owner", "regular"} {
+		t.Run(kind, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "plan.json")
+			if err := os.WriteFile(path, []byte("not JSON"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			uid := os.Geteuid()
+			want := "writable by group or others"
+			switch kind {
+			case "group":
+				if err := os.Chmod(path, 0620); err != nil {
+					t.Fatal(err)
+				}
+			case "others":
+				if err := os.Chmod(path, 0602); err != nil {
+					t.Fatal(err)
+				}
+			case "directory":
+				if err := os.Chmod(filepath.Dir(path), 0777); err != nil {
+					t.Fatal(err)
+				}
+				want = "without the sticky bit"
+			case "owner":
+				if os.Geteuid() == 0 {
+					t.Skip("root-owned plans are allowed for every command user")
+				}
+				uid++
+				want = "owned by the command user or root"
+			case "regular":
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+				want = "regular file"
+			}
+			if _, err := readMigrateRulesPlan(path, uid); err == nil || !strings.Contains(err.Error(), want) || strings.Contains(err.Error(), "\n") {
+				t.Fatalf("refusal = %v, want one sentence containing %q", err, want)
+			}
+		})
+	}
+	// /tmp's sticky bit permits a private plan there, and commit refusals have
+	// their own plain reasons even when the JSON is otherwise valid.
+	for _, commit := range []string{"", buildinfo.Commit + "-different", buildinfo.Commit} {
+		path := filepath.Join(t.TempDir(), "plan.json")
+		raw, err := json.Marshal(appstorage.ConvertPlan{Version: 1, Commit: commit})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+		_, err = readMigrateRulesPlan(path, os.Geteuid())
+		if commit == buildinfo.Commit {
+			if err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			want := "does not record a commit"
+			if commit != "" {
+				want = "differs from the running program"
+			}
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("refusal = %v, want %q", err, want)
+			}
+		}
+	}
 }
 
 func TestMigrateRulesRecipientsRequireRoot(t *testing.T) {

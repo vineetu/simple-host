@@ -249,6 +249,12 @@ simple-host migrate-rules --revert  --site <site id> --resource <name>
 
 Repeat `--account` for several accounts. Sites in Recently deleted are included.
 
+Apply and revert with `--plan` require a regular file owned by the command's
+user or root, with no group or other write permission. Its directories must
+not be writable by others unless the sticky bit is set (as on `/tmp`). The
+plan must record the same commit as the running program. Use the same program
+for the dry run, apply and plan-based revert. A refused plan changes no resource.
+
 **Dry run.** The server may be running. Nothing is changed: Postgres is only
 read, each SQLite database is opened read-only, no saved row is read, and no
 request is sent. For every SQLite or key-value resource still on a preset it

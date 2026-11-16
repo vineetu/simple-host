@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
+	"syscall"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/buildinfo"
@@ -33,6 +36,11 @@ func runMigrateRulesCommand(args []string) int {
 }
 
 func runMigrateRulesCommandWithExtensions(args []string, exts []*extension.Extension) int {
+	return runMigrateRulesCommandWithPlanUser(args, exts, os.Geteuid())
+}
+
+// planUser is explicit so tests can exercise a foreign-owned file without root.
+func runMigrateRulesCommandWithPlanUser(args []string, exts []*extension.Extension, planUser int) int {
 	fs := flag.NewFlagSet("migrate-rules", flag.ContinueOnError)
 	list := fs.Bool("list-recipients", false, "write both notice recipient lists; sends nothing")
 	out := fs.String("out", "", "with --list-recipients: private JSON output file")
@@ -75,6 +83,15 @@ func runMigrateRulesCommandWithExtensions(args []string, exts []*extension.Exten
 	if *list && os.Geteuid() != 0 {
 		fmt.Fprintln(os.Stderr, "recipient reports must be generated as root")
 		return 1
+	}
+	var checkedPlan appstorage.ConvertPlan
+	if (*apply || *revert) && *planPath != "" {
+		var err error
+		checkedPlan, err = readMigrateRulesPlan(*planPath, planUser)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 	}
 
 	dsn := os.Getenv("DB_DSN")
@@ -149,19 +166,12 @@ func runMigrateRulesCommandWithExtensions(args []string, exts []*extension.Exten
 			}
 		}
 	case *apply:
-		var plan appstorage.ConvertPlan
-		if plan, err = appstorage.ReadConvertPlan(*planPath); err == nil {
-			err = converter.Apply(ctx, plan, os.Stdout)
-		}
+		err = converter.Apply(ctx, checkedPlan, os.Stdout)
 	default:
 		targets := []appstorage.ConvertTarget{{SiteID: *site, Resource: *resource}}
 		if *planPath != "" {
-			var plan appstorage.ConvertPlan
-			if plan, err = appstorage.ReadConvertPlan(*planPath); err != nil {
-				break
-			}
 			targets = targets[:0]
-			for _, entry := range plan.Resources {
+			for _, entry := range checkedPlan.Resources {
 				targets = append(targets, appstorage.ConvertTarget{SiteID: entry.SiteID, Resource: entry.Name})
 			}
 		}
@@ -178,4 +188,80 @@ func runMigrateRulesCommandWithExtensions(args []string, exts []*extension.Exten
 		return 3
 	}
 	return 1
+}
+
+// Keep directory handles pinned while walking the resolved parent path and
+// decode the same file descriptor whose metadata was checked. No plan bytes
+// are read until the file and its containing directories have passed.
+func readMigrateRulesPlan(path string, uid int) (appstorage.ConvertPlan, error) {
+	var empty appstorage.ConvertPlan
+	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err == nil {
+		dir, err = filepath.Abs(dir)
+	}
+	if err != nil {
+		return empty, errors.New("could not inspect the plan directory")
+	}
+	root, err := os.OpenRoot(string(filepath.Separator))
+	if err != nil {
+		return empty, errors.New("could not inspect the plan directory")
+	}
+	defer func() { root.Close() }()
+	parts := strings.Split(strings.TrimPrefix(dir, string(filepath.Separator)), string(filepath.Separator))
+	for i := 0; ; i++ {
+		info, err := root.Stat(".")
+		if err != nil {
+			return empty, errors.New("could not inspect the plan directory")
+		}
+		if info.Mode().Perm()&0002 != 0 && info.Mode()&os.ModeSticky == 0 {
+			return empty, errors.New("the plan directory is writable by others without the sticky bit")
+		}
+		if i == len(parts) || parts[i] == "" {
+			break
+		}
+		next, err := root.OpenRoot(parts[i])
+		if err != nil {
+			return empty, errors.New("could not inspect the plan directory")
+		}
+		root.Close()
+		root = next
+	}
+	name := filepath.Base(path)
+	info, err := root.Lstat(name)
+	if err != nil {
+		return empty, errors.New("could not inspect the plan file")
+	}
+	if !info.Mode().IsRegular() {
+		return empty, errors.New("the plan must be a regular file")
+	}
+	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return empty, errors.New("could not open the plan file")
+	}
+	defer f.Close()
+	info, err = f.Stat()
+	if err != nil {
+		return empty, errors.New("could not inspect the plan file")
+	}
+	if !info.Mode().IsRegular() {
+		return empty, errors.New("the plan must be a regular file")
+	}
+	owner, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || (owner.Uid != 0 && int(owner.Uid) != uid) {
+		return empty, errors.New("the plan must be owned by the command user or root")
+	}
+	if info.Mode().Perm()&0022 != 0 {
+		return empty, errors.New("the plan must not be writable by group or others")
+	}
+	plan, err := appstorage.DecodeConvertPlan(f)
+	if err != nil {
+		return empty, err
+	}
+	if plan.Commit == "" {
+		return empty, errors.New("the plan does not record a commit")
+	}
+	if plan.Commit != buildinfo.Commit {
+		return empty, errors.New("the plan commit differs from the running program")
+	}
+	return plan, nil
 }

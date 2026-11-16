@@ -265,14 +265,20 @@ func WriteConvertPlan(path string, plan ConvertPlan) error {
 // ReadConvertPlan reads a plan and refuses one whose entries do not carry
 // their own SHA-256.
 func ReadConvertPlan(path string) (ConvertPlan, error) {
-	var plan ConvertPlan
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return plan, err
+		return ConvertPlan{}, err
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
+	return DecodeConvertPlan(bytes.NewReader(raw))
+}
+
+// DecodeConvertPlan validates a plan from an already opened reader, so the
+// operator command can check the file before reading its contents.
+func DecodeConvertPlan(r io.Reader) (ConvertPlan, error) {
+	var plan ConvertPlan
+	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
-	if err = dec.Decode(&plan); err != nil {
+	if err := dec.Decode(&plan); err != nil {
 		return plan, fmt.Errorf("%w: %v", ErrConvertPlan, err)
 	}
 	if plan.Version != convertPlanVersion {
@@ -287,6 +293,7 @@ func ReadConvertPlan(path string) (ConvertPlan, error) {
 	}
 	for i := range plan.Resources {
 		e := &plan.Resources[i]
+		var err error
 		if e.Rules, err = compact(e.Rules); err != nil {
 			return plan, fmt.Errorf("%w: %s/%s rules", ErrConvertPlan, e.SiteID, e.Name)
 		}
