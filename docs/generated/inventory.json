@@ -652,7 +652,7 @@
       "method": "GET",
       "path": "/apple-touch-icon-hack.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -884,7 +884,7 @@
       "method": "GET",
       "path": "/favicon-32-hack.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -900,7 +900,7 @@
       "method": "GET",
       "path": "/favicon-hack.ico",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -908,7 +908,7 @@
       "method": "GET",
       "path": "/favicon-hack.svg",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1068,7 +1068,7 @@
       "method": "GET",
       "path": "/hack",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1076,7 +1076,7 @@
       "method": "GET",
       "path": "/hack-connect-steps.json",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1084,7 +1084,7 @@
       "method": "GET",
       "path": "/hack-film-narration.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1092,7 +1092,7 @@
       "method": "GET",
       "path": "/hack-get-started-preview.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1100,7 +1100,7 @@
       "method": "GET",
       "path": "/hack-ink.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1116,7 +1116,7 @@
       "method": "GET",
       "path": "/hack-watch-judge.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1124,7 +1124,7 @@
       "method": "GET",
       "path": "/hack-watch-organizer.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1132,7 +1132,7 @@
       "method": "GET",
       "path": "/hack-watch-participant.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1140,7 +1140,7 @@
       "method": "GET",
       "path": "/hack/api.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1148,7 +1148,7 @@
       "method": "GET",
       "path": "/hack/app.html",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1156,7 +1156,7 @@
       "method": "GET",
       "path": "/hack/app.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1164,7 +1164,7 @@
       "method": "GET",
       "path": "/hack/assistant.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1172,7 +1172,7 @@
       "method": "GET",
       "path": "/hack/checklist.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1180,7 +1180,7 @@
       "method": "GET",
       "path": "/hack/connect-steps.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1188,7 +1188,7 @@
       "method": "GET",
       "path": "/hack/event-list.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1196,7 +1196,7 @@
       "method": "GET",
       "path": "/hack/kit.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1204,7 +1204,7 @@
       "method": "GET",
       "path": "/hack/leave.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1212,7 +1212,7 @@
       "method": "GET",
       "path": "/hack/nav.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1220,7 +1220,7 @@
       "method": "GET",
       "path": "/hack/navigation-data.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1228,7 +1228,7 @@
       "method": "GET",
       "path": "/hack/navigation.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1236,7 +1236,7 @@
       "method": "GET",
       "path": "/hack/needs.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1244,7 +1244,7 @@
       "method": "GET",
       "path": "/hack/platform.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1252,7 +1252,7 @@
       "method": "GET",
       "path": "/hack/public.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1260,7 +1260,7 @@
       "method": "GET",
       "path": "/hack/schedule.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1268,7 +1268,7 @@
       "method": "GET",
       "path": "/hack/screens",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1276,7 +1276,7 @@
       "method": "GET",
       "path": "/hack/screens/_event-tracks.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1284,7 +1284,7 @@
       "method": "GET",
       "path": "/hack/screens/_judge-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1292,7 +1292,7 @@
       "method": "GET",
       "path": "/hack/screens/_orgA-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1300,7 +1300,7 @@
       "method": "GET",
       "path": "/hack/screens/_orgB-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1308,7 +1308,7 @@
       "method": "GET",
       "path": "/hack/screens/_partB-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1316,7 +1316,7 @@
       "method": "GET",
       "path": "/hack/screens/_publish-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1324,7 +1324,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-admin.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1332,7 +1332,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-entries.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1340,7 +1340,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-judging.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1348,7 +1348,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-links.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1356,7 +1356,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-people.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1364,7 +1364,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1372,7 +1372,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-teams.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1380,7 +1380,7 @@
       "method": "GET",
       "path": "/hack/screens/_stage-announce-dialog.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1388,7 +1388,7 @@
       "method": "GET",
       "path": "/hack/screens/_team-message-dialog.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1396,7 +1396,7 @@
       "method": "GET",
       "path": "/hack/screens/_team-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1404,7 +1404,7 @@
       "method": "GET",
       "path": "/hack/screens/_thread-with-organisers.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1412,7 +1412,7 @@
       "method": "GET",
       "path": "/hack/screens/account.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1420,7 +1420,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-home.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1428,7 +1428,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-queue.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1436,7 +1436,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-rubric.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1444,7 +1444,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-scoring.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1452,7 +1452,7 @@
       "method": "GET",
       "path": "/hack/screens/landing-your-events.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1460,7 +1460,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-announcements.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1468,7 +1468,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-create-event.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1476,7 +1476,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-entries.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1484,7 +1484,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-entry-detail.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1492,7 +1492,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-event-page.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1500,7 +1500,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-judging-assignments.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1508,7 +1508,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-judging.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1516,7 +1516,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-overview.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1524,7 +1524,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-people.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1532,7 +1532,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1540,7 +1540,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-settings.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1548,7 +1548,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-team-detail.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1556,7 +1556,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-teams.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1564,7 +1564,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-announcements.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1572,7 +1572,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-entry.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1580,7 +1580,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-home.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1588,7 +1588,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1596,7 +1596,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-schedule.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1604,7 +1604,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-submissions.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1612,7 +1612,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-team.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1620,7 +1620,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-website.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1628,7 +1628,7 @@
       "method": "GET",
       "path": "/hack/screens/public-apply.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1636,7 +1636,7 @@
       "method": "GET",
       "path": "/hack/screens/public-join.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1644,7 +1644,7 @@
       "method": "GET",
       "path": "/hack/screens/public-judge.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1652,7 +1652,7 @@
       "method": "GET",
       "path": "/hack/screens/public-organiser-invite.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1660,7 +1660,7 @@
       "method": "GET",
       "path": "/hack/screens/public-team-link.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1668,7 +1668,7 @@
       "method": "GET",
       "path": "/hack/screens/{$}",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:167",
+      "source": "products/hack/asset_files.go:172",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1676,7 +1676,7 @@
       "method": "GET",
       "path": "/hack/shell.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1684,7 +1684,7 @@
       "method": "GET",
       "path": "/hack/stage-announce.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1692,7 +1692,7 @@
       "method": "GET",
       "path": "/hack/themes.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1700,7 +1700,7 @@
       "method": "GET",
       "path": "/hack/tour.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1708,7 +1708,7 @@
       "method": "GET",
       "path": "/hack/tours.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1716,7 +1716,7 @@
       "method": "GET",
       "path": "/hack/ui.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1724,7 +1724,7 @@
       "method": "GET",
       "path": "/hack/{$}",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:167",
+      "source": "products/hack/asset_files.go:172",
       "package": "products/hack",
       "dynamic": true
     },
@@ -2020,7 +2020,7 @@
       "method": "GET",
       "path": "/og-hack.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },
@@ -2140,7 +2140,7 @@
       "method": "GET",
       "path": "/setup/simple-hack.json",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:164",
+      "source": "products/hack/asset_files.go:169",
       "package": "products/hack",
       "dynamic": true
     },

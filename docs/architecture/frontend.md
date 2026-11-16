@@ -239,7 +239,7 @@ and `apps/bundlegen/bundle.go:esbuildVersion`; it is not a floating CLI.
 | Authored source | Generated, checked-in output | Regenerate | Freshness guard |
 |---|---|---|---|
 | Hack screens, `hack/kit.css`, MCP entries/adapters | `products/hack/mcp/apps/hack-{judge,organiser}-bundle.js`, `hack-{judge,organiser}-kit.css` | `go run ./products/hack/mcp/apps/gentool` | `products/hack/mcp`: `TestHackJudgeBundleFresh`, `TestHackOrganiserBundleFresh` |
-| `static/openapi.yaml` | `static/openapi.json` | Command below | `scripts/check-docs-sync.sh`, parsed YAML/JSON equality |
+| `static/openapi.yaml`, product `openapi.part.yaml` | Platform JSON, product JSON/YAML and internal contract | `make inventory` | `scripts/check-docs-sync.sh`, parsed YAML/JSON equality |
 | `static/features.json`, `scripts/features-page.tmpl.html` | `static/features.html` | `python3 scripts/build-features-page.py` | `scripts/check-features-page.py` |
 | `web/analytics-parse.js` | Marked script blocks in `index.html`, `showcase.html`, `analytics.html` | `bash scripts/inline-analytics-parser.sh` | `--check` plus Node parser fixtures in docs-sync |
 | `internal/webassets/simple-host-website/skills`, plugin manifest | `plugins/simple-host/skills` and synced manifest version | `bash scripts/sync-claude-plugin.sh` | `scripts/check-claude-plugin.sh` |
@@ -251,19 +251,14 @@ writes all four MCP assets; `GenerateCSS` removes `@font-face` from the
 shared kit for the embedded frame. The `go:generate` directives are in
 `products/hack/mcp/hack_apps*.go`; direct `go run` above regenerates both once.
 
-Exact OpenAPI conversion (PyYAML required):
-
-```sh
-python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/webassets/static/openapi.yaml')),open('internal/webassets/static/openapi.json','w'),indent=2)"
-```
-
-Source OpenAPI operations use four `x-audience` values: `public-host`,
-`public-hack`, `internal` and `legacy`. `handler/public_openapi.go:publicOpenAPISpec`
-selects the product's public operations and removes unused tags/components;
-internal and legacy operations remain in the source for coverage.
-`handler/instancehost.go:serveRewrittenAsset` applies this to both
-`/openapi.json` and `/openapi.yaml`: both serve filtered JSON (valid YAML 1.2).
-`/docs/api/` loads that filtered `/openapi.json` reference. Instance
+Generate both references (PyYAML required) with `make inventory`.
+The platform's authored operations use `public-host`, `internal` and `legacy`.
+The product part includes shared operations and adds `public-hack` operations.
+The generic `webassets.PublicOpenAPISpec` filter selects Host's public audience;
+Hack serves its already composed public document. Public references exclude
+internal and legacy operations and unreferenced components, followed transitively.
+Both `/openapi.json` and `/openapi.yaml` retain their existing JSON responses
+(valid YAML 1.2); `/docs/api/` uses the same public references. Instance
 rewriting/filtering happens on served bytes, not by editing generated files
 per instance.
 
@@ -291,3 +286,26 @@ the published GitHub install address working; `check-claude-plugin.sh` checks
 that compatibility copy. Embedded and downloaded bytes retain their existing paths.
 
 The shared destination map lives in `products/hack/rules/hackevents/navigation.json`. Run `python3 scripts/build-hack-navigation.py` for `hack/navigation-data.js`; docs-sync checks it. Atlas build.py projects the same role navigation. Settings editors live in focused `_settings-*` modules, Tracks in `_event-tracks.js`; activity screens retain operations and exports.
+
+## Reference composition
+
+`internal/webassets/static/openapi.yaml` is the authored platform contract,
+including its internal and legacy audiences. `products/hack/webassets/openapi.part.yaml`
+owns product operations, shared-operation inclusions and structural overrides.
+An inclusion is an operation ID, or `METHOD /path` for an operation without an ID.
+Overrides use JSON Pointers relative to an operation or `components`; missing
+operations and targets fail generation. The part's `tags` supplies product tags
+and changes shared tag descriptions. The public JSON reference is also valid
+YAML; both HTTP addresses retain the same JSON bytes.
+
+`make inventory` runs `scripts/compose-openapi.py` and the features-page generator.
+The composed public files live in the product's `static/` tree. The unserved
+`products/hack/webassets/openapi.internal.json` retains internal operations for
+coverage. The generator's `--check` mode rejects stale output, and the coverage
+check resolves references transitively in both contracts and public files.
+
+The platform feature catalogue is authored in `static/features.json`.
+`products/hack/webassets/features.part.json` carries explicit JSON Pointer
+sets, insertions and removals, plus the product's rendering metadata. The product
+owns its feature-page template; generated product JSON and HTML replace the
+platform files through the same asset precedence used by other product pages.

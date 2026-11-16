@@ -159,31 +159,35 @@ def problems_links():
     # features.json "Docs" links (SIM-390 item 4d): every entry must resolve
     # per brand, AND every feature not in not_shown with a brand on (yes/partial)
     # must carry at least one /docs/ link that resolves in every such brand.
-    features_path = ROOT / 'internal/webassets/static/features.json'
-    features = json.loads(features_path.read_text())
-    for area in features.get('areas', []):
-        for feature in area.get('features', []):
-            docs_links = feature.get('docs', []) or []
-            # Features on neither hosted brand (Enterprise, small box) are
-            # covered by the Host build's self-hosting pages.
-            needed = [b for b in BRANDS if feature.get('editions', {}).get(b) in ('yes', 'partial')] or ['host']
-            has_resolving_docs_link = False
-            for link in docs_links:
-                href = link.get('href', '') if isinstance(link, dict) else link
-                if not (href.startswith('/docs/') or href == '/docs'):
+    feature_files = {'host': ROOT / 'internal/webassets/static/features.json',
+                     'hack': ROOT / 'products/hack/webassets/static/features.json'}
+    for selected_brand, features_path in feature_files.items():
+        features = json.loads(features_path.read_text())
+        for area in features.get('areas', []):
+            for feature in area.get('features', []):
+                docs_links = feature.get('docs', []) or []
+                # Features on neither hosted brand (Enterprise, small box) are
+                # covered by the Host build's self-hosting pages.
+                needed = [selected_brand]
+                if selected_brand == 'hack' and feature.get('editions', {}).get('hack') not in ('yes', 'partial'):
                     continue
-                ok_everywhere = True
-                for brand in needed:
-                    rel = href[len('/docs'):] or '/'
-                    docs_path, frag = split_href(rel)
-                    err = check_docs_link(brand, docs_path, frag, cache)
-                    if err:
-                        errors.append(f'{err} (features.json {feature.get("id")})')
-                        ok_everywhere = False
-                if ok_everywhere:
-                    has_resolving_docs_link = True
-            if not has_resolving_docs_link:
-                errors.append(f'features.json {feature.get("id")}: no /docs/ link resolving in every brand it is on ({", ".join(needed)})')
+                has_resolving_docs_link = False
+                for link in docs_links:
+                    href = link.get('href', '') if isinstance(link, dict) else link
+                    if not (href.startswith('/docs/') or href == '/docs'):
+                        continue
+                    ok_everywhere = True
+                    for brand in needed:
+                        rel = href[len('/docs'):] or '/'
+                        docs_path, frag = split_href(rel)
+                        err = check_docs_link(brand, docs_path, frag, cache)
+                        if err:
+                            errors.append(f'{err} (features.json {feature.get("id")})')
+                            ok_everywhere = False
+                    if ok_everywhere:
+                        has_resolving_docs_link = True
+                if not has_resolving_docs_link:
+                    errors.append(f'features.json {feature.get("id")}: no /docs/ link resolving in every brand it is on ({", ".join(needed)})')
 
     per_brand_docs = {
         'host': [ROOT / 'internal/webassets/static/llms.txt'],

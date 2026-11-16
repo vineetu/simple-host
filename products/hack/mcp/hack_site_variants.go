@@ -82,3 +82,18 @@ func hackSiteExportSite(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 		return out, err
 	})
 }
+
+func hackSiteStorageGetUsage(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
+	tool.Description = hackStorageUsageDescription
+	return tool
+}
+
+func hackSiteStorageSqlExecute(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
+	tool.InputSchema = maps.Clone(tool.InputSchema)
+	props := maps.Clone(tool.InputSchema["properties"].(map[string]any))
+	field := maps.Clone(props["for"].(map[string]any))
+	field["description"] = strings.Replace(field["description"].(string), "Available to account owners.", "Host only, not Simple Hack.", 1)
+	props["for"] = field
+	tool.InputSchema["properties"] = props
+	return tool
+}

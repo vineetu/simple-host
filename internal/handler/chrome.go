@@ -357,12 +357,10 @@ var chromeCache sync.Map
 // describe the other product, whose limits are its own, so they keep theirs.
 func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
 	page, err := p.chromePageRaw(name, d)
-	if err == nil && name == "enterprise.html" && p.pres.ProductAssets {
-		// Simple Hack serves /hackathons itself, so its copy of this shared
-		// page links to this install's own address (simple-hack.app only on
-		// simple-hack.app itself); Simple Host, which no longer has the
-		// page, keeps the simple-hack.app link.
-		page = bytes.ReplaceAll(page, []byte(`href="`+p.pres.CanonicalBaseURL+`/hackathons"`), []byte(`href="`+strings.TrimRight(p.inkBaseURL(), "/")+`/hackathons"`))
+	if err == nil && name == "enterprise.html" {
+		if hook := p.product.hooks.PersonalPresentationHTML; hook != nil {
+			page = hook(name, page)
+		}
 	}
 	if err != nil || strings.HasPrefix(name, "enterprise-") || name == "enterprise.html" {
 		return page, err
@@ -583,12 +581,6 @@ func (p *assetPipeline) chromePageRaw(name string, d ChromeData) ([]byte, error)
 	raw, err := p.staticFS().ReadFile("static/" + name)
 	if err != nil {
 		return nil, err
-	}
-	if name == "setup-helper.html" && d.Product {
-		raw = bytes.ReplaceAll(raw, []byte("Set up Simple Host"), []byte("Set up Simple Hack"))
-		raw = bytes.Replace(raw, []byte(`content="Answer a few questions and get the install command and settings for a Simple Host small box, or the Kubernetes configuration for Simple Host Enterprise. Runs in your browser."`), []byte(`content="Answer a few questions and get the steps to set up Simple Hack on your own server. Runs in your browser."`), 1)
-		raw = bytes.Replace(raw, []byte(`data-setup-product="small"`), []byte(`data-setup-product="hack"`), 1)
-		raw = bytes.Replace(raw, []byte(`<p class="lede">Answer a few questions and get what to run: the install command and settings for a small box, or the configuration for Simple Host Enterprise on Kubernetes. Anything you skip keeps its default.</p>`), []byte(`<p class="lede">Answer a few questions and get the steps to set up Simple Hack on your own server.</p>`), 1)
 	}
 	if name == "hack-get-started.html" {
 		if hook := p.product.hooks.ExpandConnectSteps; hook != nil {

@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-// Captured from the pre-extraction implementation. Hash the wire bytes, including
+// Captured before extraction; D3-S3 updates the Host prose only (also pinned
+// by its golden comparison). Hash the wire bytes, including
 // listing order, schemas and instructions, across the platform's own connection
 // kinds and the protocol revisions. A product's connection kinds are pinned
 // the same way in the product's package.

@@ -29,8 +29,18 @@ routes=$(go run ./scripts/inventory routes \
   | sed -E 's/\{([[:alnum:]_]+)\.\.\.\}/{\1}/g' | sort -u)
 
 # Paths documented in openapi.yaml (top-level keys under paths:).
-documented=$(grep -oE '^  /v1/[^:]+:' "$OPENAPI" | sed -E 's/^  (\/v1\/[^:]+):/\1/' | sort -u)
+documented=$(python3 - <<'PYDOC'
+import json
+from pathlib import Path
+paths = set()
+for name in ('internal/webassets/static/openapi.json', 'products/hack/webassets/openapi.internal.json'):
+    paths.update(path for path in json.loads(Path(name).read_text())['paths'] if path.startswith('/v1/'))
+print('\n'.join(sorted(paths)))
+PYDOC
+)
 
+python3 scripts/compose-openapi.py --check || fail=1
+python3 scripts/tests/compose-openapi.test.py || fail=1
 python3 scripts/check-openapi-coverage.py || fail=1
 
 echo "== routes vs openapi.yaml =="

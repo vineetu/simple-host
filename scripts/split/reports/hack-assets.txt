@@ -247,3 +247,15 @@ the folder breaks that address for everyone who has the command, or changes
 the page (the slice says Golden: none). The slice's goal is "every published
 address still answering", so the folder stays; its README, the sync script
 and the check now read the toolkit's new home. Needs a ruling.
+
+D3-S3: reference and public-text branches
+========================================
+The earlier sections are historical. OpenAPISpec is gone: the product replaces
+openapi.json/yaml with its generated public contract, and the platform keeps
+only generic audience filtering. The unserved composed internal contract is
+used for route coverage. Feature JSON and HTML also use explicit replacements;
+the product's Rewrite resolves its JSON markers, while the shared server keeps
+only the hosted/self bracket pass. The product's setup-helper.html carries its
+setup words. Its PersonalPresentationHTML callback makes the enterprise page's
+event link local. Shared docs choose their replacement root, and the llms.txt
+instance note follows the absence of a product text hook.

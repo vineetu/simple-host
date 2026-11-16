@@ -26,14 +26,16 @@ import (
 // imports.go had no literal preset hit; generated setup advice is rendered in
 // app/sites/import_rules.go without changing the recorded import report.
 //
-// Hashes were captured at 40077d00 before R3-S6a changed any server text.
+// Hashes were captured at 40077d00 before R3-S6a changed server text, then
+// updated for D3-S3's approved Host description-only changes. Refusal hints
+// and every schema field other than its description retain their old checks.
 func TestStorageRulesFlagOffHashes(t *testing.T) {
-	want := map[string]string{"false//false//": "32b716438d032d39c72ca9d8ad9af9a867d6e17674bbd4a41734dd8227aebcda",
-		"false//true//":         "32b716438d032d39c72ca9d8ad9af9a867d6e17674bbd4a41734dd8227aebcda",
-		"false//false/ChatGPT/": "595c926812429187a98adf4f56345a5e8c0689f156ac208569d411d04476434d",
-		"true//false//":         "39bfb4a2caaac5ff89e3267fb00bb371b974adb5b15888edc13590fb7c306d97",
-		"true//true//":          "39bfb4a2caaac5ff89e3267fb00bb371b974adb5b15888edc13590fb7c306d97",
-		"true//false/ChatGPT/":  "e49d0a91dcb147a258c0132ff8b7d6ecb1bf034b7ba01814a3cb62d3da03dac1"}
+	want := map[string]string{"false//false//": "573856e4a7a437f726677f6c02d136654300bcbad94e54a00d3e3ca56275ec93",
+		"false//true//":         "573856e4a7a437f726677f6c02d136654300bcbad94e54a00d3e3ca56275ec93",
+		"false//false/ChatGPT/": "19e76f5226bb343af1abb1142e6d1d984a90c094c864fc14fa87cb080a6a35d8",
+		"true//false//":         "0d55dd605a859513bb5a0dbdd64a3311587477d91d6fd1fe264be7f1122103c1",
+		"true//true//":          "0d55dd605a859513bb5a0dbdd64a3311587477d91d6fd1fe264be7f1122103c1",
+		"true//false/ChatGPT/":  "7c3e39a6cf0c0dc61755d375e032d38dc92ef05a9d461026bce04651b38bade2"}
 	t.Setenv("STORAGE_RULES", "off")
 	for _, noSpam := range []bool{false, true} {
 		s := NewServer(testConfig(Config{NoSpamCheck: noSpam}))

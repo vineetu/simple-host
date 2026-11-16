@@ -21,6 +21,11 @@ func assetReplacements() map[string]string {
 		"llms.txt":                      "static/hack-llms.txt",
 		"setup":                         "static/setup",
 		"setup/setup.js":                "static/setup/setup-hack.js",
+		"openapi.json":                  "static/openapi.json",
+		"openapi.yaml":                  "static/openapi.yaml",
+		"features.json":                 "static/features.json",
+		"features.html":                 "static/features.html",
+		"setup-helper.html":             "static/setup-helper.html",
 	}
 }
 

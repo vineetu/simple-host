@@ -128,85 +128,26 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 			}
 			body, err = p.staticFS().ReadFile("static/" + sourceName)
 			if err == nil && (name == "openapi.yaml" || name == "openapi.json") {
-				audience := "public-host"
-				if p.pres.ProductAssets {
-					audience = "public-hack"
-				}
-				if hook := p.product.hooks.OpenAPISpec; hook != nil {
-					body, err = hook(body)
-				} else {
-					body, err = publicOpenAPISpec(body, audience)
+				if _, replaced := p.product.replace["openapi.json"]; !replaced {
+					body, err = publicOpenAPISpec(body, "public-host")
 				}
 			}
 			if err == nil && name == "features.json" {
-				// Reached only on a self-hosted instance (features.json is
-				// hidden from the raw file server and routed here only
-				// when assets.rewritten() is true), so this is always the
-				// self-hosted side of [[hosted]]/[[self]]: raw, those
-				// bracket tokens (build-features-page.py's own markers,
-				// never converted to HTML comments for this JSON file)
-				// would otherwise appear literally, and [[hosted]]'s
-				// content (hosted-only domain names, the plugin/directory
-				// copy) with them.
-				body = featureJSONMarkers(body, p.pres.ProductAssets)
+				body = stripBracketMarkers(body, "self", "hosted")
 			}
 			if err == nil {
-				if p.pres.ProductAssets {
-					// features.json and openapi.yaml/json carry the same
-					// shared, cross-cutting Host-level prose (handles,
-					// sites, sign-in, the API, support@) that the Host
-					// branch below already rewrites for its own edition --
-					// Simple Hack is the same binary and genuinely has most
-					// of these features too, so a self-hosted Hack install
-					// must name its own address and its own support contact
-					// for them, not simple-host.app's. HackInstanceText
-					// only ever rewrote simple-hack.app's own mentions;
-					// nothing on this branch touched the generic
-					// simple-host.app ones (that rewrite, rw.apply, lived
-					// only in the else branch) until now. supportText runs
-					// first, for the same ordering reason as below:
-					// rw.apply's blanket "simple-host.app" -> siteDomain
-					// replacement would otherwise mangle
-					// support@simple-host.app before supportText can match
-					// it. Unconditional now -- the previous "except
-					// openapi.yaml/json" carve-out was unimplemented scope,
-					// not a product decision, and supportText is a safe
-					// no-op whenever auth.SupportContact is still the
-					// default "support@simple-host.app", which is true on
-					// both real hosted services today.
-					body = []byte(supportText(string(body)))
-					// Gated on genuinely self-hosted (instanceHosts != nil
-					// and not the real hosted simple-hack.app), exactly
-					// like connector.go's site-management-tool rewrite: rw
-					// is non-nil on the real hosted simple-hack.app too,
-					// because its own SITE_DOMAIN ("simple-hack.app")
-					// differs from the Host-only canonicalSiteDomain
-					// constant -- so a bare rw.apply would rewrite that
-					// service's legitimate simple-host.app cross-product
-					// references into "simple-hack.app", naming itself.
-					// This check keeps that service's bytes untouched, the
-					// same as every other hosted instance.
-					if rw != nil && instanceSiteDomain != "simple-hack.app" {
-						body = rw.apply(body)
-					}
-					body = p.productInstanceText(p.limitsText.apply(body))
-				} else {
-					if name == "llms.txt" && rw != nil {
-						body = selfHostedClaudeSetup(body)
-					}
-					// supportText must run before rw.apply: that pass's
-					// blanket "simple-host.app" -> siteDomain replacement
-					// would otherwise mangle "support@simple-host.app"
-					// into a nonexistent "support@<this domain>" first,
-					// leaving nothing left for supportText to match (the
-					// same ordering bug rewriteSupportAddress/
-					// selfHostedChromeRewrite already fixed for chrome
-					// pages -- llms.txt/openapi.yaml/openapi.json never
-					// went through that pass, only this one).
-					body = p.limitsText.apply(rw.apply([]byte(supportText(string(body)))))
+				if name == "llms.txt" && rw != nil && p.product.hooks.InstanceText == nil {
+					body = selfHostedClaudeSetup(body)
 				}
+				body = []byte(supportText(string(body)))
+				// A product on the hosted service keeps cross-product links.
+				// Other installs substitute their own host before the product pass.
+				if p.product.hooks.InstanceText == nil || p.hostedOwner() == "" {
+					body = rw.apply(body)
+				}
+				body = p.productInstanceText(p.limitsText.apply(body))
 			}
-			if err == nil && !p.pres.ProductAssets && name == "llms.txt" && instanceNote != "" {
+			if err == nil && p.product.hooks.InstanceText == nil && name == "llms.txt" && instanceNote != "" {
 				body = append([]byte(instanceNote), body...)
 			}
 		}
@@ -244,25 +185,6 @@ func replaceSetupLine(body []byte, prefix, replacement string) []byte {
 		end = len(body) - start
 	}
 	return append(append(append([]byte{}, body[:start]...), []byte(replacement)...), body[start+end:]...)
-}
-
-// featureJSONMarkers resolves features.json's [[hosted]]/[[self]] and
-// [[hashack]]/[[nohack]] bracket tokens (scripts/build-features-page.py's
-// own HACK_MARKERS, used there to emit the <!--sh:hosted-->-style HTML
-// comments hostedBlocks/hasHackBlocks act on for features.html; this raw
-// JSON file never goes through that script, so the tokens stay literal
-// bracket text unless resolved here). Reached only on a self-hosted
-// instance (see the call site), so the hosted side of [[hosted]]/[[self]]
-// is always dropped; hasHack mirrors hasHackBlocks's own rule for
-// [[hashack]]/[[nohack]] (kept on the two real hosted services and any
-// Hack-edition instance, self-hosted included; dropped only on a
-// self-hosted Host edition).
-func featureJSONMarkers(body []byte, hasProduct bool) []byte {
-	body = stripBracketMarkers(body, "self", "hosted")
-	if hasProduct {
-		return stripBracketMarkers(body, "hashack", "nohack")
-	}
-	return stripBracketMarkers(body, "nohack", "hashack")
 }
 
 // stripBracketMarkers removes every [[dropName]]...[[/dropName]] span

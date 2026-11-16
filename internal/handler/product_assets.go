@@ -34,7 +34,6 @@ type ProductAssetHooks struct {
 	SkillAvailable           func(string) bool
 	ExpandConnectSteps       func([]byte) []byte
 	PersonalPresentationHTML func(string, []byte) []byte
-	OpenAPISpec              func([]byte) ([]byte, error)
 	// CatalogPlugin is the plugin name the skills catalogue (/v1/skills)
 	// reports. Empty means the platform's own.
 	CatalogPlugin string

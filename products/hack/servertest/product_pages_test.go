@@ -614,3 +614,23 @@ func TestHackFilesDoNotDecideTheirOwnTheme(t *testing.T) {
 		t.Fatalf("walked %d product files: %v", seen, err)
 	}
 }
+
+// The product callback keeps the shared enterprise page's event link local.
+func TestEnterpriseHackathonsLinkProductCallback(t *testing.T) {
+	handler.SetInstanceHosts("simple-host.app", "", "")
+	t.Cleanup(func() { handler.SetInstanceHosts("simple-host.app", "", "") })
+	for _, base := range []string{"https://simple-hack.app", "https://hack.example.org"} {
+		mux, _ := hackMuxAt(t, base, base)
+		rec := get(t, mux, "", "/enterprise")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: %d", base, rec.Code)
+		}
+		want := `href="` + base + `/hackathons"`
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("%s: missing %s", base, want)
+		}
+		if base != "https://simple-hack.app" && strings.Contains(rec.Body.String(), "simple-hack.app/hackathons") {
+			t.Error("product link names the hosted service")
+		}
+	}
+}

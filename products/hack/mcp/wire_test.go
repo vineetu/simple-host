@@ -127,7 +127,8 @@ var wireVersions = []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-2
 // instructions, including listing order and schemas, for every connection
 // kind and protocol revision. The hashes in testdata/contribution-wire.json
 // were captured before Simple Hack's tools and screens left the tool server
-// (D3-S1a) and have not been re-recorded since: each is the SHA-256 of
+// (D3-S1a). D3-S3 updates only Host connection hashes for its approved prose
+// changes; all Hack hashes stay unchanged. Each is the SHA-256 of
 // {"List":<the tools/list response>,"Instructions":<the instructions>}.
 func contributionSnapshot(t *testing.T, noSpamCheck bool) map[string]string {
 	t.Helper()

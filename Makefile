@@ -74,6 +74,8 @@ check-release:
 	bash scripts/check-release.sh
 
 inventory:
+	python3 scripts/compose-openapi.py
+	python3 scripts/build-features-page.py
 	go run ./scripts/inventory write
 
 # Report only, deliberately outside check. Reuse a golden recording with

@@ -22,7 +22,7 @@ func Contribution() mcp.Contribution {
 			"export_site": hackSiteExportSite, "set_site_offline": hackSiteSetSiteOffline,
 			"set_visibility": hackSiteSetVisibility, "create_upload_link": hackSiteCreateUploadLink,
 			"get_page_recipe": hackSiteGetPageRecipe, "storage_set_resource": hackSiteStorageSetResource,
-			"storage_sql_schema": hackSiteStorageSqlSchema, "who_am_i": hackSiteWhoAmI,
+			"storage_sql_execute": hackSiteStorageSqlExecute, "storage_get_usage": hackSiteStorageGetUsage, "storage_sql_schema": hackSiteStorageSqlSchema, "who_am_i": hackSiteWhoAmI,
 		},
 		Instructions: func(mode string) string {
 			switch mode {

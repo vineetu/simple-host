@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 15:** Simple Host’s API reference, feature list and agent text now describe Simple Host alone. Simple Hack’s API and feature references are generated from shared sources plus its own authored parts, with the same published content (D3-S3).
+
 - **Nov 15:** Simple Hack's skill toolkit (the five skills, the builder and the eight earlier `simple-hack-skills-only-0.2.6` to `0.2.13` downloads) and its landing films moved out of the platform's embedded files into Simple Hack's own (D3-S2b). Every Simple Hack address answers as before, each earlier download with the same bytes. A Simple Host install no longer serves the twelve `/film/hack-*` files (404); no Simple Host page used them. Simple Hack now registers its own file names itself, through one file route, and answers the withdrawn `/plugin.zip`, `/install.sh` and `/install.ps1` itself.
 
 - **Nov 15:** The setup page on a Simple Host install (simple-host.app/setup) offers Small box and Enterprise only. The "Simple Hack on one server" choice and its step list (`/setup/simple-hack.json`) are now offered by a Simple Hack install's own `/setup`, where the page is unchanged; on Simple Host that file answers 404. Simple Hack's pages, screens, icons and docs moved out of the platform's embedded files into the product, so a Simple Host install no longer serves them (for example `/hack-ink.css`, `/og-hack.png`, `/hack/app.js` now answer 404 there; no Simple Host page linked to them). Simple Hack installs serve everything as before (D3-S2a).

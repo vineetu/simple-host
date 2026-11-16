@@ -172,12 +172,16 @@ def check_pagefind(tree):
 
 def check():
     errors = []
-    features = json.loads((ROOT / 'internal/webassets/static/features.json').read_text())
-    ids = {f['id']: f for a in features['areas'] for f in a['features']}
+    feature_files = {'host': ROOT / 'internal/webassets/static/features.json',
+                     'hack': ROOT / 'products/hack/webassets/static/features.json'}
+    catalogues = {brand: json.loads(path.read_text()) for brand, path in feature_files.items()}
+    ids = {brand: {f['id']: f for a in data['areas'] for f in a['features']}
+           for brand, data in catalogues.items()}
     areas = json.loads((SOURCE / 'areas.json').read_text())
-    for a in features['areas']:
-        if a['id'] not in areas:
-            errors.append(f'area {a["id"]} has no mapping')
+    for data in catalogues.values():
+        for a in data['areas']:
+            if a['id'] not in areas:
+                errors.append(f'area {a["id"]} has no mapping')
     for p in (SOURCE / 'src/content/docs/guides').glob('*.mdx'):
         for brand in BRANDS:
             text = brand_text(p.read_text(), brand)
@@ -196,7 +200,7 @@ def check():
                 if len(found) != 1:
                     errors.append(f'{p.name} ({brand}) {title}: expected one What id')
                 for fid in found:
-                    if fid not in ids or ids[fid]['editions'][brand] not in ('yes', 'partial'):
+                    if fid not in ids[brand] or ids[brand][fid]['editions'].get(brand) not in ('yes', 'partial'):
                         errors.append(f'{p.name} ({brand}): {fid} is not on')
     try:
         manifest = json.loads((OUTPUT / 'manifest.json').read_text())

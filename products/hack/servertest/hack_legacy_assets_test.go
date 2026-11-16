@@ -9,8 +9,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/webassets"
-	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	webassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
@@ -18,10 +17,7 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	filtered, err := hackhttp.NewAssets(chromeTestHandler(productedition.Hack).AssetServices(), "").Hooks().OpenAPISpec(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	filtered := source
 	var spec struct {
 		Paths map[string]json.RawMessage `json:"paths"`
 	}
@@ -36,9 +32,14 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 			t.Errorf("retired Hack path in public OpenAPI: %s", path)
 		}
 	}
-	for _, personal := range []string{"/v1/me/home", "/v1/me/bio", "/v1/sites/{sitename}/showcase", "/v1/u/{handle}/showcase.json"} {
+	for _, personal := range []string{"/v1/me/home", "/v1/me/bio", "/v1/me/address-families", "/v1/sites/{sitename}/domain", "/v1/sites/{sitename}/showcase", "/v1/u/{handle}/showcase.json"} {
 		if _, ok := spec.Paths[personal]; ok {
 			t.Errorf("personal presentation route in Hack OpenAPI: %s", personal)
+		}
+	}
+	for _, path := range []string{"/v1/hack/events", "/v1/hack/events/{slug}/website/storage/{rest}"} {
+		if spec.Paths[path] == nil {
+			t.Errorf("Hack event API missing: %s", path)
 		}
 	}
 	if strings.Contains(string(spec.Paths["/v1/me"]), `"home_site"`) {

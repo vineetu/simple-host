@@ -18,6 +18,7 @@ Leads are matched by their stable FEATURES.md anchors, never by display text.
 
 Run: python3 scripts/check-features-page.py   (also run by scripts/check-docs-sync.sh)
 """
+import runpy
 import json
 import os
 import re
@@ -82,7 +83,7 @@ def parse_features_md(path="FEATURES.md"):
 
 def main():
     fails = []
-    data = json.load(open(DATA, encoding="utf-8"))
+    data = runpy.run_path("scripts/build-features-page.py")["feature_data"]()[1]
     sections, leads = parse_features_md()
     if not sections or not leads:
         print("FAIL: FEATURES.md parse found %d sections and %d leads; the pattern needs updating" % (len(sections), len(leads)))

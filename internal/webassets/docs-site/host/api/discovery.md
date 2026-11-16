@@ -6,7 +6,7 @@ Public product, connector, and API discovery.
 
 <div data-operation="GET /"></div>
 
-Accept text/markdown negotiates Markdown; HTML is the default. Both carry discovery Link headers and Vary: Accept.
+The selected product landing. Accept text/markdown negotiates Markdown; HTML is the default. Both carry discovery Link headers and Vary: Accept.
 
 No authentication required.
 
@@ -76,7 +76,7 @@ No authentication required.
 
 <div data-operation="GET /.well-known/mcp/server-card.json"></div>
 
-Public product identity, build version, icon, and local MCP endpoint.
+Public product identity, build version, icon, and local MCP endpoint. Available on this server.
 
 No authentication required.
 

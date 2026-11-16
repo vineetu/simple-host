@@ -93,11 +93,11 @@ func TestProductAssetHookDefaultsAndErrors(t *testing.T) {
 	if !p.skillAvailable("website-deploy") || p.skillAvailable("run-hackathon") {
 		t.Fatal("nil skill hook changed platform availability")
 	}
-	// No OpenAPISpec hook: the platform's own public spec is served.
+	// With no replacement, the platform's public spec is served.
 	r0 := httptest.NewRecorder()
 	p.serveRewrittenAsset("openapi.json", nil, skillsModTime).ServeHTTP(r0, httptest.NewRequest("GET", "/openapi.json", nil))
 	if r0.Code != http.StatusOK || !strings.Contains(r0.Body.String(), `"openapi"`) {
-		t.Fatalf("nil spec hook: %d", r0.Code)
+		t.Fatalf("platform spec: %d", r0.Code)
 	}
 	// No PersonalPresentationHTML hook on a product install: the page text
 	// passes through the shared presentation unchanged.
@@ -106,11 +106,11 @@ func TestProductAssetHookDefaultsAndErrors(t *testing.T) {
 		t.Fatalf("nil presentation hook changed the page: %s", got)
 	}
 	sh := &SiteHandler{ed: edition.Default(config.DefaultLimits()), assets: p}
-	sh.SetProductAssets(nil, nil, nil, nil, ProductAssetHooks{OpenAPISpec: func([]byte) ([]byte, error) { return nil, errors.New("product spec unavailable") }}, nil)
+	sh.SetProductAssets(map[string]string{"openapi.json": "static/missing.json"}, nil, fstest.MapFS{}, nil, ProductAssetHooks{}, nil)
 	r := httptest.NewRecorder()
 	p.serveRewrittenAsset("openapi.json", nil, skillsModTime).ServeHTTP(r, httptest.NewRequest("GET", "/openapi.json", nil))
 	if r.Code != http.StatusNotFound {
-		t.Fatalf("hook failure: %d", r.Code)
+		t.Fatalf("missing replacement: %d", r.Code)
 	}
 }
 

@@ -375,16 +375,12 @@ def generate(brand, generated_content):
     tools = run_inventory('tools-json', brand)
     spec = run_inventory('openapi-json', brand)
 
-    hack_filter = drop_hack_mentions if brand == 'host' else None
-    api_index, api_tag_pages = api_pages(spec, hack_filter)
-    if brand == 'host':
-        for tool in tools:
-            tool['description'] = drop_hack_mentions(tool.get('description', ''), tool['name'])
-            if tool.get('title'):
-                tool['title'] = drop_hack_mentions(tool['title'], tool['name'] + ' title')
+    # Product references are already composed; platform text is authored
+    # without product clauses, so generation never edits descriptions.
+    api_index, api_tag_pages = api_pages(spec)
 
     install_href = '/get-started' if brand == 'hack' else '/install.html'
-    mcp_index, mcp_family_pages = mcp_pages(tools, install_href, hack_filter)
+    mcp_index, mcp_family_pages = mcp_pages(tools, install_href)
 
     api_dir = generated_content / 'api'
     mcp_dir = generated_content / 'mcp'

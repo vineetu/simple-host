@@ -498,11 +498,18 @@ func writeToolsJSON(edition string) error {
 // writeOpenAPIJSON prints the edition's public API contract, exactly as the
 // server filters it for /openapi.json.
 func writeOpenAPIJSON(edition string) error {
-	source, err := os.ReadFile("internal/webassets/static/openapi.json")
+	path := "internal/webassets/static/openapi.json"
+	if edition == "hack" {
+		path = "products/hack/webassets/static/openapi.json"
+	}
+	source, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	out, err := webassets.PublicOpenAPISpec(source, "public-"+edition)
+	out := source
+	if edition == "host" {
+		out, err = webassets.PublicOpenAPISpec(source, "public-host")
+	}
 	if err != nil {
 		return err
 	}

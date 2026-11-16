@@ -453,7 +453,7 @@ The key stops working at once; the account's other keys and connected apps are u
 
 <div data-operation="POST /v1/me/password"></div>
 
-Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither, and answers 403. new_password must be 8-256 characters and differ from current_password. Only a real account API key may call this; a connector's OAuth access token, even one otherwise valid for the REST API, is refused. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.
+Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither, and answers 403 (not 401, which the account screens read as an expired key and sign the browser out). new_password must be 8-256 characters and differ from current_password. Only a real account API key may call this; a connector's OAuth access token, even one otherwise valid for the REST API, is refused. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 

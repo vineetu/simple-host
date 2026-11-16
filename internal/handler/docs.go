@@ -41,12 +41,12 @@ var docsScriptSrcRE = regexp.MustCompile(`(?i)\bsrc\s*=`)
 func (p *assetPipeline) docsRuntimeText(body []byte) []byte {
 	// Replace the full origin before the hostname-only chrome pass, as
 	// discovery documents do, preserving PUBLIC_BASE_URL's scheme and port.
-	if !p.pres.ProductAssets && p.docs.baseURL != "" && p.hostedOwner() == "" {
+	if p.product.replace["docs-site"] == "" && p.docs.baseURL != "" && p.hostedOwner() == "" {
 		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(p.docs.baseURL))
 	}
 	body = p.docsStorageLimits(body)
 	body = hostedBlocks(p.productInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
-	body = hasProductBlocks(body, p.hostedOwner() != "" || p.pres.ProductAssets)
+	body = hasProductBlocks(body, p.hostedOwner() != "" || p.product.replace["docs-site"] != "")
 	if p.hostedOwner() == "" {
 		body = p.selfHostedChromeRewrite(body)
 	}

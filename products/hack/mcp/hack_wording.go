@@ -7,6 +7,7 @@ import (
 )
 
 func hackPhotoWording(description string) string {
+	description = strings.Replace(description, "Show how much of a site's saved-data allowance is used: KV and SQLite together (10,000,000 bytes) and files separately (10 MB). The site's own pages and images are counted elsewhere (list_sites).", hackStorageUsageDescription, 1)
 	description = strings.Replace(description, mcp.StorageOwnerPhotos, ", a gallery you fill", 1)
 	return strings.Replace(description, mcp.StorageGalleryLookalike, hackStorageGalleryLookalike, 1)
 }
@@ -40,3 +41,5 @@ func hackInstanceReplace(text, apiHost string) string {
 	}
 	return text
 }
+
+const hackStorageUsageDescription = "Show how much of a site's saved-data allowance is used: on Simple Host, KV and SQLite together (10,000,000 bytes) and files separately (10 MB); on Simple Hack, one 1,000,000-byte pool for all three. The site's own pages and images are counted elsewhere (list_sites)."

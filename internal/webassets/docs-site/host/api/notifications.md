@@ -16,7 +16,7 @@ Owner credentials required on Host.
 | --- | --- |
 | 200 | List notifications across the account |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 
 ## GET /v1/push/sw.js
@@ -45,7 +45,7 @@ Owner credentials required on Host.
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
-| event | query | string |  | Required when the person belongs to same-named teams in multiple events; the connector supplies it from the selected team. |
+| event | query | string |  | Optional group slug for a site notification. |
 
 **Responses:**
 
@@ -53,14 +53,14 @@ Owner credentials required on Host.
 | --- | --- |
 | 200 | List notifications for a site. |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 
 ## POST /v1/sites/{sitename}/notifications
 
 <div data-operation="POST /v1/sites/{sitename}/notifications"></div>
 
-The owner-entered URL is accepted without an MCP verification challenge. Generates a secret unless one is supplied; the response shows it once. Optional custom header and svix-* aliases are sent only for owner-made subscriptions. MCP and REST share the site subscription cap. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+The owner-entered URL is accepted without an MCP verification challenge. Generates a secret unless one is supplied; the response shows it once. Optional custom header and svix-* aliases are sent only for owner-made subscriptions. MCP and REST share the site subscription cap.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -70,7 +70,7 @@ The owner-entered URL is accepted without an MCP verification challenge. Generat
 | --- | --- | --- | --- | --- |
 | Idempotency-Key | header | string |  | Opaque key for a create request. For 24 hours, the same authenticated account, POST path and query, key and exact request body replay the original handler status and body, including errors, without executing it again. A different body under that key returns 409 idempotency_key_reused. Concurrent identical requests wait for the first response. Stored only in this server's memory; a restart clears it. Authentication and rate limiting still apply to replays. A replay does not extend a minted link's expiry; use a new key to request a new link. Storage row creates support owner credentials and signed-in visitors; anonymous writes ignore this header. Storage replay also checks current resource permissions and is scoped to the resolved site. |
 | sitename | path | string | yes |  |
-| event | query | string |  | Required when the person belongs to same-named teams in multiple events; the connector supplies it from the selected team. |
+| event | query | string |  | Optional group slug for a site notification. |
 
 **Request body:**
 
@@ -90,7 +90,7 @@ The owner-entered URL is accepted without an MCP verification challenge. Generat
 | 201 | Create an owner-made notification |
 | 400 | invalid_url, refused_address, invalid_events, invalid_secret, invalid_header, or storage_not_found. |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 | 409 | too_many_notifications: the site subscription cap is reached. notifications_not_enabled: the server has no PASSCODE_ENC_KEY. |
 
@@ -98,7 +98,7 @@ The owner-entered URL is accepted without an MCP verification challenge. Generat
 
 <div data-operation="PATCH /v1/sites/{sitename}/notifications/{id}"></div>
 
-false also resumes suspension and makes held deliveries due now. Owner credentials required. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+false also resumes suspension and makes held deliveries due now. Owner credentials required.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -108,7 +108,7 @@ false also resumes suspension and makes held deliveries due now. Owner credentia
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
 | id | path | string | yes | Subscription ID from the notification list. |
-| event | query | string |  | Required when the person belongs to same-named teams in multiple events; the connector supplies it from the selected team. |
+| event | query | string |  | Optional group slug for a site notification. |
 
 **Request body:**
 
@@ -122,7 +122,7 @@ false also resumes suspension and makes held deliveries due now. Owner credentia
 | --- | --- |
 | 200 | Pause or resume a notification |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 
 ## DELETE /v1/sites/{sitename}/notifications/{id}
@@ -139,7 +139,7 @@ Owner credentials required on Host.
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
 | id | path | string | yes | Subscription ID from the notification list. |
-| event | query | string |  | Required when the person belongs to same-named teams in multiple events; the connector supplies it from the selected team. |
+| event | query | string |  | Optional group slug for a site notification. |
 
 **Responses:**
 
@@ -147,14 +147,14 @@ Owner credentials required on Host.
 | --- | --- |
 | 200 | Remove a notification |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 
 ## GET /v1/sites/{sitename}/notifications/{id}/deliveries
 
 <div data-operation="GET /v1/sites/{sitename}/notifications/{id}/deliveries"></div>
 
-Newest first, at most 200 within the configured history window (default 7 days). Pending deliveries are held while suspended. Five attempts by default; HTTP 410/413 and refused addresses are not retried. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+Newest first, at most 200 within the configured history window (default 7 days). Pending deliveries are held while suspended. Five attempts by default; HTTP 410/413 and refused addresses are not retried.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -164,7 +164,7 @@ Newest first, at most 200 within the configured history window (default 7 days).
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
 | id | path | string | yes | Subscription ID from the notification list. |
-| event | query | string |  | Required when the person belongs to same-named teams in multiple events; the connector supplies it from the selected team. |
+| event | query | string |  | Optional group slug for a site notification. |
 
 **Responses:**
 
@@ -172,14 +172,14 @@ Newest first, at most 200 within the configured history window (default 7 days).
 | --- | --- |
 | 200 | List recent notification deliveries |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 
 ## POST /v1/sites/{sitename}/notifications/{id}/rotate-secret
 
 <div data-operation="POST /v1/sites/{sitename}/notifications/{id}/rotate-secret"></div>
 
-Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours, until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret instead. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours, until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret instead.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -189,7 +189,7 @@ Shows the new secret once. Deliveries carry signatures for both secrets for 24 h
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
 | id | path | string | yes | Subscription ID from the notification list. |
-| event | query | string |  | Required when the person belongs to same-named teams in multiple events; the connector supplies it from the selected team. |
+| event | query | string |  | Optional group slug for a site notification. |
 
 **Responses:**
 
@@ -197,7 +197,7 @@ Shows the new secret once. Deliveries carry signatures for both secrets for 24 h
 | --- | --- |
 | 200 | Rotate an owner-made signing secret |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 | 409 | client_secret: the client manages this MCP subscription secret. notifications_not_enabled: the server has no PASSCODE_ENC_KEY. |
 
@@ -205,7 +205,7 @@ Shows the new secret once. Deliveries carry signatures for both secrets for 24 h
 
 <div data-operation="POST /v1/sites/{sitename}/notifications/{id}/test"></div>
 
-Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id starts with evt_test_. The response reports the HTTP status and result category, never the receiver body. Test sends require an unexpired owner-made subscription and do not appear in delivery history. Challenge and test sends share limits of 10/minute per owner, host, and resolved IP, with at most 10 running at once. Leaving, removal, moves, or loss of approval delete the affected subscriptions.
+Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id starts with evt_test_. The response reports the HTTP status and result category, never the receiver body. Test sends require an unexpired owner-made subscription and do not appear in delivery history. Challenge and test sends share limits of 10/minute per owner, host, and resolved IP, with at most 10 running at once.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -215,7 +215,7 @@ Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id s
 | --- | --- | --- | --- | --- |
 | sitename | path | string | yes |  |
 | id | path | string | yes | Subscription ID from the notification list. |
-| event | query | string |  | Required when the person belongs to same-named teams in multiple events; the connector supplies it from the selected team. |
+| event | query | string |  | Optional group slug for a site notification. |
 
 **Responses:**
 
@@ -223,7 +223,7 @@ Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id s
 | --- | --- |
 | 200 | Send a signed test notification |
 | 401 | Missing or invalid owner credentials. |
-| 403 | forbidden, or notification_access_ended when membership or the creation window no longer permits the operation. |
+| 403 | forbidden, or notification_access_ended when access no longer permits the operation. |
 | 404 | not_found, or not_offered for an event account. |
 | 409 | client_subscription: test sends require an unexpired owner-made subscription. |
 | 503 | busy: ten verification or test sends are already running. |

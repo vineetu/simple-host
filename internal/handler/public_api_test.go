@@ -13,7 +13,7 @@ func TestPublicAPIAudiences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, audience := range []string{"public-host", "public-hack"} {
+	for _, audience := range []string{"public-host"} {
 		t.Run(audience, func(t *testing.T) {
 			body, err := publicOpenAPISpec(source, audience)
 			if err != nil {
@@ -71,15 +71,7 @@ func TestPublicAPIAudiences(t *testing.T) {
 						t.Error("legacy section in public reference")
 					}
 				}
-			} else {
-				if spec.Paths["/v1/hack/events"] == nil || spec.Paths["/v1/hack/events/{slug}/website/storage/{rest}"] == nil {
-					t.Error("Hack event API missing")
-				}
-				for _, path := range []string{"/v1/me/home", "/v1/me/bio", "/v1/me/address-families", "/v1/u/{handle}/showcase.json", "/v1/sites/{sitename}/domain"} {
-					if spec.Paths[path] != nil {
-						t.Errorf("Host-only path in Hack: %s", path)
-					}
-				}
+
 			}
 		})
 	}

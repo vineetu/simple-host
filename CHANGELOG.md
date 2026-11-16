@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-15: Simple Host’s API reference, feature list and agent text now describe Simple Host alone. Simple Hack’s API and feature references are generated from shared sources plus its own authored parts, with the same published content (D3-S3).
+
 2026-11-15: Simple Hack's skill toolkit (the five skills, the builder and the eight earlier `simple-hack-skills-only-0.2.6` to `0.2.13` downloads) and its landing films moved out of the platform's embedded files into Simple Hack's own (D3-S2b). Every Simple Hack address answers as before, each earlier download with the same bytes. A Simple Host install no longer serves the twelve `/film/hack-*` files (404); no Simple Host page used them. Simple Hack now registers its own file names itself, through one file route, and answers the withdrawn `/plugin.zip`, `/install.sh` and `/install.ps1` itself.
 
 - R2-S5c: Harden `kv-move`. Each install now has an identity saved in both its database (migration 0021, table `install_identity`) and its data directory (`.install-id`), created by the server at start; apply, rollback and verify refuse when the two do not match. Apply and rollback also take a database-wide lock that every running server shares, and refuse when run by a user who does not own the data directory. Rollback refuses a namespace with saved rules, skips one whose rows are already in Postgres without failing, and syncs the directory after keeping the old file. The server opens the maintenance lock file read-only. Nothing changes for requests; keep `KV_STORE=postgres`.

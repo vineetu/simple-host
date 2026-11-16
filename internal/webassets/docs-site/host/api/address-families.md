@@ -50,7 +50,7 @@ A verified family that fails its checks (the TXT record gone, the wildcard moved
 | --- | --- |
 | 200 | The account already has this family; it is returned unchanged |
 | 201 | Connected; pending until both DNS records are seen |
-| 400 | invalid_domain, invalid_site_prefix (lowercase letters, digits and hyphens, not at the start, up to 40 characters), invalid_rank (0 to 1000), cert_mode_unavailable (per_host), invalid_cert_mode. |
+| 400 | invalid_domain (not a domain you can own, a public suffix, an internationalised name, or the platform's own, e.g. simple-host.app), invalid_site_prefix (lowercase letters, digits and hyphens, not at the start, up to 40 characters), invalid_rank (0 to 1000), cert_mode_unavailable (per_host), invalid_cert_mode. |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | account_suspended |
 | 409 | domain_taken (the name, or one over or under it, is connected to another account), address_family_limit (ADDRESS_FAMILIES_PER_ACCOUNT reached), address_families_unavailable (this server does not offer address families). |

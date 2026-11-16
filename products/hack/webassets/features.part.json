@@ -1,0 +1,2186 @@
+{
+  "_comment": "Authored product feature additions and structural overrides. Generated with make inventory.",
+  "render": {
+    "editions": [
+      [
+        "host",
+        "Simple Host"
+      ],
+      [
+        "hack",
+        "Simple Hack"
+      ],
+      [
+        "enterprise",
+        "Enterprise"
+      ],
+      [
+        "smallbox",
+        "Small box"
+      ]
+    ],
+    "product_features": [
+      "dashboard-mcp-apps-hack",
+      "self-host",
+      "hack-run-event",
+      "hack-registration",
+      "hack-teams",
+      "hack-entries",
+      "hack-judging",
+      "hack-voting",
+      "hack-sites",
+      "hack-agents",
+      "hack-companies",
+      "hack-films",
+      "hack-organiser-assistant"
+    ],
+    "product_links": [
+      "simple-hack.app"
+    ],
+    "open_marker": "<!--sh:hashack-->",
+    "close_marker": "<!--/sh:hashack-->",
+    "marked_intro": [
+      1
+    ],
+    "branch_classes": {
+      "hack": "hackb"
+    },
+    "markers": {
+      "[[hashack]]": "<!--sh:hashack-->",
+      "[[/hashack]]": "<!--/sh:hashack-->",
+      "[[nohack]]": "<!--sh:nohack-->",
+      "[[/nohack]]": "<!--/sh:nohack-->",
+      "[[hosted]]": "<!--sh:hosted-->",
+      "[[/hosted]]": "<!--/sh:hosted-->",
+      "[[self]]": "<!--sh:self-->",
+      "[[/self]]": "<!--/sh:self-->"
+    }
+  },
+  "overrides": [
+    {
+      "op": "set",
+      "path": "/intro/1",
+      "value": "This page is the map: every area of the product, the features inside each one, and where to read more. Simple Hack, which runs hackathons on simple-hack.app, is the same software run as its own product and has its own branch below."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/0/limits",
+      "value": "Script files are refused. Each upload is capped by the per-upload size limit (see Publish a whole folder; Simple Hack allows 25 MB). A site must include a home page."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/0/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/0/editions_note",
+      "value": "Simple Hack team sites use the same route with a 25 MB upload limit."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/0/evidence",
+      "value": "features.html #deploy-inline-files; FEATURES.md §1 Routes row (POST/PUT /v1/sites/{sitename}/files, inline JSON, base64 allowed); FEATURES.md L90 (Hack 25 MB). Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/1/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/1/editions_note",
+      "value": "Simple Hack allows 25 MB per upload; a small box has no total cap unless its operator sets one."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/2/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/3/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/3/evidence",
+      "value": "FEATURES.md §1 MCP tools row (update_site keep_other_files, remove_files); FEATURES.md L935 (PUT .../files?keep=1); FEATURES.md L933 (patch sanitized, site lock held through merge); PARITY row 'Change a few files of a site' (same; must keep an index.html). Hack and small box: not stated, same binary. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/4/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/4/evidence",
+      "value": "features.html #deploy-ci; FEATURES.md §1 Routes row (?create=1, 409 site_exists, 404 says add ?create=1; keep-versions and lock not for deploy-only keys); PARITY row 'Deploy from CI in one call'. Hack and small box: not stated, same routes. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/5/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/5/editions_note",
+      "value": "On Simple Hack the upload link is the default form of `create_upload_link`; Enterprise does not have upload links."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/5/evidence",
+      "value": "FEATURES.md L939 (archive: true, PUT /v1/uploads/{token}, 15 minutes, 20 links, upload_link_signed_out); PARITY row 'Connector archive upload links' (Hack by default; Enterprise not built). Small box: not stated, same binary. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/6/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/7/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/8/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/8/evidence",
+      "value": "features.html #site-quota; FEATURES.md §1 Limits row (100 sites, MAX_SITES_PER_ACCOUNT, Recently deleted counts, /v1/me reports max_sites); PARITY row 'Quotas' (Enterprise QUOTA_MAX_SITES + QUOTA_MAX_BYTES). Hack: not stated, team sites follow the event. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/9/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/9/editions_note",
+      "value": "Simple Hack keeps its own 25 MB upload limit and 2 versions; Enterprise caps stored bytes per owner instead; a small box has no site or account total unless its operator sets one."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/9/evidence",
+      "value": "FEATURES.md §1 L82-92 (200 MB, 1024 MB, SITE_TOTAL_CAP_FROM, after-prune checks, 413 site_total_too_large / account_storage_full, /v1/me file_usage, small box and Hack lines); FEATURES.md §18 L2328 (100 MB default); PARITY rows 'Website file allowances', 'Quotas'. Named account exceptions (chhotabreak, vineetu, jot-transcribe) rendered as 'operator exceptions', no customer names. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/10/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/11/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/11/evidence",
+      "value": "FEATURES.md §1 Routes row (GET /v1/sites ?query=, date filters, ?order=, paging, compact content summary); Pages row (search from 10 sites); PARITY row 'Find sites by description' (summary fields, same on Enterprise 2026-10-24). Hack and small box: not stated, same binary. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/12/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/12/editions_note",
+      "value": "Simple Hack keeps 2 versions, Enterprise keeps 5, and a small box keeps every version unless its operator sets a count, which anyone there may also set per site."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/12/evidence",
+      "value": "features.html #site-versions and the Managing sites lede ('Simple Host keeps your 4 latest versions; operator exceptions apply. Self-hosted instances choose their own retention'); FEATURES.md §1 L84 (4 versions, 403 keep_versions_fixed text), L90 (small box anyone can set, KEEP_VERSIONS 0 = all; Hack 2), Routes row (keep-versions not for deploy-only keys), Pages row (newest three and the live one, Show all); PARITY row 'Versions kept per site' (Enterprise 5). Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/13/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/14/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/14/evidence",
+      "value": "features.html #site-preview; FEATURES.md §1 preview prose (publish=false, hour-long bearer link, noindex, saves refused, 409 preview_unavailable with no own address); PARITY row 'Look before it goes live' (Enterprise owner/team only). Hack: preview_version tool exists; the §10 note that 'preview remains unavailable on Hack' refers to the MCP Apps screen. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/15/limits",
+      "value": "An author name is at most 80 characters. Discarding is final and applies only to versions that were never live; a deploy-only key or a Simple Hack team key cannot discard."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/15/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/15/editions_note",
+      "value": "On Simple Hack the version list and authors work the same way; team keys cannot discard."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/16/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/17/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/18/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/18/evidence",
+      "value": "features.html #site-delete (Recently deleted and Restore facts); FEATURES.md §1 delete prose (7 days, restore brings it back whole, hourly purge, name, saved data, collections and claimed names kept, a deleted site's old names skipped), Routes row (GET /v1/me/deleted-sites, POST .../restore), MCP row (list_deleted_sites, restore_site); PARITY row 'Recently deleted' (Enterprise 30 days, owner, team member or admin). Hack: list_deleted_sites and restore_site exist on Hack. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/19/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/19/evidence",
+      "value": "features.html #site-offline; FEATURES.md §1 offline prose (503, noindex, 403 site_offline, leaves the person page, owner keeps deploying, take-down wins); PARITY row 'Take a site offline' (Enterprise only-me access level). Hack: set_site_offline exists on Hack. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/20/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/20/evidence",
+      "value": "features.html #site-download; FEATURES.md §1 Routes row (export.tar.gz with collections.json id, created_at, submitted_by; 10-minute export link; 404 export_link_invalid when expired, deleted or changed); PARITY row 'Site export with saved data'. Hack: export_site exists on Hack. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/21/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/21/evidence",
+      "value": "features.html #site-visibility (Where said 'on your sites page only'; FEATURES.md lists set_visibility and PUT /v1/sites/{sitename}/visibility, so the AI app can do it too, FEATURES.md wins); FEATURES.md §1 lead (List on my profile, default off, every open site indexable); PARITY row 'Who can open a site' for Enterprise access levels. Hack: set_visibility exists; not stated for Hack showcase. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/22/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/23/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/23/editions_note",
+      "value": "WordPress import is a simple-host.app feature; Simple Hack team sites are new builds and Enterprise does not have it."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/23/evidence",
+      "value": "FEATURES.md L931-935 (create_import_link, accepted files, safety checks, conversion without AI, Squarespace, output list, get_import_report mapping, page-builder notes, 30 minutes, 20 links, 24-hour report, IMPORT_MAX_CONCURRENT); PARITY row 'WordPress import from the owner's export' (not on Hack, Enterprise not built). Small box: the lead says Simple Host only and the import URL is the simple-host.app apex; read as no. Upload-safety internals (zip-bomb caps, entity refusal) covered silently. Not rendered."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/24/example",
+      "value": "A developer's three test sites from a hackathon weekend are warned at 90 days; they keep the one they still show to clients and let the others go."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/24/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/24/editions_note",
+      "value": "Simple Hack team sites are removed 30 days after an event is archived, with one warning 14 days before; Enterprise sets the idle period itself and shows a Not used lately card instead of emailing only."
+    },
+    {
+      "op": "set",
+      "path": "/areas/0/features/25/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/0/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/0/editions_note",
+      "value": "Simple Hack team sites live on the event's hosts; a small box without per-site hosts serves every site by path on one shared address."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/0/evidence",
+      "value": "FEATURES.md §2 L222-233 (own origin, /v1/ per site, path form until the certificate), L240-249 (site base move paused: .app only, 301 from the old base). features.html entry site-url L361-371. PARITY row 'Per-site hosts' (Enterprise v1.3 same fallback), row 'Small-box path model'. Simple Hack: FEATURES.md §15 team sites on event hosts."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/1/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/1/editions_note",
+      "value": "Enterprise has an owner index page that needs company sign-in; a small box without per-site hosts serves the person page by path; Simple Hack has no personal sites."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/1/evidence",
+      "value": "FEATURES.md §2 L225-231 (every handle is a host; person-path form until the certificate), Routes row (PersonHosts; aliased old handle 301s; reserved handles in h/handles.go). PARITY row 'Person / owner index page' (Enterprise sign-in required), 'Small-box path model'. Hack: PARITY row 'Your home page' says Simple Hack owns no personal sites."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/2/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/3/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/3/evidence",
+      "value": "FEATURES.md §2 L236-238 (302 with path and query; renamed site's old name on all three forms), Routes row (LegacyHostRedirect, 'This site was removed'); §3 L320-322 (released free names stay with the site). features.html entry legacy-url-redirect L400-410. Editions for Hack, Enterprise and small box not stated; the legacy hosts are hosted history."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/4/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/4/editions_note",
+      "value": "Hosted Simple Host only. Simple Hack team sites live on the event's hosts, and Enterprise keeps the person's name in every address on purpose."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/5/limits",
+      "value": "One domain per site. A binding is provisional until its TXT ownership record proves it: another site can take an unproven one over, and it lapses after 24 hours if DNS never pointed here (7 days in any case). A proven domain is exclusive (`409 domain_taken`). A name another site on this server already serves cannot be connected. Each account may ask for at most 5 new domain certificates a day; the sixth waits. Sites that are taken down, and suspended accounts, get no domain checks. [[hosted]]`simple-hack.app` and the service's own zones cannot be connected.[[/hosted]]"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/5/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/5/editions_note",
+      "value": "Enterprise has no custom domains by decision; Simple Hack team sites live on the event's hosts; on a small box the server's own web front issues a connected domain's certificate on demand."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/5/evidence",
+      "value": "FEATURES.md §3 L299-320 (provisional, 24 h / 7 days, exclusive, 5 certificates a day, previous_domain kept, taken-down and suspended skipped, simple-hack.app and platform zones refused), Timing row (re-check every 2 min). features.html entry custom-domain-connect L832-842. PARITY row 'Custom domains' (Enterprise none; Caddy on-demand TLS on boxes, hence small box partial). Hack: task sets no; FEATURES.md §3 External mentions Caddy on-demand TLS on event instances, not stated further."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/6/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/7/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/8/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/9/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/10/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/11/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/12/limits",
+      "value": "The family answers site labels only; the bare suffix itself is not routed to your home page or showcase, and the wildcard certificate does not cover the apex. Nothing is served until both records are seen; a pending family is dropped after 24 hours. Several accounts may wait on one name; the first to prove it wins and the others are emailed. A verified family is exclusive: no other account can connect it, an overlapping family, or a custom domain under it. The label `www` never names a site. The wildcard certificate is set up by the operator; until then the status says waiting for the operator. If it fails every check for a day, the account is emailed. After three days the domain is disconnected and must be connected again with the TXT record. [[hosted]]`simple-hack.app` and the service's own zones are refused as suffixes.[[/hosted]]"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/12/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/12/editions_note",
+      "value": "Hosted Simple Host only; Enterprise has no custom domains by decision, and Simple Hack team sites live on the event's hosts."
+    },
+    {
+      "op": "set",
+      "path": "/areas/1/features/12/evidence",
+      "value": "FEATURES.md §3 L338-368 (wildcard + TXT, site_prefix, www reserved, 24 h pending, first to prove wins, exclusive, canonical main address and redirects, what works on a family address, 24 h / 72 h lapse, waiting_for_operator, simple-hack.app refused; status live hosted only, flag elsewhere needing an operator certificate directory). §13 L1739-1745 (whole-space apex stopped: families do not route the apex to the account home nor cover it with the certificate). PARITY row 'Address families' (Enterprise none, owner decision 2026-09-29). Small box set to no per task; FEATURES.md marks it flag elsewhere. Chhota Break example is a customer already named on the owner's pages; swap for a generic one if the page rule forbids it."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/0/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/0/editions_note",
+      "value": "Simple Hack team sites and event websites use the same three kinds under one 1,000,000-byte pool; Enterprise runs them on its own engine, where tables are declared columns stored as Postgres rows and there is no per-site SQL."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/1/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/1/editions_note",
+      "value": "Simple Hack supplies trusted team, organiser, stage and deadline facts; its own gates still apply. Self-hosted servers may still have accepting new rules off; follow their tool descriptions."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/2/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/3/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/3/editions_note",
+      "value": "On Simple Hack an approved team member signed in on the team site has these rights while the team may still change it, and an organiser on the event website until the event ends; on Enterprise the owner or a team member signed in on the site's own host has them."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/3/evidence",
+      "value": "FEATURES.md §23 'The owner on their own site (D1)' and the Simple Hack 2026-10-10 passage; PARITY row 'Storage access presets' (Enterprise column)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/4/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/4/editions_note",
+      "value": "Simple Hack serves the same recipes with a note on who the owner is there, and points comments and guestbook requests to `wall`."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/4/evidence",
+      "value": "FEATURES.md §23 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in internal/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/5/who",
+      "value": "Anyone taking shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, or a waitlist with \"my place in line\"."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/5/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/5/evidence",
+      "value": "FEATURES.md §23 'Each person's records' paragraph and the add/own SQLite paragraphs; current page lede id each-persons-records (text kept in who). FEATURES.md's 2026-10-08 line says 'not Enterprise or Simple Hack', but the later 2026-10-10 presets passage says Simple Hack uses the same presets including records, and PARITY says Enterprise has the same presets; newer text wins, hack yes, enterprise partial."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/6/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/6/editions_note",
+      "value": "Simple Hack leaves it out on purpose because a team's owner rights end at its submission deadline, so nobody would remain to moderate; Hack sends guestbooks to `wall`, where people sign in to post."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/6/status_note",
+      "value": "needs Cloudflare Turnstile keys; on at simple-host.app, off by default on Simple Hack and self-hosted boxes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/7/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/7/evidence",
+      "value": "FEATURES.md §23 'Who sent each record (2026-10-10)' paragraph ('Hosted and small box; not Simple Hack (404 there)'); PARITY row 'Who sent each record (2026-10-10)'."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/8/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/8/editions_note",
+      "value": "The pick list and resolving a person by email are Host only (named viewers and storage_visitor_emails are not a Simple Hack concept); on Simple Hack the owner names the visitor by their reference instead. Enterprise is a later port."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/9/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/10/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/11/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/11/editions_note",
+      "value": "On Simple Hack files come out of the team's single 1,000,000-byte pool and team file links recheck membership; on Enterprise files are bucket objects counted in the owner's quota."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/12/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/12/editions_note",
+      "value": "Simple Hack keeps one 1,000,000-byte pool per team or event website across all three kinds, with its own per-upload cap; Enterprise sets the same values as settings per installation."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/12/evidence",
+      "value": "FEATURES.md §23 allowance paragraph (SITE_STORAGE_MAX_BYTES, SITE_STORAGE_FILES_MAX_BYTES, SITE_STORAGE_FILE_MAX_BYTES, Hack pool), rate-limit and lock-wait paragraphs; PARITY row 'Site storage primitives' (Enterprise env settings with hosted's values)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/13/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/13/editions_note",
+      "value": "Simple Hack retired these routes; Enterprise keeps one saved document per site on its own engine with last-write-wins or versioned compare-and-set writes."
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/14/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/15/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/16/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/17/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/18/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/19/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/20/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/21/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/22/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/23/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/24/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/25/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/26/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/2/features/27/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/0/how",
+      "value": "Enter your email in the sign-in card and press Continue. A six-digit code arrives; paste or type it and the card signs you in as soon as the sixth digit is in. Your first code creates the account, with no separate sign-up step. The same card is used on the home page, on the connector's consent page, on Simple Hack, and on the shared sign-in page a site sends visitors to."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/0/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/0/evidence",
+      "value": "features.html signin-email-code; FEATURES.md §7 L747-749 (6 digits, 15 min, 3 tries), §6 L700-712 (shared card, 30-second resend), §7 Limits row (ipLimiter, emailLimiter); PARITY row 'Owner sign-in and sessions'. Hack: same card per FEATURES.md §6 L704-706."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/1/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/2/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/3/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/3/editions_note",
+      "value": "Enterprise names come from the company directory; Simple Hack accounts have no personal address to pick."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/3/evidence",
+      "value": "FEATURES.md §7 L784-790; §7 Routes row (choose_handle, suggested_handle, invalid_handle / handle_reserved / handle_taken without using up the code). Not stated for Simple Hack; features.html your-home-page says Simple Hack has no personal sites, so read as no."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/4/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/4/editions_note",
+      "value": "On Enterprise a person's name comes from the company directory and an admin renames; Simple Hack has no personal sites."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/4/evidence",
+      "value": "features.html account-handle; FEATURES.md §7 L788-790 (Your address → Change checks while typing), §7 Routes row PATCH /v1/me (free before publishing, once per 30 days, alias, certificate); PARITY row 'Change a person's address (handle)'. Hack: not stated; read as no (no personal sites)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/5/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/5/evidence",
+      "value": "features.html api-key; FEATURES.md §7 L747-760 (shk_, SHA-256, names, last 4, last_used_at, Keys panel, own key needed), §7 Limits row (50 keys); PARITY rows 'API keys: hashing', 'API keys: list and revoke one', 'Why a key stopped working', 'Account/credential actions and MCP', 'API keys: expiry' (Enterprise 90 days, 14-day warning). Hack: same binary, not stated separately."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/6/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/6/evidence",
+      "value": "FEATURES.md §7 L762-782; PARITY rows 'API keys: scopes', 'API keys: expiry'. Hack: same binary, not stated separately."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/7/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/8/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/8/evidence",
+      "value": "features.html signin-email-change; FEATURES.md §7 L814-836; §6 L672 (EMAIL_SIGNIN=off turns off email change); PARITY row 'Change sign-in email'. Hack: same binary (event accounts refused), not stated separately."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/9/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/9/evidence",
+      "value": "features.html signin-alerts; FEATURES.md §7 L838-849; PARITY row 'Sign-in alert email'. Current page said 'never contains your address or IP'; FEATURES.md says never the IP or a location, so the text now says IP address or location. Hack: same binary, not stated separately."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/10/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/10/evidence",
+      "value": "features.html account-data; FEATURES.md §7 L792-812; §7 Routes row DELETE /v1/me (account_suspended / site_suspended); PARITY row 'Data export and account erasure'. Hack: same routes (409 event_hostnames refusal exists), not stated separately."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/11/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/11/editions_note",
+      "value": "On Simple Hack, team and event sites sign visitors in the same way; on Enterprise the company session is handed to the site."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/12/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/12/editions_note",
+      "value": "[[hashack]]Simple Hack hops through simple-hack.app for team and event sites; [[/hashack]]Enterprise hands the company session to sites with the same consent; a small box without an account address keeps the older per-site sign-in."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/13/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/14/line",
+      "value": "Every sign-in uses the same card, so the dashboard, the connector, Simple Hack, and site visitors see the same steps and the same words."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/14/who",
+      "value": "Everyone who signs in anywhere on Simple Host or Simple Hack."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/14/example",
+      "value": "A judge joining a hackathon on Simple Hack and a shopper on a Simple Host store see the same card and the same error text when a code expires."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/14/where",
+      "value": "The home page, the connector's consent page, Simple Hack sign-in and join links, and the shared sign-in page a site sends visitors to."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/14/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/15/who",
+      "value": "Companies running Simple Host on their own server or Simple Hack's standalone package, whose people already have a work account."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/15/example",
+      "value": "A company running an internal hackathon on the standalone Simple Hack package lets staff sign in with their Microsoft work accounts and no one needs a code by email."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/15/limits",
+      "value": "[[hosted]]simple-host.app and simple-hack.app do not offer it.[[/hosted]] A Google-based issuer needs an allowed-domain list, since a consumer Google account can carry any address. If the identity provider is unreachable, the sign-in says so instead of failing silently; the install still starts."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/15/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/15/editions_note",
+      "value": "On Enterprise the company's identity provider is the only sign-in; on a small box or the standalone Simple Hack package it is an extra button beside email and Google."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/15/docs",
+      "value": [
+        {
+          "label": "Set up a small box",
+          "href": "/setup?product=small-box"
+        },
+        {
+          "label": "Simple Hack for companies",
+          "href": "https://simple-hack.app/companies"
+        },
+        {
+          "label": "FEATURES.md §6 Visitor sign-in",
+          "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code"
+        },
+        {
+          "label": "Docs",
+          "href": "/docs/self-hosting/settings/accounts-and-sign-in/"
+        }
+      ]
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/16/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/16/editions_note",
+      "value": "Enterprise has company sign-in only, so there is nothing to turn off; the standalone Simple Hack package has the same switch as a small box."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/17/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/17/editions_note",
+      "value": "Simple Hack refuses passcodes; a small box offers them when each site has its own address and a sealing key is set, and refuses them where every site shares one address; Enterprise has access levels tied to real identity instead."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/17/evidence",
+      "value": "FEATURES.md §1 L94-141 (status flag, default on, needs PASSCODE_ENC_KEY, on at simple-host.app since 2026-09-30; limits 5/3m, 15 min lockout, 60/1m; 6 to 128 chars; refused passcode_needs_own_address and on Simple Hack); PARITY rows 'Site passcode', 'Who can open a site'. PARITY says 'switched off on simple-host.app until address families land (2026-09-29)'; FEATURES.md says on since 2026-09-30 and wins. Connector passcodes 2026-10-30 (L130-137): codes shown on screen, never in chat."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/18/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/18/editions_note",
+      "value": "Not on Simple Hack; a small box offers it where each site has its own address and visitors can sign in; Enterprise's level `specific` names people or teams from the company directory, pending until first sign-in."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/18/evidence",
+      "value": "FEATURES.md §1 L143-184 (SITE_VIEWERS_MAX 50, exact match, refused named_viewers_need_own_address, sign_in_unavailable, named_viewers_unavailable on Hack); §6 L607 (named-viewer gates hop automatically); PARITY rows 'Named viewers (2026-10-10 ...)', 'Who can open a site'."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/19/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/19/evidence",
+      "value": "PARITY.md L208 (country-blocked sign-in, 2026-10-01: SIGNUP_BLOCKED_COUNTRIES, empty = off; 403 signup_unavailable_region; API keys keep working; viewing unaffected; not applied to Enterprise). The countries themselves are not in the sources read and are not rendered. Hack: same binary, not stated for simple-hack.app."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/20/example",
+      "value": "A company runs an internal hackathon without an email provider. The organiser creates accounts from the Users panel."
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/20/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/3/features/20/editions_note",
+      "value": "Available on self-hosted Host and Hack installs; off on the hosted services."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/0/where",
+      "value": "Settings, Notifications on your sites page, or on the team and organiser website screens in Simple Hack, and the REST routes documented at /docs/guides/notifications/."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/0/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/0/editions_note",
+      "value": "Simple Hack offers it on team and organiser websites; Enterprise has its own engine with the same signatures and controls; Simple Hack and Enterprise have the three record events, and site events are Simple Host only; a small box needs its sealing key set, which the installer does by default."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/1/limits",
+      "value": "Simple Host only for now; Simple Hack keeps the three record events and Enterprise has not ported them. An event about the site's owner is never sent. Payloads never carry a visitor's email, IP address, or user agent, or visitor-written text, and have no storage, kind, preset, or untrusted keys; the domain event's reason, cut to 1,024 bytes, may name the addresses the domain points at. A subscription's storage filter narrows record and file events only. The same per-site caps and 7-day history apply. A brand-new site's first version has no subscription yet, so there is no event for it, and a save with publish=false emits nothing."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/1/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/1/editions_note",
+      "value": "Simple Host and the small box emit site events; Simple Hack keeps the record events until its port, and Enterprise has not ported them."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/1/evidence",
+      "value": "FEATURES.md §19 lead paragraph and Events, Payload, REST list, MCP rows (phase 2, 2026-11-02, SIM-356); PARITY row 'Notifications' (gap → hack, enterprise for the site events); CHANGELOG 2026-11-02."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/2/how",
+      "value": "From Notifications, send a test to confirm the receiver and signature, pause a subscription while you change the receiver and resume it afterwards, rotate the signing secret (the new one is shown once), and read the recent deliveries newest first. Resuming also lifts a suspension. On Simple Hack the team and organiser website screens have the same controls."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/2/where",
+      "value": "Notifications on your sites page; on Simple Hack, the team or organiser website's Notifications screen."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/2/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/2/editions_note",
+      "value": "On Simple Hack these controls are on the website screens only; the connector there lists and removes subscriptions."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/2/evidence",
+      "value": "FEATURES.md §19 REST delivery, Delivery, Signatures rows; §19 L2355-2362 (Hack team and organiser controls); PARITY row 'Notifications' (Hack: create, pause/resume, test, rotate-secret and history stay website-only)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/3/limits",
+      "value": "Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. On Simple Hack, new team subscriptions stop at the submission deadline, membership loss removes them, and organiser delivery stops when the event ends. Event accounts and team keys cannot subscribe. A deploy-only key cannot subscribe."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/3/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/3/editions_note",
+      "value": "Site events are Simple Host only; Simple Hack and Enterprise have the three record events. On Simple Hack the connector offers list and remove only; Enterprise binds the subscription to the connector grant and rechecks membership before each delivery."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/3/evidence",
+      "value": "features.html notify-mcp-events; FEATURES.md §19 MCP and Defaults rows (TTL 7 days default, 5 minutes minimum, URL redaction), §19 L2355-2362 (Hack rules). The current page said 'Enterprise needs a separate port'; PARITY row 'Notifications' says Enterprise phase 3 shipped 2026-10-24, so editions say yes and the port note is dropped (FEATURES.md L2368 still says it; PARITY is dated later)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/4/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/4/editions_note",
+      "value": "Simple Hack and Enterprise have not ported web push."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/5/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/5/editions_note",
+      "value": "Simple Hack sends the sign-in and account emails; idle-site warnings and Submissions digests belong to Simple Host sites. Enterprise sends no sign-in emails, since the company's identity provider signs people in. A small box needs outgoing email set up."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/5/evidence",
+      "value": "FEATURES.md §19 L2376-2385 (outbound email list), §19 Delivery row (one owner email on suspension), §7 L838-849 (alerts). Hack and Enterprise email sets not stated in the ranges read; best reading recorded in editions_note. 'No marketing emails' is a reading of the fixed list, stated as 'on this list'."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/6/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/6/evidence",
+      "value": "FEATURES.md §19 L2385-2387 (stale-skill _notice, X-Skill-Notice, arrays stay bare, only for callers with an older X-Skill-Version). Not stated for Enterprise (separate code base); read as no. Hack: same binary, not stated separately."
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/7/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/4/features/7/editions_note",
+      "value": "Enterprise seals with its own separately named key; the standalone Simple Hack package and the small-box installer set the key by default."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/0/limits",
+      "value": "Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. [[hashack]]Simple Hack uses `https://simple-hack.app/mcp`; another server shows its own address, exact for its own origin.[[/hashack]][[nohack]]Another server shows its own address, exact for its own origin.[[/nohack]]"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/0/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/1/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/2/how",
+      "value": "[[hosted]]The Claude plugin (Customize, Plugins, Discover) and connector directory listings for Simple Host and Simple Hack still exist, still work, and are still linked from hosted Get started, now alongside the MCP address in its own copy box, filled from the viewer's own origin; the ChatGPT plugin submission stays in review.[[/hosted]][[self]]A self-hosted install's Get started shows only its own MCP address: no plugin ZIP, connector directory, marketplace command or app-directory review note.[[/self]] (owner, 2026-11-05)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/2/limits",
+      "value": "[[hosted]]Only simple-host.app and simple-hack.app ever appeared in Claude's directories; a self-hosted instance never offered a plugin.[[/hosted]][[self]]A self-hosted instance never offered a plugin.[[/self]] This listing is not the onboarding path on either product's Get started page."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/2/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/2/editions_note",
+      "value": "Simple Hack is in Claude's connector directory with its own toolkit; Enterprise ships its skills as a plugin download for its own instance."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/2/evidence",
+      "value": "FEATURES.md §9 L975-985 (Claude directories live, ChatGPT steps, hosted-only directory text, hack-toolkit); PARITY row 'Skills and plugin' (Enterprise `plugin.zip`). ChatGPT listing review status left out as it changes week to week."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/3/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/3/editions_note",
+      "value": "Simple Hack ships the same deploy skill in its toolkit; Enterprise has its own `simple-host` skill for its instance."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/3/evidence",
+      "value": "features.html #skill-website-deploy; FEATURES.md §9 Skills row (website-deploy + references), Routes row (skill files served with instance hostnames and limits), hack-toolkit/skills lists website-deploy; PARITY row 'Skills and plugin'."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/4/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/4/evidence",
+      "value": "features.html #skill-website-deploy-builder; FEATURES.md §9 Skills row; hack-toolkit/skills lists website-deploy-builder; PARITY row 'Skills and plugin' (Enterprise `simple-host-builder`)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/5/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/5/editions_note",
+      "value": "Hack does not bundle the domain skill. Enterprise has no custom domains, so no domain skill."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/5/evidence",
+      "value": "features.html #skill-connect-domain; FEATURES.md §9 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (§21) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in internal/handler/hack_assets.go excludes connect-domain."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/6/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/6/editions_note",
+      "value": "Simple Hack's own Get started leads with running, joining, or judging an event; Enterprise shows the connect step on its dashboard's first run; another server shows its own connector address."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/6/docs",
+      "value": [
+        {
+          "label": "Get started",
+          "href": "/install.html"
+        },
+        {
+          "label": "Simple Hack get started",
+          "href": "https://simple-hack.app/get-started"
+        },
+        {
+          "label": "Docs",
+          "href": "/docs/guides/agents/"
+        }
+      ]
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/6/evidence",
+      "value": "features.html #skill-install-page; FEATURES.md §8 L943-944 (apps checked 2026-10-15, Gemini US personal accounts, Meta Muse), §9 Hack /get-started paragraph, hosted-only text replaced on other servers; PARITY rows 'Meta Muse Client ID', 'Dashboard' (Enterprise first run shows the connect step)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/7/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/7/editions_note",
+      "value": "Simple Hack installs its five skills through the skills CLI only; Enterprise ships its skills as a plugin download."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/7/evidence",
+      "value": "features.html #skill-install-oneline; FEATURES.md §9 L970 (version 0.27.62, npx skills add), Routes row (`/install.sh`, `/install.ps1`; on Simple Hack they return 410, coding-agent row uses npx skills add); PARITY row 'Skills and plugin' (Enterprise `plugin.zip`)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/8/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/8/editions_note",
+      "value": "Simple Hack has an events app instead of personal sites; Enterprise shows the connect step on its dashboard instead."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/8/evidence",
+      "value": "features.html #skill-setup-panel and legend 'Your sites page' (setup panel for your AI app). Not stated for Enterprise or Simple Hack in FEATURES/PARITY; marked no from the task's edition notes and PARITY 'Dashboard' row."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/9/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/9/editions_note",
+      "value": "Simple Hack lists its full tool set on purpose, since one person is organiser, judge, and participant per event; Enterprise has its own 54 tools with the same core-of-20 finder."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/9/docs",
+      "value": [
+        {
+          "label": "Agents and MCP guide",
+          "href": "/docs/guides/agents/"
+        },
+        {
+          "label": "FEATURES.md section 21",
+          "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#21-mcp-tool-index-58-website-tools-hosted-simple-hack-event-tools"
+        }
+      ]
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/9/evidence",
+      "value": "FEATURES.md §8 MCP tools row (58 tools; core 20 → 21 after SIM-190 2026-10-30; paths up to 10; edits; stale-schema line; instructions under 2,000), §21 L2405-2407 (Hack full listing; no credential tools; who_am_i read-only). The task brief said 'a core of 20'; FEATURES.md and PARITY 'MCP tools' say 21 since 2026-10-30, so 21 is used. PARITY row 'MCP instructions length by mode'."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/10/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/10/editions_note",
+      "value": "Simple Hack keeps browser sign-in for visitors and offers no visitor tools; Enterprise has none yet."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/10/docs",
+      "value": [
+        {
+          "label": "FEATURES.md section 21",
+          "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#21-mcp-tool-index-58-website-tools-hosted-simple-hack-event-tools"
+        },
+        {
+          "label": "Docs",
+          "href": "/docs/guides/agents/"
+        }
+      ]
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/10/evidence",
+      "value": "FEATURES.md §8 L868 (SIM-338 phase 4: per-call pass, mine, VISITOR_AI_WRITES_PER_DAY default 200, 256 KiB, via <app name>, consent names visitor access, Hack does not offer), §21 visitor tools table; PARITY row 'Visitor connector tools' (Enterprise: later port). Small box not stated; same binary."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/11/how",
+      "value": "`who_am_i` returns your email only when the agent asks for it. Visitors in saved data appear as opaque references scoped to one site, so a count of bookings or a read of entries never resolves anyone's email. Only an owner's request to identify one submitter calls `storage_visitor_emails`, with the references for that entry alone. Viewer changes return only what changed, and signed download and preview links carry no readable internal IDs. The same rules cover Simple Hack results."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/11/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/12/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/12/editions_note",
+      "value": "Simple Hack publishes its own branded cards; Enterprise and the small box serve their own cards for their own address, with no `mcp.` alias and no public registry listing."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/13/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/13/editions_note",
+      "value": "Simple Hack, Enterprise, and self-hosted servers are not enrolled and send nothing."
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/14/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/15/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/16/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/5/features/17/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/0/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/0/editions_note",
+      "value": "Simple Hack's header shows Your events instead; Enterprise has its own dashboard whose Manage menu offers its own actions (viewers, uploaded files, activity, teams) with a 30-day Recently deleted window."
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/1/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/1/evidence",
+      "value": "FEATURES.md §10 'Owner app load (2026-10-30)' paragraph (L1585). Enterprise and Hack not stated; Hack has no personal sites page, Enterprise has its own dashboard."
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/2/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/3/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/3/editions_note",
+      "value": "Enterprise has its own photo page with company sign-in and no photo link; Simple Hack keeps archive uploads only."
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/4/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/4/evidence",
+      "value": "FEATURES.md §10 'WebMCP on Add photos (SIM-186, 2026-10-24)' and 'WebMCP on the owner app' paragraphs; PARITY row 'WebMCP page tools' (small box serves the same files; Hack not touched; Enterprise not built)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/5/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/5/editions_note",
+      "value": "Simple Hack has its own screens (next entry) and no photo picker, preview, or passcode screen; Enterprise has the picker, My sites, and dashboard screens too; small-box installers forward the switches, default off."
+    },
+    {
+      "op": "insert",
+      "path": "/areas/6/features/6",
+      "value": {
+        "id": "dashboard-mcp-apps-hack",
+        "name": "Simple Hack screens inside the chat",
+        "line": "On Simple Hack the same kind of screens show a team's sites and weekly dashboard, a judge's queue and scoring, and an organiser's overview.",
+        "who": "Participants, judges, and organisers working in an app that renders MCP Apps screens.",
+        "how": "My sites marks your selected team, lists your other current teams, and includes event websites you organise; a selected team's dashboard shows weekly person visitors, seven daily values, and the latest three inbox or records entries. The judge app is one screen with four views (accept the invite, queue, score, rubric), opened by one tool, and every judging action keeps its plain tool underneath. The organiser app has overview and stage, people and applications, and the judging dashboard, opened by its own tool and shown to organisers only.",
+        "example": "A judge at a weekend hackathon opens the queue in Claude, scores three teams against the rubric, and declares a conflict on a fourth.",
+        "where": "Inside the chat on simple-hack.app connections, in apps that render MCP Apps screens; turned on per account.",
+        "limits": "Off by default; each screen is enabled for everyone or for named accounts. Listed only for a connection that declared screen support, and never for ChatGPT, OpenAI, or Codex. No photo picker or preview on Simple Hack. Custom event websites show entries but no visitor chart. The frame never selects a team or receives a key. The organiser app's teams, entries, results, and event page views are later phases.",
+        "editions": {
+          "host": "no",
+          "hack": "yes",
+          "enterprise": "no",
+          "smallbox": "partial"
+        },
+        "editions_note": "The self-hosted Simple Hack package with company sign-in gets My sites and the dashboard; the judge and organiser apps are hosted Simple Hack.",
+        "status": "flag",
+        "status_note": "Off by default; on for named accounts.",
+        "docs": [
+          {
+            "label": "Simple Hack",
+            "href": "https://simple-hack.app/"
+          },
+          {
+            "label": "FEATURES.md section 10",
+            "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app"
+          },
+          {
+            "label": "Docs",
+            "href": "/docs/guides/agents/#open-an-event-screen-in-chat"
+          }
+        ],
+        "covers": [
+          "simple-hack-my-sites-and-dashboard",
+          "simple-hack-judge-app",
+          "simple-hack-organiser-app"
+        ],
+        "evidence": "FEATURES.md §10 leads 'Simple Hack My sites and dashboard (2026-10-24, default off)' (L1131-1146), 'Simple Hack judge app (SIM-344 phase 0+1, default off)' (L1147 first paragraph), 'Simple Hack organiser app (SIM-344 phase 2, default off)' (L1376 first paragraph); PARITY row 'MCP Apps screens' (UI-declared only, never ChatGPT/OpenAI/Codex, not ported to Enterprise). Self-hosted judge/organiser availability not stated; marked partial."
+      }
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/7/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/8/line",
+      "value": "Simple Host's mark is a hand-drawn `s.h` monogram with a teal period on a cream tile; Simple Hack's is a red dot in an inked frame."
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/8/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/6/features/8/evidence",
+      "value": "FEATURES.md §9 'Product icon (Simple Host: \"Rounded\", 2026-10-24; Simple Hack: 2026-10-13)' lead (L956); PARITY row 'Product icon'."
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/0/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/0/editions_note",
+      "value": "Enterprise has an owner index page that needs company sign-in and shows the owner everything, others only listed sites; Simple Hack has no personal sites."
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/0/evidence",
+      "value": "FEATURES.md §13 L1771-1776 (public sites at the person host, taken down/offline/passcode left out, old sites.* links 302), L1757-1760 (publicShowcaseData filter incl. unlisted, deleted, suspended). features.html entry public-profile L541-551: its Limits says 'no ordering, description or cover image: names and dates only', which FEATURES.md §13 contradicts (pins, order, bio, feed titles since 2026-10-05); FEATURES.md wins. PARITY row 'Person / owner index page' (Enterprise sign-in required), 'Your home page' (Simple Hack owns no personal sites). Small box: /<handle>/ renders the showcase by path (FEATURES.md §15 Caddy row)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/1/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/1/editions_note",
+      "value": "Simple Hack has no personal sites; Enterprise's owner index page needs company sign-in."
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/2/limits",
+      "value": "Public sites only, the same filter as the showcase page. Cached for 30 seconds and rate-limited per owner and per reader address, with the public-read settings. Returns nothing for Simple Hack event accounts."
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/2/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/3/limits",
+      "value": "Visitor sign-in and saved data cover the selected site only; a sign-in on the home address does not carry to the site's own address. Full owner sign-in or the connector only; deploy-only keys are refused. Links to a missing file whose first path segment names one of your sites still forward to that site. Simple Hack has no personal sites."
+    },
+    {
+      "op": "set",
+      "path": "/areas/7/features/3/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/0/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/0/evidence",
+      "value": "features.html #analytics-traffic-split; FEATURES.md §12 L1669-1670 (bot/human classes); PARITY row 'Analytics' (Enterprise: in-app access log, bots split). Not stated for Hack or the small box in so many words; same binary, same log ingest (nginx or Caddy)."
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/1/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/2/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/2/editions_note",
+      "value": "On Simple Hack a team site belongs to the event, so a member's visits are not the site owner's visits. Enterprise counts from its own in-app log (see PARITY). The small box has it when ANALYTICS_LOG is set."
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/3/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/4/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/5/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/6/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/7/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/7/evidence",
+      "value": "features.html #analytics-earlier-history; FEATURES.md §12 DB (site_view_daily, site_visitor_daily legacy, pruned after 400 days). Hack and small box not stated; a newer install has no pre-split records."
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/8/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/9/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/10/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/11/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/12/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/13/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/14/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/15/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/16/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/16/editions_note",
+      "value": "On Simple Hack the owner-app preview is off; the marker itself still works on requests."
+    },
+    {
+      "op": "set",
+      "path": "/areas/8/features/16/evidence",
+      "value": "FEATURES.md §10 L1116-1120 (_sh_preview=1 does not count as visitors; anyone can add it; traffic still counts; later unmarked child requests can count), L1119 (preview unavailable on Hack). Not stated for Enterprise or the small box; same binary for the small box."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/0/example",
+      "value": "An event organiser running their own box issues forty participant accounts before a hackathon, then watches the API tab fill as teams start publishing."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/0/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/0/editions_note",
+      "value": "Enterprise's admin page is for company IT: disable or enable a person, offboard by email, access requests, export, revoke a leaked key, and a 'This instance' panel (release, pending migrations, bucket check, limits in force). On the hosted hackathon instance the console also has an Events table."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/1/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/2/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/2/evidence",
+      "value": "FEATURES.md §17 'Report a page.' (GET/POST /report, eight reasons, same-origin, 5 per address then 1 per 10 min, 60 an hour, caps URL 2,048 details 4,000 email 254 body 16 KB, Resend mailer, nothing stored, log keeps reason and host, reserved name); §18 Report form row. Not stated for Hack or the small box; same binary. '/report' shown because the current page style allows a page address and the brief lists it as a doc link."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/3/line",
+      "value": "Plain terms, a privacy page, and a support page with one public address, support@simple-host.app, shared with Simple Hack."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/3/how",
+      "value": "The terms cover acceptable use (including terrorism, hate, self-harm, sexual services, search spam, and misinformation such as dangerous health claims, misleading voters, and manipulated media; satire, parody, and opinion are fine), named regulated goods, selling from a site (allowed; payment goes through a provider and the site owner is the seller), what the service and saved data are not for, children's and special-category data, trademark and likeness requests, legal-request channels, what evidence is kept, and a security-report line. Intimate images are removed within 48 hours of a valid request. Appeals are open for 30 days and a person reads each one and gives one answer. Adverse changes get 14 days' notice. The DMCA agent is registered (DMCA-1081064) with support@simple-host.app as the directory contact. The privacy page describes member emails, role-based judging access, private team results, and archive retention on Simple Hack, and the support page explains reconnecting an AI app for the right role and revoking connections with Sign out everywhere."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/3/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/3/editions_note",
+      "value": "Simple Hack shares the same terms, privacy page, and support page. Enterprise has its own landing, docs, and install pages inside the company."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/3/evidence",
+      "value": "FEATURES.md §17 L2263-2282 (terms updated 2026-09-28, coverage list, 48 hours, appeals 30 days, 14 days' notice, DMCA-1081064, support@simple-host.app, Simple Hack scope); PARITY row 'Static, marketing and legal pages' (shared Host/Hack terms, privacy and support; Enterprise: landing, docs, capabilities, install, changelog). Small box not stated; same binary serves the pages."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/4/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/4/evidence",
+      "value": "FEATURES.md §7 L738-745 ('Sign-up source', 2026-09-29: website, connector:<app>, agent with 40-character name, IP-shaped values dropped, signup_method, signup_inferred, never an IP); §11 L1628-1636 (drill-down 2026-10-15: funnel, same-visit URL/form attribution only, CSV); PARITY row 'Sign-ups by source (2026-10-15)' (2026-10-24: same-visit only, no cookies, no 30-day window). FEATURES §7 still says 'within 30 days of landing' with an arrival cookie; §11 and PARITY (later dated) say same-visit only, so the same-visit reading is used. Not stated for Hack or the small box; same binary."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/5/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/6/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/7/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/8/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/9/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/10/editions/hack",
+      "value": "no"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/11/example",
+      "value": "A university hackathon club runs Simple Hack on a $4 server for its weekend event, with its own domain and its own limits."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/11/editions/hack",
+      "value": "partial"
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/11/editions_note",
+      "value": "Simple Hack also runs on a server of your own with the same installer, keeping its own address."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/11/evidence",
+      "value": "features.html #self-host; FEATURES.md §20 (Small-box upgrade: re-run install.sh, migrate, failed migrate leaves the app as it was; Operational times and limits: 95 env vars, range checks, 4x cap on sign-in limiters; DigitalOcean 1-Click first-login.sh); PARITY rows 'Deployment model' (install.sh + Docker Compose + Caddy), 'Storage backend' (local disk), 'Operational times and limits', 'Uninstall runbook' (download entries, DNS first, delete the box), 'Static, marketing and legal pages' (self-hosted Host or Hack). Current page's 'an optional check looks over the numbers you changed' dropped: PARITY says the assistant and mistake check were removed 2026-10-09. DigitalOcean image 'not yet built on DigitalOcean' per §20; mentioned only as running the same installer."
+    },
+    {
+      "op": "set",
+      "path": "/areas/9/features/12/editions/hack",
+      "value": "yes"
+    },
+    {
+      "op": "insert",
+      "path": "/areas/10",
+      "value": {
+        "id": "hack",
+        "title": "Simple Hack",
+        "line": "Simple Hack runs hackathons from sign-up to results, team sites included. It is the same software run as its own product.",
+        "aliases": [],
+        "sections": [
+          15
+        ],
+        "features": [
+          {
+            "id": "hack-run-event",
+            "name": "Run an event",
+            "line": "Create a hackathon at simple-hack.app, move it through its stages with one button, add co-organisers, and delete it when done.",
+            "who": "Organisers, from a single person running a weekend event to a team of co-organisers.",
+            "how": "Sign in at https://simple-hack.app and create an event; it gets its own public page at `<event>.simple-hack.app`, a join link, a judge link, and a code of conduct. The Overview shows one forward button for the current stage (open, building, closed, judging, results, ended), worked out on the server so the website and your AI app agree; moving to Results also locks judging. You can invite co-organisers with one seven-day link that anyone can accept until you revoke it, rename teams, download participant, team, entry, and score CSVs, download every team site as an archive, and see storage use. Settings ends with Delete this event, which asks you to type the event's address name and then removes the public page, results, entries, scores, votes, member access, custom website, and storage for good. A standing demo event on simple-hack.app lets you try the participant and judge paths from https://simple-hack.app/watch.",
+            "example": "A university society creates its spring hackathon, adds two co-organisers, walks the Overview button from Open to Results over the weekend, and exports the results CSV for the prize ceremony.",
+            "where": "simple-hack.app, Manage (Overview, People, Settings), or ask your AI app with the organiser role.",
+            "limits": "On simple-hack.app, three new events per account per day and five active events per organiser; admins and listed accounts have no limit. Self-hosted installs have no active-event limit by default. The event creator cannot be removed. There is no undo and no email after deleting an event, and the address stays reserved once anyone has joined. Moving a stage backwards asks for confirmation.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "partial"
+            },
+            "editions_note": "Available as the standalone Simple Hack package on one server; the weekly demo event is hosted only.",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Simple Hack",
+                "href": "https://simple-hack.app/"
+              },
+              {
+                "label": "Get started",
+                "href": "https://simple-hack.app/get-started"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "delete-an-event",
+              "event-administration",
+              "event-page-look",
+              "hack-next-step",
+              "weekly-demo-reset"
+            ],
+            "evidence": "FEATURES.md §15 L1811-1834 (M0/M1 status, stages), Env row EVENT_CREATE_PER_DAY (20; 0 = no limit), EVENT_MAX_ACTIVE_PER_ORGANISER (0 = no limit), and EVENT_LIMIT_EXEMPT (admins and listed accounts are never limited), 'Delete an event', 'Event administration', 'Event page Look', 'Organiser Overview', 'Weekly demo reset' (hosted deploy/prod script, hence hosted only). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system'."
+          },
+          {
+            "id": "hack-registration",
+            "name": "Registration, applications, tracks, and announcements",
+            "line": "People join by link or apply from the public listing; organisers ask sign-up questions, set tracks and prizes, and post announcements.",
+            "who": "Participants joining an event, and organisers deciding who gets in and keeping everyone informed.",
+            "how": "Participants join with the event's link, or, for an event listed in Find a hackathon, apply from the listing or the event's public page without a link. Applications are on by default and every application waits for an organiser's decision in People, Applications; an applicant may add a city, country, age range, and gender, which stay with that event and are never shown to other organisers. Organisers can ask up to eight text questions at sign-up and require approval; pending and rejected applicants see their own status. Up to twelve tracks each carry a challenge and a prize, and each team picks one track before its deadline. Organisers publish sponsors, an FAQ, a schedule with time zones, and announcements, can edit or delete an announcement, and can email participants, send a receipt on a team's first complete entry, and show a public submission countdown. The schedule shows the real times on its own (event start and end, the entry deadline, the voting window, results), so they never drift, and a schedule row can ask the organiser for the next step when its time comes, for example “Kickoff is now. Open sign-up?” It never moves the stage itself. Participants see “Demos starts in 12 minutes” on their Home.",
+            "example": "A company running a public AI hackathon lists it in Find a hackathon, takes applications over two weeks, approves 80 people, and announces the final schedule by email the night before.",
+            "where": "Find a hackathon and the event's public page for applicants; Manage (Settings, People, Content) for organisers; or ask your AI app.",
+            "limits": "Only listed events take applications; unlisted events are join-link only. Five applications per account and 30 per IP address each hour, 20 pending applications per account, and 500 pending applications per event. A rejected applicant can apply again only after withdrawing. Editing an announcement does not send a new email. Track names may repeat; removing a chosen track warns how many teams lose their choice.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "partial"
+            },
+            "editions_note": "Available as the standalone Simple Hack package on one server",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Simple Hack",
+                "href": "https://simple-hack.app/"
+              },
+              {
+                "label": "Get started",
+                "href": "https://simple-hack.app/get-started"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "applications-without-a-join-link",
+              "a-schedule-that-acts",
+              "registration-tracks-and-challenges",
+              "outgoing-mail-visibility"
+            ],
+            "evidence": "FEATURES.md §15 'Applications without a join link' (limits 5/account, 30/IP per hour, 20 pending, 500 per event), 'Registration, tracks and challenges', 2026-10-27 track and announcement notes, 'Leave this event' (rejected applicant withdraws and may apply again, superseding 'cannot re-apply'). PARITY row 'Event content and communications'. 'Outgoing mail visibility' is an operator-side mail journal and daily watch with no user-visible surface; covered silently."
+          },
+          {
+            "id": "hack-teams",
+            "name": "Teams",
+            "line": "Find teammates, ask to join or invite, run your team as its admin, lock it, share its link, and leave an event cleanly.",
+            "who": "Participants forming and running teams, and organisers filling the gaps.",
+            "how": "Solo participants see open teams with their track, room left, and members, ask to join, or list themselves with a short intro; team members invite listed people and accept or decline requests. Whoever creates a team is its first admin; admins approve requests, rename the team, edit its looking-for note, remove members, make other admins, lock or unlock the team, and roll a new team link (`https://simple-hack.app/team/<code>`), which anyone can preview before joining. Locking clears pending requests and invites and takes nobody new. Organisers can preview Fill teams, which places solo people into teams with room and then makes new teams, and apply it after confirmation. Anyone can leave an event from their Overview, Settings, or Home row menu, or through their AI app; before the team deadline an emptied team is deleted with its entry and site, and after it the team, its entry, its site, and its scores stay as they were. Any team member can message the organisers from Team; teammates and every organiser share the thread. Organiser Home shows unread team messages with Read and reply; opening the team clears the line for that organiser.",
+            "example": "A designer with no team lists herself with a one-line intro on Friday evening; a team of three invites her, their admin approves, and the organiser runs Fill teams on Saturday morning for everyone still solo.",
+            "where": "The signed-in team step on the event page; Manage, Teams for organisers; or ask your AI app.",
+            "limits": "Team finding is private to approved participants and can be turned off per event, which hides the lists and stops new requests while codes still work. The looking-for note and solo intro are 120 characters. Team size defaults to 20 per event. Full teams cannot invite or accept, and a frozen team never takes a member back. The last admin cannot be removed until someone else is admin. A judge who leaves keeps their scores counting unless an organiser removes them; the event creator must name a successor before leaving. Team messages are 1 to 1000 characters, at most 10 per team per rolling hour, and stop after End. Organiser emails follow the Account preference, at most once per 15 minutes, when mail is set up.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "partial"
+            },
+            "editions_note": "Available as the standalone Simple Hack package on one server",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Simple Hack",
+                "href": "https://simple-hack.app/"
+              },
+              {
+                "label": "Watch the participant film",
+                "href": "https://simple-hack.app/watch"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "team-finding",
+              "hack-team-admins-lock-links",
+              "leave-this-event",
+              "hack-notices",
+              "team-messages",
+              "team-writes-organisers"
+            ],
+            "evidence": "FEATURES.md §15 'Team finding', 'Teams redesign' (team size default 20, EVENT_TEAM_SIZE_DEFAULT), 'Leave this event'. PARITY rows 'Simple Hack: leave an event', 'Simple Hack: team admins and links', 'Hosted hackathon platform'. Contradiction: the §15 Env table row still lists EVENT_TEAM_SIZE_DEFAULT (4); the 2026-10-31 prose says 20 and wins. Standalone v0.8.13 carries team finding; the 2026-10-31 teams redesign and leave are not stated for the standalone package. 'Notify people when something waits on them' (2026-11-02): Needs you on Home, Overview and Home across events, sidebar badges, emails at most once per kind per 15 minutes, Account opt-out, hack_get_my_todos. 'Team messages' (2026-11-05): an organiser can message one or up to 25 teams at once; the team sees it in app and by email, with its own sent-message history. 'Teams write to the organisers (SIM-443)': any team member can write from Team. Both sides share a thread; organiser Home links unread team messages to Read and reply."
+          },
+          {
+            "id": "hack-entries",
+            "name": "Entry card, rules and submit",
+            "line": "Every team hands in the same short summary card, organisers decide what a complete entry needs, and a team submits when it is ready.",
+            "who": "Teams finishing their entry before the deadline, and organisers who want every entry in the same shape for judges.",
+            "how": "The card asks for the problem, the solution in one line, who it is for, the track, tools and AI as tags, and what works today, plus show-your-work evidence: a video, the team website, a code link or a screenshot. Organisers pick a preset (AI build, Coding, Ideas and design) or set each line Required, Optional or Off, and the evidence lines also One of; before saving tighter rules they see which teams it affects. Saving a draft never checks anything. Submit does, on the server, the same way on the website and in the AI apps. Home shows a four-step checklist and a countdown to the team's own deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete, and the organiser can exclude it by hand. At each of the event's own reminder times before the deadline (24 hours and 1 hour by default), teams whose entry isn't submitted get a reminder email naming what is missing. Published results show each shown team's card on the public page.",
+            "example": "An organiser picks the Coding preset, so a code link becomes required. A team fills its card, adds its repo and a video, presses Submit and sees the checklist on Home tick over.",
+            "where": "Entry and Home for teams, Entries and the entry detail for organisers, in the Simple Hack app; hack_submit_entry and hack_set_entry_rules in the AI apps.",
+            "limits": "Rules can change only until entries close. Tighter rules never un-submit an entry. A team that never started an entry is not judged.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "no"
+            },
+            "editions_note": "Simple Hack only",
+            "status": "live",
+            "status_note": "",
+            "covers": [
+              "entry-summary-card-rules-and-submit",
+              "entry-deadline-reminders",
+              "results-show-what-each-team-built",
+              "reminder-times"
+            ],
+            "evidence": "FEATURES.md §15 'Reminder times' (2026-11-05): one list of offsets (up to 5, 15 minutes to 14 days each, default 24 hours and 1 hour) drives both this entry reminder and the judging reminder, organiser-editable on Entries.",
+            "docs": [
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ]
+          },
+          {
+            "id": "hack-judging",
+            "name": "Judging",
+            "line": "A weighted rubric, judges spread openly, automatically, by hand, or by track panel, conflicts of interest, a lock, and published results.",
+            "who": "Judges scoring from a phone, and organisers running the rubric, assignments, and results.",
+            "how": "The organiser sets a rubric of 1 to 10 criteria, each with a weight and a points scale, before judging opens; a new event starts with Idea, Execution, Design, and Demo at 25 percent each, scored 1 to 5. Judges are spread openly (everyone scores everyone), automatically (an even, conflict-aware spread), by manual assignment, or by panels per track. A judge or an organiser can declare a conflict of interest, which drops that pairing from queues and totals. Organisers, including co-organisers, can also judge under their own account, with the same conflicts and locks. The judge's queue puts the least-covered team first, the scoring screen opens the frozen team site and saves criteria as you go, and Save and next moves on. The organiser watches coverage on the dashboard, locks judging, then publishes: ties are flagged and can be resolved by hand, totals can be raw or normalised across judges, and public ranks and scores can each be hidden. After publication each team privately sees its total, rank, and the judges' comments without names.",
+            "example": "A corporate innovation day with 30 teams and 9 judges uses automatic assignment, a sponsor's engineer declares a conflict with the team he mentored, and the organiser publishes winners only.",
+            "where": "Manage, Judging for organisers; the judge link and Judge entries for judges; or ask your AI app with the judge role.",
+            "limits": "Scoring opens at Judging, which locks mode, judges per team, rubric and assignments and generates Automatic assignments. Returning to Entries closed pauses scoring and unlocks setup. Rubric weights must sum to 100; the rubric cannot change while judging is locked, and removing scored criteria or lowering points below saved scores asks for confirmation. Unlocking requires a reason, which is logged. Automatic assignment includes organisers only with include_organisers=true on the API. Public results never show individual judge scores or comments. Results CSV and scores CSV can be downloaded at any time.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "partial"
+            },
+            "editions_note": "Available as the standalone Simple Hack package on one server",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Watch the judge film",
+                "href": "https://simple-hack.app/watch"
+              },
+              {
+                "label": "Get started",
+                "href": "https://simple-hack.app/get-started"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "the-judges-one-screen",
+              "judging",
+              "judging-choices",
+              "organisers-can-also-judge",
+              "judging-fixes",
+              "stage-and-entry-fixes",
+              "teams-can-see-the-rubric",
+              "panel-untracked-teams",
+              "judge-notices"
+            ],
+            "evidence": "FEATURES.md §15 'Judging (M3)', 'Judging choices', 'Organisers can also judge', 'Judging fixes' (confirmation on scored criteria, judges-only default, scoring opens at Judging), 'Archive cleanup' (default rubric). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system' (judging-first Manage). Standalone v0.8.9 carries judging-first Manage. 'Judge notices' (2026-11-05): judges are told in app and by email when judging opens and, while they still have teams to score, before it closes."
+          },
+          {
+            "id": "hack-voting",
+            "name": "People's choice voting and the directory",
+            "line": "A public vote on the entry gallery with one vote per verified email, and a public directory where organisers list their events.",
+            "who": "Organisers who want a crowd prize, voters, and people looking for a hackathon to join.",
+            "how": "Once the entry gallery is open, an organiser opens voting with a start and end time and chooses who may vote: any signed-in account, approved event members, or approved participants only. Each verified email has one vote per event and can change it until voting closes; counts and the ranking appear on the public vote page only after the close. The public directory at Find a hackathon groups events as happening now, upcoming, or past; new events are unlisted until an organiser opts in, and listing is also what lets people apply without a join link.",
+            "example": "An accelerator demo day lets any signed-in person vote for a crowd favourite during the two-hour showcase and reveals the tally on stage at the close.",
+            "where": "Manage, Judging (voting settings) and Settings (directory listing) for organisers; the event's public vote page and Find a hackathon for everyone.",
+            "limits": "Voting opens only after the gallery. A voter cannot vote for their own team, including through a `+tag` email alias, which shares the one vote. Narrowing who may vote removes votes that no longer qualify, after confirmation. Only live gallery entries can be chosen. Draft and taken-down events do not appear in the directory. The tally stays after team sites are removed.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "partial"
+            },
+            "editions_note": "Available as the standalone Simple Hack package on one server",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Simple Hack",
+                "href": "https://simple-hack.app/"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "hack-voting"
+            ],
+            "evidence": "FEATURES.md §15 'People's choice and directory', 2026-10-27 review (confirm_vote_removal), 'Applications without a join link' (only listed events take applications). PARITY row 'Simple Hack sign-up, stages, voting and directory fixes'. Standalone availability not stated for voting; read as the same binary."
+          },
+          {
+            "id": "hack-sites",
+            "name": "Team sites and the event website",
+            "line": "Every team gets a site at its own address, published from an AI app or a zip; organisers can swap the built-in event page for a custom one.",
+            "who": "Teams publishing their project, and organisers who want the event page to be their own.",
+            "how": "Each team's site lives at `<team>.<event>.simple-hack.app`. A team publishes it from the AI app they already use (the connector selects the team, then the ordinary site tools publish) or by uploading a zip of static files with `index.html` at the root from the team's Publish card; both show the published address and version. Team sites use the same KV, SQLite, and file storage presets as any Simple Host site, with page recipes for the setup code, and saves can notify through webhooks. The event's public page is built in; an organiser can instead publish a custom website to the event address, versioned, with the latest five versions shown, and switch back to the built-in page at any time. An organiser can take a team site down and restore it. After an event is archived, team sites stay up for 30 days; the organiser gets one email 14 days before they are removed, and the event page and results stay.",
+            "example": "A fintech team describes their prototype to Claude, which publishes the pitch page, demo, and a sign-up form to their team address; the organiser publishes a custom event site with the agenda and sponsor logos.",
+            "where": "The team's Publish card on the event page, Manage, Page for organisers, or ask your AI app.",
+            "limits": "Team sites allow 25 MB of deployed files with two versions kept. Entries freeze at Judging, including for teams with extra time, so a frozen site cannot be changed. The team site's zip upload is rate limited per IP address and checks freezes and take-downs first. Write to support@simple-host.app for more time after the 30-day window.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "partial"
+            },
+            "editions_note": "Available as the standalone Simple Hack package on one server, where team sites live at `team.event.your-domain` and KV, SQLite, and files share a 1,000,000-byte allowance per site",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Self-host Simple Hack",
+                "href": "https://simple-hack.app/hackathons"
+              },
+              {
+                "label": "Get started",
+                "href": "https://simple-hack.app/get-started"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "archive-cleanup",
+              "guided-team-site-publishing"
+            ],
+            "evidence": "FEATURES.md §15 L1806-1814 (zip uploads, versions, latest five), M2 status (team sites, take-down), 'Archive cleanup' (30 and 14 days), Env row MAX_ARCHIVE_MB=25 and KEEP_VERSIONS=2, 2026-10-27 review (zip limiter, freezes), 'Stage and entry fixes' (freeze at Judging), 'Personal connector parity' (select team then generic site tools). hackathons.html L96-101 (addresses, 25 MB, two versions, 1,000,000-byte allowance). PARITY rows 'Hack event websites and icon', 'Hosted hackathon platform'; webhooks from v0.8.11 release note."
+          },
+          {
+            "id": "hack-agents",
+            "name": "The AI connector and skills",
+            "line": "One connection at https://simple-hack.app/mcp works for organiser, participant, and judge roles, with skills for each.",
+            "who": "Anyone who would rather run, join, or judge an event from the AI app they already use.",
+            "how": "Connect your AI app to `https://simple-hack.app/mcp` once; the same personal connection lists the tools for every role and every event you are in, and the roles come from your membership, so an organiser who also judges needs nothing extra. Participants pick their team and then publish its site with the ordinary site tools. The event tools follow the same rules as the website, so membership, validation, and refusals match. Get started walks through five AI connector setups and offers a one-line install of the five-skill toolkit (run-hackathon, join-hackathon, judge-hackathon, and the site skills); the skill files are also downloadable. The role films on Watch include copyable prompts for creating an event, judging, and building a team site.",
+            "example": "An organiser asks ChatGPT to create the event, set a rubric, and generate assignments; a judge asks Claude for their queue and scores from the train; a team asks Grok to publish their pitch page.",
+            "where": "Get started at https://simple-hack.app/get-started, then your AI app.",
+            "limits": "Tools ask before destructive or outward actions (opening events, replacing scored rubrics, publishing results, emailing participants, deleting people, teams, or events). Simple Hack accounts have no personal site address. A self-hosted instance's connector and skills point at that instance's own domain.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "partial"
+            },
+            "editions_note": "Available as the standalone Simple Hack package on one server, with its own Get started naming its own connector",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Get started",
+                "href": "https://simple-hack.app/get-started"
+              },
+              {
+                "label": "Watch the role films",
+                "href": "https://simple-hack.app/watch"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "hack-agents"
+            ],
+            "evidence": "FEATURES.md §15 'Personal connector parity', Skill row (run-hackathon), 'Role films and standing demo' (copyable prompts), standalone v0.8.9 (self-hosted Get started names its own connector). PARITY row 'Hack agent toolkit' (five-skill hack-toolkit install, five connector setups). hackathons.html L85-86. Lead is marked 'implementing' in FEATURES.md but PARITY says deployed; treated as live."
+          },
+          {
+            "id": "hack-companies",
+            "name": "Simple Hack inside a company",
+            "line": "The whole platform on one Docker server, or on your Kubernetes cluster with your own Postgres, with company sign-in.",
+            "who": "Companies running internal hackathons on their own network, and anyone who wants their own instance.",
+            "how": "Download the standalone package (ZIP or tar.gz) and run the install on one Linux server with Docker and 2 GB of RAM; it brings the app, PostgreSQL, and a Caddy web server, with a persistent settings file, volumes for the database, sites, and certificates, and an upgrade script. Event pages use `event.your-domain` and team sites `team.event.your-domain`. People sign in through the company's OpenID Connect provider (Okta, Google Workspace, Microsoft Entra, Keycloak) with email sign-in turned off, or with email sign-in and optional Google. On an internal address the installer can issue certificates from its own CA, from the company's ACME server, or use the company's certificate files, and trust the company root. The page at https://simple-hack.app/companies explains the setup with a 45-second film and the two one-line install commands; DigitalOcean and Coolify guides cover those paths. On Kubernetes, the Helm chart in deploy/kubernetes runs the same image as one pod with your Postgres, a persistent volume for the sites and a TLS-terminating load balancer in front; the pod builds the database schema itself on first start, event pages use `event.your-domain` and team sites `event.your-domain/team/`, and docs/kubernetes.md is the runbook.",
+            "example": "A bank's platform team installs Simple Hack on an internal VM behind Okta, runs a three-day hackathon for 80 engineers, and keeps every team site inside the network.",
+            "where": "https://simple-hack.app/companies, the self-host page at /hackathons, and the standalone guide in the repository.",
+            "limits": "You need a server, your own domain with apex and wildcard DNS, and a verified email sender unless company sign-in replaces it. Back up the database and site files before upgrades. The standalone package is Docker Compose on one server; the Kubernetes chart runs one pod (its upload locks and rate limits are in-process), so it scales up, not out. Hosting costs are your provider's bill; the hosted service at simple-hack.app is free.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "yes"
+            },
+            "editions_note": "This feature is the standalone Simple Hack package itself (v0.8.13); the /companies page and its film are served by simple-hack.app",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "For companies",
+                "href": "https://simple-hack.app/companies"
+              },
+              {
+                "label": "Self-host Simple Hack",
+                "href": "https://simple-hack.app/hackathons"
+              },
+              {
+                "label": "FEATURES.md section 15",
+                "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "standalone-full-platform-package",
+              "hack-company-pitch",
+              "kubernetes"
+            ],
+            "evidence": "FEATURES.md §15 'Standalone full-platform package' (v0.8.10 OIDC, EMAIL_SIGNIN=off, --tls internal|acme|certs, --ca-cert), 'Company pitch for the standalone package' (2 GB RAM, providers, 45-second film). hackathons.html L88-101. PARITY rows 'Simple Hack for companies', 'Single-container Simple Hack' (not built), 'Event / hackathon instances'. FEATURES.md calls /companies 'Hosted-only' and in the same paragraph says it answers on every full self-hosted instance; the task's reading (hosted only) is used in editions_note."
+          },
+          {
+            "id": "hack-films",
+            "name": "Role films and the standing demo",
+            "line": "Three short drawn films show the organiser, judge, and participant paths, with a live demo event you can join or judge right away.",
+            "who": "Anyone deciding whether to run or enter a hackathon on Simple Hack, before signing in.",
+            "how": "https://simple-hack.app/watch plays an Organizer, a Judge, and a Participant film, six scenes each, with narration on click, pause and restart, draggable scene marks, mute, and keyboard controls; captions sit under the picture on a phone. Each film comes with copyable prompts for your AI app. Below the films, the page shows join and judge links for a standing demo event, so you can try the participant or judge path without making an event of your own. The home page and the companies page open with click-to-play films of their own.",
+            "example": "A community organiser watches the organiser film, joins the demo as a judge to see the scoring screen on her phone, and then creates her own event.",
+            "where": "https://simple-hack.app/watch, linked from the Simple Hack home page.",
+            "limits": "The demo links appear only while the demo event is open or building and not taken down. The films and the demo exist on simple-hack.app only; a self-hosted instance does not serve them.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "no"
+            },
+            "editions_note": "Hosted only",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Watch",
+                "href": "https://simple-hack.app/watch"
+              },
+              {
+                "label": "Simple Hack",
+                "href": "https://simple-hack.app/"
+              },
+              {
+                "label": "Docs",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "hack-films"
+            ],
+            "evidence": "FEATURES.md §15 'Role films and standing demo' (hosted-only /watch, demo JSON and redirects, self-hosted 404), 'Weekly demo reset'."
+          },
+          {
+            "id": "hack-organiser-assistant",
+            "name": "Ask about this event",
+            "line": "Organisers can ask a small assistant on Home about their event; it answers in a line or two and links to where to act.",
+            "who": "Organisers setting up an event who want to know what a setting means or what is left to do.",
+            "how": "Press Ask on Home and type a question. The answer comes from the event's own settings and checklist, the app's screens and the docs, streams in as it is written, and links to the place to change things. When it isn't sure it says so and links the closest setting or docs page. It never changes the event. Chats stay in your browser, per event. Participants and judges don't have it.",
+            "example": "Two weeks before kickoff, an organiser asks \"Is my setup done?\" and gets \"Not yet: choose what teams hand in\" with a link to Settings, Entries.",
+            "where": "Ask on the organiser's Home.",
+            "limits": "30 questions per organiser per day and a monthly budget for the whole service on simple-hack.app. Self-hosted installs turn it on by setting an OpenAI-compatible endpoint (ASSISTANT_BASE_URL, ASSISTANT_MODEL, ASSISTANT_API_KEY); it is off until then. Text only.",
+            "editions": {
+              "host": "no",
+              "hack": "yes",
+              "enterprise": "no",
+              "smallbox": "no"
+            },
+            "editions_note": "Simple Hack; self-hosted when an endpoint is set",
+            "status": "live",
+            "status_note": "",
+            "docs": [
+              {
+                "label": "Run an event",
+                "href": "/docs/start/"
+              }
+            ],
+            "covers": [
+              "organiser-assistant"
+            ],
+            "evidence": "FEATURES.md §15 'Organiser assistant (SIM-394)'."
+          }
+        ],
+        "tag": "A separate product on the same software"
+      }
+    },
+    {
+      "op": "set",
+      "path": "/not_shown",
+      "value": [
+        {
+          "section": 22,
+          "why": "An index of FEATURES.md itself (every route and tool is placed), not a feature."
+        },
+        {
+          "lead": "hack-publish-finishes-judging",
+          "why": "A correctness fix to an existing step (publish now finishes judging), not a new user-facing capability to list on its own."
+        },
+        {
+          "lead": "agents-coded-refusals-and-aliases",
+          "why": "A reliability fix to how AI agents already talk to the connector (clearer error codes, forgiving a sibling tool's name for the same argument), not a new user-facing capability to list on its own."
+        }
+      ]
+    }
+  ]
+}

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/webassets"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
@@ -58,8 +57,8 @@ func (p *Assets) Hooks() handler.ProductAssetHooks {
 	return handler.ProductAssetHooks{
 		InstanceText: p.HackInstanceText, RewritePluginZip: p.RewriteHackPluginZip,
 		SkillAvailable: hostedHackSkill, ExpandConnectSteps: expandConnectSteps,
-		PersonalPresentationHTML: hackPersonalPresentationHTML, OpenAPISpec: hackOpenAPISpec,
-		CatalogPlugin: "simple-hack",
+		PersonalPresentationHTML: p.personalPresentationHTML,
+		CatalogPlugin:            "simple-hack",
 	}
 }
 
@@ -364,14 +363,15 @@ func expandConnectSteps(page []byte) []byte {
 	return page
 }
 
-// hackOpenAPISpec derives the hosted Hack reference from the shared contract.
-// JSON is valid YAML 1.2; both spec URLs serve the same filtered document.
-func hackOpenAPISpec(source []byte) ([]byte, error) {
-	return webassets.PublicOpenAPISpec(source, "public-hack")
-}
-
 // hackPersonalPresentationHTML: shared help pages omit personal
 // presentation when served on Hack.
+func (p *Assets) personalPresentationHTML(name string, body []byte) []byte {
+	if name == "enterprise.html" {
+		return bytes.ReplaceAll(body, []byte(`href="https://simple-hack.app/hackathons"`), []byte(`href="`+p.inkBaseURL()+`/hackathons"`))
+	}
+	return hackPersonalPresentationHTML(name, body)
+}
+
 func hackPersonalPresentationHTML(name string, body []byte) []byte {
 	switch name {
 	case "features.html":
@@ -475,6 +475,9 @@ func buildSetupJS(shared, product []byte) ([]byte, error) {
 // GET /setup/setup.js. Both end here, so they serve the same script.
 func (p *Assets) Rewrite(name string, body []byte) []byte {
 	switch name {
+	case "static/features.json", "features.json":
+		body = stripFeatureMarkers(body, "self", "hosted")
+		return stripFeatureMarkers(body, "hashack", "nohack")
 	case "static/auth.js", "auth.js":
 		return hackAuthJS(body)
 	case "static/setup/setup.js", "setup/setup.js":
@@ -502,4 +505,23 @@ func (p *Assets) ServeSetupJS() http.HandlerFunc {
 		body = p.Rewrite("setup/setup.js", body)
 		http.ServeContent(w, r, "setup.js", time.Time{}, bytes.NewReader(body))
 	}
+}
+
+// stripFeatureMarkers resolves the product's bracket blocks in the raw JSON
+// reference just as its HTML page resolves the corresponding comment blocks.
+func stripFeatureMarkers(body []byte, keep, drop string) []byte {
+	open, close := []byte("[["+drop+"]]"), []byte("[[/"+drop+"]]")
+	for {
+		i := bytes.Index(body, open)
+		if i < 0 {
+			break
+		}
+		j := bytes.Index(body[i:], close)
+		if j < 0 {
+			break
+		}
+		body = append(body[:i:i], body[i+j+len(close):]...)
+	}
+	body = bytes.ReplaceAll(body, []byte("[["+keep+"]]"), nil)
+	return bytes.ReplaceAll(body, []byte("[[/"+keep+"]]"), nil)
 }

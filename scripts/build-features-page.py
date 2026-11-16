@@ -8,6 +8,8 @@ FEATURES.md section or bold-lead feature.
 
 Run:  python3 scripts/build-features-page.py
 """
+import copy
+from pathlib import Path
 import html
 import json
 import os
@@ -19,44 +21,18 @@ DATA = os.path.join(ROOT, "internal/webassets/static/features.json")
 TMPL = os.path.join(ROOT, "scripts/features-page.tmpl.html")
 OUT = os.path.join(ROOT, "internal/webassets/static/features.html")
 
-EDITIONS = [("host", "Simple Host"), ("hack", "Simple Hack"), ("enterprise", "Enterprise"), ("smallbox", "Small box")]
+EDITIONS = [("host", "Simple Host"), ("enterprise", "Enterprise"), ("smallbox", "Small box")]
 ED_WORD = {"yes": "yes", "no": "no", "partial": "partly", "planned": "planned"}
 STATUS_WORD = {"live": "live", "flag": "off by default", "planned": "planned", "deprecated": "existing sites only"}
 PILL = {"flag": "Off by default", "planned": "Planned", "deprecated": "Existing sites only"}
 
 
-HACK_MARKERS = {
-    "[[hashack]]": "<!--sh:hashack-->",
-    "[[/hashack]]": "<!--/sh:hashack-->",
-    "[[nohack]]": "<!--sh:nohack-->",
-    "[[/nohack]]": "<!--/sh:nohack-->",
-    # The plain hosted/self pair (hostedBlocks, not hasHackBlocks): true
-    # only of the two real hosted services, regardless of edition -- for a
-    # clause naming simple-host.app/simple-hack.app as the two REAL hosted
-    # deployments (a reserved name, a historical fact about Claude's
-    # directory), which is simply untrue of any self-hosted install, Hack
-    # edition included.
-    "[[hosted]]": "<!--sh:hosted-->",
-    "[[/hosted]]": "<!--/sh:hosted-->",
-    "[[self]]": "<!--sh:self-->",
-    "[[/self]]": "<!--/sh:self-->",
-}
+MARKERS = {"[[hosted]]": "<!--sh:hosted-->", "[[/hosted]]": "<!--/sh:hosted-->",
+           "[[self]]": "<!--sh:self-->", "[[/self]]": "<!--/sh:self-->"}
 
 
-def rich(s):
-    """Escape text; `code` spans become <code>, **bold** spans become <b>.
-
-    The <b> form matters: limitstext.go rewrites sentences such as
-    "after <b>15 minutes</b>" to the limits an install runs with, so a limit
-    stated on this page must be written with the exact phrase listed there.
-
-    [[hashack]]...[[/hashack]] and [[nohack]]...[[/nohack]] become the raw
-    <!--sh:hashack--> markers chrome.go's hasHackBlocks filters on (see
-    is_hack_only): a feature most editions share, but whose text has one
-    clause true only where Simple Hack exists (a reserved name, a
-    simple-hack.app link) and, where the sentence needs it, a
-    self-hosted-Host-edition alternative. [ and ] are not HTML-escaped, so
-    this substitution runs after escaping without touching anything else."""
+def rich(s, markers=None):
+    """Escape prose, retaining code, bold text and configured block markers."""
     parts = re.split(r"(`[^`]+`|\*\*[^*]+\*\*)", s)
     out = []
     for p in parts:
@@ -67,98 +43,63 @@ def rich(s):
         else:
             out.append(html.escape(p))
     text = "".join(out)
-    for token, marker in HACK_MARKERS.items():
+    for token, marker in (markers or MARKERS).items():
         text = text.replace(token, marker)
     return text
 
 
-def is_hack_only(f):
-    """True for a feature Host explicitly does not have but Hack does (the
-    "hack-*" rows): on a self-hosted Host edition (EVENTS=off, no Hack
-    feature at all) this detail -- full of simple-hack.app links and a
-    description of a service this install does not run -- is both
-    irrelevant and a hosted-domain leak. Wrapped in <!--sh:hashack-->, which
-    chrome.go's hasHackBlocks keeps on the two real hosted services and any
-    Hack-edition instance (self-hosted or not), and drops only there."""
-    eds = f.get("editions", {})
-    return eds.get("host") == "no" and eds.get("hack") in ("yes", "partial")
-
-
-def render_feature(f):
+def render_feature(f, options=None):
+    options = options or {}
+    format_text = rich
+    rich_text = lambda text: format_text(text, options.get("markers"))
     pill = ""
     if f["status"] in PILL:
         pill = ' <span class="st %s">%s</span>' % (f["status"], PILL[f["status"]])
     lines = []
-    # self-host hides itself on every self-hosted instance (sh:hosted); a
-    # feature Host doesn't have but Hack does (is_hack_only) hides only on
-    # a self-hosted Host edition (sh:hashack).
-    #
-    # self-host's markers go on their OWN line, exactly as the baseline
-    # (origin/main, pre-dating this script's hashack support) already had
-    # them: hostedBlocks only removes the marker text itself, so the
-    # standalone marker line becomes a blank line once stripped on
-    # hosted -- that blank line either side of #self-host is the baseline's
-    # existing, intentional spacing, not something to collapse.
-    #
-    # is_hack_only's new sh:hashack markers are glued onto the
-    # opening/closing <details> line instead, because unlike self-host
-    # there was no pre-existing standalone-line placement (and hence no
-    # existing blank line) for them to match -- a standalone marker line
-    # here would introduce a NEW stray blank line on every hosted page
-    # that keeps this feature (verified byte-identical by scripts/golden
-    # and shots/hosted-diff.mjs; this was finding 5's blank-line
-    # regression, fixed by gluing).
     prefix_lines, suffix_lines = [], []
     open_markers, close_markers = "", ""
     if f["id"] == "self-host":
         prefix_lines.append("<!--sh:hosted-->")
         suffix_lines.append("<!--/sh:hosted-->")
-    # self-host (above) already hides itself on every self-hosted instance;
-    # this is the narrower, Host-edition-only gate.
-    hack_only = f["id"] != "self-host" and is_hack_only(f)
-    if hack_only:
-        open_markers += "<!--sh:hashack-->"
-        close_markers = "<!--/sh:hashack-->" + close_markers
+    product_only = f["id"] != "self-host" and f["id"] in options.get("product_features", [])
+    if product_only:
+        open_markers += options["open_marker"]
+        close_markers = options["close_marker"] + close_markers
     lines.extend(prefix_lines)
     lines.append(open_markers + '      <details class="feat" id="%s">' % html.escape(f["id"]))
-    lines.append('        <summary><span class="fname">%s</span>%s<span class="fline">%s</span></summary>' % (rich(f["name"]), pill, rich(f["line"])))
+    lines.append('        <summary><span class="fname">%s</span>%s<span class="fline">%s</span></summary>' % (rich_text(f["name"]), pill, rich_text(f["line"])))
     lines.append('        <div class="fbody">')
-    lines.append('          <p class="how">%s</p>' % rich(f["how"]))
+    lines.append('          <p class="how">%s</p>' % rich_text(f["how"]))
     if f.get("example"):
-        lines.append('          <p class="ex"><b>Example.</b> %s</p>' % rich(f["example"]))
+        lines.append('          <p class="ex"><b>Example.</b> %s</p>' % rich_text(f["example"]))
     dl = []
     for key, label in (("who", "Who"), ("where", "Where"), ("limits", "Limits")):
         if f.get(key):
             cls = ' class="lim"' if key == "limits" else ""
-            dl.append('            <dt>%s</dt><dd%s>%s</dd>' % (label, cls, rich(f[key])))
+            dl.append('            <dt>%s</dt><dd%s>%s</dd>' % (label, cls, rich_text(f[key])))
     if dl:
         lines.append('          <dl class="fm">')
         lines.extend(dl)
         lines.append('          </dl>')
     eds = []
-    for key, label in EDITIONS:
+    for key, label in options.get("editions", EDITIONS):
         v = f["editions"].get(key, "no")
         eds.append('<li class="%s"><b>%s</b>%s</li>' % (v, label, ED_WORD[v]))
     lines.append('          <ul class="eds" aria-label="Editions">%s</ul>' % "".join(eds))
     if f.get("editions_note"):
-        lines.append('          <p class="ednote">%s</p>' % rich(f["editions_note"]))
+        lines.append('          <p class="ednote">%s</p>' % rich_text(f["editions_note"]))
     status = STATUS_WORD[f["status"]]
     if f.get("status_note"):
-        status += ". " + rich(f["status_note"]).rstrip(".")
+        status += ". " + rich_text(f["status_note"]).rstrip(".")
     meta = ['<span class="status"><b>Status:</b> %s.</span>' % status]
     if f.get("docs"):
         doc_links = []
         for d in f["docs"]:
             a = '<a href="%s">%s</a>' % (html.escape(d["href"], quote=True), html.escape(d["label"]))
-            # A feature most editions share can still carry one Simple
-            # Hack-only doc link (its own get-started or companies page);
-            # drop just that link, not the whole feature, on a self-hosted
-            # Host edition (is_hack_only already hides the whole block for
-            # a feature that is Hack-only to begin with).
             if d.get("host_only"):
                 a = a.replace('<a ', '<a data-host-only ', 1)
-            if not hack_only and "simple-hack.app" in d["href"]:
-                a = "<!--sh:hashack-->" + a + "<!--/sh:hashack-->"
+            if not product_only and any(host in d["href"] for host in options.get("product_links", [])):
+                a = options["open_marker"] + a + options["close_marker"]
             doc_links.append(a)
         meta.append('<span class="docs"><b>Read more:</b> %s</span>' % " ".join(doc_links))
     lines.append('          <p class="meta">%s</p>' % " ".join(meta))
@@ -168,29 +109,22 @@ def render_feature(f):
     return "\n".join(lines)
 
 
-def render(data):
-    def intro_p(s):
-        # The Simple Hack mention ("runs hackathons on simple-hack.app") is
-        # cross-product content a self-hosted Host edition should not show
-        # (see is_hack_only); every other intro line describes Simple Host
-        # itself and stays unconditionally.
-        p = '      <p class="lede">%s</p>' % rich(s)
-        if "simple-hack.app" in s:
-            # Glued onto the same line as the content, not a standalone
-            # marker line: hasHackBlocks only removes the marker text, so a
-            # marker alone on its own line would leave a blank line behind
-            # wherever the content is KEPT (every hosted page, verified
-            # byte-identical by scripts/golden and shots/hosted-diff.mjs).
-            return "<!--sh:hashack-->" + p + "<!--/sh:hashack-->"
+def render(data, options=None, template=TMPL):
+    options = options or {}
+    rich_text = lambda text: rich(text, options.get("markers"))
+    def intro_p(index, text):
+        p = '      <p class="lede">%s</p>' % rich_text(text)
+        if index in options.get("marked_intro", []):
+            return options["open_marker"] + p + options["close_marker"]
         return p
-    intro = "\n".join(intro_p(s) for s in data["intro"])
-    tree = ['        <div class="root"><b>%s</b><span>%s</span></div>' % (rich(data["root"]["name"]), rich(data["root"]["line"])),
+    intro = "\n".join(intro_p(i, text) for i, text in enumerate(data["intro"]))
+    tree = ['        <div class="root"><b>%s</b><span>%s</span></div>' % (rich_text(data["root"]["name"]), rich_text(data["root"]["line"])),
             '        <ol class="branches">']
     for a in data["areas"]:
-        cls = ' class="hackb"' if a["id"] == "hack" else ""
-        tag = ('<span class="tag">%s</span>' % rich(a["tag"])) if a.get("tag") else ""
+        cls = ' class="%s"' % options['branch_classes'][a['id']] if a["id"] in options.get("branch_classes", {}) else ""
+        tag = ('<span class="tag">%s</span>' % rich_text(a["tag"])) if a.get("tag") else ""
         tree.append('          <li%s><a class="node" href="#%s"><b>%s</b><span class="n">%d</span><span class="l">%s</span>%s</a></li>'
-                    % (cls, a["id"], rich(a["title"]), len(a["features"]), rich(a["line"]), tag))
+                    % (cls, a["id"], rich_text(a["title"]), len(a["features"]), rich_text(a["line"]), tag))
     tree.append('        </ol>')
     areas = []
     for a in data["areas"]:
@@ -198,33 +132,67 @@ def render(data):
             if al != a["id"]:
                 areas.append('    <span class="alias" id="%s"></span>' % html.escape(al))
         areas.append('    <section class="area" id="%s">' % html.escape(a["id"]))
-        areas.append('      <div class="areahead"><h2>%s</h2><a class="up" href="#map-title">Back to the map</a></div>' % rich(a["title"]))
-        areas.append('      <p class="lede">%s</p>' % rich(a["line"]))
+        areas.append('      <div class="areahead"><h2>%s</h2><a class="up" href="#map-title">Back to the map</a></div>' % rich_text(a["title"]))
+        areas.append('      <p class="lede">%s</p>' % rich_text(a["line"]))
         if a.get("more"):
-            areas.append('      <p>%s</p>' % rich(a["more"]))
+            areas.append('      <p>%s</p>' % rich_text(a["more"]))
         areas.append('      <div class="feats">')
         for f in a["features"]:
-            areas.append(render_feature(f))
+            areas.append(render_feature(f, options))
         areas.append('      </div>')
         areas.append('    </section>')
-    tmpl = open(TMPL, encoding="utf-8").read()
+    tmpl = Path(template).read_text()
     page = tmpl.replace("<!--features:intro-->", intro).replace("<!--features:tree-->", "\n".join(tree)).replace("<!--features:areas-->", "\n".join(areas))
     return page
 
 
+PRODUCT = Path(ROOT) / "products/hack/webassets"
+
+
+def feature_data():
+    """The product part applies explicit JSON Pointer sets/inserts/removals."""
+    base = json.loads(Path(DATA).read_text())
+    part = json.loads((PRODUCT / "features.part.json").read_text())
+    composed = copy.deepcopy(base)
+    for patch in part["overrides"]:
+        tokens = [token.replace("~1", "/").replace("~0", "~") for token in patch["path"][1:].split("/")]
+        node = composed
+        for token in tokens[:-1]:
+            node = node[int(token)] if isinstance(node, list) else node[token]
+        key = int(tokens[-1]) if isinstance(node, list) else tokens[-1]
+        if patch["op"] == "insert":
+            node.insert(key, copy.deepcopy(patch["value"]))
+        elif patch["op"] == "remove":
+            del node[key]
+        else:
+            node[key] = copy.deepcopy(patch["value"])
+    for area in composed["areas"]:
+        for feature in area["features"]:
+            editions = feature["editions"]
+            feature["editions"] = {key: editions[key] for key, _ in part["render"]["editions"] if key in editions}
+    return base, composed, part["render"]
+
+
+def generated():
+    base, product, options = feature_data()
+    return {
+        Path(OUT): render(base),
+        PRODUCT / "static/features.json": json.dumps(product, indent=1, ensure_ascii=True) + "\n",
+        PRODUCT / "static/features.html": render(product, options, PRODUCT / "features-page.tmpl.html"),
+    }
+
+
 def main():
-    data = json.load(open(DATA, encoding="utf-8"))
-    page = render(data)
-    if "--check" in sys.argv:
-        cur = open(OUT, encoding="utf-8").read() if os.path.exists(OUT) else ""
-        if cur != page:
-            print("FAIL: internal/webassets/static/features.html is stale; run python3 scripts/build-features-page.py")
-            sys.exit(1)
-        print("  ok features.html matches features.json")
-        return
-    with open(OUT, "w", encoding="utf-8") as fh:
-        fh.write(page)
-    print("wrote %s (%d areas, %d features)" % (os.path.relpath(OUT, ROOT), len(data["areas"]), sum(len(a["features"]) for a in data["areas"])))
+    stale = []
+    for path, body in generated().items():
+        if "--check" in sys.argv:
+            if not path.exists() or path.read_text() != body:
+                stale.append(str(path.relative_to(Path(ROOT).resolve())))
+        else:
+            path.write_text(body)
+    if stale:
+        sys.exit("stale feature files; run python3 scripts/build-features-page.py: " + ", ".join(stale))
+    print("  ok features pages match their authored sources")
 
 
 if __name__ == "__main__":
