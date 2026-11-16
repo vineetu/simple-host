@@ -34,7 +34,7 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
 | `PRIVACY_URL` | none | URL | This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link. |
-| `SITE_DOMAIN` | none | text | The domain this server lives at, like example.com. Unset, the server starts in setup mode and asks for one. |
+| `SITE_DOMAIN` | none | text | The domain this server lives at, like sites.example.com. Unset, the server starts in setup mode and asks for one. |
 | `CONTENT_HOST` | `sites.<SITE_DOMAIN>` | text | The separate hostname sites are served from, so pages never share an origin with the dashboard. |
 | `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://&lt;SITE_DOMAIN>. |
 | `PORT` | `8090` | 1–65535 | The port the server listens on. |

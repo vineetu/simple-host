@@ -11,11 +11,6 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 )
 
-// canonicalHackBaseURL is simple-hack.app's own address: the hack ink base
-// every Hack instance starts from unless it is given its own (the
-// instanceURL constructor argument to newAssetPipeline).
-const canonicalHackBaseURL = "https://simple-hack.app"
-
 // assetPipeline is everything the static asset and chrome pipeline reads that
 // depends on the product or the instance: which product's assets and copy it
 // serves, the hack chrome, the hack instance's own address, and the cache of
@@ -43,7 +38,7 @@ type assetPipeline struct {
 	// chromeHack renders the simple-hack.app header, footer and ink: always
 	// pres.ProductAssets, kept as its own field because that is the question
 	// this pipeline's callers ask.
-	chromeHack bool
+	chromeProduct bool
 	// inkBase is this Hack instance's public address (the instanceURL
 	// constructor argument), canonicalHackBaseURL by default. Read via
 	// inkBaseURL. Meaningless when !chromeHack.
@@ -75,16 +70,16 @@ type cachedZip struct {
 // still reach its swapped-file cache.
 func newAssetPipeline(ed *edition.Edition, instanceURL string) *assetPipeline {
 	if instanceURL == "" {
-		instanceURL = canonicalHackBaseURL
+		instanceURL = ed.Presentation().CanonicalBaseURL
 	}
 	lim := ed.Limits()
 	p := &assetPipeline{
-		pres:         ed.Presentation(),
-		hostedEvents: ed.Routes().HostedEvents,
-		limits:       lim,
-		limitsText:   newLimitsRewriter(lim),
-		chromeHack:   ed.Presentation().ProductAssets,
-		inkBase:      strings.TrimRight(instanceURL, "/"),
+		pres:          ed.Presentation(),
+		hostedEvents:  ed.Routes().HostedEvents,
+		limits:        lim,
+		limitsText:    newLimitsRewriter(lim),
+		chromeProduct: ed.Presentation().ProductAssets,
+		inkBase:       strings.TrimRight(instanceURL, "/"),
 	}
 	assetRegistry.mu.Lock()
 	live := assetRegistry.live[:0]
@@ -108,7 +103,9 @@ func (p *assetPipeline) InkBaseURL() string { return p.inkBaseURL() }
 
 // IsCanonicalInstance reports whether this is simple-hack.app itself, not a
 // self-hosted or otherwise addressed instance. Exported for hackPages.
-func (p *assetPipeline) IsCanonicalInstance() bool { return p.inkBaseURL() == canonicalHackBaseURL }
+func (p *assetPipeline) IsCanonicalInstance() bool {
+	return p.pres.CanonicalBaseURL != "" && p.inkBaseURL() == p.pres.CanonicalBaseURL
+}
 
 // StaticFS is the embedded static/ tree as this pipeline serves it
 // (staticFS, below), exported for hackPages: moving code parses its own

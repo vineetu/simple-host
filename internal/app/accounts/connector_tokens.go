@@ -21,7 +21,7 @@ type Connector struct {
 	database              *sql.DB
 	Now                   func() time.Time
 	NormalizeResource     func(string) (string, bool)
-	HackTeams             bool
+	TeamConnections       bool
 	AccessTTL, RefreshTTL time.Duration
 }
 
@@ -182,7 +182,7 @@ func (h *Connector) Refresh(ctx context.Context, in ConnectorTokenInput, client 
 	if h.Now().After(tok.ExpiresAt) {
 		return ConnectorTokens{}, &ConnectorError{Code: "invalid_grant", Description: "refresh token expired", Internal: false}
 	}
-	if h.HackTeams {
+	if h.TeamConnections {
 		if _, _, ok := authrules.GrantKind(tok.Scope); !ok {
 			// Not spent: the transaction rolls back. The person reconnects.
 			return ConnectorTokens{}, &ConnectorError{Code: "invalid_grant", Description: "this connection cannot be refreshed; reconnect and choose a team or Manage my events", Internal: false}

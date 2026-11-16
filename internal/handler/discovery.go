@@ -81,8 +81,8 @@ func homepageMarkdown(page []byte) ([]byte, error) {
 	return []byte(strings.Join(lines, "\n") + "\n"), nil
 }
 
-func homepageMarkdownHandler(assets *assetPipeline, publicBaseURL string, hackAssets bool) http.HandlerFunc {
-	return assets.LandingMarkdownHandler("host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, hackAssets)
+func homepageMarkdownHandler(assets *assetPipeline, publicBaseURL string, productAssets bool) http.HandlerFunc {
+	return assets.LandingMarkdownHandler("host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, productAssets)
 }
 
 // LandingMarkdownHandler serves one landing page's copy as markdown.
@@ -91,12 +91,12 @@ func homepageMarkdownHandler(assets *assetPipeline, publicBaseURL string, hackAs
 // (cleanup 3.2 slice 2a): hack_home.go, moving to internal/hackhttp, reaches
 // it through the hackPages interface (hack.go), whose methods must be
 // exported and must not name assetPipeline itself.
-func (p *assetPipeline) LandingMarkdownHandler(file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc {
+func (p *assetPipeline) LandingMarkdownHandler(file, title, description, publicBaseURL string, productAssets bool) http.HandlerFunc {
 	page, err := p.staticFS().ReadFile("static/" + file)
 	if err != nil {
 		panic(err)
 	}
-	if hackAssets {
+	if productAssets {
 		page = p.productInstanceText(page)
 	}
 	body, err := homepageMarkdown(page)
@@ -112,13 +112,13 @@ func (p *assetPipeline) LandingMarkdownHandler(file, title, description, publicB
 }
 
 // Both discovery files name the configured server, like the served API spec.
-func discoveryDocument(assets *assetPipeline, hackAssets bool, name, contentType, publicBaseURL string) http.HandlerFunc {
+func discoveryDocument(assets *assetPipeline, productAssets bool, name, contentType, publicBaseURL string) http.HandlerFunc {
 	source := name
 	body, err := assets.staticFS().ReadFile("static/.well-known/" + source)
 	if err != nil {
 		panic(err)
 	}
-	if hackAssets {
+	if productAssets {
 		body = assets.productInstanceText(body)
 	} else {
 		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(strings.TrimRight(publicBaseURL, "/")))

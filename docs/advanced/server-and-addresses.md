@@ -34,7 +34,7 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
 | `PRIVACY_URL` | none | URL | This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link. |
-| `SITE_DOMAIN` | none | text | The domain this server lives at, like hack.example.com. Unset, the server starts in setup mode and asks for one. |
+| `SITE_DOMAIN` | none | text | The domain this server lives at, like sites.example.com. Unset, the server starts in setup mode and asks for one. |
 | `CONTENT_HOST` | `sites.<SITE_DOMAIN>` | text | The separate hostname sites are served from, so pages never share an origin with the dashboard. |
 | `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://<SITE_DOMAIN>. |
 | `PORT` | `8090` | 1–65535 | The port the server listens on. |
@@ -53,8 +53,6 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `MCP_APP_MY_SITES` | `off` | text | My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_DASHBOARD` | `off` | text | Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_SITE_PREVIEW` | `off` | text | Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only. |
-| `MCP_APP_HACK_JUDGE` | `off` | text | Simple Hack judge views (queue, scoring, rubric, invite) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing. |
-| `MCP_APP_HACK_ORGANISER` | `off` | text | Simple Hack organiser views (overview and stage, people and applications, judging dashboard) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing. |
 | `BRAIN_DIR` | none | text | Folder containing bundle.json for the owner product-knowledge server; empty disables it, and hosted events ignore it. |
 | `OPENAI_APPS_CHALLENGE` | none | text | The OpenAI plugin portal's domain-verification token. Unset: not served. |
 <!-- /settings -->

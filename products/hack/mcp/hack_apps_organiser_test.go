@@ -35,7 +35,7 @@ func TestHackOrganiserResourceGating(t *testing.T) {
 		t.Setenv("MCP_APP_HACK_ORGANISER", flag)
 		for _, c := range []mcp.Caller{
 			organiserCaller("alice", ""),
-			{APIKey: "k", Mode: mcp.CallerModeHackSite, Handle: "alice"},
+			{APIKey: "k", Mode: mcp.CallerModeGroupSite, Handle: "alice"},
 			{APIKey: "k", Handle: "alice"}, // Mode "": Simple Host, must never see this screen
 		} {
 			screenEnabled := c.Mode == mcp.CallerModeEvents && mcp.AppFlag(flag, c.Handle)

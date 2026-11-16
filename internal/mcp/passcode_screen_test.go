@@ -395,7 +395,7 @@ func TestPasscodeAppInventory(t *testing.T) {
 	if meta["permissions"].(map[string]any)["clipboardWrite"] == nil {
 		t.Fatal("clipboard permission missing")
 	}
-	for _, c := range []Caller{{Handle: "bob"}, {Handle: "alice", Mode: CallerModeEvents}, {Handle: "alice", Mode: CallerModeHackSite}} {
+	for _, c := range []Caller{{Handle: "bob"}, {Handle: "alice", Mode: CallerModeEvents}, {Handle: "alice", Mode: CallerModeGroupSite}} {
 		_, _, byName := s.forCaller(c)
 		if _, ok := byName["passcode_screen"]; ok || len(s.appResources(c)) != 0 {
 			t.Fatal("screen gate failed")

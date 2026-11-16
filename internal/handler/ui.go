@@ -33,10 +33,7 @@ var skillsModTime = time.Now().UTC()
 // PluginVersion reads the version field from the embedded plugin.json
 // once and caches it. Used at boot to construct the notice middleware
 // and served at /skills/version for explicit checks by the MCP client.
-func PluginVersion(hackAssets bool) (string, error) {
-	if hackAssets {
-		return "0.27.20", nil
-	}
+func PluginVersion() (string, error) {
 	pluginVersionOnce.Do(func() {
 		src, err := webassets.Host.Open(".claude-plugin/plugin.json")
 		if err != nil {
@@ -156,7 +153,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		mux.Handle("GET /"+name, serveIcon(sub, file))
 	}
 
-	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) { serveRobotsTxt(w, r, sh.ed.Routes().HostedEvents) })
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		serveRobotsTxt(w, r, sh.ed.Routes().HostedEvents, sh.ed.Presentation())
+	})
 	mux.HandleFunc("GET /sitemap.xml", sh.serveSitemap)
 	mux.HandleFunc("GET /sitemap-pages.xml", sh.serveSitemap)
 
@@ -205,10 +204,6 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /enterprise", assets.adminUICSP(assets.serveStaticPage("enterprise.html")))
 	mux.Handle("GET /enterprise/brief", assets.adminUICSP(assets.serveStaticPage("enterprise-brief.html")))
 	mux.Handle("GET /enterprise/architecture", assets.adminUICSP(assets.serveStaticPage("enterprise-architecture.html")))
-	if !assets.pres.ProductAssets {
-		mux.Handle("GET /hackathons", http.RedirectHandler("/", http.StatusFound))
-		mux.Handle("GET /hackathons.html", http.RedirectHandler("/", http.StatusFound))
-	}
 	// The setup helper: a small-box .env and install command, or Enterprise's
 	// config.env and Secret template, built in the browser from the two
 	// settings lists under static/setup/ (docs/advanced/README.md).
@@ -359,7 +354,7 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 			body = applyPricingNumbers(body, p.hostedEvents, p.limits)
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if p.chromeHack {
+		if p.chromeProduct {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		w.Write(stampNonce(r, body))
@@ -399,7 +394,7 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 			// Pagefind searches its local index with WebAssembly, not JavaScript eval.
 			policy = strings.Replace(policy, "script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'", 1)
 		}
-		if p.chromeHack {
+		if p.chromeProduct {
 			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
 			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")
 		}
@@ -418,7 +413,7 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 // Used by the MCP client for explicit version checks; the inline notice
 // middleware also reads the same value at boot.
 func serveSkillsVersion(w http.ResponseWriter, r *http.Request) {
-	version, err := PluginVersion(false)
+	version, err := PluginVersion()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

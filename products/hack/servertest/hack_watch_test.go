@@ -2,6 +2,8 @@ package servertest
 
 import (
 	"fmt"
+	"github.com/vsriram/simple-host/internal/config"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -14,7 +16,7 @@ import (
 )
 
 func TestHackWatchPage(t *testing.T) {
-	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
+	sh := chromeTestHandlerWithBase(productedition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	mountHackFiles(mux, sh)
@@ -44,7 +46,7 @@ func TestHackWatchPage(t *testing.T) {
 	if hidden := get(t, mux, "simple-hack.app", "/hack-watch.html"); hidden.Code != 404 {
 		t.Fatalf("filename route: %d", hidden.Code)
 	}
-	sh2 := chromeTestHandlerWithBase(edition.Hack, "https://hack.college.test")
+	sh2 := chromeTestHandlerWithBase(productedition.Hack, "https://hack.college.test")
 	mux2 := http.NewServeMux()
 	handler.RegisterUIRoutes(mux2, "https://simple-host.app", sh2)
 	mountHackFiles(mux2, sh2)
@@ -61,7 +63,7 @@ func TestHackWatchPage(t *testing.T) {
 }
 
 func TestHackWatchNarration(t *testing.T) {
-	mux := chromeTestMux(t, edition.Hack)
+	mux := chromeTestMux(t, productedition.Hack)
 	for _, role := range []string{"organizer", "judge", "participant"} {
 		path := "/hack-watch-" + role + ".mp3?v=202610102330"
 		rec := get(t, mux, "simple-hack.app", path)
@@ -80,7 +82,7 @@ func TestHackWatchNarration(t *testing.T) {
 
 func TestHackWatchHostedOnly(t *testing.T) {
 	a := newHackApp(t)
-	sh := handler.NewSiteHandler(edition.ForKind(edition.Host), "", a.database, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	sh := handler.NewSiteHandler(edition.Default(config.DefaultLimits()), "", a.database, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	for _, path := range []string{"/watch", "/hack-watch.html", "/v1/hack/demo", "/demo/join", "/demo/judge"} {

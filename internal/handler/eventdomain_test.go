@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +53,7 @@ func TestEventDomainWorkflow(t *testing.T) {
 	uid, _ := a.userID(t, p)
 	dns := &eventTestDNS{}
 	domains := []string{"event-workflow.test"}
-	lim := edition.ForKind(edition.Host).Limits()
+	lim := edition.Default(config.DefaultLimits()).Limits()
 	svc := sites.New(a.database, nil, nil, 0, sites.Deps{EventDNS: dns, EventProbe: sites.NewEventProbe(&http.Client{Transport: eventProbeTransport{}}), EventDomains: domains, EventTTL: lim.EventTTL, EventMaxClaims: lim.EventMaxClaims})
 	h := NewEventDomainHandler(svc, domains)
 	request := func(method, path, body string, user *model.User) *httptest.ResponseRecorder {

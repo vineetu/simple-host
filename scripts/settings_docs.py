@@ -115,6 +115,29 @@ for s in settings:
     if s["name"] not in covered:
         errors.append(f"{s['name']} is in no docs/advanced table (add <!-- settings:group={s['group']} --> to its page)")
 
+# Render the product's settings tables from the composed list. The docs builder
+# uses these overlays for Hack and the platform tables for Host.
+product_settings = json.loads(read("products/hack/docs/advanced/settings.json"))["settings"]
+product_adv = "products/hack/docs/advanced"
+for name in sorted(os.listdir(adv)):
+    if not name.endswith(".md"):
+        continue
+    source = read(f"docs/advanced/{name}")
+
+    def product_fill(m):
+        rows = [s for s in product_settings if s[m.group(2)] == m.group(3)]
+        return m.group(1) + table(rows) + "\n" + m.group(5)
+
+    rendered = MARK.sub(product_fill, source)
+    path = f"{product_adv}/{name}"
+    if rendered != source:
+        write_or_check(path, rendered)
+    elif os.path.exists(os.path.join(ROOT, path)):
+        if CHECK:
+            errors.append(f"{path} no longer needs a product overlay (run scripts/sync-settings.sh)")
+        else:
+            os.remove(os.path.join(ROOT, path))
+
 # Hosted: what the setup helper offers for a small box must work there.
 if os.path.exists(os.path.join(ROOT, "compose.yaml")):
     compose = read("compose.yaml")

@@ -30,7 +30,7 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	if _, present := args["archive"]; present && !ok {
 		return output{}, errors.New("archive must be a boolean")
 	}
-	archive = archive || c.caller.Mode == CallerModeHackSite || c.caller.Mode == CallerModeEvents
+	archive = archive || c.caller.Mode == CallerModeGroupSite || c.caller.Mode == CallerModeEvents
 	site, err := siteArg(args)
 	if err != nil {
 		return output{}, err

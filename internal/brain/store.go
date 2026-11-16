@@ -19,7 +19,13 @@ var ErrNotReady = errors.New("the product knowledge bundle has not been built ye
 
 // Store serves queries from the bundle file and reloads it when the file
 // changes (checked at most every checkEvery).
+// ProductFilter is the program's list of accepted products and included editions.
+type ProductFilter struct {
+	ID       string
+	Includes []string
+}
 type Store struct {
+	products   []ProductFilter
 	path       string
 	checkEvery time.Duration
 
@@ -35,8 +41,8 @@ const checkEvery = 5 * time.Second
 
 // Open returns a store for the bundle at path. A missing or bad bundle is not
 // an error here: queries answer ErrNotReady until a good one appears.
-func Open(path string) *Store {
-	s := &Store{path: path, checkEvery: checkEvery}
+func Open(path string, products ...ProductFilter) *Store {
+	s := &Store{path: path, checkEvery: checkEvery, products: products}
 	s.mu.Lock()
 	s.reloadLocked(time.Now())
 	s.mu.Unlock()

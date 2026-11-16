@@ -10,6 +10,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +24,7 @@ import (
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
+
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/model"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
@@ -122,7 +124,7 @@ func newHackAppDatabase(t *testing.T, database *sql.DB, eds ...*edition.Edition)
 	if len(eds) > 0 {
 		ed = eds[0]
 	} else {
-		ed = edition.ForKind(edition.Hack)
+		ed = productedition.ForKind(productedition.Hack)
 	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
@@ -352,8 +354,9 @@ func uniqueSlug() string {
 // setAppLimits/setConnectorAppLimits stay there for the fixtures that stay
 // there). See that file's withLimits/otherValue for the rest of the
 // env-knob test machinery this pairs with.
-func setHackAppLimits(a *hackApp, l config.Limits) {
-	a.hack.limits = l
+func setHackAppLimits(a *hackApp, l productconfig.Limits) {
+	a.hack.limits.Limits = l.Limits
+	a.hack.SetProductLimits(l)
 }
 
 func (a *hackApp) createBody(slug string, extra map[string]any) map[string]any {
@@ -606,7 +609,7 @@ func TestHackCreateNameTakenHandlePeerBudgetLimits(t *testing.T) {
 	a.hack.SetNamePeer(nil)
 
 	a.hack.SetInstanceUsage(func(ctx context.Context) (int64, error) { return 9 * 1024 * 1024 * 1024, nil })
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.HackInstanceBudgetGB = 10
 	l.EventCreatePerDay = 1
 	l.EventMaxActivePerOrganiser = 1
@@ -1004,7 +1007,7 @@ func TestHackConcurrentLastSlot(t *testing.T) {
 
 func TestHackAdmin(t *testing.T) {
 	a := newHackApp(t)
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.EventCreatePerDay = 20
 	l.EventMaxActivePerOrganiser = 20
 	setHackAppLimits(a, l)
@@ -1549,4 +1552,10 @@ func erasureBlockForTest(t *testing.T, ctx context.Context, db *sql.DB, id strin
 		err = tx.Commit()
 	}
 	return code, msg, err
+}
+
+func newHackAppWithLimits(t *testing.T, limits productconfig.Limits) *hackApp {
+	a := newHackApp(t, productedition.ForKindWithLimits(productedition.Hack, limits.Limits))
+	a.hack.SetProductLimits(limits)
+	return a
 }

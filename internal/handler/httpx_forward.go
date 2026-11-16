@@ -22,7 +22,7 @@ type errorResponse = httpx.ErrorResponse
 var (
 	writeJSON       = httpx.WriteJSON
 	writeJSONETag   = httpx.WriteJSONETag
-	writeHackErr    = httpx.WriteError
+	writeProductErr = httpx.WriteError
 	writeInternal   = httpx.WriteInternal
 	acceptsMarkdown = httpx.AcceptsMarkdown
 	csvSafe         = httpx.CSVSafe

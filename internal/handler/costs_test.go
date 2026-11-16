@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // The cost calculator (/costs): its price file, its arithmetic and its links.
@@ -215,7 +213,7 @@ func TestCostsCalcRealPrices(t *testing.T) {
 // /costs serves the page with its scripts, and the pages that should link
 // to it do.
 func TestCostsPageAndLinks(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 	rec := get(t, mux, "simple-host.app", "/costs")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("/costs = %d", rec.Code)

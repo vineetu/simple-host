@@ -40,6 +40,8 @@ func validateDynamicInputs(root string) error {
 	ownFiles := dynamicSites["products/hack/asset_files.go:RegisterOwnFiles"]
 	hackFilm := dynamicSites["products/hack/hackhttp/hack_film.go:RegisterHackFilm"]
 	inputs := []dynamicInput{
+		{"internal/server/build.go", "Build", "range", nil, 1, "opts.Redirects"},
+		{"cmd/server/main.go", "compatibilityRedirects", "keys", patternInputs(dynamicSites["internal/server/build.go:Build"], "", ""), 0, ""},
 		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
 		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
 		{"internal/handler/ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},

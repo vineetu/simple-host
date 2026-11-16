@@ -1,12 +1,12 @@
 package servertest
 
 import (
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
@@ -17,7 +17,7 @@ import (
 // no cookie is ever set, and that the static assets it depends on are still
 // reachable.
 func TestHackUINext(t *testing.T) {
-	sh := chromeTestHandler(edition.Hack)
+	sh := chromeTestHandler(productedition.Hack)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh) // Includes the existing embedded file server.
 	mountHackFiles(mux, sh)

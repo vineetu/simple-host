@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/config"
 	"strings"
 	"testing"
 
@@ -95,7 +96,7 @@ func TestImportEffectivePathLimit(t *testing.T) {
 				w.Close()
 				body = b.Bytes()
 			}
-			if _, err := unpackImportTest(t, body, edition.ForKind(edition.Host).Limits()); err == nil || !strings.Contains(err.Error(), "1024") {
+			if _, err := unpackImportTest(t, body, edition.Default(config.DefaultLimits()).Limits()); err == nil || !strings.Contains(err.Error(), "1024") {
 				t.Fatal(err)
 			}
 		})
@@ -147,26 +148,26 @@ func gzipImport(t *testing.T, body []byte) []byte {
 func TestImportTARPhysicalHeadersAndStreamBudget(t *testing.T) {
 	t.Run("PAX boundary override", func(t *testing.T) {
 		body := bytes.Replace(physicalPAX(t, 1, 1), []byte("comment=x"), []byte("size=0000"), 1)
-		if _, err := unpackImportTest(t, body, edition.ForKind(edition.Host).Limits()); err == nil || !strings.Contains(err.Error(), "overrides") {
+		if _, err := unpackImportTest(t, body, edition.Default(config.DefaultLimits()).Limits()); err == nil || !strings.Contains(err.Error(), "overrides") {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("physical entries", func(t *testing.T) {
-		l := edition.ForKind(edition.Host).Limits()
+		l := edition.Default(config.DefaultLimits()).Limits()
 		l.ImportMaxArchiveEntries = 2
 		if _, err := unpackImportTest(t, gzipImport(t, physicalPAX(t, 3, 1)), l); err == nil || !strings.Contains(err.Error(), "physical entries") {
 			t.Fatal(err)
 		}
 	})
 	t.Run("extended budget", func(t *testing.T) {
-		if _, err := unpackImportTest(t, physicalPAX(t, 17, 64<<10), edition.ForKind(edition.Host).Limits()); err == nil || !strings.Contains(err.Error(), "extended headers") {
+		if _, err := unpackImportTest(t, physicalPAX(t, 17, 64<<10), edition.Default(config.DefaultLimits()).Limits()); err == nil || !strings.Contains(err.Error(), "extended headers") {
 			t.Fatal(err)
 		}
 	})
 	for _, format := range []string{"tar", "tgz"} {
 		t.Run(format+" stream", func(t *testing.T) {
-			l := edition.ForKind(edition.Host).Limits()
+			l := edition.Default(config.DefaultLimits()).Limits()
 			l.ImportMaxUnpackedMB = 1
 			body := physicalPAX(t, 15, 64<<10)
 			body = append(body, bytes.Repeat([]byte{' '}, 64<<10)...)
@@ -184,7 +185,7 @@ func TestImportGzipCumulativeRatio(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		entries = append(entries, importArchiveEntry{fmt.Sprintf("photo%d.jpg", i), strings.Repeat("x", 1<<20), 0})
 	}
-	if _, err := unpackImportTest(t, makeImportArchive(t, "tgz", entries), edition.ForKind(edition.Host).Limits()); err == nil || !strings.Contains(err.Error(), "ratio") {
+	if _, err := unpackImportTest(t, makeImportArchive(t, "tgz", entries), edition.Default(config.DefaultLimits()).Limits()); err == nil || !strings.Contains(err.Error(), "ratio") {
 		t.Fatal(err)
 	}
 }

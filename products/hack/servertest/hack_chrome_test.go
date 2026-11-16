@@ -2,6 +2,8 @@ package servertest
 
 import (
 	"bytes"
+	"github.com/vsriram/simple-host/internal/config"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -20,7 +22,7 @@ func TestHackChromeHeader(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	page := []byte("<!--sh:header--><!--sh:footer-->")
 
-	hackAssets := handler.NewPages(edition.ForKind(edition.Hack), "")
+	hackAssets := handler.NewPages(productedition.ForKind(productedition.Hack), "")
 	on, err := hackAssets.WithChromeForTest(r, "", page)
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +66,7 @@ func TestHackChromeHeader(t *testing.T) {
 		t.Error("hack header missing sh-hack class")
 	}
 
-	hostAssets := handler.NewPages(edition.ForKind(edition.Host), "")
+	hostAssets := handler.NewPages(edition.Default(config.DefaultLimits()), "")
 	off, err := hostAssets.WithChromeForTest(r, "", page)
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +81,7 @@ func TestHackChromeHeader(t *testing.T) {
 }
 
 func TestHackHomePage(t *testing.T) {
-	sh := chromeTestHandler(edition.Hack)
+	sh := chromeTestHandler(productedition.Hack)
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	rec := get(t, mux, "simple-hack.app", "/")
@@ -197,7 +199,7 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		}
 	}
 	var hackHead bytes.Buffer
-	if err := handler.ChromeTemplates.ExecuteTemplate(&hackHead, "head.html", handler.ChromeData{Hack: true}); err != nil {
+	if err := handler.ChromeTemplates.ExecuteTemplate(&hackHead, "head.html", handler.ChromeData{Product: true}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(hackHead.String(), `<meta name="sh-hack" content="1">`) {

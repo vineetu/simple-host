@@ -35,6 +35,7 @@ def sources():
     paths += [ROOT / 'scripts/build-docs-site.sh', ROOT / 'scripts/docs-site.py', ROOT / 'scripts/docs-reference.py', ROOT / 'scripts/docs-repo-pages.py']
     paths += [ROOT / p for p, _, _ in docs_repo_pages.repo_doc_files(ROOT)]
     paths += [ROOT / 'CHANGELOG.md']
+    paths += [p for p in (ROOT / "products/hack/docs/advanced").glob("*") if p.is_file()]
     return sorted(paths)
 
 

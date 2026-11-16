@@ -34,7 +34,7 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 		sites = append(sites, site)
 	}
 	if ownSlug != "" && len(sites) == 0 {
-		writeHackErr(w, 404, "no_project", "your team has not published a project")
+		writeProductErr(w, 404, "no_project", "your team has not published a project")
 		return
 	}
 	name := g.Slug + "-projects"

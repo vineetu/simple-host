@@ -37,8 +37,7 @@ func registerWorkers(d workerDependencies) *workers.Set {
 		for _, owner := range d.productWorkers {
 			s.Add(owner)
 		}
-	} else {
-		s.AddDisabled("http.hack.limiters", "hack.event_cleanup", "hack.content_delivery")
+
 	}
 	s.Add(d.connector.SweepWorker(time.Hour))
 	if d.eventDomains != nil {

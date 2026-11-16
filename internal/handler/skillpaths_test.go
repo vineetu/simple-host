@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,9 +15,9 @@ import (
 // a 404 because only /skills/… accepted the /SKILL.md suffix.
 func TestSkillPathsWorkUnderBothPrefixes(t *testing.T) {
 	mux := http.NewServeMux()
-	hostAssets := testAssetPipeline(edition.ForKind(edition.Host), "")
+	hostAssets := testAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	hostAssets.registerSkillsHub(mux, "https://simple-host.app")
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(platformTestEdition()))
 
 	get := func(path string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()

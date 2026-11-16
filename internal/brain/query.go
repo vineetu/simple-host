@@ -3,12 +3,42 @@ package brain
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"time"
 )
 
-// Products lists the product ids accepted by query filters.
-var Products = []string{"host", "hack", "enterprise", "selfhost-host", "selfhost-hack", "hack-companies", "console", "travel", "all"}
+// productNames takes filter names from the program, falling back to bundle identities.
+func (q querier) productNames() []string {
+	if len(q.products) > 0 {
+		var names []string
+		for _, p := range q.products {
+			names = append(names, p.ID)
+		}
+		return names
+	}
+
+	names := map[string]bool{"all": true}
+	for _, p := range q.b.Products {
+		names[p.ID] = true
+	}
+	for _, d := range q.b.Decisions {
+		if d.Product != "" {
+			names[d.Product] = true
+		}
+	}
+	for _, c := range q.b.Changes {
+		if c.Product != "" {
+			names[c.Product] = true
+		}
+	}
+	var out []string
+	for name := range names {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
 
 // ArgError is a bad argument: the caller's to correct.
 type ArgError struct{ msg string }
@@ -31,7 +61,7 @@ func (s *Store) Call(name string, args map[string]any) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	q := querier{b: b, ix: ix, now: time.Now().UTC()}
+	q := querier{b: b, ix: ix, products: s.products, now: time.Now().UTC()}
 	switch name {
 	case "product_overview":
 		return q.overview(args)
@@ -61,9 +91,10 @@ func (s *Store) Freshness() (map[string]any, error) {
 }
 
 type querier struct {
-	b   *Bundle
-	ix  *index
-	now time.Time
+	products []ProductFilter
+	b        *Bundle
+	ix       *index
+	now      time.Time
 }
 
 func freshness(b *Bundle) map[string]any {
@@ -147,26 +178,30 @@ func (q querier) optProduct(args map[string]any, allowAll bool) (string, error) 
 	if err != nil || v == "" {
 		return v, err
 	}
-	for _, p := range Products {
+	for _, p := range q.productNames() {
 		if v == p && (allowAll || p != "all") {
 			return v, nil
 		}
 	}
-	return "", argErr("product must be one of %s", strings.Join(Products, ", "))
+	return "", argErr("product must be one of %s", strings.Join(q.productNames(), ", "))
 }
 
 // productMatch: entries tagged with a self-hosted or companies product also
 // belong to their parent product when filtering.
-func productMatch(want, have string) bool {
+func (q querier) productMatch(want, have string) bool {
 	if want == "" || want == "all" || want == have {
 		return true
 	}
-	switch want {
-	case "hack":
-		return have == "selfhost-hack" || have == "hack-companies"
-	case "selfhost-hack":
-		return have == "hack-companies"
+	for _, product := range q.products {
+		if product.ID == want {
+			for _, included := range product.Includes {
+				if included == have {
+					return true
+				}
+			}
+		}
 	}
+
 	return false
 }
 
@@ -178,7 +213,7 @@ func (q querier) overview(args map[string]any) (Result, error) {
 		return Result{}, err
 	}
 	if product == "" {
-		return Result{}, argErr("product is required: one of %s", strings.Join(Products, ", "))
+		return Result{}, argErr("product is required: one of %s", strings.Join(q.productNames(), ", "))
 	}
 	var products []any
 	var lines []string
@@ -191,7 +226,7 @@ func (q querier) overview(args map[string]any) (Result, error) {
 			if len(recent) == 5 {
 				break
 			}
-			if productMatch(p.ID, d.Product) {
+			if q.productMatch(p.ID, d.Product) {
 				recent = append(recent, map[string]any{"date": d.Date, "title": d.Title, "source": d.Source})
 			}
 		}
@@ -386,7 +421,7 @@ func (q querier) decisions(args map[string]any) (Result, error) {
 		if since != "" && d.Date < since {
 			continue
 		}
-		if !productMatch(product, d.Product) {
+		if !q.productMatch(product, d.Product) {
 			continue
 		}
 		sc := 1.0
@@ -448,7 +483,7 @@ func (q querier) recentChanges(args map[string]any) (Result, error) {
 		if c.Date != "" && c.Date < since {
 			continue
 		}
-		if !productMatch(product, c.Product) {
+		if !q.productMatch(product, c.Product) {
 			continue
 		}
 		items := make([]string, 0, len(c.Items))

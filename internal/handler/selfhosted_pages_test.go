@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -29,7 +30,7 @@ func TestSelfHostedGetStartedAndLLMS(t *testing.T) {
 	defer SetInstanceHosts("simple-host.app", "", "")
 	for _, name := range []string{"install.html", "llms.txt"} {
 		rec := httptest.NewRecorder()
-		testAssetPipeline(edition.ForKind(edition.Host), "").serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
+		testAssetPipeline(edition.Default(config.DefaultLimits()), "").serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
 		body := rec.Body.String()
 		if rec.Code != 200 {
 			t.Fatalf("%s: %d", name, rec.Code)
@@ -57,18 +58,19 @@ func TestSelfHostedGetStartedAndLLMS(t *testing.T) {
 func TestSitemapNamesThisServer(t *testing.T) {
 	SetInstanceHosts("box.example", "sites.box.example", "")
 	defer SetInstanceHosts("simple-host.app", "", "")
-	for host, want := range map[string]string{"evil.example": "https://box.example/sitemap.xml", "box.example": "https://box.example/sitemap.xml", "simple-hack.app": "https://simple-hack.app/sitemap.xml"} {
+	policy := edition.PresentationPolicy{CanonicalBaseURL: "https://product.example", HostedHostPrefix: "product.", SitemapPaths: "/"}
+	for host, want := range map[string]string{"evil.example": "https://box.example/sitemap.xml", "box.example": "https://box.example/sitemap.xml", "product.example": "https://product.example/sitemap.xml"} {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/robots.txt", nil)
 		req.Host = host
-		serveRobotsTxt(rec, req, false)
+		serveRobotsTxt(rec, req, false, policy)
 		if !strings.Contains(rec.Body.String(), "Sitemap: "+want) {
 			t.Errorf("%s robots.txt: %q", host, rec.Body.String())
 		}
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequest("GET", "/sitemap.xml", nil)
 		req.Host = host
-		serveSitemapXML(rec, req, false)
+		serveSitemapXML(rec, req, false, policy)
 		if !strings.Contains(rec.Body.String(), "<loc>"+strings.TrimSuffix(want, "sitemap.xml")+"</loc>") {
 			t.Errorf("%s sitemap.xml does not list its own home page", host)
 		}

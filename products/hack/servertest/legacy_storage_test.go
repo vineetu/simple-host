@@ -1,11 +1,11 @@
 package servertest
 
 import (
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
@@ -29,13 +29,13 @@ func TestLegacyStorageGate(t *testing.T) {
 	}
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	const refusal = "{\"error\":\"Simple Hack website storage now uses KV, SQLite and files under /v1/sites/{site}/storage\",\"code\":\"legacy_storage_removed\"}\n"
-	for _, kind := range []edition.Kind{edition.Host, edition.Hack} {
-		gate := hackhttp.LegacyStorageGate(edition.ForKind(kind), handler.LegacyStoragePath)(next)
+	for _, kind := range []productedition.Kind{productedition.Host, productedition.Hack} {
+		gate := hackhttp.LegacyStorageGate(productedition.ForKind(kind), handler.LegacyStoragePath)(next)
 		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodOptions} {
 			for _, path := range paths {
 				r := httptest.NewRecorder()
 				gate.ServeHTTP(r, httptest.NewRequest(method, path, nil))
-				if kind == edition.Hack {
+				if kind == productedition.Hack {
 					if r.Code != http.StatusGone || r.Body.String() != refusal || r.Header().Get("Content-Type") != "application/json" {
 						t.Errorf("Hack %s %s: %d %s", method, path, r.Code, r.Body.String())
 					}

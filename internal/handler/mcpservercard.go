@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 type mcpServerCard struct {
@@ -34,7 +35,7 @@ type aiCatalog struct {
 }
 
 // RegisterMCPServerCard serves public MCP discovery metadata and its catalog.
-func RegisterMCPServerCard(mux *http.ServeMux, issuer string, hostedEvents bool) {
+func RegisterMCPServerCard(mux *http.ServeMux, issuer string, hostedEvents bool, policies ...edition.PresentationPolicy) {
 
 	serveCard := func(w http.ResponseWriter, r *http.Request) {
 		endpoint, aliases := mcpDiscoveryEndpoints(issuer, hostedEvents)
@@ -48,11 +49,13 @@ func RegisterMCPServerCard(mux *http.ServeMux, issuer string, hostedEvents bool)
 			Icons:       []mcpServerCardIcon{{Src: issuer + "/favicon.svg"}},
 			Remotes:     []mcpServerCardRemote{{Type: "streamable-http", URL: endpoint}},
 		}
-		if hostedEvents {
-			card.Name = "app.simple-hack/mcp"
-			card.Title = "Simple Hack"
-			card.Description = "Run events, join teams, publish team websites, and judge entries through the signed-in connector."
+		if len(policies) > 0 && policies[0].ServerCardName != "" {
+			pres := policies[0]
+			card.Name = pres.ServerCardName
+			card.Title = pres.ProductName
+			card.Description = pres.ServerCardDescription
 		}
+
 		for _, alias := range aliases {
 			card.Remotes = append(card.Remotes, mcpServerCardRemote{Type: "streamable-http", URL: alias})
 		}

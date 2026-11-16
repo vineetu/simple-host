@@ -58,7 +58,7 @@ func serverTool(t *testing.T, s *mcp.Server, name string) mcp.Tool {
 func findServerTool(s *mcp.Server, name string) (mcp.Tool, bool) {
 	callable := false
 	for _, entry := range mcp.Inventory(Contribution()) {
-		if entry.Edition == "hack" && entry.Name == name && !entry.Hidden {
+		if entry.Edition == "product" && entry.Name == name && !entry.Hidden {
 			callable = true
 		}
 	}

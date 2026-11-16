@@ -267,7 +267,7 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 		t.Fatal(err)
 	}
 	var dry bytes.Buffer
-	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk.(*storage.DiskStorage), edition.ForKindWithLimits(edition.Host, l), KeepVersions(), false, &dry); err != nil {
+	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk.(*storage.DiskStorage), edition.Default(l), KeepVersions(), false, &dry); err != nil {
 		t.Fatal(err)
 	}
 	site, _ := sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "history")
@@ -276,7 +276,7 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 		t.Fatal("dry run removed rows")
 	}
 	var applied bytes.Buffer
-	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk.(*storage.DiskStorage), edition.ForKindWithLimits(edition.Host, l), KeepVersions(), true, &applied); err != nil {
+	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk.(*storage.DiskStorage), edition.Default(l), KeepVersions(), true, &applied); err != nil {
 		t.Fatal(err)
 	}
 	site, _ = sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "history")

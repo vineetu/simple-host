@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"github.com/vsriram/simple-host/internal/config"
 	"io"
 	"os"
 	"path/filepath"
@@ -84,7 +85,7 @@ func unpackImportTest(t *testing.T, body []byte, l edition.Limits) (*ImportFiles
 func TestImportArchiveFormatsAndSafety(t *testing.T) {
 	for _, format := range []string{"zip", "tar", "tgz"} {
 		t.Run(format, func(t *testing.T) {
-			l := edition.ForKind(edition.Host).Limits()
+			l := edition.Default(config.DefaultLimits()).Limits()
 			files, err := unpackImportTest(t, makeImportArchive(t, format, []importArchiveEntry{{"export.xml", testWXR, 0}, {"2026/10/photo.jpg", "photo bytes", 0}, {"__MACOSX/junk", "junk", 0}, {".DS_Store", "junk", 0}, {"Thumbs.db", "junk", 0}}), l)
 			if err != nil || len(files.Xml) != 1 || len(files.Media) != 1 {
 				t.Fatal(err, len(files.Xml), files.Media)
@@ -140,7 +141,7 @@ func TestImportArchiveCapsAndEntity(t *testing.T) {
 		{"entity", func(l *edition.Limits) {}, "zip", []importArchiveEntry{{"a.xml", `<?xml?><!ENTITY example "x"><rss/>`, 0}}, "entity"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			l := edition.ForKind(edition.Host).Limits()
+			l := edition.Default(config.DefaultLimits()).Limits()
 			tc.l(&l)
 			_, err := unpackImportTest(t, makeImportArchive(t, tc.format, tc.entries), l)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -149,7 +150,7 @@ func TestImportArchiveCapsAndEntity(t *testing.T) {
 		})
 	}
 	// Extension alone does not turn a Media file into XML; content sniffing does.
-	files, err := unpackImportTest(t, []byte("\xef\xbb\xbf \n<rss><channel/></rss>"), edition.ForKind(edition.Host).Limits())
+	files, err := unpackImportTest(t, []byte("\xef\xbb\xbf \n<rss><channel/></rss>"), edition.Default(config.DefaultLimits()).Limits())
 	if err != nil || len(files.Xml) != 1 {
 		t.Fatal(err)
 	}
@@ -160,7 +161,7 @@ type importZeros struct{}
 
 func (importZeros) Read(p []byte) (int, error) { clear(p); return len(p), nil }
 func TestImportArchiveEntryByteCap(t *testing.T) {
-	files := &ImportFiles{Dir: t.TempDir(), Limits: edition.ForKind(edition.Host).Limits(), Media: map[string]wpimport.MediaFile{}}
+	files := &ImportFiles{Dir: t.TempDir(), Limits: edition.Default(config.DefaultLimits()).Limits(), Media: map[string]wpimport.MediaFile{}}
 	if err := files.Entry("large.bin", io.LimitReader(importZeros{}, (200<<20)+1), 0); err == nil || !strings.Contains(err.Error(), "200 MB") {
 		t.Fatal(err)
 	}
@@ -168,7 +169,7 @@ func TestImportArchiveEntryByteCap(t *testing.T) {
 
 func TestImportArchiveXMLMediaIsNotAnExport(t *testing.T) {
 	const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>`
-	files, err := unpackImportTest(t, makeImportArchive(t, "zip", []importArchiveEntry{{"export.xml", testWXR, 0}, {"2026/10/logo.svg", svg, 0}}), edition.ForKind(edition.Host).Limits())
+	files, err := unpackImportTest(t, makeImportArchive(t, "zip", []importArchiveEntry{{"export.xml", testWXR, 0}, {"2026/10/logo.svg", svg, 0}}), edition.Default(config.DefaultLimits()).Limits())
 	if err != nil || len(files.Xml) != 1 || len(files.Media) != 1 {
 		t.Fatal(err, len(files.Xml), files.Media)
 	}

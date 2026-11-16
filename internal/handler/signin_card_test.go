@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -89,7 +90,7 @@ func TestSigninJSVersionHashesServedBytes(t *testing.T) {
 	}
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Host = "simple-host.app"
-	d := testAssetPipeline(edition.ForKind(edition.Host), "").chromeDataFor(req, "")
+	d := testAssetPipeline(edition.Default(config.DefaultLimits()), "").chromeDataFor(req, "")
 	if d.SigninVersion != want {
 		t.Fatalf("chrome SigninVersion=%q want %q", d.SigninVersion, want)
 	}

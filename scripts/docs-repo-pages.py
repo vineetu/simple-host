@@ -548,7 +548,12 @@ def generate(root, target, brand):
 
     manifest = {}
     for repo_path, group, name in rendered:
-        text = (root / repo_path).read_text()
+        source = root / repo_path
+        if not host and repo_path.startswith("docs/advanced/"):
+            product_source = root / "products/hack/docs/advanced" / Path(repo_path).name
+            if product_source.is_file():
+                source = product_source
+        text = source.read_text()
         title, body = split_title(text)
         if host:
             body = host_filter(body)

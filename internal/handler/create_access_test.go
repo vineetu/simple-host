@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestCreateAccessValidation(t *testing.T) {
@@ -234,7 +233,7 @@ func TestCreateAccessRefusalsAndDefault(t *testing.T) {
 		t.Fatalf("refusal %d %s", r.status, r.body)
 	}
 	assertNoCreateAccessSite(t, p, uid, "refused")
-	p.sites.ed = edition.ForKind(edition.Hack)
+	p.sites.ed = groupTestEdition()
 	adminKey := map[string]string{"X-API-Key": p.admin}
 	admin := p.at(t, "GET", pcSiteDomain, "/v1/me", nil, adminKey).json(t)["id"].(string)
 	if r := p.at(t, "POST", pcSiteDomain, "/v1/sites/hackprivate/files", body, adminKey); r.status != 409 || r.json(t)["code"] != "named_viewers_unavailable" {

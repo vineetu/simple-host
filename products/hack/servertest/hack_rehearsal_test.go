@@ -2,12 +2,12 @@ package servertest
 
 import (
 	"context"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -42,7 +42,7 @@ func TestHackArchiveCleanupRealSites(t *testing.T) {
 	wantTS(t, "archived deploy refused", a.deployTeam(t, team, key, "Too late"), http.StatusConflict, "event_closed")
 	mail := &replyMailer{}
 	a.hack.SetMailer(mail)
-	keep, warn := config.DefaultLimits().EventSitesKeep, config.DefaultLimits().EventRemovalWarn
+	keep, warn := productconfig.DefaultLimits().EventSitesKeep, productconfig.DefaultLimits().EventRemovalWarn
 	runComposedCleanup(a, mail, closed.Add(keep-warn+time.Second))
 	if len(mail.messages()) != 1 {
 		t.Fatalf("warning count: %d", len(mail.messages()))

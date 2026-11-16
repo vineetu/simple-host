@@ -257,9 +257,9 @@ func replaceSetupLine(body []byte, prefix, replacement string) []byte {
 // [[hashack]]/[[nohack]] (kept on the two real hosted services and any
 // Hack-edition instance, self-hosted included; dropped only on a
 // self-hosted Host edition).
-func featureJSONMarkers(body []byte, hasHack bool) []byte {
+func featureJSONMarkers(body []byte, hasProduct bool) []byte {
 	body = stripBracketMarkers(body, "self", "hosted")
-	if hasHack {
+	if hasProduct {
 		return stripBracketMarkers(body, "hashack", "nohack")
 	}
 	return stripBracketMarkers(body, "nohack", "hashack")

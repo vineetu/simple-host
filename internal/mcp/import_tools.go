@@ -5,7 +5,7 @@ package mcp
 func importTools() []Tool {
 	return []Tool{
 		{
-			policy: toolPolicy{analytics: analyticsPolicy{secretText: true}, hackSiteExcluded: true},
+			policy: toolPolicy{analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
 			OutputSchema: outObject(map[string]any{
 				"import_url": outString("Private one-time browser upload page."),
 				"import_id":  outString("Import report identifier."),
@@ -19,7 +19,7 @@ func importTools() []Tool {
 			Annotations: writes(true, false, true), run: createImportLink,
 		},
 		{
-			policy: toolPolicy{hackSiteExcluded: true},
+			policy: toolPolicy{groupSiteExcluded: true},
 			OutputSchema: outObject(map[string]any{
 				"state":       outString("Import state."),
 				"message":     outString("Plain progress or failure."),

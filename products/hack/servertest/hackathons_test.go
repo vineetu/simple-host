@@ -1,13 +1,13 @@
 package servertest
 
 import (
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
@@ -15,7 +15,7 @@ import (
 func TestHackathonsPage(t *testing.T) {
 	for _, base := range []string{"https://simple-hack.app", "https://hack.example.test"} {
 		t.Run(base, func(t *testing.T) {
-			sh := chromeTestHandlerWithBase(edition.Hack, base)
+			sh := chromeTestHandlerWithBase(productedition.Hack, base)
 			mux := http.NewServeMux()
 			handler.RegisterUIRoutes(mux, base, sh)
 			mountHackFiles(mux, sh)
@@ -37,7 +37,7 @@ func TestHackathonsPage(t *testing.T) {
 }
 
 func TestHackSelfHostingLinksReachInstructions(t *testing.T) {
-	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
+	sh := chromeTestHandlerWithBase(productedition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	links := regexp.MustCompile(`href="([^"]+)"[^>]*>(Self-host[^<]*|For hackathons)</a>`)
@@ -74,5 +74,19 @@ func TestHackSelfHostingLinksReachInstructions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Moved from the platform's per-kind chrome test with the product policy.
+func TestEnterpriseHackathonsLinkPerProduct(t *testing.T) {
+	for _, tc := range []struct{ base, want, absent string }{
+		{"", `href="https://simple-hack.app/hackathons"`, `href="/hackathons"`},
+		{"https://hack.example.org", `href="https://hack.example.org/hackathons"`, `simple-hack.app/hackathons`},
+	} {
+		sh := chromeTestHandlerWithBase(productedition.Hack, tc.base)
+		rec := get(t, sh.Pages().ServeStaticPage("enterprise.html"), "", "/enterprise.html")
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), tc.want) || strings.Contains(rec.Body.String(), tc.absent) {
+			t.Fatalf("enterprise at %q: status %d, wrong self-hosting link", tc.base, rec.Code)
+		}
 	}
 }

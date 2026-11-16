@@ -10,7 +10,7 @@ import (
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/edition"
+
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
@@ -252,13 +252,13 @@ func TestStoragePeoplePickList(t *testing.T) {
 // behind for are not a Simple Hack concept. Same policy for REST and MCP
 // (storage_tools.go only wraps storage_sql_execute with the dual mode when
 // !event); this checks the REST side, which both reach.
-func TestStorageOwnerForHackRefused(t *testing.T) {
+func TestStorageOwnerForGroupRefused(t *testing.T) {
 	// Built as an ordinary Host site (Hack requires a team, not a personal
 	// site, to deploy at all) and switched to the Hack edition afterward —
 	// the same trick hack_flat_hosts_test.go uses — so only the for/people
 	// gate's own h.ed.Storage().EventOwners check is exercised.
 	s := newPresetSite(t)
-	s.a.sites.ed = edition.ForKind(edition.Hack)
+	s.a.sites.ed = groupTestEdition()
 	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	if r := s.must(t, "POST", "/sqlite/orders/tables/entries/rows?for="+s.aliceID, map[string]string{"note": "nope"}, s.key, 404); r.json(t)["code"] != "for_not_available" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -53,7 +54,7 @@ func TestGroupHostDispatch(t *testing.T) {
 		{"api lookup failure", "GET", "/v1/sites/group/me", errors.New("lookup failed"), 404, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "example.test"}
+			h := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "example.test"}
 			page, api := false, false
 			h.SetGroupHosts(&stubGroupHosts{err: tc.err, page: func(w http.ResponseWriter, r *http.Request, u model.User) bool {
 				page = true
@@ -70,7 +71,7 @@ func TestGroupHostDispatch(t *testing.T) {
 }
 
 func TestGroupHostsNilAndErrors(t *testing.T) {
-	h := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "example.test"}
+	h := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "example.test"}
 	if _, err := h.groupByAccount(context.Background(), "a"); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal(err)
 	}
@@ -80,7 +81,7 @@ func TestGroupHostsNilAndErrors(t *testing.T) {
 	if got := h.groupPinnedFloor(context.Background(), "a", "site", 10); got != 10 {
 		t.Fatal(got)
 	}
-	h.ed = edition.ForKind(edition.Hack)
+	h.ed = groupTestEdition()
 	if got := h.groupPinnedFloor(context.Background(), "a", "site", 10); got != 10 {
 		t.Fatal(got)
 	}
@@ -98,7 +99,7 @@ func TestGroupHostsNilAndErrors(t *testing.T) {
 }
 
 func TestGroupNotificationAddresses(t *testing.T) {
-	h := hackFlatApp(t, "")
+	h := groupFlatApp(t, "")
 	h.SetGroupHosts(&stubGroupHosts{group: Group{GroupRef: GroupRef{ID: "event-id", Slug: "weekend", AccountID: "holder"}}})
 	for _, tc := range []struct{ site, name, url string }{
 		{"event-id", "weekend", "https://weekend.simple-hack.test/"},

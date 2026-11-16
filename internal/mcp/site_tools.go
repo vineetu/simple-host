@@ -93,7 +93,7 @@ func siteTools(limits Limits) []Tool {
 				text := jsonText(out)
 				// A Hack team connection is the team's, never marked, so the
 				// "not counting your own visits" line would not be true there.
-				if views := ownerViewsLine(sites); views != "" && c.caller.Mode != CallerModeHackSite {
+				if views := ownerViewsLine(sites); views != "" && c.caller.Mode != CallerModeGroupSite {
 					text += "\n\n" + views
 				}
 				if c.server.mySitesEnabled(c.caller) {
@@ -149,7 +149,7 @@ func siteTools(limits Limits) []Tool {
 					}
 				}
 				answer := sitePreviewOutput(c, site, out)
-				if site.Views != nil && c.caller.Mode != CallerModeHackSite {
+				if site.Views != nil && c.caller.Mode != CallerModeGroupSite {
 					answer.Text += "\n\nViews by people, not counting your own visits: " + strconv.FormatInt(site.Views.People7Days, 10) +
 						" in the last 7 days, " + strconv.FormatInt(site.Views.People30Days, 10) + " in the last 30 days." + ownVisitsCaveat
 				}
@@ -252,7 +252,7 @@ func siteTools(limits Limits) []Tool {
 			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "replace") },
 		},
 		{
-			policy:       toolPolicy{hackSiteExcluded: true},
+			policy:       toolPolicy{groupSiteExcluded: true},
 			OutputSchema: outObject(map[string]any{"name": outString("Site name."), "keep_versions": outInteger("Stored setting."), "effective_keep_versions": outInteger("Applied count."), "active_version": outInteger("Live version."), "removed_versions": outArray("Removed versions.", outInteger("Version number."))}, "name", "keep_versions", "effective_keep_versions", "active_version", "removed_versions"),
 			Name:         "set_keep_versions", Title: "Set versions kept",
 			Description: "Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.",
@@ -433,7 +433,7 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			policy: toolPolicy{hackSiteExcluded: true},
+			policy: toolPolicy{groupSiteExcluded: true},
 			OutputSchema: outObject(map[string]any{
 				"site":              outString(outSiteName),
 				"discarded_version": outInteger("The never-live version that was removed for good."),
@@ -608,7 +608,7 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			policy:       toolPolicy{hackSiteExcluded: true},
+			policy:       toolPolicy{groupSiteExcluded: true},
 			OutputSchema: outObject(map[string]any{"site": map[string]any{"type": []string{"string", "null"}}}, "site"),
 			Name:         "set_home_page",
 			Title:        "Choose my home page",
@@ -807,7 +807,7 @@ func siteTools(limits Limits) []Tool {
 					}
 				}
 				text := jsonText(out)
-				if c.caller.Mode != CallerModeHackSite {
+				if c.caller.Mode != CallerModeGroupSite {
 					text += "\n\n" + ownVisitsLine(full["totals"])
 				}
 				answer := output{Text: text, Structured: out}
@@ -998,7 +998,7 @@ func (c *call) findSite(name string) (restSite, error) {
 		names = append(names, s.Name)
 	}
 	text := siteNotFoundText(name, names)
-	if c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite {
+	if c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite {
 		// Simple Hack lists no visitor tools.
 		text += "; for a site shared with you, call visitor_read_site with its address (through run_tool if it is not listed)"
 	}

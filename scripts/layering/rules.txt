@@ -9,7 +9,7 @@ server -> extension
 @/db -> @/db/migrations
 extension -> @/db/migrations
 extension -> config edition email handler mcp storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
-@/cmd/server -> server extension config
+@/cmd/server -> server extension config brain
 handler -> app/** auth httpx edition model webassets buildinfo workers
 @/products/hack/hackhttp -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp redirects
@@ -62,6 +62,7 @@ wpimport -> redirects
 @/scripts/inventory -> mcp webassets @/products/hack/mcp
 server/servertest -> server config extension
 [test]
+app/sites -> config
 handler -> @/host/storage/rules
 app/sites -> @/host/storage/rules
 /** -> testdb geoip/geoiptest
@@ -71,6 +72,7 @@ app/sites -> @/host/storage/rules
 mcp -> @/host/storage/rules
 @/products/hack/mcp -> @/host/storage/rules
 server -> server/servertest
+@/cmd/server -> server/servertest
 server/servertest -> testdb
 @/products/hack/servertest -> server/servertest
 @/products/hack/servertest -> @/host/storage/rules

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"github.com/vsriram/simple-host/internal/config"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -32,7 +33,7 @@ func TestProductAssetPrecedence(t *testing.T) {
 		{name: "missing replacement never falls back", replace: map[string]string{"llms.txt": "missing.txt"}, files: fstest.MapFS{}, missing: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sh := &SiteHandler{ed: edition.ForKind(edition.Host)}
+			sh := &SiteHandler{ed: edition.Default(config.DefaultLimits())}
 			sh.SetProductAssets(tc.replace, nil, tc.files, nil, ProductAssetHooks{}, nil)
 			got, err := fs.ReadFile(sh.Pages().StaticFS(), "static/llms.txt")
 			if tc.missing {
@@ -55,7 +56,7 @@ func TestProductAssetPrecedence(t *testing.T) {
 // redirect into the product's folder).
 func TestProductDocsRootIsNotAStaticName(t *testing.T) {
 	files := fstest.MapFS{"docs/own/index.html": {Data: []byte("product docs")}}
-	sh := chromeTestHandler(edition.Host)
+	sh := chromeTestHandler(platformTestEdition())
 	sh.SetProductAssets(map[string]string{docsSiteRoot: "docs/own"}, nil, files, nil, ProductAssetHooks{}, nil)
 	for _, name := range []string{"static/docs-site", "static/docs-site/index.html"} {
 		if _, err := fs.Stat(sh.Pages().StaticFS(), name); !errors.Is(err, fs.ErrNotExist) {
@@ -71,7 +72,7 @@ func TestProductDocsRootIsNotAStaticName(t *testing.T) {
 }
 
 func TestProductOnlyAssetRequiresRoute(t *testing.T) {
-	sh := chromeTestHandler(edition.Host)
+	sh := chromeTestHandler(platformTestEdition())
 	sh.SetProductAssets(nil, nil, fstest.MapFS{"product-only.js": {Data: []byte("private source")}}, nil, ProductAssetHooks{}, nil)
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", sh)
@@ -85,7 +86,7 @@ func TestProductOnlyAssetRequiresRoute(t *testing.T) {
 }
 
 func TestProductAssetHookDefaultsAndErrors(t *testing.T) {
-	p := newAssetPipeline(edition.ForKind(edition.Host), "")
+	p := newAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	if got := p.productInstanceText([]byte("original")); string(got) != "original" {
 		t.Fatal("nil text hook changed bytes")
 	}
@@ -100,11 +101,11 @@ func TestProductAssetHookDefaultsAndErrors(t *testing.T) {
 	}
 	// No PersonalPresentationHTML hook on a product install: the page text
 	// passes through the shared presentation unchanged.
-	pp := newAssetPipeline(edition.ForKind(edition.Hack), "")
+	pp := newAssetPipeline(groupTestEdition(), "")
 	if got := pp.presentChromePage("index.html", []byte("<p>plain</p>")); string(got) != "<p>plain</p>" {
 		t.Fatalf("nil presentation hook changed the page: %s", got)
 	}
-	sh := &SiteHandler{ed: edition.ForKind(edition.Host), assets: p}
+	sh := &SiteHandler{ed: edition.Default(config.DefaultLimits()), assets: p}
 	sh.SetProductAssets(nil, nil, nil, nil, ProductAssetHooks{OpenAPISpec: func([]byte) ([]byte, error) { return nil, errors.New("product spec unavailable") }}, nil)
 	r := httptest.NewRecorder()
 	p.serveRewrittenAsset("openapi.json", nil, skillsModTime).ServeHTTP(r, httptest.NewRequest("GET", "/openapi.json", nil))
@@ -117,7 +118,7 @@ func TestAssetServicesInstanceRewriting(t *testing.T) {
 	old := instanceHosts
 	instanceHosts = newHostRewriter("assets.example", "sites.assets.example", "")
 	t.Cleanup(func() { instanceHosts = old })
-	p := newAssetPipeline(edition.ForKind(edition.Host), "")
+	p := newAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	body, ok := p.Static("llms.txt")
 	if !ok || !strings.Contains(string(body), "assets.example") {
 		t.Fatal("Static omitted the instance host rewrite")
@@ -130,12 +131,12 @@ func TestAssetServicesInstanceRewriting(t *testing.T) {
 // The product stylesheet's version is worked out once, when the contribution
 // is installed, from the file the product's own entry names.
 func TestProductStyleVersionComputedAtInstall(t *testing.T) {
-	sh := chromeTestHandler(edition.Host)
+	sh := chromeTestHandler(groupTestEdition())
 	if got := sh.pipeline().productStyleVersion(); got != "" {
 		t.Fatalf("no product: version %q", got)
 	}
 	files := fstest.MapFS{"own.css": {Data: []byte("body{}")}}
-	sh.SetProductAssets(nil, map[string]string{productStylesheet: "own.css"}, files, nil, ProductAssetHooks{}, nil)
+	sh.SetProductAssets(nil, map[string]string{"product.css": "own.css"}, files, nil, ProductAssetHooks{}, nil)
 	sum := sha256.Sum256([]byte("body{}"))
 	want := hex.EncodeToString(sum[:])[:10]
 	if got := sh.pipeline().productStyleVersion(); got != want {
@@ -157,7 +158,7 @@ func TestProductOwnFilesAreServedOnlyByTheProductRoute(t *testing.T) {
 		"files/own.kit":      {Mode: fs.ModeDir},
 	}
 	own := map[string]string{"own.js": "files/own.js", "own.kit": "files/own.kit", "own.kit/a.js": "files/own.kit/a.js"}
-	sh := chromeTestHandler(edition.Host)
+	sh := chromeTestHandler(platformTestEdition())
 	sh.SetProductAssets(nil, own, files, nil, ProductAssetHooks{}, nil)
 	if b, err := fs.ReadFile(sh.Pages().StaticFS(), "static/own.js"); err != nil || string(b) != "own source" {
 		t.Fatalf("pipeline read of an own name: %q, %v", b, err)
@@ -193,7 +194,7 @@ func TestProductOwnFilesAreServedOnlyByTheProductRoute(t *testing.T) {
 
 // With no product, or a product with no own names, ProductFiles answers 404.
 func TestProductFilesWithoutOwnNames(t *testing.T) {
-	sh := chromeTestHandler(edition.Host)
+	sh := chromeTestHandler(platformTestEdition())
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	r := httptest.NewRecorder()
@@ -207,7 +208,7 @@ func TestProductFilesWithoutOwnNames(t *testing.T) {
 // names its own.
 func TestSkillsCatalogPluginName(t *testing.T) {
 	for _, tc := range []struct{ hook, want string }{{"", `"plugin":"website-deploy"`}, {"own-plugin", `"plugin":"own-plugin"`}} {
-		sh := chromeTestHandler(edition.Host)
+		sh := chromeTestHandler(platformTestEdition())
 		sh.SetProductAssets(nil, nil, nil, nil, ProductAssetHooks{CatalogPlugin: tc.hook}, nil)
 		r := httptest.NewRecorder()
 		sh.pipeline().serveSkillsCatalog("https://simple-host.app").ServeHTTP(r, httptest.NewRequest("GET", "/v1/skills", nil))
@@ -222,9 +223,9 @@ func TestSkillsCatalogPluginName(t *testing.T) {
 // addresses itself).
 func TestPlatformPluginDownloadsAreNotRegisteredForAProduct(t *testing.T) {
 	host := http.NewServeMux()
-	RegisterUIRoutes(host, "https://simple-host.app", chromeTestHandler(edition.Host))
+	RegisterUIRoutes(host, "https://simple-host.app", chromeTestHandler(platformTestEdition()))
 	product := http.NewServeMux()
-	RegisterUIRoutes(product, "https://simple-host.app", chromeTestHandler(edition.Hack))
+	RegisterUIRoutes(product, "https://simple-host.app", chromeTestHandler(groupTestEdition()))
 	for _, path := range []string{"/plugin.zip", "/install.sh", "/install.ps1"} {
 		req := httptest.NewRequest("GET", path, nil)
 		if _, pattern := host.Handler(req); pattern != "GET "+path {

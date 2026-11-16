@@ -2,6 +2,7 @@ package servertest
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http"
 	"net/url"
 	"testing"
@@ -45,6 +46,6 @@ func TestHackOnDemandTLSNames(t *testing.T) {
 	ask(team+"."+slug+"."+tsDomain, http.StatusForbidden)
 	ask(slug+"."+tsDomain, http.StatusOK)
 	// The ordinary small-box product retains its existing platform allowlist.
-	a.sites.SetEditionForTest(edition.ForKind(edition.Host))
+	a.sites.SetEditionForTest(edition.Default(config.DefaultLimits()))
 	ask("ordinary-platform-name."+tsDomain, http.StatusOK)
 }

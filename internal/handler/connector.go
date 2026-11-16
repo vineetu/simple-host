@@ -132,14 +132,14 @@ func (h *ConnectorHandler) pipeline() *assetPipeline {
 }
 
 // NewConnectorHandlerForTest builds a minimal *ConnectorHandler for
-// discovery-only tests: just the issuer, whether hosted events are on, and
-// serving through mcpServer directly rather than building its own
+// discovery-only tests: the issuer and edition policy, with calls
+// served through mcpServer directly rather than building its own
 // internally, so a test can compare its discovery documents against that
 // exact *mcp.Server instance. Test hook (cleanup 3.2 slice 3): the moved
 // hack_discovery_test.go built this as a bare composite literal
 // (issuer/mcp/hostedEvents are unexported fields) before the move.
-func NewConnectorHandlerForTest(issuer string, mcpServer *mcp.Server, hostedEvents bool) *ConnectorHandler {
-	return &ConnectorHandler{issuer: issuer, mcp: mcpServer, hostedEvents: hostedEvents}
+func NewConnectorHandlerForTest(issuer string, mcpServer *mcp.Server, ed *edition.Edition) *ConnectorHandler {
+	return &ConnectorHandler{issuer: issuer, mcp: mcpServer, ed: ed, hostedEvents: ed.Routes().HostedEvents}
 }
 
 // MCPUpstreamForTest exposes the exact handler configured for MCP tool calls so
@@ -243,7 +243,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	// (neither hosted domain), not just !hostedEvents, so the real hosted
 	// simple-hack.app (hostedEvents=true, siteDomain != canonicalSiteDomain
 	// since that constant is Host-specific) keeps its own text unchanged.
-	if instanceHosts != nil && siteDomain != "simple-hack.app" {
+	if instanceHosts != nil && "https://"+siteDomain != h.ed.Presentation().CanonicalBaseURL {
 		h.mcpConfig.Rewrite = instanceHosts.r.Replace
 	}
 	h.mcp = mcp.NewServer(h.mcpConfig)
@@ -348,7 +348,7 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 
 func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
 	RegisterAgentCard(mux, h.issuer, func() *mcp.Server { return h.mcp }, h.hostedEvents)
-	RegisterMCPServerCard(mux, h.issuer, h.hostedEvents)
+	RegisterMCPServerCard(mux, h.issuer, h.hostedEvents, h.ed.Presentation())
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", h.protectedResourceMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", h.protectedResourceMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.authorizationServerMetadata)
@@ -916,7 +916,7 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 // stays "sites": clients already ask for that, and the consent page chooses.
 func (h *ConnectorHandler) scopesSupported() []string {
 	if h.teamConnections {
-		return []string{auth.OAuthScope, auth.HackEventsScope}
+		return []string{auth.OAuthScope, auth.GroupManagementScope}
 	}
 	return []string{auth.OAuthScope}
 }
@@ -1178,7 +1178,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "The connection options changed. Reload this page and allow again.", Code: "consent_updated"})
 			return
 		}
-		scope = auth.OAuthScope + " " + auth.HackEventsScope
+		scope = auth.OAuthScope + " " + auth.GroupManagementScope
 	}
 	code := randomToken(prefixCode, 32)
 	if err := h.accountsSvc().InsertOAuthCode(r.Context(), hashSecret(code), model.OAuthCode{
@@ -1556,7 +1556,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.teamConnections && mode != mcp.CallerModeEvents {
-		mode = mcp.CallerModeHackSite
+		mode = mcp.CallerModeGroupSite
 	}
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
 		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
@@ -1594,7 +1594,7 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	teams := map[string][]model.OAuthConnectionTeam{}
-	if h.ed.Kind() == edition.Hack {
+	if h.ed.Identity().TeamKeys {
 		teams, err = h.accountsSvc().OAuthConnectionTeams(r.Context(), user.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -1611,7 +1611,7 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 			"last_visitor_site": c.LastVisitorSite,
 			"device":            c.Device,
 		}
-		if h.ed.Kind() == edition.Hack {
+		if h.ed.Identity().TeamKeys {
 			selected := teams[c.ClientID]
 			if selected == nil {
 				selected = []model.OAuthConnectionTeam{}

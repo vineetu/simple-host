@@ -10,13 +10,13 @@ const OAuthScope = "sites"
 
 // HackTeamScopePrefix marks a grant bound to one team's site. The scope is
 // OAuthScope plus "team:<team id>". Only this server writes it.
-const HackTeamScopePrefix = "team:"
+const GroupSiteScopePrefix = "team:"
 
 // HackEventsScope marks a grant that acts as the person for event
 // management. It is not implied by a missing team, so an old or malformed
 // grant fails closed instead of becoming an unrestricted key. The word
 // matches mcp.CallerModeEvents.
-const HackEventsScope = "events"
+const GroupManagementScope = "events"
 
 // uuidShape guards the team id GrantKind extracts. Duplicated from
 // internal/rules/sites.UUIDShape: this package may import only model (per
@@ -27,7 +27,7 @@ var uuidShape = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4
 // ScopeTeam returns the team a grant scope binds to ("" for none).
 func ScopeTeam(scope string) string {
 	for _, f := range strings.Fields(scope) {
-		if t, ok := strings.CutPrefix(f, HackTeamScopePrefix); ok {
+		if t, ok := strings.CutPrefix(f, GroupSiteScopePrefix); ok {
 			return t
 		}
 	}
@@ -52,7 +52,7 @@ func GrantKind(scope string) (teamID string, events bool, ok bool) {
 	if len(strings.Fields(scope)) != 2 || !scopeHas(scope, OAuthScope) {
 		return "", false, false
 	}
-	if scopeHas(scope, HackEventsScope) {
+	if scopeHas(scope, GroupManagementScope) {
 		return "", true, true
 	}
 	teamID = ScopeTeam(scope)

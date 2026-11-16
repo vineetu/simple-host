@@ -8,8 +8,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // fakeReportMailer records what POST /report sends.
@@ -184,7 +182,7 @@ func TestReportMailFailures(t *testing.T) {
 
 // The page is served with the chrome, and the footer links to it everywhere.
 func TestReportPageAndLinks(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 	rec := get(t, mux, "simple-host.app", "/report")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("/report: %d", rec.Code)

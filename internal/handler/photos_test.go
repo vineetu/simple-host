@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/edition"
+
 	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -249,7 +249,7 @@ func TestPhotosQuota(t *testing.T) {
 }
 
 func TestPhotosPage(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 	r := get(t, mux, "simple-host.app", "/photos?site=home")
 	if r.Code != 200 || !strings.Contains(r.Body.String(), "Save to site") || !strings.Contains(r.Body.String(), themeScriptNeedle) || !strings.Contains(r.Body.String(), "/signin.js") {
 		t.Fatalf("page: %d", r.Code)

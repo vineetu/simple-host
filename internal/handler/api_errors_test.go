@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -98,7 +99,7 @@ func checkAPIError(t *testing.T, rec *httptest.ResponseRecorder, status int, cod
 func TestAPIErrorCodesAndHeaders(t *testing.T) {
 	t.Run("missing skills", func(t *testing.T) {
 		mux := http.NewServeMux()
-		testAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.test")
+		testAssetPipeline(edition.Default(config.DefaultLimits()), "").registerSkillsHub(mux, "https://simple-host.test")
 		for _, path := range []string{"/v1/skills/unknown-skill", "/v1/skills/unknown-skill/references/missing.md", "/v1/skills/website-deploy/references/missing.md"} {
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))

@@ -4,13 +4,15 @@ package edition
 type PresentationPolicy struct {
 	// ProductName is the public product name.
 	ProductName string
-	// ProductAssets selects Simple Hack presentation and skills.
+	// ProductAssets selects product presentation and skills.
 	ProductAssets bool
-}
-
-func presentationFor(k Kind) PresentationPolicy {
-	if k == Hack {
-		return PresentationPolicy{ProductName: "Simple Hack", ProductAssets: true}
-	}
-	return PresentationPolicy{ProductName: "Simple Host"}
+	// CanonicalBaseURL names this product's hosted service. An install at another address is self-hosted.
+	CanonicalBaseURL      string
+	HostedHostPrefix      string
+	StylePath             string
+	StyleClass            string
+	PluginVersion         string
+	ServerCardName        string
+	ServerCardDescription string
+	SitemapPaths          string
 }

@@ -163,9 +163,8 @@ func validSkillName(s string) bool {
 
 func (p *assetPipeline) serveSkillsCatalog(publicBaseURL string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
-	hackAssets := p.pres.ProductAssets
 	return func(w http.ResponseWriter, r *http.Request) {
-		version, _ := PluginVersion(hackAssets)
+		version := p.PluginVersion()
 		skills := p.listBundledSkills()
 		for i := range skills {
 			skills[i].URL = base + "/v1/skills/" + skills[i].Name

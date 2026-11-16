@@ -3,6 +3,7 @@ package papermetrics
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"sort"
 	"testing"
 )
@@ -44,5 +45,21 @@ func TestRunConfigWhitelist(t *testing.T) {
 	b := configHash(map[string]any{"person_hosts": "off", "DB_DSN": "different-secret"})
 	if a != b || a == configHash(map[string]any{"person_hosts": "on"}) {
 		t.Fatal("config whitelist")
+	}
+}
+
+func TestRunLimitsPreserveOtherConfiguration(t *testing.T) {
+	limits := map[string]any{"platform": 7, "product": 20}
+	c := (&Collector{}).WithRunConfig(map[string]any{
+		"limits": "old", "events": "hosted", "write_auth_mode": "strict",
+		"person_hosts": "off", "site_hosts": "canonical", "paper_metrics": true,
+		"ADMIN_API_KEY": "test-only-excluded",
+	}).WithRunLimits(limits)
+	want := map[string]any{
+		"limits": limits, "events": "hosted", "write_auth_mode": "strict",
+		"person_hosts": "off", "site_hosts": "canonical", "paper_metrics": true,
+	}
+	if !reflect.DeepEqual(c.runConfig, want) {
+		t.Fatalf("run configuration = %v, want %v", c.runConfig, want)
 	}
 }

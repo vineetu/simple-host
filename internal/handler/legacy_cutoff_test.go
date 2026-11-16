@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"time"
 )
 
@@ -16,7 +15,7 @@ func legacyCutoffTime() time.Time {
 	return time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)
 }
 
-func TestLegacyStorageCutoffGateSkipsOptionsAndHack(t *testing.T) {
+func TestLegacyStorageCutoffGateSkipsOptionsAndProduct(t *testing.T) {
 	h := &SiteHandler{}
 	h.SetLegacyStorageCutoff(legacyCutoffTime())
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
@@ -28,7 +27,7 @@ func TestLegacyStorageCutoffGateSkipsOptionsAndHack(t *testing.T) {
 		t.Errorf("OPTIONS: %d %s", r.Code, r.Body.String())
 	}
 
-	h.ed = edition.ForKind(edition.Hack)
+	h.ed = groupTestEdition()
 	r = httptest.NewRecorder()
 	gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/v1/sites/shop/state", nil))
 	if r.Code != http.StatusNoContent {

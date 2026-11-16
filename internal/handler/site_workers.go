@@ -87,14 +87,14 @@ func (g *siteWorkerGroup) Status() []workers.Status {
 // SiteWorkers owns the site scans. Configure the product sweep before any worker starts.
 func (h *SiteHandler) SiteWorkers(sweeps ...GroupSweep) workers.Owner {
 	h.siteWorkersOnce.Do(func() {
-		g := &siteWorkerGroup{loops: map[string]*siteLoop{}, sweepName: "sites.hack_sweep"}
+		g := &siteWorkerGroup{loops: map[string]*siteLoop{}, sweepName: "sites.group_sweep"}
 		h.siteWorkers = g
 		add := func(name string, enabled func() bool, run func(context.Context)) {
 			g.loops[name] = newSiteLoop(name, enabled, run)
 		}
 		yes := func() bool { return true }
 		add("sites.cert_requests", func() bool { return h.siteHostsOn() && len(h.certRequestBases()) > 0 }, func(ctx context.Context) { h.startSiteCertRequests(ctx, 10*time.Minute) })
-		// Keep the disabled status name until D3-S4.
+		// Product-less sweep.
 		add(g.sweepName, func() bool { return false }, nil)
 		add("sites.trash_purge", yes, func(ctx context.Context) { h.startDeletedSitePurge(ctx, time.Hour) })
 		add("sites.idle_cleanup", func() bool { return h.idleCleanup }, h.startIdleCleanup)
@@ -103,7 +103,7 @@ func (h *SiteHandler) SiteWorkers(sweeps ...GroupSweep) workers.Owner {
 		add("sites.preview_expiry", func() bool { return len(h.previewAccounts) > 0 }, func(ctx context.Context) { h.startExpirySweepContext(ctx, time.Hour) })
 	})
 	if len(sweeps) > 0 {
-		sweep := GroupSweep{Name: "sites.hack_sweep"} // Keep the disabled status name until D3-S4.
+		sweep := GroupSweep{Name: "sites.group_sweep"} // Product-less sweep.
 		if sweeps[0].Name != "" {
 			sweep = sweeps[0]
 		}

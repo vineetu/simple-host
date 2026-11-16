@@ -58,7 +58,6 @@ type productAssets struct {
 }
 
 // productStylesheet is the name chrome pages link the product's stylesheet by.
-const productStylesheet = "hack-ink.css"
 
 // SetProductAssets installs the contribution before routes or shared pages
 // are built. replace maps platform names to product files; own lists the
@@ -66,7 +65,7 @@ const productStylesheet = "hack-ink.css"
 func (h *SiteHandler) SetProductAssets(replace, own map[string]string, files, skills fs.FS, hooks ProductAssetHooks, rewrite func(string, []byte) []byte) {
 	p := h.pipeline()
 	p.product = productAssets{replace: replace, own: own, files: files, skills: skills, hooks: hooks, rewrite: rewrite}
-	if file, ok := p.product.file(productStylesheet); ok && files != nil {
+	if file, ok := p.product.file(p.pres.StylePath); ok && files != nil {
 		if b, err := fs.ReadFile(files, file); err == nil {
 			sum := sha256.Sum256(b)
 			p.product.styleVersion = hex.EncodeToString(sum[:])[:10]
@@ -126,7 +125,13 @@ func (p *assetPipeline) InstanceText(b []byte) []byte {
 	}
 	return p.limitsText.apply(b)
 }
-func (p *assetPipeline) PluginVersion() string { v, _ := PluginVersion(p.pres.ProductAssets); return v }
+func (p *assetPipeline) PluginVersion() string {
+	if p.pres.PluginVersion != "" {
+		return p.pres.PluginVersion
+	}
+	v, _ := PluginVersion()
+	return v
+}
 func (p *assetPipeline) ServeCachedZip(build func() ([]byte, error), filename string) http.HandlerFunc {
 	var cache cachedZip
 	return func(w http.ResponseWriter, r *http.Request) {

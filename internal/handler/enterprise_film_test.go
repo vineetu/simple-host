@@ -4,14 +4,12 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // /enterprise opens with its own film in the home page's player: poster
 // first, no autoplay, and every cut and poster served with its type.
 func TestEnterpriseFilm(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 
 	rec := get(t, mux, "simple-host.app", "/enterprise")
 	body := rec.Body.String()

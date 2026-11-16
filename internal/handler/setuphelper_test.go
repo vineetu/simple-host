@@ -15,13 +15,12 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // The setup helper is served at /setup with its script, and the small-box
 // settings list it reads is the one the code describes.
 func TestSetupHelper(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 	rec := get(t, mux, "simple-host.app", "/setup")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("/setup: status %d", rec.Code)
@@ -57,7 +56,7 @@ func TestSetupHelper(t *testing.T) {
 // The platform's setup page offers no product choice: a product adds its own
 // through its asset contribution (products/hack/servertest covers Simple Hack's).
 func TestSetupHelperPlatformEdition(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 	page := get(t, mux, "example.test", "/setup")
 	for _, want := range []string{
 		"<title>Set up Simple Host</title>",
@@ -200,7 +199,7 @@ func TestSetupHelperBundledEnterpriseChart(t *testing.T) {
 		t.Fatal("missing dependency version or checksum")
 	}
 	path := "/setup/charts/simple-host-enterprise-" + string(version[1]) + ".tgz"
-	rec := get(t, chromeTestMux(t, edition.Host), "simple-host.app", path)
+	rec := get(t, chromeTestMux(t, platformTestEdition()), "simple-host.app", path)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("chart download status: %d", rec.Code)
 	}

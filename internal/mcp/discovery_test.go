@@ -354,10 +354,10 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 			}
 		}
 	}
-	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {Mode: CallerModeHackSite}} {
+	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {Mode: CallerModeGroupSite}} {
 		full, bare, byName := s.forCaller(caller)
 		expected := append([]Tool{}, s.productTools...)
-		if caller.Mode == CallerModeHackSite {
+		if caller.Mode == CallerModeGroupSite {
 			expected = s.groupSiteTools
 		} else if caller.GrantID != "" {
 			for _, tool := range s.groupSiteTools {

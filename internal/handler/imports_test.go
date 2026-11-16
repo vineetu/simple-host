@@ -205,7 +205,7 @@ func TestImportSignedOutExpiryAndCap(t *testing.T) {
 	}
 	limits := config.DefaultLimits()
 	limits.ImportLinkTTL = time.Nanosecond
-	h, root, c = newImportTest(t, edition.ForKindWithLimits(edition.Host, limits))
+	h, root, c = newImportTest(t, edition.Default(limits))
 	token, _ = mintImportTest(t, h, c)
 	if importGET(root, "/import/"+token).Code != 404 || importPOST(t, root, token, testWXR).Code != 404 {
 		t.Fatal("expired link accepted")
@@ -373,7 +373,7 @@ func TestImportCleanupAndDeployRefusal(t *testing.T) {
 func TestImportXMLCapMessage(t *testing.T) {
 	limits := config.DefaultLimits()
 	limits.ImportMaxUploadMB, limits.ImportMaxUnpackedMB, limits.ImportMaxXMLMB = 4, 8, 1
-	h, root, c := newImportTest(t, edition.ForKindWithLimits(edition.Host, limits))
+	h, root, c := newImportTest(t, edition.Default(limits))
 	token, _ := mintImportTest(t, h, c)
 	big := strings.Replace(testWXR, "</channel>", "<!--"+strings.Repeat("x", 2<<20)+"--></channel>", 1)
 	w := importPOST(t, root, token, big)
@@ -385,7 +385,7 @@ func TestImportXMLCapMessage(t *testing.T) {
 func TestImportReceivingCapsReleaseReservation(t *testing.T) {
 	limits := config.DefaultLimits()
 	limits.ImportMaxUploadMB = 1
-	h, root, c := newImportTest(t, edition.ForKindWithLimits(edition.Host, limits))
+	h, root, c := newImportTest(t, edition.Default(limits))
 	token, _ := mintImportTest(t, h, c)
 	tooLarge := importPOST(t, root, token, testWXR+strings.Repeat("x", 1<<20))
 	checkAPIError(t, tooLarge, 413, "item_too_large")

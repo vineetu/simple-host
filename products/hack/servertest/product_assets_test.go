@@ -3,6 +3,7 @@ package servertest
 import (
 	"bytes"
 	"errors"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"net/http/httptest"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
@@ -18,7 +18,7 @@ import (
 // no insertion marker is left, and the choice, its two renderers and its
 // manifest are there. (products/hack/hackhttp checks each anchor one by one.)
 func TestProductSetupScript(t *testing.T) {
-	mux := chromeTestMux(t, edition.Hack)
+	mux := chromeTestMux(t, productedition.Hack)
 	r := get(t, mux, "", "/setup/setup.js")
 	if r.Code != 200 || r.Header().Get("Content-Security-Policy") == "" {
 		t.Fatalf("setup script status/CSP: %d %v", r.Code, r.Header())
@@ -40,7 +40,7 @@ func TestProductSetupScript(t *testing.T) {
 			t.Errorf("Hack setup script: %q appears %d times, want 1", want, strings.Count(body, want))
 		}
 	}
-	host := get(t, chromeTestMux(t, edition.Host), "", "/setup/setup.js").Body.String()
+	host := get(t, chromeTestMux(t, productedition.Host), "", "/setup/setup.js").Body.String()
 	if host == "" || len(body) <= len(host) {
 		t.Errorf("Hack setup script (%d bytes) is not the platform's (%d bytes) plus the product's choice", len(body), len(host))
 	}
@@ -51,9 +51,9 @@ func TestProductAssetsBrowser(t *testing.T) {
 	if os.Getenv("ASSET_BROWSER") != "1" {
 		t.Skip("ASSET_BROWSER unset")
 	}
-	host := httptest.NewServer(chromeTestMux(t, edition.Host))
+	host := httptest.NewServer(chromeTestMux(t, productedition.Host))
 	defer host.Close()
-	hack := httptest.NewServer(chromeTestMux(t, edition.Hack))
+	hack := httptest.NewServer(chromeTestMux(t, productedition.Hack))
 	defer hack.Close()
 	cmd := exec.Command("node", "../../../scripts/tests/product-assets-browser.mjs", host.URL, hack.URL)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -90,7 +90,7 @@ func TestHackSkillsNameNoOldBaseDomain(t *testing.T) {
 // fixture has no database for the handle lookup that follows the miss, so
 // this checks the lookup the file server uses.)
 func TestHackDocsRootIsNotServedAsAFile(t *testing.T) {
-	static := chromeTestHandler(edition.Hack).Pages().StaticFS()
+	static := chromeTestHandler(productedition.Hack).Pages().StaticFS()
 	for _, name := range []string{"static/docs-site", "static/docs-site/index.html"} {
 		if _, err := fs.Stat(static, name); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s: static lookup reached the docs root: %v", name, err)

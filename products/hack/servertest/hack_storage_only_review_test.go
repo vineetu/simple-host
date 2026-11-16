@@ -3,12 +3,13 @@ package servertest
 import (
 	"bytes"
 	"encoding/json"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
+
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 )
 
@@ -140,7 +141,7 @@ func runTestHackRegisteredDocsReview(t *testing.T) {
 		handler.SetInstanceHosts("simple-host.app", "", "")
 	})
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-hack.test", chromeTestHandler(edition.Hack))
+	handler.RegisterUIRoutes(mux, "https://simple-hack.test", chromeTestHandler(productedition.Hack))
 	get := func(path string) []byte {
 		t.Helper()
 		rec := httptest.NewRecorder()

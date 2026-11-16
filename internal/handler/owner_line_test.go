@@ -4,8 +4,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // The owner line names who runs the hosted services, so it shows on
@@ -14,22 +12,22 @@ func TestOwnerLineOnlyOnHostedServices(t *testing.T) {
 	prevHosted := instanceIsHostedService
 	t.Cleanup(func() { instanceIsHostedService = prevHosted })
 	cases := []struct {
-		name               string
-		hosted, hack       bool
-		hackBase, wantLine string
+		name                  string
+		hosted, product       bool
+		productBase, wantLine string
 	}{
-		{"simple-host.app", true, false, "https://simple-hack.app", "Simple Host is made and run by Vineet Sriram."},
-		{"simple-hack.app", false, true, "https://simple-hack.app", "Simple Hack is made and run by Vineet Sriram."},
-		{"self-hosted host", false, false, "https://simple-hack.app", ""},
-		{"self-hosted hack", false, true, "https://hack.example.com", ""},
+		{"simple-host.app", true, false, "https://product.example", "Simple Host is made and run by Vineet Sriram."},
+		{"product.example", false, true, "https://product.example", "Test product is made and run by Vineet Sriram."},
+		{"self-hosted host", false, false, "https://product.example", ""},
+		{"self-hosted product", false, true, "https://self.product.example", ""},
 	}
 	for _, c := range cases {
 		instanceIsHostedService = c.hosted
-		kind := edition.Host
-		if c.hack {
-			kind = edition.Hack
+		kind := platformTestEdition()
+		if c.product {
+			kind = groupTestEdition()
 		}
-		assets := testAssetPipeline(edition.ForKind(kind), c.hackBase)
+		assets := testAssetPipeline(kind, c.productBase)
 		for _, name := range []string{"privacy.html", "support.html", "index.html"} {
 			src, err := staticFiles.ReadFile("static/" + name)
 			if err != nil {

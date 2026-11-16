@@ -48,7 +48,7 @@ func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
 	case "storage_set_resource":
 		tool.Title = "Create a storage resource or set its rules"
 		tool.Description = storageRulesSetDescription
-		if !s.cfg.NoSpamCheck && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite && !strings.HasPrefix(tool.Name, "hack_event_") {
+		if !s.cfg.NoSpamCheck && caller.Mode != CallerModeEvents && caller.Mode != CallerModeGroupSite && !strings.HasPrefix(tool.Name, "hack_event_") {
 			tool.Description += ` For spam-checked adds, use auth.checked in an add check. To hold posts, add a restrictive read policy using auth.role == "owner" || approved_at is not null; approve them by setting approved_at as the owner.`
 		}
 	case "storage_list_resources":
@@ -66,10 +66,10 @@ func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
 		}
 		tool.Description = strings.ReplaceAll(tool.Description, "storage_", "hack_event_storage_")
 		tool.Description += ` Owner on this website means a current event organiser until the event ends. Organiser only on this event's custom website.`
-	} else if caller.Mode == CallerModeHackSite || caller.Mode == CallerModeEvents {
+	} else if caller.Mode == CallerModeGroupSite || caller.Mode == CallerModeEvents {
 		tool.Description += ` Owner on a team site means a current approved teammate until the team's submission deadline, subject to stage and take-down checks; after that the teammate is an ordinary visitor.`
 	}
-	if caller.Mode == CallerModeHackSite || caller.Mode == CallerModeEvents || strings.HasPrefix(tool.Name, "hack_event_") {
+	if caller.Mode == CallerModeGroupSite || caller.Mode == CallerModeEvents || strings.HasPrefix(tool.Name, "hack_event_") {
 		tool.Description = s.productInstructions(tool.Description)
 	} else {
 		tool.Description = instanceText(addressText(tool.Description))

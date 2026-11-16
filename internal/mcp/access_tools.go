@@ -118,7 +118,7 @@ func accessTools() []Tool {
 	path := func(name string) string { return "/v1/sites/" + url.PathEscape(name) }
 	return []Tool{
 		{
-			policy:       toolPolicy{accessResult: "set", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			policy:       toolPolicy{accessResult: "set", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
 			OutputSchema: siteAccessSchema("note"),
 			Name:         "set_site_access",
 			Title:        "Choose who can open a site",
@@ -144,7 +144,7 @@ func accessTools() []Tool {
 			},
 		},
 		{
-			policy:       toolPolicy{accessResult: "list", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			policy:       toolPolicy{accessResult: "list", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
 			OutputSchema: siteAccessSchema(),
 			Name:         "list_site_viewers",
 			Title:        "Who can open a site",
@@ -160,7 +160,7 @@ func accessTools() []Tool {
 			},
 		},
 		{
-			policy:       toolPolicy{accessResult: "grant", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			policy:       toolPolicy{accessResult: "grant", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
 			OutputSchema: siteAccessSchema("added", "already_listed", "note"),
 			Name:         "grant_site_viewer",
 			Title:        "Let named people open a site",
@@ -192,7 +192,7 @@ func accessTools() []Tool {
 			},
 		},
 		{
-			policy:       toolPolicy{accessResult: "revoke", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			policy:       toolPolicy{accessResult: "revoke", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
 			OutputSchema: siteAccessSchema("removed", "note"),
 			Name:         "revoke_site_viewer",
 			Title:        "Stop a named person opening a site",
@@ -230,7 +230,7 @@ func accessTools() []Tool {
 // way.
 func storageVisitorEmailsTool() Tool {
 	return Tool{
-		policy: toolPolicy{analytics: analyticsPolicy{structuredText: true, emailIdentity: true}, hackSiteExcluded: true},
+		policy: toolPolicy{analytics: analyticsPolicy{structuredText: true, emailIdentity: true}, groupSiteExcluded: true},
 		Name:   "storage_visitor_emails",
 		Title:  "Who sent these records",
 		Description: "Turn visitor_id values from this site's saved data into the email each person signed in with, to answer \"who placed order 12?\" or \"who sent this?\", or the other way: turn an email into the visitor reference that names them on this site, to pass as for to storage_sql_execute (add a row on their behalf) or elsewhere a visitor reference is taken. A visitor_id is on every row of a read-own SQLite table (storage_sql_query shows it) and, for you as the owner, on KV keys and stored files a visitor wrote (storage_get_kv, storage_list_kv_keys, storage_list_file_objects). " +

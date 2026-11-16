@@ -201,7 +201,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 				params = list
 			}
 			body["params"] = params
-			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && c.policy.visitorParams {
+			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite && c.policy.visitorParams {
 				body["params"], e = c.storageVisitorParams(site, params)
 				if e != nil {
 					return output{}, e
@@ -257,7 +257,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 			return output{}, fmt.Errorf("%s: server returned invalid JSON: %w", toolName, err)
 		}
 	}
-	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite {
+	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite {
 		if err := c.storageVisitorRefs(site, response); err != nil {
 			return output{}, err
 		}
@@ -346,7 +346,7 @@ func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any, event
 	}
 	forRef, _ := args["for"].(string)
 	forRef = strings.TrimSpace(forRef)
-	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && strings.HasPrefix(forRef, "v_") {
+	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite && strings.HasPrefix(forRef, "v_") {
 		siteID, e := c.visitorSiteID(site)
 		if e != nil {
 			return output{}, e

@@ -10,7 +10,7 @@ import (
 // emitSiteNotification from deploys, domain checks and sign-ins are covered
 // in notify_hooks_test.go.
 
-func TestNotifySiteEventsHack(t *testing.T) {
+func TestNotifySiteEventsGroup(t *testing.T) {
 	f := newHackNotifyFixture(t)
 	a := f.a
 

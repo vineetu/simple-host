@@ -85,7 +85,7 @@ func buildFixture(t *testing.T) (*Store, string) {
 	if err := WriteFile(b, out); err != nil {
 		t.Fatal(err)
 	}
-	return Open(out), out
+	return Open(out, ProductFilter{ID: "host"}, ProductFilter{ID: "hack", Includes: []string{"selfhost-hack", "hack-companies"}}, ProductFilter{ID: "enterprise"}, ProductFilter{ID: "selfhost-host"}, ProductFilter{ID: "selfhost-hack", Includes: []string{"hack-companies"}}, ProductFilter{ID: "hack-companies"}, ProductFilter{ID: "console"}, ProductFilter{ID: "travel"}, ProductFilter{ID: "all"}), out
 }
 
 func TestBuildParsesSources(t *testing.T) {

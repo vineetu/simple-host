@@ -2,13 +2,14 @@ package servertest
 
 import (
 	"encoding/json"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/edition"
+
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/httpx"
 )
@@ -33,7 +34,7 @@ func TestServeHackPresetsBrowser(t *testing.T) {
 	a.sites.SetStorageIPLimiterForTest(100000, 0)
 	handler.RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
 	mountHackFiles(a.mux, a.sites)
-	oauth := handler.NewOAuthHandler(a.database, accountapp.New(a.database), handler.OAuthSettings{PublicBaseURL: a.srv.URL, EmailEnabled: true}, edition.ForKind(edition.Hack))
+	oauth := handler.NewOAuthHandler(a.database, accountapp.New(a.database), handler.OAuthSettings{PublicBaseURL: a.srv.URL, EmailEnabled: true}, productedition.ForKind(productedition.Hack))
 	oauth.Register(a.mux)
 	org, member := a.newPerson(t, "hfix-org"), a.newPerson(t, "hfix-member")
 	slug := a.makeEvent(t, org)

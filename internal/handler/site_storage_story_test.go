@@ -4,8 +4,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestStorageStoryShopAndRefusals(t *testing.T) {
@@ -262,7 +260,7 @@ func runTestStorageStorySeparateAllowances(t *testing.T) {
 	if a.sites.storageFilesLimitBytes() != 10000000 {
 		t.Fatal("file default")
 	}
-	a.sites.ed = edition.ForKind(edition.Hack)
+	a.sites.ed = groupTestEdition()
 	if a.sites.storageFilesLimitBytes() != 16384 || a.sites.storageBudgetUsed(siteStorageUsage{KV: 1, SQLite: 2, Files: 3}) != 6 {
 		t.Fatal("Hack allowance changed")
 	}

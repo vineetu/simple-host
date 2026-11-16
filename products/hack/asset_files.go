@@ -8,18 +8,19 @@ import "net/http"
 // "setup" are the platform's folders, so a directory read lists Hack's.
 func assetReplacements() map[string]string {
 	return map[string]string{
-		".well-known":             "static/.well-known",
-		".well-known/api-catalog": "static/.well-known/hack-api-catalog",
-		".well-known/ard.json":    "static/.well-known/hack-ard.json",
-		"apple-touch-icon.png":    "static/apple-touch-icon-hack.png",
-		"auth.md":                 "static/hack-auth.md",
-		"docs-site":               "docs-site/hack",
-		"favicon-32.png":          "static/favicon-32-hack.png",
-		"favicon.ico":             "static/favicon-hack.ico",
-		"favicon.svg":             "static/favicon-hack.svg",
-		"llms.txt":                "static/hack-llms.txt",
-		"setup":                   "static/setup",
-		"setup/setup.js":          "static/setup/setup-hack.js",
+		"setup/small-box-settings.json": "static/setup/small-box-settings.json",
+		".well-known":                   "static/.well-known",
+		".well-known/api-catalog":       "static/.well-known/hack-api-catalog",
+		".well-known/ard.json":          "static/.well-known/hack-ard.json",
+		"apple-touch-icon.png":          "static/apple-touch-icon-hack.png",
+		"auth.md":                       "static/hack-auth.md",
+		"docs-site":                     "docs-site/hack",
+		"favicon-32.png":                "static/favicon-32-hack.png",
+		"favicon.ico":                   "static/favicon-hack.ico",
+		"favicon.svg":                   "static/favicon-hack.svg",
+		"llms.txt":                      "static/hack-llms.txt",
+		"setup":                         "static/setup",
+		"setup/setup.js":                "static/setup/setup-hack.js",
 	}
 }
 

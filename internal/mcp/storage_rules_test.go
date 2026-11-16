@@ -246,7 +246,7 @@ func TestStorageRulesValidationRefusal(t *testing.T) {
 func TestStorageRulesDiscoveryIndexesNewDescriptions(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "off")
 	s := NewServer(testConfig(Config{}))
-	for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeHackSite}, {Mode: CallerModeEvents}} {
+	for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeGroupSite}, {Mode: CallerModeEvents}} {
 		t.Setenv("STORAGE_RULES", "off")
 		before := s.searchFor(caller)
 		t.Setenv("STORAGE_RULES", "on")

@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"log"
 	"net/http"
-	"os"
+	"strings"
+
 	"sync"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
@@ -40,8 +43,20 @@ func Extension() *extension.Extension {
 	// The one Assets of this install: made when the platform asks for the
 	// product's files (before Wire), then used by the product's own routes.
 	var productAssets *hackhttp.Assets
+	var productConfig productconfig.Config
 	return &extension.Extension{
 		Name: "simple-hack",
+		Config: extension.ConfigSpec{Settings: productconfig.Settings(), Load: func(getenv func(string) string) ([]string, error) {
+			var warnings []string
+			var err error
+			productConfig, warnings, err = productconfig.Load(getenv)
+			if err == nil {
+				if changed := productConfig.Limits.Changed(); len(changed) > 0 {
+					log.Printf("limits changed from the defaults: %s", strings.Join(changed, " "))
+				}
+			}
+			return warnings, err
+		}},
 		Assets: func(site *handler.SiteHandler) extension.Assets {
 			assets := hackhttp.NewAssets(site.AssetServices(), site.Pages().InkBaseURL())
 			productAssets = assets
@@ -63,7 +78,9 @@ func Extension() *extension.Extension {
 			}
 			return nil
 		},
-		Edition: func(limits config.Limits) *edition.Edition { return edition.ForKindWithLimits(edition.Hack, limits) },
+		Edition: func(limits config.Limits) *edition.Edition {
+			return productedition.ForKindWithLimits(productedition.Hack, limits)
+		},
 		Gate: func(d extension.GateDeps) func(http.Handler) http.Handler {
 			return hackhttp.LegacyStorageGate(d.Edition, handler.LegacyStoragePath)
 		},
@@ -74,6 +91,7 @@ func Extension() *extension.Extension {
 			cfg, ed := d.Config, d.Edition
 			siteHandler, mux, authMW := d.Site, d.Mux, d.AuthMW
 			hack := hackhttp.NewHackHandler(d.DB, cfg.PublicBaseURL, cfg.SiteDomain, ed)
+			hack.SetProductLimits(productConfig.Limits)
 			hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
 				return d.Accounts.GetUserByAPIKey(ctx, key, idle)
 			})
@@ -88,6 +106,9 @@ func Extension() *extension.Extension {
 			// handler's shared limitSet (cleanup 3.2 slice 1c).
 			hack.SetSiteArchiveDefault(handler.SiteLimit())
 			hack.SetMailer(d.Mail)
+			if d.Mail != nil {
+				d.Mail.SetJournal("hack_mail_send")
+			}
 			if cfg.EventNamePeer != "" {
 				peer, zone := handler.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
 				hack.SetNamePeer(func(ctx context.Context, name string) (bool, error) { return peer(ctx, zone, name) })
@@ -103,23 +124,23 @@ func Extension() *extension.Extension {
 			// (not in hackhttp) because the client needs internal/llm and the
 			// docs text needs internal/webassets, neither of which hackhttp may
 			// import (scripts/layering/rules.txt).
-			if cfg.AssistantBaseURL != "" && cfg.AssistantModel != "" {
+			if productConfig.AssistantBaseURL != "" && productConfig.AssistantModel != "" {
 				assistantLLM := llm.New(llm.Config{
-					BaseURL:         cfg.AssistantBaseURL,
-					Model:           cfg.AssistantModel,
-					APIKey:          cfg.AssistantAPIKey,
-					ReasoningEffort: cfg.AssistantReasoningEffort,
+					BaseURL:         productConfig.AssistantBaseURL,
+					Model:           productConfig.AssistantModel,
+					APIKey:          productConfig.AssistantAPIKey,
+					ReasoningEffort: productConfig.AssistantReasoningEffort,
 					MaxTokens:       events.AssistantMaxTokens,
 				})
 				hack.SetAssistant(events.NewAssistant(d.DB, assistantLLM, events.AssistantConfig{
-					BaseURL:               cfg.AssistantBaseURL,
-					Model:                 cfg.AssistantModel,
-					APIKey:                cfg.AssistantAPIKey,
-					ReasoningEffort:       cfg.AssistantReasoningEffort,
-					MonthlyBudgetUSD:      cfg.AssistantMonthlyBudgetUSD,
-					DailyQuestions:        cfg.AssistantDailyQuestions,
-					PriceInputPerMTokUSD:  cfg.AssistantPriceInputPerMTokUSD,
-					PriceOutputPerMTokUSD: cfg.AssistantPriceOutputPerMTokUSD,
+					BaseURL:               productConfig.AssistantBaseURL,
+					Model:                 productConfig.AssistantModel,
+					APIKey:                productConfig.AssistantAPIKey,
+					ReasoningEffort:       productConfig.AssistantReasoningEffort,
+					MonthlyBudgetUSD:      productConfig.AssistantMonthlyBudgetUSD,
+					DailyQuestions:        productConfig.AssistantDailyQuestions,
+					PriceInputPerMTokUSD:  productConfig.AssistantPriceInputPerMTokUSD,
+					PriceOutputPerMTokUSD: productConfig.AssistantPriceOutputPerMTokUSD,
 				}, newAssistantDocsTextFunc()))
 			}
 			siteSweep := func(ctx context.Context) {
@@ -127,7 +148,7 @@ func Extension() *extension.Extension {
 				hack.SettleDueEntries(ctx)
 			}
 			hack.Register(mux, authMW)
-			hack.RegisterDemo(mux, os.Getenv("HACK_DEMO_EVENT_SLUG"))
+			hack.RegisterDemo(mux, productConfig.DemoEventSlug)
 			handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 				return hack.NameTaken(ctx, name)
 			})
@@ -153,8 +174,13 @@ func Extension() *extension.Extension {
 					GroupHosts:    groupHosts,
 					GroupGate:     teams.SiteGate{TeamSitesReady: siteHandler.TeamSitesReady, RequestCert: siteHandler.RequestSiteCert, PaperSite: siteHandler.RecordGateSite, PaperState: siteHandler.RecordGateState},
 				},
-				Tools:     hackmcp.Contribution(),
-				PaperHack: func(paper *papermetrics.Collector) { hackmetrics.Install(paper) },
+				Tools: hackmcp.Contribution(),
+				ProductMetrics: func(paper *papermetrics.Collector) {
+					limits := productConfig.Limits
+					limits.Limits = cfg.Limits
+					hackmetrics.Install(paper)
+					paper.WithRunLimits(limits)
+				},
 				PaperRecorder: func(next http.Handler) http.Handler {
 					return hackhttp.WithPaperRecorder(handler.WithPaperRecorder(next, hackhttp.SitePaperRecorder{}), hackmetrics.RequestRecorder{})
 				},

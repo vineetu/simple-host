@@ -409,7 +409,7 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	now := time.Now()
-	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: auth.GetUser(r.Context()).ID, Hack: h.ed.Notifications().EventScoped, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
+	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: auth.GetUser(r.Context()).ID, Product: h.ed.Notifications().EventScoped, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
 	_, _, err := h.notificationsSvc().SaveNotification(ctx, n, h.limits.NotifyMaxPerSite, nil, h.limits.NotifyHistoryDays, h.notificationSecrets())
 	if errors.Is(err, model.ErrNotificationAccess) {
 		notifyError(w, 403, "notification_access_ended")

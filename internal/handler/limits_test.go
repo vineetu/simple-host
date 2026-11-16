@@ -265,7 +265,7 @@ func TestDefaultLimitsRewriteNothing(t *testing.T) {
 	if rw := newLimitsRewriter(config.DefaultLimits()); rw != nil {
 		t.Fatal("the rewriter should be nil at the defaults")
 	}
-	p := testAssetPipeline(edition.ForKind(edition.Host), "")
+	p := testAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	if p.rewritten() {
 		t.Fatal("defaults switched serve-time rewriting on")
 	}
@@ -276,7 +276,7 @@ func TestDefaultLimitsRewriteNothing(t *testing.T) {
 func TestServedTextFollowsLimits(t *testing.T) {
 	l := withLimits(t, changedLimits(t))
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandlerFor(edition.ForKindWithLimits(edition.Host, l)))
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandlerFor(edition.Default(l)))
 
 	for _, c := range []struct {
 		path      string
@@ -341,7 +341,7 @@ func TestServedTextFollowsLimits(t *testing.T) {
 // the settings too.
 func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 	l := withLimits(t, changedLimits(t))
-	ed := edition.ForKindWithLimits(edition.Host, l)
+	ed := edition.Default(l)
 	page, err := chromeTestHandlerFor(ed).pipeline().chromePage("showcase.html", ChromeData{})
 	if err != nil {
 		t.Fatal(err)
@@ -391,7 +391,7 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 // The limiters are built from the RATE_LIMIT_* settings.
 func TestRateLimitsFollowSettings(t *testing.T) {
 	l := withLimits(t, map[string]string{"RATE_LIMIT_SIGNIN_IP": "2,1h", "RATE_LIMIT_SIGNIN_EMAIL": "9,20s"})
-	h := NewUserHandler(nil, accountapp.New(nil), nil, "https://simple-host.app", edition.ForKindWithLimits(edition.Host, l))
+	h := NewUserHandler(nil, accountapp.New(nil), nil, "https://simple-host.app", edition.Default(l))
 	if h.ipLimiter.Capacity != 2 || h.ipLimiter.Rate != 1.0/3600 {
 		t.Errorf("sign-in IP limiter: burst %v, %v/s", h.ipLimiter.Capacity, h.ipLimiter.Rate)
 	}
@@ -438,8 +438,8 @@ func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
 	SetSiteLimit(300 << 20)
 	t.Cleanup(func() { SetSiteLimit(old) })
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
-	testAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(platformTestEdition()))
+	testAssetPipeline(edition.Default(config.DefaultLimits()), "").registerSkillsHub(mux, "https://simple-host.app")
 	for _, c := range []struct{ path, want string }{
 		{"/v1/skills/website-deploy", "**Archive limit** is 300 MB."},
 		{"/v1/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},

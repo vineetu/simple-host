@@ -600,7 +600,7 @@ func (h *SiteHandler) servePasscodeGate(w http.ResponseWriter, r *http.Request, 
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
-	if !h.pipeline().chromeHack {
+	if !h.pipeline().chromeProduct {
 		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
 	}
 	w.WriteHeader(status)
@@ -612,7 +612,7 @@ func (h *SiteHandler) servePasscodeGate(w http.ResponseWriter, r *http.Request, 
 
 func (h *SiteHandler) passcodeGateHTML(host, next, msg string) string {
 	var b strings.Builder
-	if h.pipeline().chromeHack {
+	if h.pipeline().chromeProduct {
 		b.WriteString(passcodeGateHead)
 	} else {
 		b.Write(h.pipeline().hostedStatusPage(passcodeGateHead))

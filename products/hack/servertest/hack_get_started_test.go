@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"io/fs"
 	"net/http"
@@ -14,14 +15,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func TestHackGetStartedSkills(t *testing.T) {
-	sh := chromeTestHandler(edition.Hack)
+	sh := chromeTestHandler(productedition.Hack)
 	assets := hackhttp.NewAssets(sh.AssetServices(), "")
 	first, err := assets.BuildHackSkillsZip()
 	if err != nil {
@@ -119,7 +119,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 }
 
 func TestHackGetStartedOnboarding(t *testing.T) {
-	sh := chromeTestHandler(edition.Hack)
+	sh := chromeTestHandler(productedition.Hack)
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	r := httptest.NewRecorder()
@@ -211,7 +211,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 // shows only its own https://<host>/mcp, never a plugin, ZIP, directory or
 // app-review mention, and never the hosted service's own domain.
 func TestHackGetStartedOnboardingSelfHosted(t *testing.T) {
-	sh := chromeTestHandlerWithBase(edition.Hack, "http://hack.example.test:18201")
+	sh := chromeTestHandlerWithBase(productedition.Hack, "http://hack.example.test:18201")
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	r := httptest.NewRecorder()
@@ -270,7 +270,7 @@ func checkOtherAIApps(t *testing.T, page, address string) {
 // A self-hosted Simple Hack names its own connector for Claude, never the
 // hosted listing.
 func TestSelfHostedHackGetStartedClaude(t *testing.T) {
-	sh := chromeTestHandlerWithBase(edition.Hack, "https://hack.example")
+	sh := chromeTestHandlerWithBase(productedition.Hack, "https://hack.example")
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	r := httptest.NewRecorder()
@@ -315,7 +315,7 @@ func TestHackHistoricalArchivesKeepTheirBytes(t *testing.T) {
 	if err != nil || len(embedded) != len(versions) {
 		t.Fatalf("embedded archives: %v, %v", embedded, err)
 	}
-	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
+	sh := chromeTestHandlerWithBase(productedition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	for _, version := range versions {
@@ -335,7 +335,7 @@ func TestHackHistoricalArchivesKeepTheirBytes(t *testing.T) {
 // The platform's plugin archive and installers stay withdrawn on Hack, with
 // the same answers as before Hack registered them itself.
 func TestHackWithdrawnPlatformDownloads(t *testing.T) {
-	sh := chromeTestHandler(edition.Hack)
+	sh := chromeTestHandler(productedition.Hack)
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 	handler.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
@@ -358,7 +358,7 @@ func TestHackWithdrawnPlatformDownloads(t *testing.T) {
 // page handler before D3-S2b).
 func TestHackGetStartedOnAnotherInstall(t *testing.T) {
 	page := func(base string) *httptest.ResponseRecorder {
-		sh := chromeTestHandlerWithBase(edition.Hack, base)
+		sh := chromeTestHandlerWithBase(productedition.Hack, base)
 		mux := http.NewServeMux()
 		hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
 		rec := httptest.NewRecorder()

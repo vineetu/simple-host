@@ -21,7 +21,7 @@ func commands(exts []*extension.Extension) []command {
 		{"migrate", func(args []string) int { return runMigrateCommand(args, exts) }},
 		{"site-summary-backfill", runSiteSummaryBackfill},
 		{"api-growth-backfill", runAPIGrowthBackfill},
-		{"settings", runSettingsCommand},
+		{"settings", func(args []string) int { return runSettingsCommand(args, exts) }},
 		{"version", versionCommand},
 		{"--version", versionCommand},
 	}

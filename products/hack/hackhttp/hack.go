@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+
 	"io"
 	"io/fs"
 	"log"
@@ -25,6 +26,7 @@ import (
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
@@ -84,7 +86,7 @@ type HackHandler struct {
 	// moves to internal/hackhttp), so the three values this package reads
 	// (siteLimitFor, exportLinkTTL, idleReplyTo below) are HackHandler's
 	// own methods over the same edition.Limits fields.
-	limits edition.Limits
+	limits productconfig.Limits
 	// siteArchiveDefault is the instance's default per-site size cap when
 	// an account has no MAX_ARCHIVE_MB_OVERRIDES entry: handler.SiteLimit()
 	// at construction (SetSiteArchiveDefault, wired from main). Falls back
@@ -293,7 +295,7 @@ func (h *HackHandler) SetSites(s hackSiteHooks) { h.sites = s }
 
 // ShareAssets makes h render through pages, the same asset pipeline the
 // site side uses (SiteHandler.Pages()), instead of building its own from
-// edition.ForKind(edition.Hack) on first use (pipeline() above). Moved from
+// productedition.ForKind(productedition.Hack) on first use (pipeline() above). Moved from
 // assets.go (cleanup 3.2 slice 1c); takes the hackPages interface, not
 // *SiteHandler (cleanup 3.2 slice 2a: the only thing this ever did with sh
 // was call sh.pipeline()).
@@ -377,7 +379,9 @@ func paperHackStage(r *http.Request, ev hackmodel.Event) {
 // key — only the domain string tells them apart — so it needs the exact
 // same key the SiteHandler side of that test uses.
 func NewHackHandlerForTest(archiveLinkKey []byte, limits edition.Limits) *HackHandler {
-	return &HackHandler{archiveLinkKey: archiveLinkKey, limits: limits}
+	lim := productconfig.DefaultLimits()
+	lim.Limits = limits
+	return &HackHandler{archiveLinkKey: archiveLinkKey, limits: lim}
 }
 
 // NewHackHandler builds the hosted-events API. publicBaseURL is the apex
@@ -387,7 +391,8 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 	if len(editions) > 0 {
 		ed = editions[0]
 	}
-	lim := ed.Limits()
+	lim := productconfig.DefaultLimits()
+	lim.Limits = ed.Limits()
 	h := &HackHandler{
 		limits:             lim,
 		siteArchiveDefault: defaultSiteArchiveSize,
@@ -2106,4 +2111,15 @@ func checkOverallPrizesValue(in []string) ([]string, error) {
 		out = out[:len(out)-1]
 	}
 	return out, nil
+}
+
+// SetProductLimits installs the validated product snapshot before routes start.
+func (h *HackHandler) SetProductLimits(limits productconfig.Limits) {
+	limits.Limits = h.limits.Limits
+	h.limits = limits
+	h.codesIP = httpx.NewRateLimiter(float64(limits.RateEventCodesIP.Burst), limits.RateEventCodesIP.PerSecond())
+	h.codesUser = httpx.NewRateLimiter(float64(limits.RateEventCodesUser.Burst), limits.RateEventCodesUser.PerSecond())
+	h.namesUser = httpx.NewRateLimiter(float64(limits.RateEventNamesUser.Burst), limits.RateEventNamesUser.PerSecond())
+	h.applyIP = httpx.NewRateLimiter(float64(limits.RateEventApplyIP.Burst), limits.RateEventApplyIP.PerSecond())
+	h.applyUser = httpx.NewRateLimiter(float64(limits.RateEventApplyUser.Burst), limits.RateEventApplyUser.PerSecond())
 }

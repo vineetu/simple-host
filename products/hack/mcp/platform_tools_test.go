@@ -242,7 +242,7 @@ func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
 					t.Errorf("Host storage_set_resource lacks %s", want)
 				}
 			}
-			_, teamTools := toolsAs(t, s, mcp.Caller{APIKey: "team", Mode: mcp.CallerModeHackSite}, false)
+			_, teamTools := toolsAs(t, s, mcp.Caller{APIKey: "team", Mode: mcp.CallerModeGroupSite}, false)
 			hack := map[string]string{}
 			for _, name := range []string{"storage_set_resource", "storage_sql_schema"} {
 				tool, ok := teamTools[name]
@@ -335,7 +335,7 @@ func TestHackStorageRulesTextAtRequestTime(t *testing.T) {
 	for _, noSpam := range []bool{false, true} {
 		product := Contribution()
 		s := mcp.NewServer(mcp.Config{Contribution: &product, NoSpamCheck: noSpam})
-		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeHackSite, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "test", APIKey: "fixture"}} {
+		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeGroupSite, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "test", APIKey: "fixture"}} {
 			before, _ := toolsAs(t, s, caller, false)
 			old, _ := json.Marshal(before)
 			oldInstructions := instructionsAs(t, s, caller)
@@ -448,7 +448,7 @@ func TestHackCreateSiteHasNoNamedViewers(t *testing.T) {
 // Simple Hack has no photos link, so its deploy tools keep the compress line.
 func TestHackDeployToolsDoNotOfferPhotosLink(t *testing.T) {
 	s := newTestServer(nil)
-	for _, mode := range []string{mcp.CallerModeHackSite, mcp.CallerModeEvents} {
+	for _, mode := range []string{mcp.CallerModeGroupSite, mcp.CallerModeEvents} {
 		_, tools := toolsAs(t, s, mcp.Caller{Mode: mode, GrantID: "grant", APIKey: "owner"}, false)
 		for _, name := range []string{"create_site", "update_site"} {
 			d := tools[name].Description
@@ -461,7 +461,7 @@ func TestHackDeployToolsDoNotOfferPhotosLink(t *testing.T) {
 
 func TestHackPhotoToolRemainsArchive(t *testing.T) {
 	s := newTestServer(nil)
-	for _, mode := range []string{mcp.CallerModeHackSite, mcp.CallerModeEvents} {
+	for _, mode := range []string{mcp.CallerModeGroupSite, mcp.CallerModeEvents} {
 		caller := mcp.Caller{Mode: mode, GrantID: "grant", APIKey: "owner", TeamAPIKey: "team"}
 		_, tools := toolsAs(t, s, caller, false)
 		if tools["create_upload_link"].Description != mcp.ArchiveUploadDescription {
@@ -481,7 +481,7 @@ func TestHackInstructionsLength(t *testing.T) {
 		t.Run(flag, func(t *testing.T) {
 			t.Setenv("STORAGE_RULES", flag)
 			for _, host := range []string{"simple-hack.app", "hack.company.example", strings.Repeat("a", 63) + ".sites.example-company.org", strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)} {
-				for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "personal", APIKey: "fixture"}, {Mode: mcp.CallerModeHackSite, APIKey: "fixture"}} {
+				for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "personal", APIKey: "fixture"}, {Mode: mcp.CallerModeGroupSite, APIKey: "fixture"}} {
 					t.Run(host+"/"+caller.Mode+"/"+caller.GrantID, func(t *testing.T) {
 						product := Contribution()
 						text := instructionsAs(t, mcp.NewServer(mcp.Config{Contribution: &product, APIHost: host, SelfHosted: host != "simple-hack.app"}), caller)
@@ -581,7 +581,7 @@ func TestHackContributionLeavesHostConnectionsAlone(t *testing.T) {
 			}
 		}
 		for _, entry := range mcp.Inventory(mcp.Contribution{}) {
-			if entry.Edition == "hack" {
+			if entry.Edition == "product" {
 				t.Fatalf("no product registered %s", entry.Name)
 			}
 		}
@@ -596,7 +596,7 @@ func TestHackRetiredJudgingLockNames(t *testing.T) {
 	const want = "Judging locks when you finish judging (move to Results) and unlocks when you move the event back. [judging_lock_removed]"
 	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("a retired tool reached REST") }))
 	for _, name := range []string{"hack_lock_judging", "hack_unlock_judging"} {
-		for _, caller := range []mcp.Caller{{APIKey: "person", Mode: mcp.CallerModeEvents}, {APIKey: "team", Mode: mcp.CallerModeHackSite}, {APIKey: "host"}} {
+		for _, caller := range []mcp.Caller{{APIKey: "person", Mode: mcp.CallerModeEvents}, {APIKey: "team", Mode: mcp.CallerModeGroupSite}, {APIKey: "host"}} {
 			text, structured, failed := resultOf(t, callAs(t, s, caller, name, map[string]any{"slug": "weekend"}))
 			if !failed || structured != nil || text != want {
 				t.Fatalf("%s as %q: %q %v failed=%t", name, caller.Mode, text, structured, failed)

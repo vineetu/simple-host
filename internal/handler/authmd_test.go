@@ -5,13 +5,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestAuthMarkdown(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(platformTestEdition()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/auth.md", nil))
 	if rec.Code != http.StatusOK {
@@ -46,7 +44,7 @@ func TestAuthMarkdownConfiguration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			SetEmailSignIn(tc.email)
 			instanceFacts = InstanceFacts{SignInProviders: tc.providers, OIDCLabel: "Acme SSO"}
-			sh := chromeTestHandler(edition.Host)
+			sh := chromeTestHandler(platformTestEdition())
 			sh.assets = testAssetPipeline(sh.ed, tc.base)
 			mux := http.NewServeMux()
 			RegisterUIRoutes(mux, tc.base, sh)

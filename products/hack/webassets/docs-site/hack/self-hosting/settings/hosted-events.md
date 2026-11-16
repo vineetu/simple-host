@@ -11,6 +11,9 @@ keep one account from flooding the server, and every one is an environment setti
 <!-- settings:group=events -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
+| `EVENTS` | `off` | `off` / `hosted` | hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at &lt;event>.&lt;SITE_DOMAIN>, and accounts own no personal sites. |
+| `EVENT_NAME_PEER` | none | text | The loopback address (http://127.0.0.1:&lt;port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise. |
+| `TEAM_SITE_FLAT_HOSTS` | `false` | `true` / `false` | Hosted events: true serves a team's site at &lt;team>--&lt;event>.&lt;SITE_DOMAIN> (one DNS label) instead of &lt;team>.&lt;event>.&lt;SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged. |
 | `EVENT_LIMIT_EXEMPT` | none | emails and domains | Comma-separated sign-in emails and whole domains (@domain.org), case-insensitive with spaces trimmed; no subdomain matching. Empty by default. Admins and EVENT_LIMIT_EXEMPT accounts are never limited by EVENT_CREATE_PER_DAY (default 20) or EVENT_MAX_ACTIVE_PER_ORGANISER (no limit by default; 0 = no limit for either). |
 | `EVENT_CREATE_PER_DAY` | `20` | 0–1000 events | Hosted events (EVENTS=hosted): events one account may create in a rolling day (default 20; 0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited. |
 | `EVENT_MAX_ACTIVE_PER_ORGANISER` | `0` | 0–1000 events | Hosted events: events one account may run at once (every stage but archived); no limit by default (0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited. |
@@ -25,10 +28,7 @@ keep one account from flooding the server, and every one is an environment setti
 | `RATE_LIMIT_EVENT_NAMES_USER` | `60,1s` | any (warns past 10× looser) | Hosted events: event address checks while someone types one, per account. |
 | `RATE_LIMIT_EVENT_APPLY_IP` | `30,2m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per network address. |
 | `RATE_LIMIT_EVENT_APPLY_USER` | `5,12m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per account. |
-| `EVENTS` | `off` | `off` / `hosted` | hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at &lt;event>.&lt;SITE_DOMAIN>, and accounts own no personal sites. |
 | `HACK_DEMO_EVENT_SLUG` | `demo` | text | Base event slug for the standing demo on the hosted hackathon platform; empty uses demo. |
-| `EVENT_NAME_PEER` | none | text | The loopback address (http://127.0.0.1:&lt;port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise. |
-| `TEAM_SITE_FLAT_HOSTS` | `false` | `true` / `false` | Hosted events: true serves a team's site at &lt;team>--&lt;event>.&lt;SITE_DOMAIN> (one DNS label) instead of &lt;team>.&lt;event>.&lt;SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged. |
 | `ASSISTANT_BASE_URL` | none | text | The OpenAI-compatible API root (e.g. an Ollama Cloud endpoint) the organiser assistant chat sends chat-completions requests to. Unset (with ASSISTANT_MODEL): the assistant is off and the UI shows nothing. |
 | `ASSISTANT_MODEL` | none | text | The model name sent to ASSISTANT_BASE_URL for the organiser assistant chat. Unset: the assistant is off. |
 | `ASSISTANT_API_KEY` | none | secret | Bearer key for ASSISTANT_BASE_URL, when the endpoint needs one. **Security-sensitive.** |

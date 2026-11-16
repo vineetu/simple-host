@@ -12,6 +12,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"io"
 	"net/http"
@@ -29,7 +31,7 @@ import (
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
+
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/handler"
@@ -124,7 +126,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	if len(eds) > 0 {
 		ed = eds[0]
 	} else {
-		ed = edition.ForKind(edition.Hack)
+		ed = productedition.ForKind(productedition.Hack)
 	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
@@ -453,23 +455,23 @@ func get(t *testing.T, h http.Handler, host, path string) *httptest.ResponseReco
 	return rec
 }
 
-func chromeTestHandler(kind edition.Kind) *handler.SiteHandler {
+func chromeTestHandler(kind productedition.Kind) *handler.SiteHandler {
 	return chromeTestHandlerWithBase(kind, "")
 }
 
-func chromeTestHandlerWithBase(kind edition.Kind, base string) *handler.SiteHandler {
-	sh := handler.NewSiteHandler(edition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
-	if kind == edition.Hack {
+func chromeTestHandlerWithBase(kind productedition.Kind, base string) *handler.SiteHandler {
+	sh := handler.NewSiteHandler(productedition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	if kind == productedition.Hack {
 		installAssets(sh, nil)
 	}
 	return sh
 }
 
-func chromeTestMux(t *testing.T, kind edition.Kind) *http.ServeMux {
+func chromeTestMux(t *testing.T, kind productedition.Kind) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
 	sh := chromeTestHandler(kind)
-	if kind == edition.Hack {
+	if kind == productedition.Hack {
 		installAssets(sh, mux)
 	}
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
@@ -551,7 +553,7 @@ func sweepNoticeMail(a *teamSiteApp, delay time.Duration) {
 }
 
 func runComposedCleanup(a *teamSiteApp, mail *replyMailer, now time.Time) {
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	events.New(a.database).RunEventCleanup(context.Background(), now, l.EventSitesKeep, l.EventRemovalWarn, a.sites.TrashTeamSite, events.ArchiveWarningSender(mail), l.IdleReplyTo)
 }
 
@@ -655,7 +657,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	}
 	mux := http.NewServeMux()
 	a := &teamSiteApp{database: database, admin: adminKey, mux: mux, certDir: certDir}
-	ed := edition.ForKind(edition.Hack)
+	ed := productedition.ForKind(productedition.Hack)
 	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), 180*24*time.Hour)
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))

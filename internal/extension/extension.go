@@ -24,7 +24,14 @@ import (
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
+// ConfigSpec contributes product setting metadata and startup parsing.
+type ConfigSpec struct {
+	Settings []config.Setting
+	Load     func(getenv func(string) string) (warnings []string, err error)
+}
 type Extension struct {
+	Config ConfigSpec
+
 	Assets func(*handler.SiteHandler) Assets
 	// CheckSchema runs after platform verification, before other database reads.
 	// It also runs after migration verification; nil adds no product checks.
@@ -74,10 +81,10 @@ type Deps struct {
 }
 
 type Parts struct {
-	Workers       []workers.Owner
-	SiteSweep     handler.GroupSweep
-	PaperHack     func(*papermetrics.Collector)
-	PaperRecorder func(http.Handler) http.Handler
+	Workers        []workers.Owner
+	SiteSweep      handler.GroupSweep
+	ProductMetrics func(*papermetrics.Collector)
+	PaperRecorder  func(http.Handler) http.Handler
 	// Tools is the product's AI tools; the zero value adds none.
 	Tools mcp.Contribution
 	Hooks Hooks

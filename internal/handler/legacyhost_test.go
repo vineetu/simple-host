@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestLegacyHostRedirectMCPReachesNext(t *testing.T) {
-	h := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	h := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true

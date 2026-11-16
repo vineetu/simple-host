@@ -579,13 +579,13 @@ type productSpec struct {
 
 func buildProducts(b *Bundle, v map[string]string) []Product {
 	hostIntent, entIntent := RepoHost+"/INTENT.md", RepoEnterprise+"/INTENT.md"
-	hackLLMs := RepoHost + "/products/hack/webassets/static/hack-llms.txt"
+	productLLMs := RepoHost + "/products/hack/webassets/static/hack-llms.txt"
 	specs := []productSpec{
 		{id: "host", name: "Simple Host (simple-host.app)",
 			what: [2]string{hostIntent, "What this is, and why it exists"}, who: [2]string{hostIntent, "Who uses it, and in what situation"},
 			success: [2]string{hostIntent, "What success looks like"}, nonGoals: [2]string{hostIntent, "Non-goals"}},
 		{id: "hack", name: "Simple Hack (simple-hack.app)",
-			what: [2]string{hostIntent, "The hackathon product, and the page that sells it"}, who: [2]string{hackLLMs, ""},
+			what: [2]string{hostIntent, "The hackathon product, and the page that sells it"}, who: [2]string{productLLMs, ""},
 			extra: []string{RepoHost + "/docs/designs/simple-hack-platform.md"}},
 		{id: "enterprise", name: "Simple Host Enterprise",
 			what: [2]string{entIntent, "What this is, and why it exists"}, who: [2]string{entIntent, "Who uses it, and in what situation"},
@@ -597,7 +597,7 @@ func buildProducts(b *Bundle, v map[string]string) []Product {
 			what:  [2]string{RepoHost + "/docs/platforms/simple-hack-standalone.md", "Install Simple Hack on your own server"},
 			extra: []string{RepoHost + "/docs/platforms/simple-hack-coolify.md", RepoHost + "/docs/platforms/simple-hack-digitalocean.md"}},
 		{id: "hack-companies", name: "Simple Hack for companies",
-			what:  [2]string{hackLLMs, "Simple Hack for companies"},
+			what:  [2]string{productLLMs, "Simple Hack for companies"},
 			extra: []string{RepoHost + "/docs/history/simple-hack-release-v0.8.10.md"}},
 	}
 	versions := map[string]string{

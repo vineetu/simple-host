@@ -30,8 +30,8 @@ func TestPaperRecorderLiveAfterBuild(t *testing.T) {
 			wire := ext.Wire
 			ext.Wire = func(d extension.Deps) (extension.Parts, error) {
 				parts, err := wire(d)
-				install := parts.PaperHack
-				parts.PaperHack = func(c *papermetrics.Collector) {
+				install := parts.ProductMetrics
+				parts.ProductMetrics = func(c *papermetrics.Collector) {
 					paper = c
 					if product == "hack" {
 						install(c)

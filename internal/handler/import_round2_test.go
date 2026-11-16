@@ -46,7 +46,7 @@ func TestImportReceivingBodyAllowanceDeadline(t *testing.T) {
 		t.Run(fmt.Sprint(tc.mb), func(t *testing.T) {
 			l := old
 			l.ImportMaxUploadMB = tc.mb
-			h, root, caller := newImportTest(t, edition.ForKindWithLimits(edition.Host, l))
+			h, root, caller := newImportTest(t, edition.Default(l))
 			token, _ := mintImportTest(t, h, caller)
 			// Malformed multipart stops before conversion, after deadline setup.
 			r := httptest.NewRequest("POST", "/v1/imports/"+token, strings.NewReader("bad body"))

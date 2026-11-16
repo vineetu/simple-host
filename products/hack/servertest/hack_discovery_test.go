@@ -2,6 +2,7 @@ package servertest
 
 import (
 	"encoding/json"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
-	"github.com/vsriram/simple-host/internal/edition"
+
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
@@ -102,7 +103,7 @@ func checkAPIError(t *testing.T, rec *httptest.ResponseRecorder, status int, cod
 func TestHackPublicDiscovery(t *testing.T) {
 	for _, base := range []string{"https://simple-hack.app", "https://hack.company.example", "http://localhost:18480"} {
 		t.Run(base, func(t *testing.T) {
-			sh := chromeTestHandlerWithBase(edition.Hack, base)
+			sh := chromeTestHandlerWithBase(productedition.Hack, base)
 			mux := http.NewServeMux()
 			handler.RegisterUIRoutes(mux, base, sh)
 			mountHackFiles(mux, sh)
@@ -111,7 +112,7 @@ func TestHackPublicDiscovery(t *testing.T) {
 			host := strings.SplitN(base, "://", 2)[1]
 			product := hackmcp.Contribution()
 			server := mcp.NewServer(mcp.Config{APIHost: host, Contribution: &product})
-			connector := handler.NewConnectorHandlerForTest(base, server, true)
+			connector := handler.NewConnectorHandlerForTest(base, server, productedition.ForKind(productedition.Hack))
 			connector.Register(mux, func(next http.Handler) http.Handler { return next })
 			readJSON := func(path string, dst any) string {
 				t.Helper()

@@ -34,11 +34,15 @@ type ResendSender struct {
 	// product names the service in the sign-in email; empty means
 	// "Simple Host" (SetProductName).
 	product string
+	journal string
 }
 
 // SetProductName sets the service name the sign-in email uses ("Simple
 // Hack" on the hackathon platform). Call once at startup.
 func (s *ResendSender) SetProductName(name string) { s.product = name }
+
+// SetJournal selects the product journal prefix at startup; empty disables it.
+func (s *ResendSender) SetJournal(prefix string) { s.journal = prefix }
 
 func (s *ResendSender) productName() string {
 	if s.product == "" {
@@ -72,8 +76,8 @@ var resendID = regexp.MustCompile(`^[a-zA-Z0-9-]{1,100}$`)
 // mailResult logs no recipient, subject, message body, code, or credential.
 // Only the Simple Hack sender is included in the Hack journal report.
 func (s *ResendSender) mailResult(outcome, detail string) {
-	if s.productName() == "Simple Hack" {
-		log.Printf("hack_mail_send outcome=%s %s", outcome, detail)
+	if s.journal != "" {
+		log.Printf("%s outcome=%s %s", s.journal, outcome, detail)
 	}
 }
 

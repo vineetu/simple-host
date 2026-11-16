@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (s *Service) ConnectorAccess(ctx context.Context, token string, now func() time.Time, hackTeams bool, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
+func (s *Service) ConnectorAccess(ctx context.Context, token string, now func() time.Time, teamConnections bool, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
 	tok, err := s.GetOAuthToken(ctx, hashSecret(token))
 	if err != nil || tok.Kind != "access" || now().After(tok.ExpiresAt) {
 		return model.User{}, "", "", model.OAuthTokenGrant{}, false
@@ -36,7 +36,7 @@ func (s *Service) ConnectorAccess(ctx context.Context, token string, now func() 
 		return user, "", "", model.OAuthTokenGrant{}, false
 	}
 	_ = s.TouchOAuthGrant(ctx, tok.GrantID)
-	if !hackTeams {
+	if !teamConnections {
 		return user, authrules.ScopeTeam(tok.Scope), "", tok, true
 	}
 	teamID, events, ok := authrules.GrantKind(tok.Scope)

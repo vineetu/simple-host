@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
+
 	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
 	model "github.com/vsriram/simple-host/internal/model"
@@ -149,7 +149,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 			}
 		}
 	}
-	h.ed = edition.ForKind(edition.Hack)
+	h.ed = groupTestEdition()
 	raw, _ := json.Marshal(map[string]any{"visitor": opaqueOwner})
 	body := h.notificationBody(context.Background(), model.Notification{Source: "mcp", SiteID: opaqueSite}, model.NotificationDelivery{Data: raw}, 1)
 	if !bytes.Contains(body, []byte(opaqueOwner)) {

@@ -9,7 +9,6 @@ import (
 
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 type storageBindingFixture struct {
@@ -77,7 +76,7 @@ func (p *ownerBindingFixture) OwnerOnSite(context.Context, string, string) (bool
 func TestStorageBindingRequestGuards(t *testing.T) {
 	s := newPresetSite(t)
 	h := s.a.sites
-	h.ed = edition.ForKind(edition.Hack)
+	h.ed = groupTestEdition()
 	p := &ownerBindingFixture{}
 	h.SetStorageBindings(p)
 	preview := "https://" + s.host + "/__preview/1/" + h.signPreviewToken(s.sid, 1, time.Now().Add(time.Hour)) + "/"

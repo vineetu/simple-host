@@ -22,7 +22,7 @@ func TestInventoryDump(t *testing.T) {
 	}
 	for _, events := range []bool{false, true} {
 		for _, noSpam := range []bool{false, true} {
-			for _, kind := range []string{"default", "deploy", "flat", "passcode", "analytics", "apps", "hack-events", "hack-grant", "hack-site"} {
+			for _, kind := range []string{"default", "deploy", "flat", "passcode", "analytics", "apps", "group-events", "group-grant", "group-site"} {
 				t.Run(fmt.Sprintf("events-%t-spam-%t-%s", events, noSpam, kind), func(t *testing.T) {
 					for _, flag := range []string{"MCP_APP_PASSCODE", "MCP_APP_MY_SITES", "MCP_APP_DASHBOARD", "MCP_APP_PHOTO_PICKER", "MCP_APP_SITE_PREVIEW"} {
 						t.Setenv(flag, "")
@@ -45,13 +45,13 @@ func TestInventoryDump(t *testing.T) {
 						for _, flag := range []string{"MCP_APP_MY_SITES", "MCP_APP_DASHBOARD", "MCP_APP_PHOTO_PICKER", "MCP_APP_SITE_PREVIEW"} {
 							t.Setenv(flag, "on")
 						}
-					case "hack-events":
+					case "group-events":
 						c.Mode = CallerModeEvents
-					case "hack-grant":
+					case "group-grant":
 						c.Mode = CallerModeEvents
 						c.GrantID = "snapshot"
-					case "hack-site":
-						c.Mode = CallerModeHackSite
+					case "group-site":
+						c.Mode = CallerModeGroupSite
 					}
 					s := NewServer(testConfig(cfg))
 					_, _, byName := s.forCaller(c)

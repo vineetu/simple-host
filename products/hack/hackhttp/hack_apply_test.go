@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
+
 	"io/fs"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/webassets"
@@ -549,7 +549,7 @@ func TestHackApplyTakedownRaceForcedOrdering(t *testing.T) {
 // than the cap committed.
 func TestHackApplyPerEventCapConcurrentDistinctApplicants(t *testing.T) {
 	a := newHackApp(t)
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.EventApplyPendingPerEvent = 3
 	setHackAppLimits(a, l)
 	org := a.newPerson(t, "apeccorg")
@@ -623,12 +623,12 @@ func TestHackApplyLimits(t *testing.T) {
 	// The pending cap (20) is a business rule independent of the rate
 	// limiter: raise both knobs generously on a fresh app so the cap, not
 	// the limiter or the per-organiser event cap, is what trips.
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.RateEventApplyUser.Burst = 100
 	l.RateEventApplyIP.Burst = 100
 	l.EventMaxActivePerOrganiser = 25
 	l.EventCreatePerDay = 25
-	b := newHackApp(t, edition.ForKindWithLimits(edition.Hack, l))
+	b := newHackAppWithLimits(t, l)
 	capOrg := b.newPerson(t, "allimcaporg")
 	capPerson := b.newPerson(t, "allimcapperson")
 	var slugs []string
@@ -660,12 +660,12 @@ func TestHackApplyLimits(t *testing.T) {
 // events rows and so cannot serialise on those alone -- still cannot both
 // read 19 and both insert, landing at 21. Exactly one of the two must win.
 func TestHackApplyPendingCapConcurrentCrossEvent(t *testing.T) {
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.RateEventApplyUser.Burst = 100
 	l.RateEventApplyIP.Burst = 100
 	l.EventMaxActivePerOrganiser = 25
 	l.EventCreatePerDay = 25
-	b := newHackApp(t, edition.ForKindWithLimits(edition.Hack, l))
+	b := newHackAppWithLimits(t, l)
 	org := b.newPerson(t, "apccorg")
 	racer := b.newPerson(t, "apccracer")
 	var slugs []string
@@ -727,9 +727,9 @@ func TestHackApplyPendingCapConcurrentCrossEvent(t *testing.T) {
 // time (nowhere near their own per-account burst), still share one network
 // address's bucket and can be capped by it.
 func TestHackApplyIPLimitIndependentOfAccounts(t *testing.T) {
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.RateEventApplyIP.Burst = 3
-	a := newHackApp(t, edition.ForKindWithLimits(edition.Hack, l))
+	a := newHackAppWithLimits(t, l)
 	org := a.newPerson(t, "aiplorg")
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
@@ -966,7 +966,7 @@ func TestHackApplyDirectoryAndPublicJSON(t *testing.T) {
 	// Three events from one organiser: raise the per-organiser active-event
 	// cap (default 2) so the third creation does not silently fail.
 	a := newHackApp(t)
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.EventMaxActivePerOrganiser = 10
 	l.EventCreatePerDay = 10
 	setHackAppLimits(a, l)

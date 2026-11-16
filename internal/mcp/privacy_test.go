@@ -221,8 +221,8 @@ func TestVisitorReferenceSQLParameters(t *testing.T) {
 	}
 }
 
-func TestHackSQLParametersKeepVisitorReferences(t *testing.T) {
-	for _, mode := range []string{CallerModeEvents, CallerModeHackSite} {
+func TestGroupSQLParametersKeepVisitorReferences(t *testing.T) {
+	for _, mode := range []string{CallerModeEvents, CallerModeGroupSite} {
 		for _, event := range []bool{false, true} {
 			s, up := privacyServer()
 			ref, _ := s.cfg.VisitorRefs.Encode(privacySite, privacyUser)

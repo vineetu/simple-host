@@ -3,11 +3,11 @@ package servertest
 import (
 	"archive/zip"
 	"bytes"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 )
 
@@ -72,7 +72,7 @@ func TestHackWebsiteZipUploads(t *testing.T) {
 }
 
 func TestHackArchiveValidationReasons(t *testing.T) {
-	h := handler.NewSiteHandler(edition.ForKind(edition.Hack), "", nil, nil, "", "", "", "", "", "", nil, 0, "", "", nil, nil)
+	h := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", nil, nil, "", "", "", "", "", "", nil, 0, "", "", nil, nil)
 	for _, tc := range []struct{ name, message string }{
 		{"nested/index.html", "no index.html at the root"},
 		{"index.html", ""},

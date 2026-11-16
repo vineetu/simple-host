@@ -290,7 +290,7 @@ func (h *SiteHandler) serveViewerPage(w http.ResponseWriter, r *http.Request, pa
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
-	if !h.pipeline().chromeHack {
+	if !h.pipeline().chromeProduct {
 		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
 	}
 	if len(apex) > 0 && publicBaseOrigin(apex[0]) != nil {
@@ -306,7 +306,7 @@ func (h *SiteHandler) serveViewerPage(w http.ResponseWriter, r *http.Request, pa
 func (h *SiteHandler) viewerPageHTML(r *http.Request, page viewerPage, next, email, msg string) string {
 	host := requestHostName(r)
 	var b strings.Builder
-	if h.pipeline().chromeHack {
+	if h.pipeline().chromeProduct {
 		b.WriteString(viewerGateHead)
 	} else {
 		b.Write(h.pipeline().hostedStatusPage(viewerGateHead))

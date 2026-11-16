@@ -64,13 +64,13 @@ func runTestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 	}
 }
 
-func TestStorageToolsScopedToSelectedHackTeam(t *testing.T) {
+func TestStorageToolsScopedToSelectedGroup(t *testing.T) {
 	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageToolsScopedToSelectedHackTeam(t) })
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageToolsScopedToSelectedGroup(t) })
 	}
 }
 
-func runTestStorageToolsScopedToSelectedHackTeam(t *testing.T) {
+func runTestStorageToolsScopedToSelectedGroup(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) }))
 	full, _, byName := s.forCaller(Caller{APIKey: "person", Mode: CallerModeEvents, GrantID: "grant", TeamAPIKey: "team"})
 	if len(full) == 0 || byName["storage_sql_schema"].Name == "" {

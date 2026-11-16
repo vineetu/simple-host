@@ -10,14 +10,22 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/brain"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/extension"
 	"github.com/vsriram/simple-host/internal/geoip"
 )
 
+// Options supplies program-specific registration data from the composition root.
+type Options struct {
+	KnowledgeProducts []brain.ProductFilter
+	// Redirects maps mux patterns to targets for legacy 302 responses.
+	Redirects map[string]string
+}
+
 // Run is the whole program. Failures return a code without exiting the process.
-func Run(args []string, exts []*extension.Extension) int {
+func Run(args []string, exts []*extension.Extension, options ...Options) int {
 	if len(exts) > 1 {
 		log.Print("at most one extension is supported")
 		return 1
@@ -35,7 +43,7 @@ func Run(args []string, exts []*extension.Extension) int {
 		log.Printf("load config: %v", err)
 		return 1
 	}
-	app, err := Build(cfg, exts)
+	app, err := Build(cfg, exts, options...)
 	if err != nil {
 		log.Print(err)
 		return 1

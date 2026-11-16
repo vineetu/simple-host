@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
 	model "github.com/vsriram/simple-host/internal/model"
 )
@@ -296,8 +295,8 @@ func TestNotifySiteEventsBodyTooLarge(t *testing.T) {
 	}
 }
 
-func TestNotifySiteEventsHack(t *testing.T) {
-	h := &SiteHandler{ed: edition.ForKind(edition.Hack)}
+func TestNotifySiteEventsGroup(t *testing.T) {
+	h := &SiteHandler{ed: groupTestEdition()}
 	if got := h.notifyEventNames(); len(got) != 3 {
 		t.Fatalf("Hack event names: %v", got)
 	}

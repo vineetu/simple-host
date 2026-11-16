@@ -4,27 +4,8 @@ package edition
 
 import "github.com/vsriram/simple-host/internal/config"
 
-// Kind identifies the product edition.
-type Kind int
-
-const (
-	// Host is the website hosting edition.
-	Host Kind = iota
-	// Hack is the hosted events edition.
-	Hack
-)
-
-// String returns the edition name.
-func (k Kind) String() string {
-	if k == Hack {
-		return "hack"
-	}
-	return "host"
-}
-
 // Edition holds immutable instance policy.
 type Edition struct {
-	kind          Kind
 	routes        RoutePolicy
 	presentation  PresentationPolicy
 	identity      IdentityPolicy
@@ -33,32 +14,14 @@ type Edition struct {
 	limits        config.Limits
 }
 
-// New derives instance policy from configuration.
-func New(cfg config.Config) *Edition {
-	if cfg.Events == "hosted" {
-		return ForKindWithLimits(Hack, cfg.Limits)
-	}
-	return ForKindWithLimits(Host, cfg.Limits)
+// FromPolicies constructs an immutable edition from product-neutral values.
+func FromPolicies(routes RoutePolicy, presentation PresentationPolicy, identity IdentityPolicy, storage StoragePolicy, notifications NotificationPolicy, limits config.Limits) *Edition {
+	return &Edition{routes: routes, presentation: presentation, identity: identity, storage: storage, notifications: notifications, limits: limits}
 }
 
-// ForKind constructs policy for the given edition. Each policy is built in
-// its own file (routes.go, presentation.go, identity.go, storage.go,
-// notifications.go).
-func ForKind(k Kind) *Edition {
-	return ForKindWithLimits(k, config.DefaultLimits())
-}
-
-// ForKindWithLimits constructs an edition with the supplied instance limits.
-func ForKindWithLimits(k Kind, limits config.Limits) *Edition {
-	return &Edition{
-		kind:          k,
-		routes:        routesFor(k),
-		presentation:  presentationFor(k),
-		identity:      identityFor(k),
-		storage:       storageFor(k),
-		notifications: notificationsFor(k),
-		limits:        limits,
-	}
+// Default constructs the platform's policy with the supplied operational limits.
+func Default(limits config.Limits) *Edition {
+	return FromPolicies(RoutePolicy{}, PresentationPolicy{ProductName: "Simple Host"}, IdentityPolicy{PersonalSites: true}, StoragePolicy{Photos: true, LegacyRoutes: true, FileCaps: true}, NotificationPolicy{}, limits)
 }
 
 // Limits returns the instance's operational limits as a value copy.
@@ -66,7 +29,7 @@ func (e *Edition) Limits() config.Limits { return e.or().limits }
 
 // host answers for a nil Edition (a bare &SiteHandler{} in a test), so it
 // behaves as Simple Host, as the old global's zero value did.
-var host = ForKind(Host)
+var host = Default(config.DefaultLimits())
 
 func (e *Edition) or() *Edition {
 	if e == nil {
@@ -74,9 +37,6 @@ func (e *Edition) or() *Edition {
 	}
 	return e
 }
-
-// Kind returns the product edition.
-func (e *Edition) Kind() Kind { return e.or().kind }
 
 // Routes returns the route policy.
 func (e *Edition) Routes() RoutePolicy { return e.or().routes }

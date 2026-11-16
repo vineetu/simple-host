@@ -329,7 +329,7 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	if caller.DeployOnly {
 		search = s.deploySearch
 	}
-	flat := s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite && flatListApp(caller.AppName)
+	flat := s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeGroupSite && flatListApp(caller.AppName)
 	context := s.offersAnalyticsContext(caller)
 	screen := s.passcodeScreenEnabled(caller)
 	if !flat && !context && !screen && !storageRulesEnabled() {

@@ -32,7 +32,7 @@ func TestSignInCodeLifetimeWording(t *testing.T) {
 	}
 }
 
-func TestHackMailJournalOmitsMessageDetails(t *testing.T) {
+func TestProductMailJournalOmitsMessageDetails(t *testing.T) {
 	var output bytes.Buffer
 	old := log.Writer()
 	log.SetOutput(&output)
@@ -52,7 +52,8 @@ func TestHackMailJournalOmitsMessageDetails(t *testing.T) {
 	}))
 	defer server.Close()
 	s := NewResendSender("test-key", "hack@example.com")
-	s.SetProductName("Simple Hack")
+	s.SetProductName("Test product")
+	s.SetJournal("test_mail_send")
 	s.endpoint = server.URL
 	if err := s.SendSignInCode("private@example.com", "654321", "https://private.example/code"); err != nil {
 		t.Fatal(err)
@@ -61,8 +62,8 @@ func TestHackMailJournalOmitsMessageDetails(t *testing.T) {
 	if err := s.SendNotice("private@example.com", "private subject", "private body"); err == nil {
 		t.Fatal("expected provider failure")
 	}
-	if got := output.String(); !strings.Contains(got, "hack_mail_send outcome=accepted id=mail-123") ||
-		!strings.Contains(got, "hack_mail_send outcome=failed reason=http_403") {
+	if got := output.String(); !strings.Contains(got, "test_mail_send outcome=accepted id=mail-123") ||
+		!strings.Contains(got, "test_mail_send outcome=failed reason=http_403") {
 		t.Fatalf("missing aggregate records: %s", got)
 	}
 	for _, secret := range []string{"private@example.com", "654321", "private subject", "private body", "test-key", "private.example"} {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -60,7 +61,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	if len(eds) > 0 {
 		ed = eds[0]
 	} else {
-		ed = edition.ForKind(edition.Host)
+		ed = edition.Default(config.DefaultLimits())
 	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {

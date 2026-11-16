@@ -18,7 +18,7 @@ import (
 // an install that sets none of them behaves exactly as before.
 //
 // main loads one Limits value (config.Load) and passes it into
-// edition.New(cfg); every handler, and the leaf packages that enforce or
+// the composition root's policy constructor; every handler, and the leaf packages that enforce or
 // state a share of it (db, mcp, tarball), reads its own copy from the
 // edition it was built with (ed.Limits()) rather than a shared global. Code
 // that states one of these values to a person (an email, a page, an MCP tool
@@ -99,22 +99,6 @@ type Limits struct {
 	EventTTL             time.Duration // EVENT_TTL_DAYS
 	EventMaxClaims       int           // EVENT_MAX_CLAIMS
 
-	// Hosted events (EVENTS=hosted, simple-hack.app). No caps on how big an
-	// event is; these only keep one account from flooding the instance.
-	EventLimitExemptRaw        string        // EVENT_LIMIT_EXEMPT
-	EventCreatePerDay          int           // EVENT_CREATE_PER_DAY
-	EventMaxActivePerOrganiser int           // EVENT_MAX_ACTIVE_PER_ORGANISER
-	EventTeamSizeDefault       int           // EVENT_TEAM_SIZE_DEFAULT
-	EventSitesKeep             time.Duration // EVENT_SITES_KEEP_DAYS (M4: team sites kept after the event closes)
-	EventRemovalWarn           time.Duration // EVENT_REMOVAL_WARN_DAYS (M4: one warning this long before team sites are removed)
-	HackInstanceBudgetGB       int           // HACK_INSTANCE_BUDGET_GB (0: no budget)
-	HackEventIconMaxBytes      int           // HACK_EVENT_ICON_MAX_BYTES
-	// Apply to a hackathon (zp-hack-applications.sql, owner 2026-10-31): the
-	// per-event ceiling on applications waiting for a decision, so many
-	// accounts cannot flood one event's queue (the per-account cap above is
-	// account-wide, across every event).
-	EventApplyPendingPerEvent int // EVENT_APPLY_PENDING_PER_EVENT
-
 	// Address families (handler/familyhost.go).
 	AddressFamilies       bool          // ADDRESS_FAMILIES: on/off (on)
 	FamiliesPerAccount    int           // ADDRESS_FAMILIES_PER_ACCOUNT
@@ -188,11 +172,6 @@ type Limits struct {
 	RateFamilyCheck            Rate          // RATE_LIMIT_ADDRESS_FAMILY_CHECK
 	RateFamilyCheckUser        Rate          // RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER
 	RateHandleCheck            Rate          // RATE_LIMIT_HANDLE_CHECK
-	RateEventCodesIP           Rate          // RATE_LIMIT_EVENT_CODES_IP
-	RateEventCodesUser         Rate          // RATE_LIMIT_EVENT_CODES_USER
-	RateEventNamesUser         Rate          // RATE_LIMIT_EVENT_NAMES_USER
-	RateEventApplyIP           Rate          // RATE_LIMIT_EVENT_APPLY_IP
-	RateEventApplyUser         Rate          // RATE_LIMIT_EVENT_APPLY_USER
 	RateOAuthRegister          Rate          // RATE_LIMIT_OAUTH_REGISTER
 	RateOAuthAuthorize         Rate          // RATE_LIMIT_OAUTH_AUTHORIZE
 	RateOAuthToken             Rate          // RATE_LIMIT_OAUTH_TOKEN
@@ -397,15 +376,6 @@ func DefaultLimits() Limits {
 		EventTTL:              21 * day,
 		EventMaxClaims:        5,
 
-		EventCreatePerDay:          20,
-		EventMaxActivePerOrganiser: 0,
-		EventTeamSizeDefault:       20,
-		EventSitesKeep:             30 * day,
-		EventRemovalWarn:           14 * day,
-		HackInstanceBudgetGB:       10,
-		HackEventIconMaxBytes:      128 << 10,
-		EventApplyPendingPerEvent:  500,
-
 		DeletedRetention:    7 * day,
 		IdleAfter:           90 * day,
 		IdleGrace:           30 * day,
@@ -460,11 +430,6 @@ func DefaultLimits() Limits {
 		RateFamilyCheck:            Rate{10, 10 * time.Second},
 		RateFamilyCheckUser:        Rate{3, 30 * time.Second},
 		RateHandleCheck:            Rate{30, 2 * time.Second},
-		RateEventCodesIP:           Rate{120, time.Second},
-		RateEventCodesUser:         Rate{20, 3 * time.Second},
-		RateEventNamesUser:         Rate{60, time.Second},
-		RateEventApplyIP:           Rate{30, 2 * time.Minute},
-		RateEventApplyUser:         Rate{5, 12 * time.Minute},
 		RateOAuthRegister:          Rate{10, 6 * time.Minute},
 		RateOAuthAuthorize:         Rate{30, 2 * time.Second},
 		RateOAuthToken:             Rate{30, 2 * time.Second},
@@ -602,24 +567,6 @@ func (l *Limits) MaxSitesFor(handles ...string) int {
 	return l.MaxSitesPerAccount
 }
 
-// EventLimitExempt matches sign-in emails against EVENT_LIMIT_EXEMPT.
-func (l Limits) EventLimitExempt(email string) bool {
-	email = strings.ToLower(strings.TrimSpace(email))
-	at := strings.LastIndex(email, "@")
-	if at <= 0 || at == len(email)-1 {
-		return false
-	}
-	for _, entry := range strings.Split(l.EventLimitExemptRaw, ",") {
-		entry = strings.ToLower(strings.TrimSpace(entry))
-		if entry == email || entry == email[at:] {
-			return true
-		}
-	}
-	return false
-}
-
-// ArchiveOverrides is MAX_ARCHIVE_MB_OVERRIDES as a map from lowercased
-// handle to that account's per-site cap in MB. Nil when none.
 func (l *Limits) ArchiveOverrides() map[string]int {
 	if l.MaxArchiveOverrides == "" {
 		return nil
@@ -839,20 +786,6 @@ func Knobs() []Knob {
 		intKnob("DOMAIN_CERTS_PER_ACCOUNT_DAILY", "certificates", 1, 1000, func(l *Limits) *int { return &l.DomainCertsDaily }),
 		durKnob("EVENT_TTL_DAYS", "days", d, 1, 60, func(l *Limits) *time.Duration { return &l.EventTTL }),
 		intKnob("EVENT_MAX_CLAIMS", "names", 1, 100, func(l *Limits) *int { return &l.EventMaxClaims }),
-		{Env: "EVENT_LIMIT_EXEMPT", Unit: "emails and domains",
-			Value: func(l *Limits) string { return l.EventLimitExemptRaw },
-			set: func(l *Limits, v string) error {
-				l.EventLimitExemptRaw = v
-				return nil
-			}},
-		intKnob("EVENT_CREATE_PER_DAY", "events", 0, 1000, func(l *Limits) *int { return &l.EventCreatePerDay }),
-		intKnob("EVENT_MAX_ACTIVE_PER_ORGANISER", "events", 0, 1000, func(l *Limits) *int { return &l.EventMaxActivePerOrganiser }),
-		intKnob("EVENT_APPLY_PENDING_PER_EVENT", "applications", 1, 100_000, func(l *Limits) *int { return &l.EventApplyPendingPerEvent }),
-		intKnob("EVENT_TEAM_SIZE_DEFAULT", "people", 1, 50, func(l *Limits) *int { return &l.EventTeamSizeDefault }),
-		durKnob("EVENT_SITES_KEEP_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventSitesKeep }),
-		durKnob("EVENT_REMOVAL_WARN_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventRemovalWarn }),
-		intKnob("HACK_INSTANCE_BUDGET_GB", "GB", 0, 100_000, func(l *Limits) *int { return &l.HackInstanceBudgetGB }),
-		intKnob("HACK_EVENT_ICON_MAX_BYTES", "bytes", 1, 4<<20, func(l *Limits) *int { return &l.HackEventIconMaxBytes }),
 
 		boolKnob("ADDRESS_FAMILIES", func(l *Limits) *bool { return &l.AddressFamilies }),
 		intKnob("ADDRESS_FAMILIES_PER_ACCOUNT", "families", 0, 100, func(l *Limits) *int { return &l.FamiliesPerAccount }),
@@ -982,11 +915,6 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_ADDRESS_FAMILY_CHECK", func(l *Limits) *Rate { return &l.RateFamilyCheck }),
 		rateKnob("RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER", func(l *Limits) *Rate { return &l.RateFamilyCheckUser }),
 		rateKnob("RATE_LIMIT_HANDLE_CHECK", func(l *Limits) *Rate { return &l.RateHandleCheck }),
-		rateKnob("RATE_LIMIT_EVENT_CODES_IP", func(l *Limits) *Rate { return &l.RateEventCodesIP }),
-		rateKnob("RATE_LIMIT_EVENT_CODES_USER", func(l *Limits) *Rate { return &l.RateEventCodesUser }),
-		rateKnob("RATE_LIMIT_EVENT_NAMES_USER", func(l *Limits) *Rate { return &l.RateEventNamesUser }),
-		rateKnob("RATE_LIMIT_EVENT_APPLY_IP", func(l *Limits) *Rate { return &l.RateEventApplyIP }),
-		rateKnob("RATE_LIMIT_EVENT_APPLY_USER", func(l *Limits) *Rate { return &l.RateEventApplyUser }),
 		secRateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),
 		secRateKnob("RATE_LIMIT_OAUTH_AUTHORIZE", func(l *Limits) *Rate { return &l.RateOAuthAuthorize }),
 		secRateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),
@@ -1110,9 +1038,12 @@ func parseRate(env, v string) (Rate, error) {
 // and a RATE_LIMIT_* variable in environ ("NAME=value" lines, os.Environ in
 // production) that is not a setting at all, most likely a typo, whose
 // intended limit is therefore not in force.
-func (l Limits) Warnings(environ []string) []string {
+func (l Limits) Warnings(environ []string, productSettings ...Setting) []string {
 	def := DefaultLimits()
 	known := map[string]bool{}
+	for _, s := range productSettings {
+		known[s.Name] = true
+	}
 	var out []string
 	for _, k := range Knobs() {
 		known[k.Env] = true

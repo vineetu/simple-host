@@ -24,7 +24,7 @@ func TestHackWhoAmIEmailOptIn(t *testing.T) {
 					caller.TeamAPIKey = "team"
 				}
 				if connection == "team-key" {
-					caller.APIKey, caller.Mode = "team", mcp.CallerModeHackSite
+					caller.APIKey, caller.Mode = "team", mcp.CallerModeGroupSite
 				}
 				s := newTestServer(up)
 				r := httptest.NewRequest("POST", "/mcp", strings.NewReader(toolCall("who_am_i", args)))

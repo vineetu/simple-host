@@ -178,7 +178,7 @@ func TestRedirectsOnAddresses(t *testing.T) {
 		t.Fatal(r.status, string(r.body))
 	}
 }
-func TestRedirectsOnFamilyAndHackTeam(t *testing.T) {
+func TestRedirectsOnFamilyAndGroupSite(t *testing.T) {
 	a, _, famDir, dns := newFamilyApp(t)
 	owner := a.newPerson(t, "family-redirect")
 	key := map[string]string{"X-API-Key": owner.key}
@@ -197,7 +197,7 @@ func TestRedirectsOnFamilyAndHackTeam(t *testing.T) {
 	if r := b.at(t, "POST", pcSiteDomain, "/v1/sites/alpha/files", map[string]any{"files": files}, map[string]string{"X-API-Key": event.key}); r.status != 201 {
 		t.Fatal(r.status, string(r.body))
 	}
-	asHackFlat(b)
+	asGroupFlat(b)
 	if r := b.at(t, "GET", "alpha--"+eventHandle+"."+pcSiteDomain, "/old", nil, nil); r.status != 301 || r.header.Get("Location") != "/new" {
 		t.Fatal(r.status, r.header)
 	}

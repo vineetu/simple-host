@@ -9,7 +9,9 @@ import (
 // BrainStore adapts product knowledge to the HTTP consumer's narrow interface.
 type BrainStore struct{ store *brain.Store }
 
-func OpenBrainStore(path string) *BrainStore { return &BrainStore{brain.Open(path)} }
+func OpenBrainStore(path string, products ...brain.ProductFilter) *BrainStore {
+	return &BrainStore{brain.Open(path, products...)}
+}
 func (s *BrainStore) Call(name string, args map[string]any) (string, map[string]any, error) {
 	result, err := s.store.Call(name, args)
 	return result.Text, result.Structured, err

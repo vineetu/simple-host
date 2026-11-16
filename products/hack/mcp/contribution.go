@@ -28,7 +28,7 @@ func Contribution() mcp.Contribution {
 			switch mode {
 			case mcp.CallerModeEvents:
 				return HackInstructions()
-			case mcp.CallerModeHackSite:
+			case mcp.CallerModeGroupSite:
 				return HackSiteInstructions()
 			}
 			return ""

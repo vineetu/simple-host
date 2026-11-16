@@ -2,12 +2,12 @@ package servertest
 
 import (
 	"encoding/json"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
@@ -18,7 +18,7 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	filtered, err := hackhttp.NewAssets(chromeTestHandler(edition.Hack).AssetServices(), "").Hooks().OpenAPISpec(source)
+	filtered, err := hackhttp.NewAssets(chromeTestHandler(productedition.Hack).AssetServices(), "").Hooks().OpenAPISpec(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,10 +47,10 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	if !strings.Contains(string(filtered), "/storage/resources") {
 		t.Fatal("current storage missing from Hack OpenAPI")
 	}
-	hackSite := chromeTestHandler(edition.Hack)
+	groupSite := chromeTestHandler(productedition.Hack)
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-hack.app", hackSite)
-	mountHackFiles(mux, hackSite)
+	handler.RegisterUIRoutes(mux, "https://simple-hack.app", groupSite)
+	mountHackFiles(mux, groupSite)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/docs/", nil))
 	if w.Code != http.StatusOK {
@@ -68,8 +68,8 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 }
 
 func TestHelpPagesExcludePersonalPresentationOnHack(t *testing.T) {
-	host := chromeTestMux(t, edition.Host)
-	hack := chromeTestMux(t, edition.Hack)
+	host := chromeTestMux(t, productedition.Host)
+	hack := chromeTestMux(t, productedition.Hack)
 	for _, name := range []string{"features", "architecture.html"} {
 		needle := "selected home"
 		if name == "features" {

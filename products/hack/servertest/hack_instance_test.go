@@ -3,6 +3,8 @@ package servertest
 import (
 	"archive/zip"
 	"bytes"
+	"github.com/vsriram/simple-host/internal/config"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"net/http"
 	"strings"
@@ -15,7 +17,7 @@ import (
 )
 
 func TestFullHackInstancePresentation(t *testing.T) {
-	sh := chromeTestHandlerWithBase(edition.Hack, "http://localhost:18480")
+	sh := chromeTestHandlerWithBase(productedition.Hack, "http://localhost:18480")
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	for _, path := range []string{"/", "/get-started"} {
@@ -60,7 +62,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 			t.Fatalf("instance plugin file %s points to hosted service", f.Name)
 		}
 	}
-	hostAssets := handler.NewPages(edition.ForKind(edition.Host), "")
+	hostAssets := handler.NewPages(edition.Default(config.DefaultLimits()), "")
 	if string(hostAssets.InstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
 		t.Fatal("Host text changed")
 	}

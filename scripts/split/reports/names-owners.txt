@@ -1,0 +1,21 @@
+D3-S4 remaining-name ownership
+============================
+Runtime Go identifiers: none beyond source-names.txt exceptions.
+
+config.Events, loadEvents, EventsHosted and EVENTS: transitional selector;
+only cmd/server chooses the extension. D3-S6b removes the selector.
+internal/server/testdata/{routes,workers}-hack.txt: D3-S6b, per NOTES.md.
+db/migrations product tests and fixtures: D3-S5c, per NOTES.md.
+internal/webassets/openapi.go hackOpenAPIDescription: D3-S3 (parallel slice).
+Product text in the shared chrome partials and docs/API references: D3-S3.
+
+Retained compatibility values, with neutral Go identifiers:
+- internal/mcp: caller mode "hack_site" is an established wire value; identifiers
+  now say group/product, and registry inventories use "product". The
+  program-specific docs generator supplies the concrete product name.
+- internal/webassets/static/auth.js: the published visitor-apex fallback for
+  existing hosted addresses. Retained byte-for-byte; no visitor change here.
+- cmd/server: compatibility redirects are composition-root registration data;
+  internal/server registers their neutral patterns and targets with status 302.
+- GroupManagementScope and GroupSiteScopePrefix retain "events" and "team:"
+  so already-issued grants keep the same interpretation.

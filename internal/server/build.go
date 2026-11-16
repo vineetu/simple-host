@@ -50,13 +50,26 @@ type App struct {
 
 // Build constructs the program in startup order. Close releases its dependencies;
 // on failure Build releases every dependency it has already opened.
-func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
+func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (_ *App, err error) {
+	var opts Options
+	if len(options) > 0 {
+		opts = options[0]
+	}
 	if len(exts) > 1 {
 		return nil, fmt.Errorf("at most one extension is supported")
 	}
 	var ext *extension.Extension
 	if len(exts) == 1 {
 		ext = exts[0]
+	}
+	if ext != nil && ext.Config.Load != nil {
+		warnings, loadErr := ext.Config.Load(os.Getenv)
+		if loadErr != nil {
+			return nil, fmt.Errorf("load product config: %w", loadErr)
+		}
+		for _, warning := range warnings {
+			log.Printf("WARNING: %s", warning)
+		}
 	}
 	maintenance, err := storage.LockMaintenance(cfg.DataDir, false)
 	if err != nil {
@@ -71,7 +84,11 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	if changed := cfg.Limits.Changed(); len(changed) > 0 {
 		log.Printf("limits changed from the defaults: %s", strings.Join(changed, " "))
 	}
-	for _, w := range cfg.Limits.Warnings(os.Environ()) {
+	var productSettings []config.Setting
+	if ext != nil {
+		productSettings = ext.Config.Settings
+	}
+	for _, w := range cfg.Limits.Warnings(os.Environ(), productSettings...) {
 		log.Printf("WARNING: %s", w)
 	}
 
@@ -143,7 +160,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
 	// registered, because the dashboard, the chrome and the host dispatch read it.
-	ed := edition.ForKindWithLimits(edition.Host, cfg.Limits)
+	ed := edition.Default(cfg.Limits)
 	if ext != nil && ext.Edition != nil {
 		ed = ext.Edition(cfg.Limits)
 	}
@@ -152,9 +169,9 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// pipeline's inkBaseURL, assets.go): captured here, before setup mode
 	// below may rewrite cfg.PublicBaseURL to a saved domain, so construction
 	// always sees the originally configured address.
-	var hackInstanceURL string
+	var productInstanceURL string
 	if hosted {
-		hackInstanceURL = cfg.PublicBaseURL
+		productInstanceURL = cfg.PublicBaseURL
 		log.Printf("hosted events: on (the hackathon platform at %s)", cfg.PublicBaseURL)
 	}
 
@@ -179,7 +196,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		cfg.SiteBaseDomain = savedDomain
 		log.Printf("configured by setup: %s / %s", savedDomain, savedContent)
 	} else if !cfg.SiteDomainSet {
-		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir, ed, hackInstanceURL)
+		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir, ed, productInstanceURL)
 		setup.Register(mux)
 		log.Printf("SETUP MODE: no hostname configured; serving the setup page on %s", net.JoinHostPort(cfg.BindAddr, cfg.Port))
 		return &App{Mux: mux, Handler: mux, Workers: &workers.Set{}, Close: closeDeps, setupDone: setup.Done()}, nil
@@ -215,7 +232,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// the same team); elsewhere SUPPORT_EMAIL when the operator set one
 	// (the clearly-named setting), else IDLE_REPLY_TO (the older, doubled-up
 	// one) when that is set, else whoever runs the server.
-	if cfg.SiteDomain != "simple-host.app" && cfg.SiteDomain != "simple-hack.app" {
+	if cfg.SiteDomain != "simple-host.app" && "https://"+cfg.SiteDomain != ed.Presentation().CanonicalBaseURL {
 		contact := "whoever runs this server"
 		// IDLE_REPLY_TO's own validator is looser than SUPPORT_EMAIL's (it
 		// predates this use and must keep accepting values already in use
@@ -238,7 +255,10 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		auth.SetSupportContact(contact, cfg.ResendAPIKey != "")
 	}
 
-	pluginVersion, err := handler.PluginVersion(ed.Presentation().ProductAssets)
+	pluginVersion, err := handler.PluginVersion()
+	if v := ed.Presentation().PluginVersion; v != "" {
+		pluginVersion, err = v, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("read plugin.json version: %v", err)
 	}
@@ -281,7 +301,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	userHandler := handler.NewUserHandler(db, accountsService, mailer, cfg.PublicBaseURL, ed)
 	userHandler.SetPasswordSignIn(cfg.PasswordSignIn == "on", cfg.PasswordSelfSignup != "off")
 	userHandler.Register(mux, authMW, noticeMW)
-	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	siteHandler := handler.NewSiteHandler(ed, productInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	if ext != nil && ext.Assets != nil {
 		assets := ext.Assets(siteHandler)
 		siteHandler.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
@@ -405,9 +425,12 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// simple-host.app only, on when BRAIN_DIR holds the bundle sh-brain-sync
 	// builds. Never on the hackathon platform.
 	if dir := os.Getenv("BRAIN_DIR"); dir != "" && !hosted {
-		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"), mcp.OpenBrainStore(filepath.Join(dir, "bundle.json")))
+		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"), mcp.OpenBrainStore(filepath.Join(dir, "bundle.json"), opts.KnowledgeProducts...))
 	}
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
+	for pattern, target := range opts.Redirects {
+		mux.Handle(pattern, http.RedirectHandler(target, http.StatusFound))
+	}
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
 
 	// Image matching (SIM-200): uploaded images are checked against known
@@ -544,7 +567,7 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 	// only. PAPER_METRICS=off turns it off. docs/paper-metrics.md.
 	var paper *papermetrics.Collector
 	paperOn := papermetrics.Enabled()
-	paperConfig := map[string]any{"limits": cfg.Limits, "events": cfg.Events, "write_auth_mode": cfg.WriteAuthMode, "person_hosts": cfg.PersonHosts, "site_hosts": cfg.SiteHosts, "paper_metrics": paperOn}
+	paperConfig := map[string]any{"limits": cfg.Limits, "events": map[bool]string{false: "off", true: "hosted"}[hosted], "write_auth_mode": cfg.WriteAuthMode, "person_hosts": cfg.PersonHosts, "site_hosts": cfg.SiteHosts, "paper_metrics": paperOn}
 	if paperOn {
 		apex := []string{cfg.SiteDomain}
 		if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
@@ -552,8 +575,8 @@ func Build(cfg config.Config, exts []*extension.Extension) (_ *App, err error) {
 		}
 		paper = papermetrics.New(db, cfg.DataDir, apex...).WithRunConfig(paperConfig).WithCommit(buildinfo.Commit)
 		paper.KVFileStats = siteHandler.KVFileStats
-		if parts.PaperHack != nil {
-			parts.PaperHack(paper)
+		if parts.ProductMetrics != nil {
+			parts.ProductMetrics(paper)
 		}
 		mux.Handle("GET /v1/admin/paper-metrics", authMW(paper.Export(func(r *http.Request) (bool, bool) {
 			u := auth.GetUser(r.Context())

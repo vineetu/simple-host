@@ -117,7 +117,7 @@ func TestZeroContributionHostInventory(t *testing.T) {
 			}
 		}
 		for _, entry := range host.inventory() {
-			if entry.edition == editionHack {
+			if entry.edition == editionProduct {
 				t.Fatalf("zero contribution registered %s", entry.tool.Name)
 			}
 		}
@@ -228,7 +228,7 @@ func TestContributionAppFamily(t *testing.T) {
 	}
 	var names, families []string
 	for _, entry := range s.inventory() {
-		if entry.edition == editionHack {
+		if entry.edition == editionProduct {
 			names, families = append(names, entry.tool.Name), append(families, string(entry.family))
 		}
 	}
@@ -244,7 +244,7 @@ func TestContributionAppFamily(t *testing.T) {
 	// The documentation inventory composes the same family.
 	var inventory []string
 	for _, entry := range Inventory(*product) {
-		if entry.Edition == "hack" {
+		if entry.Edition == "product" {
 			inventory = append(inventory, entry.Name+"/"+entry.Family)
 		}
 	}
@@ -256,7 +256,7 @@ func TestContributionAppFamily(t *testing.T) {
 		product := fixtureProduct()
 		product.Apps = apps
 		for _, entry := range NewServer(Config{Contribution: product}).inventory() {
-			if entry.edition == editionHack && entry.family != "fixture" {
+			if entry.edition == editionProduct && entry.family != "fixture" {
 				t.Fatalf("no AppFamily registered %s", entry.tool.Name)
 			}
 		}
@@ -285,7 +285,7 @@ func TestContributionSitesPage(t *testing.T) {
 	if strings.Contains(host, "__HACK__") || strings.Contains(host, "__PRODUCT__") {
 		t.Fatal("platform page left a placeholder")
 	}
-	for _, caller := range []Caller{{Mode: CallerModeHackSite}, {Mode: CallerModeEvents, GrantID: "grant"}} {
+	for _, caller := range []Caller{{Mode: CallerModeGroupSite}, {Mode: CallerModeEvents, GrantID: "grant"}} {
 		page := read(with, caller)
 		if !strings.Contains(page, "window.FIXTURE_PRODUCT_SCRIPT = true") || !strings.Contains(page, "Fixture Product") || strings.Contains(page, "__HACK__") {
 			t.Fatalf("product page not rendered for %+v", caller)
@@ -313,7 +313,7 @@ func TestContributionMutationNames(t *testing.T) {
 	const message = "Fixture: this tool was retired. [fixture_retired]"
 	s := NewServer(Config{Contribution: fixtureProduct(), Upstream: up})
 	want, _ := json.Marshal(toolResult(json.RawMessage("1"), message, nil, true, false))
-	for _, caller := range []Caller{{}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {Mode: CallerModeHackSite}, {DeployOnly: true}} {
+	for _, caller := range []Caller{{}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {Mode: CallerModeGroupSite}, {DeployOnly: true}} {
 		got, _ := json.Marshal(call(s, caller, "fixture_retired"))
 		if string(got) != string(want) {
 			t.Fatalf("as %+v: %s", caller, got)

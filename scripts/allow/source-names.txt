@@ -3,3 +3,9 @@
 # for the boundary's policy even though the identifier scan does not flag literals.
 internal/rules/sites/sites.go | ^simple-hack$ | Reserved site name prevents impersonating the product.
 internal/rules/sites/sites.go | ^simplehack$ | Reserved site name prevents impersonating the product.
+
+internal/config/config.go | ^(Events|loadEvents|EventsHosted)$ | Transitional composition-root selector; removed by D3-S6b.
+internal/config/settings.go | ^EVENTS$ | Transitional composition-root setting; removed by D3-S6b.
+internal/webassets/openapi.go | ^hackOpenAPIDescription$ | Product OpenAPI description extraction is owned by parallel slice D3-S3.
+
+internal/webassets/static/auth.js | simple-hack | Published visitor-apex fallback; retained for compatibility with existing hosted addresses.

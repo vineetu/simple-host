@@ -22,7 +22,7 @@ func fixtureProduct() *Contribution {
 			switch mode {
 			case CallerModeEvents:
 				return "Fixture product: a personal connection."
-			case CallerModeHackSite:
+			case CallerModeGroupSite:
 				return "Fixture product: a group-site connection."
 			}
 			return ""

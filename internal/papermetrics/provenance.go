@@ -41,6 +41,17 @@ func (c *Collector) WithRunConfig(values map[string]any) *Collector {
 	}
 	return c
 }
+
+// WithRunLimits replaces the whitelisted limits value with a product's parsed
+// limits, including its platform limits. Other run configuration is retained.
+func (c *Collector) WithRunLimits(limits any) *Collector {
+	if c.runConfig == nil {
+		c.runConfig = map[string]any{}
+	}
+	c.runConfig["limits"] = limits
+	return c
+}
+
 func configHash(values map[string]any) string {
 	filtered := map[string]any{}
 	for _, key := range runConfigKeys {

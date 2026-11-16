@@ -3,6 +3,7 @@ package hackhttp
 import (
 	"context"
 	"fmt"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
@@ -40,7 +40,7 @@ func TestHackDemoResetScript(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Four local resets, independent of earlier tests using this same admin row.
-	limits := config.DefaultLimits()
+	limits := productconfig.DefaultLimits()
 	limits.EventCreatePerDay = previousCreates + 4
 	setHackAppLimits(a, limits)
 	testStart := time.Now()

@@ -1,11 +1,10 @@
 package hackhttp
 
 import (
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/config"
 )
 
 func TestHackEventCreationLimits(t *testing.T) {
@@ -36,7 +35,7 @@ func TestHackEventCreationLimits(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			l := config.DefaultLimits()
+			l := productconfig.DefaultLimits()
 			if tc.name != "defaults" {
 				l.EventCreatePerDay, l.EventMaxActivePerOrganiser = tc.perDay, tc.maxActive
 			}

@@ -562,7 +562,7 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: f.sid, OwnerID: a.uid(t, f.other), Hack: true, Source: "owner", URL: f.x.server.URL, Events: []string{"record.added"}, Secret: notifyTestSecret, VerifiedAt: &now}
+	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: f.sid, OwnerID: a.uid(t, f.other), Product: true, Source: "owner", URL: f.x.server.URL, Events: []string{"record.added"}, Secret: notifyTestSecret, VerifiedAt: &now}
 	done := make(chan error, 1)
 	go func() {
 		_, _, err := notifyapp.New(a.database, nil).WithGroupSites(hack.NotificationGroups{}).SaveNotification(context.Background(), n, 10, nil, 7, a.sites.NotificationSecretsForTest())

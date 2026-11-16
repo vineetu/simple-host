@@ -107,7 +107,7 @@ func TestUploadExpiryLimitAndFailedDeploy(t *testing.T) {
 
 func TestUploadToolModes(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	for _, caller := range []Caller{{}, {Mode: CallerModeHackSite}, {Mode: CallerModeEvents}} {
+	for _, caller := range []Caller{{}, {Mode: CallerModeGroupSite}, {Mode: CallerModeEvents}} {
 		tools, _, _ := s.forCaller(caller)
 		names := map[string]bool{}
 		for _, tool := range tools {

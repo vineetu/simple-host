@@ -3,6 +3,7 @@ package servertest
 import (
 	"context"
 	"encoding/hex"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,7 +14,7 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
+
 	"github.com/vsriram/simple-host/internal/handler"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/server"
@@ -28,7 +29,7 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	markReady(t, a.certDir, event)
 	wantTS(t, "team", a.deployTeam(t, team, a.teamKey(t, event, member), "team"), 201, "")
 	wantTS(t, "event website", a.api(t, "PUT", "/v1/hack/events/"+event+"/website/files?create=1", deployBody("event"), organiser.key), 201, "")
-	o := handler.NewOAuthHandler(a.database, accountapp.New(a.database), server.OAuthSettings(config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain}, accountapp.New(a.database)), edition.ForKind(edition.Hack))
+	o := handler.NewOAuthHandler(a.database, accountapp.New(a.database), server.OAuthSettings(config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain}, accountapp.New(a.database)), productedition.ForKind(productedition.Hack))
 	o.SetPersonSiteResolver(a.sites.PersonReturnSite)
 	o.SetPasscodeCheck(a.sites.PasscodeLetsIn)
 	a.sites.SetSSOHop(o)

@@ -63,7 +63,7 @@ func TestNotificationGroupsNilAndErrors(t *testing.T) {
 	if _, err := svc.GroupLabel(ctx, s.ownerID); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("nil label: %v", err)
 	}
-	_, _, err = svc.SaveNotification(ctx, model.Notification{ID: "sub_refused", SiteID: s.sid, OwnerID: s.ownerID, Hack: true}, 10, nil, 7, model.NotificationSecrets{})
+	_, _, err = svc.SaveNotification(ctx, model.Notification{ID: "sub_refused", SiteID: s.sid, OwnerID: s.ownerID, Product: true}, 10, nil, 7, model.NotificationSecrets{})
 	if !errors.Is(err, model.ErrNotificationAccess) {
 		t.Fatalf("nil save: %v", err)
 	}

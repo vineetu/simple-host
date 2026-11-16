@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/config"
 	"io"
 	"strings"
 	"testing"
@@ -15,14 +16,14 @@ import (
 
 func TestImportTARMetadataPayloadBudget(t *testing.T) {
 	const valueSize = (64 << 10) - 32
-	files, err := unpackImportTest(t, physicalPAX(t, 16, valueSize), edition.ForKind(edition.Host).Limits())
+	files, err := unpackImportTest(t, physicalPAX(t, 16, valueSize), edition.Default(config.DefaultLimits()).Limits())
 	if err != nil {
 		t.Fatal("payload within metadata budget rejected:", err)
 	}
 	if want := int64(16 * len(paxBody(strings.Repeat("x", valueSize)))); files.metadata != want {
 		t.Fatalf("charged %d metadata bytes, want %d payload bytes", files.metadata, want)
 	}
-	if _, err := unpackImportTest(t, physicalPAX(t, 21, 64<<10), edition.ForKind(edition.Host).Limits()); err == nil || !strings.Contains(err.Error(), "extended headers") {
+	if _, err := unpackImportTest(t, physicalPAX(t, 21, 64<<10), edition.Default(config.DefaultLimits()).Limits()); err == nil || !strings.Contains(err.Error(), "extended headers") {
 		t.Fatal("oversized metadata payload accepted:", err)
 	}
 }
@@ -49,7 +50,7 @@ func TestImportGNUPAX5000Photos(t *testing.T) {
 	if err := w.Close(); err != nil {
 		t.Fatal(err)
 	}
-	files, err := unpackImportTest(t, body.Bytes(), edition.ForKind(edition.Host).Limits())
+	files, err := unpackImportTest(t, body.Bytes(), edition.Default(config.DefaultLimits()).Limits())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +102,7 @@ func TestImportZIP64OrdinaryEOCDFields(t *testing.T) {
 			e := bytes.Clone(e)
 			tc.change(e)
 			archive := append(bytes.Clone(prefix), e...)
-			files, err := unpackImportTest(t, archive, edition.ForKind(edition.Host).Limits())
+			files, err := unpackImportTest(t, archive, edition.Default(config.DefaultLimits()).Limits())
 			if tc.valid {
 				if err != nil || len(files.Xml) != 1 {
 					t.Fatal("valid ZIP64 rejected:", err)

@@ -56,7 +56,7 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 		return false, false, err
 	}
 	defer tx.Rollback()
-	if n.Hack {
+	if n.Product {
 		if err := access.LockNotificationMember(ctx, tx, n.SiteID, n.OwnerID); err != nil {
 			return false, false, model.ErrNotificationAccess
 		}
@@ -78,7 +78,7 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE id=$1), (SELECT count(*) FROM site_notifications WHERE site_id=$2)`, n.ID, n.SiteID).Scan(&exists, &count); err != nil {
 		return false, false, err
 	}
-	if n.Hack {
+	if n.Product {
 		ok, err := access.GroupNotificationAllowed(ctx, tx, n.SiteID, n.OwnerID, !exists)
 		if err != nil {
 			return false, false, err

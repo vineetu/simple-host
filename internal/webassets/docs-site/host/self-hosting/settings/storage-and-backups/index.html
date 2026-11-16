@@ -748,6 +748,18 @@ knows.</p>
 <td>The folder that holds every site’s files and versions.</td>
 </tr>
 <tr>
+<td><code>SITE_STORAGE_MAX_BYTES</code></td>
+<td><code>10000000</code></td>
+<td>1–10737418240 bytes</td>
+<td>Durable byte budget per site for KV and SQLite; SQLite WAL and backups need additional temporary disk.</td>
+</tr>
+<tr>
+<td><code>SITE_STORAGE_FILES_MAX_BYTES</code></td>
+<td><code>10000000</code></td>
+<td>1–10737418240 bytes</td>
+<td>Separate raw-file allowance per website.</td>
+</tr>
+<tr>
 <td><code>SITE_STORAGE_FILE_MAX_BYTES</code></td>
 <td><code>1000000</code></td>
 <td>1–10737418240 bytes</td>

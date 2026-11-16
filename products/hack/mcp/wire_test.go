@@ -136,7 +136,7 @@ func contributionSnapshot(t *testing.T, noSpamCheck bool) map[string]string {
 		"host": {}, "deploy": {DeployOnly: true}, "flat": {AppName: "ChatGPT"},
 		"flat-deploy": {AppName: "ChatGPT", DeployOnly: true},
 		"personal":    {Mode: mcp.CallerModeEvents}, "selected": {Mode: mcp.CallerModeEvents, GrantID: "grant", TeamAPIKey: "team"},
-		"unselected": {Mode: mcp.CallerModeEvents, GrantID: "grant"}, "team": {Mode: mcp.CallerModeHackSite},
+		"unselected": {Mode: mcp.CallerModeEvents, GrantID: "grant"}, "team": {Mode: mcp.CallerModeGroupSite},
 	}
 	for _, screens := range []string{"off", "on"} {
 		for _, flag := range []string{"MCP_APP_HACK_JUDGE", "MCP_APP_HACK_ORGANISER", "MCP_APP_MY_SITES", "MCP_APP_DASHBOARD", "MCP_APP_PASSCODE"} {

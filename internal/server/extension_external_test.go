@@ -34,7 +34,7 @@ func TestExtensionConstructionOrderAndWireError(t *testing.T) {
 		},
 		Edition: func(limits config.Limits) *edition.Edition {
 			order = append(order, "edition")
-			return edition.ForKindWithLimits(edition.Host, limits)
+			return edition.Default(limits)
 		},
 		Early: func(d extension.EarlyDeps) extension.EarlyHooks {
 			order = append(order, "early")

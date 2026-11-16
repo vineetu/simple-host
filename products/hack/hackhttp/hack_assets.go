@@ -393,6 +393,7 @@ func hackPersonalPresentationHTML(name string, body []byte) []byte {
 // Hack serves the same visitor sign-in and new storage helper as Host, without
 // the retired state, collection and declared-data browser methods.
 func hackAuthJS(b []byte) []byte {
+
 	cut := func(src []byte, start, end string) []byte {
 		i, j := bytes.Index(src, []byte(start)), bytes.Index(src, []byte(end))
 		if i < 0 || j < i {

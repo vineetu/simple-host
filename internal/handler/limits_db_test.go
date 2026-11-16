@@ -24,7 +24,7 @@ func near(got, want time.Time) bool {
 // MAX_KEYS_PER_ACCOUNT caps the Keys panel, and the refusal says the number.
 func TestKeyLimitFollowsSetting(t *testing.T) {
 	l := withLimits(t, map[string]string{"MAX_KEYS_PER_ACCOUNT": "3"})
-	a := newConnectorApp(t, edition.ForKindWithLimits(edition.Host, l))
+	a := newConnectorApp(t, edition.Default(l))
 	p := a.newPerson(t, "three-keys")
 	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
 	for i := len(keysOf(t, a, p.key)); i < 3; i++ {
@@ -41,7 +41,7 @@ func TestKeyLimitFollowsSetting(t *testing.T) {
 // MAX_SITES_PER_ACCOUNT caps sites per account, and the refusal says the number.
 func TestSiteLimitFollowsSetting(t *testing.T) {
 	l := withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "2"})
-	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
+	a := newPersonApp(t, "serve", edition.Default(l))
 	olive := a.newPerson(t, "two-sites")
 	a.deploy(t, olive, "one")
 	a.deploy(t, olive, "two")
@@ -56,7 +56,7 @@ func TestSiteLimitFollowsSetting(t *testing.T) {
 // list says so.
 func TestDeletedRetentionFollowsSetting(t *testing.T) {
 	l := withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
-	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
+	a := newPersonApp(t, "serve", edition.Default(l))
 	olive := a.newPerson(t, "keeper")
 	key := map[string]string{"X-API-Key": olive.key}
 	a.deploy(t, olive, "gone")
@@ -80,7 +80,7 @@ func TestDeletedRetentionFollowsSetting(t *testing.T) {
 // EMAIL_CHANGE_UNDO_DAYS, and the undo link lasts that long.
 func TestEmailChangeWordingFollowsSetting(t *testing.T) {
 	l := withLimits(t, map[string]string{"SIGNIN_CODE_TTL_MINUTES": "20", "EMAIL_CHANGE_UNDO_DAYS": "9"})
-	a, mb := newAccountApp(t, edition.ForKindWithLimits(edition.Host, l))
+	a, mb := newAccountApp(t, edition.Default(l))
 	p := a.newPerson(t, "wording")
 	key := map[string]string{"X-API-Key": p.key}
 	newAddr := uniq("worded") + "@example.org"
@@ -110,7 +110,7 @@ func TestEmailChangeWordingFollowsSetting(t *testing.T) {
 // by VISITOR_SESSION_IDLE_DAYS.
 func TestVisitorSessionFollowsSetting(t *testing.T) {
 	l := withLimits(t, map[string]string{"VISITOR_SESSION_DAYS": "60", "VISITOR_SESSION_IDLE_DAYS": "21"})
-	a, dir := newSiteApp(t, "canonical", edition.ForKindWithLimits(edition.Host, l))
+	a, dir := newSiteApp(t, "canonical", edition.Default(l))
 	a.withOAuth(t)
 	olive := a.newPerson(t, "sessions")
 	a.deploy(t, olive, "shop")
@@ -159,7 +159,7 @@ func TestVisitorSessionFollowsSetting(t *testing.T) {
 // before DOMAIN_LAPSE_HOURS.
 func TestDomainFailingEmailFollowsSetting(t *testing.T) {
 	l := withLimits(t, map[string]string{"DOMAIN_LAPSE_WARN_HOURS": "36", "DOMAIN_LAPSE_HOURS": "108"})
-	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
+	a := newPersonApp(t, "serve", edition.Default(l))
 	m := &noticeMailer{}
 	a.sites.mailer = m
 	olive := a.newPerson(t, "lapsing")
@@ -175,7 +175,7 @@ func TestDomainFailingEmailFollowsSetting(t *testing.T) {
 // configured windows.
 func TestIdleCleanupFollowsSettings(t *testing.T) {
 	l := withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "10", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
-	a := newPersonApp(t, "canonical", edition.ForKindWithLimits(edition.Host, l))
+	a := newPersonApp(t, "canonical", edition.Default(l))
 	ctx := context.Background()
 	m := &replyMailer{}
 	a.sites.mailer = m
@@ -231,7 +231,7 @@ func TestIdleCleanupFollowsSettings(t *testing.T) {
 // Rows deleted before the date was stored fall back to the setting.
 func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
 	l := withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
-	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
+	a := newPersonApp(t, "serve", edition.Default(l))
 	ctx := context.Background()
 	olive := a.newPerson(t, "promised")
 	key := map[string]string{"X-API-Key": olive.key}

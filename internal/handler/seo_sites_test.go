@@ -56,7 +56,7 @@ func TestSitemapShards(t *testing.T) {
 	}
 }
 
-func TestHostSitemapExcludesHackathons(t *testing.T) {
+func TestHostSitemapExcludesProductPages(t *testing.T) {
 	rec := httptest.NewRecorder()
 	serveSitemapXML(rec, httptest.NewRequest(http.MethodGet, "https://simple-host.app/sitemap.xml", nil), false)
 	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "/hackathons") {

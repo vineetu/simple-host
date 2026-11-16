@@ -20,6 +20,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/buildinfo"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/webassets"
 )
@@ -32,27 +33,19 @@ var (
 		"/enterprise", "/enterprise/brief", "/enterprise/architecture",
 		"/architecture.html", "/terms", "/support", "/privacy.html",
 	}
-	hackSitemapPaths = []string{
-		"/", "/get-started", "/companies", "/directory", "/watch", "/terms", "/privacy.html",
-	}
 )
 
 // isHackHost reports whether the request arrived on the simple-hack.app
 // brand, the same Host-prefix check chromeDataFor uses for nav rendering.
-func isHackHost(r *http.Request) bool {
-	host := r.Host
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
-	return strings.HasPrefix(strings.ToLower(host), "simple-hack.")
-}
-
-// sitemapBase is the origin the sitemap names, and whether it is a Simple
-// Hack one: the hosted brands by name, and any other server (a self-hosted
-// Simple Host or Simple Hack) by its own SITE_DOMAIN, never by the request's Host.
-func sitemapBase(r *http.Request, hostedEvents bool) (string, bool) {
-	if isHackHost(r) {
-		return "https://simple-hack.app", true
+func sitemapBase(r *http.Request, hostedEvents bool, policies ...edition.PresentationPolicy) (string, bool) {
+	if len(policies) > 0 && policies[0].CanonicalBaseURL != "" {
+		host := r.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if policies[0].HostedHostPrefix != "" && strings.HasPrefix(strings.ToLower(host), policies[0].HostedHostPrefix) {
+			return policies[0].CanonicalBaseURL, true
+		}
 	}
 	if instanceSiteDomain == "" {
 		return "https://" + canonicalSiteDomain, hostedEvents
@@ -66,8 +59,8 @@ func sitemapBase(r *http.Request, hostedEvents bool) (string, bool) {
 // (admin.html, the signed-out events flow, offline/suspended/preview tenant
 // pages), so this stays a plain allow-all plus a pointer at the sitemap
 // rather than duplicating that per-path logic here.
-func serveRobotsTxt(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
-	base, _ := sitemapBase(r, hostedEvents)
+func serveRobotsTxt(w http.ResponseWriter, r *http.Request, hostedEvents bool, policies ...edition.PresentationPolicy) {
+	base, _ := sitemapBase(r, hostedEvents, policies...)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("User-agent: *\nAllow: /\nSitemap: " + base + "/sitemap.xml\n"))
 }
@@ -94,15 +87,15 @@ type cachedSitemaps struct {
 }
 
 // serveSitemapXML preserves the pages-only helper used by standalone callers.
-func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
-	base, hack := sitemapBase(r, hostedEvents)
-	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, hack, webassets.DocsTree()), nil))
+func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool, policies ...edition.PresentationPolicy) {
+	base, product := sitemapBase(r, hostedEvents, policies...)
+	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, product, webassets.DocsTree(), policies...), nil))
 }
 
-func sitemapPages(base string, hack bool, tree fs.FS) []sitemapURL {
+func sitemapPages(base string, product bool, tree fs.FS, policies ...edition.PresentationPolicy) []sitemapURL {
 	paths := hostSitemapPaths
-	if hack {
-		paths = hackSitemapPaths
+	if product && len(policies) > 0 {
+		paths = strings.Fields(policies[0].SitemapPaths)
 	}
 	paths = append(append([]string{}, paths...), docsPaths(tree)...)
 	lastmod := ""
@@ -168,7 +161,7 @@ func (h *SiteHandler) SetSitemapFilter(filter sites.SitemapFilter) {
 }
 
 func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
-	base, hack := sitemapBase(r, h.ed.Routes().HostedEvents)
+	base, product := sitemapBase(r, h.ed.Routes().HostedEvents, h.ed.Presentation())
 	h.sitemaps.mu.Lock()
 	cached, ok := h.sitemaps.byBrand[base]
 	if !ok || time.Now().After(cached.expires) {
@@ -203,7 +196,7 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 				}
 				// Simple Hack serves team sites only at a host root: a path
 				// fallback (certificate not ready yet) does not serve the site.
-				if hack {
+				if product {
 					if u, err := url.Parse(address); err != nil || (u.Path != "" && u.Path != "/") {
 						continue
 					}
@@ -215,7 +208,7 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 				urls = append(urls, sitemapURL{address, lastmod})
 			}
 		}
-		cached = cachedSitemaps{time.Now().Add(sitemapTTL), buildSitemaps(base, sitemapPages(base, hack, h.pipeline().docsTree()), urls)}
+		cached = cachedSitemaps{time.Now().Add(sitemapTTL), buildSitemaps(base, sitemapPages(base, product, h.pipeline().docsTree(), h.ed.Presentation()), urls)}
 		if h.sitemaps.byBrand == nil {
 			h.sitemaps.byBrand = make(map[string]cachedSitemaps)
 		}

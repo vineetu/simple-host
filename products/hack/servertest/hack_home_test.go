@@ -2,20 +2,20 @@ package servertest
 
 import (
 	"fmt"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
 func hackHomeTestMux(t *testing.T, base string) *http.ServeMux {
 	t.Helper()
-	sh := chromeTestHandlerWithBase(edition.Hack, base)
+	sh := chromeTestHandlerWithBase(productedition.Hack, base)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, base, sh)
 	mountHackFiles(mux, sh)

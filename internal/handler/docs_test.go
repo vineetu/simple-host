@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/config"
 	"html"
 	"io/fs"
 	"net/http"
@@ -19,8 +20,8 @@ import (
 )
 
 func TestDocsRoutes(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host} {
-		t.Run(edition.ForKind(kind).Presentation().ProductName, func(t *testing.T) {
+	for _, kind := range []*edition.Edition{platformTestEdition()} {
+		t.Run(kind.Presentation().ProductName, func(t *testing.T) {
 			mux := chromeTestMux(t, kind)
 			for _, route := range []string{"/docs", "/docs.html"} {
 				r := get(t, mux, "", route)
@@ -58,7 +59,7 @@ func TestDocsRoutes(t *testing.T) {
 					t.Errorf("%s: missing UI CSP", route)
 				}
 				brand := "Simple Host"
-				if kind == edition.Hack {
+				if kind.Identity().TeamKeys {
 					brand = "Simple Hack"
 				}
 				if !strings.Contains(body, brand) {
@@ -76,7 +77,7 @@ func TestDocsRoutes(t *testing.T) {
 					t.Errorf("%s: %d", route, r.Code)
 				}
 			}
-			if kind == edition.Hack {
+			if kind.Identity().TeamKeys {
 				body := get(t, mux, "", "/docs/webhooks/").Body.String()
 				if strings.Contains(body, "site.deployed") || strings.Contains(body, "visitor.signed_up") {
 					t.Error("Host events leaked into Hack")
@@ -87,7 +88,7 @@ func TestDocsRoutes(t *testing.T) {
 }
 
 func TestDocsMarkdownCopies(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host} {
+	for _, kind := range []*edition.Edition{platformTestEdition()} {
 		mux := chromeTestMux(t, kind)
 		r := get(t, mux, "", "/docs/index.md")
 		if r.Code != 200 || !strings.HasPrefix(r.Header().Get("Content-Type"), "text/markdown") {
@@ -118,13 +119,13 @@ func TestDocsMarkdownRuntimeText(t *testing.T) {
 		chromeCache.Clear()
 	})
 	instanceIsHostedService = true
-	host := testAssetPipeline(edition.ForKind(edition.Host), "")
+	host := testAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	host.docs.once.Do(host.buildDocsCache)
 	if !bytes.Contains(host.docs.md["guides/agents.md"], []byte("npx skills add")) {
 		t.Fatal("hosted instructions absent from the .md copy")
 	}
 	SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
-	self := testAssetPipeline(edition.ForKind(edition.Host), "https://docs-box.example")
+	self := testAssetPipeline(edition.Default(config.DefaultLimits()), "https://docs-box.example")
 	self.docs.once.Do(self.buildDocsCache)
 	body := self.docs.md["guides/agents.md"]
 	if bytes.Contains(body, []byte("npx skills add")) || !bytes.Contains(body, []byte("this install")) {
@@ -158,15 +159,15 @@ func TestDocsRuntimeText(t *testing.T) {
 		chromeCache.Clear()
 	})
 	instanceIsHostedService = true
-	host := testAssetPipeline(edition.ForKind(edition.Host), "")
+	host := testAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	host.docs.once.Do(host.buildDocsCache)
 	if !bytes.Contains(host.docs.pages["guides/agents/index.html"], []byte("npx skills add")) {
 		t.Fatal("hosted instructions absent")
 	}
 	SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
 	limits := withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "250", "DOMAIN_UNPROVEN_HOURS": "36"})
-	for _, kind := range []edition.Kind{edition.Host} {
-		p := testAssetPipeline(edition.ForKindWithLimits(kind, limits), "https://docs-box.example")
+	for _, kind := range []*edition.Edition{platformTestEdition()} {
+		p := testAssetPipeline(edition.Default(limits), "https://docs-box.example")
 		p.docs.once.Do(p.buildDocsCache)
 		if p.docs.err != nil {
 			t.Fatal(p.docs.err)
@@ -178,11 +179,11 @@ func TestDocsRuntimeText(t *testing.T) {
 		if strings.Contains(body, "https://simple-host.app/mcp") || strings.Contains(body, "https://simple-hack.app/mcp") {
 			t.Error("hosted instance URL leaked")
 		}
-		if kind == edition.Host && strings.Contains(string(p.docs.pages["guides/addresses/index.html"]), "take-a-free-short-name") {
+		if kind.Identity().PersonalSites && strings.Contains(string(p.docs.pages["guides/addresses/index.html"]), "take-a-free-short-name") {
 			t.Error("hosted-only address task or TOC link leaked into self-hosted docs")
 		}
 		limitsBody := string(p.docs.pages["limits/index.html"])
-		if kind == edition.Host && !strings.Contains(limitsBody, "Up to 250 sites") {
+		if kind.Identity().PersonalSites && !strings.Contains(limitsBody, "Up to 250 sites") {
 			t.Error("limit wording was not rewritten")
 		}
 		if !strings.Contains(limitsBody, "Up to 2,345,678 bytes") || !strings.Contains(limitsBody, "Up to 123,456 bytes per file") {
@@ -212,9 +213,9 @@ func inlineDocsChromeForTest(t *testing.T, mux http.Handler, body string) string
 }
 
 func TestDocsChromeScriptsAfterRestart(t *testing.T) {
-	p := testAssetPipeline(edition.ForKind(edition.Host), "")
+	p := testAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	p.docs.once.Do(p.buildDocsCache)
-	fresh := testAssetPipeline(edition.ForKind(edition.Host), "")
+	fresh := testAssetPipeline(edition.Default(config.DefaultLimits()), "")
 	for name, body := range p.docs.scripts {
 		r := httptest.NewRecorder()
 		fresh.serveDocs(r, httptest.NewRequest("GET", "/docs/"+name, nil))
@@ -225,16 +226,16 @@ func TestDocsChromeScriptsAfterRestart(t *testing.T) {
 }
 
 func TestDocsSitemap(t *testing.T) {
-	for _, hack := range []bool{false} {
+	for _, product := range []bool{false} {
 		r := httptest.NewRecorder()
-		base, _ := sitemapBase(httptest.NewRequest("GET", "https://example.org/sitemap.xml", nil), hack)
-		serveSitemapFile(r, httptest.NewRequest("GET", "https://example.org/sitemap.xml", nil), buildSitemaps(base, sitemapPages(base, hack, webassets.DocsTree()), nil))
+		base, _ := sitemapBase(httptest.NewRequest("GET", "https://example.org/sitemap.xml", nil), product)
+		serveSitemapFile(r, httptest.NewRequest("GET", "https://example.org/sitemap.xml", nil), buildSitemaps(base, sitemapPages(base, product, webassets.DocsTree()), nil))
 		for _, route := range docsPaths(webassets.DocsTree()) {
 			if !strings.Contains(r.Body.String(), route+"</loc>") {
 				t.Errorf("sitemap missing %s", route)
 			}
 		}
-		if hack && strings.Contains(r.Body.String(), "/docs/guides/addresses/") {
+		if product && strings.Contains(r.Body.String(), "/docs/guides/addresses/") {
 			t.Error("Hack sitemap includes Host-only guide")
 		}
 	}
@@ -304,7 +305,7 @@ func TestDocsNotInStaticTree(t *testing.T) {
 }
 
 func TestDocsAnchorTargetsExist(t *testing.T) {
-	for _, hack := range []bool{false} {
+	for _, product := range []bool{false} {
 		tree := webassets.DocsTree()
 		script, err := fs.ReadFile(tree, "old-anchors.js")
 		if err != nil {
@@ -324,7 +325,7 @@ func TestDocsAnchorTargetsExist(t *testing.T) {
 		for anchor, target := range targets {
 			if anchor == "install-skills" {
 				if target != "/install.html" {
-					t.Errorf("hack=%v: install-skills target = %q", hack, target)
+					t.Errorf("hack=%v: install-skills target = %q", product, target)
 				}
 				if _, err := fs.Stat(webassets.Static, "static/install.html"); err != nil {
 					t.Fatal(err)
@@ -337,18 +338,18 @@ func TestDocsAnchorTargetsExist(t *testing.T) {
 			}
 			page, err := fs.ReadFile(tree, strings.TrimPrefix(u.Path, "/docs/")+"index.html")
 			if err != nil {
-				t.Errorf("hack=%v #%s: %v", hack, anchor, err)
+				t.Errorf("hack=%v #%s: %v", product, anchor, err)
 				continue
 			}
 			if u.Fragment != "" && !regexp.MustCompile(`<h[1-6]\b[^>]*\bid="`+regexp.QuoteMeta(u.Fragment)+`"`).Match(page) {
-				t.Errorf("hack=%v #%s: missing heading %s", hack, anchor, target)
+				t.Errorf("hack=%v #%s: missing heading %s", product, anchor, target)
 			}
 		}
 	}
 }
 
 func TestDocsDirectoryRedirectQuery(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host} {
+	for _, kind := range []*edition.Edition{platformTestEdition()} {
 		r := get(t, chromeTestMux(t, kind), "", "/docs/guides/storage?q=hello%20world&from=old")
 		if r.Code != 301 || r.Header().Get("Location") != "/docs/guides/storage/?q=hello%20world&from=old" {
 			t.Fatalf("redirect: %d %q", r.Code, r.Header().Get("Location"))
@@ -372,7 +373,7 @@ func TestDocsHostPublicBaseURL(t *testing.T) {
 	t.Setenv("PUBLIC_BASE_URL", "http://box.example:8080")
 	SetInstanceHosts("box.example", "sites.box.example", "")
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, os.Getenv("PUBLIC_BASE_URL"), chromeTestHandler(edition.Host))
+	RegisterUIRoutes(mux, os.Getenv("PUBLIC_BASE_URL"), chromeTestHandler(platformTestEdition()))
 	for route, want := range map[string]string{
 		"/docs/start/api/":     "http://box.example:8080/v1/me",
 		"/docs/guides/agents/": "http://box.example:8080/mcp",
@@ -410,7 +411,7 @@ func TestDocsHostPublicBaseURL(t *testing.T) {
 }
 
 func TestDocsBrandAndSearchCopy(t *testing.T) {
-	for _, hack := range []bool{false} {
+	for _, product := range []bool{false} {
 		tree := webassets.DocsTree()
 		err := fs.WalkDir(tree, ".", func(name string, entry fs.DirEntry, err error) error {
 			if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".html") {
@@ -428,7 +429,7 @@ func TestDocsBrandAndSearchCopy(t *testing.T) {
 					t.Errorf("%s: instance text indexed", name)
 				}
 			}
-			if hack && (bytes.Contains(body, []byte("Sites per account")) || bytes.Contains(body, []byte("Follow Connect Domain"))) {
+			if product && (bytes.Contains(body, []byte("Sites per account")) || bytes.Contains(body, []byte("Follow Connect Domain"))) {
 				t.Errorf("%s: Host-only instructions on Hack", name)
 			}
 			return nil
@@ -440,10 +441,10 @@ func TestDocsBrandAndSearchCopy(t *testing.T) {
 }
 
 func TestFeaturesConnectDomainLink(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Host} {
+	for _, kind := range []*edition.Edition{platformTestEdition()} {
 		body := get(t, chromeTestMux(t, kind), "", "/features.html").Body.String()
 		has := strings.Contains(body, `href="/skills/connect-domain/SKILL.md"`)
-		if has != (kind == edition.Host) {
+		if has != (kind.Identity().PersonalSites) {
 			t.Errorf("%v: connect-domain link present=%v", kind, has)
 		}
 	}

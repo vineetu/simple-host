@@ -77,7 +77,7 @@ func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
 // this scoped internal request; the transaction gate rechecks membership at commit.
 func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, g GroupRef, organiserID string, files bool) {
 	if r.URL.Query().Get("publish") == "false" {
-		writeHackErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")
+		writeProductErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")
 		return
 	}
 	holder, err := h.storeAccounts().GetUserByID(r.Context(), g.AccountID)

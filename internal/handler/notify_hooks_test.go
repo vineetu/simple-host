@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http"
 	"strings"
 	"testing"
@@ -346,17 +347,17 @@ func TestNotifyHooksDomainStaleSnapshot(t *testing.T) {
 // Simple Hack has no site events: the hooks are silent there. A personal
 // site cannot be redeployed on Hack at all (no_personal_sites), so the live
 // version is changed instead, through the same site.deployed hook.
-func TestNotifyHooksHackModeSilent(t *testing.T) {
+func TestNotifyHooksGroupModeSilent(t *testing.T) {
 	l := newSiteEventLog(t)
 	l.deployShop(t, "<h1>v2</h1>")
 	l.one(t, "site.deployed")
-	l.s.a.sites.ed = edition.ForKind(edition.Hack)
+	l.s.a.sites.ed = groupTestEdition()
 	l.activate(t, 1)
 	l.none(t, "rollback in hack mode")
 	if n := len(l.s.a.sites.notifyEngine().emitting); n != 0 {
 		t.Fatalf("emit queued in hack mode: %d", n)
 	}
-	l.s.a.sites.ed = edition.ForKind(edition.Host)
+	l.s.a.sites.ed = edition.Default(config.DefaultLimits())
 	l.activate(t, 2)
 	if data := l.one(t, "site.deployed"); data["version"] != float64(2) || data["previous_version"] != float64(1) {
 		t.Fatalf("after hack mode: %v", data)

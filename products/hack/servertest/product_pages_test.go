@@ -7,6 +7,7 @@ package servertest
 import (
 	"bytes"
 	"encoding/json"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +21,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
+
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
@@ -30,7 +31,7 @@ import (
 // hackMuxAt is a Hack install at base ("" is simple-hack.app itself).
 func hackMuxAt(t *testing.T, base, publicBaseURL string) (*http.ServeMux, *handler.SiteHandler) {
 	t.Helper()
-	sh := chromeTestHandlerWithBase(edition.Hack, base)
+	sh := chromeTestHandlerWithBase(productedition.Hack, base)
 	mux := http.NewServeMux()
 	installAssets(sh, mux)
 	handler.RegisterUIRoutes(mux, publicBaseURL, sh)
@@ -124,7 +125,7 @@ func TestHackAppShellCarriesInstallContact(t *testing.T) {
 
 	t.Run("hosted", func(t *testing.T) {
 		auth.SupportContact = "support@simple-host.app"
-		sh := chromeTestHandler(edition.Hack)
+		sh := chromeTestHandler(productedition.Hack)
 		page, err := sh.Pages().RenderAppShell(httptest.NewRequest(http.MethodGet, "/account", nil), appHTML, false)
 		if err != nil {
 			t.Fatal(err)
@@ -136,7 +137,7 @@ func TestHackAppShellCarriesInstallContact(t *testing.T) {
 
 	t.Run("self-hosted", func(t *testing.T) {
 		auth.SupportContact = "ops@example.org"
-		sh := chromeTestHandlerWithBase(edition.Hack, "https://hack.example.test")
+		sh := chromeTestHandlerWithBase(productedition.Hack, "https://hack.example.test")
 		page, err := sh.Pages().RenderAppShell(httptest.NewRequest(http.MethodGet, "/account", nil), appHTML, false)
 		if err != nil {
 			t.Fatal(err)
@@ -153,7 +154,7 @@ func TestHackAppShellCarriesInstallContact(t *testing.T) {
 
 func hackAppHTML(t *testing.T) []byte {
 	t.Helper()
-	b, err := fs.ReadFile(chromeTestHandler(edition.Hack).Pages().StaticFS(), "static/hack/app.html")
+	b, err := fs.ReadFile(chromeTestHandler(productedition.Hack).Pages().StaticFS(), "static/hack/app.html")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +205,7 @@ func TestSelfHostedHackNamesNoHostedDomain(t *testing.T) {
 	}
 	// The 404 page names the install's own domain, so the handler is built
 	// with it (the shared fixture's site domain is the hosted one).
-	self := handler.NewSiteHandler(edition.ForKind(edition.Hack), "https://hack.example.test", nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", "", nil, nil)
+	self := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "https://hack.example.test", nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", "", nil, nil)
 	selfMux := http.NewServeMux()
 	installAssets(self, selfMux)
 	handler.RegisterUIRoutes(selfMux, "https://hack.example.test", self)
@@ -227,7 +228,7 @@ func TestSelfHostedHackNamesNoHostedDomain(t *testing.T) {
 
 // Simple Hack serves its own icon (the red dot) at the platform's addresses.
 func TestHackProductIcons(t *testing.T) {
-	mux := chromeTestMux(t, edition.Hack)
+	mux := chromeTestMux(t, productedition.Hack)
 	rec := get(t, mux, "", "/favicon.svg?v=c")
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "#d15d48") || !strings.HasPrefix(rec.Header().Get("Content-Type"), "image/svg+xml") {
 		t.Fatalf("favicon.svg: %d %q %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
@@ -248,7 +249,7 @@ var (
 )
 
 func TestHackDocsRoutes(t *testing.T) {
-	mux := chromeTestMux(t, edition.Hack)
+	mux := chromeTestMux(t, productedition.Hack)
 	for _, route := range []string{"/docs", "/docs.html"} {
 		r := get(t, mux, "", route)
 		if r.Code != 301 || r.Header().Get("Location") != "/docs/" {
@@ -309,7 +310,7 @@ func TestHackDocsRoutes(t *testing.T) {
 }
 
 func TestHackDocsMarkdownCopies(t *testing.T) {
-	mux := chromeTestMux(t, edition.Hack)
+	mux := chromeTestMux(t, productedition.Hack)
 	r := get(t, mux, "", "/docs/index.md")
 	if r.Code != 200 || !strings.HasPrefix(r.Header().Get("Content-Type"), "text/markdown") {
 		t.Fatalf("/docs/index.md: %d %s", r.Code, r.Header().Get("Content-Type"))
@@ -353,7 +354,7 @@ func TestHackDocsLimitsText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sh := handler.NewSiteHandler(edition.ForKindWithLimits(edition.Hack, limits), "https://docs-box.example", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	sh := handler.NewSiteHandler(productedition.ForKindWithLimits(productedition.Hack, limits), "https://docs-box.example", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
 	mux := http.NewServeMux()
 	installAssets(sh, mux)
 	handler.RegisterUIRoutes(mux, "https://docs-box.example", sh)
@@ -378,7 +379,7 @@ func TestHackServedPagesCarryTheOneThemeScript(t *testing.T) {
 	}
 	// Served pages carry a nonce on <script>; compare the script's body.
 	script := strings.TrimPrefix(strings.TrimRight(buf.String(), "\n"), "<script>")
-	sh := chromeTestHandlerWithBase(edition.Hack, "https://simple-hack.app")
+	sh := chromeTestHandlerWithBase(productedition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	installAssets(sh, mux)
 	handler.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
@@ -477,7 +478,7 @@ func TestHackDocsBrandAndSearchCopy(t *testing.T) {
 }
 
 func TestHackFeaturesHasNoConnectDomainLink(t *testing.T) {
-	body := get(t, chromeTestMux(t, edition.Hack), "", "/features.html").Body.String()
+	body := get(t, chromeTestMux(t, productedition.Hack), "", "/features.html").Body.String()
 	if body == "" || strings.Contains(body, `href="/skills/connect-domain/SKILL.md"`) {
 		t.Error("Hack features page links the connect-domain skill")
 	}
@@ -493,7 +494,7 @@ func TestHackSelfHostMarketingOnlyOnHostedService(t *testing.T) {
 		{"self Hack", "https://hack.example.com", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sh := chromeTestHandlerWithBase(edition.Hack, tc.base)
+			sh := chromeTestHandlerWithBase(productedition.Hack, tc.base)
 			for _, page := range []struct{ name, marketing string }{
 				{"hack-home.html", "Prefer your own server?"}, {"hack-home.html", "Running this inside a company?"}, {"hack-story.html", "Prefer your own server?"},
 				{"hack-get-started.html", "Can I run my own?"}, {"features.html", `id="self-host"`},
@@ -518,7 +519,7 @@ func TestHackSelfHostMarketingOnlyOnHostedService(t *testing.T) {
 
 // The setup page on a Simple Hack install offers Simple Hack, with its manifest.
 func TestHackSetupHelper(t *testing.T) {
-	mux := chromeTestMux(t, edition.Hack)
+	mux := chromeTestMux(t, productedition.Hack)
 	page := get(t, mux, "example.test", "/setup")
 	for _, want := range []string{
 		"<title>Set up Simple Hack</title>",
@@ -555,7 +556,7 @@ func TestHackSetupHelper(t *testing.T) {
 }
 
 func TestHackAuthJSStillHasCard(t *testing.T) {
-	got, err := fs.ReadFile(chromeTestHandler(edition.Hack).Pages().StaticFS(), "static/auth.js")
+	got, err := fs.ReadFile(chromeTestHandler(productedition.Hack).Pages().StaticFS(), "static/auth.js")
 	if err != nil {
 		t.Fatal(err)
 	}

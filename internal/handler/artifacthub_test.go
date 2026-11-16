@@ -6,13 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	model "github.com/vsriram/simple-host/internal/model"
 )
 
 // Named arrivals keep the landing film and carry attribution without cookies.
 func TestNamedSourceArrival(t *testing.T) {
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 
 	for _, source := range []string{"artifact-hub", "vercel-ship", "agentcon"} {
 		rec := get(t, mux, "simple-host.app", "/?from="+source)

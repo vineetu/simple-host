@@ -153,22 +153,13 @@ var knobDocs = map[string]knobDoc{
 	"IDLE_EXEMPT_FAMILY_SITES":               {"cleanup", "on: a site whose main address is an address family is never removed as idle, like one with its own domain.", false, false},
 	"EVENT_TTL_DAYS":                         {"domains", "How long a claimed event hostname lives (only where EVENT_DNS_TOKEN is set).", false, false},
 	"EVENT_MAX_CLAIMS":                       {"domains", "Event hostnames one account may hold at once.", false, false},
-	"EVENT_LIMIT_EXEMPT":                     {"events", "Comma-separated sign-in emails and whole domains (@domain.org), case-insensitive with spaces trimmed; no subdomain matching. Empty by default. Admins and EVENT_LIMIT_EXEMPT accounts are never limited by EVENT_CREATE_PER_DAY (default 20) or EVENT_MAX_ACTIVE_PER_ORGANISER (no limit by default; 0 = no limit for either).", false, false},
-	"EVENT_CREATE_PER_DAY":                   {"events", "Hosted events (EVENTS=hosted): events one account may create in a rolling day (default 20; 0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.", false, false},
 	"REDIRECTS_MAX_RULES":                    {"sites", "Maximum root _redirects rules per site; default 1000. File limit 128 KiB, line limit 2048 bytes.", false, false},
-	"EVENT_MAX_ACTIVE_PER_ORGANISER":         {"events", "Hosted events: events one account may run at once (every stage but archived); no limit by default (0 = no limit). Admins and EVENT_LIMIT_EXEMPT accounts are never limited.", false, false},
-	"EVENT_APPLY_PENDING_PER_EVENT":          {"events", "Hosted events: applications one event may have waiting for a decision at once, apart from the per-account pending cap.", false, false},
-	"EVENT_TEAM_SIZE_DEFAULT":                {"events", "Hosted events: the team size cap a new event starts with; the organiser changes it.", false, false},
-	"EVENT_SITES_KEEP_DAYS":                  {"events", "Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay.", false, false},
-	"EVENT_REMOVAL_WARN_DAYS":                {"events", "Hosted events: how long before team sites are removed the organiser is warned by email, once. The event page and results stay.", false, false},
-	"HACK_INSTANCE_BUDGET_GB":                {"events", "Hosted events: disk the whole instance may use for team sites; new events are refused above 80% of it. 0: no budget.", false, false},
-	"HACK_EVENT_ICON_MAX_BYTES":              {"events", "Hosted events: largest PNG, JPEG or WebP event icon upload in bytes.", false, false},
 
 	"DELETED_RETENTION_DAYS":           {"cleanup", "How long a deleted site stays restorable in Recently deleted.", false, true},
 	"IDLE_AFTER_DAYS":                  {"cleanup", "Idle cleanup: a site unused this long gets its owner a warning email.", false, true},
 	"IDLE_GRACE_DAYS":                  {"cleanup", "Idle cleanup: how long after the warning an unused site moves to Recently deleted.", false, true},
 	"IDLE_REPLY_TO":                    {"email", "Reply-To address of the idle-cleanup emails.", false, true},
-	"SUPPORT_EMAIL":                    {"email", "This install's own support contact, shown on its pages, in its emails and in error messages instead of ours. Unset: IDLE_REPLY_TO if that is set, else \"whoever runs this server\" on a self-hosted install (unchanged on simple-host.app/simple-hack.app).", false, true},
+	"SUPPORT_EMAIL":                    {"email", "This install's own support contact, shown on its pages, in its emails and in error messages instead of ours. Unset: IDLE_REPLY_TO if that is set, else \"whoever runs this server\" on a self-hosted install (unchanged on the hosted service).", false, true},
 	"PRIVACY_URL":                      {"server", "This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link.", false, true},
 	"ANALYTICS_RETENTION_DAYS":         {"cleanup", "How long visit analytics are kept.", false, true},
 	"ANALYTICS_PAGES_PER_SITE_DAY":     {"observability", "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other).", false, true},
@@ -210,11 +201,6 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_ADDRESS_FAMILY_CHECK":       {"domains", "\"Check again\" on an address family, per address.", false, false},
 	"RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER":  {"domains", "\"Check again\" on an address family, per account.", false, false},
 	"RATE_LIMIT_HANDLE_CHECK":               {"accounts", "Address availability checks while someone types a handle (GET /v1/handles/check), per address.", false, true},
-	"RATE_LIMIT_EVENT_CODES_IP":             {"events", "Hosted events: join, judge and team-code lookups and joins, per network address (roomy: a whole venue can share one address).", false, false},
-	"RATE_LIMIT_EVENT_CODES_USER":           {"events", "Hosted events: join, judge and team-code joins and lookups, per account.", false, false},
-	"RATE_LIMIT_EVENT_NAMES_USER":           {"events", "Hosted events: event address checks while someone types one, per account.", false, false},
-	"RATE_LIMIT_EVENT_APPLY_IP":             {"events", "Hosted events: applications to an event without a join link, per network address.", false, false},
-	"RATE_LIMIT_EVENT_APPLY_USER":           {"events", "Hosted events: applications to an event without a join link, per account.", false, false},
 	"RATE_LIMIT_OAUTH_REGISTER":             {"accounts", "AI app registrations on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_AUTHORIZE":            {"accounts", "AI app sign-in requests on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_TOKEN":                {"accounts", "AI app token requests on the connector, per address.", true, true},
@@ -276,7 +262,7 @@ func otherSettings() []Setting {
 		{Name: "STORAGE_RULES", Group: "storage", Type: "enum", Default: "off", Allowed: []string{"off", "on"}, SmallBox: true, Security: true, Description: "Accept owner-written row rules for SQLite databases and moved key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it."},
 		{Name: "KV_STORE", Group: "storage", Type: "enum", Default: "postgres", Allowed: []string{"postgres", "sqlite"}, SmallBox: true, Description: "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values."},
 		{Name: "SITE_DOMAIN", Group: "server", Type: "string", Basic: true, SmallBox: true, InstallFlag: "--host",
-			Description: "The domain this server lives at, like hack.example.com. Unset, the server starts in setup mode and asks for one."},
+			Description: "The domain this server lives at, like sites.example.com. Unset, the server starts in setup mode and asks for one."},
 		{Name: "CONTENT_HOST", Group: "server", Type: "string", Default: "sites.<SITE_DOMAIN>", SmallBox: true, InstallFlag: "--content",
 			Description: "The separate hostname sites are served from, so pages never share an origin with the dashboard."},
 		{Name: "PUBLIC_BASE_URL", Group: "server", Type: "string", Default: defaultPublicBaseURL,
@@ -298,9 +284,9 @@ func otherSettings() []Setting {
 		{Name: "DATA_DIR", Group: "storage", Type: "string", Default: defaultDataDir,
 			Description: "The folder that holds every site's files and versions."},
 		{Name: "SITE_STORAGE_MAX_BYTES", Group: "storage", Type: "int", Default: "10000000", Min: i64(1), Max: i64(10 << 30), Unit: "bytes", SmallBox: true,
-			Description: "Durable byte budget per site for KV and SQLite (Hack defaults to 1000000, pooled with files); SQLite WAL and backups need additional temporary disk."},
+			Description: "Durable byte budget per site for KV and SQLite; SQLite WAL and backups need additional temporary disk."},
 		{Name: "SITE_STORAGE_FILES_MAX_BYTES", Group: "storage", Type: "int", Default: "10000000", Min: i64(1), Max: i64(10 << 30), Unit: "bytes", SmallBox: true,
-			Description: "Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance."},
+			Description: "Separate raw-file allowance per website."},
 		{Name: "SITE_STORAGE_FILE_MAX_BYTES", Group: "storage", Type: "int", Default: "1000000", Min: i64(1), Max: i64(10 << 30), Unit: "bytes", SmallBox: true,
 			Description: "Largest individual raw-file upload for a site storage bucket."},
 		{Name: "SITE_STORAGE_SQL_RESULT_MAX_BYTES", Group: "storage", Type: "int", Default: "1000000", Min: i64(1), Max: i64(64 << 20), Unit: "bytes", SmallBox: true,
@@ -322,29 +308,13 @@ func otherSettings() []Setting {
 		{Name: "PERSON_HOSTS", Group: "server", Type: "enum", Default: "off", Allowed: []string{"off", "serve", "canonical"},
 			Description: "Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out."},
 		{Name: "EVENTS", Group: "events", Type: "enum", Default: "off", Allowed: []string{"off", "hosted"},
-			Description: "hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at <event>.<SITE_DOMAIN>, and accounts own no personal sites."},
-		{Name: "HACK_DEMO_EVENT_SLUG", Group: "events", Type: "string", Default: "demo",
-			Description: "Base event slug for the standing demo on the hosted hackathon platform; empty uses demo."},
+			Description: "Transitional product selector used only by the composition root until the programs separate."},
+
 		{Name: "EVENT_NAME_PEER", Group: "events", Type: "string",
 			Description: "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise."},
 		{Name: "TEAM_SITE_FLAT_HOSTS", Group: "events", Type: "bool", Default: "false", Allowed: []string{"true", "false"},
-			Description: "Hosted events: true serves a team's site at <team>--<event>.<SITE_DOMAIN> (one DNS label) instead of <team>.<event>.<SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged."},
-		{Name: "ASSISTANT_BASE_URL", Group: "events", Type: "string",
-			Description: "The OpenAI-compatible API root (e.g. an Ollama Cloud endpoint) the organiser assistant chat sends chat-completions requests to. Unset (with ASSISTANT_MODEL): the assistant is off and the UI shows nothing."},
-		{Name: "ASSISTANT_MODEL", Group: "events", Type: "string",
-			Description: "The model name sent to ASSISTANT_BASE_URL for the organiser assistant chat. Unset: the assistant is off."},
-		{Name: "ASSISTANT_API_KEY", Group: "events", Type: "secret", Security: true,
-			Description: "Bearer key for ASSISTANT_BASE_URL, when the endpoint needs one."},
-		{Name: "ASSISTANT_REASONING_EFFORT", Group: "events", Type: "string",
-			Description: "Sent as reasoning_effort when set; `none` turns thinking off on DeepSeek via Ollama Cloud. Leave empty for providers that reject it."},
-		{Name: "ASSISTANT_MONTHLY_BUDGET_USD", Group: "events", Type: "string", Default: "5",
-			Description: "Instance-wide monthly spend ceiling for the organiser assistant, in US dollars. Once reached, every event's assistant refuses new questions until the 1st of the next month."},
-		{Name: "ASSISTANT_DAILY_QUESTIONS", Group: "events", Type: "string", Default: "30",
-			Description: "Questions one organiser may ask the assistant per UTC day, across every event they organise."},
-		{Name: "ASSISTANT_PRICE_INPUT_PER_MTOK_USD", Group: "events", Type: "string", Default: "0.5",
-			Description: "The configured model's input price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD."},
-		{Name: "ASSISTANT_PRICE_OUTPUT_PER_MTOK_USD", Group: "events", Type: "string", Default: "2.0",
-			Description: "The configured model's output price, in US dollars per million tokens, used to account spend against ASSISTANT_MONTHLY_BUDGET_USD."},
+			Description: "Hosted events: true serves a team's site at <team>--<event>.<SITE_DOMAIN> (one DNS label) instead of <team>.<event>.<SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. The default is false."},
+
 		{Name: "SITE_HOSTS", Group: "server", Type: "enum", Default: "off", Allowed: []string{"off", "serve", "canonical"},
 			Description: "Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS."},
 		{Name: "SITE_CERT_DIR", Group: "domains", Type: "string",
@@ -375,10 +345,7 @@ func otherSettings() []Setting {
 			Description: "Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only."},
 		{Name: "MCP_APP_SITE_PREVIEW", Group: "server", Type: "string", Default: "off", SmallBox: true,
 			Description: "Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only."},
-		{Name: "MCP_APP_HACK_JUDGE", Group: "server", Type: "string", Default: "off",
-			Description: "Simple Hack judge views (queue, scoring, rubric, invite) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing."},
-		{Name: "MCP_APP_HACK_ORGANISER", Group: "server", Type: "string", Default: "off",
-			Description: "Simple Hack organiser views (overview and stage, people and applications, judging dashboard) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing."},
+
 		{Name: "PHOTO_MAX_BYTES", Group: "sites", Type: "int", Default: "1000000", Min: i64(1), Unit: "bytes", SmallBox: true,
 			Description: "Maximum bytes per prepared photo; the MCP picker also caps at 1 MiB. Positive integer; invalid values use the default."},
 		{Name: "PHOTO_MAX_DIMENSION", Group: "sites", Type: "int", Default: "2048", Min: i64(1), Unit: "pixels", SmallBox: true,
@@ -562,11 +529,33 @@ func Settings() []Setting {
 }
 
 // SettingsJSON is the registry as docs/advanced/settings.json holds it.
-func SettingsJSON() ([]byte, error) {
+func SettingsJSON(extra ...Setting) ([]byte, error) {
+	settings := Settings()
+	for _, setting := range extra {
+		found := false
+		for i := range settings {
+			if settings[i].Name == setting.Name {
+				settings[i] = setting
+				found = true
+				break
+			}
+		}
+		if !found {
+			settings = append(settings, setting)
+		}
+	}
+	var ordered []Setting
+	for _, g := range SettingGroups {
+		for _, s := range settings {
+			if s.Group == g.ID {
+				ordered = append(ordered, s)
+			}
+		}
+	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
-	err := enc.Encode(SettingsDoc{Product: "small-box", RateFormat: "<burst>,<every>", Groups: SettingGroups, Settings: Settings()})
+	err := enc.Encode(SettingsDoc{Product: "small-box", RateFormat: "<burst>,<every>", Groups: SettingGroups, Settings: ordered})
 	return buf.Bytes(), err
 }

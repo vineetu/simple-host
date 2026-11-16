@@ -557,13 +557,13 @@ func runTestStoragePresetsKVAndFilesOwnership(t *testing.T) {
 }
 
 // Simple Hack uses presets too (owner decision 2026-10-10, replacing D2).
-func TestStoragePresetsSimpleHackUsesPresets(t *testing.T) {
+func TestStoragePresetsProductUsesPresets(t *testing.T) {
 	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsSimpleHackUsesPresets(t) })
+		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsProductUsesPresets(t) })
 	}
 }
 
-func runTestStoragePresetsSimpleHackUsesPresets(t *testing.T) {
+func runTestStoragePresetsProductUsesPresets(t *testing.T) {
 	s := newPresetSite(t)
 	r := s.must(t, "PUT", "/resources/team", map[string]string{"kind": "sqlite", "read": "anyone", "write": "signed-in", "write_mode": "add"}, s.key, 201).json(t)
 	if r["preset"] != "wall" && r["preset"] != "custom" {

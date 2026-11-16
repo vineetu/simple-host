@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
@@ -84,7 +84,7 @@ func (m *cancelCleanupMailer) SendNoticeReplyToCtx(ctx context.Context, to, repl
 
 func TestHackArchiveCleanup(t *testing.T) {
 	a := newHackApp(t)
-	l := config.DefaultLimits()
+	l := productconfig.DefaultLimits()
 	l.EventCreatePerDay = 40
 	l.EventMaxActivePerOrganiser = 40
 	setHackAppLimits(a, l)

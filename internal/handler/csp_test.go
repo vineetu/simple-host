@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 var (
@@ -59,7 +57,7 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 	oldHosted := instanceIsHostedService
 	instanceIsHostedService = true
 	t.Cleanup(func() { instanceIsHostedService = oldHosted })
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 	for _, path := range []string{
 		"/", "/install.html", "/docs/", "/architecture.html", "/privacy.html",
 		"/features.html", "/enterprise.html",
@@ -84,7 +82,7 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 
 	// The showcase and the 404, rendered by handlers rather than the file
 	// server, behind the same middleware as on the apex.
-	h := chromeTestHandler(edition.Host)
+	h := chromeTestHandler(platformTestEdition())
 	assets := h.pipeline()
 	data := showcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", MainURL: "https://simple-host.app", Sites: []showcaseSite{}}
 	sc := assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

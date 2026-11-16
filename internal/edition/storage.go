@@ -24,22 +24,3 @@ type StoragePolicy struct {
 	// FileCaps applies per-site and account deployment caps.
 	FileCaps bool
 }
-
-func storageFor(k Kind) StoragePolicy {
-	p := StoragePolicy{}
-	if k == Hack {
-		// Sites.
-		p.EventSites = true
-		p.StrictArchives = true
-		p.JudgePreviewFrames = true
-		p.EventVersionRetention = true
-		// Storage.
-		p.EventOwners = true
-		p.CombinedPool = true
-	} else {
-		p.Photos = true
-		p.LegacyRoutes = true
-		p.FileCaps = true
-	}
-	return p
-}

@@ -212,7 +212,7 @@ func TestPasswordLoginLimit(t *testing.T) {
 func TestPasswordIPLimitAcrossUsernames(t *testing.T) {
 	limits := config.DefaultLimits()
 	limits.RateSigninIP = config.Rate{Burst: 3, Every: time.Hour}
-	a := newConnectorApp(t, edition.ForKindWithLimits(edition.Host, limits))
+	a := newConnectorApp(t, edition.Default(limits))
 	a.users.SetPasswordSignIn(true, true)
 	for i := 0; i < 4; i++ {
 		r := a.do(t, "POST", "/v1/auth/password", jsonBody(map[string]string{"login": fmt.Sprintf("missing-%d", i), "password": "wrong password"}), map[string]string{"Content-Type": "application/json"})
@@ -231,17 +231,17 @@ func TestSelfHostMarketingOnlyOnHostedServices(t *testing.T) {
 	t.Cleanup(func() { instanceIsHostedService = prev })
 	for _, tc := range []struct {
 		name   string
-		kind   edition.Kind
+		kind   *edition.Edition
 		hosted bool
 		base   string
 	}{
-		{"hosted Host", edition.Host, true, "https://simple-hack.app"},
-		{"self Host example.com", edition.Host, false, "https://simple-hack.app"},
+		{"hosted Host", platformTestEdition(), true, "https://simple-hack.app"},
+		{"self Host example.com", platformTestEdition(), false, "https://simple-hack.app"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			instanceIsHostedService = tc.hosted
-			p := testAssetPipeline(edition.ForKind(tc.kind), tc.base)
-			hosted := tc.hosted || tc.base == "https://simple-hack.app" && tc.kind == edition.Hack
+			p := testAssetPipeline(tc.kind, tc.base)
+			hosted := tc.hosted || tc.base == "https://simple-hack.app" && tc.kind.Identity().TeamKeys
 			for _, page := range []struct{ name, marketing string }{
 				// A product's pages are tested with the product (products/hack/servertest).
 				{"features.html", `id="self-host"`}, {"host-story.html", "Self-host on one small server"},

@@ -35,7 +35,7 @@ func TestHackAppsGatesAndUnchangedInventory(t *testing.T) {
 	for _, caller := range []mcp.Caller{
 		{Mode: mcp.CallerModeEvents, APIKey: "fixture"},
 		{Mode: mcp.CallerModeEvents, GrantID: "grant", Handle: "alice", APIKey: "fixture"},
-		{Mode: mcp.CallerModeHackSite, Handle: "alice", APIKey: "fixture"},
+		{Mode: mcp.CallerModeGroupSite, Handle: "alice", APIKey: "fixture"},
 	} {
 		// The listing with the screens off is the original, undecorated tools/list contract.
 		t.Setenv("MCP_APP_MY_SITES", "off")
@@ -48,7 +48,7 @@ func TestHackAppsGatesAndUnchangedInventory(t *testing.T) {
 				// These must never expose the archive link or a preview to a Hack frame.
 				t.Setenv("MCP_APP_PHOTO_PICKER", "on")
 				t.Setenv("MCP_APP_SITE_PREVIEW", "on")
-				enabled := (caller.Mode == mcp.CallerModeHackSite || caller.GrantID != "") && mcp.AppFlag(flag, caller.Handle)
+				enabled := (caller.Mode == mcp.CallerModeGroupSite || caller.GrantID != "") && mcp.AppFlag(flag, caller.Handle)
 				if !enabled && listingBytes(t, s, caller) != baseline {
 					t.Fatal("disabled tools/list changed")
 				}
@@ -122,7 +122,7 @@ func TestHackAppsResultsOffAreByteIdentical(t *testing.T) {
 		_, _ = w.Write([]byte(`{"range_days":7,"totals":{},"last_24h":{},"daily":[]}`))
 	})
 	s := newTestServer(mux)
-	for _, mode := range []string{mcp.CallerModeEvents, mcp.CallerModeHackSite} {
+	for _, mode := range []string{mcp.CallerModeEvents, mcp.CallerModeGroupSite} {
 		// A personal connection reaches the website tools through its selected team.
 		caller := mcp.Caller{Mode: mode, GrantID: "grant", Handle: "alice", APIKey: "fixture", TeamAPIKey: "team-fixture"}
 		for _, name := range []string{"list_sites", "site_analytics"} {

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/config"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ import (
 // instance with site hosts on, matching the hack_legacy_storage_test.go
 // pattern: these functions (host parsing, TeamSiteURL, teamSitesReady) are
 // pure given the handler's own fields, no database needed.
-func hackFlatApp(t *testing.T, siteCertDir string) *SiteHandler {
+func groupFlatApp(t *testing.T, siteCertDir string) *SiteHandler {
 	t.Helper()
 	if siteCertDir != "" {
 		for _, d := range []string{"requests", "ready"} {
@@ -27,14 +28,14 @@ func hackFlatApp(t *testing.T, siteCertDir string) *SiteHandler {
 			}
 		}
 	}
-	h := &SiteHandler{ed: edition.ForKind(edition.Hack), siteDomain: "simple-hack.test"}
+	h := &SiteHandler{ed: groupTestEdition(), siteDomain: "simple-hack.test"}
 	h.SetPersonHosts("canonical")
 	h.SetSiteHosts("canonical", siteCertDir)
 	return h
 }
 
 func TestTeamSiteURLFlatHosts(t *testing.T) {
-	h := hackFlatApp(t, "")
+	h := groupFlatApp(t, "")
 	if got := h.TeamSiteURL("weekend", "alpha"); got != "https://alpha.weekend.simple-hack.test/" {
 		t.Errorf("off: TeamSiteURL = %q", got)
 	}
@@ -52,7 +53,7 @@ func TestTeamSiteURLFlatHosts(t *testing.T) {
 	}
 	// Off on a Host-edition instance even if someone sets the field: the
 	// setting only ever takes effect for hosted events.
-	host := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.test"}
+	host := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "simple-host.test"}
 	host.SetPersonHosts("canonical")
 	host.SetSiteHosts("canonical", "")
 	host.SetTeamSiteFlatHosts(true)
@@ -68,7 +69,7 @@ func TestTeamSiteURLFlatHosts(t *testing.T) {
 // siteCertReady check.
 func TestTeamSitesReadyDoesNotWaitOnPerEventCert(t *testing.T) {
 	dir := t.TempDir()
-	h := hackFlatApp(t, dir)
+	h := groupFlatApp(t, dir)
 	if h.teamSitesReady("weekend") {
 		t.Fatal("off: ready without a certificate marker")
 	}
@@ -88,7 +89,7 @@ func TestTeamSitesReadyDoesNotWaitOnPerEventCert(t *testing.T) {
 
 func TestRequestSiteCertSkipsPerEventUnderFlatHosts(t *testing.T) {
 	dir := t.TempDir()
-	h := hackFlatApp(t, dir)
+	h := groupFlatApp(t, dir)
 	h.RequestSiteCert("weekend")
 	if _, err := os.Stat(filepath.Join(dir, "requests", "weekend")); err != nil {
 		t.Fatalf("off: expected a certificate request file: %v", err)
@@ -108,7 +109,7 @@ func TestRequestSiteCertSkipsPerEventUnderFlatHosts(t *testing.T) {
 // and the exact-handle-match-wins check that guards it, need a real account
 // to check against and are covered by the DB-backed tests below.
 func TestSiteHostPartsFlatHosts(t *testing.T) {
-	h := hackFlatApp(t, "")
+	h := groupFlatApp(t, "")
 	ctx := context.Background()
 
 	site, handle, base, ok := h.siteHostParts(ctx, "alpha.weekend.simple-hack.test")
@@ -153,8 +154,8 @@ func TestSiteHostPartsFlatHosts(t *testing.T) {
 // live, so this exactly simulates a hosted-events instance with
 // TEAM_SITE_FLAT_HOSTS on, without needing full event/team machinery.
 
-func asHackFlat(a *privateApp) {
-	a.sites.ed = edition.ForKind(edition.Hack)
+func asGroupFlat(a *privateApp) {
+	a.sites.ed = groupTestEdition()
 	a.sites.SetTeamSiteFlatHosts(true)
 }
 
@@ -203,7 +204,7 @@ func TestSiteHostsFlatServesWithoutPerEventCertMarker(t *testing.T) {
 	setHandle(t, a, event, eventHandle)
 	a.deploy(t, event, "alpha")
 
-	asHackFlat(a)
+	asGroupFlat(a)
 
 	host := "alpha--" + eventHandle + "." + pcSiteDomain
 	r := a.at(t, "GET", host, "/", nil, nil)
@@ -236,7 +237,7 @@ func TestSiteHostsFlatModeExactHandleWins(t *testing.T) {
 	// not serve "red".
 	makeEventAccount(t, a, legacyEvent)
 
-	asHackFlat(a)
+	asGroupFlat(a)
 	ctx := context.Background()
 
 	if _, _, _, ok := a.sites.siteHostParts(ctx, legacyHandle+"."+pcSiteDomain); ok {
@@ -282,7 +283,7 @@ func TestSiteHostPartsFlatHostsLegacyEventSlugWithDoubleHyphen(t *testing.T) {
 	setHandle(t, a, legacyEvent, legacyEventHandle)
 	a.deploy(t, legacyEvent, "alpha")
 
-	asHackFlat(a)
+	asGroupFlat(a)
 	ctx := context.Background()
 
 	flatLabel := "alpha--" + legacyEventHandle
@@ -320,7 +321,7 @@ func TestOriginIsSiteHostIDFlatHosts(t *testing.T) {
 		t.Fatalf("off: originIsSiteHostID(%q) = false", twoLevelHost)
 	}
 
-	asHackFlat(a)
+	asGroupFlat(a)
 	if !a.sites.originIsSiteHostID(ctx, siteID, flatHost) {
 		t.Fatalf("flat: originIsSiteHostID(%q) = false", flatHost)
 	}

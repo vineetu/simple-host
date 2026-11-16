@@ -21,7 +21,7 @@ func TestPickerPhotoLinkCapabilities(t *testing.T) {
 		{name: "account enabled", flag: "accounts:alice", handle: "alice"},
 		{name: "other account", flag: "accounts:alice", handle: "bob", token: true},
 		{name: "archive unchanged", flag: "on", archive: true, token: true},
-		{name: "Hack unchanged", flag: "on", mode: CallerModeHackSite, token: true},
+		{name: "Hack unchanged", flag: "on", mode: CallerModeGroupSite, token: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("MCP_APP_PHOTO_PICKER", tc.flag)

@@ -478,7 +478,7 @@ func TestHackToolDispatch(t *testing.T) {
 // about the team's website, and that wording still names every required argument.
 func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
 	s := newTestServer(nil)
-	site := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeHackSite))
+	site := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeGroupSite))
 	if len(site) == 0 {
 		t.Fatal("no Hack website tools")
 	}

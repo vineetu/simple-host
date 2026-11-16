@@ -5,7 +5,7 @@ import "testing"
 func TestRegistryRejectsDuplicateEditionName(t *testing.T) {
 	r := &toolRegistry{}
 	r.add(editionHost, famSites, []Tool{{Name: "duplicate"}})
-	r.add(editionHack, "fixture", []Tool{{Name: "duplicate"}})
+	r.add(editionProduct, "fixture", []Tool{{Name: "duplicate"}})
 	defer func() {
 		if recover() == nil {
 			t.Fatal("duplicate name within an edition did not panic")

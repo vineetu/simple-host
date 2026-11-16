@@ -5,6 +5,9 @@ package main
 // hack_film.go and the product's asset_files.go. Keep
 // separate entries for separate call sites, including conditional alternatives.
 var dynamicSites = dynamicTable{
+	"internal/server/build.go:Build": {
+		{`pattern`, []string{"GET /hackathons", "GET /hackathons.html"}},
+	},
 	"internal/handler/connector.go:Register": {
 		{`"GET " + museClientPath`, []string{"GET /.well-known/muse-client.json"}},
 		{`m + " /mcp"`, []string{"POST /mcp", "GET /mcp", "DELETE /mcp"}},

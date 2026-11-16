@@ -46,7 +46,7 @@ func (p *assetPipeline) docsRuntimeText(body []byte) []byte {
 	}
 	body = p.docsStorageLimits(body)
 	body = hostedBlocks(p.productInstanceText(p.limitsText.apply(body)), p.hostedOwner() != "")
-	body = hasHackBlocks(body, p.hostedOwner() != "" || p.pres.ProductAssets)
+	body = hasProductBlocks(body, p.hostedOwner() != "" || p.pres.ProductAssets)
 	if p.hostedOwner() == "" {
 		body = p.selfHostedChromeRewrite(body)
 	}

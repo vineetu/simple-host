@@ -16,7 +16,7 @@ func TestImportToolsAndHashedLinks(t *testing.T) {
 	if len(s.tools) != 57 || len(s.groupSiteTools) != 38 {
 		t.Fatal("tool counts", len(s.tools), len(s.groupSiteTools))
 	}
-	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeHackSite}} {
+	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeGroupSite}} {
 		tools, _, _ := s.forCaller(caller)
 		for _, tool := range tools {
 			if tool.Name == "create_import_link" || tool.Name == "get_import_report" {

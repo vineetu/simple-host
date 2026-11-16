@@ -53,7 +53,7 @@ const CallerModeEvents = "events"
 
 // CallerModeHackSite is a hosted Simple Hack team or admin website connection.
 // It keeps the website tools except the retired saved-data model.
-const CallerModeHackSite = "hack_site"
+const CallerModeGroupSite = "hack_site"
 
 // Caller is the identity a request acts as. APIKey is the key the client
 // presented or, for a connector token, a per-request internal credential for
@@ -241,7 +241,7 @@ func newServer(cfg Config) *Server {
 	r := buildRegistry(cfg, s.apps.AppFamily)
 	host := r.view(cfg, editionHost, false, false, false)
 	deploy := r.view(cfg, editionHost, false, false, true)
-	product := r.view(cfg, editionHack, false, false, false)
+	product := r.view(cfg, editionProduct, false, false, false)
 	site := r.view(cfg, editionHost, true, false, false)
 	core, coreBare := make([]Tool, 0, len(coreToolNames)), make([]Tool, 0, len(coreToolNames))
 	for _, name := range coreToolNames {
@@ -360,7 +360,7 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 		}
 		return s.productTools, s.productBare, s.productByName
 	}
-	if caller.Mode == CallerModeHackSite {
+	if caller.Mode == CallerModeGroupSite {
 		return s.groupSiteTools, s.groupSiteBare, s.groupSiteByName
 	}
 	if flatListApp(caller.AppName) {
@@ -1004,7 +1004,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		// it comes back as a failed tool result it can read, not a protocol
 		// error that ends the turn.
 		message := err.Error()
-		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
+		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeGroupSite {
 			if s.cfg.Contribution != nil && s.cfg.Contribution.StorageError != nil {
 				rewrite := s.cfg.Contribution.StorageError
 				message = rewrite(message)

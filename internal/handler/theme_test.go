@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"github.com/vsriram/simple-host/internal/config"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -111,7 +112,7 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 	oldHosted := instanceIsHostedService
 	instanceIsHostedService = true
 	t.Cleanup(func() { instanceIsHostedService = oldHosted })
-	mux := chromeTestMux(t, edition.Host)
+	mux := chromeTestMux(t, platformTestEdition())
 	// Served pages under the apex CSP carry a nonce on <script>; compare the
 	// script's body.
 	script := strings.TrimPrefix(themeScriptFor(t), "<script>")
@@ -162,14 +163,14 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 	pages, _ := fs.Glob(staticFiles, "static/*.html")
 	for _, p := range pages {
 		name := strings.TrimPrefix(p, "static/")
-		page, err := testAssetPipeline(edition.ForKind(edition.Host), "").chromePage(name, ChromeData{})
+		page, err := testAssetPipeline(edition.Default(config.DefaultLimits()), "").chromePage(name, ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		check(name, string(page), name != "setup.html")
 	}
 	// The 404 as the content host reaches it, and the Go-built pages.
-	h := chromeTestHandler(edition.Host)
+	h := chromeTestHandler(platformTestEdition())
 	req := httptest.NewRequest(http.MethodGet, "/internal/notfound", nil)
 	req.Header.Set("X-Original-URI", "/nothing-here.html")
 	rec := httptest.NewRecorder()

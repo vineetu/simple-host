@@ -1,6 +1,7 @@
 package hack
 
 import (
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +9,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/webassets"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
@@ -61,21 +61,21 @@ func TestAssetTablesNameTheRightFiles(t *testing.T) {
 }
 
 func TestSkillsVersionRoutes(t *testing.T) {
-	hostVersion, err := handler.PluginVersion(false)
+	hostVersion, err := handler.PluginVersion()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		kind    edition.Kind
+		kind    productedition.Kind
 		version string
 	}{
-		{edition.Host, hostVersion},
-		{edition.Hack, "0.27.20"},
+		{productedition.Host, hostVersion},
+		{productedition.Hack, "0.27.20"},
 	} {
 		t.Run(tc.kind.String(), func(t *testing.T) {
-			sh := handler.NewSiteHandler(edition.ForKind(tc.kind), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+			sh := handler.NewSiteHandler(productedition.ForKind(tc.kind), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
 			mux := http.NewServeMux()
-			if tc.kind == edition.Hack {
+			if tc.kind == productedition.Hack {
 				assets := Extension().Assets(sh)
 				sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
 				assets.Routes(mux, sh.AssetServices())
@@ -99,7 +99,7 @@ func TestSkillsVersionRoutes(t *testing.T) {
 // Hack's one file route answers every own name that is served by its file
 // name, at that name; a page-only name gets no address of its own.
 func TestOwnFilesAreServedByTheFileRoute(t *testing.T) {
-	sh := handler.NewSiteHandler(edition.ForKind(edition.Hack), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	sh := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
 	assets := Extension().Assets(sh)
 	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
 	mux := http.NewServeMux()

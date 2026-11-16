@@ -9,6 +9,9 @@ from pathlib import Path
 import yaml
 
 settings = json.loads(Path('docs/advanced/settings.json').read_text())['settings']
+# Deployment profiles still support both products until D3-S6b splits the program.
+# Hack's generated list composes the platform and product settings.
+settings += json.loads(Path('products/hack/docs/advanced/settings.json').read_text())['settings']
 registered = {s['name'] for s in settings}
 required = {s['name'] for s in settings if s['required']}
 errors = []

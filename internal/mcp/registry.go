@@ -45,7 +45,7 @@ type toolPolicy struct {
 	storageResource, visitorParams, pagedStorage                               bool
 	judgeParameter, includeEmails, recordsPins, screenshot, optionalBody       bool
 
-	hackSiteExcluded, personalExcluded, connectorHidden  bool
+	groupSiteExcluded, personalExcluded, connectorHidden bool
 	notDeployOnly, unlisted, notSearchable               bool
 	listWithPasscode                                     bool
 	personalCredential, listWithoutTeam, preserveNumbers bool
@@ -54,7 +54,7 @@ type toolPolicy struct {
 	showAllowed                                          func(Caller, bool) bool
 	flatList                                             func(Tool) Tool
 	analytics                                            analyticsPolicy
-	hackSite                                             func(Tool, Limits) Tool
+	groupSite                                            func(Tool, Limits) Tool
 	noSpamCheck                                          func(Tool) Tool
 }
 
@@ -62,7 +62,7 @@ type toolEdition uint8
 
 const (
 	editionHost toolEdition = iota
-	editionHack
+	editionProduct
 	editionScreen
 	editionBrain
 )
@@ -78,7 +78,7 @@ type toolRegistry struct{ entries []toolEntry }
 
 func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool) {
 	for _, tool := range tools {
-		if edition == editionHack {
+		if edition == editionProduct {
 			tool.policy.analytics.emailIdentity = true
 			tool.policy.analytics.contactEmail = true
 			tool.policy.personalCredential = true
@@ -113,9 +113,9 @@ func buildRegistry(cfg Config, appFamily func(base []Tool) FamilyTools) *toolReg
 		}
 		families = append(append([]familyTools(nil), families...), appFamily(base))
 	}
-	r.addFamilies(editionHack, families, addressTools)
+	r.addFamilies(editionProduct, families, addressTools)
 	if cfg.Events != nil {
-		r.add(editionHack, famNotifications, cfg.Contribution.Notifications)
+		r.add(editionProduct, famNotifications, cfg.Contribution.Notifications)
 	}
 	r.add(editionScreen, famAccess, []Tool{passcodeScreenTool()})
 	for i := range r.entries {
@@ -158,7 +158,7 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, dep
 		if entry.edition != edition || entry.policy.connectorHidden || (deploy && entry.policy.notDeployOnly) {
 			continue
 		}
-		if site && (entry.policy.hackSiteExcluded || entry.policy.unlisted || (personal && entry.policy.personalExcluded)) {
+		if site && (entry.policy.groupSiteExcluded || entry.policy.unlisted || (personal && entry.policy.personalExcluded)) {
 			continue
 		}
 		tool := entry.tool
@@ -242,8 +242,8 @@ func inventoryTools(cfg Config, appFamily func(base []Tool) FamilyTools) []Inven
 	var out []InventoryTool
 	for _, entry := range r.entries {
 		edition := "host"
-		if entry.edition == editionHack {
-			edition = "hack"
+		if entry.edition == editionProduct {
+			edition = "product"
 		}
 		if entry.edition == editionScreen {
 			edition = "screen"

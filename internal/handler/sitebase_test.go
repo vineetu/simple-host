@@ -26,7 +26,7 @@ import (
 const sbBase = "sh-site.test"
 
 func TestPausedSiteBaseRedirect(t *testing.T) {
-	h := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.app", siteCertDir: "/app-certs"}
+	h := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "simple-host.app", siteCertDir: "/app-certs"}
 	h.SetSiteBase("simple-host.site", "off", "")
 	app := h.SiteBaseHosts(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -100,7 +100,7 @@ func newBaseApp(t *testing.T, move string) (*privateApp, string, string) {
 }
 
 func TestSiteBaseModes(t *testing.T) {
-	a := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.app"}
+	a := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "simple-host.app"}
 	for _, c := range []struct {
 		base, move      string
 		split           bool
@@ -136,7 +136,7 @@ func TestSiteBaseModes(t *testing.T) {
 }
 
 func TestTwinHost(t *testing.T) {
-	a := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	a := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 	a.SetSiteBase("simple-host.site", "off", "")
 	if a.twinHost("clay.simple-host.app") != "" {
 		t.Fatal("twin while off")
@@ -483,7 +483,7 @@ func TestSiteBaseReturnTo(t *testing.T) {
 // TestSiteBaseNormalizeDomain: a custom domain may never be one of our zones,
 // the base included even before the move is on.
 func TestSiteBaseNormalizeDomain(t *testing.T) {
-	h := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	h := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 	h.SetSiteBase("simple-host.site", "off", "")
 	for _, d := range []string{"simple-host.site", "x.simple-host.site", "a.b.simple-host.site", "x.simple-host.app"} {
 		if _, err := h.normalizeDomain(d); err == nil {
@@ -650,7 +650,7 @@ func TestMoveSiteBase(t *testing.T) {
 
 // A fully qualified Host (trailing dot) is the same address as without it.
 func TestLegacyBaseTargetTrailingDot(t *testing.T) {
-	a := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	a := &SiteHandler{ed: edition.Default(config.DefaultLimits()), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 	a.SetSiteBase("simple-host.site", "permanent", "")
 	for host, want := range map[string]string{
 		"clay.simple-host.app":       "https://clay.simple-host.site/x?y=1",

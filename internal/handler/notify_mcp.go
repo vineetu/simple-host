@@ -167,7 +167,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		return out, notifyMCPError(code, "reason", notifyCategory(err))
 	}
 	now := time.Now()
-	n := model.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Hack: b.h.ed.Notifications().EventScoped, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
+	n := model.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Product: b.h.ed.Notifications().EventScoped, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
 	if c.OAuthGrantID != "" {
 		n.GrantID = &c.OAuthGrantID
 	}

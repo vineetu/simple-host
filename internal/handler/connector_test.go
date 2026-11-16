@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -276,7 +277,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	if len(eds) > 0 {
 		ed = eds[0]
 	} else {
-		ed = edition.ForKind(edition.Host)
+		ed = edition.Default(config.DefaultLimits())
 	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
@@ -1320,9 +1321,9 @@ func (h connectionLabelsStub) Labels(context.Context, sqlkit.Querier, string) (m
 }
 
 func TestConnectionsTeamsByEdition(t *testing.T) {
-	for _, kind := range []edition.Kind{edition.Hack, edition.Host} {
-		t.Run(kind.String(), func(t *testing.T) {
-			a := newConnectorApp(t, edition.ForKind(kind))
+	for _, kind := range []*edition.Edition{groupTestEdition(), platformTestEdition()} {
+		t.Run(kind.Presentation().ProductName, func(t *testing.T) {
+			a := newConnectorApp(t, kind)
 			p := a.newPerson(t, "connections")
 			var uid string
 			if err := a.database.QueryRow(`SELECT id FROM users WHERE username=$1`, p.email).Scan(&uid); err != nil {
@@ -1349,7 +1350,7 @@ func TestConnectionsTeamsByEdition(t *testing.T) {
 			for _, item := range list {
 				c := item.(map[string]any)
 				raw, present := c["teams"]
-				if kind == edition.Host {
+				if kind.Identity().PersonalSites {
 					if present {
 						t.Fatalf("Host returned teams: %v", c)
 					}
