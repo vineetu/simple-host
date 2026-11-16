@@ -12,7 +12,7 @@ FIXTURE_PORT=${FIXTURE_PORT:-${PORT:-18190}}
 TLS_PORT=${TLS_PORT:-18443}
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$FIX/data"
-PGOPTIONS=--client-min-messages=warning $PSQL -q -v ON_ERROR_STOP=1 "$DB_DSN" <"$here/../../db/schema.sql" >/dev/null
+"$BIN" migrate -init >"$FIX/migrate.log" 2>&1
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$FIX/key.pem" -out "$FIX/cert.pem" -days 2 \
   -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
 admin=$(openssl rand -hex 32)

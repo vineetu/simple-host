@@ -62,6 +62,15 @@ func run(root string, args []string, out, errs io.Writer) int {
 	if e != nil {
 		return fail(e)
 	}
+	// Ownership analysis needs both halves after the schema split.
+	if o.Schema == "db/schema.sql" {
+		product, err := os.ReadFile(path("products/hack/db/schema.sql"))
+		if err == nil {
+			b = append(append(b, '\n'), product...)
+		} else if !os.IsNotExist(err) {
+			return fail(err)
+		}
+	}
 	z := parseSchema(string(b))
 	objects, e := readObjects(path(o.Objects))
 	if e != nil && !(*prop && os.IsNotExist(e)) {

@@ -187,6 +187,13 @@ if ! psql "$target_url" -v ON_ERROR_STOP=1 -f db/schema.sql >/dev/null; then
   echo "FAIL: db/schema.sql failed to apply to the throwaway database" >&2
   exit 1
 fi
+# Until D3-S5d separates package templates, the suite uses the composed schema.
+if [ -f products/hack/db/schema.sql ]; then
+  if ! psql "$target_url" -v ON_ERROR_STOP=1 -f products/hack/db/schema.sql >/dev/null; then
+    echo "FAIL: product schema failed to apply to the throwaway database" >&2
+    exit 1
+  fi
+fi
 
 test_pkgs="${TEST_PKGS:-./...}"
 test_count="${TEST_COUNT:-1}"

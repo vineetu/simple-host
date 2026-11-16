@@ -98,7 +98,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	}
 	c := Install(platform.New(d, dir))
 	// Applying the migration repeatedly is safe even after the fresh schema.
-	migration, err := os.ReadFile("../../../db/migrations/zs-hack-paper-metrics.sql")
+	migration, err := os.ReadFile("../db/migrations/zs-hack-paper-metrics.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

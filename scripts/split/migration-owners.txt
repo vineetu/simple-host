@@ -102,7 +102,7 @@ zq-hack-leave-event.sql | hack | creates clear_hack_former_judge (hack); creates
 zr-hack-team-kept-after-leave.sql | hack | alters event_teams (hack)
 zr-paper-metrics.sql | platform | creates paper_class_daily, paper_daily, paper_latency_daily, paper_process_sample, paper_site_footprint
 zs-hack-paper-metrics.sql | mixed | creates platform paper_run provenance and Hack paper_hack_key, paper_hack_event, paper_hack_minute, paper_hack_latency, paper_hack_phase, paper_hack_daily
-#   mixed: platform objects created: paper_run; later platform files that mention them: none
+#   mixed: platform objects created: paper_run; later platform files that mention them: 0022-platform-parts.sql
 zt-hack-teams-redesign.sql | hack | alters event_members (hack); alters event_teams (hack); alters events (hack); creates hack_clear_team_admin_on_team_change (hack); creates trigger on event_members (hack); writes event_members (hack); writes event_teams (hack); writes events (hack); reads users
 zv-hack-entry-summary.sql | hack | alters event_entries (hack); alters events (hack); writes event_entries (hack); writes events (hack); reads users
 zw-hack-wait-notices.sql | hack | alters event_notices (hack); alters hack_account_preferences (hack); creates event_notices (hack); reads users
@@ -131,3 +131,4 @@ zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_
 0019-storage-kv-store.sql | platform | alters site_storage_resources
 0020-hack-grant-teams.sql | hack | creates hack_grant_teams; copies selected teams from oauth_grants
 0021-install-identity.sql | platform | creates install_identity
+0022-platform-parts.sql | platform | creates shared paper_run provenance from the historical mixed migration

@@ -2132,7 +2132,7 @@
       "method": "GET",
       "path": "/setup/setup.js",
       "feature_id": "setup-helper",
-      "source": "products/hack/extension.go:70",
+      "source": "products/hack/extension.go:74",
       "package": "products/hack",
       "dynamic": false
     },
@@ -2316,7 +2316,7 @@
       "method": "GET",
       "path": "/skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/extension.go:65",
+      "source": "products/hack/extension.go:69",
       "package": "products/hack",
       "dynamic": false
     },
@@ -2460,7 +2460,7 @@
       "method": "GET",
       "path": "/skills/version",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/extension.go:66",
+      "source": "products/hack/extension.go:70",
       "package": "products/hack",
       "dynamic": false
     },

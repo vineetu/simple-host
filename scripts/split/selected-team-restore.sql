@@ -11,6 +11,7 @@ SELECT :'table_is_newer' = 'yes' AS table_confirmed \gset
 \endif
 \if :table_confirmed
 BEGIN;
+LOCK TABLE oauth_grants, hack_grant_teams IN SHARE ROW EXCLUSIVE MODE;
 UPDATE oauth_grants g
 SET selected_team_id = (SELECT h.team_id FROM hack_grant_teams h WHERE h.grant_id = g.id)
 WHERE g.selected_team_id IS DISTINCT FROM

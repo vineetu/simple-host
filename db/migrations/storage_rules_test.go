@@ -13,7 +13,7 @@ func TestStorageRulesMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, source := range []string{"../schema.sql", "testdata/hack-v0.8.13-schema.sql"} {
+	for _, source := range []string{"../schema.sql"} {
 		t.Run(source, func(t *testing.T) {
 			schema, err := os.ReadFile(source)
 			if err != nil {

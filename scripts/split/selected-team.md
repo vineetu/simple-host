@@ -29,6 +29,10 @@ written**. This candidate retires that write, so differences after selection
 are expected: it must not refuse startup or report them as corruption. The
 zero-difference check above is a pre-deploy check of the double-writing program.
 
+After a rollback to a double-writing program and redeploy, this count may
+legitimately be non-zero: untouched legacy column values can be stale. Do not
+"fix" that difference with the reconcile script; the table remains authoritative.
+
 **Never re-apply `0020-hack-grant-teams.sql` by hand after D3-S5b.** Its historical
 copy makes the old column win and would overwrite newer selections. The applied
 migration and its ledger entry stay unchanged; the normal runner skips it.
@@ -45,7 +49,7 @@ The shared rollback floor must permit the intended program independently.
 | Move forward after a column-only program ran | Run `selected-team-reconcile.sql` with `-v column_is_newer=yes`. It copies the authoritative column, including absent and deleted-team choices. |
 | No allowed program below the shared floor | Restore a complete backup predating every active requirement: database, files, configuration and program together. |
 
-Both scripts are idempotent. Reconcile locks both tables inside its transaction.
+Both scripts are idempotent and lock both tables inside their transaction.
 Never reconcile from a stale column after retirement. The seeded rehearsals in
 `products/hack/repository/hackteams/connector_test.go` cover both recorded
 production schemas, missing selections, deleted teams/grants, old-writer changes,

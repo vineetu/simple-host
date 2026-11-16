@@ -40,6 +40,11 @@ func isolatedDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
+	productDDL, err := os.ReadFile("../db/schema.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ddl = append(append(ddl, '\n'), productDDL...)
 	if _, err := d.Exec(string(ddl)); err != nil {
 		t.Fatalf("apply schema: %v", err)
 	}

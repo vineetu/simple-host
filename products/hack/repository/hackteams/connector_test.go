@@ -109,7 +109,7 @@ func selectedRehearsalFixture(t *testing.T, dump string) (*sql.DB, string) {
 
 func migrateSelections(t *testing.T, db *sql.DB) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(repoRoot, "db/migrations/0020-hack-grant-teams.sql"))
+	b, err := os.ReadFile(filepath.Join(repoRoot, "products/hack/db/migrations/0020-hack-grant-teams.sql"))
 	if err != nil {
 		t.Fatal(err)
 	}

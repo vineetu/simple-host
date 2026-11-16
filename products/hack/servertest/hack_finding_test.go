@@ -284,7 +284,7 @@ func TestHackFindingDraft(t *testing.T) {
 
 func TestHackFindingMigrationKeepsExistingTeamsClosed(t *testing.T) {
 	a := newTeamSiteApp(t)
-	migration, err := os.ReadFile("../../../db/migrations/zl-hack-team-finding.sql")
+	migration, err := os.ReadFile("../db/migrations/zl-hack-team-finding.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

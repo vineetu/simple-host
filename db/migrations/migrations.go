@@ -1,9 +1,10 @@
-// Package migrations holds every schema change file and applies the pending
+// Package migrations holds platform schema changes and applies the pending
 // ones: `simple-host migrate`.
 //
 // # The rule for a new migration file
 //
-// Every schema change edits db/schema.sql AND adds one file here. The file:
+// A platform schema change edits db/schema.sql AND adds one file here. Product
+// changes follow the same rules in their own catalogue. The file:
 //
 //   - is plain SQL (no psql meta-commands such as \set or \echo);
 //   - is idempotent: ADD COLUMN IF NOT EXISTS, CREATE TABLE/INDEX IF NOT EXISTS,
@@ -78,7 +79,7 @@ type Set struct {
 }
 
 // Embedded returns the platform's migration catalogue. The db package supplies
-// its schema. Until the ownership split, this catalogue still holds every file.
+// its schema.
 func Embedded() Catalog {
 	return Catalog{FS: embedded, Legacy: Legacy, Baseline: Baseline}
 }
@@ -149,18 +150,6 @@ var Legacy = []string{
 	"cp-ops-suspend.sql",
 	"cp-proof-domain-ownership.sql",
 	"cp-recover-recently-deleted.sql",
-	"hack1-events.sql",
-	"hack10-event-icons.sql",
-	"hack11-account-preferences.sql",
-	"hack2-team-sites.sql",
-	"hack3-judging.sql",
-	"hack4-administration.sql",
-	"hack5-content.sql",
-	"hack6-registration.sql",
-	"hack7-mail-retries.sql",
-	"hack7-voting-directory.sql",
-	"hack8-judging-options.sql",
-	"hack9-event-websites.sql",
 	"knobs-promised-dates.sql",
 	"sd1-saved-data-safety.sql",
 	"sd1-saved-data-safety2-limits.sql",
@@ -187,9 +176,7 @@ var Legacy = []string{
 	"w3-connection-device.sql",
 	"w3-keys-scope-expiry.sql",
 	"w3-network-usage.sql",
-	"z6-hack-connector-selected-team.sql",
 	"z7-site-storage.sql",
-	"z8-hack-ink-color.sql",
 	"z9-home-page.sql",
 	"za-showcase-curation.sql",
 	"zb-storage-story.sql",
@@ -200,23 +187,11 @@ var Legacy = []string{
 	"zg-oidc-signin.sql",
 	"zh-site-notifications.sql",
 	"zi-site-search-summary.sql",
-	"zj-hack-notifications.sql",
-	"zk-hack-directory-opt-in.sql",
-	"zk-hack-team-removal-notice.sql",
-	"zl-hack-team-finding.sql",
 	"zn-sso-hop.sql",
 	"zn-visitor-ai.sql",
 	"zo-sso-signout-confirm.sql",
-	"zp-hack-applications.sql",
-	"zq-hack-leave-event.sql",
-	"zr-hack-team-kept-after-leave.sql",
 	"zr-paper-metrics.sql",
-	"zs-hack-paper-metrics.sql",
-	"zt-hack-teams-redesign.sql",
-	"zv-hack-entry-summary.sql",
-	"zw-hack-wait-notices.sql",
 	"zw-sim-152-version-author.sql",
-	"zx-hack-entry-reminders.sql",
 	"zx-sim-151-owner-visitor-marks.sql",
 	"zz-sim-200-image-scan.sql",
 }

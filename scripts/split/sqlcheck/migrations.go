@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/db/migrations"
+	hackmigrations "github.com/vsriram/simple-host/products/hack/db/migrations"
 )
 
 type migration struct {
@@ -31,6 +32,15 @@ func migrationOrder(root string) ([]string, map[string]bool, error) {
 			present[en.Name()] = true
 		}
 	}
+	if product, err := os.ReadDir(filepath.Join(root, "products/hack/db/migrations")); err == nil {
+		for _, entry := range product {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
+				present[entry.Name()] = true
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, nil, err
+	}
 	var out []string
 	baseline := map[string]bool{}
 	for n := range migrations.Baseline {
@@ -50,7 +60,8 @@ func migrationOrder(root string) ([]string, map[string]bool, error) {
 		}
 	}
 	out = withShell
-	for _, n := range (migrations.Set{Platform: migrations.Embedded()}).Tracked() {
+	product := hackmigrations.Embedded()
+	for _, n := range (migrations.Set{Platform: migrations.Embedded(), Product: &product, ProductOrder: hackmigrations.ProductOrder}).Tracked() {
 		if present[n] {
 			out = append(out, n)
 			delete(present, n)
@@ -87,6 +98,9 @@ func proposeMigrations(root string, order []string, objects []object, z schemaIn
 			continue
 		}
 		b, e := os.ReadFile(filepath.Join(root, "db/migrations", n))
+		if os.IsNotExist(e) {
+			b, e = os.ReadFile(filepath.Join(root, "products/hack/db/migrations", n))
+		}
 		if e != nil {
 			return nil, e
 		}
@@ -335,6 +349,11 @@ func migrationColumns(root string, z schemaInfo) ([]string, error) {
 	if e != nil {
 		return nil, e
 	}
+	productFiles, e := filepath.Glob(filepath.Join(root, "products/hack/db/migrations/*hack*.sql"))
+	if e != nil {
+		return nil, e
+	}
+	files = append(files, productFiles...)
 	var out []string
 	for _, file := range files {
 		b, e := os.ReadFile(file)

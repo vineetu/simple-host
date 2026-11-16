@@ -30,6 +30,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
+	hackmigrations "github.com/vsriram/simple-host/products/hack/db/migrations"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
@@ -44,8 +45,11 @@ func Extension() *extension.Extension {
 	// product's files (before Wire), then used by the product's own routes.
 	var productAssets *hackhttp.Assets
 	var productConfig productconfig.Config
+	catalog := hackdb.Catalog()
 	return &extension.Extension{
-		Name: "simple-hack",
+		Name:           "simple-hack",
+		Migrations:     &catalog,
+		MigrationOrder: hackmigrations.ProductOrder,
 		Config: extension.ConfigSpec{Settings: productconfig.Settings(), Load: func(getenv func(string) string) ([]string, error) {
 			var warnings []string
 			var err error

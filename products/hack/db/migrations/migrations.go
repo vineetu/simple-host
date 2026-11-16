@@ -1,0 +1,130 @@
+// Package migrations owns Hack's unchanged historical migration files.
+package migrations
+
+import (
+	"embed"
+	platform "github.com/vsriram/simple-host/db/migrations"
+)
+
+//go:embed *.sql
+var embedded embed.FS
+
+// Baseline is empty: all historical baseline files belong to the platform.
+var Baseline = map[string]bool{}
+
+// Legacy is Hack's subsequence of the frozen combined apply order.
+var Legacy = []string{
+	"hack1-events.sql",
+	"hack10-event-icons.sql",
+	"hack11-account-preferences.sql",
+	"hack2-team-sites.sql",
+	"hack3-judging.sql",
+	"hack4-administration.sql",
+	"hack5-content.sql",
+	"hack6-registration.sql",
+	"hack7-mail-retries.sql",
+	"hack7-voting-directory.sql",
+	"hack8-judging-options.sql",
+	"hack9-event-websites.sql",
+	"z6-hack-connector-selected-team.sql",
+	"z8-hack-ink-color.sql",
+	"zj-hack-notifications.sql",
+	"zk-hack-directory-opt-in.sql",
+	"zk-hack-team-removal-notice.sql",
+	"zl-hack-team-finding.sql",
+	"zp-hack-applications.sql",
+	"zq-hack-leave-event.sql",
+	"zr-hack-team-kept-after-leave.sql",
+	"zs-hack-paper-metrics.sql",
+	"zt-hack-teams-redesign.sql",
+	"zv-hack-entry-summary.sql",
+	"zw-hack-wait-notices.sql",
+	"zx-hack-entry-reminders.sql",
+}
+
+// ProductOrder is the pre-split combined order, preserved exactly.
+var ProductOrder = []string{
+	"ask-daily-count.sql",
+	"cp-domains-custom-domain-certs.sql",
+	"cp-gdpr-retired-handles.sql",
+	"cp-int-previous-domain-checks.sql",
+	"cp-keys-key-names.sql",
+	"cp-ops-schema-migrations.sql",
+	"cp-ops-suspend.sql",
+	"cp-proof-domain-ownership.sql",
+	"cp-recover-recently-deleted.sql",
+	"hack1-events.sql",
+	"hack10-event-icons.sql",
+	"hack11-account-preferences.sql",
+	"hack2-team-sites.sql",
+	"hack3-judging.sql",
+	"hack4-administration.sql",
+	"hack5-content.sql",
+	"hack6-registration.sql",
+	"hack7-mail-retries.sql",
+	"hack7-voting-directory.sql",
+	"hack8-judging-options.sql",
+	"hack9-event-websites.sql",
+	"knobs-promised-dates.sql",
+	"sd1-saved-data-safety.sql",
+	"sd1-saved-data-safety2-limits.sql",
+	"sd1-saved-data-safety3-history-bytes.sql",
+	"sd2-saved-data-kinds.sql",
+	"sd3-saved-data-personal-board.sql",
+	"sd3-saved-data-personal-private.sql",
+	"v061-setup-check-daily.sql",
+	"v071-event-account-flag.sql",
+	"v072-notify-last-id.sql",
+	"v073-setup-assist-daily.sql",
+	"v075-signup-source.sql",
+	"v075-site-keep-versions.sql",
+	"v076-site-passcode.sql",
+	"v077-address-families.sql",
+	"v078-api-growth.sql",
+	"v079-api-self-calls.sql",
+	"w2-account-signin-email.sql",
+	"w2-addr-idle-cleanup.sql",
+	"w2-signin-email-undo.sql",
+	"w2-sites-offline.sql",
+	"w2-sites-old-names.sql",
+	"w3-analytics-pages-referrers.sql",
+	"w3-connection-device.sql",
+	"w3-keys-scope-expiry.sql",
+	"w3-network-usage.sql",
+	"z6-hack-connector-selected-team.sql",
+	"z7-site-storage.sql",
+	"z8-hack-ink-color.sql",
+	"z9-home-page.sql",
+	"za-showcase-curation.sql",
+	"zb-storage-story.sql",
+	"zc-site-named-viewers.sql",
+	"zd-storage-access-presets.sql",
+	"ze-spam-checked-posts.sql",
+	"zf-signup-detail.sql",
+	"zg-oidc-signin.sql",
+	"zh-site-notifications.sql",
+	"zi-site-search-summary.sql",
+	"zj-hack-notifications.sql",
+	"zk-hack-directory-opt-in.sql",
+	"zk-hack-team-removal-notice.sql",
+	"zl-hack-team-finding.sql",
+	"zn-sso-hop.sql",
+	"zn-visitor-ai.sql",
+	"zo-sso-signout-confirm.sql",
+	"zp-hack-applications.sql",
+	"zq-hack-leave-event.sql",
+	"zr-hack-team-kept-after-leave.sql",
+	"zr-paper-metrics.sql",
+	"zs-hack-paper-metrics.sql",
+	"zt-hack-teams-redesign.sql",
+	"zv-hack-entry-summary.sql",
+	"zw-hack-wait-notices.sql",
+	"zw-sim-152-version-author.sql",
+	"zx-hack-entry-reminders.sql",
+	"zx-sim-151-owner-visitor-marks.sql",
+	"zz-sim-200-image-scan.sql",
+}
+
+func Embedded() platform.Catalog {
+	return platform.Catalog{FS: embedded, Legacy: Legacy, Baseline: Baseline}
+}

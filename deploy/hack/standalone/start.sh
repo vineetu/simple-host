@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+export EVENTS=hosted
 if [ "${1:-}" = release ]; then
   : "${DB_DSN:?}"
   if [ "$(psql "$DB_DSN" -tAc "SELECT to_regclass('public.users') IS NULL")" = t ]; then
@@ -66,7 +67,7 @@ issuer acme {
   exec su-exec app "$0"
 fi
 export PUBLIC_BASE_URL="https://$SITE_DOMAIN"
-export EVENTS=hosted PERSON_HOSTS=canonical SITE_HOSTS=canonical
+export PERSON_HOSTS=canonical SITE_HOSTS=canonical
 export WRITE_AUTH_MODE=on
 export MCP_APP_PHOTO_PICKER="${MCP_APP_PHOTO_PICKER:-off}"
 export MCP_APP_MY_SITES="${MCP_APP_MY_SITES:-off}"

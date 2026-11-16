@@ -37,7 +37,10 @@ Evidence: `go.mod`, the pinned dependency's `wrap.go` (`sqlite3_wasm.New`), and
 
 ## Identities, resources and tables
 
-`db/schema.sql` is the canonical table/foreign-key definition. Some definitions
+`db/schema.sql` defines platform tables and foreign keys; Hack adds
+`products/hack/db/schema.sql` after it. A fresh platform database contains no
+Hack tables. Existing databases retain their product objects and migration history.
+Some definitions
 are extended by later `ALTER TABLE` statements in that same file; read those too.
 
 | Records | Relationship and purpose |

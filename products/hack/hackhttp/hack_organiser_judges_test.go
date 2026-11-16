@@ -122,7 +122,7 @@ func TestOrganiserJudgeMigrationBackfillsOnlyScoredCurrentOrganisers(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	sql, err := os.ReadFile("../../../db/migrations/0013-hack-organiser-judges.sql")
+	sql, err := os.ReadFile("../db/migrations/0013-hack-organiser-judges.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fresh-install gate: prove db/schema.sql alone can run the product.
+# Fresh-install gate: prove the platform schema alone, then the composed Hack schema.
 #
 # This exists because it did not. schema.sql was missing collection_items,
 # sites.state, sites.state_version, sites.view_password_hash and the three
@@ -15,21 +15,35 @@
 set -u
 cd "$(dirname "$0")/.."
 
-DB=${FRESH_DB:-sh_freshcheck}
+DB=${FRESH_DB:-sh_freshcheck_$$_$(openssl rand -hex 4)}
 PSQL=${PSQL:-"sudo -u postgres psql"}
 fail=0
 
-cleanup() { $PSQL -c "DROP DATABASE IF EXISTS $DB;" >/dev/null 2>&1; }
+# TEST_PG_URL selects this run's disposable server. Keep credentials out of logs.
+psql_run() {
+  if [ -n "${TEST_PG_URL:-}" ]; then
+    local database=postgres
+    local args=()
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = -d ]; then database=$2; shift 2; else args+=("$1"); shift; fi
+    done
+    psql "${TEST_PG_URL}/${database}?sslmode=disable" "${args[@]}"
+  else
+    $PSQL "$@"
+  fi
+}
+
+cleanup() { psql_run -c "DROP DATABASE IF EXISTS $DB;" >/dev/null 2>&1; }
 trap cleanup EXIT
 
 echo "== applying db/schema.sql to a fresh database =="
 cleanup
-$PSQL -c "CREATE DATABASE $DB;" >/dev/null 2>&1 || { echo "  FAIL: cannot create $DB"; exit 1; }
+psql_run -c "CREATE DATABASE $DB;" >/dev/null 2>&1 || { echo "  FAIL: cannot create $DB"; exit 1; }
 
-errs=$($PSQL -d "$DB" -f db/schema.sql 2>&1 | grep -cE "^psql.*ERROR" || true)
+errs=$(psql_run -d "$DB" -f db/schema.sql 2>&1 | grep -cE "^psql.*ERROR" || true)
 if [ "$errs" -ne 0 ]; then
   echo "  FAIL: schema.sql reported $errs error(s)"
-  $PSQL -d "$DB" -f db/schema.sql 2>&1 | grep -E "^psql.*ERROR" | head -10 | sed 's/^/    /'
+  psql_run -d "$DB" -f db/schema.sql 2>&1 | grep -E "^psql.*ERROR" | head -10 | sed 's/^/    /'
   fail=1
 else
   echo "  ok — schema applied cleanly"
@@ -41,11 +55,11 @@ echo "== every feature's query shape runs =="
 NIL=00000000-0000-0000-0000-000000000000
 run() {
   local label=$1 sql=$2
-  if $PSQL -d "$DB" -c "$sql" >/dev/null 2>&1; then
+  if psql_run -d "$DB" -c "$sql" >/dev/null 2>&1; then
     printf '  ok   %s\n' "$label"
   else
     printf '  FAIL %s\n' "$label"
-    $PSQL -d "$DB" -c "$sql" 2>&1 | grep -E "ERROR" | head -2 | sed 's/^/       /'
+    psql_run -d "$DB" -c "$sql" 2>&1 | grep -E "ERROR" | head -2 | sed 's/^/       /'
     fail=1
   fi
 }
@@ -104,6 +118,11 @@ run "connector codes"     "SELECT client_id, user_id, redirect_uri, code_challen
 run "connector tokens"    "SELECT t.kind, t.expires_at, g.user_id FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id WHERE t.token_hash='x'"
 run "storage presets"     "SELECT name, kind, read_policy, write_policy, site_passcode, write_mode, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_resources WHERE site_id = '00000000-0000-0000-0000-000000000000'"
 run "storage table presets" "SELECT table_name, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_tables WHERE site_id = '00000000-0000-0000-0000-000000000000'"
+# The platform half has now passed alone. Hack adds its own objects afterwards.
+echo "== applying the Hack schema after the platform schema =="
+if ! psql_run -d "$DB" -v ON_ERROR_STOP=1 -f products/hack/db/schema.sql >/dev/null; then
+  echo "  FAIL: Hack schema"; fail=1
+fi
 run "team kept-after-leave marker" "SELECT kept_after_leave FROM event_teams WHERE id = '$NIL'"
 
 run "Hack paper event snapshot" "SELECT snapshot_day,event_key,run_id,synthetic,stage,created_week,duration_hours,expected_participants,participants,organisers,judges,applications,applications_approved,teams,teams_with_entry,teams_kept_after_leave,team_size_p50,team_size_max,team_sites,team_site_bytes_sum,team_site_bytes_p50,team_site_versions_sum,event_storage_bytes,submissions,entries_with_code_url,entries_with_video,scores,score_criteria,assignments,conflicts,votes,announcements,results_published,deploys_total,minutes_create_to_first_deploy FROM paper_hack_event"
@@ -124,27 +143,40 @@ run "Hack wait notices" "SELECT n.id,n.kind,n.seen_at,n.email_state,COALESCE(p.e
 # file once, and a failing file rolls back. Skipped when go is not installed.
 echo "== simple-host migrate on a fresh and an older database =="
 if command -v go >/dev/null 2>&1; then
-  MDB=${DB}_migrate
-  MDB_old=${MDB}_old
-  MDB_new=${MDB}_new
-  MPW=$(openssl rand -hex 16)
-  mcleanup() { $PSQL -c "DROP DATABASE IF EXISTS $MDB_old;" -c "DROP DATABASE IF EXISTS $MDB_new;" -c "DROP DATABASE IF EXISTS $MDB;" -c "DROP ROLE IF EXISTS $MDB;" >/dev/null 2>&1; }
-  mcleanup
-  if $PSQL -c "CREATE ROLE $MDB LOGIN PASSWORD '$MPW';" -c "CREATE DATABASE $MDB OWNER $MDB;" -c "CREATE DATABASE $MDB_old OWNER $MDB;" -c "CREATE DATABASE $MDB_new OWNER $MDB;" >/dev/null 2>&1; then
-    if MIGRATE_TEST_DSN="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}/$MDB?sslmode=disable" \
-        MIGRATE_UPGRADE_OLD_DSN="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}/$MDB_old?sslmode=disable" \
-        MIGRATE_UPGRADE_NEW_DSN="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}/$MDB_new?sslmode=disable" \
-        go test -count=1 ./db/migrations/ >/tmp/sh-migrate-check.$$ 2>&1; then
-      echo "  ok — migrate applies each file once, tracked, and is a no-op after"
+  for package in ./db/migrations ./products/hack/db/migrations; do
+    MDB=${DB}_migrate
+    MDB_old=${MDB}_old
+    MDB_new=${MDB}_new
+    MPW=$(openssl rand -hex 16)
+    mcleanup() {
+      psql_run -c "DROP DATABASE IF EXISTS $MDB_old;" -c "DROP DATABASE IF EXISTS $MDB_new;" -c "DROP DATABASE IF EXISTS $MDB;" >/dev/null 2>&1
+      if [ -z "${TEST_PG_URL:-}" ]; then psql_run -c "DROP ROLE IF EXISTS $MDB;" >/dev/null 2>&1; fi
+    }
+    mcleanup
+    owner=""
+    if [ -n "${TEST_PG_URL:-}" ]; then
+      migrate_base=$TEST_PG_URL
     else
-      echo "  FAIL migrate"; sed 's/^/    /' /tmp/sh-migrate-check.$$ | tail -20
-      fail=1
+      psql_run -c "CREATE ROLE $MDB LOGIN PASSWORD '$MPW';" >/dev/null 2>&1 || { fail=1; break; }
+      owner=" OWNER $MDB"
+      migrate_base="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}"
     fi
-    rm -f /tmp/sh-migrate-check.$$
-  else
-    echo "  FAIL: cannot create $MDB"; fail=1
-  fi
-  mcleanup
+    if psql_run -c "CREATE DATABASE $MDB$owner;" -c "CREATE DATABASE $MDB_old$owner;" -c "CREATE DATABASE $MDB_new$owner;" >/dev/null 2>&1; then
+      if DB_DSN= TESTDB_ISOLATE= MIGRATE_TEST_DSN="$migrate_base/$MDB?sslmode=disable" \
+          MIGRATE_UPGRADE_OLD_DSN="$migrate_base/$MDB_old?sslmode=disable" \
+          MIGRATE_UPGRADE_NEW_DSN="$migrate_base/$MDB_new?sslmode=disable" \
+          go test -count=1 "$package" >/tmp/sh-migrate-check.$$ 2>&1; then
+        echo "  ok — $package applies each file once and is a no-op after"
+      else
+        echo "  FAIL migrate: $package"; sed 's/^/    /' /tmp/sh-migrate-check.$$ | tail -30
+        fail=1
+      fi
+      rm -f /tmp/sh-migrate-check.$$
+    else
+      echo "  FAIL: cannot create $MDB"; fail=1
+    fi
+    mcleanup
+  done
 else
   echo "  skipped — go not installed"
 fi

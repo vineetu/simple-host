@@ -110,6 +110,8 @@ export LOGROTATE_DEST="$R/etc/logrotate.d/simple-hack"
 export SITE_CERTS_CONF="$R/etc/simple-host-site-certs-hack.conf"
 export SITE_CERTS_DIR="$HERE/../site-certs"
 export SCHEMA="$T/schema.sql"
+export PRODUCT_SCHEMA="$T/product-schema.sql"
+printf '%s\n' '-- product schema fixture' > "$PRODUCT_SCHEMA"
 export SIMPLE_HOST="$T/bin/simple-host"
 
 run() { bash "$S" "$@"; }

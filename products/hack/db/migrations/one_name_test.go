@@ -1,8 +1,9 @@
-package migrations
+package migrations_test
 
 import (
 	"context"
 	"database/sql"
+	hackmigrations "github.com/vsriram/simple-host/products/hack/db/migrations"
 	"os"
 	"testing"
 )
@@ -37,7 +38,7 @@ func TestHackOneNameBackfill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	migration, err := embedded.ReadFile("0006-hack-one-name.sql")
+	migration, err := hackmigrations.Embedded().FS.ReadFile("0006-hack-one-name.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

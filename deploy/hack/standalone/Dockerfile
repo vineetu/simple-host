@@ -5,7 +5,9 @@ FROM caddy:2.11.4-alpine
 RUN apk add --no-cache postgresql16-client su-exec \
  && adduser -D -H -u 65532 app
 COPY --from=server /usr/local/bin/simple-host /usr/local/bin/simple-host
-COPY db/schema.sql /opt/simple-hack/schema.sql
+COPY db/schema.sql /opt/simple-hack/platform-schema.sql
+COPY products/hack/db/schema.sql /opt/simple-hack/product-schema.sql
+RUN cat /opt/simple-hack/platform-schema.sql /opt/simple-hack/product-schema.sql > /opt/simple-hack/schema.sql
 COPY deploy/hack/standalone/Caddyfile /etc/caddy/Caddyfile
 COPY deploy/hack/standalone/start.sh /usr/local/bin/start-hack
 RUN chmod 755 /usr/local/bin/start-hack
