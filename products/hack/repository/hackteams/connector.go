@@ -23,15 +23,14 @@ func (ConnectorTarget) Selected(ctx context.Context, q sqlkit.Querier, grantID s
 }
 
 func (ConnectorTarget) Select(ctx context.Context, q sqlkit.Querier, grantID, userID, teamID string) (bool, error) {
-	// Keep both stores equal until D3-S5b retires the old-column write.
 	res, err := q.ExecContext(ctx, `
-WITH picked AS (
-  UPDATE oauth_grants g SET selected_team_id = t.id
-    FROM event_teams t JOIN event_members m ON m.event_id = t.event_id AND m.team_id = t.id
-   WHERE g.id = $1::uuid AND g.user_id = $2::uuid AND g.scope = 'sites events'
-     AND t.id = $3::uuid AND m.user_id = g.user_id AND m.role = 'participant' AND m.approval_status = 'approved'
-  RETURNING g.id AS grant_id, t.id AS team_id)
-INSERT INTO hack_grant_teams (grant_id, team_id) SELECT grant_id, team_id FROM picked
+INSERT INTO hack_grant_teams (grant_id, team_id)
+SELECT g.id, t.id
+  FROM oauth_grants g
+  JOIN event_members m ON m.user_id = g.user_id
+  JOIN event_teams t ON t.event_id = m.event_id AND t.id = m.team_id
+ WHERE g.id = $1::uuid AND g.user_id = $2::uuid AND g.scope = 'sites events'
+   AND t.id = $3::uuid AND m.role = 'participant' AND m.approval_status = 'approved'
 ON CONFLICT (grant_id) DO UPDATE SET team_id = EXCLUDED.team_id, selected_at = now()`, grantID, userID, teamID)
 	if err != nil {
 		return false, err

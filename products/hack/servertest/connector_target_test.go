@@ -108,9 +108,9 @@ func TestConnectorTargetAfterBuildRESTAndMCP(t *testing.T) {
 	if w.Code != 200 || observed.reads <= before || observed.writes != 1 || !strings.Contains(w.Body.String(), "Selected team") {
 		t.Fatalf("MCP hook: %d %s", w.Code, w.Body.String())
 	}
-	var equal bool
-	if err := db.QueryRow(`SELECT g.selected_team_id=h.team_id FROM oauth_grants g JOIN hack_grant_teams h ON h.grant_id=g.id WHERE g.id=$1`, grant).Scan(&equal); err != nil || !equal {
-		t.Fatalf("MCP double write: %v %v", equal, err)
+	var column, selected string
+	if err := db.QueryRow(`SELECT g.selected_team_id,h.team_id FROM oauth_grants g JOIN hack_grant_teams h ON h.grant_id=g.id WHERE g.id=$1`, grant).Scan(&column, &selected); err != nil || column != other || selected != team {
+		t.Fatalf("MCP table-only write: column=%q table=%q error=%v", column, selected, err)
 	}
 	// Loss of membership still refuses use of the stored choice on the MCP path.
 	if _, err := db.Exec(`DELETE FROM event_members WHERE user_id='00000000-0000-4000-8000-000000000001'`); err != nil {
@@ -132,8 +132,11 @@ func TestConnectorTargetAfterBuildRESTAndMCP(t *testing.T) {
 		}
 	}
 	app.Close()
+	if _, err := db.Exec(`ALTER TABLE oauth_grants DROP COLUMN selected_team_id`); err != nil {
+		t.Fatal(err)
+	}
 	// Build without a product clears the process hook; even a stale old column
-	// does not send a platform-only request back into Hack.
+	// or its absence does not send a platform-only request back into Hack.
 	host, err := server.Build(cfg, nil)
 	if err != nil {
 		t.Fatal(err)

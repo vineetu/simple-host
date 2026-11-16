@@ -9,6 +9,7 @@ SELECT :'column_is_newer' = 'yes' AS column_confirmed \gset
 \endif
 \if :column_confirmed
 BEGIN;
+LOCK TABLE oauth_grants, hack_grant_teams IN SHARE ROW EXCLUSIVE MODE;
 DELETE FROM hack_grant_teams h USING oauth_grants g
 WHERE h.grant_id = g.id AND h.team_id IS DISTINCT FROM g.selected_team_id;
 INSERT INTO hack_grant_teams (grant_id, team_id)

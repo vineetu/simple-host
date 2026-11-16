@@ -304,7 +304,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 		t.Fatalf("unified tools: %v", teamNames)
 	}
 	var selectedID string
-	if err := a.database.QueryRow(`SELECT selected_team_id FROM oauth_grants WHERE user_id = $1 AND client_id = $2`, a.uid(t, p1), clientID).Scan(&selectedID); err != nil || selectedID != alphaID {
+	if err := a.database.QueryRow(`SELECT h.team_id FROM oauth_grants g JOIN hack_grant_teams h ON h.grant_id=g.id WHERE g.user_id = $1 AND g.client_id = $2`, a.uid(t, p1), clientID).Scan(&selectedID); err != nil || selectedID != alphaID {
 		t.Fatalf("selected grant team %q (%v)", selectedID, err)
 	}
 	// Simulate an already-issued team grant from before the unified connection.

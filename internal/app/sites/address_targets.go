@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"strings"
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
@@ -64,6 +65,7 @@ func (s *Service) SelectConnectionTeam(ctx context.Context, enabled bool, grantI
 	}
 	ok, err := s.accounts.SelectOAuthTeam(ctx, grantID, userID, strings.ToLower(teamID))
 	if err != nil {
+		log.Printf("select connection team: %v", err)
 		return errors.New("could not select the team")
 	}
 	if !ok {

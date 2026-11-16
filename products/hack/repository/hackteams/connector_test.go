@@ -175,7 +175,7 @@ func TestConnectorTargetWayBackRehearsal(t *testing.T) {
 			}
 			restore := func() {
 				t.Helper()
-				if err := runSQLFile(dsn, "scripts/split/selected-team-restore.sql"); err != nil {
+				if err := runSQLFile(dsn, "scripts/split/selected-team-restore.sql", "table_is_newer=yes"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -209,7 +209,11 @@ func TestConnectorTargetWayBackRehearsal(t *testing.T) {
 				equalSelections(t, db)
 			})
 			t.Run("after retirement previous table reader needs no repair", func(t *testing.T) {
-				execSQL(t, db, `INSERT INTO hack_grant_teams (grant_id,team_id) VALUES ($1,$2)`, seedID(31), seedID(12))
+				execSQL(t, db, `UPDATE event_members SET team_id=$1 WHERE user_id=$2`, seedID(12), seedID(1))
+				ok, err := (ConnectorTarget{}).Select(context.Background(), db, seedID(31), seedID(1), seedID(12))
+				if err != nil || !ok {
+					t.Fatalf("table-only selection: %v, %v", ok, err)
+				}
 				execSQL(t, db, `DELETE FROM hack_grant_teams WHERE grant_id=$1`, seedID(32))
 				got, err := (ConnectorTarget{}).Selected(context.Background(), db, seedID(31))
 				if err != nil || got.String != seedID(12) {
@@ -219,6 +223,13 @@ func TestConnectorTargetWayBackRehearsal(t *testing.T) {
 				assertSelection(t, db, 32, 13, 0)
 			})
 			t.Run("after retirement restore column including absent selections", func(t *testing.T) {
+				for _, vars := range [][]string{nil, {"table_is_newer=no"}, {"table_is_newer=true"}} {
+					if err := runSQLFile(dsn, "scripts/split/selected-team-restore.sql", vars...); err == nil {
+						t.Fatal("unguarded restore accepted")
+					}
+					assertSelection(t, db, 31, 0, 12)
+					assertSelection(t, db, 32, 13, 0)
+				}
 				restore()
 				restore()
 				assertSelection(t, db, 31, 12, 12)
@@ -265,7 +276,7 @@ func TestConnectorTargetSelectionAuthorizationAndAtomicity(t *testing.T) {
 			assertSelection(t, db, 31, 11, 11)
 		})
 	}
-	// The UPDATE would change the old column; a missing INSERT target prevents all of it.
+	// A failed selection must still leave the old column untouched.
 	execSQL(t, db, `UPDATE event_members SET team_id=$1 WHERE user_id=$2`, seedID(12), seedID(1))
 	execSQL(t, db, `DROP TABLE hack_grant_teams`)
 	if ok, err := target.Select(ctx, db, seedID(31), seedID(1), seedID(12)); err == nil || ok {
@@ -304,7 +315,44 @@ func TestConnectorTargetConcurrentSelections(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		equalSelections(t, db)
+		got, err := (ConnectorTarget{}).Selected(context.Background(), db, seedID(31))
+		if err != nil || !got.Valid || (got.String != seedID(11) && got.String != seedID(14)) {
+			t.Fatalf("concurrent selection: %v, %v", got, err)
+		}
+		var column string
+		if err := db.QueryRow(`SELECT selected_team_id FROM oauth_grants WHERE id=$1`, seedID(31)).Scan(&column); err != nil || column != seedID(11) {
+			t.Fatalf("concurrent selections changed legacy column: %q, %v", column, err)
+		}
+	}
+}
+
+func TestConnectorTargetSelectionLeavesLegacyColumnUntouched(t *testing.T) {
+	db, _ := selectedFixture(t)
+	migrateSelections(t, db)
+	ctx := context.Background()
+	target := ConnectorTarget{}
+	for _, column := range []int{0, 12, 13} {
+		var value any
+		if column != 0 {
+			value = seedID(column)
+		}
+		execSQL(t, db, `UPDATE oauth_grants SET selected_team_id=$1 WHERE id=$2`, value, seedID(31))
+		// Exercise both a first choice and replacement of an existing choice.
+		execSQL(t, db, `DELETE FROM hack_grant_teams WHERE grant_id=$1`, seedID(31))
+		for _, team := range []int{11, 12} {
+			execSQL(t, db, `UPDATE event_members SET team_id=$1 WHERE user_id=$2`, seedID(team), seedID(1))
+			ok, err := target.Select(ctx, db, seedID(31), seedID(1), seedID(team))
+			if err != nil || !ok {
+				t.Fatalf("Select=%v,%v", ok, err)
+			}
+			assertSelection(t, db, 31, column, team)
+		}
+	}
+	// The retired column is not a dependency of the selection statement.
+	execSQL(t, db, `ALTER TABLE oauth_grants DROP COLUMN selected_team_id`)
+	ok, err := target.Select(ctx, db, seedID(31), seedID(1), seedID(12))
+	if err != nil || !ok {
+		t.Fatalf("Select without legacy column=%v,%v", ok, err)
 	}
 }
 
