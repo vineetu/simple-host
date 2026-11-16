@@ -323,6 +323,9 @@ func (a *Adapter) ReadCollection(ctx context.Context, in ReadCollectionInput) (o
 			return out, err
 		}
 	}
+	if a.deps.ResolvedSite != nil {
+		a.deps.ResolvedSite(siteID)
+	}
 	allowed, headers := a.deps.CollectionReadLimit(siteID)
 	for k, v := range headers {
 		out.Headers[k] = v
@@ -365,12 +368,17 @@ type OwnedSiteInput struct {
 }
 
 // OwnedSiteID resolves a site accessible to its owner or an administrator.
-func (a *Adapter) OwnedSiteID(ctx context.Context, in OwnedSiteInput) (string, error) {
+func (a *Adapter) OwnedSiteID(ctx context.Context, in OwnedSiteInput) (id string, err error) {
+	defer func() {
+		if err == nil && a.deps.ResolvedSite != nil {
+			a.deps.ResolvedSite(id)
+		}
+	}()
 	if !in.SignedIn {
 		return "", sql.ErrNoRows
 	}
 	var site model.Site
-	err := sql.ErrNoRows
+	err = sql.ErrNoRows
 	if in.UserID != "" {
 		site, err = siterepo.GetSiteByUser(ctx, a.database, in.UserID, in.SiteName)
 		if err == nil && in.Scoped && in.ScopedSiteID != site.ID {

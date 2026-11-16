@@ -43,3 +43,19 @@
 1. Follow the [installation instructions](https://github.com/vineetu/simple-host#self-hosting) for your server.
 2. Set this install's address and apply its database schema or migrations before starting it.
 3. Open `/healthz`, sign in, and publish a test site. Use the [settings reference](https://github.com/vineetu/simple-host/tree/main/docs/advanced) when changing limits or providers.
+
+
+## Prepare storage retirement notices
+
+The operator’s `migrate-rules --list-recipients --out recipients.json`
+command writes private recipient lists and sends nothing. Add `--legacy-log`
+with collected `legacy_storage_call` lines to include sites that call older
+saved-data routes without storing rows. Recompute before each approved send.
+File buckets are excluded; event-held resources are listed separately.
+
+Leave `STORAGE_SWITCH_AT` empty until the notice date is approved. It accepts
+an RFC3339 UTC instant and requires `STORAGE_RULES=on`. Set it in the Compose
+environment or Helm `storageSwitchAt` value, then restart. During the notice
+period successful SQLite/KV preset saves return a warning. Wording may be
+changed without rebuilding through `DATA_DIR/storage-notice.json`.
+See [Storage and backups](/docs/self-hosting/settings/storage-and-backups.md).

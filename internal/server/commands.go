@@ -15,7 +15,7 @@ func commands(exts []*extension.Extension) []command {
 		{"oauth-client", runOAuthClientCommand},
 		{"review-account", runReviewAccountCommand},
 		{"kv-move", runKVMoveCommand},
-		{"migrate-rules", runMigrateRulesCommand},
+		{"migrate-rules", func(args []string) int { return runMigrateRulesCommandWithExtensions(args, exts) }},
 		{"move-site-base", runMoveSiteBaseCommand},
 		{"brain-build", runBrainBuild},
 		{"geoip-verify", geoipVerify},

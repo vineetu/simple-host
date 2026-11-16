@@ -16,6 +16,8 @@ type Deps struct {
 	BindingSchema                            ruleengine.BindingSchema
 	ProductBindingSchema                     ruleengine.BindingSchema
 	RulesEnabled                             bool
+	StorageSwitchAt                          time.Time
+	PresetNotice                             string
 	VisitorEmail                             func(context.Context, string) (string, error)
 	Disk                                     interface{ SiteDir(string, string) string }
 	SpamCheckAvailable                       bool

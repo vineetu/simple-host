@@ -32,6 +32,7 @@ const (
 )
 
 type Config struct {
+	StorageSwitchAt   time.Time
 	DBDSN             string
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
@@ -484,6 +485,11 @@ func loadAccountProviders(cfg *Config) error {
 }
 
 func loadStorageStartup(cfg *Config) error {
+	var err error
+	cfg.StorageSwitchAt, err = ParseStorageSwitchAt(os.Getenv("STORAGE_SWITCH_AT"), os.Getenv("STORAGE_RULES") == "on")
+	if err != nil {
+		return err
+	}
 	cfg.MigrateOnStart = strings.EqualFold(strings.TrimSpace(os.Getenv("MIGRATE_ON_START")), "true")
 	return nil
 }
@@ -948,4 +954,23 @@ func parseCIDRList(raw string) ([]*net.IPNet, error) {
 func SpamCheckConfigured() bool {
 	key, secret := loadTurnstile()
 	return key != "" && secret != ""
+}
+
+// ParseStorageSwitchAt accepts an RFC3339 UTC instant, or empty for no date.
+func ParseStorageSwitchAt(raw string, rulesEnabled bool) (time.Time, error) {
+	if raw == "" {
+		return time.Time{}, nil
+	}
+	at, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}, errors.New("STORAGE_SWITCH_AT must be RFC3339 UTC")
+	}
+	_, offset := at.Zone()
+	if offset != 0 {
+		return time.Time{}, errors.New("STORAGE_SWITCH_AT must be RFC3339 UTC")
+	}
+	if !rulesEnabled {
+		return time.Time{}, errors.New("STORAGE_SWITCH_AT requires STORAGE_RULES=on")
+	}
+	return at.UTC(), nil
 }

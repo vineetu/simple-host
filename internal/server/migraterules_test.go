@@ -27,8 +27,12 @@ func TestMigrateRulesCommandUsage(t *testing.T) {
 	t.Setenv("DB_DSN", "")
 	for _, args := range [][]string{
 		{},
-		{"--dry-run", "--all"},       // no plan
-		{"--dry-run", "--plan", "p"}, // no scope
+		{"--list-recipients"},
+		{"--list-recipients", "--out", "p", "--all"},
+		{"--list-recipients", "--out", "p", "--apply"},
+		{"--dry-run", "--plan", "p", "--all", "--legacy-log", "p"},
+		{"--dry-run", "--all"},                                  // no plan
+		{"--dry-run", "--plan", "p"},                            // no scope
 		{"--dry-run", "--plan", "p", "--all", "--account", "a"}, // both scopes
 		{"--dry-run", "--apply", "--plan", "p", "--all"},        // two modes
 		{"--apply"},                         // no plan
@@ -154,4 +158,18 @@ func TestMigrateRulesCommandModesAndExitCodes(t *testing.T) {
 		t.Fatalf("a failed dry run replaced the plan: %v", err)
 	}
 	run(1, "--apply", "--plan", filepath.Join(t.TempDir(), "missing.json"))
+}
+
+func TestMigrateRulesRecipientsRequireRoot(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("requires a non-root process")
+	}
+	t.Setenv("DB_DSN", "") // Root refusal must precede any database work.
+	path := filepath.Join(t.TempDir(), "recipients.json")
+	if code := runMigrateRulesCommand([]string{"--list-recipients", "--out", path}); code != 1 {
+		t.Fatalf("non-root recipient command exit %d, want 1", code)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("non-root recipient command created a report: %v", err)
+	}
 }

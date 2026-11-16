@@ -75,6 +75,7 @@ metadata:
 data:
   KV_STORE: "postgres"
   STORAGE_RULES: "off"
+  STORAGE_SWITCH_AT: ""
   SITE_STORAGE_SITE_INFLIGHT: "1"
   # The platform: the hackathon product on this hostname.
   SITE_DOMAIN: "hack.example.com"
@@ -175,7 +176,7 @@ spec:
         app.kubernetes.io/instance: simple-hack
       annotations:
         # A changed setting restarts the pod; the server reads them at start.
-        checksum/config: 6efee1959e13912a3db0b3148903331e606d22e824c4d962b79e92541a681627
+        checksum/config: 4fd89824a0e8c40f82f6171df4131d7ea82784f7918ca07938fc74a3d46830f9
     spec:
       automountServiceAccountToken: false
       securityContext:

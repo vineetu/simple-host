@@ -152,6 +152,13 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	if err := checkProductSchema(context.Background(), db, exts); err != nil {
 		return nil, err
 	}
+	noticeTemplates, err := storageapp.LoadNoticeTemplates(cfg.DataDir)
+	if err != nil {
+		return nil, fmt.Errorf("load storage notice templates: %w", err)
+	}
+	if err = logStoragePresetNotice(context.Background(), db); err != nil {
+		return nil, fmt.Errorf("count storage presets: %w", err)
+	}
 	// The install lock (shared): kv-move --apply and --rollback take it
 	// exclusive, so they cannot rewrite this database while any server uses it,
 	// from this data directory or another. Every request/worker pool connection
@@ -314,6 +321,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	userHandler.SetPasswordSignIn(cfg.PasswordSignIn == "on", cfg.PasswordSelfSignup != "off")
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, productInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	siteHandler.SetStorageNotice(cfg.StorageSwitchAt, noticeTemplates.Render(noticeTemplates.SaveWarning, cfg.StorageSwitchAt))
 	if ext != nil && ext.Assets != nil {
 		assets := ext.Assets(siteHandler)
 		siteHandler.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)

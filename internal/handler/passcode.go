@@ -987,10 +987,10 @@ func (h *SiteHandler) siteDataGate(next http.Handler, viewers bool) http.Handler
 		// site): both sites must let the request in.
 		siteName := strings.TrimSpace(r.PathValue("sitename"))
 		ids := map[string]bool{}
-		if id, err := h.resolveSiteID(r, siteName); err == nil {
+		if id, _, err := h.resolveSiteIDBare(r, siteName); err == nil {
 			ids[id] = true
 		}
-		if id, err := h.resolveWriteSiteID(r, siteName); err == nil {
+		if id, err := h.resolveWriteSiteIDBare(r, siteName); err == nil {
 			ids[id] = true
 		}
 		allowed, private, gated := true, false, false

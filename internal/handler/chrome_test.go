@@ -186,7 +186,7 @@ func TestChromeOnShowcaseAndNotFound(t *testing.T) {
 		if got := h.chromeBase(r); got != tc.base {
 			t.Errorf("chromeBase(%s) = %q, want %q", tc.path, got, tc.base)
 		}
-		page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data)
+		page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -628,7 +628,7 @@ func TestServeChromeForScreenshots(t *testing.T) {
 		Sites: []showcaseSite{{Name: "recipes", URL: "https://recipes.jane.simple-host.app/", CreatedAt: time.Now(), Visibility: "public"}}}
 	// Both under the apex CSP, as they are served in production.
 	mux.Handle("GET /jane", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		page, err := assets.showcasePage(assets.chromeDataFor(r, ""), sample)
+		page, err := assets.showcasePage(assets.chromeDataFor(r, ""), sample, false)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return

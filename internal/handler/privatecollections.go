@@ -411,6 +411,7 @@ func (h *SiteHandler) privateManager(w http.ResponseWriter, r *http.Request, sit
 			writePrivateNotFound(w)
 			return "", false
 		}
+		recordLegacyCallSite(r, site.ID)
 		return site.ID, true
 	}
 	siteID, err := h.resolveSiteID(r, siteName)

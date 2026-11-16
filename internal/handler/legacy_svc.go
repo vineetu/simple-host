@@ -37,6 +37,7 @@ func (h *SiteHandler) legacyCollectionRequestSvc(r *http.Request) *legacy.Adapte
 func (h *SiteHandler) legacyCollectionRequestDeps(r *http.Request) legacy.Deps {
 	return legacy.Deps{
 		AdminAPIKey: h.adminAPIKey, KeyIdleExpiry: h.limits.KeyIdleExpiry,
+		ResolvedSite:     func(id string) { recordLegacyCallSite(r, id) },
 		ResolveNamedSite: func(_ context.Context, siteName string) (string, error) { return h.resolveSiteID(r, siteName) },
 		ResolveWriteSite: func(_ context.Context, siteName string) (string, error) { return h.resolveWriteSiteID(r, siteName) },
 	}

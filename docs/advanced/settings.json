@@ -3085,6 +3085,17 @@
       "small_box": true
     },
     {
+      "name": "STORAGE_SWITCH_AT",
+      "group": "storage",
+      "description": "RFC3339 UTC retirement instant for storage presets and older saved-data APIs. Empty means no switch date set. Requires STORAGE_RULES=on. Set the environment (Compose) or values file (Helm) and restart to change it.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "STORAGE_RULES",
       "group": "storage",
       "description": "Accept owner-written row rules for SQLite databases and moved key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it.",

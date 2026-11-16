@@ -569,6 +569,9 @@
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#storage-execution-settings" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Storage execution settings</span></a>
 		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#retirement-notices" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Retirement notices</span></a>
+		
 	</li>
 </ul></div>
 		</details>
@@ -600,6 +603,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#storage-execution-settings" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Storage execution settings</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#retirement-notices" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Retirement notices</span></a>
 		
 	</li>
 </ul>
@@ -708,6 +714,12 @@ knows.</p>
 <td><code>60,200ms</code></td>
 <td>any (warns past 10× looser)</td>
 <td>Storage writes per site and signed-in visitor; limits add-only flooding.</td>
+</tr>
+<tr>
+<td><code>STORAGE_SWITCH_AT</code></td>
+<td>none</td>
+<td>text</td>
+<td>RFC3339 UTC retirement instant for storage presets and older saved-data APIs. Empty means no switch date set. Requires STORAGE_RULES=on. Set the environment (Compose) or values file (Helm) and restart to change it. <strong>Security-sensitive.</strong></td>
 </tr>
 <tr>
 <td><code>STORAGE_RULES</code></td>
@@ -1045,6 +1057,45 @@ The website file allowance still applies to each raw-file upload.</p>
 <p>Without <code>TRUSTED_PROXY_CIDRS</code> the client address is the last <code>X-Forwarded-For</code> entry from any peer. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port; an unproxied install set up that way has no trustworthy IP write limit. With <code>TRUSTED_PROXY_CIDRS</code> set (Kubernetes, a load balancer in front), the header is believed only from those networks and a direct connection from anywhere else is its own client.</p>
 <p>Kubernetes sets trusted proxy networks to the cluster pod and node ranges; see
 <a href="/docs/self-hosting/kubernetes/">Kubernetes</a>. The same client address controls the country gate.</p>
+<h2 id="retirement-notices">Retirement notices</h2>
+<p>The operator can recompute the two notice lists without stopping the server:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>simple-host migrate-rules --list-recipients --out recipients.json --legacy-log legacy-calls.log</span></span></code></pre>
+<p>Run with that install’s <code>DB_DSN</code> and <code>DATA_DIR</code>. Run as root for a root-only
+report; the output file is replaced with mode 0600 and the terminal prints
+only counts. The command is read-only and sends nothing. Omit <code>--legacy-log</code>
+when no call log has been collected. Supply only the <code>legacy_storage_call</code>
+lines collected since R4-S3 was deployed, including rotated logs. Each running
+server logs <code>legacy_storage_call site=&lt;id&gt;</code> at most once per site per UTC day.
+This includes sites whose calls store no rows.</p>
+<p><code>presets</code> contains each account holding a site with a SQLite or key-value
+resource still using presets, with one description per resource and table
+settings included. Conversion of an account’s earlier resources never excludes
+its later ones. File buckets are excluded. <code>older_saved_data</code> contains owners
+with stored state, collections or declared data, or call-log evidence. It is
+empty on Simple Hack, whose older routes already answer 410. Resources held by
+an event go in <code>held_by_an_event</code>, with the event label and no mail recipient.
+The startup resource total includes these event-held resources too. Recompute
+both lists immediately before each send and reminder.</p>
+<p>Drafts await the owner’s approval in
+<a href="https://github.com/vineetu/simple-host/blob/main/docs/history/storage-rules-notice-draft.md">the notice draft</a>. The site export
+keeps saved state, declared data and every collection except other people’s
+Personal records, which it has never contained. Each person’s own Personal
+records stay in that person’s account export, with every item they submitted
+on someone else’s site and its data. This does not widen owner access.</p>
+<p><code>STORAGE_SWITCH_AT</code> is an RFC3339 UTC instant. Empty means no date set; startup
+refuses a date unless <code>STORAGE_RULES=on</code>. Change the environment in Compose or
+<code>storageSwitchAt</code> in Helm values and restart. Setting the date in this release
+adds a warning to successful preset saves during the notice period, for SQLite
+and key-value resources only. It does not retire routes or change access in
+this slice. The server logs the number still using presets once at startup.</p>
+<p>Wording comes from JSON templates. To change it without rebuilding, copy
+<code>internal/app/storage/storage-notice.json</code> from the source into
+<code>DATA_DIR/storage-notice.json</code> (outside all site directories), edit it and
+restart. The fields are <code>presets</code>, <code>legacy</code>, <code>save_warning</code>, <code>rules_guide</code> and
+<code>moving_guide</code>; <code>&lt;DATE&gt;</code>, <code>&lt;RULES_GUIDE_URL&gt;</code> and <code>&lt;MOVING_GUIDE_URL&gt;</code> are filled
+from the setting and template data. Site/resource lines in the drafts remain
+placeholders for the separately approved send step. Missing override uses the
+bundled draft. Invalid JSON stops startup and the recipient command.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

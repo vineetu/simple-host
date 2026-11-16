@@ -1,12 +1,16 @@
 package handler
 
 import (
+	"bytes"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
-
 	"time"
+
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 )
 
 const legacyCutoffDay = "2026-10-12"
@@ -220,5 +224,92 @@ func TestLegacyStorageCutoffOlderCandidatePasses(t *testing.T) {
 	// The bare name on the API host is olive's older site: open.
 	if r := a.at(t, "GET", pcSiteDomain, "/v1/sites/shop/state", nil, map[string]string{"X-API-Key": olive.key}); r.status != 200 {
 		t.Fatalf("older site: %d %s", r.status, r.body)
+	}
+}
+
+func TestLegacyCallLogsSelectedSite(t *testing.T) {
+	a := newPrivateApp(t)
+	alice := a.newPerson(t, "alice")
+	bob := a.newPerson(t, "bob")
+	a.deploy(t, alice, "shop")
+	a.deploy(t, bob, "shop")
+	aliceID, bobID := a.siteID(t, alice, "shop"), a.siteID(t, bob, "shop")
+	_, aliceHandle := a.userID(t, alice)
+	if _, err := a.database.Exec(`UPDATE sites SET created_at=$1 WHERE id=$2`, legacyCutoffTime().Add(-time.Hour), aliceID); err != nil {
+		t.Fatal(err)
+	}
+	a.sites.SetLegacyStorageCutoff(legacyCutoffTime())
+	var logs bytes.Buffer
+	old := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(old) })
+	for _, tc := range []struct{ method, path, key, want string }{
+		{"GET", "/v1/sites/shop/collections", bob.key, bobID},
+		{"GET", "/v1/sites/shop/collections/guestbook", bob.key, bobID},
+		{"GET", "/v1/sites/shop/state", bob.key, bobID},
+		{"PUT", "/v1/sites/shop/state", bob.key, bobID},
+		{"GET", "/v1/u/" + aliceHandle + "/sites/shop/state/history", alice.key, aliceID},
+		{"GET", "/v1/admin/sites/" + strings.ToUpper(aliceID) + "/collections", a.admin, aliceID},
+	} {
+		t.Run(tc.method+tc.path, func(t *testing.T) {
+			logs.Reset()
+			// Start a new day so each resolver independently supplies evidence.
+			a.sites.legacyStorageCalls.mu.Lock()
+			a.sites.legacyStorageCalls.day = ""
+			a.sites.legacyStorageCalls.mu.Unlock()
+			gate := a.sites.LegacyStorageCutoffGate(a.mux)
+			for i := 0; i < 2; i++ {
+				r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{}`))
+				r.Host = pcSiteDomain
+				r.Header.Set("X-API-Key", tc.key)
+				w := httptest.NewRecorder()
+				gate.ServeHTTP(w, r)
+				if w.Code != http.StatusOK {
+					t.Fatalf("status %d: %s", w.Code, w.Body.String())
+				}
+			}
+			ids, err := appstorage.LegacyNoticeCalls(strings.NewReader(logs.String()))
+			if err != nil || !reflect.DeepEqual(ids, []string{tc.want}) || strings.Count(logs.String(), "legacy_storage_call site=") != 1 {
+				t.Fatalf("logged sites %v (%v), want only %s once: %s", ids, err, tc.want, logs.String())
+			}
+		})
+	}
+}
+
+func TestLegacyCallAdminRequiresAuthenticatedExistingSite(t *testing.T) {
+	a := newPrivateApp(t)
+	owner := a.newPerson(t, "owner")
+	a.deploy(t, owner, "shop")
+	id := a.siteID(t, owner, "shop")
+	var logs bytes.Buffer
+	old := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(old) })
+	for _, tc := range []struct {
+		id, key string
+		status  int
+	}{
+		{id, "", http.StatusUnauthorized},
+		{id, "invalid", http.StatusUnauthorized},
+		{id, owner.key, http.StatusNotFound},
+		{"arbitrary-log-text", "", http.StatusUnauthorized},
+		{"arbitrary-log-text", a.admin, http.StatusNotFound},
+		{"00000000-0000-0000-0000-000000000000", a.admin, http.StatusNotFound},
+	} {
+		r := a.at(t, "GET", pcSiteDomain, "/v1/admin/sites/"+tc.id+"/collections", nil, map[string]string{"X-API-Key": tc.key})
+		if r.status != tc.status {
+			t.Fatalf("admin request: %d %s, want %d", r.status, r.body, tc.status)
+		}
+	}
+	if strings.Contains(logs.String(), "legacy_storage_call") {
+		t.Fatalf("unauthorized or nonexistent site logged: %s", logs.String())
+	}
+	// An unauthenticated attempt must not consume the real site's daily entry.
+	if r := a.at(t, "GET", pcSiteDomain, "/v1/admin/sites/"+id+"/collections", nil, map[string]string{"X-API-Key": a.admin}); r.status != 200 {
+		t.Fatalf("authenticated admin: %d %s", r.status, r.body)
+	}
+	ids, err := appstorage.LegacyNoticeCalls(strings.NewReader(logs.String()))
+	if err != nil || !reflect.DeepEqual(ids, []string{id}) {
+		t.Fatalf("authenticated admin logged %v: %v", ids, err)
 	}
 }

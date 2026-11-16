@@ -440,6 +440,7 @@ func (h *SiteHandler) ownedDataSite(w http.ResponseWriter, r *http.Request) (use
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return nil, "", "", "", false
 	}
+	recordLegacyCallSite(r, siteID)
 	if coll != "" && strings.EqualFold(requestHostName(r), h.contentHost) {
 		if private, err := h.legacySvc().IsCollectionPrivate(r.Context(), siteID, coll); err != nil || private {
 			writePrivateNotFound(w)

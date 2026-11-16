@@ -156,3 +156,15 @@ func TestLoadDBPool(t *testing.T) {
 		t.Fatal("overrides not applied")
 	}
 }
+
+func TestStorageSwitchAt(t *testing.T) {
+	for _, tc := range []struct {
+		raw    string
+		on, ok bool
+	}{{"", false, true}, {"2099-01-01T00:00:00Z", true, true}, {"2099-01-01T00:00:00Z", false, false}, {"2099-01-01", true, false}, {"2099-01-01T00:00:00+01:00", true, false}} {
+		_, err := ParseStorageSwitchAt(tc.raw, tc.on)
+		if (err == nil) != tc.ok {
+			t.Errorf("raw=%q on=%v err=%v", tc.raw, tc.on, err)
+		}
+	}
+}

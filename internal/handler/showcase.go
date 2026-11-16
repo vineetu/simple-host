@@ -198,7 +198,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data)
+	page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data, !h.storageSwitchAt.IsZero())
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
@@ -327,19 +327,19 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 // showcasePage assembles the showcase template: the shared chrome, then the
 // handle and the page data. Kept apart from the database work so the served
 // markup can be tested on its own.
-func (p *assetPipeline) showcasePage(d ChromeData, data showcaseData) ([]byte, error) {
+func (p *assetPipeline) showcasePage(d ChromeData, data showcaseData, storageSwitchSet bool) ([]byte, error) {
 	tmpl, err := p.chromePage("showcase.html", d)
 	if err != nil {
 		return nil, err
 	}
 	// json.Marshal HTML-escapes <, >, & by default, so the injected blob cannot
 	// break out of the <script> even if a value somehow contained markup.
-	// R4-S3 will set this from STORAGE_SWITCH_AT when that setting lands.
+	// The configured switch date controls the retirement line (X3-S1/R4-S3).
 	// Keep it page-only so the public showcase feed is unchanged.
 	blob, err := json.Marshal(struct {
 		showcaseData
 		StorageSwitchSet bool `json:"storageSwitchSet"`
-	}{showcaseData: data})
+	}{showcaseData: data, StorageSwitchSet: storageSwitchSet})
 	if err != nil {
 		return nil, err
 	}

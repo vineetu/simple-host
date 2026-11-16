@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 16:** Add storage-retirement notice drafts and an operator command that writes private recipient lists without sending mail. Startup reports how many SQLite and key-value resources still use presets. A preset save warns during a configured notice period; no switch date is set and access is unchanged (R4-S3).
+
 - **Nov 16:** Installs record their product and refuse startup or migration by another product with exit code 3. Existing installs explicitly record their product once; fresh installers create the schema and product record together (D3-S6a).
 
 - **Nov 15:** Simple Host’s API reference, feature list and agent text now describe Simple Host alone. Simple Hack’s API and feature references are generated from shared sources plus its own authored parts, with the same published content (D3-S3).

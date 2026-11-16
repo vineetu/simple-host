@@ -259,6 +259,7 @@ var zeroIsNever = map[string]bool{
 // that were settings before the knobs existed.
 func otherSettings() []Setting {
 	return []Setting{
+		{Name: "STORAGE_SWITCH_AT", Group: "storage", Type: "string", Default: "", SmallBox: true, Security: true, Description: "RFC3339 UTC retirement instant for storage presets and older saved-data APIs. Empty means no switch date set. Requires STORAGE_RULES=on. Set the environment (Compose) or values file (Helm) and restart to change it."},
 		{Name: "STORAGE_RULES", Group: "storage", Type: "enum", Default: "off", Allowed: []string{"off", "on"}, SmallBox: true, Security: true, Description: "Accept owner-written row rules for SQLite databases and moved key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it."},
 		{Name: "KV_STORE", Group: "storage", Type: "enum", Default: "postgres", Allowed: []string{"postgres", "sqlite"}, SmallBox: true, Description: "Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values."},
 		{Name: "SITE_DOMAIN", Group: "server", Type: "string", Basic: true, SmallBox: true, InstallFlag: "--host",

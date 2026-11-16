@@ -87,8 +87,8 @@ try {
     assert.equal(await converted.getByLabel('Table: kept', { exact: true }).count(), 1);
     assert.equal(await card('kv_rules').locator('select[name="preset"]').count(), 0);
     assert.equal(await page.evaluate(() => window.__SHOWCASE__.storageSwitchSet), false);
-    // Until R4-S3 registers the switch date, exercise its future server fact
-    // on the same panel. No replacement notice appears while it is false.
+    // Exercise both values of the server's switch-date fact on the same
+    // panel. No replacement notice appears while it is false.
     for (const switchSet of [false, true, false]) {
       await page.evaluate(async ({ site, switchSet }) => {
         window.__SHOWCASE__.storageSwitchSet = switchSet;

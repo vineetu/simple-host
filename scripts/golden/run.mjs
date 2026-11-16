@@ -35,6 +35,7 @@ for (const route of ['/hack-ink.css', '/og-hack.png', '/favicon-hack.svg', '/hac
   '/hack-watch-judge.mp3', '/hack-llms.txt', '/hack-directory.html', '/hack-voting.html',
   '/hack-connect-steps.json', '/hack-get-started-preview.png']) FIXED_GETS.add(route);
 const SCENARIOS = {
+ notice: { env: { host: { STORAGE_RULES: 'on', STORAGE_SWITCH_AT: '2099-01-01T00:00:00Z' }, hack: { STORAGE_RULES: 'on', STORAGE_SWITCH_AT: '2099-01-01T00:00:00Z' } }, host: seedAndCallNotice, hack: seedAndCallNotice },
  'converted': { env: { host: { STORAGE_RULES: 'on', KV_STORE: 'sqlite' }, hack: { STORAGE_RULES: 'on', KV_STORE: 'sqlite' } }, host: seedAndCallConverted, hack: seedAndCallConverted },
  'rules-on': { env: { host: { STORAGE_RULES: 'on' }, hack: { STORAGE_RULES: 'on' } }, host: seedAndCallRulesOn, hack: seedAndCallRulesOn },
  base: { env: { host: { KV_STORE: 'postgres' }, hack: { KV_STORE: 'postgres' } }, host: seedAndCallHost, hack: seedAndCallHack },
@@ -693,6 +694,28 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
 
 // R3-S5a: the same public resource before and after Convert, side by side.
 // Exhaustive conversion/service comparisons live in equivalence_db_test.go.
+async function seedAndCallNotice({ instance, at, registerSecret }) {
+ const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['notice-owner@example.com'] } });
+ const owner = created.json.created[0].api_key;
+ const name = 'golden-notice';
+ let base;
+ if (instance.tag === 'hack') {
+  const event = await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
+  for (const code of [event.json?.organiser?.join_code, event.json?.organiser?.judge_code]) {
+   if (code) registerSecret('code', code);
+  }
+  await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Notice storage</h1>' } } });
+  base = `/v1/hack/events/${name}/website/storage`;
+ } else {
+  await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Notice storage</h1>' } } });
+  base = `/v1/sites/${name}/storage`;
+ }
+ for (const kind of ['sqlite', 'kv']) {
+ const saved = await at(`save-${kind}-preset`, 'PUT', `${base}/resources/${kind}`, { apiKey: owner, body: { kind, preset: 'private' } });
+ if (!saved.json?.warnings?.some(w => w.includes('2099-01-01T00:00:00Z'))) throw new Error('preset save did not return the notice warning');
+ }
+}
+
 async function seedAndCallConverted({ instance, at, registerSecret }) {
  const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['converted-owner@example.com'] } });
  const owner = created.json.created[0].api_key;

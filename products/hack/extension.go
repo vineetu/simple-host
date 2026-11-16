@@ -51,6 +51,9 @@ func Extension() *extension.Extension {
 		ValidateProduct: validateInstallProduct,
 		Migrations:      &catalog,
 		MigrationOrder:  hackmigrations.ProductOrder,
+		StorageNoticeGroup: func(ctx context.Context, db *sql.DB, account string) (string, error) {
+			return (NotificationGroups{}).GroupLabel(ctx, db, account)
+		},
 		Config: extension.ConfigSpec{Settings: productconfig.Settings(), Load: func(getenv func(string) string) ([]string, error) {
 			var warnings []string
 			var err error

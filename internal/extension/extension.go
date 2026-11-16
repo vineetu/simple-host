@@ -30,7 +30,9 @@ type ConfigSpec struct {
 	Load     func(getenv func(string) string) (warnings []string, err error)
 }
 type Extension struct {
-	Config ConfigSpec
+	// StorageNoticeGroup labels holding accounts for the operator recipient report.
+	StorageNoticeGroup appstorage.NoticeGroup
+	Config             ConfigSpec
 
 	Assets func(*handler.SiteHandler) Assets
 	// CheckSchema runs after platform verification, before other database reads.

@@ -8,6 +8,7 @@ metadata:
 data:
   KV_STORE: {{ .Values.kvStore | quote }}
   STORAGE_RULES: {{ .Values.storageRules | quote }}
+  STORAGE_SWITCH_AT: {{ .Values.storageSwitchAt | quote }}
   SITE_STORAGE_SITE_INFLIGHT: {{ .Values.storageSiteInflight | quote }}
   # The platform: the hackathon product on this hostname.
   SITE_DOMAIN: {{ .Values.host | quote }}

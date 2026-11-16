@@ -559,6 +559,9 @@
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#run-your-own-copy" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Run your own copy</span></a>
 		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#prepare-storage-retirement-notices" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prepare storage retirement notices</span></a>
+		
 	</li>
 </ul></div>
 		</details>
@@ -590,6 +593,9 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#run-your-own-copy" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Run your own copy</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#prepare-storage-retirement-notices" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prepare storage retirement notices</span></a>
 		
 	</li>
 </ul>
@@ -648,7 +654,19 @@
 <li>Follow the <a href="https://github.com/vineetu/simple-host#self-hosting">installation instructions</a> for your server.</li>
 <li>Set this install’s address and apply its database schema or migrations before starting it.</li>
 <li>Open <code>/healthz</code>, sign in, and publish a test site. Use the <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">settings reference</a> when changing limits or providers.</li>
-</ol></div>
+</ol>
+<h2 id="prepare-storage-retirement-notices">Prepare storage retirement notices</h2>
+<p>The operator’s <code>migrate-rules --list-recipients --out recipients.json</code>
+command writes private recipient lists and sends nothing. Add <code>--legacy-log</code>
+with collected <code>legacy_storage_call</code> lines to include sites that call older
+saved-data routes without storing rows. Recompute before each approved send.
+File buckets are excluded; event-held resources are listed separately.</p>
+<p>Leave <code>STORAGE_SWITCH_AT</code> empty until the notice date is approved. It accepts
+an RFC3339 UTC instant and requires <code>STORAGE_RULES=on</code>. Set it in the Compose
+environment or Helm <code>storageSwitchAt</code> value, then restart. During the notice
+period successful SQLite/KV preset saves return a warning. Wording may be
+changed without rebuilding through <code>DATA_DIR/storage-notice.json</code>.
+See <a href="/docs/self-hosting/settings/storage-and-backups/">Storage and backups</a>.</p></div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">
 		

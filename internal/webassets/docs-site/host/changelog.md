@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 16:** Add storage-retirement notice drafts and an operator command that writes private recipient lists without sending mail. Startup reports how many SQLite and key-value resources still use presets. A preset save warns during a configured notice period; no switch date is set and access is unchanged (R4-S3).
+
 - **Nov 16:** Installs record their product and refuse startup or migration by another product with exit code 3. Existing installs explicitly record their product once; fresh installers create the schema and product record together (D3-S6a).
 
 - **Nov 14:** Document row rules for SQLite and key-value data, including per-table policies, approval stamps and privacy limits. Update website skills and the Storage guide; file buckets keep presets. Prepared on the R3-S7a branch for activation with R4-S2.

@@ -2930,6 +2930,16 @@ interruption. Revert restores those settings unless the owner has changed the
 rules since. File buckets are never converted, and the command is not a route,
 an AI tool or a recipe (`docs/advanced/storage-and-backups.md`).
 
+The operator can draft storage-retirement notices with `migrate-rules
+--list-recipients --out FILE [--legacy-log FILE]`. It writes private, separate
+recipient lists for presets and older saved-data APIs, plus event-held resources,
+and prints only counts; it sends nothing. Eligibility is recomputed per resource,
+including new presets on converted accounts, and call logs include sites with no
+stored data. The server reports the preset resource total once at startup.
+During a configured notice period, a SQLite/KV preset save returns a warning;
+file buckets keep their presets. The switch date defaults to unset. Draft wording
+can be replaced in `DATA_DIR/storage-notice.json` without rebuilding.
+
 SQLite table-row operations share a per-site concurrency limit across resources
 (default one, configurable from one to four). Waiting for the site slot and global
 gate shares one timeout and returns `storage_busy` with `Retry-After` when full.

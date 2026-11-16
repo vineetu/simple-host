@@ -362,6 +362,9 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	}
 
 	unlock()
+	if s.deps.RulesEnabled && !s.deps.StorageSwitchAt.IsZero() && x.Rules == nil && (x.Kind == "sqlite" || x.Kind == "kv") {
+		warnings = append(warnings, s.deps.PresetNotice)
+	}
 	if len(warnings) > 0 {
 		sort.Strings(warnings)
 	}

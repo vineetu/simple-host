@@ -8,15 +8,21 @@ import (
 	"golang.org/x/net/html"
 )
 
-func TestShowcaseStorageSwitchUnset(t *testing.T) {
+func TestShowcaseStorageSwitch(t *testing.T) {
 	h := chromeTestHandler(platformTestEdition())
 	data := showcaseData{Handle: "owner", MainURL: "https://simple-host.app"}
-	page, err := h.pipeline().showcasePage(ChromeData{}, data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(page), `"storageSwitchSet":false`) {
-		t.Fatal("dashboard must receive an unset storage switch until R4-S3 lands")
+	for _, switchSet := range []bool{false, true} {
+		page, err := h.pipeline().showcasePage(ChromeData{}, data, switchSet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := `"storageSwitchSet":false`
+		if switchSet {
+			want = `"storageSwitchSet":true`
+		}
+		if !strings.Contains(string(page), want) {
+			t.Fatalf("dashboard missing %s", want)
+		}
 	}
 	feed, err := json.Marshal(data)
 	if err != nil {

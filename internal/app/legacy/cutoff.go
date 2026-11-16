@@ -31,6 +31,7 @@ type Deps struct {
 	AdminAPIKey                    string
 	KeyIdleExpiry                  time.Duration
 	ResolveNamedSite               func(context.Context, string) (string, error)
+	ResolvedSite                   func(string) // selected canonical site, for request logging
 	BoundHistory                   func(context.Context, string)
 	ResolveMineSession             func(string) (model.VisitorSession, bool)
 	VisitorOwnerKeyWrite           func(string) bool

@@ -271,6 +271,10 @@ type SiteHandler struct {
 
 	// legacyStorageCutoff is LEGACY_STORAGE_CUTOFF (legacy_cutoff.go). Zero: off.
 	legacyStorageCutoff time.Time
+	// REST and visitor-tool wrappers share the daily legacy call log.
+	legacyStorageCalls  legacyStorageCallLog
+	storageSwitchAt     time.Time
+	storagePresetNotice string
 }
 
 // SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
@@ -903,6 +907,7 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 		writeSiteNotFound(w, siteName)
 		return
 	}
+	recordLegacyCallSite(r, site.ID)
 	if refuseSuspendedSite(w, site) {
 		return
 	}
@@ -976,6 +981,7 @@ func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	recordLegacyCallSite(r, siteID)
 	if err := h.sitesSvc().SetAllowAnonymousWrites(r.Context(), siteID, *req.Allow); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -992,6 +998,9 @@ func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Req
 // legacy global lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
 func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, error) {
 	id, _, err := h.resolveSiteIDBare(r, siteName)
+	if err == nil {
+		recordLegacyCallSite(r, id)
+	}
 	return id, err
 }
 
@@ -1001,6 +1010,16 @@ func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, e
 // site of that name, it means theirs. Everything else is unchanged, and the
 // write gate (visitorWriteOK) still decides whether the caller may write.
 func (h *SiteHandler) resolveWriteSiteID(r *http.Request, siteName string) (string, error) {
+	id, err := h.resolveWriteSiteIDBare(r, siteName)
+	if err == nil {
+		recordLegacyCallSite(r, id)
+	}
+	return id, err
+}
+
+// resolveWriteSiteIDBare also serves speculative access-gate lookups, which
+// must not become evidence that the operation selected a site.
+func (h *SiteHandler) resolveWriteSiteIDBare(r *http.Request, siteName string) (string, error) {
 	id, bare, err := h.resolveSiteIDBare(r, siteName)
 	key := r.Header.Get("X-API-Key")
 	if !bare || key == "" {

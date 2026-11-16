@@ -440,7 +440,7 @@ func (h *SiteHandler) ownedSiteID(r *http.Request, user *model.User, siteName st
 		in.SignedIn, in.UserID, in.Admin = true, user.ID, user.IsAdmin
 	}
 	in.ScopedSiteID, in.Scoped = r.Context().Value(adminSiteKey{}).(string)
-	return h.legacySvc().OwnedSiteID(r.Context(), in)
+	return h.legacyRequestSvc(r).OwnedSiteID(r.Context(), in)
 }
 
 // listSiteCollections is GET /v1/sites/{sitename}/collections — owner-only
@@ -452,7 +452,7 @@ func (h *SiteHandler) listSiteCollections(w http.ResponseWriter, r *http.Request
 		in.SignedIn, in.UserID, in.Admin = true, user.ID, user.IsAdmin
 	}
 	in.ScopedSiteID, in.Scoped = r.Context().Value(adminSiteKey{}).(string)
-	summaries, err := h.legacySvc().ListSiteCollections(r.Context(), in)
+	summaries, err := h.legacyRequestSvc(r).ListSiteCollections(r.Context(), in)
 	if err != nil {
 		var opErr *legacy.Error
 		if errors.As(err, &opErr) {
