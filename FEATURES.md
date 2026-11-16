@@ -2919,6 +2919,16 @@ and still rolls back the rest; a namespace that already has rows in Postgres
 is skipped and reported without failing the run, with a status that says
 whether it is already on Postgres or still on SQLite.
 
+The operator's `migrate-rules` command converts the preset on a SQLite database
+or key-value namespace into row rules that decide the same. Its dry run runs
+beside the server, changes nothing, compares every kind of caller and action,
+lists resources that need a person, and writes a plan. Apply needs the server
+stopped (the exclusive maintenance lock), converts only resources unchanged
+since the dry run, records their original settings and can be rerun after an
+interruption. Revert restores those settings unless the owner has changed the
+rules since. File buckets are never converted, and the command is not a route,
+an AI tool or a recipe (`docs/advanced/storage-and-backups.md`).
+
 SQLite table-row operations share a per-site concurrency limit across resources
 (default one, configurable from one to four). Waiting for the site slot and global
 gate shares one timeout and returns `storage_busy` with `Retry-After` when full.

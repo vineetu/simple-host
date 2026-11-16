@@ -507,6 +507,98 @@ func equivalenceWordingApproved(preset, converted equivalenceRefusal, value, rea
 	return false
 }
 
+// What one run of the comparison counted, for the summary line.
+type equivalenceTally struct {
+	comparisons, wording int
+	successes            map[string]int
+	callerNames          map[string]bool
+}
+
+func equivalenceCallers(kind, suspended string) []equivalenceCaller {
+	callers := []equivalenceCaller{
+		{name: "anonymous"},
+		{name: "signed-in-non-author", call: Call{VisitorID: "non-author"}},
+		{name: "author", call: Call{VisitorID: "author"}},
+		{name: "suspended", call: Call{VisitorID: "author", VisitorSessionUserID: suspended}, suspended: true},
+		{name: "owner-on-site", call: Call{VisitorID: "site-owner", OwnerOnSite: true}},
+		{name: "visitor-AI-author", call: Call{VisitorID: "author", VisitorAI: true}},
+		{name: "visitor-AI-non-author", call: Call{VisitorID: "non-author", VisitorAI: true}},
+		{name: "anonymous-checked", call: Call{SpamCheck: "ok"}},
+		{name: "anonymous-failed-check", call: Call{SpamCheck: "spam_check_failed"}},
+		{name: "signed-in-checked", call: Call{VisitorID: "author", SpamCheck: "ok"}},
+		{name: "owner-tools", call: Call{Owner: true}},
+	}
+	if kind == "sqlite" {
+		callers = append(callers, equivalenceCaller{name: "owner-on-site-for", call: Call{VisitorID: "site-owner", OwnerOnSite: true, OwnerFor: "author"}, only: "add"},
+			equivalenceCaller{name: "owner-tools-for", call: Call{Owner: true, OwnerFor: "author"}, only: "add"})
+	}
+	return callers
+}
+
+// equivalenceCompare runs every caller and operation against both twins and
+// fails on the first answer that differs. exact allows no approved
+// difference at all: it is for two twins that are both on presets (a
+// resource converted by migrate-rules and put back, R4-S1).
+func equivalenceCompare(t *testing.T, preset, converted equivalenceTwin, cfg equivalenceConfig, kind string, callers []equivalenceCaller, exact bool, tally *equivalenceTally) {
+	t.Helper()
+	tables := []string{"entries"}
+	if len(cfg.tables) != 0 {
+		tables = append(tables, "overridden")
+	}
+	for _, table := range tables {
+		for _, caller := range callers {
+			for _, op := range equivalenceOperations() {
+				if caller.only != "" && caller.only != op.name {
+					continue
+				}
+				tally.callerNames[caller.name] = true
+				c := caller.call
+				if !caller.suspended {
+					c.ActiveChecked = true
+				}
+				equivalenceReset(t, preset, kind, table)
+				equivalenceReset(t, converted, kind, table)
+				*preset.events, *converted.events = nil, nil
+				oldBody, oldRefusal := equivalenceRun(t, preset, c, kind, table, op)
+				newBody, newRefusal := equivalenceRun(t, converted, c, kind, table, op)
+				oldCode, newCode := oldRefusal.Code, newRefusal.Code
+				oldEvents, newEvents := *preset.events, *converted.events
+				oldState := equivalenceSnapshot(t, preset, kind, table)
+				newState := equivalenceSnapshot(t, converted, kind, table)
+				tally.comparisons++
+				if oldCode == "" {
+					tally.successes[kind+"/preset/"+op.name]++
+				}
+				if newCode == "" {
+					tally.successes[kind+"/converted/"+op.name]++
+				}
+				// The entire approved difference: both refuse, and only a suspended
+				// non-owner's owner-valued action may change its first refusal code.
+				m := preset.call.Resource.TableMatrix(table)
+				action := op.action
+				// An ordinary KV set of a missing key is an add,
+				// including the edit/missing probe. AI tools instead
+				// send their explicit add/edit action above.
+				if kind == "kv" && op.name == "edit" && op.id == 99 && !c.VisitorAI {
+					action = "add"
+				}
+				approved := !exact && caller.suspended && m.Value(action) == model.WhoOwner && (oldCode == "forbidden" || oldCode == "add_only") && newCode == "account_suspended"
+				// Under the approved difference the two refusals are different
+				// refusals, so their wording differs with the code.
+				sameRefusal := oldRefusal == newRefusal
+				if !exact && !sameRefusal && !approved && equivalenceWordingApproved(oldRefusal, newRefusal, m.Value(action), m.Read) {
+					sameRefusal = true
+					tally.wording++
+				}
+				sameEvents := reflect.DeepEqual(oldEvents, newEvents)
+				if (!approved && !sameRefusal) || !reflect.DeepEqual(oldBody, newBody) || !reflect.DeepEqual(oldState, newState) || !sameEvents {
+					t.Fatalf("table=%s caller=%s operation=%s id=%d: preset refusal=%+v body=%#v state=%#v events=%#v; converted refusal=%+v body=%#v state=%#v events=%#v", table, caller.name, op.name, op.id, oldRefusal, oldBody, oldState, oldEvents, newRefusal, newBody, newState, newEvents)
+				}
+			}
+		}
+	}
+}
+
 func TestPresetServiceEquivalence(t *testing.T) {
 	db := admissionDB(t)
 	var suspended string
@@ -526,16 +618,16 @@ func TestPresetServiceEquivalence(t *testing.T) {
 		for _, kind := range []string{"sqlite", "kv"} {
 			t.Run(kind, func(t *testing.T) {
 				t.Parallel()
-				configs, comparisons, wording := 0, 0, 0
-				successes, callerNames := map[string]int{}, map[string]bool{}
+				configs := 0
+				tally := equivalenceTally{successes: map[string]int{}, callerNames: map[string]bool{}}
 				defer func() {
 					mu.Lock()
 					defer mu.Unlock()
-					totalConfigs, totalComparisons, totalWording = totalConfigs+configs, totalComparisons+comparisons, totalWording+wording
-					for k, v := range successes {
+					totalConfigs, totalComparisons, totalWording = totalConfigs+configs, totalComparisons+tally.comparisons, totalWording+tally.wording
+					for k, v := range tally.successes {
 						totalSuccesses[k] += v
 					}
-					for k := range callerNames {
+					for k := range tally.callerNames {
 						totalCallerNames[k] = true
 					}
 				}()
@@ -547,84 +639,13 @@ func TestPresetServiceEquivalence(t *testing.T) {
 					t.Fatal(err)
 				}
 				converted.call.OwnerID, converted.call.SiteName = preset.call.OwnerID, "equivalence-converted"
-				callers := []equivalenceCaller{
-					{name: "anonymous"},
-					{name: "signed-in-non-author", call: Call{VisitorID: "non-author"}},
-					{name: "author", call: Call{VisitorID: "author"}},
-					{name: "suspended", call: Call{VisitorID: "author", VisitorSessionUserID: suspended}, suspended: true},
-					{name: "owner-on-site", call: Call{VisitorID: "site-owner", OwnerOnSite: true}},
-					{name: "visitor-AI-author", call: Call{VisitorID: "author", VisitorAI: true}},
-					{name: "visitor-AI-non-author", call: Call{VisitorID: "non-author", VisitorAI: true}},
-					{name: "anonymous-checked", call: Call{SpamCheck: "ok"}},
-					{name: "anonymous-failed-check", call: Call{SpamCheck: "spam_check_failed"}},
-					{name: "signed-in-checked", call: Call{VisitorID: "author", SpamCheck: "ok"}},
-					{name: "owner-tools", call: Call{Owner: true}},
-				}
-				if kind == "sqlite" {
-					callers = append(callers, equivalenceCaller{name: "owner-on-site-for", call: Call{VisitorID: "site-owner", OwnerOnSite: true, OwnerFor: "author"}, only: "add"},
-						equivalenceCaller{name: "owner-tools-for", call: Call{Owner: true, OwnerFor: "author"}, only: "add"})
-				}
+				callers := equivalenceCallers(kind, suspended)
 				for _, cfg := range equivalenceConfigs(kind) {
 					t.Run(cfg.name, func(t *testing.T) {
 						equivalenceSave(t, &preset, cfg, false)
 						equivalenceSave(t, &converted, cfg, true)
 						configs++
-						tables := []string{"entries"}
-						if len(cfg.tables) != 0 {
-							tables = append(tables, "overridden")
-						}
-						for _, table := range tables {
-							for _, caller := range callers {
-								for _, op := range equivalenceOperations() {
-									if caller.only != "" && caller.only != op.name {
-										continue
-									}
-									callerNames[caller.name] = true
-									c := caller.call
-									if !caller.suspended {
-										c.ActiveChecked = true
-									}
-									equivalenceReset(t, preset, kind, table)
-									equivalenceReset(t, converted, kind, table)
-									*preset.events, *converted.events = nil, nil
-									oldBody, oldRefusal := equivalenceRun(t, preset, c, kind, table, op)
-									newBody, newRefusal := equivalenceRun(t, converted, c, kind, table, op)
-									oldCode, newCode := oldRefusal.Code, newRefusal.Code
-									oldEvents, newEvents := *preset.events, *converted.events
-									oldState := equivalenceSnapshot(t, preset, kind, table)
-									newState := equivalenceSnapshot(t, converted, kind, table)
-									comparisons++
-									if oldCode == "" {
-										successes[kind+"/preset/"+op.name]++
-									}
-									if newCode == "" {
-										successes[kind+"/converted/"+op.name]++
-									}
-									// The entire approved difference: both refuse, and only a suspended
-									// non-owner's owner-valued action may change its first refusal code.
-									m := preset.call.Resource.TableMatrix(table)
-									action := op.action
-									// An ordinary KV set of a missing key is an add,
-									// including the edit/missing probe. AI tools instead
-									// send their explicit add/edit action above.
-									if kind == "kv" && op.name == "edit" && op.id == 99 && !c.VisitorAI {
-										action = "add"
-									}
-									approved := caller.suspended && m.Value(action) == model.WhoOwner && (oldCode == "forbidden" || oldCode == "add_only") && newCode == "account_suspended"
-									// Under the approved difference the two refusals are different
-									// refusals, so their wording differs with the code.
-									sameRefusal := oldRefusal == newRefusal
-									if !sameRefusal && !approved && equivalenceWordingApproved(oldRefusal, newRefusal, m.Value(action), m.Read) {
-										sameRefusal = true
-										wording++
-									}
-									sameEvents := reflect.DeepEqual(oldEvents, newEvents)
-									if (!approved && !sameRefusal) || !reflect.DeepEqual(oldBody, newBody) || !reflect.DeepEqual(oldState, newState) || !sameEvents {
-										t.Fatalf("table=%s caller=%s operation=%s id=%d: preset refusal=%+v body=%#v state=%#v events=%#v; converted refusal=%+v body=%#v state=%#v events=%#v", table, caller.name, op.name, op.id, oldRefusal, oldBody, oldState, oldEvents, newRefusal, newBody, newState, newEvents)
-									}
-								}
-							}
-						}
+						equivalenceCompare(t, preset, converted, cfg, kind, callers, false, &tally)
 					})
 					if t.Failed() {
 						return

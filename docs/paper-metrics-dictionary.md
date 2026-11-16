@@ -333,6 +333,9 @@ The Hack-only provenance companion stamps their run without changing Host tables
 | `resources_add_checked` | count | `SELECT count(*) FROM site_storage_resources WHERE acc_add = 'checked'` | 1 |
 | `resources_add_signed_in` | count | `SELECT count(*) FROM site_storage_resources WHERE acc_add = 'signed-in'` | 1 |
 | `resources_own_reads` | count | `SELECT count(*) FROM site_storage_resources WHERE acc_read = 'own'` | 1 |
+| `resources_rules` | count | SQLite and key-value resources with `rules` set and the old columns (and every table row) holding the values a rules save writes; `paperRulesFill` in `internal/papermetrics/store.go` | 1 |
+| `resources_rules_invalid` | count | SQLite and key-value resources that are neither `resources_rules` nor `resources_preset` | 1 |
+| `resources_preset` | count | `SELECT count(*) FROM site_storage_resources r WHERE r.kind IN ('sqlite','kv') AND r.rules IS NULL AND r.preset_base <> 'rules'` | 1 |
 | `sites_suspended` | count | `SELECT count(*) FROM sites WHERE deleted_at IS NULL AND suspended_at IS NOT NULL` | 1 |
 | `accounts_suspended` | count | `SELECT count(*) FROM users WHERE suspended_at IS NOT NULL` | 1 |
 | `kv_rows` | count | `SELECT count(*) FROM site_storage_kv` | 1 |

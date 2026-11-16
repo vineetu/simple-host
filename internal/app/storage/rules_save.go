@@ -227,8 +227,20 @@ func policySets(sets map[string]ruleengine.PolicySet) []ruleengine.PolicySet {
 }
 
 func (s *Service) inspectRulePlans(ctx context.Context, call Call, def ruleengine.PolicySet, sets map[string]ruleengine.PolicySet, schema ruleengine.BindingSchema, prospective bool) (rulePlans, error) {
-	plans := rulePlans{}
+	var plans rulePlans
 	err := s.Inspect(ctx, call, false, func(i *Inspection) error {
+		var err error
+		plans, err = compileRulePlans(i, def, sets, schema, prospective)
+		return err
+	})
+	return plans, err
+}
+
+// compileRulePlans compiles the sets against every table of an open database.
+// migrate-rules calls it on its own read-only connection.
+func compileRulePlans(i *Inspection, def ruleengine.PolicySet, sets map[string]ruleengine.PolicySet, schema ruleengine.BindingSchema, prospective bool) (rulePlans, error) {
+	plans := rulePlans{}
+	err := func() error {
 		tables, err := i.Tables()
 		if err != nil {
 			return err
@@ -295,7 +307,7 @@ func (s *Service) inspectRulePlans(ctx context.Context, call Call, def ruleengin
 			plans[strings.ToLower(name)] = plan
 		}
 		return nil
-	})
+	}()
 	return plans, err
 }
 

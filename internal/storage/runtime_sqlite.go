@@ -534,7 +534,29 @@ func configureSQLiteMemory(conn *sqlite3.Conn, cache int64) error {
 // OpenTableConn opens the database for one table route: read-only
 // for reads, and for writes with the site's allowance as the page cap.
 func OpenTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
-	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
+	return openTableConn(parent, dbPath, write, timeout, maxMemory, budget, "mode=ro")
+}
+
+var ErrInspectWAL = errors.New("cannot inspect a database with a nonempty WAL without risking sidecar changes; stop writers and checkpoint it before retrying")
+
+// OpenInspectConn reads a schema without writing any database or sidecar file.
+// Even mode=ro can create or reinitialize shared memory, so inspection always
+// uses immutable mode. A nonempty WAL is refused because immutable mode would
+// ignore it. A concurrent writer can make the schema stale; migrate-rules
+// revalidates under the maintenance lock before changing anything.
+func OpenInspectConn(parent context.Context, dbPath string, timeout time.Duration) (*sqlite3.Conn, func(), error) {
+	if fi, err := os.Stat(dbPath + "-wal"); err == nil {
+		if fi.Size() != 0 {
+			return nil, nil, ErrInspectWAL
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, nil, err
+	}
+	return openTableConn(parent, dbPath, false, timeout, 0, nil, "mode=ro&immutable=1")
+}
+
+func openTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error), readQuery string) (*sqlite3.Conn, func(), error) {
+	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: readQuery}).String()
 	var remaining int64
 	var currentDBBytes int64
 	if fi, err := os.Stat(dbPath); os.IsNotExist(err) {

@@ -941,3 +941,11 @@ func parseCIDRList(raw string) ([]*net.IPNet, error) {
 	}
 	return out, nil
 }
+
+// SpamCheckConfigured reports whether this install offers the spam check, read
+// the way the server reads it. Operator commands use it so the rules they
+// compile are the rules the server will accept.
+func SpamCheckConfigured() bool {
+	key, secret := loadTurnstile()
+	return key != "" && secret != ""
+}

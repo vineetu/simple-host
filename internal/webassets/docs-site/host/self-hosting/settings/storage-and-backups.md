@@ -227,6 +227,95 @@ the current markers and Postgres rows; successful verification must also require
 zero Postgres namespaces and rows. Standalone apply/rollback take their own lock;
 the future upgrade command holds it across its steps instead.
 
+## Converting presets to row rules
+
+`migrate-rules` is a command for the person who runs the install. It turns the
+preset on a SQLite database or key-value namespace into row rules that decide
+the same, and can put the preset back. It is not offered to site owners: there
+is no API route, AI tool or recipe for it. File buckets keep presets and are
+never read or changed by it.
+
+Run it with the installed program and that install's environment (`DB_DSN`,
+`DATA_DIR` and the spam-check settings), as the user the server runs as.
+
+```text
+simple-host migrate-rules --dry-run --plan rules-plan.json --account <handle>
+simple-host migrate-rules --dry-run --plan rules-plan.json --all
+simple-host migrate-rules --apply   --plan rules-plan.json
+simple-host migrate-rules --revert  --plan rules-plan.json
+simple-host migrate-rules --revert  --site <site id> --resource <name>
+```
+
+Repeat `--account` for several accounts. Sites in Recently deleted are included.
+
+**Dry run.** The server may be running. Nothing is changed: Postgres is only
+read, each SQLite database is opened read-only, no saved row is read, and no
+request is sent. For every SQLite or key-value resource still on a preset it
+works out the rules the preset converts to, checks that they fit the tables
+that exist, and compares, for each kind of caller (not signed in, signed in,
+the author, the owner signed in on the site, a visitor's AI, each with and
+without a passed spam check) and each action, what the preset allows today
+with what the rules would allow. It prints one line for each answer that would
+change:
+
+```text
+account site resource table caller action old new
+```
+
+A resource with such a line is not converted. Neither is a resource that
+"needs a person", which is listed with the reason:
+
+- a database or namespace saved before presets that pages could write freely,
+  where saving rules would clear recorded authors or require an empty database;
+- a database that pages still read with their own SQL, which stops when a
+  resource has rules;
+- a setting that lets anyone edit or delete, which no rule may say;
+- converted rules that the existing tables cannot take, for example a
+  `visitor_id` or `approved_at` column that is not text.
+
+The owner of such a resource writes its rules by saving them in the ordinary
+way. The dry run writes the plan file, readable only by the user who ran it. For
+each resource to convert the plan holds a fingerprint of its settings, a digest
+of its table columns, its complete present settings, the rules it converts to
+and a SHA-256 of the entry. Exit codes: 0 when everything in scope can be
+converted, 3 when something would change or needs a person (the plan still
+lists what can be converted), 1 when a resource could not be examined (no plan
+is written).
+
+**Apply.** Stop the server first: apply takes the data directory's
+maintenance lock and exits 2 while a server or another maintenance command
+holds it. For each resource in the plan it checks again, before changing
+anything, that the settings and table columns are exactly what the dry run
+saw and that the rules it would write are the plan's. A resource that an owner
+saved, or whose tables changed, since the dry run is skipped as "changed since
+the dry run" with nothing recorded; run a new dry run for it. A key-value
+namespace still stored in Postgres is skipped until it has been moved (see
+above). Then, in order:
+
+1. the present settings are recorded on the resource (`rules_converted_from`);
+2. the database gets the columns a rules save adds, the author column and its
+   index and the approval stamp where the rules name them, and nothing is
+   cleared or removed;
+3. in one transaction, the rules replace the preset.
+
+If the command stops after step 1 or step 2 the resource still works under its
+preset for everyone; run `--apply` again with the same plan. Applying a plan
+twice changes nothing. Exit 0 when every resource is converted, 1 when any was
+skipped or failed. The additive SQLite step is not held to the site's storage
+allowance.
+
+**Revert.** Also with the server stopped. For each resource the plan names, or
+the one named by `--site` and `--resource`, the recorded settings and table
+presets are restored in one transaction and the record is cleared. A resource
+whose rules are no longer the ones apply wrote (its owner saved different
+rules, or went back to a preset) is skipped as "rules were changed after
+conversion"; its owner decides by an ordinary save. Columns added to SQLite
+stay; presets use or ignore them as before.
+
+A program older than the one that first enforces rules must never be installed
+over converted resources: it would not apply their rules. Revert every
+converted resource before going back that far.
+
 **What fills the disk.** At the default allowances, 2,000 fully used hosted sites
 can add 40 GB of logical KV/SQLite and file storage (10 MB + 10 MB per site),
 beyond deployed versions. Budget extra for filesystem metadata, Postgres, SQLite

@@ -8,6 +8,8 @@
 
 2026-11-15: The setup page on a Simple Host install (simple-host.app/setup) offers Small box and Enterprise only. The "Simple Hack on one server" choice and its step list (`/setup/simple-hack.json`) are now offered by a Simple Hack install's own `/setup`, where the page is unchanged; on Simple Host that file answers 404. Simple Hack's pages, screens, icons and docs moved out of the platform's embedded files into the product, so a Simple Host install no longer serves them (for example `/hack-ink.css`, `/og-hack.png`, `/hack/app.js` now answer 404 there; no Simple Host page linked to them). Simple Hack installs serve everything as before (D3-S2a).
 
+- R4-S1: Add the operator's `migrate-rules` command. A dry run compares, for every kind of caller, what a preset allows with what its converted rules would allow and writes a plan; apply converts only resources that would behave the same and are unchanged since the dry run, recording what they were; revert puts the preset back. File buckets are never touched and nothing offers the command to site owners. Three daily counters report resources on rules, on presets, and with rules in a broken shape.
+
 - R2-S5b review: Make the scratch rehearsal reject skipped moves, compare the usage tool with its pre-stop result, and clear copied setup hostnames so page checks use the scratch domain.
 
 - R2-S5b: Add transactional `kv-move --rollback`, preserving writes since cutover, and a scratch rehearsal covering cutover, rollback, paired-backup restore and read throughput. Production cutover remains separate; keep `KV_STORE=postgres`.

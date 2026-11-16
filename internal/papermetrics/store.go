@@ -315,6 +315,11 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) (resultErr
 // dailyMetrics: a query with $1 gets the day (its end is the cut-off); one
 // without reads current state, so it is only true when taken that night.
 // Names are stored; add new ones, never rename.
+// paperRulesFill is true for a resource row r whose old columns hold the
+// narrowest values a rules save writes, on it and on every one of its table
+// rows (each of which must carry rules too).
+const paperRulesFill = `(r.read_policy = 'owner' AND r.write_policy = 'owner' AND r.write_mode = 'add' AND COALESCE(r.acc_read,'') = 'nobody' AND COALESCE(r.acc_add,'') = 'nobody' AND COALESCE(r.acc_edit,'') = 'nobody' AND COALESCE(r.acc_delete,'') = 'nobody' AND r.preset_base = 'rules' AND NOT r.approve_first AND NOT EXISTS (SELECT 1 FROM site_storage_tables t WHERE t.site_id = r.site_id AND t.resource_name = r.name AND NOT (t.rules IS NOT NULL AND t.acc_read = 'nobody' AND t.acc_add = 'nobody' AND t.acc_edit = 'nobody' AND t.acc_delete = 'nobody' AND t.preset_base = 'rules')))`
+
 var dailyMetrics = []DailyMetric{
 	{Name: "accounts", Query: `SELECT count(*) FROM users WHERE created_at < $1::date + 1`},
 	{Name: "accounts_new", Query: `SELECT count(*) FROM users WHERE created_at >= $1::date AND created_at < $1::date + 1`},
@@ -353,6 +358,11 @@ var dailyMetrics = []DailyMetric{
 	{Name: "resources_add_checked", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_add = 'checked'`},
 	{Name: "resources_add_signed_in", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_add = 'signed-in'`},
 	{Name: "resources_own_reads", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_read = 'own'`},
+	// SQLite and key-value resources by rules status, as the model's
+	// RulesStatus reads the stored shape; file buckets never take rules.
+	{Name: "resources_rules", Query: `SELECT count(*) FROM site_storage_resources r WHERE r.kind IN ('sqlite','kv') AND r.rules IS NOT NULL AND ` + paperRulesFill},
+	{Name: "resources_rules_invalid", Query: `SELECT count(*) FROM site_storage_resources r WHERE r.kind IN ('sqlite','kv') AND NOT (r.rules IS NULL AND r.preset_base <> 'rules') AND NOT (r.rules IS NOT NULL AND ` + paperRulesFill + `)`},
+	{Name: "resources_preset", Query: `SELECT count(*) FROM site_storage_resources r WHERE r.kind IN ('sqlite','kv') AND r.rules IS NULL AND r.preset_base <> 'rules'`},
 	{Name: "sites_suspended", Query: `SELECT count(*) FROM sites WHERE deleted_at IS NULL AND suspended_at IS NOT NULL`},
 	{Name: "accounts_suspended", Query: `SELECT count(*) FROM users WHERE suspended_at IS NOT NULL`},
 	{Name: "kv_rows", Query: `SELECT count(*) FROM site_storage_kv`},

@@ -38,6 +38,7 @@ synthetic run; **manual** = gathered by hand for the paper.
 | Database size, KV rows and bytes, legacy rows | FSE storage | `paper_daily` (`db_bytes`, `kv_rows`, `kv_value_bytes`, `legacy_rows`) | built |
 | Feature use: saved data (KV, SQLite, files), visitor sign-in, named viewers, passcodes, custom domains, notifications | FSE adoption; HotOS "rules, not code" | `paper_daily` (`sites_with_*`, `sites_access_specific`, `sites_custom_domain`) | built |
 | Access rules in use: resources readable or writable by anyone, add-only with spam check, signed-in, own-reads | HotOS security; FSE security | `paper_daily` (`resources_*`) | built |
+| Resources on rules, on presets, and with rules in a broken shape | FSE storage; HotOS security | `paper_daily` (`resources_rules`, `resources_preset`, `resources_rules_invalid`) | built |
 | Certificates: custom-domain certs live, per-person wildcards, families | FSE operations | `paper_daily` (`sites_custom_domain_cert_live`, `certs_person_wildcard`, `certs_family`) | built |
 | Agent use: connector accounts and grants active in 30 days, MCP calls per day | FSE "agents as the developer" | `paper_daily` (`connector_*`, `api_mcp_calls_day`); AgentCat for per-tool counts | built + have (AgentCat) |
 | MCP calls per site | FSE agents | not attributable server-side without a new per-site counter; use AgentCat per-tool counts | gap, deferred |
@@ -119,8 +120,20 @@ run; daily `kv_file_sites_skipped` records the number skipped. Weekly collection
 omits that site's row and logs its skipped-site count. Postgres contributions
 in daily totals are still measured. These are best-effort current-state
 snapshots, not a transaction across both stores. Existing `resources_*` by
-`acc_*` counts see `nobody` on rules resources; separate rules-resource counters
-belong to R4-S1. The owner must accept this series change before R2-C.
+`acc_*` counts see `nobody` on rules resources. The owner must accept this
+series change before R2-C.
+
+**Rules and presets (R4-S1, 2026-11-15).** Three daily counters split the
+SQLite and key-value resources by how their access is stored; file buckets
+never take rules and are in none of them. `resources_rules` counts resources
+on rules whose stored shape is whole; `resources_preset` counts those still on
+presets (or older settings); `resources_rules_invalid` counts the rest, a
+resource whose rules and old columns disagree (for example after a save by a
+program from before rules), which denies visitors until its owner saves again.
+The three add up to all SQLite and key-value resources, sites in Recently
+deleted included, as `storage_resources` does. They are counts only: no site,
+owner or rule text. `resources_preset` is the number that must reach zero
+before presets can be removed.
 
 **Retention and privacy.** The Host tables hold no personal data and are kept with no end date; Hack activity slots have a 400-day retention and event snapshots retain daily history. The
 Privacy page says so (2026-10-31). The sources they are computed from keep their own retention

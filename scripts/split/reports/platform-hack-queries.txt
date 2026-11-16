@@ -45,7 +45,7 @@ internal/repository/sites/store_families.go:51 | queryFamilies | non-constant: w
     built from: internal/repository/sites/store_families.go:28 familyColumns; internal/repository/sites/store_families.go:33 familyFrom
 internal/repository/sites/store_families.go:141 | FamilyConflict | non-constant: overlapsSQL("$2", "f.suffix") | SELECT EXISTS (SELECT 1 FROM address_families f WHERE f.user_id <> $1 AND f.verified_at IS NOT NULL AND ‹?overlapsSQL("$2", "f.suffix")›) OR…
 internal/repository/sites/store_families.go:294 | OverlappingPendingFamilies | non-constant: overlapsSQL("$2", "f.suffix") | WHERE f.user_id <> $1 AND f.verified_at IS NULL AND ‹?overlapsSQL("$2", "f.suffix")›
-internal/repository/storage/usage.go:53 | ClearResourceWriters | non-constant: table | UPDATE ‹?table› SET writer_id='' WHERE site_id=$1 AND resource_name=$2
+internal/repository/storage/usage.go:55 | ClearResourceWriters | non-constant: table | UPDATE ‹?table› SET writer_id='' WHERE site_id=$1 AND resource_name=$2
 internal/storage/runtime_kv.go:159 | RuntimeKVListQuery | non-constant: op | SELECT key,value,visitor_id FROM kv WHERE key‹?op›?
 internal/storage/runtime_matrix.go:59 | PrepareMatrixDatabase | non-constant: Quote(t) | SELECT 1 FROM ‹?Quote(t)› LIMIT 1
 internal/storage/runtime_matrix.go:90 | PrepareMatrixDatabase | non-constant: Quote(t), Quote(column) | UPDATE ‹?Quote(t)› SET ‹?Quote(column)› = NULL
@@ -67,7 +67,7 @@ internal/storage/runtime_sqlite.go:267 | ensureHoldTables | non-constant: Quote(
 internal/storage/runtime_sqlite.go:270 | ensureHoldTables | non-constant: Quote(table) | UPDATE ‹?Quote(table)› SET approved_at = ?
 internal/storage/runtime_sqlite.go:362 | RowID | non-constant: name, Quote(table) | SELECT ‹?name› FROM ‹?Quote(table)› LIMIT 0
 internal/storage/runtime_sqlite.go:446 | CheckReferences | non-constant: strings.Join(nulls, " OR "), strings.Join(nulls, " AND "), Quote(ref.to[0]), Quote(table), Quote(ref.table), predicate.SQL, strings.Join(joins, " AND "), rowid | SELECT (‹?strings.Join(nulls, " OR ")›), (‹?strings.Join(nulls, " AND ")›), p.‹?Quote(ref.to[0])› IS NOT NULL FROM ‹?Quote(table)› c LEFT JO…
-internal/storage/runtime_sqlite.go:652 | TableInfo | non-constant: Quote(table) | SELECT * FROM ‹?Quote(table)› LIMIT 0
+internal/storage/runtime_sqlite.go:674 | TableInfo | non-constant: Quote(table) | SELECT * FROM ‹?Quote(table)› LIMIT 0
 internal/testdb/testdb.go:151 | clone | non-constant: pq.QuoteIdentifier(name) | DROP DATABASE IF EXISTS ‹?pq.QuoteIdentifier(name)› WITH (FORCE)
 
 5. Same word as a platform column, for a person to confirm (4)
