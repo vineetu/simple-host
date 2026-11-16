@@ -341,6 +341,23 @@ func TestHackDocsRuntimeText(t *testing.T) {
 	if strings.Contains(body, "https://simple-host.app/mcp") || strings.Contains(body, "https://simple-hack.app/mcp") {
 		t.Error("hosted instance URL leaked")
 	}
+	for _, route := range []string{"/docs/self-hosting/settings/storage-migration/", "/docs/self-hosting/settings/storage-migration.md"} {
+		r := get(t, mux, "docs-box.example", route)
+		body := r.Body.String()
+		if r.Code != http.StatusOK || !strings.Contains(body, "/docs/guides/storage") {
+			t.Errorf("%s: missing local storage guide", route)
+		}
+		for _, want := range []string{"private export until a suitable migration is agreed", "owner tools, connector access and site exports bypass row rules", "Removing an owner policy does not prevent owner access", "Do not copy Personal records into storage"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s: missing Personal migration warning %q", route, want)
+			}
+		}
+		for _, stale := range []string{"https://simple-host.app/", "17 December 2026", "no removal date", "/docs/guides/moving-saved-data"} {
+			if strings.Contains(body, stale) {
+				t.Errorf("%s: contains %q", route, stale)
+			}
+		}
+	}
 }
 
 // The limits page of a Hack install states the install's own allowances.

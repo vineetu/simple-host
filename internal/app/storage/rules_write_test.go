@@ -126,6 +126,53 @@ func TestRulesWriteConflictAbort(t *testing.T) {
 	}
 }
 
+func TestMovingSavedDataOneEntryPerPerson(t *testing.T) {
+	// The moving guide's rules and unique index must enforce the old
+	// one_per_person guarantee even when two tabs both saw an empty list.
+	s, c, _ := readFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT);`, saveSet(
+		ruleengine.Policy{Name: "own", Command: ruleengine.CmdAll, Using: "visitor_id == auth.id"},
+		ruleengine.Policy{Name: "add", Command: ruleengine.CmdAdd, Check: "auth.signed_in"},
+		ruleengine.Policy{Name: "owner", Command: ruleengine.CmdAll, Using: `auth.role == "owner"`},
+	))
+	owner := c
+	owner.Owner = true
+	_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: owner, Mode: "schema", ReadBody: func() ([]byte, error) {
+		return json.Marshal(map[string]string{"sql": "CREATE UNIQUE INDEX entries_one_per_person ON entries(visitor_id);"})
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.VisitorID, c.ActiveChecked = "first-person", true
+	for tab := 0; tab < 2; tab++ {
+		if rows := readList(t, s, c, "entries", nil).Body["rows"].([][]any); len(rows) != 0 {
+			t.Fatalf("tab %d: expected no existing answer, got %v", tab, rows)
+		}
+	}
+	added := mustRuleWrite(t, s, c, "add", 0, `{"body":"first answer"}`, "")
+	id := added.Body["last_insert_id"].(int64)
+	for attempt := 0; attempt < 2; attempt++ {
+		mustRuleWrite(t, s, c, "add", 0, `{"body":"duplicate"}`, "row_conflict")
+		rows := readList(t, s, c, "entries", nil).Body["rows"].([][]any)
+		if len(rows) != 1 || rows[0][0] != id || rows[0][1] != "first answer" {
+			t.Fatalf("conflict changed or duplicated the answer: %v", rows)
+		}
+	}
+	// Recover from the conflict by fetching and editing the stored row.
+	mustRuleWrite(t, s, c, "edit", id, `{"body":"updated answer"}`, "")
+	if row := readGet(t, s, c, "entries", id, "").Body["row"].([]any); row[1] != "updated answer" {
+		t.Fatal(row)
+	}
+	other := c
+	other.VisitorID = "second-person"
+	if rows := readList(t, s, other, "entries", nil).Body["rows"].([][]any); len(rows) != 0 {
+		t.Fatalf("second person can see the first answer: %v", rows)
+	}
+	mustRuleWrite(t, s, other, "add", 0, `{"body":"second answer"}`, "")
+	if rows := readList(t, s, owner, "entries", nil).Body["rows"].([][]any); len(rows) != 2 {
+		t.Fatalf("expected one answer per person: %v", rows)
+	}
+}
+
 func TestRulesWriteServerColumnsAndApproval(t *testing.T) {
 	s, c, in := rulesFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT, created_at TEXT, updated_at TEXT, written_by TEXT);`)
 	s.deps.PasscodeAllows = func() bool { return true }

@@ -2943,7 +2943,16 @@ including new presets on converted accounts, and call logs include sites with no
 stored data. The server reports the preset resource total once at startup.
 During a configured notice period, a SQLite/KV preset save returns a warning;
 file buckets keep their presets. The switch date defaults to unset. Draft wording
-can be replaced in `DATA_DIR/storage-notice.json` without rebuilding.
+can be replaced in `DATA_DIR/storage-notice.json` without rebuilding. Save warnings
+show a human date and time in UTC. While a switch date is set, preset cards in
+the Storage panel show it in the viewer's locale; after it passes they explain
+that visitors need rules and the owner retains full access. The Host docs list
+[Move a site off the older saved data](/docs/guides/moving-saved-data/), with
+steps for replacing state, collections and declared data. The hosted switch is
+17 December 2026, 17:00 UTC; other installs use their operator's configured date.
+The guide enforces one submission per visitor with a unique index, preserves
+shared-state visitor writes, and keeps Personal exports private pending a suitable
+migration because storage owner tools bypass row rules.
 
 SQLite table-row operations share a per-site concurrency limit across resources
 (default one, configurable from one to four). Waiting for the site slot and global

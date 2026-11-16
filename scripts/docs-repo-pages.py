@@ -562,7 +562,13 @@ def generate(root, target, brand):
         slug = slug_for(group, name)
         dest = target / slug / 'index.md'
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(_frontmatter(title, escape_angles(body)))
+        body = escape_angles(body)
+        # Match the MDX Instance component: runtime-only text must not be
+        # indexed by Pagefind. Add the markup after escaping placeholders.
+        body = re.sub(r'<!--sh:(hosted|self)-->(.*?)<!--/sh:\1-->',
+                      lambda m: f'<!--sh:{m[1]}-->\n<div data-pagefind-ignore>\n{m[2]}\n</div>\n<!--/sh:{m[1]}-->',
+                      body, flags=re.S)
+        dest.write_text(_frontmatter(title, body))
         entry = {'label': title, 'slug': slug}
         if group in ('configuration', 'kubernetes'):
             manifest[group] = entry

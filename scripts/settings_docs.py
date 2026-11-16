@@ -123,6 +123,10 @@ for name in sorted(os.listdir(adv)):
     if not name.endswith(".md"):
         continue
     source = read(f"docs/advanced/{name}")
+    # Pages without settings tables may have an authored product overlay.
+    # Only table overlays belong to this generator.
+    if not MARK.search(source):
+        continue
 
     def product_fill(m):
         rows = [s for s in product_settings if s[m.group(2)] == m.group(3)]

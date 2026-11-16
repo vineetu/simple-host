@@ -712,7 +712,9 @@ async function seedAndCallNotice({ instance, at, registerSecret }) {
  }
  for (const kind of ['sqlite', 'kv']) {
  const saved = await at(`save-${kind}-preset`, 'PUT', `${base}/resources/${kind}`, { apiKey: owner, body: { kind, preset: 'private' } });
- if (!saved.json?.warnings?.some(w => w.includes('2099-01-01T00:00:00Z'))) throw new Error('preset save did not return the notice warning');
+ // Accept the reference's RFC 3339 date and the candidate's human date;
+ // the golden comparison pins the complete warning text in both programs.
+ if (!saved.json?.warnings?.some(w => w.startsWith('Presets end on ') && w.includes('2099'))) throw new Error('preset save did not return the notice warning');
  }
 }
 

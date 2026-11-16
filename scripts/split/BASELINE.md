@@ -38,6 +38,12 @@ A failure that is not in the list is re-run alone before anything else. If it
 passes alone it is a flake: report it, do not list it. `known-red.txt` holds
 only failures that reproduce on untouched main.
 
+With the default reference, the golden gate uses `/usr/local/bin/simple-hack`
+when it is installed and executable. `GOLDEN_REF_HACK_BIN` overrides that
+selection. An explicit `GOLDEN_REF_BIN` without `GOLDEN_REF_HACK_BIN` still runs
+both products from one program, for references built before the split.
+`GOLDEN_HACK_BIN` selects a separate candidate Hack build when needed.
+
 A failure is named as exactly as the output allows: a Go test as
 `<package>:<Test>/<subtest>`, a Node test by its path, a killed or timed-out
 step as `exit:<status>`, a Go run that died inside the database suite as

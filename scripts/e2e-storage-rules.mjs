@@ -65,7 +65,8 @@ try {
     await api('PUT', base + '/resources/unconverted', { kind: 'sqlite', preset: 'private' });
     await api('PUT', base + '/resources/kv_presets', { kind: 'kv', preset: 'private' });
     await api('PUT', base + '/resources/photos', { kind: 'files', preset: 'public' });
-    const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: 'light' });
+    const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: 'light',
+      locale: width === 390 ? 'en-GB' : 'en-US', timezoneId: width === 390 ? 'Asia/Kolkata' : 'America/Los_Angeles' });
     await context.route('**/*', forward);
     await context.addInitScript(({ key, handle }) => {
       localStorage.setItem('apiKey', key);
@@ -87,20 +88,31 @@ try {
     assert.equal(await converted.getByLabel('Table: kept', { exact: true }).count(), 1);
     assert.equal(await card('kv_rules').locator('select[name="preset"]').count(), 0);
     assert.equal(await page.evaluate(() => window.__SHOWCASE__.storageSwitchSet), false);
-    // Exercise both values of the server's switch-date fact on the same
-    // panel. No replacement notice appears while it is false.
-    for (const switchSet of [false, true, false]) {
-      await page.evaluate(async ({ site, switchSet }) => {
+    const futureLine = 'Presets end on ' + (width === 390 ? '17 Dec 2099, 22:30' : 'Dec 17, 2099, 9:00 AM') + '. Rules replace them and allow the same things.';
+    const pastLine = "Visitors can't use this until you set rules. You still have full access.";
+    // The switch gate still hides both lines when no date is configured.
+    // The two browser locales/timezones prove the instant is shown locally.
+    for (const [switchSet, switchAt, line] of [
+      [false, '', ''],
+      [true, '2099-12-17T17:00:00Z', futureLine],
+      [true, '2000-12-17T17:00:00Z', pastLine],
+      [false, '2000-12-17T17:00:00Z', ''],
+    ]) {
+      await page.evaluate(async ({ site, switchSet, switchAt }) => {
         window.__SHOWCASE__.storageSwitchSet = switchSet;
+        window.__SHOWCASE__.storageSwitchAt = switchAt;
         hideRowPanel(site);
         await openStorage(site, false);
-      }, { site, switchSet });
+      }, { site, switchSet, switchAt });
       for (const name of ['unconverted', 'kv_presets']) {
-        assert.equal((await card(name).innerText()).includes('Not converted. Presets are ending; rules replace them.'), switchSet);
+        const text = await card(name).innerText();
+        if (line) assert(text.includes(line), text);
+        assert.equal(text.includes('Presets end on '), line === futureLine);
+        assert.equal(text.includes(pastLine), line === pastLine);
         assert.equal(await card(name).locator('select[name="preset"]').count(), 1);
       }
       for (const name of ['converted', 'kv_rules', 'photos']) {
-        assert(!/Not converted|Presets are ending/.test(await card(name).innerText()));
+        assert(!/Presets end on|Visitors can't use this/.test(await card(name).innerText()));
       }
     }
     await page.screenshot({ fullPage: true, path: `${shots}/rules-${width}.png` });
@@ -208,7 +220,7 @@ try {
     assert.deepEqual((await api('GET', base + '/resources')).resources.find(r => r.name === 'kv_rules').rules.policies, kvEdited.policies);
     // Files keep exactly the existing preset menu and save flow.
     const files = card('photos');
-    assert(!/Not converted|Presets are ending/.test(await files.innerText()));
+    assert(!/Presets end on|Visitors can't use this/.test(await files.innerText()));
     assert.equal(await files.locator('textarea').count(), 0);
     await files.getByLabel('Who can do what?').selectOption('private');
     await save('photos');

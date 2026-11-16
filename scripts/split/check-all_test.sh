@@ -199,11 +199,51 @@ node <$tmp/golden/coverage.mjs> <$tmp/out/golden/cand>
 node <$tmp/golden/diff.mjs> <$tmp/out/golden/ref> <$tmp/out/golden/cand> <--slice> <Y,R2-S4b>
 EOF
 check 'only the reference omits exactly the six R2-S4b additions' cmp -s "$tmp/expected" "$STUB_LOG"
+printf '#!/bin/sh\nexit 0\n' >"$tmp/bin/simple-hack"
+chmod +x "$tmp/bin/simple-hack"
+cp "$GOLDEN_REF_BIN" "$tmp/bin/simple-host"
+# Relocate only the installed paths so this case needs no system installation.
+mkdir -p "$tmp/default-gate/scripts/split"
+python3 - "$runner" "$tmp/default-gate/scripts/split/check-all.sh" "$tmp/bin" <<'PY'
+import pathlib, sys
+pathlib.Path(sys.argv[2]).write_text(pathlib.Path(sys.argv[1]).read_text().replace('/usr/local/bin/', sys.argv[3] + '/'))
+PY
+default_reference_run() (
+    unset GOLDEN_REF_BIN GOLDEN_REF_HACK_BIN
+    runner="$tmp/default-gate/scripts/split/check-all.sh"
+    run 0 --golden
+)
+: >"$STUB_LOG"
+check 'golden defaults to the installed split reference pair' default_reference_run
+check 'split reference uses its Hack program' has "$STUB_LOG" "<--host> <$tmp/bin/simple-host> <--hack> <$tmp/bin/simple-hack> <--out>"
+chmod -x "$tmp/bin/simple-hack"
+: >"$STUB_LOG"
+check 'non-executable installed Hack preserves the combined default' default_reference_run
+check 'non-executable Hack is not selected' has "$STUB_LOG" "<--host> <$tmp/bin/simple-host> <--out>"
+chmod +x "$tmp/bin/simple-hack"
+default_reference_override_run() (
+    unset GOLDEN_REF_BIN
+    export GOLDEN_REF_HACK_BIN="$tmp/override hack"
+    runner="$tmp/default-gate/scripts/split/check-all.sh"
+    run 0 --golden
+)
+: >"$STUB_LOG"
+check 'explicit Hack overrides the installed default' default_reference_override_run
+check 'default Host uses the explicit Hack' has "$STUB_LOG" "<--host> <$tmp/bin/simple-host> <--hack> <$tmp/override hack> <--out>"
+combined_reference_run() (
+    unset GOLDEN_REF_HACK_BIN
+    runner="$tmp/default-gate/scripts/split/check-all.sh"
+    run 0 --golden
+)
+: >"$STUB_LOG"
+check 'explicit combined reference still passes beside installed Hack' combined_reference_run
+check 'explicit combined reference has no implicit Hack argument' has "$STUB_LOG" "<--host> <$GOLDEN_REF_BIN> <--out>"
 export GOLDEN_REF_HACK_BIN="$tmp/reference hack" GOLDEN_HACK_BIN="$tmp/candidate hack"
 : >"$STUB_LOG"
 check 'golden with hack overrides passes' run 0 --golden
 check 'reference hack argument' has "$STUB_LOG" "<--host> <$GOLDEN_REF_BIN> <--hack> <$GOLDEN_REF_HACK_BIN> <--out>"
 check 'candidate hack argument' has "$STUB_LOG" "<--host> <$tmp/out/golden/simple-host> <--hack> <$GOLDEN_HACK_BIN> <--out>"
+rm "$tmp/bin/simple-host" "$tmp/bin/simple-hack"
 export COVERAGE_STATUS=1
 check 'golden coverage failure fails gate' run 1 --golden
 unset COVERAGE_STATUS
@@ -246,7 +286,10 @@ check 'non quiet matches quiet' run 0 --quiet
 # Invoke without the helper's --quiet to cover tee and PIPESTATUS.
 bash "$runner" --no-cap --steps-file "$tmp/steps" --known-red "$tmp/red" --out "$tmp/loud" >"$tmp/loud-report" 2>&1
 check 'non quiet gate passes' test "$?" -eq 0
-check 'quiet and non quiet identities match' cmp -s "$tmp/out/summary.tsv" "$tmp/loud/summary.tsv"
+# Compare identities and outcomes; elapsed seconds can differ between runs.
+cut -f1-3,5 "$tmp/out/summary.tsv" >"$tmp/quiet-identities"
+cut -f1-3,5 "$tmp/loud/summary.tsv" >"$tmp/loud-identities"
+check 'quiet and non quiet identities match' cmp -s "$tmp/quiet-identities" "$tmp/loud-identities"
 : >"$tmp/red"
 printf '%s\n' 'x := true' 'x := false' 'x#2 := false' >"$tmp/steps"
 check 'final ids execute distinctly' run 1

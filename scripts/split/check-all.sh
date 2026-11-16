@@ -291,7 +291,7 @@ try:
                 words = ['node', golden_dir + '/run.mjs', '--host', host]
                 if os.environ.get(hack): words += ['--hack', os.environ[hack]]
                 elif side == 'candidate': words += ['--hack', candidate_hack]
-                elif not os.environ.get('GOLDEN_REF_BIN') and os.path.isfile('/usr/local/bin/simple-hack') and os.access('/usr/local/bin/simple-hack', os.X_OK):
+                elif side == 'reference' and not os.environ.get('GOLDEN_REF_BIN') and os.path.isfile('/usr/local/bin/simple-hack') and os.access('/usr/local/bin/simple-hack', os.X_OK):
                     # Default to the installed pair after the split. An explicit
                     # reference may still be an older combined program.
                     words += ['--hack', '/usr/local/bin/simple-hack']

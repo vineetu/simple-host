@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -11,14 +12,19 @@ import (
 func TestShowcaseStorageSwitch(t *testing.T) {
 	h := chromeTestHandler(platformTestEdition())
 	data := showcaseData{Handle: "owner", MainURL: "https://simple-host.app"}
-	for _, switchSet := range []bool{false, true} {
-		page, err := h.pipeline().showcasePage(ChromeData{}, data, switchSet)
+	for _, at := range []time.Time{{}, time.Date(2026, 12, 17, 17, 0, 0, 0, time.UTC)} {
+		page, err := h.pipeline().showcasePage(ChromeData{}, data, at)
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := `"storageSwitchSet":false`
-		if switchSet {
+		if !at.IsZero() {
 			want = `"storageSwitchSet":true`
+			if !strings.Contains(string(page), `"storageSwitchAt":"2026-12-17T17:00:00Z"`) {
+				t.Fatal("dashboard missing the configured switch instant")
+			}
+		} else if strings.Contains(string(page), `"storageSwitchAt":`) {
+			t.Fatal("dashboard has a switch instant when no date is set")
 		}
 		if !strings.Contains(string(page), want) {
 			t.Fatalf("dashboard missing %s", want)
@@ -28,7 +34,7 @@ func TestShowcaseStorageSwitch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(feed), "storageSwitchSet") {
+	if strings.Contains(string(feed), "storageSwitch") {
 		t.Fatal("dashboard notice setting leaked into the public showcase feed")
 	}
 }

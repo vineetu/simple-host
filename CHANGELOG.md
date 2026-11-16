@@ -1,5 +1,9 @@
 # Changelog
 
+2026-11-16: Correct the saved-data moving guide: preserve Personal exports until a suitable migration is agreed, enforce one submission per visitor with a unique index, retain shared-state visitor writes, and show the hosted deadline only on hosted installs (R4-S3b review).
+
+2026-11-16: Publish the guide for moving older saved data to storage and rules. Explain the hosted 17 December switch and operator-configured dates on other installs. The Storage panel shows the local switch time and what happens afterwards; preset-save warnings use a readable UTC date (R4-S3b).
+
 2026-11-16: Plan-based `migrate-rules` apply and revert refuse unsafe plan files and plans missing the running program's commit, before changing any resources (R4-S4a).
 
 2026-11-16: Add storage-retirement notice drafts and an operator command that writes private recipient lists without sending mail. Startup reports how many SQLite and key-value resources still use presets. A preset save warns during a configured notice period; no switch date is set and access is unchanged (R4-S3).

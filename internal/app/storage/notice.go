@@ -51,7 +51,7 @@ func LoadNoticeTemplates(dataDir string) (NoticeTemplates, error) {
 func (t NoticeTemplates) Render(text string, at time.Time) string {
 	date := "<DATE>"
 	if !at.IsZero() {
-		date = at.UTC().Format(time.RFC3339)
+		date = at.UTC().Format("2 January 2006, 15:04 UTC")
 	}
 	return strings.NewReplacer("<DATE>", date, "<RULES_GUIDE_URL>", t.RulesGuide, "<MOVING_GUIDE_URL>", t.MovingGuide).Replace(text)
 }

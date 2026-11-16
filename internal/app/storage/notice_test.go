@@ -140,7 +140,7 @@ func TestPresetSaveNotice(t *testing.T) {
 				enabled bool
 				at      time.Time
 				want    bool
-			}{{"unset", true, time.Time{}, false}, {"flag-off", false, time.Now().Add(time.Hour), false}, {"notice-period", true, time.Now().Add(time.Hour), kind != "files"}, {"past", true, time.Now().Add(-time.Hour), kind != "files"}} {
+			}{{"unset", true, time.Time{}, false}, {"flag-off", false, time.Now().Add(time.Hour), false}, {"notice-period", true, time.Date(2099, 12, 17, 17, 0, 0, 0, time.UTC), kind != "files"}, {"past", true, time.Date(2000, 12, 17, 17, 0, 0, 0, time.UTC), kind != "files"}} {
 				t.Run(tc.name, func(t *testing.T) {
 					s.deps.RulesEnabled = tc.enabled
 					s.deps.StorageSwitchAt = tc.at
@@ -151,6 +151,12 @@ func TestPresetSaveNotice(t *testing.T) {
 					}
 					if (len(got.Warnings) > 0) != tc.want {
 						t.Fatalf("warnings=%v want=%v", got.Warnings, tc.want)
+					}
+					if tc.want {
+						want := "Presets end on " + tc.at.Format("2 January 2006, 15:04 UTC") + ". Set rules before then, or visitors lose access to this."
+						if len(got.Warnings) != 1 || got.Warnings[0] != want {
+							t.Fatalf("warnings=%v want=%q", got.Warnings, want)
+						}
 					}
 				})
 			}
@@ -189,6 +195,10 @@ func TestNoticeEditableWording(t *testing.T) {
 	got, err := LoadNoticeTemplates(dir)
 	if err != nil || got != override {
 		t.Fatalf("override: %+v %v", got, err)
+	}
+	at := time.Date(2026, 12, 17, 22, 30, 0, 0, time.FixedZone("IST", 19800))
+	if warning := got.Render(got.SaveWarning, at); warning != "approved warning 17 December 2026, 17:00 UTC" {
+		t.Fatalf("override warning: %s", warning)
 	}
 }
 
