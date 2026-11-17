@@ -78,6 +78,7 @@ check:
 
 # Publication, cross-repository and HTTP/server fixtures need network access.
 check-release:
+	bash deploy/kubernetes/test-chart.sh
 	bash scripts/check-release.sh
 
 # Both products: verify the matrix, replay all scenarios, then run the browser

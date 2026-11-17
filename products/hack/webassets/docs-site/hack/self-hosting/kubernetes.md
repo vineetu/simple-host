@@ -1,18 +1,65 @@
 # Simple Hack on Kubernetes
 
-One container image, one pod, your Postgres, your load balancer. This is the
-runbook for an internal hackathon run inside a company: the chart is
-`deploy/kubernetes/simple-hack/`, the same chart rendered to plain YAML is
-`deploy/kubernetes/manifests/simple-hack.yaml`, and the image is
-`ghcr.io/vineetu/simple-host:hack-<release>` (the Simple Hack release build;
-0.8.14 is the first that can build its own database, which this needs).
+Both charts install one pod with a ReadWriteOnce claim, your Postgres and a
+TLS-terminating load balancer. They share the same deployment shape and settings:
+`deploy/kubernetes/simple-host/` starts `simple-host` for the platform alone;
+`deploy/kubernetes/simple-hack/` starts `simple-hack` for the platform plus Hack.
+Each starts its matching program explicitly, including the migration init
+container; Hack no longer relies on the old `simple-host` alias.
 
-The pod runs `simple-host` in Hack mode (`EVENTS=hosted`): organisers sign in
-at `https://<host>/` and create events, each event's page is
+`deploy/shared/versions.env` pins both chart versions, image repositories and
+release tags. Run `bash deploy/shared/render.sh` after changing those pins, then
+`bash deploy/kubernetes/render.sh` to update the plain manifests for both products.
+Use a locally built matching image until the split-program images are published.
+The manifests expect an existing `<product>-secrets` Secret; the example Secret
+shows the required keys. Neither rendered bundle contains credentials.
+
+Both charts refuse any `replicas` value except `1` or any `strategy.type` except
+`Recreate`. Site databases and locks are local to that one pod. An upgrade stops
+the old pod before starting the new one; the same claim holds sites and SQLite.
+TLS ends at your load balancer; the pod speaks plain HTTP on 8090.
+
+## Platform alone
+
+Prepare an owned Postgres database, DNS, TLS and a storage class as described
+below. Set `host` and either `database.dsn` or an existing Secret. Password sign-in
+is enabled by default and needs no email provider. For example, put these values
+in a private `host-values.yaml`:
+
+```yaml
+host: host.example.com
+database:
+  existingSecret: host-database
+  existingSecretKey: DB_DSN
+```
+
+```sh
+helm install simple-host deploy/kubernetes/simple-host \
+  --namespace simple-host --create-namespace -f host-values.yaml
+kubectl -n simple-host rollout status deploy/simple-host
+```
+
+Sign in on that hostname and publish a site. The Host chart serves each site at
+`https://<site>.<handle>.<host>/`. Add `*.<handle>.<host>` to
+`ingress.extraHosts` for each account that publishes, with matching DNS and TLS
+coverage. The chart routes these names directly to the program; a separate
+content-host file server is not required.
+Its full values are in `deploy/kubernetes/simple-host/values.yaml`. Plain YAML
+is in `deploy/kubernetes/manifests/simple-host.yaml`; create a Secret named
+`simple-host-secrets` before applying it.
+
+Upgrade with `helm upgrade simple-host deploy/kubernetes/simple-host -n simple-host
+-f host-values.yaml`. Keep the existing `simple-host-data` claim. For a restored
+claim set `persistence.existingClaim`; the chart then creates no new claim. The
+backup and upgrade rules below apply to either product; substitute `simple-host`
+for `simple-hack` in the commands.
+
+## Platform plus Hack
+
+Organisers sign in at `https://<host>/` and create events. Each event's page is
 `https://<event>.<host>/`, and each team's site is its own origin,
-`https://<team>.<event>.<host>/` (so no team's page can read another's
-visitor sessions). TLS ends at your load balancer; the pod speaks plain HTTP
-on 8090.
+`https://<team>.<event>.<host>/` (so no team's page can read another's visitor
+sessions).
 
 Running many events at once and hitting your load balancer's or
 certificate's per-name limits (prerequisite 3 below)? Set
@@ -178,7 +225,7 @@ A release is a new image tag. Migrations run on start, so an upgrade is:
 ```sh
 helm upgrade simple-hack deploy/kubernetes/simple-hack \
   --namespace simple-hack -f my-values.yaml \
-  --set image.tag=hack-0.8.15
+  --set image.tag=<published-release-tag>
 kubectl -n simple-hack rollout status deploy/simple-hack
 ```
 
@@ -188,8 +235,9 @@ thirty seconds of downtime per upgrade; do it between sessions, not during
 judging. A migration that fails leaves the pod in `CrashLoopBackOff` with
 the reason in its log and the database as it was (each file runs in its own
 transaction); `helm rollback simple-hack` brings the previous image back,
-and a database the newer release already migrated still runs the older
-binary (migrations are additive).
+but binary rollback is safe only when the previous program supports the saved
+data and the install's product record. A data move needs its paired database,
+volume, configuration and program backup restored together.
 
 Changing a value restarts the pod (the settings are read at start). The
 generated secrets (`ADMIN_API_KEY`, `PASSCODE_ENC_KEY`, `ANALYTICS_SALT`)
@@ -201,9 +249,9 @@ same image once:
 
 ```sh
 kubectl -n simple-hack run migrate --rm -it --restart=Never \
-  --image ghcr.io/vineetu/simple-host:hack-0.8.14 \
+  --image <matching-product-image>:<published-release-tag> \
   --env DB_DSN="$(kubectl -n simple-hack get secret simple-hack-secrets -o jsonpath='{.data.DB_DSN}' | base64 -d)" \
-  -- migrate -init
+  -- migrate -init -record-product
 ```
 
 ## Backups
@@ -259,14 +307,25 @@ site passcode and notification secret, and the data is unreadable without it.
 - `kubectl -n simple-hack logs deploy/simple-hack` has every startup reason:
   a missing setting, a database it cannot reach (it waits two minutes, then
   exits), a schema it refuses.
-- `kubectl -n simple-hack exec deploy/simple-hack -- /usr/local/bin/simple-host migrate -status`
+- `kubectl -n simple-hack exec deploy/simple-hack -- /usr/local/bin/simple-hack migrate -status`
   lists which migrations the database has.
 - A pod that is Running but not Ready cannot ping Postgres: `/readyz`
   returns 503 with `{"status":"unready"}`.
 - `kubectl -n simple-hack port-forward deploy/simple-hack 8090:8090` and
   `curl -H 'Host: hack.example.com' http://127.0.0.1:8090/` reaches the pod
   without the load balancer, to tell its problems from the proxy's.
-- `deploy/kubernetes/tests/kind-check.sh` runs the whole thing against a
-  throwaway kind cluster with its own Postgres, as a release check.
+- `bash deploy/kubernetes/test-chart.sh` checks both charts, including replica
+  and strategy refusals, shared pins, commands and existing claims. It runs in
+  `make check-release` and needs Helm and the disposable `TEST_PG_URL` server.
+- Run `bash deploy/kubernetes/tests/kind-check.sh simple-host` and
+  `bash deploy/kubernetes/tests/kind-check.sh simple-hack` by hand. Each builds
+  the matching local image, creates a new disposable kind cluster and its own
+  throwaway database on `TEST_PG_URL`, signs in, publishes a site and writes a
+  SQLite row. It upgrades the Helm release with a pod-template change, checks
+  the pod was replaced while the PVC UID/PV and sealing keys stayed the same,
+  and reads back both the page and row. It drops only its own database and
+  cluster. `IMAGE` uses a prebuilt local image; `KEEP=1` keeps the test cluster
+  for inspection (the database is still dropped). Never use a live database.
+  The test refuses database ports 5432 and 55412 and does not alter kubeconfig.
 
 Password sign-in is enabled by default in the chart (`signIn.password.enabled: true`, `signIn.password.selfSignup: true`). It renders `PASSWORD_SIGNIN=on` and `PASSWORD_SELF_SIGNUP=on`, and needs neither OIDC nor Resend. Set `selfSignup: false` for admin-created accounts only, or `enabled: false` to require another sign-in method. Admin Users creates accounts and resets temporary passwords.

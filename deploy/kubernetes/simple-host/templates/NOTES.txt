@@ -1,0 +1,12 @@
+Simple Host {{ .Chart.AppVersion }} is starting at https://{{ .Values.host }}/
+
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "host.name" . }}
+
+Point DNS at your load balancer and terminate TLS for {{ .Values.host }}.
+Forward X-Forwarded-Proto: https and the client address in X-Forwarded-For.
+Sign in at https://{{ .Values.host }}/ and publish a site. Sites use
+https://<site>.<handle>.{{ .Values.host }}/ on this installation. Add
+*.<handle>.{{ .Values.host }} to ingress.extraHosts for each publishing account,
+with matching DNS and TLS coverage.
+
+docs/kubernetes.md has upgrade, backup and troubleshooting steps.

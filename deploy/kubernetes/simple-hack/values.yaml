@@ -11,13 +11,16 @@
 # ingress; that one wildcard resolves every level either way.
 host: ""
 
-# The image. The chart needs a Simple Hack release of 0.8.14 or later (the
-# first that can build an empty database itself); an empty tag means
-# hack-<Chart.appVersion>. pullSecrets names Secrets of type
-# kubernetes.io/dockerconfigjson in this namespace for a private registry.
+# One pod owns the local site databases and locks. Other values are refused.
+replicas: 1
+strategy:
+  type: Recreate
+
+# Defaults are rendered from deploy/shared/versions.env. Override for a local
+# build or private registry; pullSecrets names registry Secrets in this namespace.
 image:
   repository: ghcr.io/vineetu/simple-host
-  tag: ""
+  tag: "hack-0.8.20"
   pullPolicy: IfNotPresent
   pullSecrets: []
 
@@ -48,9 +51,9 @@ adminApiKey: ""
 # provider) is the way in for an internal installation: register a web
 # client with the redirect URI https://<host>/v1/auth/oauth/oidc/callback and
 # fill in the three values. Email-code sign-in needs a Resend key and a
-# verified sender; it is the only way in when oidc is empty. With oidc set,
-# email becomes optional, and email.enabled "off" removes the email-code form
-# everywhere (so only company accounts can sign in).
+# verified sender. Password sign-in is enabled by default. For company-only
+# access, configure oidc, set signIn.email.enabled to "off" and set
+# signIn.password.enabled to false.
 signIn:
   password:
     enabled: true

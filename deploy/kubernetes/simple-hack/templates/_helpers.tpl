@@ -64,6 +64,12 @@ What must be set before the pod can start. Checked once, here, so every
 template fails with the same plain sentence.
 */}}
 {{- define "hack.validate" -}}
+{{- if ne (toString .Values.replicas) "1" }}
+{{- fail "replicas must be 1: site databases and locks are local to one pod" }}
+{{- end }}
+{{- if ne .Values.strategy.type "Recreate" }}
+{{- fail "strategy.type must be Recreate: rolling upgrades would share site databases" }}
+{{- end }}
 {{- if not .Values.host }}
 {{- fail "host is required: the platform's hostname, e.g. hack.example.com" }}
 {{- end }}

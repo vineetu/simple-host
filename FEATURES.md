@@ -2075,7 +2075,7 @@ MCP: `hack_check_event_name`, `hack_create_event`, `hack_event_storage_delete_fi
 
 **Kubernetes (2026-11-02).** `deploy/kubernetes/simple-hack/` is a Helm chart for an <a id="kubernetes"></a>
 existing cluster with the operator's own Postgres and a TLS-terminating load balancer: one
-pod of the base image (`ghcr.io/vineetu/simple-host:hack-<release>`, no Caddy, no psql),
+pod running `simple-hack` explicitly,
 `Recreate`, a ReadWriteOnce claim at `/data` (`DATA_DIR=/data/sites`, `GEOIP_DIR=/data/geoip`),
 an emptyDir at `/tmp`, a Secret (generated `ADMIN_API_KEY`, `PASSCODE_ENC_KEY`,
 `ANALYTICS_SALT` kept via `lookup`; `DB_DSN`, `OIDC_CLIENT_SECRET`, `RESEND_API_KEY`; or
@@ -2094,9 +2094,15 @@ SAN, which otherwise runs into a load balancer's or certificate's per-name limit
 listener-rule and SAN caps) as events accumulate. Hosted simple-hack.app keeps it off; with it
 off, behaviour is byte-for-byte unchanged. `deploy/kubernetes/manifests/simple-hack.yaml` is
 the rendered bundle (`render.sh`, checked current by `test-chart.sh`), `docs/kubernetes.md` the
-runbook, `deploy/kubernetes/tests/kind-check.sh` + `kind-check.mjs` the release check in a
-throwaway kind cluster (empty database built on start, issued-key sign-in, event, team, published
-site, survives a pod replacement). The `hack-v*` workflow lints the chart and packages it with
+runbook, `deploy/kubernetes/tests/kind-check.sh` + `kind_check.py` the release check in a
+throwaway kind cluster (empty database built on start, password sign-in, event, team, published
+site and SQLite row survive a Helm upgrade with the same claim).
+`deploy/kubernetes/simple-host/` supplies the same chart shape for the platform
+alone, starting `simple-host`. Both charts refuse replicas other than 1 and
+strategies other than Recreate; versions and images come from
+`deploy/shared/versions.env`. `test-chart.sh` checks both in `make check-release`;
+`kind-check.sh simple-host` and `kind-check.sh simple-hack` rehearse each product.
+The `hack-v*` workflow lints the chart and packages it with
 the release. Status: checked in kind on 2026-11-02; not yet installed on a real cluster.
 
 Compose packaging (D4-S7b): root Compose starts `simple-host` directly; the Hack

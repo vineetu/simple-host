@@ -25,6 +25,10 @@ spec:
       annotations:
         # A changed setting restarts the pod; the server reads them at start.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.secrets.existingSecret }}
+        # Hash configured inputs, not the generated keys retained by secret.yaml.
+        checksum/secret: {{ dict "adminApiKey" .Values.adminApiKey "databaseDSN" .Values.database.dsn "oidcClientSecret" .Values.signIn.oidc.clientSecret "resendApiKey" .Values.signIn.email.resendApiKey "extraSecrets" .Values.extraSecrets | toJson | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -64,6 +68,7 @@ spec:
         - name: migrate
           image: {{ include "hack.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/simple-hack"]
           args: ["migrate", "-init", "-record-product"]
           securityContext:
             {{- include "hack.containerSecurity" . | nindent 12 }}
@@ -83,6 +88,7 @@ spec:
       {{- end }}
       containers:
         - name: simple-hack
+          command: ["/usr/local/bin/simple-hack"]
           image: {{ include "hack.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:

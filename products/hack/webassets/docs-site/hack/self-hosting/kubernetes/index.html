@@ -555,6 +555,12 @@
 		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#platform-alone" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Platform alone</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#platform-plus-hack" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Platform plus Hack</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#prerequisites" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prerequisites</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -591,6 +597,12 @@
 		<ul class="astro-jugkfwgx" style="--depth: 0;">
 	<li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#platform-alone" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Platform alone</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#platform-plus-hack" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Platform plus Hack</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#prerequisites" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prerequisites</span></a>
@@ -635,18 +647,51 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p>One container image, one pod, your Postgres, your load balancer. This is the
-runbook for an internal hackathon run inside a company: the chart is
-<code>deploy/kubernetes/simple-hack/</code>, the same chart rendered to plain YAML is
-<code>deploy/kubernetes/manifests/simple-hack.yaml</code>, and the image is
-<code>ghcr.io/vineetu/simple-host:hack-&lt;release&gt;</code> (the Simple Hack release build;
-0.8.14 is the first that can build its own database, which this needs).</p>
-<p>The pod runs <code>simple-host</code> in Hack mode (<code>EVENTS=hosted</code>): organisers sign in
-at <code>https://&lt;host&gt;/</code> and create events, each event’s page is
+								<div class="sl-markdown-content"><p>Both charts install one pod with a ReadWriteOnce claim, your Postgres and a
+TLS-terminating load balancer. They share the same deployment shape and settings:
+<code>deploy/kubernetes/simple-host/</code> starts <code>simple-host</code> for the platform alone;
+<code>deploy/kubernetes/simple-hack/</code> starts <code>simple-hack</code> for the platform plus Hack.
+Each starts its matching program explicitly, including the migration init
+container; Hack no longer relies on the old <code>simple-host</code> alias.</p>
+<p><code>deploy/shared/versions.env</code> pins both chart versions, image repositories and
+release tags. Run <code>bash deploy/shared/render.sh</code> after changing those pins, then
+<code>bash deploy/kubernetes/render.sh</code> to update the plain manifests for both products.
+Use a locally built matching image until the split-program images are published.
+The manifests expect an existing <code>&lt;product&gt;-secrets</code> Secret; the example Secret
+shows the required keys. Neither rendered bundle contains credentials.</p>
+<p>Both charts refuse any <code>replicas</code> value except <code>1</code> or any <code>strategy.type</code> except
+<code>Recreate</code>. Site databases and locks are local to that one pod. An upgrade stops
+the old pod before starting the new one; the same claim holds sites and SQLite.
+TLS ends at your load balancer; the pod speaks plain HTTP on 8090.</p>
+<h2 id="platform-alone">Platform alone</h2>
+<p>Prepare an owned Postgres database, DNS, TLS and a storage class as described
+below. Set <code>host</code> and either <code>database.dsn</code> or an existing Secret. Password sign-in
+is enabled by default and needs no email provider. For example, put these values
+in a private <code>host-values.yaml</code>:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#85E89D">host</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">host.example.com</span></span>
+<span class="line"><span style="color:#85E89D">database</span><span style="color:#E1E4E8">:</span></span>
+<span class="line"><span style="color:#85E89D">  existingSecret</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">host-database</span></span>
+<span class="line"><span style="color:#85E89D">  existingSecretKey</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">DB_DSN</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">helm</span><span style="color:#9ECBFF"> install</span><span style="color:#9ECBFF"> simple-host</span><span style="color:#9ECBFF"> deploy/kubernetes/simple-host</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --namespace</span><span style="color:#9ECBFF"> simple-host</span><span style="color:#79B8FF"> --create-namespace</span><span style="color:#79B8FF"> -f</span><span style="color:#9ECBFF"> host-values.yaml</span></span>
+<span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-host</span><span style="color:#9ECBFF"> rollout</span><span style="color:#9ECBFF"> status</span><span style="color:#9ECBFF"> deploy/simple-host</span></span></code></pre>
+<p>Sign in on that hostname and publish a site. The Host chart serves each site at
+<code>https://&lt;site&gt;.&lt;handle&gt;.&lt;host&gt;/</code>. Add <code>*.&lt;handle&gt;.&lt;host&gt;</code> to
+<code>ingress.extraHosts</code> for each account that publishes, with matching DNS and TLS
+coverage. The chart routes these names directly to the program; a separate
+content-host file server is not required.
+Its full values are in <code>deploy/kubernetes/simple-host/values.yaml</code>. Plain YAML
+is in <code>deploy/kubernetes/manifests/simple-host.yaml</code>; create a Secret named
+<code>simple-host-secrets</code> before applying it.</p>
+<p>Upgrade with <code>helm upgrade simple-host deploy/kubernetes/simple-host -n simple-host -f host-values.yaml</code>. Keep the existing <code>simple-host-data</code> claim. For a restored
+claim set <code>persistence.existingClaim</code>; the chart then creates no new claim. The
+backup and upgrade rules below apply to either product; substitute <code>simple-host</code>
+for <code>simple-hack</code> in the commands.</p>
+<h2 id="platform-plus-hack">Platform plus Hack</h2>
+<p>Organisers sign in at <code>https://&lt;host&gt;/</code> and create events. Each event’s page is
 <code>https://&lt;event&gt;.&lt;host&gt;/</code>, and each team’s site is its own origin,
-<code>https://&lt;team&gt;.&lt;event&gt;.&lt;host&gt;/</code> (so no team’s page can read another’s
-visitor sessions). TLS ends at your load balancer; the pod speaks plain HTTP
-on 8090.</p>
+<code>https://&lt;team&gt;.&lt;event&gt;.&lt;host&gt;/</code> (so no team’s page can read another’s visitor
+sessions).</p>
 <p>Running many events at once and hitting your load balancer’s or
 certificate’s per-name limits (prerequisite 3 below)? Set
 <code>teamSites.flatHosts: true</code> and a team’s site becomes
@@ -781,7 +826,7 @@ even when the provider would have let them through.</p>
 <p>A release is a new image tag. Migrations run on start, so an upgrade is:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">helm</span><span style="color:#9ECBFF"> upgrade</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> deploy/kubernetes/simple-hack</span><span style="color:#79B8FF"> \</span></span>
 <span class="line"><span style="color:#79B8FF">  --namespace</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#79B8FF"> -f</span><span style="color:#9ECBFF"> my-values.yaml</span><span style="color:#79B8FF"> \</span></span>
-<span class="line"><span style="color:#79B8FF">  --set</span><span style="color:#9ECBFF"> image.tag=hack-0.8.15</span></span>
+<span class="line"><span style="color:#79B8FF">  --set</span><span style="color:#9ECBFF"> image.tag=</span><span style="color:#F97583">&lt;</span><span style="color:#9ECBFF">published-release-ta</span><span style="color:#E1E4E8">g</span><span style="color:#F97583">&gt;</span></span>
 <span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> rollout</span><span style="color:#9ECBFF"> status</span><span style="color:#9ECBFF"> deploy/simple-hack</span></span></code></pre>
 <p>The Deployment’s strategy is <code>Recreate</code>: the old pod stops, the new one
 starts, applies the release’s pending migrations, then listens. Expect about
@@ -789,8 +834,9 @@ thirty seconds of downtime per upgrade; do it between sessions, not during
 judging. A migration that fails leaves the pod in <code>CrashLoopBackOff</code> with
 the reason in its log and the database as it was (each file runs in its own
 transaction); <code>helm rollback simple-hack</code> brings the previous image back,
-and a database the newer release already migrated still runs the older
-binary (migrations are additive).</p>
+but binary rollback is safe only when the previous program supports the saved
+data and the install’s product record. A data move needs its paired database,
+volume, configuration and program backup restored together.</p>
 <p>Changing a value restarts the pod (the settings are read at start). The
 generated secrets (<code>ADMIN_API_KEY</code>, <code>PASSCODE_ENC_KEY</code>, <code>ANALYTICS_SALT</code>)
 are read back from the live Secret on every upgrade and never rotate on
@@ -798,9 +844,9 @@ their own; the Secret and the volume claim survive <code>helm uninstall</code>.<
 <p>To prepare a database by hand instead (<code>migrateOnStart: false</code>), run the
 same image once:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> run</span><span style="color:#9ECBFF"> migrate</span><span style="color:#79B8FF"> --rm</span><span style="color:#79B8FF"> -it</span><span style="color:#79B8FF"> --restart=Never</span><span style="color:#79B8FF"> \</span></span>
-<span class="line"><span style="color:#79B8FF">  --image</span><span style="color:#9ECBFF"> ghcr.io/vineetu/simple-host:hack-0.8.14</span><span style="color:#79B8FF"> \</span></span>
+<span class="line"><span style="color:#79B8FF">  --image</span><span style="color:#F97583"> &lt;</span><span style="color:#9ECBFF">matching-product-imag</span><span style="color:#E1E4E8">e</span><span style="color:#F97583">&gt;</span><span style="color:#9ECBFF">:</span><span style="color:#F97583">&lt;</span><span style="color:#9ECBFF">published-release-ta</span><span style="color:#E1E4E8">g</span><span style="color:#F97583">&gt;</span><span style="color:#79B8FF"> \</span></span>
 <span class="line"><span style="color:#79B8FF">  --env</span><span style="color:#9ECBFF"> DB_DSN="$(</span><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack get secret simple-hack-secrets </span><span style="color:#79B8FF">-o</span><span style="color:#9ECBFF"> jsonpath='{.data.DB_DSN}' </span><span style="color:#F97583">|</span><span style="color:#B392F0"> base64</span><span style="color:#79B8FF"> -d</span><span style="color:#9ECBFF">)"</span><span style="color:#79B8FF"> \</span></span>
-<span class="line"><span style="color:#79B8FF">  --</span><span style="color:#9ECBFF"> migrate</span><span style="color:#79B8FF"> -init</span></span></code></pre>
+<span class="line"><span style="color:#79B8FF">  --</span><span style="color:#9ECBFF"> migrate</span><span style="color:#79B8FF"> -init</span><span style="color:#79B8FF"> -record-product</span></span></code></pre>
 <h2 id="backups">Backups</h2>
 <p>Two things hold state, and a restore needs both from about the same time:</p>
 <ul>
@@ -902,15 +948,26 @@ site passcode and notification secret, and the data is unreadable without it.</p
 <li><code>kubectl -n simple-hack logs deploy/simple-hack</code> has every startup reason:
 a missing setting, a database it cannot reach (it waits two minutes, then
 exits), a schema it refuses.</li>
-<li><code>kubectl -n simple-hack exec deploy/simple-hack -- /usr/local/bin/simple-host migrate -status</code>
+<li><code>kubectl -n simple-hack exec deploy/simple-hack -- /usr/local/bin/simple-hack migrate -status</code>
 lists which migrations the database has.</li>
 <li>A pod that is Running but not Ready cannot ping Postgres: <code>/readyz</code>
 returns 503 with <code>{"status":"unready"}</code>.</li>
 <li><code>kubectl -n simple-hack port-forward deploy/simple-hack 8090:8090</code> and
 <code>curl -H 'Host: hack.example.com' http://127.0.0.1:8090/</code> reaches the pod
 without the load balancer, to tell its problems from the proxy’s.</li>
-<li><code>deploy/kubernetes/tests/kind-check.sh</code> runs the whole thing against a
-throwaway kind cluster with its own Postgres, as a release check.</li>
+<li><code>bash deploy/kubernetes/test-chart.sh</code> checks both charts, including replica
+and strategy refusals, shared pins, commands and existing claims. It runs in
+<code>make check-release</code> and needs Helm and the disposable <code>TEST_PG_URL</code> server.</li>
+<li>Run <code>bash deploy/kubernetes/tests/kind-check.sh simple-host</code> and
+<code>bash deploy/kubernetes/tests/kind-check.sh simple-hack</code> by hand. Each builds
+the matching local image, creates a new disposable kind cluster and its own
+throwaway database on <code>TEST_PG_URL</code>, signs in, publishes a site and writes a
+SQLite row. It upgrades the Helm release with a pod-template change, checks
+the pod was replaced while the PVC UID/PV and sealing keys stayed the same,
+and reads back both the page and row. It drops only its own database and
+cluster. <code>IMAGE</code> uses a prebuilt local image; <code>KEEP=1</code> keeps the test cluster
+for inspection (the database is still dropped). Never use a live database.
+The test refuses database ports 5432 and 55412 and does not alter kubeconfig.</li>
 </ul>
 <p>Password sign-in is enabled by default in the chart (<code>signIn.password.enabled: true</code>, <code>signIn.password.selfSignup: true</code>). It renders <code>PASSWORD_SIGNIN=on</code> and <code>PASSWORD_SELF_SIGNUP=on</code>, and needs neither OIDC nor Resend. Set <code>selfSignup: false</code> for admin-created accounts only, or <code>enabled: false</code> to require another sign-in method. Admin Users creates accounts and resets temporary passwords.</p>
 </div>

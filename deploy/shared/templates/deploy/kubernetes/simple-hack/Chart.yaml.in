@@ -1,0 +1,18 @@
+apiVersion: v2
+name: simple-hack
+description: Simple Hack, the hackathon platform, on an existing Kubernetes cluster with your own Postgres and load balancer.
+type: application
+# Pinned by deploy/shared/versions.env.
+version: @CHART_VERSION@
+appVersion: "@HACK_RELEASE_VERSION@"
+kubeVersion: ">=1.27.0-0"
+home: https://simple-hack.app
+sources:
+  - https://github.com/vineetu/simple-host
+keywords:
+  - hackathon
+  - static-sites
+  - oidc
+maintainers:
+  - name: Simple Host
+    email: support@simple-host.app
