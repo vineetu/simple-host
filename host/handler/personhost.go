@@ -130,7 +130,7 @@ func (h *SiteHandler) personHostOwner(ctx context.Context, host string) (model.U
 	if !ok || !h.isPlatformSubdomainHost(host) || !handleAddressable(label) {
 		return model.User{}, false
 	}
-	u, err := h.storeAccounts().GetUserByHandle(ctx, label)
+	u, err := h.siteFacts().GetUserByHandle(ctx, label)
 	if err != nil {
 		return model.User{}, false
 	}
@@ -166,7 +166,7 @@ func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome,
 	if !h.personHostsOn() {
 		return siteHome{}, false, nil
 	}
-	handle, ownerID, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
+	handle, ownerID, name, err := h.siteFacts().GetSiteOwner(ctx, siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return siteHome{}, false, nil
@@ -237,13 +237,13 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 	seg, _, _ := strings.Cut(strings.TrimPrefix(path.Clean("/"+p), "/"), "/")
 	if h.ed.Routes().HostedEvents {
 		if ev, err := h.groupByAccount(ctx, owner.ID); err == nil && ev.CustomWebsite && !ev.TakenDown {
-			if site, err := h.sitesSvc().GetSiteByUser(ctx, owner.ID, ev.ID); err == nil {
+			if site, err := h.siteFacts().GetSiteByUser(ctx, owner.ID, ev.ID); err == nil {
 				return site.ID, true
 			}
 		}
 		return "", false
 	}
-	site, err := h.sitesSvc().AddressedSite(ctx, owner.ID, seg)
+	site, err := h.siteFacts().AddressedSite(ctx, owner.ID, seg)
 	if err != nil || !h.personAddressFor(owner.Handle.String, site.Name) {
 		return "", false
 	}
@@ -274,14 +274,14 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, err := h.storeAccounts().GetUserByHandle(r.Context(), label)
+		user, err := h.siteFacts().GetUserByHandle(r.Context(), label)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("person host %s: %v", host, err)
 				h.renderServiceError(w, r)
 				return
 			}
-			if current, aerr := h.storeAccounts().ResolveHandleAlias(r.Context(), label); aerr == nil && handleAddressable(current) {
+			if current, aerr := h.siteFacts().ResolveHandleAlias(r.Context(), label); aerr == nil && handleAddressable(current) {
 				http.Redirect(w, r, "https://"+h.personHostOn(current, base)+r.URL.RequestURI(), http.StatusMovedPermanently)
 				return
 			}
@@ -326,7 +326,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	site, err := h.sitesSvc().AddressedSite(r.Context(), user.ID, seg)
+	site, err := h.siteFacts().AddressedSite(r.Context(), user.ID, seg)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			h.renderServiceError(w, r)
@@ -406,7 +406,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	user, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
+	user, err := h.siteFacts().GetUserByHandleOrAlias(r.Context(), handle)
 	if err != nil {
 		h.renderNotFound(w, r, "/"+handle)
 		return
@@ -425,7 +425,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		return
 	}
 	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
-	site, err := h.sitesSvc().AddressedSite(r.Context(), user.ID, name)
+	site, err := h.siteFacts().AddressedSite(r.Context(), user.ID, name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// An old name of a renamed site: its current address.

@@ -149,14 +149,14 @@ func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (model.Site
 	if !ok {
 		return model.Site{}, model.User{}, false, nil
 	}
-	user, err := h.sitesSvc().HostOwner(ctx, handle, label)
+	user, err := h.siteFacts().HostOwner(ctx, handle, label)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, sites.ErrInvalidHost) {
 			return model.Site{}, model.User{}, false, nil
 		}
 		return model.Site{}, model.User{}, false, err
 	}
-	site, err := h.sitesSvc().GetSiteByUser(ctx, user.ID, label)
+	site, err := h.siteFacts().GetSiteByUser(ctx, user.ID, label)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return model.Site{}, model.User{}, false, nil
@@ -204,7 +204,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		if r.URL.RawQuery != "" {
 			query = "?" + r.URL.RawQuery
 		}
-		user, err := h.sitesSvc().HostOwner(r.Context(), handle, label)
+		user, err := h.siteFacts().HostOwner(r.Context(), handle, label)
 		if errors.Is(err, sites.ErrInvalidHost) {
 			h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.siteDomain)
 			return
@@ -216,9 +216,9 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 				return
 			}
 			// An old handle kept as an alias: the site's current address.
-			if current, aerr := h.storeAccounts().ResolveHandleAlias(r.Context(), handle); aerr == nil && handleAddressable(current) {
-				if cu, cerr := h.storeAccounts().GetUserByHandle(r.Context(), current); cerr == nil {
-					if site, serr := h.sitesSvc().GetSiteByUser(r.Context(), cu.ID, label); serr == nil {
+			if current, aerr := h.siteFacts().ResolveHandleAlias(r.Context(), handle); aerr == nil && handleAddressable(current) {
+				if cu, cerr := h.siteFacts().GetUserByHandle(r.Context(), current); cerr == nil {
+					if site, serr := h.siteFacts().GetSiteByUser(r.Context(), cu.ID, label); serr == nil {
 						w.Header().Set("Cache-Control", "no-store")
 						http.Redirect(w, r, h.siteAddressWithPathOn(current, site.Name, r.URL.EscapedPath(), base)+query, http.StatusFound)
 						return
@@ -234,7 +234,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.siteDomain)
 			return
 		}
-		site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, label)
+		site, err := h.siteFacts().GetSiteByUser(r.Context(), user.ID, label)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("site host %s: %v", host, err)
@@ -366,7 +366,7 @@ func (h *SiteHandler) siteHasPath(userID, siteName, rel string) bool {
 // (and no site has it now; callers look the site up first). Returns that
 // site's current address with escapedPath (starting with "/") appended.
 func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, escapedPath string) (string, bool) {
-	siteID, _, err := h.sitesSvc().AddressedOldSite(ctx, userID, name)
+	siteID, _, err := h.siteFacts().AddressedOldSite(ctx, userID, name)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("old site name %s/%s: %v", userID, name, err)

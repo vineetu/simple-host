@@ -60,3 +60,7 @@ func (*groupHosts) Texts() handler.GroupTexts {
 		NoPersonalSites: "team sites belong to an event: select your team in the Simple Hack connection before publishing",
 	}
 }
+
+func (g *groupHosts) LoadRoutingFacts(ctx context.Context, tx *sql.Tx) ([]model.RouteGroup, []model.RouteGroupSite, error) {
+	return g.teams.LoadRoutingFacts(ctx, tx)
+}

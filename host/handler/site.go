@@ -56,6 +56,7 @@ func init() {
 }
 
 type SiteHandler struct {
+	routingFacts    SiteFacts
 	sitemaps        sitemapCache
 	sitemapFilter   sites.SitemapFilter
 	savedWorkerOnce sync.Once
@@ -73,7 +74,6 @@ type SiteHandler struct {
 	assets            *assetPipeline
 	assetsOnce        sync.Once
 	createIdempotency *createIdempotencyStore
-
 	// sqlite is this handler's SQLite concurrency gate (site_storage_sql.go),
 	// sized from h.limits. NewSiteHandler builds it; a bare &SiteHandler{}
 	// (tests) gets one on first use via sqliteGateFor, matching pipeline()'s

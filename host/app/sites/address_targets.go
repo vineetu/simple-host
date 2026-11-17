@@ -112,8 +112,14 @@ func (s *Service) AdminSiteTarget(ctx context.Context, id string, deleting bool)
 // ContentPathOwner resolves a path-model owner only after both path labels pass
 // their existing boundary rules, including aliases of current handles.
 func (s *Service) ContentPathOwner(ctx context.Context, handle, name string) (model.User, error) {
-	if !rules.VisitorHandle.MatchString(handle) || !rules.ValidSiteName.MatchString(name) {
+	if !ContentPathValid(handle, name) {
 		return model.User{}, sql.ErrNoRows
 	}
 	return accounts.GetUserByHandleOrAlias(ctx, s.database, handle)
+}
+
+// ContentPathValid applies the path-model naming rules shared by database and
+// copied routing facts. Path handles need not be addressable DNS labels.
+func ContentPathValid(handle, name string) bool {
+	return rules.VisitorHandle.MatchString(handle) && rules.ValidSiteName.MatchString(name)
 }

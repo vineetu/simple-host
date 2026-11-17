@@ -289,7 +289,7 @@ func robotsDisallowRoot(body string) bool {
 // markRestrictedSite preserves noindex before an address redirect can return;
 // the file-serving gates retain their own headers, including disk-only gates.
 func markRestrictedSite(w http.ResponseWriter, site model.Site) {
-	if site.Passcode || site.NamedViewers || site.Offline || site.Suspended() {
+	if site.PageNoIndex || site.Passcode || site.NamedViewers || site.Offline || site.Suspended() {
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	}
 }

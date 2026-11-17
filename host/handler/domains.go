@@ -521,7 +521,7 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.opsSitesSvc().GetSiteByCustomDomain(r.Context(), domain)
+	_, err = h.siteFacts().GetSiteByCustomDomain(r.Context(), domain)
 	if err != nil {
 		// sql.ErrNoRows or any DB error → deny (never 500 to Caddy on a miss).
 		w.WriteHeader(http.StatusForbidden)
@@ -539,12 +539,12 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 	handle := strings.TrimSpace(r.PathValue("handle"))
 	name := strings.TrimSpace(r.PathValue("sitename"))
-	user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
+	user, err := h.siteFacts().GetUserByHandle(r.Context(), handle)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	site, err := h.opsSitesSvc().GetSiteByUser(r.Context(), user.ID, name)
+	site, err := h.siteFacts().GetSiteByUser(r.Context(), user.ID, name)
 	if err != nil {
 		http.NotFound(w, r)
 		return

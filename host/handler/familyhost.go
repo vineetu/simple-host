@@ -160,7 +160,7 @@ func (h *SiteHandler) refreshFamilies(ctx context.Context) {
 	byUser := map[string][]model.AddressFamily{}
 	known := map[string]bool{}
 	if h.familiesOn() {
-		list, err := h.sitesSvc().ListAllFamilies(ctx)
+		list, err := h.siteFacts().ListAllFamilies(ctx)
 		if err != nil {
 			sites.ReportWorkerFailure(ctx, "refresh address families", err)
 			return
@@ -303,12 +303,12 @@ func (h *SiteHandler) familySiteForHost(ctx context.Context, host string) (famil
 	if !ok || !familyLabelOK(f, label, h.limits) {
 		return familyMatch{}, false, nil
 	}
-	if _, err := h.sitesSvc().GetSiteByCustomDomain(ctx, requestHostLower(host)); err == nil {
+	if _, err := h.siteFacts().GetSiteByCustomDomain(ctx, requestHostLower(host)); err == nil {
 		return familyMatch{}, false, nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return familyMatch{}, false, err
 	}
-	site, err := h.sitesSvc().GetSiteByUser(ctx, f.UserID, f.SitePrefix+label)
+	site, err := h.siteFacts().GetSiteByUser(ctx, f.UserID, f.SitePrefix+label)
 	if errors.Is(err, sql.ErrNoRows) {
 		return familyMatch{}, false, nil
 	}
@@ -320,7 +320,7 @@ func (h *SiteHandler) familySiteForHost(ctx context.Context, host string) (famil
 
 // isBoundDomain: host is a custom domain (or earlier address) bound here.
 func (h *SiteHandler) isBoundDomain(ctx context.Context, host string) bool {
-	_, err := h.sitesSvc().GetSiteByCustomDomain(ctx, requestHostLower(host))
+	_, err := h.siteFacts().GetSiteByCustomDomain(ctx, requestHostLower(host))
 	return err == nil
 }
 
@@ -390,7 +390,7 @@ func (h *SiteHandler) siteOwnAddress(ctx context.Context, siteID string) (model.
 	if err != nil || has || !h.hasLiveFamilies() {
 		return model.SiteDomainInfo(info), has, err
 	}
-	_, userID, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
+	_, userID, name, err := h.siteFacts().GetSiteOwner(ctx, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.SiteDomainInfo{}, false, nil
 	}
@@ -423,7 +423,7 @@ func (h *SiteHandler) isSiteFamilyHost(ctx context.Context, siteID, host string)
 // of f's owner. The site's current address with escapedPath: under the same
 // family when its new name still has the prefix, else its main address.
 func (h *SiteHandler) familyRenamedTarget(ctx context.Context, f model.AddressFamily, label, escapedPath string) (string, bool) {
-	siteID, _, err := h.sitesSvc().ResolveOldSiteName(ctx, f.UserID, f.SitePrefix+label)
+	siteID, _, err := h.siteFacts().ResolveOldSiteName(ctx, f.UserID, f.SitePrefix+label)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("family host: old name %s%s: %v", f.SitePrefix, label, err)
@@ -431,7 +431,7 @@ func (h *SiteHandler) familyRenamedTarget(ctx context.Context, f model.AddressFa
 		return "", false
 	}
 	if _, has, _ := h.siteOwnDomain(ctx, siteID); !has {
-		if _, _, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID); err == nil {
+		if _, _, name, err := h.siteFacts().GetSiteOwner(ctx, siteID); err == nil {
 			if nl, ok := strings.CutPrefix(name, f.SitePrefix); ok && familyLabelOK(f, nl, h.limits) {
 				return "https://" + nl + "." + f.Suffix + "/" + strings.TrimLeft(escapedPath, "/"), true
 			}
@@ -462,7 +462,7 @@ func (h *SiteHandler) FamilyHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		// A custom domain bound here under the family: the exact name wins.
-		if _, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host); err == nil {
+		if _, err := h.siteFacts().GetSiteByCustomDomain(r.Context(), host); err == nil {
 			next.ServeHTTP(w, r)
 			return
 		}

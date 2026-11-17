@@ -388,11 +388,11 @@ func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (strin
 		return "", false
 	}
 	handle, name := strings.ToLower(parts[0]), parts[1]
-	user, err := h.sitesSvc().ContentPathOwner(ctx, handle, name)
+	user, err := h.siteFacts().ContentPathOwner(ctx, handle, name)
 	if err != nil {
 		return "", false
 	}
-	if _, err := h.sitesSvc().AddressedSite(ctx, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := h.siteFacts().AddressedSite(ctx, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
 		return "", false // a real site (a missing file), or a lookup error
 	}
 	rest := ""
@@ -440,7 +440,7 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 	if len(segs) >= 1 {
 		handle := strings.ToLower(segs[0])
 		if showcaseHandleRe.MatchString(handle) && !reservedShowcaseHandles[handle] {
-			if _, err := h.storeAccounts().GetUserByHandle(r.Context(), handle); err == nil {
+			if _, err := h.siteFacts().GetUserByHandle(r.Context(), handle); err == nil {
 				message = "That page isn’t here"
 				subtext = "This site or page doesn’t exist under @" + handle + "."
 				backURL = h.PersonPageURL(handle)

@@ -47,6 +47,7 @@ rules/{auth,sites,storage} -> model
 @/products/hack/rules/hackteams -> model
 @/products/hack/rules/hackentries -> model
 edition -> config
+static -> model
 storage -> model
 storage -> @/host/storage/rules
 {analytics,netusage,papermetrics} -> model workers
@@ -63,6 +64,7 @@ wpimport -> redirects
 @/scripts/inventory -> mcp webassets @/products/hack/mcp
 server/servertest -> server config extension
 [test]
+handler -> static
 app/sites -> config
 handler -> @/host/storage/rules
 app/sites -> @/host/storage/rules

@@ -116,12 +116,12 @@ func (h *SiteHandler) homePathExists(s model.Site, rel string) bool {
 }
 
 func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user model.User, base string) bool {
-	s, has, err := h.sitesSvc().HomeSite(r.Context(), user.ID)
+	s, has, err := h.siteFacts().HomeSite(r.Context(), user.ID)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return true
 	}
-	if !has || s.Offline || s.Suspended() {
+	if !has || s.HomeUnavailable || s.Offline || s.Suspended() {
 		return false
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -131,7 +131,7 @@ func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user
 	}
 	if !h.homePathExists(s, r.URL.Path) {
 		seg, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
-		if other, err := h.sitesSvc().AddressedSite(r.Context(), user.ID, seg); err == nil {
+		if other, err := h.siteFacts().AddressedSite(r.Context(), user.ID, seg); err == nil {
 			_, escTail, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 			if other.ID == s.ID {
 				target := "/" + strings.TrimLeft(escTail, "/")

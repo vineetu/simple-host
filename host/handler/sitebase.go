@@ -184,10 +184,10 @@ func (h *SiteHandler) flatLabelConfirmedNotAHandle(ctx context.Context, label st
 	if !handleAddressable(label) {
 		return true // too long, or otherwise shaped, to ever be a real handle
 	}
-	if h.database == nil {
+	if h.database == nil && h.routingFacts == nil {
 		return false // fail closed: no way to rule out a real handle
 	}
-	_, err := h.storeAccounts().GetUserByHandle(ctx, label)
+	_, err := h.siteFacts().GetUserByHandle(ctx, label)
 	if err == nil {
 		return false // a real handle: its own host, never a team label
 	}
@@ -398,9 +398,9 @@ func (h *SiteHandler) legacyBaseTarget(r *http.Request) (string, int, bool) {
 	// A site whose main address is not a Simple Host one (its own domain,
 	// or its address family) goes straight there: one hop, and a 302, since
 	// that address can change.
-	if len(parts) == 2 && h.database != nil {
-		if u, err := h.sitesSvc().HostOwner(r.Context(), parts[1], parts[0]); err == nil {
-			if site, err := h.sitesSvc().AddressedSite(r.Context(), u.ID, parts[0]); err == nil {
+	if len(parts) == 2 && (h.database != nil || h.routingFacts != nil) {
+		if u, err := h.siteFacts().HostOwner(r.Context(), parts[1], parts[0]); err == nil {
+			if site, err := h.siteFacts().AddressedSite(r.Context(), u.ID, parts[0]); err == nil {
 				if own, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 					return "https://" + strings.ToLower(own.Domain) + escaped + query, http.StatusFound, true
 				}

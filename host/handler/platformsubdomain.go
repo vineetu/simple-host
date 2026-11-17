@@ -129,7 +129,7 @@ func (h *SiteHandler) boundPlatformSite(ctx context.Context, host string) (model
 	if !h.isPlatformSubdomainHost(host) {
 		return model.SiteDomainInfo{}, false
 	}
-	info, err := h.opsSitesSvc().GetSiteByCustomDomain(ctx, host)
+	info, err := h.siteFacts().GetSiteByCustomDomain(ctx, host)
 	if err != nil || !info.VerifiedAt.Valid {
 		return model.SiteDomainInfo{}, false
 	}
@@ -306,7 +306,7 @@ func (h *SiteHandler) siteNotFound(w http.ResponseWriter, r *http.Request, root 
 // domain is still pending, that is the site's earlier proven address, which
 // keeps serving it until the new one is verified.
 func (h *SiteHandler) siteOwnDomain(ctx context.Context, siteID string) (model.SiteDomainInfo, bool, error) {
-	info, ok, err := h.opsSitesSvc().GetSiteDomainInfo(ctx, siteID)
+	info, ok, err := h.siteFacts().GetSiteDomainInfo(ctx, siteID)
 	if err != nil {
 		return model.SiteDomainInfo{}, false, err
 	}
@@ -328,7 +328,7 @@ func (h *SiteHandler) siteOwnDomain(ctx context.Context, siteID string) (model.S
 // sites.<SITE_DOMAIN> links never follow an address that does not work yet.
 // It also keeps the lives-elsewhere marker the family servers read.
 func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
-	_, userID, name, err := h.opsSitesSvc().GetSiteOwner(ctx, siteID)
+	_, userID, name, err := h.siteFacts().GetSiteOwner(ctx, siteID)
 	if err != nil {
 		return
 	}

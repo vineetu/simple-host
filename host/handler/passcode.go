@@ -725,7 +725,7 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 	// next, /robots.txt) sees the path the visitor asked for, not the
 	// rewrite.
 	r = withVisitorPath(r)
-	info, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host)
+	info, err := h.siteFacts().GetSiteByCustomDomain(r.Context(), host)
 	if err != nil || !info.VerifiedAt.Valid {
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("passcode: domain %s: %v", host, err)

@@ -183,7 +183,7 @@ func (h *SiteHandler) groupTLSHostExists(ctx context.Context, host string) bool 
 		if len(labels) < 1 || len(labels) > 2 {
 			return false
 		}
-		if _, err := h.groupBySlug(ctx, labels[len(labels)-1]); err != nil {
+		if _, err := h.siteFacts().GroupBySlug(ctx, labels[len(labels)-1]); err != nil {
 			return false
 		}
 		if len(labels) == 1 {
@@ -199,13 +199,13 @@ func (h *SiteHandler) groupTLSHostExists(ctx context.Context, host string) bool 
 // two-level (<team>.<event>.<base>) and flat (<team>--<event>.<base>) host
 // shapes.
 func (h *SiteHandler) groupSiteExists(ctx context.Context, eventSlug, teamSlug string) bool {
-	ev, err := h.groupBySlug(ctx, eventSlug)
+	ev, err := h.siteFacts().GroupBySlug(ctx, eventSlug)
 	if err != nil {
 		return false
 	}
-	if ok, err := h.groupHosts.HasSite(ctx, ev.ID, teamSlug); err != nil || !ok {
+	if ok, err := h.siteFacts().GroupHasSite(ctx, ev.ID, teamSlug); err != nil || !ok {
 		return false
 	}
-	site, err := h.sitesSvc().GetSiteByUser(ctx, ev.AccountID, teamSlug)
+	site, err := h.siteFacts().GetSiteByUser(ctx, ev.AccountID, teamSlug)
 	return err == nil && site.ActiveVersion > 0
 }
