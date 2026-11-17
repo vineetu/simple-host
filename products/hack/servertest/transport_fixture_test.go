@@ -606,7 +606,7 @@ type teamSiteApp struct {
 	users      *handler.UserHandler
 	hack       *hackhttp.HackHandler
 	certDir    string
-	disk       *storage.DiskStorage
+	disk       fixtureDisk
 	noticeSink *contentMailSink
 }
 
@@ -991,4 +991,10 @@ func installAssets(sh *handler.SiteHandler, mux *http.ServeMux) {
 	if mux != nil && a.Routes != nil {
 		a.Routes(mux, sh.AssetServices())
 	}
+}
+
+// fixtureDisk uses the production backend contracts, with no concrete disk type.
+type fixtureDisk interface {
+	storage.SiteFiles
+	storage.LocalServing
 }

@@ -71,12 +71,15 @@ type ImageScan struct {
 	stopOnce      sync.Once
 	stopDone      chan struct{}
 	database      *sql.DB
-	disk          *storage.DiskStorage
-	matcher       imagescan.Matcher
-	Reporter      imagescan.Reporter // nil: reports cannot be filed
-	Mailer        email.Sender
-	Config        ImageScanConfig
-	now           func() time.Time
+	disk          interface {
+		storage.SiteFiles
+		storage.LocalServing
+	}
+	matcher  imagescan.Matcher
+	Reporter imagescan.Reporter // nil: reports cannot be filed
+	Mailer   email.Sender
+	Config   ImageScanConfig
+	now      func() time.Time
 	// Dispatch overrides child dispatch in integration fixtures; production uses the retained runner.
 	Dispatch func(func())
 	// Prepare is the configured image preparation collaborator.
@@ -102,7 +105,10 @@ const (
 )
 
 // NewImageScan wires the worker. nil when matcher is nil (the feature is off).
-func NewImageScan(database *sql.DB, disk *storage.DiskStorage, matcher imagescan.Matcher, reporter imagescan.Reporter, mailer email.Sender, cfg ImageScanConfig) *ImageScan {
+func NewImageScan(database *sql.DB, disk interface {
+	storage.SiteFiles
+	storage.LocalServing
+}, matcher imagescan.Matcher, reporter imagescan.Reporter, mailer email.Sender, cfg ImageScanConfig) *ImageScan {
 	if matcher == nil {
 		return nil
 	}
@@ -471,11 +477,10 @@ func (s *ImageScan) readSiteJobFile(site model.Site, j model.ImageScanJob) ([]by
 	if j.Kind == "storage_file" {
 		return os.ReadFile(storage.RuntimeFilePath(s.disk, site.UserID, site.Name, j.ResourceName, j.Path))
 	}
-	dir := s.disk.VersionDir(site.UserID, site.Name, j.Version)
-	if dir == "" {
+	if j.Version < 1 {
 		return nil, os.ErrNotExist
 	}
-	return os.ReadFile(filepath.Join(dir, filepath.FromSlash(j.Path)))
+	return s.disk.ReadFile(context.Background(), storage.FileVersion{UserID: site.UserID, SiteName: site.Name, Version: j.Version}, j.Path)
 }
 
 // ErrImageScanSiteDeleted: the job's site is in Recently deleted.

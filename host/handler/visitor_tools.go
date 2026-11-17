@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -637,16 +636,11 @@ func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool st
 }
 
 func (h *SiteHandler) visitorPageText(ownerID, siteName, page string) (string, bool, error) {
-	root, err := os.OpenRoot(filepath.Join(h.disk.SiteDir(ownerID, siteName), "current"))
-	if err != nil {
-		return "", false, fmt.Errorf("page not found")
-	}
-	defer root.Close()
 	page = strings.TrimPrefix(page, "/")
 	if page == "" || strings.HasSuffix(page, "/") {
 		page += "index.html"
 	}
-	f, err := root.Open(page)
+	f, _, err := h.disk.OpenFile(context.Background(), sites.FileVersion{UserID: ownerID, SiteName: siteName}, page)
 	if err != nil {
 		return "", false, fmt.Errorf("page not found")
 	}

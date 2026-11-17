@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/vsriram/simple-host/host/handler"
 	siterepo "github.com/vsriram/simple-host/host/repository/sites"
@@ -69,7 +68,7 @@ func runSiteSummaryBackfill(args []string) int {
 		// A read failure here (permissions, a missing version directory) must
 		// not wedge every later site behind this one forever: treat it as "no
 		// index.html found" and move on, same as a genuinely missing file.
-		data, err := os.ReadFile(filepath.Join(disk.VersionDir(userID, name, version), "index.html"))
+		data, err := disk.ReadFile(ctx, storage.FileVersion{UserID: userID, SiteName: name, Version: version}, "index.html")
 		if err != nil && !os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "read index.html for %s: %v (treating as empty)\n", name, err)
 		}

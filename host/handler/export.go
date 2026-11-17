@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -133,12 +132,12 @@ func putBytes(put archivePut, name string, b []byte) error {
 
 // writeSiteTar writes one live site into tw under prefix (writeSiteArchive).
 func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix string, site model.Site) error {
-	return h.writeSiteArchive(ctx, tarPut(tw), prefix, site.ID, filepath.Join(h.disk.SiteDir(site.UserID, site.Name), "current"))
+	return h.writeSiteArchive(ctx, tarPut(tw), prefix, site.ID, sites.FileVersion{UserID: site.UserID, SiteName: site.Name})
 }
 
 // writeSiteArchive streams the values yielded while the service holds the site lock.
-func (h *SiteHandler) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID, current string) error {
-	for entry, err := range h.lifecycleSvc().Export(ctx, sites.ExportInput{Prefix: prefix, SiteID: siteID, Current: current}) {
+func (h *SiteHandler) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID string, files sites.FileVersion) error {
+	for entry, err := range h.lifecycleSvc().Export(ctx, sites.ExportInput{Prefix: prefix, SiteID: siteID, Files: files}) {
 		if err != nil {
 			return err
 		}

@@ -141,7 +141,7 @@ func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk SiteDisk) *scanF
 	t.Helper()
 	f := &scanFixture{matcher: &fakeMatcher{matches: map[string]operations.ScanMatch{}}, reporter: &fakeReporter{}, mailer: &fakeNoticeMailer{}, evidence: t.TempDir()}
 	t.Cleanup(f.runs.Wait)
-	f.scan = operations.NewImageScan(database, disk.(*storage.DiskStorage), f.matcher, f.reporter, f.mailer, ImageScanConfig{
+	f.scan = operations.NewImageScan(database, disk, f.matcher, f.reporter, f.mailer, ImageScanConfig{
 		EvidenceDir: f.evidence, AlertEmail: "alerts@example.com", ReportOrg: "Test Org", ReportName: "Tester",
 		ReportEmail: "reports@example.com", PublicBaseURL: "https://host.test",
 	})
@@ -219,6 +219,33 @@ func latestMatch(t *testing.T, a *privateApp, siteID string) opsrepo.ImageMatch 
 }
 
 // 1. A deploy with a matched PNG, a clean PNG and an SVG.
+func TestImageScanDeployBackslashFilename(t *testing.T) {
+	isolateQueueTest(t)
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	owner := a.newPerson(t, "backslash-image")
+	pic := testPNG(t)
+	deployWithImages(t, a, owner, "photos", map[string][]byte{`photo\one.png`: pic})
+	f.wait()
+	siteID := a.siteID(t, owner, "photos")
+	if n := queueCount(t, a, siteID); n != 1 {
+		t.Fatalf("queued %d jobs, want 1", n)
+	}
+	if n := f.scan.RunOnce(context.Background()); n != 1 {
+		t.Fatalf("RunOnce handled %d jobs, want 1", n)
+	}
+	if n := f.matcher.callCount(); n != 1 {
+		t.Fatalf("matcher called %d times, want 1", n)
+	}
+	if v := hashVerdict(t, a, operations.ImageHash(pic)); v != "clean" {
+		t.Fatalf("image verdict %q, want clean", v)
+	}
+	if n := queueCount(t, a, siteID); n != 0 {
+		t.Fatalf("queue after scanning: %d rows", n)
+	}
+}
+
 func TestImageScanDeployMatch(t *testing.T) {
 	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")

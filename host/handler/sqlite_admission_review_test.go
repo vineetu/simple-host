@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -160,7 +159,7 @@ func TestExportAdmissionInjectedPanics(t *testing.T) {
 				ctx, closed := admissionPanicContext(t, stage, value)
 				var got error
 				exported := false
-				for entry, err := range s.a.sites.lifecycleSvc().Export(ctx, appsites.ExportInput{SiteID: s.sid, Prefix: "shop", Current: filepath.Join(s.a.sites.disk.SiteDir(s.ownerID, "shop"), "current")}) {
+				for entry, err := range s.a.sites.lifecycleSvc().Export(ctx, appsites.ExportInput{SiteID: s.sid, Prefix: "shop", Files: runtime.FileVersion{UserID: s.ownerID, SiteName: "shop"}}) {
 					if err != nil {
 						got = err
 						break

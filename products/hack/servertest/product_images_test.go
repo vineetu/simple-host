@@ -374,7 +374,7 @@ func TestProductImagesAfterBuildRESTAndMCP(t *testing.T) {
 			cfg.ImageScanAlertEmail = ""
 			cfg.ImageScanEvidenceDir = t.TempDir()
 			var db *sql.DB
-			var disk *storage.DiskStorage
+			var disk fixtureDisk
 			var scan *operations.ImageScan
 			ext := hack.Extension()
 			wire := ext.Wire

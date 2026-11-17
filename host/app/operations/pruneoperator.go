@@ -12,14 +12,13 @@ import (
 	accounts "github.com/vsriram/simple-host/host/repository/accounts"
 	repo "github.com/vsriram/simple-host/host/repository/operations"
 	db "github.com/vsriram/simple-host/host/repository/sites"
-	"github.com/vsriram/simple-host/host/storage"
 )
 
 // PruneFixedAccounts is the hosted one-time cleanup. It deliberately visits
 // only non-deleted sites outside KEEP_VERSIONS_SELF_SET, and uses the same
 // rows-first, folders-second path as deploys. l is the instance's limits
 // snapshot (config.LoadLimits), since this runs outside any server edition.
-func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.DiskStorage, ed *edition.Edition, keepVersions int, apply bool, out io.Writer) error {
+func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk appsites.Disk, ed *edition.Edition, keepVersions int, apply bool, out io.Writer) error {
 	l := ed.Limits()
 	if l.KeepVersionsSelfSet == "" || keepVersions <= 0 {
 		return fmt.Errorf("cleanup requires KEEP_VERSIONS_SELF_SET and a positive KEEP_VERSIONS")

@@ -14,6 +14,7 @@ import (
 
 	repo "github.com/vsriram/simple-host/host/repository/sites"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/host/testdb"
 )
 
@@ -148,7 +149,14 @@ func TestSiteIndexingPreferences(t *testing.T) {
 		{"meta none", "", `<meta name="robots" content="none">`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
+			disk, err := storage.NewDiskStorage(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := disk.VersionDir("owner", "site", 1)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				t.Fatal(err)
+			}
 			if tc.html != "" {
 				if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte(tc.html), 0600); err != nil {
 					t.Fatal(err)
@@ -159,7 +167,7 @@ func TestSiteIndexingPreferences(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if got := siteAllowsIndexing(dir); got != tc.want {
+			if got := siteAllowsIndexing(context.Background(), disk, storage.FileVersion{UserID: "owner", SiteName: "site", Version: 1}); got != tc.want {
 				t.Fatalf("got %v want %v", got, tc.want)
 			}
 		})

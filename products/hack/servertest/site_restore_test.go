@@ -39,7 +39,7 @@ func TestRestoreSuspensionInstalledAfterBuild(t *testing.T) {
 			t.Run(transport+"/"+tc.name, func(t *testing.T) {
 				cfg := platformtest.Config(t, testdb.Fresh(t))
 				var db *sql.DB
-				var disk *storage.DiskStorage
+				var disk fixtureDisk
 				calls := 0
 				ext := &extension.Extension{Name: "restore-test", Wire: func(d extension.Deps) (extension.Parts, error) {
 					db, disk = d.DB, d.Disk
@@ -199,7 +199,7 @@ func TestRestoreTrashedTeamKeepsTakedown(t *testing.T) {
 // The disk wrapper observes the boundary after marker creation and before the
 // rename that exposes the files. No production-only testing hook is needed.
 type restoreObservedDisk struct {
-	*storage.DiskStorage
+	fixtureDisk
 	beforeRestore func()
 	markerError   error
 	restores      int
@@ -209,7 +209,7 @@ func (d *restoreObservedDisk) SetTrashedSuspended(userID, siteID string, on bool
 	if d.markerError != nil {
 		return d.markerError
 	}
-	return d.DiskStorage.SetTrashedSuspended(userID, siteID, on)
+	return d.fixtureDisk.SetTrashedSuspended(userID, siteID, on)
 }
 
 func (d *restoreObservedDisk) RestoreSite(userID, name, siteID string) error {
@@ -217,7 +217,7 @@ func (d *restoreObservedDisk) RestoreSite(userID, name, siteID string) error {
 	if d.beforeRestore != nil {
 		d.beforeRestore()
 	}
-	return d.DiskStorage.RestoreSite(userID, name, siteID)
+	return d.fixtureDisk.RestoreSite(userID, name, siteID)
 }
 
 type restoreGate struct {
@@ -259,7 +259,7 @@ func restoreSeed(t *testing.T) (*sql.DB, *restoreObservedDisk, siterepo.DeletedS
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("seed trash content"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	return db, &restoreObservedDisk{DiskStorage: disk}, d
+	return db, &restoreObservedDisk{fixtureDisk: disk}, d
 }
 
 func TestRestoreTrashedSuspensionSeed(t *testing.T) {

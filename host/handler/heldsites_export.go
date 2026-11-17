@@ -7,11 +7,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 
+	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/model"
 )
 
@@ -47,9 +45,8 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 	gz := gzip.NewWriter(w)
 	tw := tar.NewWriter(gz)
 	for _, site := range sites {
-		// Walk an actual version directory: WalkDir does not follow a root symlink.
-		current := h.disk.VersionDir(site.UserID, site.Name, site.ActiveVersion)
-		if err := h.writeSiteArchive(r.Context(), tarPut(tw), site.Name, site.ID, current); err != nil {
+		files := appsites.FileVersion{UserID: site.UserID, SiteName: site.Name, Version: site.ActiveVersion}
+		if err := h.writeSiteArchive(r.Context(), tarPut(tw), site.Name, site.ID, files); err != nil {
 			panic(http.ErrAbortHandler)
 		}
 	}
@@ -57,31 +54,13 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 }
 
 func (h *SiteHandler) EventFileBytes(ctx context.Context, accountID string) (int64, error) {
-	var total int64
-	for _, area := range []string{"by-id", "deleted"} {
-		root := filepath.Join(h.disk.DataDir(), area, accountID)
-		err := filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
-			if errors.Is(err, os.ErrNotExist) {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if d.Type().IsRegular() {
-				info, e := d.Info()
-				if e != nil {
-					return e
-				}
-				total += info.Size()
-			}
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
+	files, err := h.disk.AccountFileBytes(accountID)
+	if err != nil {
+		return 0, err
 	}
-	return total, nil
+	local, err := h.disk.AccountAuxiliaryBytes(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	return files + local, nil
 }

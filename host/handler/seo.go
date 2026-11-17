@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -9,8 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,7 +17,7 @@ import (
 
 	"golang.org/x/net/html"
 
-	"github.com/vsriram/simple-host/host/app/sites"
+	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
@@ -156,7 +155,7 @@ func serveSitemapFile(w http.ResponseWriter, r *http.Request, files map[string][
 }
 
 // SetSitemapFilter installs the product filter before serving requests.
-func (h *SiteHandler) SetSitemapFilter(filter sites.SitemapFilter) {
+func (h *SiteHandler) SetSitemapFilter(filter appsites.SitemapFilter) {
 	h.sitemapFilter = filter
 }
 
@@ -178,7 +177,7 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 				if h.disk.IsSuspended(s.UserID, s.Name) || h.disk.IsOffline(s.UserID, s.Name) || h.disk.HasPasscodeMarker(s.UserID, s.Name) {
 					continue
 				}
-				if !siteAllowsIndexing(filepath.Join(h.disk.SiteDir(s.UserID, s.Name), "current")) {
+				if !siteAllowsIndexing(r.Context(), h.disk, appsites.FileVersion{UserID: s.UserID, SiteName: s.Name}) {
 					continue
 				}
 				address := h.siteURLFor(s)
@@ -218,17 +217,16 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 	serveSitemapFile(w, r, cached.files)
 }
 
-func siteAllowsIndexing(dir string) bool {
-	f, err := os.Open(filepath.Join(dir, "index.html"))
+func siteAllowsIndexing(ctx context.Context, files appsites.SiteFiles, ref appsites.FileVersion) bool {
+	f, st, err := files.OpenFile(ctx, ref, "index.html")
 	if err != nil {
 		return false
 	}
 	defer f.Close()
-	st, err := f.Stat()
-	if err != nil || !st.Mode().IsRegular() {
+	if !st.Mode().IsRegular() {
 		return false
 	}
-	if b, err := os.ReadFile(filepath.Join(dir, "robots.txt")); err == nil && robotsDisallowRoot(string(b)) {
+	if b, err := files.ReadFile(ctx, ref, "robots.txt"); err == nil && robotsDisallowRoot(string(b)) {
 		return false
 	}
 	z := html.NewTokenizer(io.LimitReader(f, 512*1024))

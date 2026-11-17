@@ -18,8 +18,11 @@ import (
 	"github.com/vsriram/simple-host/host/storage"
 )
 
-// ExportInput selects a site's current or trashed directory and archive prefix.
-type ExportInput struct{ Prefix, SiteID, Current string }
+// ExportInput selects logical deploy contents and a separately local runtime tree.
+type ExportInput struct {
+	Prefix, SiteID string
+	Files          storage.FileVersion
+}
 
 // ExportEntry is one archive member. Reader remains open until iteration resumes.
 type ExportEntry struct {
@@ -38,7 +41,7 @@ func (s *Service) Export(ctx context.Context, in ExportInput) iter.Seq2[ExportEn
 				return stopped
 			}
 			return nil
-		}, in.Prefix, in.SiteID, in.Current)
+		}, in.Prefix, in.SiteID, in.Files)
 		if err != nil && err != stopped {
 			yield(ExportEntry{}, err)
 		}
@@ -55,7 +58,7 @@ func putBytes(put archivePut, name string, b []byte) error {
 // collections.json (every list, private ones included, each entry with its
 // id, time and submitter), and files/ (the version in current, the site's
 // live folder or, for a site in Recently deleted, the one waiting in trash).
-func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID, current string) error {
+func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID string, files storage.FileVersion) error {
 	ownerID, siteName, err := repo.ExportOwner(ctx, s.database, siteID)
 	if err != nil {
 		return err
@@ -79,37 +82,42 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 		}
 	}
 
-	// Runtime storage is a sibling of current, so it survives deploys and
-	// version rollback and is included for both live and recently deleted sites.
-	if err := s.writeStorageArchive(ctx, put, prefix, siteID, filepath.Join(filepath.Dir(current), "runtime")); err != nil {
+	// Runtime resources remain local; deploy contents never use this path.
+	runtimeDir := s.disk.SiteDir(files.UserID, files.SiteName)
+	if files.TrashID != "" {
+		runtimeDir = s.disk.TrashDir(files.UserID, files.TrashID)
+	}
+	if err := s.writeStorageArchive(ctx, put, prefix, siteID, filepath.Join(runtimeDir, "runtime")); err != nil {
 		return err
 	}
-	if _, err := os.Stat(current); err != nil {
+	if _, err := s.disk.StatVersion(ctx, files); err != nil {
 		return nil // nothing published yet; saved and runtime data still export
 	}
-	if data, err := os.ReadFile(filepath.Join(filepath.Dir(current), "redirects")); err == nil {
-		if err := putBytes(put, prefix+"/files/_redirects", data); err != nil {
+	// Keep the existing export of the live redirects marker, also from trash.
+	var rules []byte
+	if files.TrashID != "" {
+		rules, err = s.disk.ReadTrashedRedirects(files.UserID, files.TrashID)
+	} else {
+		rules, err = s.disk.ReadRedirects(files.UserID, files.SiteName)
+	}
+	if err == nil {
+		if err := putBytes(put, prefix+"/files/_redirects", rules); err != nil {
 			return err
 		}
 	}
-	return filepath.WalkDir(current, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	return s.disk.WalkFiles(ctx, files, func(file storage.SiteFile, err error) error {
+		if err != nil {
 			return nil
 		}
-		rel, rerr := filepath.Rel(current, path)
-		if rerr != nil {
+		if !file.Mode.IsRegular() {
 			return nil
 		}
-		info, ierr := d.Info()
-		if ierr != nil || !info.Mode().IsRegular() {
+		reader, _, err := s.disk.OpenFile(ctx, files, file.Name)
+		if err != nil {
 			return nil
 		}
-		f, oerr := os.Open(path)
-		if oerr != nil {
-			return nil
-		}
-		defer f.Close()
-		return put(prefix+"/files/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)
+		defer reader.Close()
+		return put(prefix+"/files/"+file.Name, file.ModTime, file.Size, reader)
 	})
 }
 

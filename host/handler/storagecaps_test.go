@@ -14,7 +14,6 @@ import (
 	"github.com/vsriram/simple-host/host/app/operations"
 	"github.com/vsriram/simple-host/host/edition"
 	sitesrepo "github.com/vsriram/simple-host/host/repository/sites"
-	"github.com/vsriram/simple-host/host/storage"
 )
 
 func TestStorageCapsDeployPaths(t *testing.T) {
@@ -267,7 +266,7 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 		t.Fatal(err)
 	}
 	var dry bytes.Buffer
-	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk.(*storage.DiskStorage), edition.Default(l), KeepVersions(), false, &dry); err != nil {
+	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk, edition.Default(l), KeepVersions(), false, &dry); err != nil {
 		t.Fatal(err)
 	}
 	site, _ := sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "history")
@@ -276,7 +275,7 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 		t.Fatal("dry run removed rows")
 	}
 	var applied bytes.Buffer
-	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk.(*storage.DiskStorage), edition.Default(l), KeepVersions(), true, &applied); err != nil {
+	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk, edition.Default(l), KeepVersions(), true, &applied); err != nil {
 		t.Fatal(err)
 	}
 	site, _ = sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "history")

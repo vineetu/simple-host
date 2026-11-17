@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +12,7 @@ import (
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	appsites "github.com/vsriram/simple-host/host/app/sites"
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
 type admissionQueryHookKey struct{}
@@ -66,7 +66,7 @@ func TestExportWaitsForOwnerQueryAdmission(t *testing.T) {
 	catalog := make(chan struct{})
 	exported := false
 	go func() {
-		for entry, err := range h.lifecycleSvc().Export(context.Background(), appsites.ExportInput{SiteID: s.sid, Prefix: "shop", Current: filepath.Join(h.disk.SiteDir(s.ownerID, "shop"), "current")}) {
+		for entry, err := range h.lifecycleSvc().Export(context.Background(), appsites.ExportInput{SiteID: s.sid, Prefix: "shop", Files: runtime.FileVersion{UserID: s.ownerID, SiteName: "shop"}}) {
 			if err != nil {
 				exportDone <- err
 				return

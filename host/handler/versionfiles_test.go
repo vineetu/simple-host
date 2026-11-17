@@ -33,11 +33,22 @@ func TestVersionFiles(t *testing.T) {
 	}
 	created := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	versions := []model.Version{{VersionNumber: 2, CreatedAt: created}}
+	// All fixture roots are logical sites under this one backend.
+	refFor := func(root string) storage.FileVersion {
+		if root == dir {
+			return storage.FileVersion{UserID: "owner", SiteName: "site", Version: 2}
+		}
+		if root == filepath.Join(dir, "missing") {
+			return storage.FileVersion{UserID: "owner", SiteName: "missing", Version: 2}
+		}
+		name := filepath.Base(filepath.Dir(root))
+		return storage.FileVersion{UserID: "owner", SiteName: name, Version: 2}
+	}
 	request := func(path string, listing bool, rows []model.Version, root string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.SetPathValue("path", path)
 		w := httptest.NewRecorder()
-		serveVersionFiles(w, r, root, rows, 2, 2, listing)
+		serveVersionFiles(w, r, disk, refFor(root), rows, 2, 2, listing)
 		return w
 	}
 	t.Run("listing", func(t *testing.T) {
@@ -121,13 +132,13 @@ func TestVersionFiles(t *testing.T) {
 		if w.Code != 200 || !reflect.DeepEqual(got.Files, want) {
 			t.Fatalf("status %d: %+v, want %+v", w.Code, got.Files, want)
 		}
-		resolved, err := versionFilePath(dir, "alias.html")
-		if err != nil || resolved != filepath.Join(dir, "z.unknownext") {
-			t.Fatalf("resolved path = %q, error = %v", resolved, err)
-		}
+
 	})
 	t.Run("symlink version directory", func(t *testing.T) {
-		alias := filepath.Join(t.TempDir(), "v2")
+		alias := disk.VersionDir("owner", "alias", 2)
+		if err := os.MkdirAll(filepath.Dir(alias), 0755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.Symlink(dir, alias); err != nil {
 			t.Fatal(err)
 		}
@@ -142,14 +153,18 @@ func TestVersionFiles(t *testing.T) {
 		r := httptest.NewRequest(http.MethodHead, "/", nil)
 		r.SetPathValue("path", "index.html")
 		w := httptest.NewRecorder()
-		serveVersionFiles(w, r, dir, versions, 2, 2, false)
+		serveVersionFiles(w, r, disk, refFor(dir), versions, 2, 2, false)
 		get := request("index.html", false, versions, dir)
 		if w.Code != 200 || w.Body.Len() != 0 || !reflect.DeepEqual(w.Header(), get.Header()) {
 			t.Fatalf("HEAD status %d, headers %v, body %q; GET headers %v", w.Code, w.Header(), w.Body.String(), get.Header())
 		}
 	})
 	t.Run("empty listing", func(t *testing.T) {
-		w := request("", true, versions, t.TempDir())
+		empty := disk.VersionDir("owner", "empty", 2)
+		if err := os.MkdirAll(empty, 0755); err != nil {
+			t.Fatal(err)
+		}
+		w := request("", true, versions, empty)
 		var got map[string]any
 		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 			t.Fatal(err)
@@ -158,13 +173,83 @@ func TestVersionFiles(t *testing.T) {
 			t.Fatalf("files = %#v", got["files"])
 		}
 	})
+	t.Run("unreadable regular file listing", func(t *testing.T) {
+		unreadable := disk.VersionDir("owner", "unreadable", 2)
+		if err := os.MkdirAll(unreadable, 0755); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(unreadable, "private.txt")
+		if err := os.WriteFile(path, []byte("metadata only"), 0000); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.ReadFile(path); err == nil {
+			t.Skip("file permissions do not restrict this user")
+		} else if !os.IsPermission(err) {
+			t.Fatal(err)
+		}
+		// Include an internal symlink: its listing needs resolved metadata,
+		// while neither it nor the regular entry needs the target's bytes.
+		if err := os.Symlink("private.txt", filepath.Join(unreadable, "alias.txt")); err != nil {
+			t.Fatal(err)
+		}
+		w := request("", true, versions, unreadable)
+		var got versionFilesResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		want := []versionFile{{"alias.txt", 13}, {"private.txt", 13}}
+		if w.Code != 200 || !reflect.DeepEqual(got.Files, want) {
+			t.Fatalf("status %d: %+v, want %+v", w.Code, got.Files, want)
+		}
+		if w := request("private.txt", false, versions, unreadable); w.Code != 500 {
+			t.Fatalf("unreadable bytes: %d %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("searchable parent without listing permission", func(t *testing.T) {
+		parent := disk.SiteDir("owner", "site")
+		if err := os.Chmod(parent, 0111); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(parent, 0755) })
+		if _, err := os.ReadDir(parent); err == nil {
+			t.Skip("directory permissions do not restrict this user")
+		} else if !os.IsPermission(err) {
+			t.Fatal(err)
+		}
+		for _, listing := range []bool{false, true} {
+			w := request("index.html", listing, versions, dir)
+			if w.Code != http.StatusOK {
+				t.Fatalf("listing=%v: %d %s", listing, w.Code, w.Body.String())
+			}
+			if !listing && w.Body.String() != "<h1>old</h1>" {
+				t.Fatalf("file contents = %q", w.Body.String())
+			}
+		}
+	})
+	for _, target := range []string{dir, filepath.Join(dir, "assets")} {
+		t.Run("searchable content directory "+filepath.Base(target), func(t *testing.T) {
+			if err := os.Chmod(target, 0111); err != nil {
+				t.Fatal(err)
+			}
+			defer os.Chmod(target, 0755)
+			if _, err := os.ReadDir(target); err == nil {
+				t.Skip("directory permissions do not restrict this user")
+			} else if !os.IsPermission(err) {
+				t.Fatal(err)
+			}
+			w := request("assets/a.css", false, versions, dir)
+			if w.Code != http.StatusOK || w.Body.String() != "body{}" {
+				t.Fatalf("download: %d %s", w.Code, w.Body.String())
+			}
+		})
+	}
 	t.Run("raw JSON through notice middleware", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", NoticeMiddleware("0.16.0")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if _, buffered := w.(*bufferingResponseWriter); buffered {
 				t.Error("file response buffered")
 			}
-			serveVersionFiles(w, r, dir, versions, 2, 2, false)
+			serveVersionFiles(w, r, disk, refFor(dir), versions, 2, 2, false)
 		})))
 		for _, skillVersion := range []string{"", "0.1.0", "0.16.0"} {
 			w := httptest.NewRecorder()

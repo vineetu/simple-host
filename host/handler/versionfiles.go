@@ -1,10 +1,10 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"io"
-	"io/fs"
 	"log"
 	"mime"
 	"net/http"
@@ -16,11 +16,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/model"
 )
 
-var errInvalidVersionPath = errors.New("invalid path")
+var errInvalidVersionPath = sites.ErrInvalidFilePath
 
 type versionFile struct {
 	Path string `json:"path"`
@@ -72,12 +73,12 @@ func (h *SiteHandler) readVersionFiles(w http.ResponseWriter, r *http.Request, l
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	serveVersionFiles(w, r, h.disk.VersionDir(user.ID, siteName, n), versions, n, site.ActiveVersion, listing)
+	serveVersionFiles(w, r, h.disk, sites.FileVersion{UserID: user.ID, SiteName: siteName, Version: n}, versions, n, site.ActiveVersion, listing)
 }
 
 // serveVersionFiles checks retained metadata as well as disk: a pruned version
 // must not be readable even if its directory has not yet been removed.
-func serveVersionFiles(w http.ResponseWriter, r *http.Request, dir string, versions []model.Version, n, active int, listing bool) {
+func serveVersionFiles(w http.ResponseWriter, r *http.Request, files sites.SiteFiles, ref sites.FileVersion, versions []model.Version, n, active int, listing bool) {
 	var version *model.Version
 	for i := range versions {
 		if versions[i].VersionNumber == n {
@@ -89,40 +90,35 @@ func serveVersionFiles(w http.ResponseWriter, r *http.Request, dir string, versi
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found"})
 		return
 	}
-	info, err := os.Lstat(dir)
-	if os.IsNotExist(err) || (err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir())) {
+	_, err := files.StatVersion(r.Context(), ref)
+	if os.IsNotExist(err) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found"})
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
+
 	if listing {
-		files, err := walkVersionFiles(dir)
+		entries, err := walkVersionFiles(r.Context(), files, ref)
 		if err != nil {
 			writeVersionFileError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, versionFilesResponse{n, n == active, version.CreatedAt, files})
+		writeJSON(w, http.StatusOK, versionFilesResponse{n, n == active, version.CreatedAt, entries})
 		return
 	}
-	path, err := versionFilePath(dir, r.PathValue("path"))
-	if err != nil {
-		writeVersionFileError(w, err)
+	if !validVersionFilePath(r.PathValue("path")) {
+		writeVersionFileError(w, errInvalidVersionPath)
 		return
 	}
-	file, err := os.Open(path)
+	file, info, err := files.OpenFile(r.Context(), ref, r.PathValue("path"))
 	if err != nil {
 		writeVersionFileError(w, err)
 		return
 	}
 	defer file.Close()
-	info, err = file.Stat()
-	if err != nil {
-		writeVersionFileError(w, err)
-		return
-	}
 	if info.IsDir() {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "file not found"})
 		return
@@ -142,7 +138,7 @@ func serveVersionFiles(w http.ResponseWriter, r *http.Request, dir string, versi
 		return
 	}
 	if _, err := io.Copy(w, file); err != nil {
-		log.Printf("serve version file %s: %v", path, err)
+		log.Printf("serve version file %s: %v", r.PathValue("path"), err)
 	}
 }
 
@@ -159,71 +155,41 @@ func writeVersionFileError(w http.ResponseWriter, err error) {
 	}
 }
 
-func withinVersionDir(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
-}
-
-func versionFilePath(dir, path string) (string, error) {
-	if strings.HasPrefix(path, "/") || strings.ContainsAny(path, "\\\x00") {
-		return "", errInvalidVersionPath
+func validVersionFilePath(path string) bool {
+	if strings.ContainsAny(path, "\\\x00") {
+		return false
 	}
 	for _, segment := range strings.Split(path, "/") {
 		if segment == "" || segment == "." || segment == ".." {
-			return "", errInvalidVersionPath
+			return false
 		}
 	}
-	root, err := filepath.Abs(dir)
-	if err != nil {
-		return "", err
-	}
-	target := filepath.Join(root, filepath.Clean(path))
-	if !withinVersionDir(root, target) {
-		return "", errInvalidVersionPath
-	}
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(target)
-	if err != nil {
-		return "", err
-	}
-	if !withinVersionDir(root, resolved) {
-		return "", errInvalidVersionPath
-	}
-	return resolved, nil
+	return true
 }
 
-func walkVersionFiles(dir string) ([]versionFile, error) {
-	files := make([]versionFile, 0)
-	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+func walkVersionFiles(ctx context.Context, files sites.SiteFiles, ref sites.FileVersion) ([]versionFile, error) {
+	entries := make([]versionFile, 0)
+	err := files.WalkFiles(ctx, ref, func(file sites.SiteFile, err error) error {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() {
+		// Retain the API's support for safe internal file symlinks and skip
+		// invalid names and links that escape or no longer exist.
+		if !validVersionFilePath(file.Name) {
 			return nil
 		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		safePath, err := versionFilePath(dir, filepath.ToSlash(rel))
+		info, err := files.StatFile(ctx, ref, file.Name)
 		if errors.Is(err, errInvalidVersionPath) || os.IsNotExist(err) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		info, err := os.Stat(safePath)
-		if err != nil {
-			return err
-		}
 		if !info.IsDir() {
-			files = append(files, versionFile{filepath.ToSlash(rel), info.Size()})
+			entries = append(entries, versionFile{file.Name, info.Size()})
 		}
 		return nil
 	})
-	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
-	return files, err
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
+	return entries, err
 }

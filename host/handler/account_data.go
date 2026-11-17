@@ -9,7 +9,6 @@ import (
 	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"log"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -202,8 +201,8 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, s := range sites {
-		current := filepath.Join(h.disk.SiteDir(s.UserID, s.Name), "current")
-		if err := h.writeSiteArchive(ctx, put, root+"/sites/"+s.Name, s.ID, current); err != nil {
+		files := appsites.FileVersion{UserID: s.UserID, SiteName: s.Name}
+		if err := h.writeSiteArchive(ctx, put, root+"/sites/"+s.Name, s.ID, files); err != nil {
 			panic(http.ErrAbortHandler)
 		}
 	}
@@ -217,8 +216,8 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 		if err := putBytes(put, prefix+"/deleted.json", info); err != nil {
 			panic(http.ErrAbortHandler)
 		}
-		current := filepath.Join(h.disk.TrashDir(d.UserID, d.ID), "current")
-		if err := h.writeSiteArchive(ctx, put, prefix, d.ID, current); err != nil {
+		files := appsites.FileVersion{UserID: d.UserID, SiteName: d.Name, TrashID: d.ID}
+		if err := h.writeSiteArchive(ctx, put, prefix, d.ID, files); err != nil {
 			panic(http.ErrAbortHandler)
 		}
 	}

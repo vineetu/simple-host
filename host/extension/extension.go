@@ -20,7 +20,6 @@ import (
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/papermetrics"
-	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
@@ -72,7 +71,7 @@ type GateDeps struct {
 
 type Deps struct {
 	DB        *sql.DB
-	Disk      *storage.DiskStorage
+	Disk      handler.SiteDisk
 	Mail      *email.ResendSender
 	Accounts  *accountapp.Service
 	Site      *handler.SiteHandler

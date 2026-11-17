@@ -8,12 +8,12 @@ import (
 	"html"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/model"
 	xhtml "golang.org/x/net/html"
 )
@@ -245,12 +245,7 @@ func (h *SiteHandler) publicShowcaseData(ctx context.Context, user model.User) (
 
 // Metadata comes only from a visible site's deployed index, never a remote fetch.
 func (h *SiteHandler) showcaseMetadata(s model.Site) (title, description string) {
-	root, err := os.OpenRoot(h.disk.SiteDir(s.UserID, s.Name) + "/current")
-	if err != nil {
-		return "", ""
-	}
-	defer root.Close()
-	f, err := root.Open("index.html")
+	f, _, err := h.disk.OpenFile(context.Background(), sites.FileVersion{UserID: s.UserID, SiteName: s.Name}, "index.html")
 	if err != nil {
 		return "", ""
 	}

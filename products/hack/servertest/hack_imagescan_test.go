@@ -126,7 +126,7 @@ type scanFixture struct {
 	runs     sync.WaitGroup
 }
 
-func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk *storage.DiskStorage) *scanFixture {
+func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk fixtureDisk) *scanFixture {
 	t.Helper()
 	f := &scanFixture{matcher: &fakeMatcher{matches: map[string]operations.ScanMatch{}}, reporter: &fakeReporter{}, mailer: &fakeNoticeMailer{}, evidence: t.TempDir()}
 	t.Cleanup(f.runs.Wait)

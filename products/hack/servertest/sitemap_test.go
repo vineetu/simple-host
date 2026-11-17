@@ -14,7 +14,6 @@ import (
 	"github.com/vsriram/simple-host/host/extension"
 	repo "github.com/vsriram/simple-host/host/repository/sites"
 	platformtest "github.com/vsriram/simple-host/host/server/servertest"
-	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )
@@ -37,7 +36,7 @@ func TestHostedHackSitemapOnlyTeamSites(t *testing.T) {
 			cfg.PersonHosts, cfg.SiteHosts = "canonical", "canonical"
 			t.Setenv("PAPER_METRICS", "off")
 			var db *sql.DB
-			var disk *storage.DiskStorage
+			var disk fixtureDisk
 			var filter siteapp.SitemapFilter
 			ext := hack.Extension()
 			wire := ext.Wire

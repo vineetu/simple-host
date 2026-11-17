@@ -1,40 +1,19 @@
 package sites
 
-import (
-	"context"
+import "github.com/vsriram/simple-host/host/storage"
 
-	"github.com/vsriram/simple-host/host/model"
-)
-
-// Disk is the filesystem capability consumed by this service.
+// Disk combines deploy contents and the local serving/lifecycle capabilities.
+// Content operations use SiteFiles; local paths are only for serving and runtime.
 type Disk interface {
-	DeleteUser(userID, handle string) error
-	FamilyLinkTarget(suffix string) string
-	HasHandleLink(handle string) bool
-	HasPasscodeMarker(userID, siteName string) bool
-	IsOffline(userID, siteName string) bool
-	IsSuspended(userID, siteName string) bool
-	RemoveHandleLink(handle string) error
-	RemoveHandleLinkOf(handle, userID string) error
-	SetOffline(userID, siteName string, on bool) error
-	SetPasscodeMarker(userID, siteName string, on bool) error
-	UnbindFamily(suffix string) error
-	AccountFileBytes(userID string) (int64, error)
-	DataDir() string
-	DeleteSite(userID, siteName string) error
-	DeleteVersion(userID, siteName string, versionNum int) error
-	EnsureHandleLink(handle, userID string) error
-	PurgeTrashedSite(userID, siteID string) error
-	PurgeTrashedSiteLinks(userID, siteName, domain string) error
-	RenameSite(userID, oldName, newName string, domains ...string) error
-	RestoreSite(userID, siteName, siteID string) error
-	SetSuspended(userID, siteName string, on bool) error
-	SetTrashedAccessMarker(userID, siteID string, on bool) error
-	SetTrashedSuspended(userID, siteID string, on bool) error
-	SiteFootprint(userID, name string) (model.FileFootprint, error)
-	TrashSite(userID, siteName, siteID string) error
-	UnbindDomainOf(domain, userID, siteName string) (bool, error)
-	UpdateCurrent(userID, siteName string, versionNum int) error
-	VersionDir(userID, siteName string, versionNum int) string
-	WriteFiles(ctx context.Context, userID, siteName string, versionNum int, files map[string][]byte) error
+	storage.SiteFiles
+	storage.LocalServing
 }
+
+// Re-export the deploy contracts at the application boundary. HTTP transports
+// depend on app/sites, not directly on the storage mechanism package.
+type SiteFiles = storage.SiteFiles
+type LocalServing = storage.LocalServing
+type FileVersion = storage.FileVersion
+type SiteFile = storage.SiteFile
+
+var ErrInvalidFilePath = storage.ErrInvalidFilePath

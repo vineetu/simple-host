@@ -297,6 +297,7 @@ func TestVisitorPageTruncationAndUppercaseText(t *testing.T) {
 		truncated  bool
 	}{
 		{"upper.TXT", "literal <tag> stays </tag>", false},
+		{`page\one.txt`, "page with a backslash in its name", false},
 		{"large.txt", strings.Repeat("x", (256<<10)+1), true},
 		{"exact.txt", strings.Repeat("x", 256<<10), false},
 	} {

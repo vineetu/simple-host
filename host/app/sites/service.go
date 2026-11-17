@@ -8,11 +8,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/fs"
+	"io"
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +25,7 @@ import (
 	accounts "github.com/vsriram/simple-host/host/repository/accounts"
 	repo "github.com/vsriram/simple-host/host/repository/sites"
 	rules "github.com/vsriram/simple-host/host/rules/sites"
+	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/host/tarball"
 )
 
@@ -977,41 +977,32 @@ func (s *Service) mergePatch(ctx context.Context, in UpdateInput) (map[string][]
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		} else if err == nil && site.ActiveVersion >= 1 {
-			dir := s.disk.VersionDir(site.UserID, site.Name, site.ActiveVersion)
 			var total int64
 			for _, b := range files {
 				total += int64(len(b))
 			}
-			err = filepath.WalkDir(dir, func(name string, d fs.DirEntry, err error) error {
+			err = s.disk.WalkFiles(ctx, storage.FileVersion{UserID: site.UserID, SiteName: site.Name, Version: site.ActiveVersion}, func(file storage.SiteFile, err error) error {
+				rel := file.Name
+				if file.Mode.IsRegular() {
+					// Replaced and removed files need neither metadata nor bytes.
+					if removed[rel] {
+						return nil
+					}
+					if _, ok := files[rel]; ok {
+						return nil
+					}
+				}
 				if err != nil {
 					return err
 				}
-				if d.IsDir() {
-					return nil
-				}
-				if !d.Type().IsRegular() {
+				if !file.Mode.IsRegular() {
 					return errors.New("live version contains a non-regular file")
 				}
-				rel, err := filepath.Rel(dir, name)
-				if err != nil {
-					return err
-				}
-				rel = filepath.ToSlash(rel)
-				if removed[rel] {
-					return nil
-				}
-				if _, ok := files[rel]; ok {
-					return nil
-				}
-				info, err := d.Info()
-				if err != nil {
-					return err
-				}
-				total += info.Size()
-				if total > totalLimit || info.Size() > fileLimit || len(files)+1 > entryLimit {
+				total += file.Size
+				if total > totalLimit || file.Size > fileLimit || len(files)+1 > entryLimit {
 					return fmt.Errorf("%w: merged files exceed the site limit", tarball.ErrTooLarge)
 				}
-				body, err := os.ReadFile(name)
+				body, err := io.ReadAll(file.Reader)
 				if err != nil {
 					return err
 				}
