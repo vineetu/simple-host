@@ -17,6 +17,7 @@ import (
 )
 
 type redirectCacheEntry struct {
+	info     os.FileInfo
 	size     int64
 	modified time.Time
 	max      int
@@ -28,23 +29,25 @@ var siteRedirectCache = struct {
 	entries map[string]redirectCacheEntry
 }{entries: make(map[string]redirectCacheEntry)}
 
-func loadRedirects(marker string, max int) *redirects.Rules {
-	st, err := os.Stat(marker)
+func loadRedirects(root *os.Root, max int) *redirects.Rules {
+	marker := "redirects"
+	st, err := root.Stat(marker)
 	if os.IsNotExist(err) {
-		marker = filepath.Join(filepath.Dir(marker), "current", "_redirects")
-		st, err = os.Stat(marker)
+		marker = "current/_redirects"
+		st, err = root.Stat(marker)
 	}
 	if err != nil {
 		return nil
 	}
 	siteRedirectCache.Lock()
 	defer siteRedirectCache.Unlock()
-	if e, ok := siteRedirectCache.entries[marker]; ok && e.size == st.Size() && e.modified.Equal(st.ModTime()) && e.max == max {
+	cacheKey := root.Name() + "/" + marker
+	if e, ok := siteRedirectCache.entries[cacheKey]; ok && os.SameFile(e.info, st) && e.size == st.Size() && e.modified.Equal(st.ModTime()) && e.max == max {
 		return e.rules
 	}
 	var rules *redirects.Rules
 	if st.Size() <= redirects.MaxFileBytes {
-		if data, e := os.ReadFile(marker); e == nil {
+		if data, e := root.ReadFile(marker); e == nil {
 			// Validated on publish (loops included); serving only needs the rules.
 			rules, err = redirects.ParseWith(data, redirects.Options{MaxRules: max, SkipLoopCheck: true})
 		}
@@ -57,20 +60,24 @@ func loadRedirects(marker string, max int) *redirects.Rules {
 	if len(siteRedirectCache.entries) >= 1024 {
 		clear(siteRedirectCache.entries)
 	}
-	siteRedirectCache.entries[marker] = redirectCacheEntry{st.Size(), st.ModTime(), max, rules}
+	siteRedirectCache.entries[cacheKey] = redirectCacheEntry{st, st.Size(), st.ModTime(), max, rules}
 	return rules
 }
 
 func siteContentExists(dir, rel string) bool {
-	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
-	if name == "" {
-		name = "."
-	}
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return false
 	}
 	defer root.Close()
+	return rootContentExists(root, rel)
+}
+
+func rootContentExists(root *os.Root, rel string) bool {
+	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
+	if name == "" {
+		name = "."
+	}
 	// The root _redirects file is never content; a folder of that name is.
 	if st, err := root.Stat(name); err == nil && (name != "_redirects" || st.IsDir()) {
 		return true
@@ -83,7 +90,16 @@ func siteContentExists(dir, rel string) bool {
 }
 
 func (h *SiteHandler) applyRedirect(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) bool {
-	rules := loadRedirects(filepath.Join(h.disk.SiteDir(userID, siteName), "redirects"), h.limits.RedirectsMaxRules)
+	root, err := os.OpenRoot(h.disk.SiteDir(userID, siteName))
+	if err != nil {
+		return false
+	}
+	defer root.Close()
+	return h.applyRootRedirect(w, r, root, rel, publicPath)
+}
+
+func (h *SiteHandler) applyRootRedirect(w http.ResponseWriter, r *http.Request, siteRoot *os.Root, rel, publicPath string) bool {
+	rules := loadRedirects(siteRoot, h.limits.RedirectsMaxRules)
 	if rules == nil {
 		return false
 	}
@@ -92,8 +108,11 @@ func (h *SiteHandler) applyRedirect(w http.ResponseWriter, r *http.Request, user
 	if !ok {
 		return false
 	}
-	dir := filepath.Join(h.disk.SiteDir(userID, siteName), "current")
-	if !m.Force && siteContentExists(dir, rel) {
+	root, _ := siteRoot.OpenRoot("current")
+	if root != nil {
+		defer root.Close()
+	}
+	if !m.Force && root != nil && rootContentExists(root, rel) {
 		return false
 	}
 	// The site's public mount on this address ("" at a host root,
@@ -130,11 +149,9 @@ func (h *SiteHandler) applyRedirect(w http.ResponseWriter, r *http.Request, user
 		w.WriteHeader(m.Status)
 		return true
 	}
-	root, err := os.OpenRoot(dir)
-	if err != nil {
+	if root == nil {
 		return false
 	}
-	defer root.Close()
 	u, _ := url.Parse(m.Location("", ""))
 	name := strings.TrimPrefix(path.Clean(u.Path), "/")
 	for _, candidate := range []string{name, "404.html"} {

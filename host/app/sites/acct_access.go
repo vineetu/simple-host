@@ -59,15 +59,13 @@ func (s *Service) SiteSuspension(ctx context.Context, siteID string) (bool, stri
 }
 
 func (s *Service) SetSitePasscode(ctx context.Context, site model.Site, previous model.SitePasscodeRow, enc []byte) (time.Time, error) {
-	if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil {
+	if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil || !s.disk.HasPasscodeMarker(site.UserID, site.Name) {
 		log.Printf("passcode: marker for site %s: %v", site.ID, err)
 		return time.Time{}, &Error{Code: "access_marker", Message: "the site's files could not be marked; nothing changed, try again"}
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	if _, err := repo.SetSitePasscode(ctx, s.database, site.ID, enc, now); err != nil {
-		if previous.Enc == nil {
-			_ = s.disk.SetPasscodeMarker(site.UserID, site.Name, false)
-		}
+		s.repairUncertainAccess(ctx, site)
 		return time.Time{}, err
 	}
 	return now, nil
@@ -84,12 +82,12 @@ func (s *Service) ClearSitePasscode(ctx context.Context, site model.Site) error 
 }
 func (s *Service) SetSiteAccess(ctx context.Context, site model.Site, row model.SitePasscodeRow, access string) error {
 	if access == "specific" {
-		if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil {
+		if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil || !s.disk.HasPasscodeMarker(site.UserID, site.Name) {
 			log.Printf("viewers: marker for site %s: %v", site.ID, err)
 			return &Error{Code: "access_marker", Message: "the site's files could not be marked; nothing changed, try again"}
 		}
 		if err := repo.SetSiteAccess(ctx, s.database, site.ID, access); err != nil {
-			_ = s.disk.SetPasscodeMarker(site.UserID, site.Name, row.Enc != nil)
+			s.repairUncertainAccess(ctx, site)
 			return err
 		}
 	} else {
@@ -105,6 +103,24 @@ func (s *Service) SetSiteAccess(ctx context.Context, site model.Site, row model.
 	}
 	return nil
 }
-func (s *Service) SyncAccessMarker(site model.Site) error {
-	return s.disk.SetPasscodeMarker(site.UserID, site.Name, site.Passcode || site.NamedViewers)
+
+// The caller holds the name lock. An autocommit error is not a rollback:
+// only a successful fresh read can justify removing the marker.
+func (s *Service) repairUncertainAccess(ctx context.Context, site model.Site) {
+	row, err := repo.GetSitePasscodeByName(ctx, s.database, site.UserID, site.Name)
+	if err == nil && row.SiteID == site.ID && row.Enc == nil && !row.NamedViewers {
+		_ = s.disk.SetPasscodeMarker(site.UserID, site.Name, false)
+	}
+}
+
+// Publishing an existing protected site may recreate a missing folder (for
+// example an import). It must be marked before current becomes reachable.
+func (s *Service) ensureAccessMarker(site model.Site) error {
+	if !site.Passcode && !site.NamedViewers {
+		return nil
+	}
+	if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil || !s.disk.HasPasscodeMarker(site.UserID, site.Name) {
+		return &Error{Code: "access_marker", Message: "the site's files could not be marked; nothing changed, try again"}
+	}
+	return nil
 }

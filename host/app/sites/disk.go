@@ -29,6 +29,7 @@ type Disk interface {
 	RenameSite(userID, oldName, newName string, domains ...string) error
 	RestoreSite(userID, siteName, siteID string) error
 	SetSuspended(userID, siteName string, on bool) error
+	SetTrashedAccessMarker(userID, siteID string, on bool) error
 	SetTrashedSuspended(userID, siteID string, on bool) error
 	SiteFootprint(userID, name string) (model.FileFootprint, error)
 	TrashSite(userID, siteName, siteID string) error

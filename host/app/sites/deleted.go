@@ -119,6 +119,10 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (r
 		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
 		return repo.Site{}, ErrRestoreFiles
 	}
+	if err := s.disk.SetTrashedAccessMarker(d.UserID, d.ID, full.Passcode || full.NamedViewers); err != nil {
+		log.Printf("restore site %s: access marker: %v", d.ID, err)
+		return repo.Site{}, ErrRestoreFiles
+	}
 	// The name is this site's again; an old name another site left there
 	// stops redirecting.
 	if err := repo.DropOldSiteName(ctx, tx, d.UserID, d.Name); err != nil {

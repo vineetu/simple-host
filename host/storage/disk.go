@@ -832,19 +832,7 @@ func (d *DiskStorage) SetPasscodeMarker(userID, siteName string, on bool) error 
 	if !validPathKey(userID) || !validPathKey(siteName) {
 		return fmt.Errorf("invalid site %q/%q", userID, siteName)
 	}
-	p := filepath.Join(d.SiteDir(userID, siteName), passcodeMarker)
-	if !on {
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-	if _, err := os.Stat(d.SiteDir(userID, siteName)); os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	return os.WriteFile(p, []byte("this site asks for a passcode\n"), 0o644)
+	return setAccessMarker(d.SiteDir(userID, siteName), on)
 }
 
 // HasPasscodeMarker reports whether the passcode marker is present.

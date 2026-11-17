@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -323,23 +324,78 @@ func crossSiteSubresource(r *http.Request) bool {
 // goes through it (serveSiteFile); a passcode-protected site that lets the
 // request in gets its private-cache headers here.
 func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, siteName, rel string) bool {
-	// A site the operator has taken down answers the take-down page on
-	// every path, whichever address reached it (suspend.go).
-	if h.disk.IsSuspended(userID, siteName) {
+	return h.siteGateMarkers(w, r, nil, userID, siteName, rel, h.disk.IsSuspended(userID, siteName), h.disk.IsOffline(userID, siteName), h.disk.HasPasscodeMarker(userID, siteName))
+}
+
+func (h *SiteHandler) siteGateRoot(w http.ResponseWriter, r *http.Request, root *os.Root, userID, siteName, rel string) bool {
+	present := func(name string) bool { _, err := root.Lstat(name); return err == nil }
+	return h.siteGateMarkers(w, r, root, userID, siteName, rel, present("suspended"), present("offline"), present("passcode"))
+}
+
+// siteProtectionRow binds the by-name lookup to the directory being served.
+// Rename and deletion hold this same lock while moving the directory and row;
+// neither may change the binding between the identity check and the query.
+func (h *SiteHandler) siteProtectionRow(r *http.Request, root *os.Root, userID, siteName string) (model.SitePasscodeRow, error) {
+	if root != nil {
+		// Exports and publication share this mutex. Bound the visitor's wait
+		// without leaving a goroutine behind to acquire it after cancellation.
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+		defer cancel()
+		mu, _ := h.uploadLocks.LoadOrStore(userID+"/"+siteName, &sync.Mutex{})
+		m := mu.(*sync.Mutex)
+		tick := time.NewTicker(10 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			if err := ctx.Err(); err != nil {
+				return model.SitePasscodeRow{}, err
+			}
+			if m.TryLock() {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return model.SitePasscodeRow{}, ctx.Err()
+			case <-tick.C:
+			}
+		}
+		defer m.Unlock()
+		opened, err := root.Stat(".")
+		if err != nil {
+			return model.SitePasscodeRow{}, err
+		}
+		current, err := os.Stat(h.disk.SiteDir(userID, siteName))
+		if os.IsNotExist(err) {
+			return model.SitePasscodeRow{}, sql.ErrNoRows
+		}
+		if err != nil {
+			return model.SitePasscodeRow{}, err
+		}
+		if !os.SameFile(opened, current) {
+			return model.SitePasscodeRow{}, sql.ErrNoRows
+		}
+	}
+	return h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, siteName)
+}
+
+func (h *SiteHandler) siteGateMarkers(w http.ResponseWriter, r *http.Request, root *os.Root, userID, siteName, rel string, suspended, offline, access bool) bool {
+	if suspended {
 		h.serveTakedown(w, r)
 		return true
 	}
-	// Taken offline by its owner (offline.go): the same on every address.
-	if h.disk.IsOffline(userID, siteName) {
+	if offline {
 		h.serveOffline(w, r)
 		return true
 	}
-	if !h.disk.HasPasscodeMarker(userID, siteName) {
+	if !access {
 		return false
 	}
-	row, err := h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, siteName)
+	row, err := h.siteProtectionRow(r, root, userID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			if root != nil {
+				http.NotFound(w, r)
+				return true
+			}
 			return false // no such live site: the caller's 404 stands
 		}
 		// Fail closed: the marker says protected and the database cannot
@@ -1346,11 +1402,6 @@ func (h *SiteHandler) signOutEveryone(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("site_passcode sign_out_everyone site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
 	writeJSON(w, http.StatusOK, passcodeResponse{Site: site.Name, PasscodeProtected: true, Note: "Everyone is signed out: each visitor must enter the passcode again."})
-}
-
-// syncPasscodeMarker makes the disk marker match the database.
-func (h *SiteHandler) syncPasscodeMarker(s model.Site) error {
-	return h.sitesSvc().SyncAccessMarker(s)
 }
 
 // checkVisitorPasscode is shared by the browser unlock and visitor tools.

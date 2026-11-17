@@ -13,7 +13,30 @@ import (
 func suspendedMarker(s *Service, site model.Site) error {
 	return s.disk.SetSuspended(site.UserID, site.Name, site.Suspended())
 }
-func (s *Service) SyncSiteSuspensionMarker(site model.Site) error { return suspendedMarker(s, site) }
+func (s *Service) SyncSiteSuspensionMarker(site model.Site) error {
+	if site.Suspended() {
+		return suspendedMarker(s, site)
+	}
+	return s.withFreshMarkerSite(context.Background(), site, func(fresh model.Site) error { return suspendedMarker(s, fresh) })
+}
+
+// Before removing markers, re-read under the name lock. Never apply an old
+// site's verdict to a replacement at the same name. Additions need no lock.
+func (s *Service) withFreshMarkerSite(ctx context.Context, site model.Site, repair func(model.Site) error) error {
+	unlock := s.deps.LockSite(site.UserID, site.Name)
+	defer unlock()
+	fresh, err := repo.GetSiteByUser(ctx, s.database, site.UserID, site.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if fresh.ID != site.ID {
+		return nil
+	}
+	return repair(fresh)
+}
 func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
 	sites, err := repo.ListAllSites(ctx, svc.database)
 	if err != nil {
@@ -21,31 +44,47 @@ func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
 		return
 	}
 	n := 0
-	for _, s := range sites {
-		if s.Suspended() != svc.disk.IsSuspended(s.UserID, s.Name) {
-			if err := suspendedMarker(svc, s); err != nil {
-				ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
+	repair := func(s model.Site, remove bool) (needsRemoval bool) {
+		for _, marker := range []struct {
+			want, have bool
+			set        func(bool) error
+		}{
+			{s.Suspended(), svc.disk.IsSuspended(s.UserID, s.Name), func(on bool) error { return svc.disk.SetSuspended(s.UserID, s.Name, on) }},
+			{s.Offline, svc.disk.IsOffline(s.UserID, s.Name), func(on bool) error { return svc.disk.SetOffline(s.UserID, s.Name, on) }},
+			{s.Passcode || s.NamedViewers, svc.disk.HasPasscodeMarker(s.UserID, s.Name), func(on bool) error { return svc.disk.SetPasscodeMarker(s.UserID, s.Name, on) }},
+		} {
+			if marker.want != marker.have {
+				if !marker.want && !remove {
+					needsRemoval = true
+					continue
+				}
+				if err := marker.set(marker.want); err != nil {
+					ReportWorkerFailure(ctx, "sync site markers", err)
+					continue
+				}
+				n++
 			}
-			n++
 		}
-		// The owner's offline switch (offline.go) has a marker too.
-		if s.Offline != svc.disk.IsOffline(s.UserID, s.Name) {
-			if err := svc.disk.SetOffline(s.UserID, s.Name, s.Offline); err != nil {
-				ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
-			}
-			n++
-		}
-		// And a passcode (passcode.go).
-		if (s.Passcode || s.NamedViewers) != svc.disk.HasPasscodeMarker(s.UserID, s.Name) {
-			if err := svc.disk.SetPasscodeMarker(s.UserID, s.Name, s.Passcode || s.NamedViewers); err != nil {
-				ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
-			}
-			n++
+		return needsRemoval
+	}
+	// Finish every addition before any removal can wait on a busy site. A
+	// stalled export must not delay take-down or protection of later sites.
+	var removals []model.Site
+	for _, site := range sites {
+		if repair(site, false) {
+			removals = append(removals, site)
 		}
 	}
+	for _, site := range removals {
+		err := svc.withFreshMarkerSite(ctx, site, func(fresh model.Site) error {
+			repair(fresh, true)
+			return nil
+		})
+		if err != nil {
+			ReportWorkerFailure(ctx, "sync site markers", err)
+		}
+	}
+
 	if n > 0 {
 		ReportWorkerProgress(ctx)
 		log.Printf("suspend: corrected %d site marker(s)", n)
@@ -87,7 +126,7 @@ func (s *Service) SuspendSite(ctx context.Context, id, reason, adminID string, o
 		log.Printf("admin_site_suspend on=%t site_id=%s name=%s owner=%s by=%s reason=%q deleted=true", on, site.ID, site.Name, site.UserID, adminID, reason)
 		return site, nil
 	}
-	if err := s.SyncSiteSuspensionMarker(site); err != nil {
+	if err := suspendedMarker(s, site); err != nil {
 		log.Printf("suspend: marker for site %s: %v", site.ID, err)
 		return model.Site{}, &accountapp.LifecycleError{Status: 500, Message: "saved, but the site's files could not be marked; retry"}
 	}

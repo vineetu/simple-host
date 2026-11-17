@@ -182,17 +182,27 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// Take-down, then offline, then a passcode (passcode.go): the same on
-	// every address that reaches the site's files.
-	if h.siteGate(w, r, userID, siteName, rel) {
+	// Keep the directory we checked even if its name is reused mid-request.
+	siteRoot, err := os.OpenRoot(h.disk.SiteDir(userID, siteName))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer siteRoot.Close()
+	if h.siteGateRoot(w, r, siteRoot, userID, siteName, rel) {
 		return
 	}
 	h.ownerFrameGuard(w, r, userID)
-	// Redirect rules (_redirects), only once every gate above has passed.
-	if h.applyRedirect(w, r, userID, siteName, rel, publicPath) {
+	if h.applyRootRedirect(w, r, siteRoot, rel, publicPath) {
 		return
 	}
-	h.serveDirFile(w, r, h.disk.SiteDir(userID, siteName)+"/current", rel, publicPath)
+	root, err := siteRoot.OpenRoot("current")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer root.Close()
+	h.serveRootFile(w, r, root, rel, publicPath)
 }
 
 // serveDirFile serves rel from dir the way serveSiteFile does (dir is a
@@ -205,6 +215,10 @@ func (h *SiteHandler) serveDirFile(w http.ResponseWriter, r *http.Request, dir, 
 	}
 	defer root.Close()
 
+	h.serveRootFile(w, r, root, rel, publicPath)
+}
+
+func (h *SiteHandler) serveRootFile(w http.ResponseWriter, r *http.Request, root *os.Root, rel, publicPath string) {
 	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
 	if name == "" {
 		name = "."

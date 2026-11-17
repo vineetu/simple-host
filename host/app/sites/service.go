@@ -456,6 +456,11 @@ func (s *Service) Rename(ctx context.Context, in RenameInput) (RenameResult, err
 	} else if ok && info.PreviousDomain != "" {
 		domains = append(domains, info.PreviousDomain)
 	}
+	if site.Passcode || site.NamedViewers {
+		if err := s.disk.SetPasscodeMarker(userID, oldName, true); err != nil || !s.disk.HasPasscodeMarker(userID, oldName) {
+			return result, &Error{Code: "access_marker", Message: "the site's files could not be marked; nothing changed, try again"}
+		}
+	}
 	if err := s.disk.RenameSite(userID, oldName, newName, domains...); err != nil {
 		return result, &Error{Code: "move_failed"}
 	}
@@ -647,6 +652,9 @@ func (s *Service) activateVersion(ctx context.Context, tx *sql.Tx, site model.Si
 	}
 	// A version stored with publish=false goes live for the first time.
 	if err := repo.ActivateVersionNumber(ctx, tx, site.ID, version); err != nil {
+		return 0, err
+	}
+	if err := s.ensureAccessMarker(site); err != nil {
 		return 0, err
 	}
 	// Change served files only after the database steps, and restore them if commit fails.
@@ -914,6 +922,9 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		return UpdateResult{}, err
 	}
 	if err := s.disk.WriteFiles(ctx, site.UserID, in.Name, n, in.Files); err != nil {
+		return UpdateResult{}, err
+	}
+	if err := s.ensureAccessMarker(site); err != nil {
 		return UpdateResult{}, err
 	}
 	if !in.Publish {

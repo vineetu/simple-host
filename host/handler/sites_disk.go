@@ -36,6 +36,7 @@ type SiteDisk interface {
 	SetOffline(userID, siteName string, on bool) error
 	SetPasscodeMarker(userID, siteName string, on bool) error
 	SetSuspended(userID, siteName string, on bool) error
+	SetTrashedAccessMarker(userID, siteID string, on bool) error
 	SetTrashedSuspended(userID, siteID string, on bool) error
 	SiteDir(userID, siteName string) string
 	SiteFootprint(userID, name string) (model.FileFootprint, error)
