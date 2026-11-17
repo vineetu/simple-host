@@ -685,6 +685,36 @@ address of a site keeps working. <code>ADDRESS_FAMILIES</code> turns the feature
 <td>The port the server listens on.</td>
 </tr>
 <tr>
+<td><code>STATIC_BIND</code></td>
+<td><code>127.0.0.1</code></td>
+<td>text</td>
+<td>The interface the optional static page server listens on.</td>
+</tr>
+<tr>
+<td><code>STATIC_PORT</code></td>
+<td><code>8091</code></td>
+<td>1–65535</td>
+<td>The port the optional static page server listens on.</td>
+</tr>
+<tr>
+<td><code>STATIC_API_URL</code></td>
+<td><code>http://127.0.0.1:8090</code></td>
+<td>text</td>
+<td>The API address Static forwards other requests to. The API must trust Static’s address in TRUSTED_PROXY_CIDRS.</td>
+</tr>
+<tr>
+<td><code>STATIC_STATE_DIR</code></td>
+<td><code>&lt;parent of DATA_DIR&gt;/static-state</code></td>
+<td>text</td>
+<td>The folder where Static saves its routing copy. The site data directory stays read-only.</td>
+</tr>
+<tr>
+<td><code>STATIC_REFRESH_SECONDS</code></td>
+<td><code>10</code></td>
+<td>1–86400 seconds</td>
+<td>Seconds between Static’s full routing loads. Failed loads keep the previous copy.</td>
+</tr>
+<tr>
 <td><code>BIND_ADDR</code></td>
 <td>none</td>
 <td>text</td>

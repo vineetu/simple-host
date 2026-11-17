@@ -55,6 +55,9 @@ func (h *SiteHandler) groupTexts() GroupTexts {
 	if h.groupHosts != nil {
 		return h.groupHosts.Texts()
 	}
+	if texts := h.pipeline().product.hooks.GroupTexts; texts != nil {
+		return texts()
+	}
 	return GroupTexts{NotFoundTitle: "Page not found", NotFoundBody: "No page lives at this address."}
 }
 

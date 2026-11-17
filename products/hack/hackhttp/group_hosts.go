@@ -54,6 +54,10 @@ func (g *groupHosts) ServePage(w http.ResponseWriter, r *http.Request, holder mo
 	return false
 }
 func (*groupHosts) Texts() handler.GroupTexts {
+	return groupHostTexts()
+}
+
+func groupHostTexts() handler.GroupTexts {
 	return handler.GroupTexts{
 		NotFoundTitle:   "Event not found",
 		NotFoundBody:    "No event or page lives at this address.",

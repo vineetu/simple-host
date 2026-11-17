@@ -35,6 +35,20 @@ func TestRoutingFactsInPlatformSnapshot(t *testing.T) {
 	if len(table.Groups) != 1 || table.Groups[0] != (model.RouteGroup{ID: event, Slug: "routing-group", AccountID: uid}) || len(table.GroupSites) != 1 || table.GroupSites[0].Name != "site" {
 		t.Fatalf("routing projection: %+v %+v", table.Groups, table.GroupSites)
 	}
+	root, err := LookupRoutingFacts(context.Background(), db, "routing-group", "")
+	if err != nil || len(root.Groups) != 1 || len(root.Sites) != 0 {
+		t.Fatalf("new group without a website: %+v %v", root, err)
+	}
+	if _, err = db.Exec(`INSERT INTO sites(user_id,name,active_version) VALUES ($1,'site',1)`, uid); err != nil {
+		t.Fatal(err)
+	}
+	targeted, err := LookupRoutingFacts(context.Background(), db, "routing-group", "site")
+	if err != nil || len(targeted.Sites) != 1 || len(targeted.GroupSites) != 1 || targeted.Sites[0].ActiveVersion != 1 {
+		t.Fatalf("new team TLS projection: %+v %v", targeted, err)
+	}
+	if _, err := LookupRoutingFacts(context.Background(), db, "missing", "site"); err != sql.ErrNoRows {
+		t.Fatalf("missing group: %v", err)
+	}
 	b, err := json.Marshal(table)
 	if err != nil {
 		t.Fatal(err)

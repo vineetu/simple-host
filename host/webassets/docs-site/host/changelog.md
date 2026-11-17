@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 17:** Add the optional Static page-server command, saved-copy startup, read-only serving and streamed API hand-over. It stays off in normal startup and deployment (D4-S4a).
+
 - **Nov 16:** Correct the saved-data moving guide: preserve Personal exports until a suitable migration is agreed, enforce one submission per visitor with a unique index, retain shared-state visitor writes, and show the hosted deadline only on hosted installs (R4-S3b review).
 
 - **Nov 16:** Publish the guide for moving older saved data to storage and rules. Explain the hosted 17 December switch and operator-configured dates on other installs. The Storage panel shows the local switch time and what happens afterwards; preset-save warnings use a readable UTC date (R4-S3b).

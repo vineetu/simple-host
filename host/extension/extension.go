@@ -19,6 +19,7 @@ import (
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/mcp"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/workers"
 )
@@ -29,6 +30,10 @@ type ConfigSpec struct {
 	Load     func(getenv func(string) string) (warnings []string, err error)
 }
 type Extension struct {
+	// LoadRoutingFacts contributes only address facts to Static's read-only
+	// snapshot, without constructing API services or starting product workers.
+	LoadRoutingFacts        func(context.Context, *sql.Tx) ([]model.RouteGroup, []model.RouteGroupSite, error)
+	LookupGroupRoutingFacts func(context.Context, *sql.DB, string, string) (model.SiteTable, error)
 	// StorageNoticeGroup labels holding accounts for the operator recipient report.
 	StorageNoticeGroup appstorage.NoticeGroup
 	Config             ConfigSpec

@@ -111,6 +111,24 @@ test('wrong old', (t) =>
 test('wrong new', (t) =>
   fail(setup(t).compare([entry({ new: 8 })]), /new does not equal the candidate/));
 test('unused entry', (t) => fail(setup(t).compare([entry({ request: 'missing' })]), /unused entry/));
+test('D4-S4a approval file exists, validates and is limited to Static settings metadata', () => {
+  const doc = JSON.parse(readFileSync(new URL('../approved/D4-S4a.json', import.meta.url)));
+  assert.deepEqual(validateApproval(doc, 'D4-S4a'), []);
+  const names = ['STATIC_BIND', 'STATIC_PORT', 'STATIC_API_URL', 'STATIC_STATE_DIR', 'STATIC_REFRESH_SECONDS'];
+  for (const e of doc.entries) {
+    assert.equal(e.request, 'admin-settings');
+    assert.match(e.at, /^(text|body\.settings\[\d+\]\.(default|allowed))$/);
+  }
+  for (const product of ['host', 'hack']) {
+    const text = doc.entries.filter(e => e.product === product && e.at === 'text');
+    assert.equal(text.length, 1);
+    assert.deepEqual(text[0].removed, []);
+    assert.deepEqual(text[0].added.flatMap(line => {
+      const match = line.match(/^\s*"name": "([A-Z_]+)",$/);
+      return match ? [match[1]] : [];
+    }), names);
+  }
+});
 test('an extra difference beside an approved one in the same request', (t) => {
   const f = setup(t, [run([req()])], [run([req({ count: 3 }, { status: 302 })])]);
   fail(f.compare([entry()]), /status/);

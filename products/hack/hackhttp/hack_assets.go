@@ -59,6 +59,7 @@ func (p *Assets) Hooks() handler.ProductAssetHooks {
 		SkillAvailable: hostedHackSkill, ExpandConnectSteps: expandConnectSteps,
 		PersonalPresentationHTML: p.personalPresentationHTML,
 		CatalogPlugin:            "simple-hack",
+		GroupTexts:               groupHostTexts,
 	}
 }
 

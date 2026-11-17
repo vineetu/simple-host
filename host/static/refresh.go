@@ -135,7 +135,7 @@ func (r *Reloader) Lookup(ctx context.Context, address model.RoutingAddress) (bo
 	if err != nil {
 		return false, err
 	}
-	if len(fragment.Sites) == 0 {
+	if len(fragment.Sites) == 0 && len(fragment.Groups) == 0 {
 		return false, nil
 	}
 	r.publishMu.Lock()
@@ -145,6 +145,32 @@ func (r *Reloader) Lookup(ctx context.Context, address model.RoutingAddress) (bo
 	table.Owners = append([]model.RouteOwner(nil), table.Owners...)
 	table.Sites = append([]model.RouteSite(nil), table.Sites...)
 	table.Families = append([]model.AddressFamily(nil), table.Families...)
+	table.Groups = append([]model.RouteGroup(nil), table.Groups...)
+	table.GroupSites = append([]model.RouteGroupSite(nil), table.GroupSites...)
+	for _, g := range fragment.Groups {
+		found := false
+		for i, old := range table.Groups {
+			if old.ID == g.ID {
+				table.Groups[i], found = g, true
+				break
+			}
+		}
+		if !found {
+			table.Groups = append(table.Groups, g)
+		}
+	}
+	for _, site := range fragment.GroupSites {
+		found := false
+		for _, old := range table.GroupSites {
+			if old == site {
+				found = true
+				break
+			}
+		}
+		if !found {
+			table.GroupSites = append(table.GroupSites, site)
+		}
+	}
 	for _, u := range fragment.Owners {
 		found := false
 		for i, v := range table.Owners {

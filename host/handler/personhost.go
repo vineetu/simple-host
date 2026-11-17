@@ -289,6 +289,10 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		if h.ed.Routes().HostedEvents {
+			if h.staticAPI != nil {
+				api.ServeHTTP(w, r)
+				return
+			}
 			h.serveGroupHost(w, r, user, api)
 			return
 		}
@@ -313,6 +317,10 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 		return
 	}
 	if r.URL.Path == "/" || r.URL.Path == "" {
+		if h.staticAPI != nil {
+			h.staticAPI.ServeHTTP(w, r)
+			return
+		}
 		h.renderShowcase(w, r, handle)
 		return
 	}
@@ -419,6 +427,10 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 				w.Header().Set("Cache-Control", "no-store")
 			}
 			http.Redirect(w, r, h.PersonPageURL(current), status)
+			return
+		}
+		if h.staticAPI != nil {
+			h.staticAPI.ServeHTTP(w, r)
 			return
 		}
 		h.renderShowcase(w, r, current)

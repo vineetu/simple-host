@@ -554,6 +554,12 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 	// serve anything yet.
 	info, ok, err := h.siteOwnAddress(r.Context(), site.ID)
 	if err != nil || !ok || info.Domain == "" {
+		if h.staticAPI != nil {
+			// The copy may predate a newly connected domain. Only the API's
+			// fresh routing facts can decide whether to remove its marker.
+			h.staticAPI.ServeHTTP(w, r)
+			return
+		}
 		// Stale marker: the domain is gone or unproven. Clean up and let the
 		// next request serve.
 		_ = h.disk.ClearDomainRedirect(user.ID, name)

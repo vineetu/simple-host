@@ -34,4 +34,8 @@ type RouteGroupSite struct{ GroupID, Name string }
 // RoutingAddress is a parsed page address: an owner/name pair or an exact
 // hostname (custom domain or family). Family discovery can happen on a miss;
 // label validation and certificate readiness remain in handler.
-type RoutingAddress struct{ Handle, Name, Domain string }
+type RoutingAddress struct {
+	Handle, Name, Domain string
+	// Group and GroupSite identify a product's on-demand TLS question.
+	Group, GroupSite string
+}

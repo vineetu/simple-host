@@ -1,5 +1,5 @@
-// Package static holds the optional page server's routing copy. It is not
-// wired into either program until the Static process slice.
+// Package static implements the optional page server and its saved routing
+// copy. Normal startup never starts the Static process.
 package static
 
 import (

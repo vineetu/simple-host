@@ -1,0 +1,3311 @@
+{
+  "slice": "D4-S4a",
+  "entries": [
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a registers the five optional Static settings; this pins only their added registry lines, including the resulting array position shifts.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "      \"default\": \"127.0.0.1\",",
+        "      \"description\": \"The interface the optional static page server listens on.\",",
+        "      \"group\": \"server\",",
+        "      \"name\": \"STATIC_BIND\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"string\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"\"\"",
+        "      | 8091",
+        "      \"\"\",",
+        "      \"description\": \"The port the optional static page server listens on.\",",
+        "      \"group\": \"server\",",
+        "      \"max\": 65535,",
+        "      \"min\": 1,",
+        "      \"name\": \"STATIC_PORT\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"int\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"http://127.0.0.1:8090\",",
+        "      \"description\": \"The API address Static forwards other requests to. The API must trust Static's address in TRUSTED_PROXY_CIDRS.\",",
+        "      \"group\": \"server\",",
+        "      \"name\": \"STATIC_API_URL\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"string\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"<parent of DATA_DIR>/static-state\",",
+        "      \"description\": \"The folder where Static saves its routing copy. The site data directory stays read-only.\",",
+        "      \"group\": \"server\",",
+        "      \"name\": \"STATIC_STATE_DIR\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"string\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"\"\"",
+        "      | 10",
+        "      \"\"\",",
+        "      \"description\": \"Seconds between Static's full routing loads. Failed loads keep the previous copy.\",",
+        "      \"group\": \"server\",",
+        "      \"max\": 86400,",
+        "      \"min\": 1,",
+        "      \"name\": \"STATIC_REFRESH_SECONDS\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"int\",",
+        "      \"unit\": \"seconds\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,"
+      ]
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a registers the five optional Static settings; this pins only their added registry lines, including the resulting array position shifts.",
+      "at": "text",
+      "removed": [],
+      "added": [
+        "      \"default\": \"127.0.0.1\",",
+        "      \"description\": \"The interface the optional static page server listens on.\",",
+        "      \"group\": \"server\",",
+        "      \"name\": \"STATIC_BIND\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"string\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"\"\"",
+        "      | 8091",
+        "      \"\"\",",
+        "      \"description\": \"The port the optional static page server listens on.\",",
+        "      \"group\": \"server\",",
+        "      \"max\": 65535,",
+        "      \"min\": 1,",
+        "      \"name\": \"STATIC_PORT\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"int\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"http://127.0.0.1:8090\",",
+        "      \"description\": \"The API address Static forwards other requests to. The API must trust Static's address in TRUSTED_PROXY_CIDRS.\",",
+        "      \"group\": \"server\",",
+        "      \"name\": \"STATIC_API_URL\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"string\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"<parent of DATA_DIR>/static-state\",",
+        "      \"description\": \"The folder where Static saves its routing copy. The site data directory stays read-only.\",",
+        "      \"group\": \"server\",",
+        "      \"name\": \"STATIC_STATE_DIR\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"string\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,",
+        "      \"default\": \"\"\"",
+        "      | 10",
+        "      \"\"\",",
+        "      \"description\": \"Seconds between Static's full routing loads. Failed loads keep the previous copy.\",",
+        "      \"group\": \"server\",",
+        "      \"max\": 86400,",
+        "      \"min\": 1,",
+        "      \"name\": \"STATIC_REFRESH_SECONDS\",",
+        "      \"required\": false,",
+        "      \"security_sensitive\": false,",
+        "      \"small_box\": false,",
+        "      \"type\": \"int\",",
+        "      \"unit\": \"seconds\"",
+        "    },",
+        "    {",
+        "      \"basic\": false,"
+      ]
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[6].default",
+      "old": "",
+      "new": "8091"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[9].default",
+      "old": "off",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[15].default",
+      "old": "600",
+      "new": "<SITE_DOMAIN>"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[20].default",
+      "old": "",
+      "new": "600"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[24].default",
+      "old": "15",
+      "new": "off"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[25].default",
+      "old": "50",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[26].default",
+      "old": "180",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[27].default",
+      "old": "30",
+      "new": "off"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[28].default",
+      "old": "7",
+      "new": "off"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[29].default",
+      "old": "280",
+      "new": "15"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[30].default",
+      "old": "30",
+      "new": "50"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[31].default",
+      "old": "14",
+      "new": "180"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[32].default",
+      "old": "60",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[33].default",
+      "old": "90",
+      "new": "7"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[34].default",
+      "old": "30",
+      "new": "280"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[35].default",
+      "old": "20,5s",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[36].default",
+      "old": "5,50s",
+      "new": "14"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[37].default",
+      "old": "20,5s",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[38].default",
+      "old": "20,5s",
+      "new": "90"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[39].default",
+      "old": "20,5s",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[54].default",
+      "old": "false",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[59].default",
+      "old": "",
+      "new": "false"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[61].default",
+      "old": "30",
+      "new": "on"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[62].default",
+      "old": "1024",
+      "new": "on"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[63].default",
+      "old": "100",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[64].default",
+      "old": "20000",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[65].default",
+      "old": "2048",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[66].default",
+      "old": "1",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[67].default",
+      "old": "40",
+      "new": "1024"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[68].default",
+      "old": "1500",
+      "new": "100"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[69].default",
+      "old": "100",
+      "new": "20000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[70].default",
+      "old": "",
+      "new": "2048"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[71].default",
+      "old": "",
+      "new": "1"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[72].default",
+      "old": "",
+      "new": "40"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[73].default",
+      "old": "",
+      "new": "1500"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[74].default",
+      "old": "",
+      "new": "100"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[75].default",
+      "old": "0",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[76].default",
+      "old": "0",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[79].default",
+      "old": "1000",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[80].default",
+      "old": "50000",
+      "new": "0"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[81].default",
+      "old": "60",
+      "new": "0"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[82].default",
+      "old": "10",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[84].default",
+      "old": "6",
+      "new": "1000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[85].default",
+      "old": "50",
+      "new": "50000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[86].default",
+      "old": "15",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[87].default",
+      "old": "15",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[89].default",
+      "old": "30,2s",
+      "new": "6"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[90].default",
+      "old": "10,10s",
+      "new": "50"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[91].default",
+      "old": "30,2s",
+      "new": "15"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[92].default",
+      "old": "5,3m",
+      "new": "15"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[94].default",
+      "old": "1000000",
+      "new": "30,2s"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[95].default",
+      "old": "2048",
+      "new": "10,10s"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[96].default",
+      "old": "3",
+      "new": "30,2s"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[97].default",
+      "old": "60",
+      "new": "5,3m"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[98].default",
+      "old": "100",
+      "new": "60,1m"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[99].default",
+      "old": "0",
+      "new": "1000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[100].default",
+      "old": "",
+      "new": "2048"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[101].default",
+      "old": "",
+      "new": "3"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[102].default",
+      "old": "",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[103].default",
+      "old": "48",
+      "new": "100"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[104].default",
+      "old": "10",
+      "new": "0"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[105].default",
+      "old": "60",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[106].default",
+      "old": "5000",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[107].default",
+      "old": "7",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[108].default",
+      "old": "5",
+      "new": "48"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[109].default",
+      "old": "120",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[110].default",
+      "old": "20",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[111].default",
+      "old": "5",
+      "new": "5000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[112].default",
+      "old": "2048",
+      "new": "7"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[113].default",
+      "old": "16384",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[114].default",
+      "old": "100",
+      "new": "120"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[115].default",
+      "old": "95",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[116].default",
+      "old": "5000",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[117].default",
+      "old": "168",
+      "new": "2048"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[118].default",
+      "old": "1",
+      "new": "16384"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[119].default",
+      "old": "3",
+      "new": "100"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[120].default",
+      "old": "2000",
+      "new": "95"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[121].default",
+      "old": "200",
+      "new": "5000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[122].default",
+      "old": "10,30s",
+      "new": "168"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[123].default",
+      "old": "60,10s",
+      "new": "1"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[124].default",
+      "old": "4000",
+      "new": "3"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[125].default",
+      "old": "2",
+      "new": "2000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[126].default",
+      "old": "60,1s",
+      "new": "200"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[127].default",
+      "old": "30",
+      "new": "10,30s"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[128].default",
+      "old": "20",
+      "new": "60,10s"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[129].default",
+      "old": "50",
+      "new": "4000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[130].default",
+      "old": "50",
+      "new": "2"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[131].default",
+      "old": "15",
+      "new": "60,1s"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[132].default",
+      "old": "7",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[133].default",
+      "old": "10",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[134].default",
+      "old": "16",
+      "new": "50"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[135].default",
+      "old": "90",
+      "new": "50"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[136].default",
+      "old": "24",
+      "new": "15"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[137].default",
+      "old": "10000",
+      "new": "7"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[138].default",
+      "old": "30",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[139].default",
+      "old": "60",
+      "new": "16"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[140].default",
+      "old": "30",
+      "new": "90"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[141].default",
+      "old": "30",
+      "new": "24"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[142].default",
+      "old": "1024",
+      "new": "10000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[143].default",
+      "old": "20",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[144].default",
+      "old": "16",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[145].default",
+      "old": "10000",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[146].default",
+      "old": "10",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[147].default",
+      "old": "10",
+      "new": "1024"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[148].default",
+      "old": "24",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[149].default",
+      "old": "500",
+      "new": "16"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[150].default",
+      "old": "50",
+      "new": "10000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[151].default",
+      "old": "64",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[152].default",
+      "old": "20",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[153].default",
+      "old": "16",
+      "new": "24"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[154].default",
+      "old": "2000",
+      "new": "500"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[155].default",
+      "old": "20",
+      "new": "50"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[156].default",
+      "old": "1000",
+      "new": "64"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[157].default",
+      "old": "30",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[158].default",
+      "old": "shared",
+      "new": "16"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[159].default",
+      "old": "",
+      "new": "2000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[160].default",
+      "old": "",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[161].default",
+      "old": "",
+      "new": "1000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[162].default",
+      "old": "",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[174].default",
+      "old": "24",
+      "new": "the support contact"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[175].default",
+      "old": "7",
+      "new": "the support contact"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[176].default",
+      "old": "24",
+      "new": "<DATA_DIR>/.evidence"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[177].default",
+      "old": "72",
+      "new": "log"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[178].default",
+      "old": "2",
+      "new": "off"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[179].default",
+      "old": "5",
+      "new": "24"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[180].default",
+      "old": "21",
+      "new": "7"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[181].default",
+      "old": "5",
+      "new": "24"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[182].default",
+      "old": "on",
+      "new": "72"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[183].default",
+      "old": "5",
+      "new": "2"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[184].default",
+      "old": "24",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[185].default",
+      "old": "24",
+      "new": "21"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[186].default",
+      "old": "72",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[187].default",
+      "old": "10",
+      "new": "on"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[188].default",
+      "old": "60",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[189].default",
+      "old": "12",
+      "new": "24"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[190].default",
+      "old": "www",
+      "new": "24"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[191].default",
+      "old": "30",
+      "new": "72"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[192].default",
+      "old": "60,100ms",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[193].default",
+      "old": "10,10s",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[194].default",
+      "old": "3,30s",
+      "new": "12"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[196].default",
+      "old": "3,30s",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[208].default",
+      "old": "false",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[210].default",
+      "old": "20",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[211].default",
+      "old": "0",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[212].default",
+      "old": "500",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[213].default",
+      "old": "20",
+      "new": "false"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[214].default",
+      "old": "30",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[215].default",
+      "old": "14",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[216].default",
+      "old": "10",
+      "new": "0"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[217].default",
+      "old": "131072",
+      "new": "500"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[218].default",
+      "old": "120,1s",
+      "new": "20"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[219].default",
+      "old": "20,3s",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[220].default",
+      "old": "60,1s",
+      "new": "14"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[221].default",
+      "old": "30,2m",
+      "new": "10"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[222].default",
+      "old": "5,12m",
+      "new": "131072"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[228].default",
+      "old": "5",
+      "new": "demo"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[229].default",
+      "old": "30",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[230].default",
+      "old": "0.5",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[231].default",
+      "old": "2.0",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[233].default",
+      "old": "7",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[234].default",
+      "old": "90",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[235].default",
+      "old": "30",
+      "new": "0.5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[236].default",
+      "old": "400",
+      "new": "2.0"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[237].default",
+      "old": "30",
+      "new": "on"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[238].default",
+      "old": "400",
+      "new": "7"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[239].default",
+      "old": "off",
+      "new": "90"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[240].default",
+      "old": "50",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[241].default",
+      "old": "",
+      "new": "400"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[242].default",
+      "old": "support@simple-host.app",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[243].default",
+      "old": "",
+      "new": "400"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[245].default",
+      "old": "Simple Host <noreply@simple-host.app>",
+      "new": "50"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[246].default",
+      "old": "200",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[247].default",
+      "old": "1000",
+      "new": "support@simple-host.app"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[248].default",
+      "old": "1",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[249].default",
+      "old": "0",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[250].default",
+      "old": "250",
+      "new": "Simple Host <noreply@simple-host.app>"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[251].default",
+      "old": "2000",
+      "new": "200"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[252].default",
+      "old": "5000",
+      "new": "1000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[253].default",
+      "old": "2000",
+      "new": "1"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[254].default",
+      "old": "1000",
+      "new": "0"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[255].default",
+      "old": "120,100ms",
+      "new": "250"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[256].default",
+      "old": "60,200ms",
+      "new": "2000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[257].default",
+      "old": "",
+      "new": "5000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[258].default",
+      "old": "off",
+      "new": "2000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[259].default",
+      "old": "postgres",
+      "new": "1000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[261].default",
+      "old": "25",
+      "new": "60,200ms"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[262].default",
+      "old": "5",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[263].default",
+      "old": "30",
+      "new": "off"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[264].default",
+      "old": "5",
+      "new": "postgres"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[265].default",
+      "old": "false",
+      "new": ""
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[266].default",
+      "old": "./data/sites",
+      "new": "25"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[267].default",
+      "old": "10000000",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[268].default",
+      "old": "10000000",
+      "new": "30"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[269].default",
+      "old": "1000000",
+      "new": "5"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[270].default",
+      "old": "1000000",
+      "new": "false"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[271].default",
+      "old": "200",
+      "new": "./data/sites"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[272].default",
+      "old": "100",
+      "new": "10000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[273].default",
+      "old": "10240",
+      "new": "10000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[274].default",
+      "old": "75",
+      "new": "1000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[275].default",
+      "old": "60",
+      "new": "1000000"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[276].default",
+      "old": "20",
+      "new": "200"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[277].default",
+      "old": "",
+      "new": "100"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[278].default",
+      "old": "on",
+      "new": "10240"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[279].default",
+      "old": "",
+      "new": "75"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[280].default",
+      "old": "",
+      "new": "60"
+    },
+    {
+      "product": "hack",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[281].default",
+      "old": "<default route>",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[6].default",
+      "old": "",
+      "new": "8091"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[9].default",
+      "old": "off",
+      "new": "10"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[15].default",
+      "old": "600",
+      "new": "<SITE_DOMAIN>"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[20].default",
+      "old": "",
+      "new": "600"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[22].default",
+      "old": "15",
+      "new": "off"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[23].default",
+      "old": "50",
+      "new": "off"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[24].default",
+      "old": "180",
+      "new": "off"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[25].default",
+      "old": "30",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[26].default",
+      "old": "7",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[27].default",
+      "old": "280",
+      "new": "15"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[28].default",
+      "old": "30",
+      "new": "50"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[29].default",
+      "old": "14",
+      "new": "180"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[30].default",
+      "old": "60",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[31].default",
+      "old": "90",
+      "new": "7"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[32].default",
+      "old": "30",
+      "new": "280"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[33].default",
+      "old": "20,5s",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[34].default",
+      "old": "5,50s",
+      "new": "14"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[35].default",
+      "old": "20,5s",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[36].default",
+      "old": "20,5s",
+      "new": "90"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[37].default",
+      "old": "20,5s",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[52].default",
+      "old": "false",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[57].default",
+      "old": "",
+      "new": "false"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[59].default",
+      "old": "30",
+      "new": "on"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[60].default",
+      "old": "1024",
+      "new": "on"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[61].default",
+      "old": "100",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[62].default",
+      "old": "20000",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[63].default",
+      "old": "2048",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[64].default",
+      "old": "1",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[65].default",
+      "old": "40",
+      "new": "1024"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[66].default",
+      "old": "1500",
+      "new": "100"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[67].default",
+      "old": "100",
+      "new": "20000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[68].default",
+      "old": "",
+      "new": "2048"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[69].default",
+      "old": "",
+      "new": "1"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[70].default",
+      "old": "",
+      "new": "40"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[71].default",
+      "old": "",
+      "new": "1500"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[72].default",
+      "old": "",
+      "new": "100"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[73].default",
+      "old": "0",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[74].default",
+      "old": "0",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[77].default",
+      "old": "1000",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[78].default",
+      "old": "50000",
+      "new": "0"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[79].default",
+      "old": "60",
+      "new": "0"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[80].default",
+      "old": "10",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[82].default",
+      "old": "6",
+      "new": "1000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[83].default",
+      "old": "50",
+      "new": "50000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[84].default",
+      "old": "15",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[85].default",
+      "old": "15",
+      "new": "10"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[87].default",
+      "old": "30,2s",
+      "new": "6"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[88].default",
+      "old": "10,10s",
+      "new": "50"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[89].default",
+      "old": "30,2s",
+      "new": "15"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[90].default",
+      "old": "5,3m",
+      "new": "15"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[92].default",
+      "old": "1000000",
+      "new": "30,2s"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[93].default",
+      "old": "2048",
+      "new": "10,10s"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[94].default",
+      "old": "3",
+      "new": "30,2s"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[95].default",
+      "old": "60",
+      "new": "5,3m"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[96].default",
+      "old": "100",
+      "new": "60,1m"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[97].default",
+      "old": "0",
+      "new": "1000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[98].default",
+      "old": "",
+      "new": "2048"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[99].default",
+      "old": "",
+      "new": "3"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[100].default",
+      "old": "",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[101].default",
+      "old": "48",
+      "new": "100"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[102].default",
+      "old": "10",
+      "new": "0"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[103].default",
+      "old": "60",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[104].default",
+      "old": "5000",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[105].default",
+      "old": "7",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[106].default",
+      "old": "5",
+      "new": "48"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[107].default",
+      "old": "120",
+      "new": "10"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[108].default",
+      "old": "20",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[109].default",
+      "old": "5",
+      "new": "5000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[110].default",
+      "old": "2048",
+      "new": "7"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[111].default",
+      "old": "16384",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[112].default",
+      "old": "100",
+      "new": "120"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[113].default",
+      "old": "95",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[114].default",
+      "old": "5000",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[115].default",
+      "old": "168",
+      "new": "2048"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[116].default",
+      "old": "1",
+      "new": "16384"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[117].default",
+      "old": "3",
+      "new": "100"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[118].default",
+      "old": "2000",
+      "new": "95"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[119].default",
+      "old": "200",
+      "new": "5000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[120].default",
+      "old": "10,30s",
+      "new": "168"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[121].default",
+      "old": "60,10s",
+      "new": "1"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[122].default",
+      "old": "4000",
+      "new": "3"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[123].default",
+      "old": "2",
+      "new": "2000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[124].default",
+      "old": "60,1s",
+      "new": "200"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[125].default",
+      "old": "30",
+      "new": "10,30s"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[126].default",
+      "old": "20",
+      "new": "60,10s"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[127].default",
+      "old": "50",
+      "new": "4000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[128].default",
+      "old": "50",
+      "new": "2"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[129].default",
+      "old": "15",
+      "new": "60,1s"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[130].default",
+      "old": "7",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[131].default",
+      "old": "10",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[132].default",
+      "old": "16",
+      "new": "50"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[133].default",
+      "old": "90",
+      "new": "50"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[134].default",
+      "old": "24",
+      "new": "15"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[135].default",
+      "old": "10000",
+      "new": "7"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[136].default",
+      "old": "30",
+      "new": "10"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[137].default",
+      "old": "60",
+      "new": "16"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[138].default",
+      "old": "30",
+      "new": "90"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[139].default",
+      "old": "30",
+      "new": "24"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[140].default",
+      "old": "1024",
+      "new": "10000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[141].default",
+      "old": "20",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[142].default",
+      "old": "16",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[143].default",
+      "old": "10000",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[144].default",
+      "old": "10",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[145].default",
+      "old": "10",
+      "new": "1024"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[146].default",
+      "old": "24",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[147].default",
+      "old": "500",
+      "new": "16"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[148].default",
+      "old": "50",
+      "new": "10000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[149].default",
+      "old": "64",
+      "new": "10"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[150].default",
+      "old": "20",
+      "new": "10"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[151].default",
+      "old": "16",
+      "new": "24"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[152].default",
+      "old": "2000",
+      "new": "500"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[153].default",
+      "old": "20",
+      "new": "50"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[154].default",
+      "old": "1000",
+      "new": "64"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[155].default",
+      "old": "30",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[156].default",
+      "old": "shared",
+      "new": "16"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[157].default",
+      "old": "",
+      "new": "2000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[158].default",
+      "old": "",
+      "new": "20"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[159].default",
+      "old": "",
+      "new": "1000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[160].default",
+      "old": "",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[172].default",
+      "old": "24",
+      "new": "the support contact"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[173].default",
+      "old": "7",
+      "new": "the support contact"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[174].default",
+      "old": "24",
+      "new": "<DATA_DIR>/.evidence"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[175].default",
+      "old": "72",
+      "new": "log"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[176].default",
+      "old": "2",
+      "new": "off"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[177].default",
+      "old": "5",
+      "new": "24"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[178].default",
+      "old": "21",
+      "new": "7"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[179].default",
+      "old": "5",
+      "new": "24"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[180].default",
+      "old": "on",
+      "new": "72"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[181].default",
+      "old": "5",
+      "new": "2"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[182].default",
+      "old": "24",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[183].default",
+      "old": "24",
+      "new": "21"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[184].default",
+      "old": "72",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[185].default",
+      "old": "10",
+      "new": "on"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[186].default",
+      "old": "60",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[187].default",
+      "old": "12",
+      "new": "24"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[188].default",
+      "old": "www",
+      "new": "24"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[189].default",
+      "old": "30",
+      "new": "72"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[190].default",
+      "old": "60,100ms",
+      "new": "10"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[191].default",
+      "old": "10,10s",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[192].default",
+      "old": "3,30s",
+      "new": "12"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[194].default",
+      "old": "3,30s",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[206].default",
+      "old": "false",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[208].default",
+      "old": "7",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[209].default",
+      "old": "90",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[210].default",
+      "old": "30",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[211].default",
+      "old": "400",
+      "new": "false"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[212].default",
+      "old": "30",
+      "new": "on"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[213].default",
+      "old": "400",
+      "new": "7"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[214].default",
+      "old": "off",
+      "new": "90"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[215].default",
+      "old": "50",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[216].default",
+      "old": "",
+      "new": "400"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[217].default",
+      "old": "support@simple-host.app",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[218].default",
+      "old": "",
+      "new": "400"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[220].default",
+      "old": "Simple Host <noreply@simple-host.app>",
+      "new": "50"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[221].default",
+      "old": "200",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[222].default",
+      "old": "1000",
+      "new": "support@simple-host.app"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[223].default",
+      "old": "1",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[224].default",
+      "old": "0",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[225].default",
+      "old": "250",
+      "new": "Simple Host <noreply@simple-host.app>"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[226].default",
+      "old": "2000",
+      "new": "200"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[227].default",
+      "old": "5000",
+      "new": "1000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[228].default",
+      "old": "2000",
+      "new": "1"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[229].default",
+      "old": "1000",
+      "new": "0"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[230].default",
+      "old": "120,100ms",
+      "new": "250"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[231].default",
+      "old": "60,200ms",
+      "new": "2000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[232].default",
+      "old": "",
+      "new": "5000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[233].default",
+      "old": "off",
+      "new": "2000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[234].default",
+      "old": "postgres",
+      "new": "1000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[236].default",
+      "old": "25",
+      "new": "60,200ms"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[237].default",
+      "old": "5",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[238].default",
+      "old": "30",
+      "new": "off"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[239].default",
+      "old": "5",
+      "new": "postgres"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[240].default",
+      "old": "false",
+      "new": ""
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[241].default",
+      "old": "./data/sites",
+      "new": "25"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[242].default",
+      "old": "10000000",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[243].default",
+      "old": "10000000",
+      "new": "30"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[244].default",
+      "old": "1000000",
+      "new": "5"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[245].default",
+      "old": "1000000",
+      "new": "false"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[246].default",
+      "old": "200",
+      "new": "./data/sites"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[247].default",
+      "old": "100",
+      "new": "10000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[248].default",
+      "old": "10240",
+      "new": "10000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[249].default",
+      "old": "75",
+      "new": "1000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[250].default",
+      "old": "60",
+      "new": "1000000"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[251].default",
+      "old": "20",
+      "new": "200"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[252].default",
+      "old": "",
+      "new": "100"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[253].default",
+      "old": "on",
+      "new": "10240"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[254].default",
+      "old": "",
+      "new": "75"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[255].default",
+      "old": "",
+      "new": "60"
+    },
+    {
+      "product": "host",
+      "request": "admin-settings",
+      "reason": "D4-S4a adds five Static settings; pin this shifted default or allowed value exactly because JSON-like strings require structural approval as well as the added registry lines.",
+      "at": "body.settings[256].default",
+      "old": "<default route>",
+      "new": "20"
+    }
+  ]
+}

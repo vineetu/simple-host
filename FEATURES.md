@@ -2751,6 +2751,8 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 
 ## 20. Operations (health, schema, CLI) <a id="operations"></a>
 
+The optional `static` subcommand serves public site pages from a read-only site tree and a saved routing copy, forwarding API and access-marked requests to the API. It is built for testing and stays off in normal startup and deployment. See [page routing](docs/architecture/page-path.md#optional-static-process-d4-s4a).
+
 | Surface | Details |
 |---|---|
 | Routes | `GET /healthz` · `GET /readyz` (DB ping) — `h/health.go` |

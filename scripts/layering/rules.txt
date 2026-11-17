@@ -47,7 +47,7 @@ rules/{auth,sites,storage} -> model
 @/products/hack/rules/hackteams -> model
 @/products/hack/rules/hackentries -> model
 edition -> config
-static -> model
+static -> model httpx
 storage -> model
 storage -> @/host/storage/rules
 {analytics,netusage,papermetrics} -> model workers

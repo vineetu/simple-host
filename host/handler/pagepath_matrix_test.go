@@ -6,16 +6,20 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/static"
 	"github.com/vsriram/simple-host/host/testdb"
 )
 
@@ -276,6 +280,40 @@ func TestPagePathMatrix(t *testing.T) {
 					}
 				}
 				a.sites.database = db
+				if state == "public" || state == "unlisted" {
+					routing := static.New(static.Options{DataDir: a.sites.disk.DataDir(), StateDir: t.TempDir(), Product: "simple-host", Lookup: a.sites.LookupRoutingSite, Logf: func(string, ...any) {}, Load: func(context.Context) (model.SiteTable, time.Time, error) { return table, time.Now(), nil }})
+					if err := routing.Refresh(context.Background()); err != nil {
+						t.Fatal(err)
+					}
+					target, _ := url.Parse(a.srv.URL)
+					via := static.NewHandler(routing, static.NewProxy(target, nil), func(table model.SiteTable, api http.Handler, retry func(http.ResponseWriter, *http.Request, model.RoutingAddress) bool) http.Handler {
+						h := NewSiteHandler(a.sites.ed, "", db, a.sites.disk, pcSiteDomain, pcContentHost, "", "", "", "", nil, 0, "", "", nil, nil)
+						h.SetPersonHosts("canonical")
+						h.SetSiteHosts("canonical", certDir)
+						h.SetAddressFamilies(famDir)
+						h.SetTeamSiteFlatHosts(addr.mode == "flat")
+						return h.StaticPages(table, api, retry)
+					})
+					for _, check := range []struct {
+						path, host string
+						want       resp
+					}{{p, addr.host, page}, {"/internal/tls-ask?domain=" + addr.host, pcSiteDomain, tls}} {
+						req := httptest.NewRequest("GET", "http://"+check.host+check.path, nil)
+						for k, v := range headers {
+							req.Header.Set(k, v)
+						}
+						w := httptest.NewRecorder()
+						via.ServeHTTP(w, req)
+						if w.Code != check.want.status || w.Body.String() != string(check.want.body) {
+							t.Fatalf("%s/%s Static %s: got %d %q want %d %q", addr.name, state, check.path, w.Code, w.Body.String(), check.want.status, check.want.body)
+						}
+						for _, key := range []string{"Location", "Cache-Control", "Content-Security-Policy", "X-Frame-Options", "X-Robots-Tag", "Cross-Origin-Resource-Policy", "Vary"} {
+							if !reflect.DeepEqual(w.Header().Values(key), check.want.header.Values(key)) {
+								t.Fatalf("%s/%s Static %s: got %q want %q", addr.name, state, key, w.Header().Values(key), check.want.header.Values(key))
+							}
+						}
+					}
+				}
 				a.sites.SetSiteFacts(nil)
 				a.sites.refreshFamilies(context.Background())
 			}

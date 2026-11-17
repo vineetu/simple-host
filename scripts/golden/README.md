@@ -744,3 +744,23 @@ here (owner)`), the converted twin's does not. That and the two sentences of
 `for_requires_own` are the approved wording differences. The service test pins
 both exactly, fails on any other message difference, and counts them in its
 summary line (`refusal_wording_approved`).
+
+### Optional Static replay (D4-S4a)
+
+Add `--via-static` to `run.mjs` to start the matching binary's `static` command
+beside each disposable API. Virtual site-host requests and the front's internal
+page hand-offs pass through Static, preserving their original Host. Other API
+requests and seeding retain their direct transport, including the name-peer
+route whose guard intentionally refuses forwarded requests.
+Compare with a direct recording of the same candidate. This covers public and
+unlisted Host-style pages on both products; access-marked requests currently
+hand over to the API (local protected gates are D4-S4b).
+Use `GOLDEN_PG_URL="$TEST_PG_URL"` to select the disposable server explicitly.
+
+When comparing the deployed reference with D4-S4a, select `--slice D4-S4a`.
+Its approvals cover only the five required `STATIC_*` entries added to
+`admin-settings` on each product and the resulting array shifts. The added
+lines are pinned exactly, with separate structural pins for JSON-like default
+and allowed strings as required by the comparator. Removing those five entries
+from the candidate listing reproduces the reference listing unchanged.
+The candidate's direct-versus-Static comparison uses no approvals.

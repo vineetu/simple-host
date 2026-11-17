@@ -196,13 +196,13 @@ function freePort() {
   });
 }
 
-function spawnServer(binary, env) {
+function spawnServer(binary, env, args = []) {
   // DATA_DIR, DB_DSN etc. are passed explicitly below; the child gets
   // nothing else from this process's environment except PATH (it never
   // execs another program itself, but Go's runtime wants PATH to resolve
   // its own binary name in error messages).
   ensureActive();
-  const child = spawn(binary, [], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(binary, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
   child.on('error', err => { child.spawnError = err; });
   const chunks = [];
   child.stdout.on('data', (d) => chunks.push(d));
@@ -266,7 +266,7 @@ async function waitWorkers(baseURL, adminKey) {
 
 // Each instance migrates with its own binary and gets an isolated database,
 // local listener, clean environment and temporary data directory.
-async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, exact, addCleanup, mail }) {
+async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, exact, addCleanup, mail, viaStatic }) {
   ensureActive();
   const dbName = `golden_${tag}_${process.pid}_${crypto.randomBytes(4).toString('hex')}`;
   const adminDBURL = databaseURL(pgAdminURL, 'postgres');
@@ -277,7 +277,7 @@ async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, 
   addCleanup(() => dropDatabaseQuiet(adminDBURL, dbName));
   psql(adminDBURL, `CREATE DATABASE "${dbName}"`);
   psql(adminDBURL, `ALTER DATABASE "${dbName}" SET timezone TO 'UTC'`);
-  let dataDir;
+  let dataDir, staticChild, staticStateDir;
   try {
     const dbURL = databaseURL(pgAdminURL, dbName);
     if (psql(dbURL, 'SHOW timezone') !== 'UTC') throw new Error('disposable database timezone is not UTC');
@@ -306,6 +306,7 @@ async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, 
       PUBLIC_BASE_URL: baseURL,
       PORT: String(port),
       BIND_ADDR: '127.0.0.1',
+      TRUSTED_PROXY_CIDRS: '127.0.0.0/8',
       PASSCODE_ENC_KEY: passcodeEncKey,
       ...mail.env,
       // Both default to off (the shared path model); turned on here,
@@ -334,6 +335,31 @@ async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, 
 
     if (process.env.GOLDEN_TEST_DELAY_MS) await sleep(Number(process.env.GOLDEN_TEST_DELAY_MS));
     let observationCount = await waitWorkers(baseURL, adminKey);
+    let staticURL;
+    if (viaStatic) {
+      const staticPort = await freePort();
+      staticURL = `http://127.0.0.1:${staticPort}`;
+      staticStateDir = mkdtempSync(path.join(tmpdir(), `golden-static-${tag}-`));
+      addCleanup(() => rmSync(staticStateDir, { recursive: true, force: true }));
+      const runningStatic = spawnServer(binary, {
+        ...env, STATIC_BIND: '127.0.0.1', STATIC_PORT: String(staticPort),
+        STATIC_API_URL: baseURL, STATIC_STATE_DIR: staticStateDir, STATIC_REFRESH_SECONDS: '1',
+      }, ['static']);
+      staticChild = runningStatic.child;
+      const staticLog = runningStatic.log;
+      addCleanup(() => stopServer(staticChild, true));
+      const deadline = Date.now() + 10000;
+      for (;;) {
+        try {
+          const response = await fetch(staticURL + '/internal/tls-ask?domain=' + env.SITE_DOMAIN,
+            { signal: AbortSignal.timeout(1000) });
+          if (response.status === 200) break;
+        } catch {}
+        if (staticChild.exitCode !== null || Date.now() > deadline) throw new Error('Static did not load its routing copy: ' + staticLog());
+        await sleep(25);
+      }
+    }
+
 
     exact.set(baseURL, namer.placeholderFor('base', baseURL));
     // The hack landing page's illustration also writes the bare host:port
@@ -368,7 +394,7 @@ async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, 
         await mail.quiet();
       },
       async stopProducer() { await stopServer(child); },
-      baseURL,
+      baseURL, staticURL,
       adminKey,
       exact, namer, binary, dbURL, env: serverEnv,
       async screens(value) {
@@ -377,6 +403,8 @@ async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, 
         await restart();
       },
       async stop() {
+        if (staticChild) await stopServer(staticChild, true);
+        if (staticStateDir) rmSync(staticStateDir, { recursive: true, force: true });
         await stopServer(child, true);
         mail.close();
         rmSync(dataDir, { recursive: true, force: true });
@@ -387,6 +415,8 @@ async function bootInstance({ binary, pgAdminURL, extraEnv, hosted, tag, namer, 
     // The addCleanup entries above fire on a signal, not on a normal thrown
     // error -- a synchronous boot failure here needs its own cleanup of
     // whatever got created before the failure (dataDir may not exist yet).
+    if (staticChild) await stopServer(staticChild, true);
+    if (staticStateDir) rmSync(staticStateDir, { recursive: true, force: true });
     if (dataDir) rmSync(dataDir, { recursive: true, force: true });
     dropDatabaseQuiet(adminDBURL, dbName);
     throw err;
@@ -440,6 +470,11 @@ function call(instance, calls, usedNames) {
     reserveName(usedNames, fullName);
 
     const headers = { ...opts.headers };
+    // Static's replay covers virtual site hosts and front page hand-offs.
+    // The loopback-only name-peer route must retain its direct transport.
+    const pageHandoff = /^\/internal\/(?:tls-ask|notfound|offline|suspended|passcode|family|site-redirect|domain-redirect)(?:[/?]|$)/.test(pathAndQuery);
+    const throughStatic = instance.staticURL && (opts.headers?.Host || pageHandoff);
+    if (throughStatic && !headers.Host) headers.Host = new URL(instance.baseURL).host;
     if (opts.apiKey) headers['X-API-Key'] = opts.apiKey;
     let payload;
     if (opts.raw !== undefined) {
@@ -452,7 +487,7 @@ function call(instance, calls, usedNames) {
     const requestStarted = Date.now();
     let res, rawBody;
     try {
-    res = await (opts.headers?.Host ? fetchWithHost : fetch)(instance.baseURL + pathAndQuery, {
+    res = await (headers.Host ? fetchWithHost : fetch)((throughStatic ? instance.staticURL : instance.baseURL) + pathAndQuery, {
       method,
       headers,
       body: payload,
@@ -1482,6 +1517,7 @@ async function main() {
   }
   while (args.length) {
     const flag = args.shift();
+    if (flag === '--via-static') { flags[flag] = true; continue; }
     if (!['--host','--hack','--out','--scenario','--skip-scenario','--skip-request'].includes(flag) || !args.length || flags[flag]) usage('invalid arguments');
     flags[flag] = args.shift();
   }
@@ -1512,7 +1548,7 @@ async function main() {
     const instance = await bootInstance({
       binary: path.resolve(flags[product === 'hack' && flags['--hack'] ? '--hack' : '--host']),
       pgAdminURL, extraEnv: config.env?.[product] || {}, hosted: product === 'hack',
-      tag: product, namer, exact, addCleanup, mail: mailSinks.get(`${product}/${scenario}`),
+      tag: product, namer, exact, addCleanup, viaStatic: flags['--via-static'], mail: mailSinks.get(`${product}/${scenario}`),
     });
     const stem = scenario === 'base' ? product : `${product}.${scenario}`;
     try {

@@ -389,6 +389,10 @@ func (h *SiteHandler) siteGateMarkers(w http.ResponseWriter, r *http.Request, ro
 	if !access {
 		return false
 	}
+	if h.staticAPI != nil {
+		h.staticAPI.ServeHTTP(w, r)
+		return true
+	}
 	row, err := h.siteProtectionRow(r, root, userID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -706,6 +710,12 @@ func (h *SiteHandler) passcodeGateHTML(host, next, msg string) string {
 // hand-made vhost the app does not know — gets the protected page with no
 // form: closed, never the file.
 func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request) {
+	if h.staticAPI != nil {
+		// The API needs the internal route on ordinary custom domains too.
+		// Forward before withVisitorPath removes the web server's rewrite.
+		h.staticAPI.ServeHTTP(w, r)
+		return
+	}
 	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
 	host := requestHostName(r)
 	if h.sharedHost(host) {

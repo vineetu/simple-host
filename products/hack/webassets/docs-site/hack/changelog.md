@@ -4,6 +4,8 @@
 
 - **Nov 17:** Kubernetes has charts for both Simple Host and Simple Hack, each starting its own program. Both refuse extra replicas and rolling upgrades, take their pins from the shared versions file, and include a rehearsal that keeps the claim and saved SQLite data across a Helm upgrade (D4-S8).
 
+- **Nov 17:** Add the optional Static page-server command, saved-copy startup, read-only serving and streamed API hand-over. It stays off in normal startup and deployment (D4-S4a).
+
 - **Nov 17:** Root Compose runs the platform without the old product selector and defines an off-by-default Static profile. Installer rehearsals for Host and Hack now check sign-in, publishing, restart persistence and older Compose files with locally built images (D4-S7b).
 
 - **Nov 16:** Correct the saved-data moving guide: preserve Personal exports until a suitable migration is agreed, enforce one submission per visitor with a unique index, retain shared-state visitor writes, and show the hosted deadline only on hosted installs (R4-S3b review).

@@ -2,7 +2,7 @@
 
 D4-B1 preserves the single-process page path. The production server uses
 `postgresFacts`, which delegates to the existing services with the same query
-order. `copyFacts` and `host/static` are dormant; neither program starts Static.
+order. `copyFacts` is also used by the optional `static` subcommand. Neither normal program startup nor the deployment recipes start Static.
 
 ## Recorded baseline
 
@@ -116,7 +116,9 @@ to 404. Existing-address lookups do not consult PostgreSQL for routing. Targeted
 lookups do not extend the full snapshot's age. The API-change fixture exercises
 publish, rename, delete, claim and release through the API, immediate targeted
 lookups, and the result after one full refresh. A newly live family also resolves
-before the next full load.
+before the next full load. Product TLS misses use one product-owned targeted
+read, including a new group with no website; group and team address facts are
+merged into the copy alongside the platform address facts.
 
 `routing.json` under the supplied state directory contains format version 1,
 product, install identity, transaction start time and SHA-256 of its JSON body.
@@ -127,6 +129,37 @@ files older than seven days before exposing a table. Identity is read only from
 identity means no saved copy is read or written; a successful database load can
 still provide the first in-memory copy. No API startup code writes identity here.
 
-Static's listener, settings registry, read-only disk opener, proxy, process
-shutdown and protected-site hand-over remain D4-S4a/D4-S4b work. Nothing here
-changes the production front door or installs a background reloader.
+## Optional Static process (D4-S4a)
+
+`simple-host static` (or `simple-hack static` for the product's routing facts)
+starts a separate listener. `STATIC_BIND` defaults to `127.0.0.1`, `STATIC_PORT`
+to `8091`, `STATIC_API_URL` to `http://127.0.0.1:8090`, and
+`STATIC_REFRESH_SECONDS` to ten seconds. `STATIC_STATE_DIR` defaults to
+`static-state` beside `DATA_DIR`. Use the API's address settings, database and
+existing data directory. A valid saved copy lets public pages start with no
+database; without any copy, page requests return 503 with Retry-After. A missing
+address gets one 300 ms lookup and never a guessed folder.
+
+Static opens the existing data directory without creating it or cleaning old
+markers. It takes the existing `.maintenance.lock` shared and read-only: the API
+or installer must have created that file first. It never creates `.install-id`.
+Only its routing snapshot is written; no workers, metrics collector, migrations,
+product Wire function or user-data writes run. A product contributes only its
+read-only routing loader through `Extension.LoadRoutingFacts`.
+
+The existing page handlers serve public and unlisted pages and the front's
+`/internal/*` page hand-offs. Offline and take-down markers still run before any
+file read. Access-marked pages are forwarded whole to the API for now; running
+passcode gates locally belongs to D4-S4b. API routes, sign-in, previews,
+showcases and person roots without a home also go to the API. An unavailable API
+answers 503. Requests and responses stream, including imports. Original Host is
+preserved, X-Forwarded-Host is removed, and forwarding uses the existing trusted
+client-address rule. Forwarded protocol is accepted only from a configured
+trusted front; otherwise Static uses its incoming transport scheme. The API
+must trust Static's address in `TRUSTED_PROXY_CIDRS`.
+
+SIGTERM stops acceptance, drains HTTP for at most ten seconds, cancels and joins
+the reloader, and exits successfully. Static remains off in all normal startup
+and deployment paths; switching the production front door requires its later
+approval. The golden harness's `--via-static` option replays through the extra
+hop without changing virtual hosts.

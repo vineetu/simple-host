@@ -47,10 +47,12 @@ func Extension() *extension.Extension {
 	var productConfig productconfig.Config
 	catalog := hackdb.Catalog()
 	return &extension.Extension{
-		Name:            "simple-hack",
-		ValidateProduct: validateInstallProduct,
-		Migrations:      &catalog,
-		MigrationOrder:  hackmigrations.ProductOrder,
+		Name:                    "simple-hack",
+		LoadRoutingFacts:        hackevents.LoadRoutingFacts,
+		LookupGroupRoutingFacts: hackevents.LookupRoutingFacts,
+		ValidateProduct:         validateInstallProduct,
+		Migrations:              &catalog,
+		MigrationOrder:          hackmigrations.ProductOrder,
 		StorageNoticeGroup: func(ctx context.Context, db *sql.DB, account string) (string, error) {
 			return (NotificationGroups{}).GroupLabel(ctx, db, account)
 		},

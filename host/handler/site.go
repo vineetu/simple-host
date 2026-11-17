@@ -56,6 +56,7 @@ func init() {
 }
 
 type SiteHandler struct {
+	staticAPI       http.Handler
 	routingFacts    SiteFacts
 	sitemaps        sitemapCache
 	sitemapFilter   sites.SitemapFilter

@@ -28,6 +28,9 @@ type AssetServices interface {
 // ProductAssetHooks are reverse calls from shared asset code. Nil keeps the platform default.
 type ProductAssetHooks struct {
 	InstanceText func([]byte) []byte
+	// GroupTexts supplies page wording without installing group services,
+	// including in the read-only Static process.
+	GroupTexts func() GroupTexts
 	// RewritePluginZip is declared by the contract and not read by the
 	// platform: the product's own archive routes call it directly.
 	RewritePluginZip         func([]byte) ([]byte, error)
