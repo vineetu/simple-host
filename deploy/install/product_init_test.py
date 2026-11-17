@@ -117,7 +117,7 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
         with database() as url:
             env['DB_DSN'] = url
             if existing:
-                sql(url, (ROOT / 'db/schema.sql').read_text())
+                sql(url, (ROOT / 'host/db/schema.sql').read_text())
                 if MODE in ('hack', 'chart'):
                     sql(url, (ROOT / 'products/hack/db/schema.sql').read_text())
                 # An older install has tables but no product record.
@@ -144,7 +144,7 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                 with database() as url:
                     env['DB_DSN'] = url
                     if existing:
-                        sql(url, (ROOT / 'db/schema.sql').read_text())
+                        sql(url, (ROOT / 'host/db/schema.sql').read_text())
                         sql(url, 'DROP TABLE install_product')
                     for _ in range(2):
                         run(hook, env=env)
@@ -157,7 +157,7 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
         for existing in (False, True):
             with database() as url:
                 if existing:
-                    sql(url, (ROOT / 'db/schema.sql').read_text())
+                    sql(url, (ROOT / 'host/db/schema.sql').read_text())
                     sql(url, (ROOT / 'products/hack/db/schema.sql').read_text())
                     sql(url, 'DROP TABLE install_product')
                 setup_env = dict(env, dsn=url, SIMPLE_HOST=str(work / 'simple-hack'))
@@ -217,7 +217,7 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                     for existing in (False, True):
                         with database() as url:
                             if existing:
-                                sql(url, (ROOT / 'db/schema.sql').read_text())
+                                sql(url, (ROOT / 'host/db/schema.sql').read_text())
                                 if MODE == 'hack':
                                     sql(url, (ROOT / 'products/hack/db/schema.sql').read_text())
                                 sql(url, 'DROP TABLE install_product')

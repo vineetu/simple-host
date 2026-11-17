@@ -39,13 +39,13 @@ async function person(role, variant, worker = 0) {
  const page = await context.newPage()
  const session = {context,page,at:key}
  page.on('pageerror', e => errors.push({variant, at:session.at, message:e.message}))
- const root = variant === 'before' ? path.join(process.env.REFLOW_BEFORE, 'internal/webassets/static') : 'internal/webassets/static'
+ const root = variant === 'before' ? path.join(process.env.REFLOW_BEFORE, 'host/webassets/static') : 'host/webassets/static'
  await page.route('**/hack/**', async route => {
   const pathname = new URL(route.request().url()).pathname
   const file = path.join(root, pathname)
   // API calls (/v1/hack/...) and assets outside the source tree go to the fixture.
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
-   const current = path.join('internal/webassets/static', pathname)
+   const current = path.join('host/webassets/static', pathname)
    if (variant === 'before' && pathname.startsWith('/hack/') && fs.existsSync(current) && fs.statSync(current).isFile()) {
     errors.push({variant,at:session.at,message:`Baseline asset missing: ${file}`,fatal:true})
     return route.abort()

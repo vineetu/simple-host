@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// db/migrations/zt-hack-teams-redesign.sql backfill, re-exercised directly:
+// host/db/migrations/zt-hack-teams-redesign.sql backfill, re-exercised directly:
 // admin backfill (creator-still-on-team, and the fallback to the earliest
 // joiner), the team size raise (both directions), locking a team already
 // kept_after_leave, and the CHECK constraint the backfill must never

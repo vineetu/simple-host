@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // hackAppFiles holds Simple Hack's own screen files. The bridge every screen
@@ -48,7 +48,7 @@ func hackApps(ctx mcp.AppContext) mcp.AppContribution {
 }
 
 // Simple Hack's own MCP Apps, extending the tool server's machinery
-// (internal/mcp's apps.go and clientui.go) rather than duplicating it: the
+// (host/mcp's apps.go and clientui.go) rather than duplicating it: the
 // same screen shape (mcp.AppScreen), the same per-connection flag format
 // (mcp.AppFlag: "on" or "accounts:a,b"), the same shared bridge.js, and the
 // server's own memory of whether a connection declared MCP Apps UI support.

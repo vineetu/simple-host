@@ -1,4 +1,4 @@
-> **Status: Superseded (2026-09-05)** — by the INTENT non-goal that pages are always public; the only private data is private collections (`internal/handler/privatecollections.go`). Since 2026-09-29 a whole site may also carry one shared passcode (`internal/handler/passcode.go`), which is not encryption.
+> **Status: Superseded (2026-09-05)** — by the INTENT non-goal that pages are always public; the only private data is private collections (`host/handler/privatecollections.go`). Since 2026-09-29 a whole site may also carry one shared passcode (`host/handler/passcode.go`), which is not encryption.
 
 # Design: Encrypting user files in simple-host ("only they can read them")
 
@@ -6,7 +6,7 @@ Status: Draft / proposal
 Author: hosting ops
 Date: 2026-06-25
 Scope: `github.com/vineetu/simple-host` (binary at `cmd/server`, storage in
-`internal/storage/disk.go`, upload/serve in `internal/handler/site.go`)
+`host/storage/disk.go`, upload/serve in `host/handler/site.go`)
 
 ---
 
@@ -103,14 +103,14 @@ for the public-serving case. It is only true for Option A sites.
 
 ## 4. Current state (grounded in the code)
 
-- **Plaintext on disk, world-readable mode.** `internal/storage/disk.go`
+- **Plaintext on disk, world-readable mode.** `host/storage/disk.go`
   `WriteFiles` does `os.WriteFile(dstPath, content, 0o644)` into
   `<DATA_DIR>/<site>/.v<n>.tmp` then renames to `v<n>`; `UpdateCurrent` does
   `copyDir(versionDir, currentDir)` into `…/current/`. No encryption anywhere.
-- **Server inspects every upload.** `internal/handler/site.go`
-  `readAndValidateFiles` calls `tarball.Extract` (`internal/tarball/extract.go`)
+- **Server inspects every upload.** `host/handler/site.go`
+  `readAndValidateFiles` calls `tarball.Extract` (`host/tarball/extract.go`)
   to fully decompress into a `map[string][]byte`, then `tarball.ValidateExtensions`
-  (`internal/tarball/validate.go`) blocks `.sh/.py/.go/...`. This only works
+  (`host/tarball/validate.go`) blocks `.sh/.py/.go/...`. This only works
   because the server sees plaintext — **it cannot run on ciphertext** (relevant
   to Option A, §6).
 - **Public serving is NOT in this Go binary.** Grep confirms the binary has no
@@ -122,10 +122,10 @@ for the public-serving case. It is only true for Option A sites.
   encrypting *cold/non-current* versions, or (b2) moving public serving **into**
   the Go binary so it can decrypt in a `ServeHTTP` hook. This is the single
   biggest implementation decision for B; see §7 and §11.
-- **Postgres schema** (`README.md`, `internal/db/models.go`): `users`, `sites`,
+- **Postgres schema** (`README.md`, `host/db/models.go`): `users`, `sites`,
   `versions`, `auth_tokens`. `sites` has `state jsonb`. No crypto columns,
   no per-user keypair, no public keys.
-- **Auth** is an `X-API-Key` header (`internal/auth`); the admin key short-circuits
+- **Auth** is an `X-API-Key` header (`host/auth`); the admin key short-circuits
   to a synthetic admin. No notion yet of "owner-only viewing" for the rendered
   site — all rendered sites are public.
 
@@ -420,44 +420,44 @@ Encrypting file *content* leaves a lot visible. Be upfront:
 ## 11. Code integration points (real files & functions)
 
 **Option B (server-side envelope), B2 variant:**
-- `internal/config`: add `FILE_ENCRYPTION_KEY` (base64 KEK) + `kek_id`. Required
+- `host/config`: add `FILE_ENCRYPTION_KEY` (base64 KEK) + `kek_id`. Required
   only when any site has `encryption='at_rest'`.
-- New `internal/crypto` package: `WrapDEK/UnwrapDEK`, `EncryptFile/DecryptFile`
+- New `host/crypto` package: `WrapDEK/UnwrapDEK`, `EncryptFile/DecryptFile`
   (AES-256-GCM via `crypto/aes`+`cipher.NewGCM`), nonce handling, AAD = rel path.
-- `internal/storage/disk.go` `WriteFiles`: the single write point. Today:
+- `host/storage/disk.go` `WriteFiles`: the single write point. Today:
   `os.WriteFile(dstPath, content, 0o644)`. Change to: fetch/generate the site DEK,
   `content = crypto.EncryptFile(dek, relPath, content)`, write ciphertext (and
   tighten mode to `0o600`). `UpdateCurrent`/`copyDir` copy ciphertext unchanged
   (they're content-blind already).
-- **New serve handler** in `internal/handler` + a `mux.Handle("GET /sites/{site}/",
+- **New serve handler** in `host/handler` + a `mux.Handle("GET /sites/{site}/",
   …)` in `cmd/server/main.go`: read the on-disk ciphertext, unwrap DEK with KEK,
   `crypto.DecryptFile`, stream plaintext with correct `Content-Type`. Point the
   external proxy at the binary instead of the raw directory. This is the change
   that lets us encrypt `current/` without breaking public sites.
-- `internal/db`: store/load `wrapped_dek`, `dek_nonce`, `kek_id` on the `sites`
+- `host/db`: store/load `wrapped_dek`, `dek_nonce`, `kek_id` on the `sites`
   row (new columns, §9). `CreateSite`/`GetSite` extended.
 
 **Option A (zero-knowledge):**
-- `internal/handler/site.go` `createSite`/`updateSite`/`readAndValidateFiles`:
+- `host/handler/site.go` `createSite`/`updateSite`/`readAndValidateFiles`:
   branch on the site's `encryption` type. For `private`, **do not** call
   `tarball.Extract` or `tarball.ValidateExtensions`; read the raw body (still
   `MaxBytesReader`) and hand it to a new `DiskStorage.WriteBlob`.
-- `internal/storage/disk.go`: add `WriteBlob(ctx, site, version, io.Reader)` that
+- `host/storage/disk.go`: add `WriteBlob(ctx, site, version, io.Reader)` that
   streams the opaque ciphertext to `v<n>/blob.bin` + writes `manifest.json`. No
   per-file map, no extension logic.
 - New unlock route: `mux.Handle("GET /sites/{site}/", unlockHandler)` for
   `private` sites serves the embedded, static **bootstrap page** (add it under
-  `internal/handler/static/`, embedded like the existing admin UI) plus an
+  `host/handler/static/`, embedded like the existing admin UI) plus an
   endpoint that streams the ciphertext blob + manifest. The bootstrap page bundles
   WebCrypto/libsodium.js + the decrypt logic.
-- `internal/db`: `kdf_salt`, `kdf_params`, `wrapped_content_key` on `sites`;
+- `host/db`: `kdf_salt`, `kdf_params`, `wrapped_content_key` on `sites`;
   `site_shares` table; `users.public_key`, `users.wrapped_secret_key` (§9). New
-  query funcs alongside the existing `internal/db/queries.go` style.
+  query funcs alongside the existing `host/db/queries.go` style.
 - `cmd/server/main.go`: wire the new serve/unlock routes onto the single
   `http.ServeMux` (one `mux.Handle` line each, per the repo's routing convention).
 
 **Both:** the create API gains an `encryption` field (header or query param), and
-the admin UI (`internal/handler/static/index.html`, embedded — rebuild required)
+the admin UI (`host/handler/static/index.html`, embedded — rebuild required)
 gains a site-type selector and a clear label of the guarantee.
 
 ---

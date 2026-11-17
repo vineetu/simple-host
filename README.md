@@ -122,7 +122,7 @@ On a company's Kubernetes cluster, run Simple Host Enterprise instead; https://s
 
 ```bash
 docker run -d --name simple-host-postgres -p 5432:5432 -e POSTGRES_USER=simplehost -e POSTGRES_PASSWORD=simplehost -e POSTGRES_DB=simplehost postgres:16-alpine
-docker exec -i simple-host-postgres psql -U simplehost -d simplehost < db/schema.sql
+docker exec -i simple-host-postgres psql -U simplehost -d simplehost < host/db/schema.sql
 DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' DATA_DIR=./data/sites SITE_DOMAIN=localhost:8090 PUBLIC_BASE_URL=http://localhost:8090 ADMIN_API_KEY=$(openssl rand -hex 32) go run ./cmd/simple-host
 ```
 
@@ -166,7 +166,7 @@ Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contra
 - [CHANGELOG.md](CHANGELOG.md): what changed, newest first.
 - `make check`: format, build, vet, tests (including the DB-backed fixtures, against a
   disposable Postgres) and the doc-sync checks. `make test` is the fast no-DB loop.
-- Skills source: [`internal/webassets/simple-host-website/skills/`](internal/webassets/simple-host-website/skills/). The Claude plugin in [`plugins/simple-host/`](plugins/simple-host/) is a generated copy (`bash scripts/sync-claude-plugin.sh`).
+- Skills source: [`host/webassets/simple-host-website/skills/`](host/webassets/simple-host-website/skills/). The Claude plugin in [`plugins/simple-host/`](plugins/simple-host/) is a generated copy (`bash scripts/sync-claude-plugin.sh`).
 
 ## License
 

@@ -1,7 +1,7 @@
 // Package hackevents holds the pure Hack event rules: deterministic text and
 // code decisions with no SQL, HTTP, filesystem or provider calls, and no
 // ambient clock (docs/architecture/target.md §2). Moved out of
-// internal/handler/hack*.go in cleanup 3.2 slice 1c.
+// host/handler/hack*.go in cleanup 3.2 slice 1c.
 package hackevents
 
 import (

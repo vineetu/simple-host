@@ -9,10 +9,10 @@ export function title () { return 'Entry' }
 //
 // CONTRACT (coordinator decision, 2026-11-02 -- see participant-entry.js for
 // the full note): `status: "not_submitted"` on an entryListItem (read while
-// building this screen, internal/handler/hack_entries.go) is the Incomplete
+// building this screen, host/handler/hack_entries.go) is the Incomplete
 // case -- the deadline sweep settled it without ever submitting it, still
 // judged unless `excluded`. The server supplies the `incomplete` flag. Exclude
-// (any entry, not only an incomplete one, per internal/db/hack_entries.go's
+// (any entry, not only an incomplete one, per host/db/hack_entries.go's
 // own comment) and Include are confirmed landed at exactly
 //   POST /v1/hack/events/{slug}/teams/{team}/entry/exclude {}
 //   POST /v1/hack/events/{slug}/teams/{team}/entry/include {}
@@ -70,7 +70,7 @@ export async function render (ctx) {
     const missing = (e && e.missing) || []
     const giveMoreTime = `<a class="btn"${lockReason ? ' aria-disabled="true"' : ''} href="${esc(extendHref)}">Give more time</a>`
     if (!e) return `<div class="entry-status late"><div class="t"><b>No entry</b><span>This team hasn’t started one.</span></div>${giveMoreTime}</div>`
-    // Excluded is orthogonal to status (internal/db/hack_entries.go): an
+    // Excluded is orthogonal to status (host/db/hack_entries.go): an
     // organiser can exclude any entry, not only an incomplete one, so this
     // is checked first regardless of status.
     if (e.excluded) {

@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/server"
-	"github.com/vsriram/simple-host/internal/server/servertest"
+	"github.com/vsriram/simple-host/host/server"
+	"github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 

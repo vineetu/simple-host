@@ -100,7 +100,7 @@ func names(root string, allow []exception) ([]finding, []finding, error) {
 			}
 			// Historical SQL scripts are excluded, but migration Go source and
 			// tests belong in the runtime and test inventories respectively.
-			if dir := filepath.ToSlash(filepath.Dir(rel)); filepath.Ext(path) == ".sql" && (dir == "db/migrations" || dir == "host/db/migrations") {
+			if dir := filepath.ToSlash(filepath.Dir(rel)); filepath.Ext(path) == ".sql" && dir == "host/db/migrations" {
 				return nil
 			}
 			dest := &runtime

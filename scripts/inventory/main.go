@@ -18,8 +18,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/mcp"
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/host/mcp"
+	"github.com/vsriram/simple-host/host/webassets"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 )
 
@@ -198,7 +198,7 @@ func muxReceiver(e ast.Expr) bool {
 func scanRoutes(root string, table dynamicTable) ([]route, error) {
 	var routes []route
 	seen := map[string]int{}
-	for _, dir := range []string{"cmd", "internal", "products"} {
+	for _, dir := range []string{"cmd", "host", "products"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				if path == filepath.Join(root, dir) && os.IsNotExist(err) {
@@ -498,7 +498,7 @@ func writeToolsJSON(edition string) error {
 // writeOpenAPIJSON prints the edition's public API contract, exactly as the
 // server filters it for /openapi.json.
 func writeOpenAPIJSON(edition string) error {
-	path := "internal/webassets/static/openapi.json"
+	path := "host/webassets/static/openapi.json"
 	if edition == "hack" {
 		path = "products/hack/webassets/static/openapi.json"
 	}

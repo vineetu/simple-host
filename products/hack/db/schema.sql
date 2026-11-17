@@ -1,4 +1,4 @@
--- Hack schema: load after db/schema.sql.
+-- Hack schema: load after host/db/schema.sql.
 -- The unused legacy column is retained so schema-built and migration-built
 -- Hack databases agree; selected teams are read from hack_grant_teams.
 ALTER TABLE oauth_grants ADD COLUMN IF NOT EXISTS selected_team_id UUID;
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS event_create_log (
 CREATE INDEX IF NOT EXISTS event_create_log_user_idx ON event_create_log (user_id, created_at);
 
 -- simple-hack.app M2: team sites, member keys, entries, the submission deadline
--- (db/migrations/hack2-team-sites.sql).
+-- (host/db/migrations/hack2-team-sites.sql).
 
 -- The organiser's entry settings and the public gallery switch.
 --   entry_required: which entry fields a complete entry must have, any of
@@ -227,7 +227,7 @@ UNION
 SELECT e.slug, t.slug FROM events e JOIN event_teams t ON t.event_id = e.id
 ON CONFLICT DO NOTHING;
 
--- simple-hack.app M3: judging (db/migrations/hack3-judging.sql).
+-- simple-hack.app M3: judging (host/db/migrations/hack3-judging.sql).
 -- Weights sum to 100 in Go, not here. A conflict removes that judge from
 -- totals even when score rows remain. event_results.snapshot is the ranking
 -- at publish time; full_ranking only changes what the public results route shows.
@@ -469,7 +469,7 @@ CREATE OR REPLACE TRIGGER hack_members_clear_former_judge
 ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS kept_after_leave boolean NOT NULL DEFAULT false;
 
 -- Teams redesign (owner 2026-10-31): team admins, locking, team size 20
--- (db/migrations/zt-hack-teams-redesign.sql backfills an existing database;
+-- (host/db/migrations/zt-hack-teams-redesign.sql backfills an existing database;
 -- a fresh install has no rows to backfill).
 ALTER TABLE event_members ADD COLUMN IF NOT EXISTS team_admin boolean NOT NULL DEFAULT false;
 ALTER TABLE event_members ADD COLUMN IF NOT EXISTS team_joined_at timestamptz;
@@ -507,7 +507,7 @@ CREATE OR REPLACE TRIGGER event_members_team_admin_follows_team
 COMMENT ON COLUMN event_teams.open IS 'Deprecated 2026-10-31, unused. Drop after the teams redesign settles.';
 
 -- Notify people when something waits on them (2026-11-02, audit item 7;
--- mirrors db/migrations/zw-hack-wait-notices.sql).
+-- mirrors host/db/migrations/zw-hack-wait-notices.sql).
 -- One row per person per thing that happened: a join request for a team's
 -- admins, an invite, an application for the organisers, a decision, a site
 -- take-down or restore, a deadline change, being made team admin, a team
@@ -594,7 +594,7 @@ CREATE TABLE IF NOT EXISTS event_team_messages (
 CREATE INDEX IF NOT EXISTS event_team_messages_team_idx ON event_team_messages (team_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS event_team_messages_event_idx ON event_team_messages (event_id, created_at);
 
--- Entries and participant journey, slice 1 (db/migrations/zv-hack-entry-summary.sql):
+-- Entries and participant journey, slice 1 (host/db/migrations/zv-hack-entry-summary.sql):
 -- the summary card, explicit submit against per-event rules, and the settle
 -- sweep. entry_required stays, kept in sync, for one release (the deprecated
 -- PATCH .../events/{slug} entry_required key and older readers).
@@ -740,7 +740,7 @@ CREATE TABLE IF NOT EXISTS event_checklist_acknowledgements (
 ALTER TABLE events ADD COLUMN IF NOT EXISTS theme text NOT NULL DEFAULT ''
       CHECK (theme IN ('', 'poster', 'confetti', 'boardroom', 'garden', 'terminal'));
 
--- SIM-394: db/migrations/0012-hack-assistant-usage.sql.
+-- SIM-394: host/db/migrations/0012-hack-assistant-usage.sql.
 CREATE TABLE IF NOT EXISTS hack_assistant_usage (
     user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     day       DATE NOT NULL,

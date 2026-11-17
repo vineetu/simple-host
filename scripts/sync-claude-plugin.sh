@@ -5,11 +5,11 @@
 #
 # plugins/simple-host/ is the "Simple Host" plugin listed in the root
 # .claude-plugin/marketplace.json (skills + the remote connector). Its skills
-# are plain copies of internal/webassets/simple-host-website/skills — never edit them in place.
+# are plain copies of host/webassets/simple-host-website/skills — never edit them in place.
 # Copies, not symlinks: a plugin installed from the marketplace is copied into
 # the user's plugin cache, and symlinks leaving the plugin root are rejected.
 # The plugin version tracks the skills version in
-# internal/webassets/simple-host-website/.claude-plugin/plugin.json.
+# host/webassets/simple-host-website/.claude-plugin/plugin.json.
 #
 # scripts/check-claude-plugin.sh fails if either drifts.
 set -euo pipefail
@@ -20,7 +20,7 @@ rm -rf hack-toolkit/skills
 mkdir -p hack-toolkit
 cp -R products/hack/webassets/hack-toolkit/skills hack-toolkit/skills
 
-SRC=internal/webassets/simple-host-website/skills
+SRC=host/webassets/simple-host-website/skills
 DST=plugins/simple-host/skills
 SKILLS="website-deploy website-deploy-builder connect-domain"
 
@@ -30,7 +30,7 @@ for s in $SKILLS; do
   cp -R "$SRC/$s" "$DST/$s"
 done
 
-version=$(python3 -c 'import json; print(json.load(open("internal/webassets/simple-host-website/.claude-plugin/plugin.json"))["version"])')
+version=$(python3 -c 'import json; print(json.load(open("host/webassets/simple-host-website/.claude-plugin/plugin.json"))["version"])')
 python3 - "$version" <<'PY'
 import json, sys
 p = "plugins/simple-host/.claude-plugin/plugin.json"

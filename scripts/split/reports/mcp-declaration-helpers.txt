@@ -53,7 +53,7 @@ The remnant families_hack.go appends the app-only family (built from the
 contributed base tools, only for a contribution with the hack-events family)
 and supplies Apps until D3-S1c. It also holds the screens' copies of
 eventSlug, hackRestError and hackAbilitiesSchema, which leave with the screens.
-internal/mcp's in-package tests get the product from the external test file
+host/mcp's in-package tests get the product from the external test file
 hack_wire_test.go (transitional test edge mcp -> products/hack/mcp, D3-S1c).
 
 D3-S1c (screens moved to products/hack/mcp): families_hack.go is gone. The
@@ -70,5 +70,5 @@ were added for the product's tests: Call.WithUICapable and
 Server.AnalyticsCopy. The product embeds its own screen files and its event
 recipe (recipes/hack-event.md, both wordings); the shared bridge.js stays in
 the platform (AppFiles). The family constants for Hack left registry.go.
-internal/mcp's tests use a fixture product (product_fixture_test.go); the test
+host/mcp's tests use a fixture product (product_fixture_test.go); the test
 edge mcp -> products/hack/mcp is removed from [transitional].

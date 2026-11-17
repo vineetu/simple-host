@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -289,7 +289,7 @@ func TestHackWebsiteModeToolsOutputMatchesSchema(t *testing.T) {
 // tools use (storage_tools.go's storageToolsFor), and hack_get_page_recipe
 // shares its OutputSchema object directly with Host's own get_page_recipe
 // (already exhaustively checked by TestEveryToolResultMatchesItsOutputSchema
-// and TestOutputSchemasMatchRealResults in internal/handler) -- but SIM-384's
+// and TestOutputSchemasMatchRealResults in host/handler) -- but SIM-384's
 // review round asked for every one exercised and recorded, not a sample, so
 // every REST shape (resource, kv, sql, file, link) gets its own call here.
 func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {

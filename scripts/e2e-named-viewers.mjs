@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Browser proof for named viewers (who can open a site), on the fixture
-// TestServeVisitorRecordsBrowser writes (internal/handler/visitor_records_browser_test.go):
+// TestServeVisitorRecordsBrowser writes (host/handler/visitor_records_browser_test.go):
 //
 //   node scripts/e2e-named-viewers.mjs <fixture.json> publish
 //       publishes the site "family" (a page with a canary) as the fixture's owner.

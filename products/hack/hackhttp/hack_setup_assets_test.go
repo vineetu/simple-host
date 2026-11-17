@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/host/webassets"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 

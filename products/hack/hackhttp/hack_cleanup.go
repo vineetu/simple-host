@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/workers"
+	"github.com/vsriram/simple-host/host/workers"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 

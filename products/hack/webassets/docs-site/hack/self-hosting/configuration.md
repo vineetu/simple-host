@@ -1,6 +1,6 @@
 # Configuration
 
-The settings registry (`internal/config/settings.go`) lists the environment
+The settings registry (`host/config/settings.go`) lists the environment
 settings this binary reads, their defaults, allowed values and area. The single
 reference is [Advanced settings](/docs/self-hosting/settings.md); its tables are generated
 from the registry, with behavior notes and recipes beside them.

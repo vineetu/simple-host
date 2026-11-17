@@ -19,7 +19,7 @@ npm ci --prefix docs/site --no-audit --no-fund
 for brand in host hack; do
   python3 scripts/docs-site.py prepare "$brand"
   if [[ "$brand" == hack ]]; then rm -rf products/hack/webassets/docs-site/hack
-  else rm -rf internal/webassets/docs-site/host; fi
+  else rm -rf host/webassets/docs-site/host; fi
   (cd docs/site && BRAND="$brand" npm run build)
   python3 scripts/docs-site.py externalize "$brand"
 done

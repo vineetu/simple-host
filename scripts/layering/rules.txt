@@ -3,11 +3,11 @@
 # A !pattern excludes destinations from that row; other matching rows still apply.
 [final]
 # A product may import the platform and itself; no platform row may list a product.
-@/products/hack/** -> /** @/products/hack/** @/db @/db/migrations
-server -> /** !testdb !geoip/geoiptest !server/servertest @/db @/db/migrations
+@/products/hack/** -> /** @/products/hack/** @/host/db @/host/db/migrations
+server -> /** !testdb !geoip/geoiptest !server/servertest @/host/db @/host/db/migrations
 server -> extension
-@/db -> @/db/migrations
-extension -> @/db/migrations
+@/host/db -> @/host/db/migrations
+extension -> @/host/db/migrations
 extension -> config edition email handler mcp storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
 @/cmd/simple-host -> server brain
 @/cmd/simple-hack -> server extension brain @/products/hack
@@ -56,7 +56,7 @@ geoip -> workers
 wpimport -> redirects
 {llm,redirects} -> -
 # Permanent module-specific packages and command rows.
-@/scripts/split/sqlcheck -> @/db/migrations @/products/hack/db/migrations
+@/scripts/split/sqlcheck -> @/host/db/migrations @/products/hack/db/migrations
 @/cmd/analytics-rebuild -> analytics config
 @/cmd/ip-country-load -> -
 @/scripts/layering -> -

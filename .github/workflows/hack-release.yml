@@ -43,7 +43,7 @@ jobs:
           for script in 010-docker.sh 014-ufw-http.sh 900-cleanup.sh 950-final-cleanup.sh 999-img_check.sh; do
             cp "deploy/digitalocean/droplet/scripts/$script" "dist/$package/deploy/digitalocean/droplet/scripts/"
           done
-          cp db/schema.sql "dist/$package/db/"
+          cp host/db/schema.sql "dist/$package/db/"
           cp docs/platforms/simple-hack-*.md "dist/$package/docs/platforms/"
           mkdir -p "dist/$package/docs/platforms/assets"
           cp docs/platforms/assets/simple-hack-get-started.png "dist/$package/docs/platforms/assets/"

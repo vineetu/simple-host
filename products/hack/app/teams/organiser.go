@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
+	sqlkit "github.com/vsriram/simple-host/host/repository/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/lib/pq"
-	repo "github.com/vsriram/simple-host/internal/repository/sites"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	repo "github.com/vsriram/simple-host/host/repository/sites"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // FilterSitemapSites keeps only team sites that an organiser has not taken

@@ -3,7 +3,7 @@ package papermetrics
 import (
 	"context"
 	"fmt"
-	platform "github.com/vsriram/simple-host/internal/papermetrics"
+	platform "github.com/vsriram/simple-host/host/papermetrics"
 	"log"
 	"sort"
 	"strings"

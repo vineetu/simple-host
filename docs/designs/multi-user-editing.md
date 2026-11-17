@@ -1,4 +1,4 @@
-> **Status: Planned (2026-06-25)** — not built: sites still have one owner (`sites.user_id`), no collaborators table in `db/schema.sql`.
+> **Status: Planned (2026-06-25)** — not built: sites still have one owner (`sites.user_id`), no collaborators table in `host/db/schema.sql`.
 
 # Design: Multi-User Editing (Sharing & Collaboration)
 
@@ -61,33 +61,33 @@ Ownership is single-FK and the check is duplicated across every mutating handler
 
 - Schema: `sites.user_id UUID REFERENCES users(id) ON DELETE CASCADE`, one owner
   per site (`README.md` lines 64-72). `versions` has **no** uploader column
-  (`README.md` lines 73-81; `internal/db/models.go` lines 26-33).
+  (`README.md` lines 73-81; `host/db/models.go` lines 26-33).
 - The ownership check is literally "fetch the row scoped to this user_id":
   `db.GetSiteByUser(ctx, db, user.ID, name)` returns `sql.ErrNoRows` (→ 404) if
-  the caller doesn't own it (`internal/db/queries.go` lines 116-134). It is
+  the caller doesn't own it (`host/db/queries.go` lines 116-134). It is
   called in:
-  - `updateSite` — `internal/handler/site.go` line 306
+  - `updateSite` — `host/handler/site.go` line 306
   - `listVersions` — line 384
   - `setActiveVersion` — line 441
   - `deleteSite` — line 500
 - `createSite` writes `CreateSite(ctx, tx, user.ID, ...)` — owner is the caller
-  (`internal/handler/site.go` line 230; `queries.go` lines 70-93).
+  (`host/handler/site.go` line 230; `queries.go` lines 70-93).
 - `listSites` branches on `user.IsAdmin`: admins see `ListAllSites`, everyone else
-  sees `ListSitesByUser(user.ID)` (`internal/handler/site.go` lines 551-555;
+  sees `ListSitesByUser(user.ID)` (`host/handler/site.go` lines 551-555;
   `queries.go` lines 156-206). A non-admin can only ever list sites they own.
 - Admin short-circuit: `auth.Middleware` mints a synthetic `&db.User{ID:"admin",
   IsAdmin:true}` with **no DB row** when `X-API-Key == ADMIN_API_KEY`
-  (`internal/auth/middleware.go` lines 42-51). Any new join/FK on `user_id` must
+  (`host/auth/middleware.go` lines 42-51). Any new join/FK on `user_id` must
   never assume `"admin"` exists in `users`.
 - Auth is a single `X-API-Key` header resolved to a `*db.User` in request context
   via `auth.GetUser(ctx)` (`middleware.go` lines 53-85).
 - State routes (`/v1/sites/{site}/state`) are **origin-checked, not user-checked**
-  — they trust the subdomain, not the API key (`internal/handler/site.go` lines
+  — they trust the subdomain, not the API key (`host/handler/site.go` lines
   86-202). They are unaffected by this design and stay as-is.
 - Storage is whole-site atomic: `WriteFiles` stages to `.vN.tmp` then renames;
-  `UpdateCurrent` copies `vN` → `current` (`internal/storage/disk.go` lines
+  `UpdateCurrent` copies `vN` → `current` (`host/storage/disk.go` lines
   29-90). Versions are append-only; `version_number = MAX + 1`
-  (`internal/handler/site.go` lines 324-330).
+  (`host/handler/site.go` lines 324-330).
 
 The takeaway: there is exactly **one** authorization predicate in the codebase
 (`user_id == caller`), expressed five times via `GetSiteByUser` and once via the
@@ -128,7 +128,7 @@ and "let them run the site".
 2. If a `users` row exists for that email, insert the grant immediately (the
    invitee already has an API key from a prior sign-in).
 3. If not, insert a `users` row up-front (exactly as `requestSignIn` already does
-   at `internal/handler/user.go` lines 98-115) and create the grant against that
+   at `host/handler/user.go` lines 98-115) and create the grant against that
    user id. The invitee gets access the moment they complete their first
    magic-link sign-in for that email — their API key is minted lazily on verify.
    Optionally fire an invite email via the existing `email.Sender`.
@@ -178,7 +178,7 @@ call sites with **one** capability check. Define a role ordering and a single
 least the needed role — folding in the admin short-circuit and the primary-owner
 case.
 
-New query (`internal/db/queries.go`):
+New query (`host/db/queries.go`):
 
 ```go
 // GetEffectiveRole returns the caller's role on a site by NAME, considering both
@@ -211,7 +211,7 @@ func GetEffectiveRole(ctx context.Context, db *sql.DB, userID, siteName string) 
 }
 ```
 
-Authorization helper (new `internal/auth/authz.go`, or a method on `SiteHandler`):
+Authorization helper (new `host/auth/authz.go`, or a method on `SiteHandler`):
 
 ```go
 // roleRank orders capabilities. Higher = more power.
@@ -243,7 +243,7 @@ func (h *SiteHandler) authorizeSite(ctx context.Context, user *db.User, name, ne
 ```
 
 Handler call sites then collapse. For example `updateSite`
-(`internal/handler/site.go` line 306) changes from:
+(`host/handler/site.go` line 306) changes from:
 
 ```go
 site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
@@ -281,14 +281,14 @@ WHERE s.user_id = $1 OR c.user_id = $1
 ORDER BY s.created_at ASC, s.name ASC;
 ```
 
-Add `my_role` to `siteResponse` (`internal/handler/site.go` lines 33-43) so the
+Add `my_role` to `siteResponse` (`host/handler/site.go` lines 33-43) so the
 UI can render a badge and hide controls the caller can't use. The `IsAdmin`
 branch (`ListAllSites`) is untouched.
 
 ### 3. Concurrent edit safety
 
 The artifact is a whole-site tarball extracted atomically (`disk.WriteFiles`
-stages then renames — `internal/storage/disk.go` lines 29-74). There is no
+stages then renames — `host/storage/disk.go` lines 29-74). There is no
 sub-document merge to do; the only hazard is **lost update**: editor A and editor
 B both `GET` the site at v5, both build locally, both `PUT`. Today the second PUT
 just becomes v6 and silently wins, and A never learns their work was based on a
@@ -318,7 +318,7 @@ Concretely:
   supports it.
 
 **Make the version bump atomic.** Today `GetMaxVersionNumber` then
-`CreateVersion(max+1)` runs inside a tx (`internal/handler/site.go` lines
+`CreateVersion(max+1)` runs inside a tx (`host/handler/site.go` lines
 317-359), but two concurrent uploads can both read `max=5` and race on
 `INSERT ... version_number=6`. The `UNIQUE(site_id, version_number)` constraint
 (`README.md` line 81) already prevents a double-6 — the loser gets a unique
@@ -356,10 +356,10 @@ ALTER TABLE versions
   cascade-delete history, and so the synthetic admin (no `users` row) can write
   `NULL` (handler special-cases `user.ID == "admin"` → `NULL`, same as
   `invited_by`).
-- Wire it through `CreateVersion` (`internal/db/queries.go` lines 351-368): add a
+- Wire it through `CreateVersion` (`host/db/queries.go` lines 351-368): add a
   `createdBy *string` param. `updateSite`/`createSite` pass `user.ID` (or `nil`
   for admin).
-- Surface it: extend `versionResponse` (`internal/handler/site.go` lines 45-50)
+- Surface it: extend `versionResponse` (`host/handler/site.go` lines 45-50)
   with `CreatedByUsername string` (LEFT JOIN `users` in `ListVersionsBySite`,
   `queries.go` lines 370-393). The admin UI version list (and the per-site
   version history) then shows "v7 — uploaded by alice@example.com — 2h ago".
@@ -369,7 +369,7 @@ ALTER TABLE versions
 
 ### API changes (summary)
 
-New endpoints (registered in `SiteHandler.Register`, `internal/handler/site.go`
+New endpoints (registered in `SiteHandler.Register`, `host/handler/site.go`
 lines 61-75; remember each `mux.Handle` line is the routing per `CLAUDE.md`):
 
 | Endpoint | Method | Role | Body / Notes |
@@ -392,7 +392,7 @@ Changed responses:
 
 ### UI notes
 
-The admin UI is embedded HTML (`internal/handler/static/`, rebuild required per
+The admin UI is embedded HTML (`host/handler/static/`, rebuild required per
 `CLAUDE.md`). Minimal additions:
 - Site list: a role badge (`owner`/`editor`/`viewer`) from `my_role`; hide
   Delete/Share for non-owners, hide Upload/Rollback for viewers.

@@ -60,7 +60,7 @@ func TestFeaturePlacement(t *testing.T) {
 
 func TestRouteParsingAndDynamicTable(t *testing.T) {
 	root := t.TempDir()
-	for _, dir := range []string{"cmd", "internal/example"} {
+	for _, dir := range []string{"cmd", "host/example"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -73,14 +73,14 @@ func Register() {
  other.Handle("GET /not-a-mux", nil)
 }
 `
-	path := filepath.Join(root, "internal/example/routes.go")
+	path := filepath.Join(root, "host/example/routes.go")
 	if err := os.WriteFile(path, []byte(source), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "internal/example/routes_test.go"), []byte("invalid Go: ignored"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "host/example/routes_test.go"), []byte("invalid Go: ignored"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	table := dynamicTable{"internal/example/routes.go:Register": {{`"GET /" + name`, []string{"GET /dynamic-one", "GET /dynamic-two"}}}}
+	table := dynamicTable{"host/example/routes.go:Register": {{`"GET /" + name`, []string{"GET /dynamic-one", "GET /dynamic-two"}}}}
 	routes, err := scanRoutes(root, table)
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func Register() {
 	if len(routes) != 4 {
 		t.Fatalf("got %d registrations, want 4", len(routes))
 	}
-	if routes[0].Method != "ANY" || routes[0].Path != "/any" || routes[0].Source != "internal/example/routes.go:4" {
+	if routes[0].Method != "ANY" || routes[0].Path != "/any" || routes[0].Source != "host/example/routes.go:4" {
 		t.Errorf("selector/ANY/source: %+v", routes[0])
 	}
 	if !routes[1].Dynamic || routes[1].Path != "/dynamic-one" || routes[3].Dynamic {
@@ -97,11 +97,11 @@ func Register() {
 	if _, err := scanRoutes(root, nil); err == nil || !strings.Contains(err.Error(), "unknown dynamic registration") {
 		t.Errorf("unknown site: %v", err)
 	}
-	table["internal/example/routes.go:Register"][0].Expression = "changed"
+	table["host/example/routes.go:Register"][0].Expression = "changed"
 	if _, err := scanRoutes(root, table); err == nil {
 		t.Error("accepted changed dynamic expression")
 	}
-	table["internal/example/routes.go:Register"][0].Expression = `"GET /" + name`
+	table["host/example/routes.go:Register"][0].Expression = `"GET /" + name`
 	table["missing.go:Missing"] = []dynamicSite{{"missing", []string{"GET /missing"}}}
 	if _, err := scanRoutes(root, table); err == nil || !strings.Contains(err.Error(), "stale") {
 		t.Errorf("stale table: %v", err)

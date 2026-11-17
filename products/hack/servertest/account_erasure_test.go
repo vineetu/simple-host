@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	recording "github.com/vsriram/simple-host/internal/testdb"
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	recording "github.com/vsriram/simple-host/host/testdb"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )

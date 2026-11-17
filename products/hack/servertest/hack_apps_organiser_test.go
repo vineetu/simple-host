@@ -187,7 +187,7 @@ func TestHackOrganiserAppShowToolAndViews(t *testing.T) {
 // proof that the event's own join_url/judge_url never land in the show
 // tool's model-visible content, only in _meta -- exercised over the real
 // HTTP + JSON-RPC stack rather than only the in-process unit test in
-// internal/mcp.
+// host/mcp.
 func TestHackOrganiserAppShowToolRefusesJoinAndJudgeCodes(t *testing.T) {
 	f := newHackOrganiserAppsFixture(t)
 	a := f.app

@@ -60,7 +60,7 @@ async function person(role, width, { walkthroughDone = true, markTourSeen = json
   page.on('pageerror', e => pageErrors.push(e.message))
   await page.route('**/hack/**', async route => {
     const path = new URL(route.request().url()).pathname
-    const file = 'internal/webassets/static' + path
+    const file = 'host/webassets/static' + path
     if (!fs.existsSync(file)) return route.continue()
     await route.fulfill({ body: fs.readFileSync(file), contentType: path.endsWith('.css') ? 'text/css' : 'text/javascript' })
   })

@@ -31,7 +31,7 @@ The replacement uses `building`, open registration without approval, teams of up
 
 Deletion sends `{"confirm":"<slug>"}` through the organiser route, which permits every stage, including archived. API failures report the status and response and exit nonzero. After anyone joins or creates a team, the slug remains reserved permanently. An unused demo can reuse its slug; a used demo becomes `demo-YYYYWW` using the ISO week year and week, or `demo-YYYYWW-2` and later suffixes when a used demo is reset again that week. Each run retires the original demo and the admin's weekly replacements. The `/v1/hack/demo` endpoint worker must resolve the newest matching `demo-*` event when `demo` is retired, including numbered suffixes. Normal per-account event creation limits still apply to repeated manual runs.
 
-The local integration test is `internal/handler/hack_demo_reset_test.go`, using the existing Go test server and a disposable test database. Set `DB_DSN` to that database and run `go test ./internal/handler -run '^TestHackDemoReset'` under the memory cap in `CLAUDE.md`. It checks configuration, public links, joining, submitting, scoring, deletion of an archived event, removal of old teams and scores, slug reservation, same-week suffixes, and failure reporting.
+The local integration test is `host/handler/hack_demo_reset_test.go`, using the existing Go test server and a disposable test database. Set `DB_DSN` to that database and run `go test ./host/handler -run '^TestHackDemoReset'` under the memory cap in `CLAUDE.md`. It checks configuration, public links, joining, submitting, scoring, deletion of an archived event, removal of old teams and scores, slug reservation, same-week suffixes, and failure reporting.
 
 ## Existing nightly backup
 

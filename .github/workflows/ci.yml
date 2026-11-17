@@ -48,10 +48,10 @@ jobs:
           # Also checks the freshly rebuilt Pagefind entry, counts, and references.
           python3 scripts/docs-site.py check
           # Native Pagefind output varies by CPU; all other assets remain byte-checked.
-          if [ -n "$(git status --porcelain -- internal/webassets/docs-site ':!internal/webassets/docs-site/*/pagefind/**')" ]; then
-            git status --porcelain -- internal/webassets/docs-site | head -40
-            git diff --stat -- internal/webassets/docs-site | tail -5
-            git diff -- internal/webassets/docs-site ':!*.pf_*' | head -80
+          if [ -n "$(git status --porcelain -- host/webassets/docs-site ':!host/webassets/docs-site/*/pagefind/**')" ]; then
+            git status --porcelain -- host/webassets/docs-site | head -40
+            git diff --stat -- host/webassets/docs-site | tail -5
+            git diff -- host/webassets/docs-site ':!*.pf_*' | head -80
             exit 1
           fi
 

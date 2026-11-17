@@ -253,7 +253,7 @@ paginates, and already stores one row per item.
 
 RTDB's real idea is not "big JSON" — it is that **every node has an address**. You never
 fetch the tree; you fetch `/a/b/c`. Our ops are already path-carrying (`splitPath` in
-`internal/handler/stateops.go:273` splits on `.`), so half the model exists. What is
+`host/handler/stateops.go:273` splits on `.`), so half the model exists. What is
 missing is that a path is not yet a *URL*.
 
 ### The surprise: the tree is cheap **today**, with no segmentation at all

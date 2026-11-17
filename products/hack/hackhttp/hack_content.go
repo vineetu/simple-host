@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
-	"github.com/vsriram/simple-host/internal/workers"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/rules/sites"
+	"github.com/vsriram/simple-host/host/workers"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/model"
 )

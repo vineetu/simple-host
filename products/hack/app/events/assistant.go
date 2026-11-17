@@ -14,7 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/internal/llm"
+	"github.com/vsriram/simple-host/host/llm"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
@@ -39,8 +39,8 @@ type AssistantLLM interface {
 }
 
 // ChatMessage is one request message. It mirrors llm.Message's JSON shape
-// exactly, but lives here (not internal/llm) so hackhttp -- which may not
-// import internal/llm (scripts/layering/rules.txt: only app/hack/events may)
+// exactly, but lives here (not host/llm) so hackhttp -- which may not
+// import host/llm (scripts/layering/rules.txt: only app/hack/events may)
 // -- can decode the request body straight into this type and hand it to
 // Ask without ever naming the llm package.
 type ChatMessage struct {
@@ -49,14 +49,14 @@ type ChatMessage struct {
 }
 
 // DocsTextFunc returns the pre-built, already-capped DOCS block (each page
-// as "## [<title>](<url>)" plus its extracted text). internal/app/hack/events
-// cannot import internal/webassets (scripts/layering/rules.txt), so the
-// actual HTML extraction lives in internal/hackhttp (or cmd/server) and is
+// as "## [<title>](<url>)" plus its extracted text). host/app/hack/events
+// cannot import host/webassets (scripts/layering/rules.txt), so the
+// actual HTML extraction lives in host/hackhttp (or cmd/server) and is
 // injected here; that caller is responsible for computing it once
 // (sync.Once) rather than re-parsing the embedded docs on every question.
 type DocsTextFunc func() string
 
-// AssistantConfig is the SIM-394 assistant's settings (internal/config
+// AssistantConfig is the SIM-394 assistant's settings (host/config
 // ASSISTANT_* env vars), threaded through from cmd/server.
 type AssistantConfig struct {
 	BaseURL               string

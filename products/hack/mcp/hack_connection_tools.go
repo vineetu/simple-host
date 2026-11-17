@@ -4,7 +4,7 @@ package hackmcp
 import (
 	"errors"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // hackConnectionTools controls the selected site for a hosted personal OAuth

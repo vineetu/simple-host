@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-	siterules "github.com/vsriram/simple-host/internal/rules/sites"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	siterules "github.com/vsriram/simple-host/host/rules/sites"
 )
 
 // GroupKeys supplies Hack's live team-key and scoped file-link checks.

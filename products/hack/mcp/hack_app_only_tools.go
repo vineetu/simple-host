@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // App-only twins (Grok security review, SIM-344 phase 2). SEP-1865 defines

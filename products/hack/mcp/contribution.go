@@ -1,6 +1,6 @@
 package hackmcp
 
-import "github.com/vsriram/simple-host/internal/mcp"
+import "github.com/vsriram/simple-host/host/mcp"
 
 // Contribution is everything Simple Hack adds to the tool server: its four
 // base tool families in listing order, the notification tools, the variants

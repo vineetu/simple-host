@@ -786,14 +786,14 @@ manual order also work on small-box path installs. The public person page opens
 the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See <a href="https://github.com/vineetu/simple-host/blob/main/docs/your-home-page.md">Your home page</a>.</p>
 <p>Defaults in <code>&lt;angle brackets&gt;</code> are derived from other settings. Server, sign-in,
-email and other non-knob settings are read by <code>internal/config/config.go</code>;
+email and other non-knob settings are read by <code>host/config/config.go</code>;
 <code>MAX_ARCHIVE_MB</code> and <code>KEEP_VERSIONS</code> are read by the handler.</p>
 <h2 id="operational-times-and-limits">Operational times and limits</h2>
 <p>Every operational time and limit Simple Host enforces can be changed per install with an
 environment variable. Unset (or blank) means the value in the generated Default column.
 Hosted installations may override these defaults.</p>
 <ul>
-<li><strong>Where they are read.</strong> Once, at startup, in <code>internal/config/limits.go</code> (<code>Knobs()</code> is the
+<li><strong>Where they are read.</strong> Once, at startup, in <code>host/config/limits.go</code> (<code>Knobs()</code> is the
 list). A value that is not a whole number, is out of range, or does not fit with another
 setting stops the server with an error naming the variable, rather than running with a value
 nobody chose. Every knob that differs from its default is printed once in the startup log
@@ -806,7 +806,7 @@ then <code>docker compose up -d</code>.</li>
 owner app, the landing and feature pages, the privacy page, the admin page, <code>llms.txt</code>, the
 OpenAPI spec, the skills served from this install, and the connector’s MCP instructions,
 tool descriptions and results. Served pages and documents are written with the defaults and
-rewritten when served (<code>internal/handler/limitstext.go</code>, the same way the hostnames are
+rewritten when served (<code>host/handler/limitstext.go</code>, the same way the hostnames are
 rewritten for an instance on another domain); with every knob at its default nothing is
 rewritten. The skills published to the Claude and ChatGPT plugin directories describe
 simple-host.app and keep its values.</li>

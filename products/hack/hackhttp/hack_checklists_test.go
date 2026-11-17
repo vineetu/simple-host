@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	entryapp "github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"

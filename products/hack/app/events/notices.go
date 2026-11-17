@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
+	sqlkit "github.com/vsriram/simple-host/host/repository/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -576,7 +576,7 @@ func hackEventLocation(zone string) (*time.Location, string) {
 
 var hackNumericZoneRe = regexp.MustCompile(`^[+-]\d`)
 
-// hackZoneAbbrFamiliar is the same fixed map ui.zoneAbbr (internal/handler/
+// hackZoneAbbrFamiliar is the same fixed map ui.zoneAbbr (host/handler/
 // static/hack/ui.js) and the vote page's own copy of it use -- kept in step
 // by hand, since Go's tzdata and Intl don't always agree on which zones get
 // a real short code. Go already gets North America, the UK and Central

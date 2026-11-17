@@ -1,4 +1,4 @@
-> **Status: Superseded (2026-09-05; again 2026-09-29)** — first by the INTENT non-goal that pages are always public (private collections on a site's own address cover private data instead), then by the site passcode of 2026-09-29: one shared passcode on a whole site, on per-site origins, stored sealed with a server key (not zero-knowledge; `internal/handler/passcode.go`, INTENT decision "Site passcode").
+> **Status: Superseded (2026-09-05; again 2026-09-29)** — first by the INTENT non-goal that pages are always public (private collections on a site's own address cover private data instead), then by the site passcode of 2026-09-29: one shared passcode on a whole site, on per-site origins, stored sealed with a server key (not zero-knowledge; `host/handler/passcode.go`, INTENT decision "Site passcode").
 
 # Spec: Private Sites (one model — always zero-knowledge)
 
@@ -66,9 +66,9 @@ Read before trusting any summary:
   `cmd/server/main.go:62-65` mounts only `RegisterHealthRoutes`, the user handler,
   the site handler (`NewSiteHandler(...).Register`), and `RegisterUIRoutes`. The
   site handler registers only `/v1/sites/...` REST routes and
-  `/v1/sites/{sitename}/state` (`internal/handler/site.go:61-74`) — there is **no**
+  `/v1/sites/{sitename}/state` (`host/handler/site.go:61-74`) — there is **no**
   `GET /sites/{site}/...` route. The only `http.FileServer` in the whole binary is
-  `internal/handler/ui.go:69,79` (`http.FileServerFS(sub)` mounted at `GET /`) — the
+  `host/handler/ui.go:69,79` (`http.FileServerFS(sub)` mounted at `GET /`) — the
   **embedded admin UI**, not site content.
 - **Visitor bytes are served by the external proxy reading `current/` off disk.**
   The ops runbook (`/root/workspace/CLAUDE.md`) is authoritative: `simple-host`
@@ -81,28 +81,28 @@ Read before trusting any summary:
   with zero new code.
 - **Deploy is content-blind and needs no change.** After a successful upload,
   `createSite`/`updateSite` simply append the site name to `<DATA_DIR>/.deploy-queue`
-  (`internal/handler/site.go:277-283`); `deploy-watcher` registers the cortex-share.
+  (`host/handler/site.go:277-283`); `deploy-watcher` registers the cortex-share.
   A private site rides this **same** queue — it is a normal `file`/`website` share
   whose files happen to be ciphertext + an unlock shell.
 - **Upload path extracts + validates plaintext — and we must skip that for
-  ciphertext.** `internal/handler/site.go:570-589` `readAndValidateFiles` reads the
+  ciphertext.** `host/handler/site.go:570-589` `readAndValidateFiles` reads the
   body (`readLimitedBody`, 100 MiB cap, `site.go:591`), calls `tarball.Extract`
-  (`internal/tarball/extract.go:16`) to decompress into a `map[string][]byte`, then
-  `tarball.ValidateExtensions` (`internal/tarball/validate.go:35`) which blocks
+  (`host/tarball/extract.go:16`) to decompress into a `map[string][]byte`, then
+  `tarball.ValidateExtensions` (`host/tarball/validate.go:35`) which blocks
   `.sh/.py/.go/...` (`validate.go:19-33`). Both operate on plaintext and cannot run
   on an opaque ciphertext blob (§5).
-- **Disk writes are plaintext, mode 0644.** `internal/storage/disk.go:29-74`
+- **Disk writes are plaintext, mode 0644.** `host/storage/disk.go:29-74`
   `WriteFiles` does `os.WriteFile(dstPath, content, 0o644)` (`disk.go:61`) into
   `.v<n>.tmp`, renames to `v<n>`; `UpdateCurrent` (`disk.go:76-90`) `copyDir`s into
   `current/` (`disk.go:104-151`, content-blind byte copy). For an encrypted site the
   "files" written are simply ciphertext + the unlock shell.
-- **Schema** (`README.md:64-72`, `internal/db/models.go:13-24`): `sites(id, user_id,
+- **Schema** (`README.md:64-72`, `host/db/models.go:13-24`): `sites(id, user_id,
   name, active_version, site_url, state jsonb, created_at, updated_at)`. No crypto or
   visibility columns. No migration framework — raw `CREATE TABLE`/`ALTER` SQL.
-- **Auth** is `X-API-Key` only (`internal/auth/middleware.go:32-68`) and gates the
+- **Auth** is `X-API-Key` only (`host/auth/middleware.go:32-68`) and gates the
   *management* API (who may upload). It has **nothing** to do with viewing a site —
   and this spec adds **no** new auth surface (no session cookies).
-- **Embedded static assets** live under `internal/handler/static/`
+- **Embedded static assets** live under `host/handler/static/`
   (`ui.go:21-22`, `//go:embed all:static`). The unlock shell *could* be embedded
   there, but because it just needs to be a static file in the bundle, it can equally
   be emitted by the client encryptor — see §3 and §6.
@@ -287,7 +287,7 @@ shape — it receives an opaque blob.
      Offer this "single-page" mode; use the SW VFS for everything else.
 
 The unlock shell + bundled `libsodium.js`/WebCrypto + decrypt JS can either be
-**embedded in the binary** (`internal/handler/static/`, rebuild required per
+**embedded in the binary** (`host/handler/static/`, rebuild required per
 `CLAUDE.md`) and copied into each private bundle at deploy time, or **emitted by the
 client encryptor** so it travels with the ciphertext. The latter keeps the server
 out of it entirely and is the simplest fit with "private = a bundle of ciphertext +

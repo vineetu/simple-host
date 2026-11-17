@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
@@ -15,7 +15,7 @@ import (
 // What each person sees is computed in the events service, so the website's
 // badges and Needs you lines, GET /v1/hack/todos and the AI apps
 // (hack_get_my_todos, hack_get_team_status) always say the same thing.
-// Storage and the email queue: internal/repository/hackevents/notices.go and notice_delivery.go.
+// Storage and the email queue: host/repository/hackevents/notices.go and notice_delivery.go.
 
 func (h *HackHandler) registerNotices(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/todos", wrap(h.getTodos))

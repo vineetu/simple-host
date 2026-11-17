@@ -404,7 +404,7 @@ and key-value resources only. It does not retire routes or change access in
 this slice. The server logs the number still using presets once at startup.
 
 Wording comes from JSON templates. To change it without rebuilding, copy
-`internal/app/storage/storage-notice.json` from the source into
+`host/app/storage/storage-notice.json` from the source into
 `DATA_DIR/storage-notice.json` (outside all site directories), edit it and
 restart. The fields are `presets`, `legacy`, `save_warning`, `rules_guide` and
 `moving_guide`; `<DATE>`, `<RULES_GUIDE_URL>` and `<MOVING_GUIDE_URL>` are filled

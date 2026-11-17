@@ -1,11 +1,11 @@
-> **Status: Done (2026-09-05)** — Google sign-in for owners and visitors in `internal/oauth` + `internal/handler/oauth.go`; GitHub wired but deliberately unconfigured.
+> **Status: Done (2026-09-05)** — Google sign-in for owners and visitors in `host/oauth` + `host/handler/oauth.go`; GitHub wired but deliberately unconfigured.
 
 # Design: OAuth2 / OIDC Social Login (GitHub, Google, …)
 
 Status: Proposed
 Author: design doc
 Date: 2026-06-25
-Scope: `simple-host` (one Go binary + Postgres + disk; `internal/handler`, `internal/auth`, `internal/db`, `internal/config`)
+Scope: `simple-host` (one Go binary + Postgres + disk; `host/handler`, `host/auth`, `host/db`, `host/config`)
 
 ---
 
@@ -36,7 +36,7 @@ existing `users` row **only on a provider-asserted *verified* email**, to avoid 
 ### Goals
 - Sign in with GitHub and Google from the admin UI at `/`.
 - Reuse the existing identity model: an OAuth login resolves to a `users` row and yields that user's
-  `api_key`, the credential every other endpoint already checks (`internal/auth/middleware.go`).
+  `api_key`, the credential every other endpoint already checks (`host/auth/middleware.go`).
 - Providers individually **toggleable** by config — set the client ID/secret pair to enable a
   provider; absent config = provider hidden/disabled.
 - A documented, low-risk path to add Microsoft, Apple, GitLab, etc. (all OIDC-or-OAuth2, same shape).
@@ -56,15 +56,15 @@ existing `users` row **only on a provider-asserted *verified* email**, to avoid 
 
 | Concern | Where | Notes |
 |---|---|---|
-| Credential check | `internal/auth/middleware.go:32-68` | Reads `X-API-Key`; `ADMIN_API_KEY` short-circuits to synthetic `&db.User{ID:"admin"}`; otherwise `db.GetUserByAPIKey`. |
-| Request sign-in | `internal/handler/user.go:85-156` (`POST /v1/auth`) | Lower-cases email, **creates the `users` row up-front** with a freshly minted `api_key` (never disclosed here), stores a 6-digit `code` + 24-byte `link_token` in `auth_tokens` (15-min TTL), emails both via Resend. |
-| Verify | `internal/handler/user.go:164-230` (`POST /v1/auth/verify`) | Accepts `{token}` (magic link) **or** `{email,code}`; constant-time code compare; `attempts` capped at `maxCodeAttempts=3`; on success returns the user's `api_key`. |
-| Key generation | `internal/auth/middleware.go:23-30` | `GenerateAPIKey()` = 32 random bytes, hex. |
-| Routes | `internal/handler/user.go:72-76` | `POST /v1/auth`, `POST /v1/auth/verify`, `GET /v1/me`. Registered in `cmd/server/main.go:63`. |
-| Users schema | `README.md:57-63` / `internal/db/models.go:5-11` | `users{id uuid, username(=email) unique, api_key unique, is_admin, created_at}`. |
+| Credential check | `host/auth/middleware.go:32-68` | Reads `X-API-Key`; `ADMIN_API_KEY` short-circuits to synthetic `&db.User{ID:"admin"}`; otherwise `db.GetUserByAPIKey`. |
+| Request sign-in | `host/handler/user.go:85-156` (`POST /v1/auth`) | Lower-cases email, **creates the `users` row up-front** with a freshly minted `api_key` (never disclosed here), stores a 6-digit `code` + 24-byte `link_token` in `auth_tokens` (15-min TTL), emails both via Resend. |
+| Verify | `host/handler/user.go:164-230` (`POST /v1/auth/verify`) | Accepts `{token}` (magic link) **or** `{email,code}`; constant-time code compare; `attempts` capped at `maxCodeAttempts=3`; on success returns the user's `api_key`. |
+| Key generation | `host/auth/middleware.go:23-30` | `GenerateAPIKey()` = 32 random bytes, hex. |
+| Routes | `host/handler/user.go:72-76` | `POST /v1/auth`, `POST /v1/auth/verify`, `GET /v1/me`. Registered in `cmd/server/main.go:63`. |
+| Users schema | `README.md:57-63` / `host/db/models.go:5-11` | `users{id uuid, username(=email) unique, api_key unique, is_admin, created_at}`. |
 | Auth tokens schema | `README.md:82-91` | `auth_tokens{id, email, code, link_token unique, expires_at, used_at, attempts, created_at}`. |
-| Config | `internal/config/config.go` | Env-driven; `DB_DSN` + `ADMIN_API_KEY` required, rest defaulted. |
-| Admin UI | `internal/handler/ui.go:67-80`, `internal/handler/static/` | `GET /` serves the embedded admin UI; login is "paste your api_key". HTML is embedded → UI changes need a rebuild. |
+| Config | `host/config/config.go` | Env-driven; `DB_DSN` + `ADMIN_API_KEY` required, rest defaulted. |
+| Admin UI | `host/handler/ui.go:67-80`, `host/handler/static/` | `GET /` serves the embedded admin UI; login is "paste your api_key". HTML is embedded → UI changes need a rebuild. |
 
 **Key invariant to respect:** today, `api_key == identity`. There are no sessions and no
 password — possession of the `api_key` *is* being the user. The magic-link verify endpoint is
@@ -142,9 +142,9 @@ Everything runs over HTTPS (terminated at the proxy); the back-channel token exc
 
 ### 5.1 Routes (mounted on the existing `http.ServeMux`)
 
-Add a new handler `internal/handler/oauth.go` exposing a `Register(mux, ...)` method, wired in
+Add a new handler `host/handler/oauth.go` exposing a `Register(mux, ...)` method, wired in
 `cmd/server/main.go` next to the other handlers. Two routes per the Go 1.22 method+path mux syntax
-already in use (`internal/handler/user.go:73`):
+already in use (`host/handler/user.go:73`):
 
 ```
 GET /v1/auth/oauth/{provider}            -> start   (302 to provider authorize URL)
@@ -159,7 +159,7 @@ GET /v1/auth/oauth/{provider}/callback   -> callback (handles the provider's red
   `https://simple-host.app/v1/auth/oauth/github/callback`. This is derived from
   `PUBLIC_BASE_URL` (Section 7) so it's correct behind the proxy.
 
-The admin UI (`internal/handler/static/index.html`, embedded) gains "Sign in with GitHub / Google"
+The admin UI (`host/handler/static/index.html`, embedded) gains "Sign in with GitHub / Google"
 buttons that are plain `<a href="/v1/auth/oauth/github">` links (full-page navigation — no fetch, no
 CORS). Buttons render only for providers the server reports as enabled (e.g. via a tiny
 `GET /v1/auth/providers` JSON endpoint, or injected at template/build time).
@@ -274,7 +274,7 @@ A small provider abstraction keeps GitHub (OAuth2 + userinfo) and Google (OIDC) 
 and makes adding Microsoft/Apple a matter of registering another entry.
 
 ```go
-// internal/handler/oauth.go (sketch — not final)
+// host/handler/oauth.go (sketch — not final)
 
 // userInfo is the normalized identity we extract from any provider.
 type userInfo struct {
@@ -541,7 +541,7 @@ account. This is exactly why GitHub's `/user/emails` exposes `verified`, and why
    stable provider id, so email changes on the provider side can't cause cross-account bleed.
 3. **simple-host's own email path is already verification-gated.** A `users` row exists, but its
    `api_key` is *only* disclosed after the magic-link/code round-trips through the mailbox
-   (`internal/handler/user.go:85-156` pre-creates the row but **never returns the key**; only
+   (`host/handler/user.go:85-156` pre-creates the row but **never returns the key**; only
    `verify` does). There is no password and no "pending unverified password account" to seed, which
    structurally removes the classic vector — but the *verified-email* rule above is what makes the
    OAuth-to-existing-row link safe, and must not be relaxed.
@@ -559,7 +559,7 @@ an unverified email* — is the consistent OWASP-aligned recommendation across t
 
 - **Secrets:** `*_CLIENT_SECRET` and the session/state signing key come **only** from env (Section
   10), never committed — same posture as `ADMIN_API_KEY` (no source default; see
-  `internal/config/config.go:45-47`). Don't log tokens, codes, or secrets.
+  `host/config/config.go:45-47`). Don't log tokens, codes, or secrets.
 - **Redirect URI allow-listing:** the `redirect_uri` we send and that's registered in each provider
   dashboard is **fixed**, derived from `PUBLIC_BASE_URL` — never built from request `Host`/headers
   (which an attacker can spoof). `return_to` (post-login landing) is independently **allow-listed** to
@@ -581,9 +581,9 @@ an unverified email* — is the consistent OWASP-aligned recommendation across t
 
 ---
 
-## 10. Config (env vars, `internal/config` conventions)
+## 10. Config (env vars, `host/config` conventions)
 
-Extend `config.Config` and `config.Load()` (`internal/config/config.go`). Per-provider client
+Extend `config.Config` and `config.Load()` (`host/config/config.go`). Per-provider client
 credentials; **a provider is enabled iff both its ID and secret are set** (mirrors the
 `RESEND_API_KEY`-gates-email-auth pattern). All new vars are **optional** — absent = that provider is
 simply off; nothing else breaks.
@@ -621,9 +621,9 @@ GitHub/Google dashboards must match `<OAuthRedirectBase>/v1/auth/oauth/<provider
 1. **Schema:** apply the two `CREATE TABLE`s (Section 5.3) via `psql` and add them to the README
    schema block (no migrations framework — same as today). Backwards-compatible: no change to
    `users`/`auth_tokens`; existing email auth untouched.
-2. **Code:** add `internal/handler/oauth.go` + provider registry; extend `internal/config`; add the
-   optional cookie/session support in `internal/auth/middleware.go` (browser routes only); add
-   "Sign in with …" links to the embedded admin UI (`internal/handler/static/index.html`) — **remember
+2. **Code:** add `host/handler/oauth.go` + provider registry; extend `host/config`; add the
+   optional cookie/session support in `host/auth/middleware.go` (browser routes only); add
+   "Sign in with …" links to the embedded admin UI (`host/handler/static/index.html`) — **remember
    HTML is embedded, so this needs a rebuild** (`CLAUDE.md`).
 3. **Provider apps:** create a GitHub OAuth app and a Google OAuth client; set the redirect URIs; put
    the four credentials into the port-8090 runports env (these are owned by the runports process, not

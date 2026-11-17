@@ -3,9 +3,9 @@ package main
 import (
 	"os"
 
-	"github.com/vsriram/simple-host/internal/brain"
-	"github.com/vsriram/simple-host/internal/extension"
-	"github.com/vsriram/simple-host/internal/server"
+	"github.com/vsriram/simple-host/host/brain"
+	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/server"
 	"github.com/vsriram/simple-host/products/hack"
 )
 

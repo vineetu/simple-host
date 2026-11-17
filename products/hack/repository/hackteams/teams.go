@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"sort"
@@ -54,7 +54,7 @@ var teamForUpdate = `
 	  FROM event_teams WHERE id = $1 FOR UPDATE`
 
 // teamCodeAlphabet and teamCodeLen mirror the alphabet in
-// internal/rules/hackevents/codes.go and team length in internal/app/hack/teams/service.go (teamCodeLength).
+// host/rules/hackevents/codes.go and team length in host/app/hack/teams/service.go (teamCodeLength).
 // Account erasure's rotation keeps these constants here.
 const (
 	teamCodeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
@@ -318,7 +318,7 @@ func randomTeamCode() (string, error) {
 // RotateTeamCodeTx gives teamID a new code, retrying under a savepoint on a
 // collision (same pattern as claimHandleIn) so it never aborts the larger
 // transaction account erasure runs in. Mirrors the rotation helper in
-// internal/app/hack/teams/organiser.go, which the repository cannot import.
+// host/app/hack/teams/organiser.go, which the repository cannot import.
 func RotateTeamCodeTx(ctx context.Context, tx *sql.Tx, teamID string) error {
 	for attempt := 0; attempt < 8; attempt++ {
 		code, err := randomTeamCode()

@@ -742,7 +742,7 @@ event slug under <code>ingress.events</code>. Every other value is documented in
 <span class="line"><span style="color:#79B8FF">  -f</span><span style="color:#9ECBFF"> my-values.yaml</span></span>
 <span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> rollout</span><span style="color:#9ECBFF"> status</span><span style="color:#9ECBFF"> deploy/simple-hack</span></span>
 <span class="line"><span style="color:#B392F0">kubectl</span><span style="color:#79B8FF"> -n</span><span style="color:#9ECBFF"> simple-hack</span><span style="color:#9ECBFF"> logs</span><span style="color:#9ECBFF"> deploy/simple-hack</span></span></code></pre>
-<p>The log shows <code>MIGRATE_ON_START: building the schema if the database is empty</code>, <code>built the schema from db/schema.sql</code>, the migrations being
+<p>The log shows <code>MIGRATE_ON_START: building the schema if the database is empty</code>, <code>built the schema from host/db/schema.sql</code>, the migrations being
 recorded, then <code>hosted events: on (the hackathon platform at https://hack.example.com)</code> and the listen line. The pod is Ready when
 <code>/readyz</code> can ping Postgres.</p>
 <p>Check from outside:</p>

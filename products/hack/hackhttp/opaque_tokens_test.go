@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
-	httpx "github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/config"
+	httpx "github.com/vsriram/simple-host/host/httpx"
 )
 
 const opaqueOwner = "1b4e28ba-2fa1-11d2-883f-0016d3cca427"

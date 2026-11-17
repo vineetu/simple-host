@@ -1,0 +1,852 @@
+package handler
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/vsriram/simple-host/host/app/legacy"
+	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/workers"
+)
+
+// Saved data, step 1: the safety floor (saved-data redesign, owner approved
+// 2026-09-27; INTENT). Nothing here changes what a page may do:
+//
+//   - History and undo: every change to a site's saved-data document and every
+//     edit, delete or restore of a list item keeps the value from before it
+//     for SAVED_DATA_UNDO_DAYS (30). Deleting an item or clearing a list keeps
+//     the items as Recently deleted for as long. The owner lists and restores
+//     (owner app, the API below, the connector).
+//   - Authors: every write records who made it; only the owner sees it.
+//   - Idempotency-Key: a retried append or PATCH by a signed-in writer (the
+//     owner's key or connector, or a signed-in visitor) is saved once.
+//   - The watch: counts of the uses a later step tightens, per site and day,
+//     for SAVED_DATA_WATCH_DAYS (7) before anything is enforced
+//     (GET /v1/admin/data-watch, the admin page).
+//   - Limits with stable codes: reads per site and address, or per key
+//     (rate_limited); list items added per address (rate_limited); a per-site
+//     cap on live data that refuses only writes that grow it (site_full).
+//   - Delete for good (owner): one Recently deleted item, a list's whole
+//     Recently deleted, or a site's history.
+
+// Who wrote (model.Actor.Kind).
+const (
+	actorOwner     = "owner"
+	actorAdmin     = "admin"
+	actorVisitor   = "visitor"
+	actorAnonymous = "anonymous"
+)
+
+// Watch metrics: counts only, never content.
+const (
+	watchPutByVisitor = "put_by_visitor"    // a whole-document replace not by the owner
+	watchPutNotObject = "put_not_object"    // a document replaced by something other than an object
+	watchVisitorOp    = "visitor_op_"       // + set, inc, append, remove, removeWhere
+	watchIncLarge     = "visitor_inc_large" // a visitor inc beyond SAVED_DATA_WATCH_INC_MAX
+	watchNewList      = "new_list_name"     // a visitor started a list name nobody used before
+	watchItemLarge    = "item_large"        // a list item beyond SAVED_DATA_WATCH_ITEM_KB
+)
+
+func isVisitorActor(a model.Actor) bool { return a.Kind == actorVisitor || a.Kind == actorAnonymous }
+
+// SetSavedData applies the SAVED_DATA_* knobs. Call before serving.
+func (h *SiteHandler) SetSavedData(c struct {
+	UndoDays              int
+	HistoryMaxMB          int
+	SiteMaxMB             int
+	SweepMinutes          int
+	WatchDays             int
+	WatchIncMax           int
+	WatchItemKB           int
+	IdempotencyHours      int
+	ReadPerSec            int
+	ReadBurst             int
+	AppendPerMin          int
+	AppendBurst           int
+	IdempotencyMaxPerSite int
+	SnapshotEvery         int
+	WatchKeepDays         int
+	ContentMaxKB          int
+	ContentNamesMax       int
+	EntryMaxKB            int
+	EntriesMax            int
+	WithdrawUndoMinutes   int
+	NotifyEachMinutes     int
+	NotifyDailyHours      int
+	SaversMax             int
+	EntriesNamesMax       int
+	PersonalMaxKB         int
+	PersonalNamesMax      int
+	BoardItemMaxKB        int
+	BoardMax              int
+	BoardNamesMax         int
+	PersonalPeopleMax     int
+	BoardWritesPerMin     int
+	DefaultKind           string
+}) {
+	h.savedData = c
+	limits := h.legacySvc().ConfigureSavedData(context.Background(), legacy.SavedDataLimitsInput{ReadBurst: c.ReadBurst, ReadPerSec: c.ReadPerSec, AppendBurst: c.AppendBurst, AppendPerMin: c.AppendPerMin, BoardWritesPerMin: c.BoardWritesPerMin})
+	h.readLimiter = newRateLimiter(limits.Read.Capacity, limits.Read.PerSecond)
+	h.appendLimiter = newRateLimiter(limits.Append.Capacity, limits.Append.PerSecond)
+	h.boardLimiter = newRateLimiter(limits.Board.Capacity, limits.Board.PerSecond)
+	h.thinLimiter = newRateLimiter(limits.Thin.Capacity, limits.Thin.PerSecond)
+}
+
+// boundHistory keeps a site's history near SAVED_DATA_HISTORY_MAX_MB between
+// sweeps: after a write that may have added to it, when sites.history_bytes
+// is past the cap (one row read), the site's history is thinned now, at most
+// once a second per site, so a flood of writes cannot grow it for a whole
+// sweep interval. Never fails the write.
+func (h *SiteHandler) boundHistory(r *http.Request, siteID string) {
+	h.boundHistoryContext(r.Context(), siteID)
+}
+
+func (h *SiteHandler) historySvc() *legacy.Adapter {
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		HistoryThinStuck:   &h.thinStuck,
+		HistoryThinAllowed: func(siteID string) bool { return h.thinLimiter == nil || h.thinLimiter.allow(siteID) },
+	})
+}
+
+func (h *SiteHandler) boundHistoryContext(ctx context.Context, siteID string) {
+	capBytes := int64(h.savedData.HistoryMaxMB) << 20
+	h.historySvc().BoundHistory(ctx, legacy.HistoryThinInput{SiteID: siteID, CapBytes: capBytes})
+}
+
+// thinMargin is the growth needed before an ineffective thin is retried.
+func thinMargin(capBytes int64) int64 { return model.LegacyHistoryThinMargin(capBytes) }
+
+// thinPointless reports whether the last over-cap thin is still current.
+func (h *SiteHandler) thinPointless(siteID string, size, capBytes int64) bool {
+	return h.historySvc().HistoryThinPointless(legacy.HistoryThinCheckInput{SiteID: siteID, Size: size, CapBytes: capBytes})
+}
+
+// siteMaxBytes is SAVED_DATA_SITE_MAX_MB in bytes.
+func (h *SiteHandler) siteMaxBytes() int64 { return int64(h.savedData.SiteMaxMB) << 20 }
+
+// withAuthorEmail fills in the address of a signed-in writer (the one GET /me
+// gives): what the owner sees as "by". The platform admin's moderation shows
+// as the operator, never the admin account's address.
+func (h *SiteHandler) withAuthorEmail(ctx context.Context, a model.Actor) model.Actor {
+	if a.Kind == actorAdmin {
+		a.Email = model.OperatorLabel
+		return a
+	}
+	if a.ID != "" && a.Email == "" {
+		if e, err := visitorEmail(ctx, h.database, a.ID); err == nil {
+			a.Email = e
+		}
+	}
+	return a
+}
+
+// ownerActor is the signed-in caller of an owner route acting on siteID.
+func (h *SiteHandler) ownerActor(ctx context.Context, user *model.User, siteID string) model.Actor {
+	a := model.Actor{ID: user.ID, Kind: actorOwner}
+	if user.IsAdmin {
+		if owner, _, err := h.sitesSvc().GetSiteWriteGate(ctx, siteID); err == nil && owner != user.ID {
+			a.Kind = actorAdmin
+		}
+	}
+	return h.withAuthorEmail(ctx, a)
+}
+
+// managerActor is who passed privateManager: a key's account (owner or
+// admin), else the site's owner signed in on the site.
+func (h *SiteHandler) managerActor(r *http.Request, siteID string) model.Actor {
+	owner, _, _ := h.sitesSvc().GetSiteWriteGate(r.Context(), siteID)
+	a := model.Actor{ID: owner, Kind: actorOwner}
+	if key := r.Header.Get("X-API-Key"); key != "" {
+		if u, ok, err := h.resolveWriterKey(r.Context(), key); err == nil && ok {
+			a.ID = u.ID
+			if u.IsAdmin && u.ID != owner {
+				a.Kind = actorAdmin
+			}
+		}
+	}
+	return h.withAuthorEmail(r.Context(), a)
+}
+
+// watch counts metric n times for siteID today. Never fails a request.
+func (h *SiteHandler) watch(ctx context.Context, siteID, metric string, n int64) {
+	h.legacySvc().Watch(ctx, siteID, metric, n)
+}
+
+// siteHasRoom refuses (507 site_full) a write that grows a site's live saved
+// data (page data and list items; history and Recently deleted are not
+// counted) by growth bytes past SAVED_DATA_SITE_MAX_MB. A write that does not
+// grow it always goes through. One row read (sites.data_bytes).
+func (h *SiteHandler) siteHasRoom(w http.ResponseWriter, r *http.Request, siteID string, growth int64) bool {
+	ok, err := h.legacySvc().SiteHasRoom(r.Context(), legacy.SiteRoomInput{SiteID: siteID, Growth: growth, MaxBytes: h.siteMaxBytes()})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return false
+	}
+	if !ok {
+		h.writeSiteFull(w)
+	}
+	return ok
+}
+
+func (h *SiteHandler) writeSiteFull(w http.ResponseWriter) {
+	writeJSON(w, http.StatusInsufficientStorage, errorResponse{
+		Error: fmt.Sprintf("this site's saved data is full (%d MB of page data and list items); the owner can delete list items or clear lists to make room", h.savedData.SiteMaxMB),
+		Code:  "site_full",
+	})
+}
+
+// allowRead is the read limit on saved data (state and list GETs):
+// SAVED_DATA_READ_PER_SEC with a SAVED_DATA_READ_BURST burst, per account for
+// a valid key (the owner's, or a connector's: those share an AI vendor's
+// addresses), otherwise per resolved site and address. Called once the site
+// is resolved, so nothing the caller sends (a Host header, a name spelling)
+// makes a fresh bucket. Writes the 429 when refused.
+func (h *SiteHandler) allowRead(w http.ResponseWriter, r *http.Request, siteID string) bool {
+	if h.readLimiter == nil || h.readLimiter.allowHTTP(w, h.readBucket(r, siteID)) {
+		return true
+	}
+	tooManyRequests(w)
+	return false
+}
+
+func (h *SiteHandler) readBucketSvc() *legacy.Adapter {
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{VisitorResolveKey: h.resolveWriterKey})
+}
+
+func (h *SiteHandler) readBucket(r *http.Request, siteID string) string {
+	return h.readBucketSvc().ReadBucket(r.Context(), legacy.ReadBucketInput{SiteID: siteID, APIKey: r.Header.Get("X-API-Key"), ClientIP: clientIP(r)})
+}
+
+// ---- Idempotency-Key -----------------------------------------------------------
+
+const maxIdempotencyKey = 255
+
+// idemClaim is a reserved Idempotency-Key for one write.
+type idemClaim struct {
+	scope []byte
+	saved bool
+}
+
+// idemBegin makes a write sent with an Idempotency-Key happen once. Only a
+// writer with an identity takes part: the owner's key or connector, or a
+// signed-in visitor (actor.ID). The key is scoped to the site, the route and
+// that identity, never to an address or an unchecked cookie, so two people
+// never share an answer. Without an identity, or without the header, nothing
+// changes (nil claim). A retry with the same body is answered by replay from
+// what was kept (the status and the new version or item id, never the
+// response body); the same key with another body is refused (409). handled:
+// the answer is written.
+func (h *SiteHandler) idemBegin(w http.ResponseWriter, r *http.Request, siteID, route string, actor model.Actor, body []byte, replay func(model.LegacyIdempotentResponse)) (*idemClaim, bool) {
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if key == "" {
+		return nil, false
+	}
+	if len(key) > maxIdempotencyKey {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
+		return nil, true
+	}
+	if actor.ID == "" {
+		return nil, false
+	}
+	scope, prev, state, err := h.legacySvc().ClaimWrite(r.Context(), siteID, route, actor.ID, key, body)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return nil, true
+	}
+	if state == "claimed" {
+		return &idemClaim{scope: scope}, false
+	}
+	if state == "reused" {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})
+		return nil, true
+	}
+	if state == "pending" {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "a request with this Idempotency-Key is still being saved; retry in a moment", Code: "idempotency_in_progress"})
+		return nil, true
+	}
+	w.Header().Set("Idempotent-Replayed", "true")
+	replay(prev)
+	return nil, true
+}
+
+// idemSave keeps a successful write's answer for its retries.
+func (h *SiteHandler) idemSave(r *http.Request, c *idemClaim, status int, etag string, ref int64) {
+	if c == nil {
+		return
+	}
+	c.saved = true
+	// Keep it even if the caller has gone: that is the retry case.
+	if err := h.legacySvc().SaveIdempotentResponse(context.WithoutCancel(r.Context()), c.scope, status, etag, ref); err != nil {
+		log.Printf("idempotency save: %v", err)
+	}
+}
+
+// idemEnd (deferred) frees a reservation whose write did not succeed, so a
+// retry runs again.
+func (h *SiteHandler) idemEnd(r *http.Request, c *idemClaim) {
+	if c == nil || c.saved {
+		return
+	}
+	if err := h.legacySvc().ReleaseIdempotencyKey(context.WithoutCancel(r.Context()), c.scope); err != nil {
+		log.Printf("idempotency release: %v", err)
+	}
+}
+
+// replayItem answers a retried append with the item the first one made.
+func (h *SiteHandler) replayItem(w http.ResponseWriter, r *http.Request, siteID, coll string) func(model.LegacyIdempotentResponse) {
+	return func(prev model.LegacyIdempotentResponse) {
+		item, err := h.legacySvc().ReplayCollectionItem(r.Context(), siteID, coll, prev.Ref)
+		if err != nil {
+			writeJSON(w, prev.Status, map[string]int64{"id": prev.Ref})
+			return
+		}
+		writeJSON(w, prev.Status, item)
+	}
+}
+
+// ---- keeping history bounded ---------------------------------------------------
+
+// StartSavedDataSweep removes expired history, deleted items past the undo
+// window, old idempotency answers (and a site's past
+// SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE) and watch counts past
+// SAVED_DATA_WATCH_KEEP_DAYS every SAVED_DATA_SWEEP_MINUTES, and thins any
+// site's history past SAVED_DATA_HISTORY_MAX_MB.
+type savedDataWorker struct {
+	startOnce sync.Once
+	*workers.Runner
+	h       *SiteHandler
+	tracker *workers.Tracker
+}
+
+func (h *SiteHandler) SavedDataWorker() workers.Owner {
+	h.savedWorkerOnce.Do(func() {
+		t := workers.NewTracker("operations.saved_data_sweep")
+		h.savedWorker = &savedDataWorker{Runner: workers.NewRunner(t), h: h, tracker: t}
+	})
+	return h.savedWorker
+}
+func (w *savedDataWorker) Start(ctx context.Context) {
+	w.startOnce.Do(func() {
+		w.Go(ctx, func(ctx context.Context) {
+			tick := time.NewTicker(time.Duration(w.h.savedData.SweepMinutes) * time.Minute)
+			defer tick.Stop()
+			for {
+				w.tracker.Attempt()
+				n, err := w.h.sweepSavedData(ctx)
+				if n > 0 {
+					w.tracker.Progress()
+				}
+				if err != nil {
+					w.tracker.Fail("sweep saved data", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick.C:
+				}
+			}
+		})
+	})
+}
+func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) { h.SavedDataWorker().Start(ctx) }
+
+func (h *SiteHandler) sweepSavedData(ctx context.Context) (int64, error) {
+	svc := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		HistoryThinStuck:   &h.thinStuck,
+		HistoryThinAllowed: func(siteID string) bool { return h.thinLimiter == nil || h.thinLimiter.allow(siteID) },
+		SweepEvict: func() {
+			for _, rl := range []*rateLimiter{h.readLimiter, h.appendLimiter, h.boardLimiter, h.thinLimiter} {
+				if rl != nil {
+					rl.evictIdle(10 * time.Minute)
+				}
+			}
+		},
+	})
+	return svc.SweepSavedData(ctx, legacy.SweepSavedDataInput{UndoDays: h.savedData.UndoDays, IdempotencyHours: h.savedData.IdempotencyHours, IdempotencyMaxPerSite: h.savedData.IdempotencyMaxPerSite, WatchKeepDays: h.savedData.WatchKeepDays, HistoryCapBytes: int64(h.savedData.HistoryMaxMB) << 20})
+}
+
+// ---- owner routes: history, Recently deleted, restore, delete for good ----------
+
+// pageLimit reads ?limit.
+func pageLimit(r *http.Request) int {
+	limit, _ := parseLegacyHistoryPage(r.URL.Query().Get("limit"), "")
+	return limit
+}
+
+// pageArgs reads ?limit and ?before (a change id).
+func pageArgs(r *http.Request) (int, int64) {
+	return parseLegacyHistoryPage(r.URL.Query().Get("limit"), r.URL.Query().Get("before"))
+}
+
+// deletedCursor is Recently deleted's `next`/`before`: "<deleted_at in unix
+// microseconds>_<id>". Anything else starts from the newest.
+func deletedCursor(v string) model.LegacyDeletedCursor { return model.ParseLegacyDeletedCursor(v) }
+
+func deletedNext(it model.LegacyDeletedItem) string { return model.LegacyDeletedNext(it) }
+
+// ownedDataSite resolves {sitename} (with {handle} when the route names one)
+// for the signed-in owner, or the admin. With {coll} it also checks the list
+// name, and keeps private lists off the shared host as every other owner route
+// does. Writes the answer on failure.
+func (h *SiteHandler) ownedDataSite(w http.ResponseWriter, r *http.Request) (user *model.User, siteID, siteName, coll string, ok bool) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	user = auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return nil, "", "", "", false
+	}
+	siteName = strings.TrimSpace(r.PathValue("sitename"))
+	coll = strings.TrimSpace(r.PathValue("coll"))
+	if siteName == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
+		return nil, "", "", "", false
+	}
+	if r.PathValue("coll") != "" && !validCollectionName.MatchString(coll) {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid collection name"})
+		return nil, "", "", "", false
+	}
+	var err error
+	if handle := strings.TrimSpace(r.PathValue("handle")); handle != "" {
+		// Named exactly: the owner's own handle, or (the admin) anyone's.
+		var owner model.User
+		if owner, err = h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle); err == nil {
+			if owner.ID != user.ID && !user.IsAdmin {
+				err = sql.ErrNoRows
+			} else {
+				var site model.Site
+				if site, err = h.sitesSvc().GetSiteByUser(r.Context(), owner.ID, siteName); err == nil {
+					siteID = site.ID
+				}
+			}
+		}
+	} else {
+		siteID, err = h.ownedSiteID(r, user, siteName)
+	}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return nil, "", "", "", false
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return nil, "", "", "", false
+	}
+	recordLegacyCallSite(r, siteID)
+	if coll != "" && strings.EqualFold(requestHostName(r), h.contentHost) {
+		if private, err := h.legacySvc().IsCollectionPrivate(r.Context(), siteID, coll); err != nil || private {
+			writePrivateNotFound(w)
+			return nil, "", "", "", false
+		}
+	}
+	return user, siteID, siteName, coll, true
+}
+
+func pathID(r *http.Request, name string) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
+	return id, err == nil && id > 0
+}
+
+func historyNext(entries []model.HistoryEntry, limit int) *int64 {
+	return model.LegacyHistoryNext(entries, limit)
+}
+
+// listDataHistory is GET /v1/sites/{s}/state/history and
+// GET /v1/sites/{s}/collections/{c}/history: changes newest first, without
+// their values.
+func (h *SiteHandler) listDataHistory(w http.ResponseWriter, r *http.Request) {
+	_, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
+	if !ok || h.refusePersonal(w, r, siteID, coll) {
+		return
+	}
+	kind := model.HistoryState
+	if coll != "" {
+		kind = model.HistoryList
+	}
+	limit, before := pageArgs(r)
+	entries, err := h.legacySvc().ListHistory(r.Context(), siteID, kind, coll, limit, before)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	resp := map[string]any{"site": siteName, "history": entries, "next": historyNext(entries, limit), "undo_days": h.savedData.UndoDays}
+	if coll != "" {
+		resp["collection"] = coll
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// getDataHistory is GET .../history/{id}: one change with the value from
+// before it.
+func (h *SiteHandler) getDataHistory(w http.ResponseWriter, r *http.Request) {
+	_, siteID, _, coll, ok := h.ownedDataSite(w, r)
+	if !ok || h.refusePersonal(w, r, siteID, coll) {
+		return
+	}
+	id, valid := pathID(r, "id")
+	if !valid {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
+		return
+	}
+	kind := model.HistoryState
+	if coll != "" {
+		kind = model.HistoryList
+	}
+	e, err := h.legacySvc().ReadHistoryEntry(r.Context(), siteID, kind, coll, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
+		return
+	}
+	if err != nil {
+		log.Printf("saved-data history read site_id=%s id=%d: %v", siteID, id, err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if e.Value == nil {
+		e.Value = json.RawMessage("null")
+	}
+	writeJSON(w, http.StatusOK, e)
+}
+
+// restoreStateHistory is POST /v1/sites/{s}/state/history/{id}/restore: the
+// document goes back to how it was before that change. A new change itself.
+func (h *SiteHandler) restoreStateHistory(w http.ResponseWriter, r *http.Request) {
+	user, siteID, siteName, _, ok := h.ownedDataSite(w, r)
+	if !ok || h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
+	id, valid := pathID(r, "id")
+	if !valid {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
+		return
+	}
+	state, ver, err := h.legacySvc().RestoreStateVersion(r.Context(), siteID, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes())
+	h.boundHistory(r, siteID)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
+	case errors.Is(err, model.ErrNoEarlierValue):
+		writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error(), Code: "nothing_to_restore"})
+	case errors.Is(err, model.ErrSiteFull):
+		h.writeSiteFull(w)
+	case err != nil:
+		log.Printf("saved-data restore site_id=%s id=%d: %v", siteID, id, err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	default:
+		w.Header().Set("ETag", stateETag(ver))
+		writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "restored": id, "version": ver, "state": state})
+	}
+}
+
+// restoreListHistory is POST /v1/sites/{s}/collections/{c}/history/{id}/restore:
+// undo one list change (a delete or clear brings the item back; an edit puts
+// its earlier fields back).
+func (h *SiteHandler) restoreListHistory(w http.ResponseWriter, r *http.Request) {
+	user, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
+	if !ok || h.refuseSuspendedSiteID(w, r, siteID) || h.refusePersonal(w, r, siteID, coll) {
+		return
+	}
+	id, valid := pathID(r, "id")
+	if !valid {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
+		return
+	}
+	boardMax, ok := h.boardCap(w, r, siteID, coll)
+	if !ok {
+		return
+	}
+	item, err := h.legacySvc().RestoreItemVersion(r.Context(), siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes(), boardMax)
+	h.boundHistory(r, siteID)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
+	case errors.Is(err, model.ErrNoEarlierValue):
+		writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error(), Code: "nothing_to_restore"})
+	case errors.Is(err, model.ErrNameFull):
+		h.writeBoardFull(w)
+	case errors.Is(err, model.ErrOneDocument):
+		writeOneDocument(w, coll)
+	case errors.Is(err, model.ErrSiteFull):
+		h.writeSiteFull(w)
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "restored": id, "item": item})
+	}
+}
+
+// listDeletedItems is GET /v1/sites/{s}/collections/{c}/deleted: the list's
+// Recently deleted, most recently deleted first. `next` is an opaque cursor
+// for ?before.
+func (h *SiteHandler) listDeletedItems(w http.ResponseWriter, r *http.Request) {
+	_, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
+	if !ok || h.refusePersonal(w, r, siteID, coll) {
+		return
+	}
+	limit := pageLimit(r)
+	items, err := h.legacySvc().ListDeletedItems(r.Context(), siteID, coll, limit, deletedCursor(r.URL.Query().Get("before")))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	var next *string
+	if len(items) == limit && limit > 0 {
+		n := deletedNext(items[len(items)-1])
+		next = &n
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "items": items, "next": next, "undo_days": h.savedData.UndoDays})
+}
+
+// restoreDeletedItem is POST .../collections/{c}/items/{id}/restore (one item)
+// and POST .../collections/{c}/deleted/restore {"all": true} (every item in
+// the list's Recently deleted, e.g. after a clear).
+func (h *SiteHandler) restoreDeletedItem(w http.ResponseWriter, r *http.Request) {
+	user, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
+	if !ok || h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
+	var id int64
+	if r.PathValue("id") != "" {
+		var valid bool
+		if id, valid = pathID(r, "id"); !valid {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such deleted item", Code: "not_found"})
+			return
+		}
+	}
+	var within time.Duration
+	if id == 0 {
+		var req struct {
+			All           bool `json:"all"`
+			WithinMinutes int  `json:"within_minutes"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || !req.All {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: `to bring back every deleted item, send {"all": true} (and "within_minutes": n for only those deleted in the last n minutes)`, Code: "confirm_required"})
+			return
+		}
+		if req.WithinMinutes < 0 || req.WithinMinutes > h.savedData.UndoDays*24*60 {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("within_minutes is 1 to %d (%d days)", h.savedData.UndoDays*24*60, h.savedData.UndoDays), Code: "invalid_window"})
+			return
+		}
+		within = time.Duration(req.WithinMinutes) * time.Minute
+	}
+	boardMax, ok := h.boardCap(w, r, siteID, coll)
+	if !ok {
+		return
+	}
+	// A board's Restore all names how far back: after someone deletes the
+	// lot, the owner brings back what went since then, not what people
+	// deleted on purpose before it.
+	if boardMax > 0 && id == 0 && within == 0 {
+		writeJSON(w, http.StatusBadRequest, errorResponse{
+			Error: fmt.Sprintf(`on a Shared board, say how far back to bring items back: {"all": true, "within_minutes": 60} restores what was deleted in the last hour (up to %d for all %d days)`, h.savedData.UndoDays*24*60, h.savedData.UndoDays),
+			Code:  "window_required",
+		})
+		return
+	}
+	// A Personal name: the owner brings back only what their clear took, all
+	// at once (they never pick out one person's record, and a record its
+	// person deleted stays deleted).
+	personal, ok := h.isPersonalName(w, r, siteID, coll)
+	if !ok {
+		return
+	}
+	if personal && id > 0 {
+		writePersonalOnly(w, coll)
+		return
+	}
+	n, err := h.legacySvc().UndeleteItems(r.Context(), siteID, coll, id, h.ownerActor(r.Context(), user, siteID), h.siteMaxBytes(), personal, within, boardMax)
+	if errors.Is(err, model.ErrSiteFull) {
+		h.writeSiteFull(w)
+		return
+	}
+	if errors.Is(err, model.ErrOneDocument) {
+		writeOneDocument(w, coll)
+		return
+	}
+	if errors.Is(err, model.ErrNameFull) {
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Error: fmt.Sprintf("bringing these back would take the board past %d items; delete some first, or restore fewer (a shorter within_minutes, or one at a time)", h.savedData.BoardMax),
+			Code:  "list_full",
+		})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if id > 0 && n == 0 {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such deleted item", Code: "not_found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "restored": n})
+}
+
+// writeOneDocument: Page info is one document, so an earlier one comes back
+// only while the name holds none.
+func writeOneDocument(w http.ResponseWriter, name string) {
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: fmt.Sprintf("%q is page info, which is one document, and bringing this back would make a second one beside it. To put an earlier document back, save it again with PUT (the current one stays in its history), or clear the current document first and bring back one at a time", name),
+		Code:  "one_document",
+	})
+}
+
+// boardCap is SAVED_DATA_BOARD_MAX when coll is a Shared board (restores
+// keep its cap), 0 otherwise. Writes the 500; ok=false then.
+func (h *SiteHandler) boardCap(w http.ResponseWriter, r *http.Request, siteID, coll string) (int, bool) {
+	set, err := h.legacySvc().GetDataSettings(r.Context(), siteID, coll)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return 0, false
+	}
+	if set.Kind == model.KindBoard {
+		return h.savedData.BoardMax, true
+	}
+	return 0, true
+}
+
+// confirmBody reads {"confirm": "<want>"}; on a mismatch it writes the 400
+// naming what to send and returns false.
+func confirmBody(w http.ResponseWriter, r *http.Request, want, what string) bool {
+	var req struct {
+		Confirm string `json:"confirm"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.Confirm != want {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "to " + what + ", send {\"confirm\": \"" + want + "\"}",
+			"code":  "confirm_required",
+		})
+		return false
+	}
+	return true
+}
+
+// purgeDeletedItems is DELETE .../collections/{c}/deleted/{id} (one item of
+// Recently deleted) and DELETE .../collections/{c}/deleted with
+// {"confirm": "<c>"} (all of it): gone for good, with their history. Live
+// items are never touched. Owner (or admin) only, and logged.
+func (h *SiteHandler) purgeDeletedItems(w http.ResponseWriter, r *http.Request) {
+	user, siteID, siteName, coll, ok := h.ownedDataSite(w, r)
+	if !ok || h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
+	if h.adminNeedsHandle(w, r, user, siteID) {
+		return
+	}
+	var id int64
+	if r.PathValue("id") != "" {
+		var valid bool
+		if id, valid = pathID(r, "id"); !valid {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such deleted item", Code: "not_found"})
+			return
+		}
+	} else if !confirmBody(w, r, coll, "delete everything in this list's Recently deleted for good") {
+		return
+	}
+	n, err := h.legacySvc().PurgeDeletedItems(r.Context(), siteID, coll, id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if id > 0 && n == 0 {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such deleted item", Code: "not_found"})
+		return
+	}
+	log.Printf("data_purge user_id=%s admin=%t site_id=%s what=deleted_items collection=%s id=%d n=%d", user.ID, user.IsAdmin, siteID, coll, id, n)
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "collection": coll, "deleted_for_good": n})
+}
+
+// adminNeedsHandle refuses (409 handle_required) a delete for good by the
+// admin that names another account's site by its bare name: bare names are
+// not unique across accounts, so the admin says whose site it is with
+// /v1/u/{handle}/sites/{name}/…. The admin's own sites and the named form go
+// through. Writes the refusal.
+func (h *SiteHandler) adminNeedsHandle(w http.ResponseWriter, r *http.Request, user *model.User, siteID string) bool {
+	if !user.IsAdmin || strings.TrimSpace(r.PathValue("handle")) != "" {
+		return false
+	}
+	if owner, _, err := h.sitesSvc().GetSiteWriteGate(r.Context(), siteID); err == nil && owner == user.ID {
+		return false
+	}
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error: "name the site's owner for a delete for good: use /v1/u/{handle}/sites/{sitename}/…",
+		Code:  "handle_required",
+	})
+	return true
+}
+
+// clearDataHistory is DELETE /v1/sites/{s}/history {"confirm": "<s>"}: every
+// earlier version of the site's saved data and list items goes for good. The
+// data itself and Recently deleted stay. Owner (or admin) only, and logged.
+func (h *SiteHandler) clearDataHistory(w http.ResponseWriter, r *http.Request) {
+	user, siteID, siteName, _, ok := h.ownedDataSite(w, r)
+	if !ok || h.refuseSuspendedSiteID(w, r, siteID) {
+		return
+	}
+	if h.adminNeedsHandle(w, r, user, siteID) {
+		return
+	}
+	if !confirmBody(w, r, siteName, "clear this site's history for good") {
+		return
+	}
+	n, err := h.legacySvc().ClearSiteHistory(r.Context(), siteID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	log.Printf("data_purge user_id=%s admin=%t site_id=%s what=history n=%d", user.ID, user.IsAdmin, siteID, n)
+	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "cleared": n})
+}
+
+// adminDataWatch is GET /v1/admin/data-watch?days=N: per site, how often each
+// use the later tightening affects happened over the last N days
+// (SAVED_DATA_WATCH_DAYS by default), and since when the watch has counted.
+func (h *SiteHandler) adminDataWatch(w http.ResponseWriter, r *http.Request) {
+	days := h.savedData.WatchDays
+	if v, err := strconv.Atoi(r.URL.Query().Get("days")); err == nil && v > 0 && v <= 90 {
+		days = v
+	}
+	sites, first, err := h.legacySvc().ListDataWatch(r.Context(), days)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	resp := map[string]any{
+		"days": days, "watch_days": h.savedData.WatchDays, "sites": sites,
+		"thresholds": map[string]int{"inc_max": h.savedData.WatchIncMax, "item_kb": h.savedData.WatchItemKB},
+	}
+	if !first.IsZero() {
+		resp["since"] = first.UTC().Format("2006-01-02")
+		resp["days_counted"] = int(time.Since(first).Hours()/24) + 1
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// storableJSON: saved data is stored as Postgres jsonb, which holds no U+0000
+// (\u0000), no unpaired surrogate (\ud800 alone) and no invalid UTF-8, all of
+// which Go's JSON accepts. A body with any of them is refused here with 400
+// invalid_json instead of failing in the database. Writes the refusal; false
+// then. body is JSON Go already accepts (or about to be checked as such).
+func storableJSON(w http.ResponseWriter, body []byte) bool {
+	if jsonStorable(body) {
+		return true
+	}
+	writeJSON(w, http.StatusBadRequest, errorResponse{
+		Error: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`,
+		Code:  "invalid_json",
+	})
+	return false
+}
+
+func jsonStorable(body []byte) bool { return model.LegacyJSONStorable(body) }
+
+func parseLegacyHistoryPage(limitValue, beforeValue string) (int, int64) {
+	return model.LegacyHistoryPage(limitValue, beforeValue)
+}

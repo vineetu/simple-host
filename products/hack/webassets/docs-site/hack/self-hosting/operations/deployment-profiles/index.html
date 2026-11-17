@@ -654,7 +654,7 @@ two instances. Set <code>SITE_DOMAIN</code>, <code>PUBLIC_BASE_URL</code>, <code
 accepts <code>EVENTS=hosted</code> or unset for compatibility. Host refuses <code>EVENTS=hosted</code>;
 the program selects the product, not the environment. This describes the required operator contract,
 not a verification of secret-file contents (<code>deploy/prod/simple-host.service:11</code>,
-<code>/etc/systemd/system/simple-hack.service:9</code>, <code>internal/config/config.go:16</code>,
+<code>/etc/systemd/system/simple-hack.service:9</code>, <code>host/config/config.go:16</code>,
 <code>deploy/hack/README.md:4</code>). Hosted family addresses use <code>PERSON_HOSTS=canonical</code>
 and <code>SITE_HOSTS=canonical</code> (<code>ARCHITECTURE.md</code>, Deploy).</p>
 <h3 id="migration-ownership">Migration ownership</h3>
@@ -669,7 +669,7 @@ A fresh empty database needs the matching program’s
 <code>migrate -init -record-product</code>; do not load schema.sql separately. An existing
 database with no product record needs that program’s explicit
 <code>migrate -record-product</code> once. Ordinary startup checks the recorded product
-and schema (<code>internal/server/migrate.go</code>, <code>internal/server/build.go</code>).
+and schema (<code>host/server/migrate.go</code>, <code>host/server/build.go</code>).
 The shared migration rules below apply.</p>
 <h3 id="upgrade-steps-and-rollback">Upgrade steps and rollback</h3>
 <p>Before changing either instance, take paired database and site-directory backups
@@ -786,7 +786,7 @@ absent, applies pending files under the advisory lock, and checks the schema.
 The database role must own the database. With migrateOnStart disabled, the
 operator must run the same image’s <code>migrate -init</code> first
 (<code>deploy/kubernetes/simple-hack/values.yaml:37</code>, <code>cmd/server/main.go:115</code>,
-<code>db/migrations/migrations.go:417</code>, <code>docs/kubernetes.md:175</code>).</p>
+<code>host/db/migrations/migrations.go:417</code>, <code>docs/kubernetes.md:175</code>).</p>
 <h3 id="upgrade-steps-and-rollback-2">Upgrade steps and rollback</h3>
 <p>Back up Postgres and the <code>/data</code> volume as a pair, preferably with the pod
 scaled to zero, and preserve the Secret, especially PASSCODE_ENC_KEY.
@@ -796,7 +796,7 @@ Use <code>helm rollback</code> or restore the previous manifest/image for binary
 SQL stays applied. Earlier successful migration files remain committed if a
 later file fails. Restore DB plus volume together if data rollback is needed
 (<code>docs/kubernetes.md:152</code>, <code>docs/kubernetes.md:187</code>,
-<code>db/migrations/migrations.go:20</code>). Check external <code>/healthz</code>, <code>/readyz</code>, a team
+<code>host/db/migrations/migrations.go:20</code>). Check external <code>/healthz</code>, <code>/readyz</code>, a team
 site, and <code>kubectl exec</code> the pod’s <code>/usr/local/bin/simple-hack version</code>.
 The Hack image keeps a <code>simple-host</code> alias for existing chart commands for
 this release only; a locally built chart image must use <code>--target hack</code>.
@@ -806,7 +806,7 @@ The chart probes healthz for startup/liveness and readyz for readiness
 <p>Workers are goroutines in the server, not separate queue services in any
 profile. <code>cmd/server/main.go</code> starts connector expiry sweep (<code>:379</code>), hosted
 Hack cleanup (<code>:421</code>), optional event-domain sweep (<code>:509</code>), API metric flushing
-(constructor at <code>:532</code>, <code>internal/handler/apimetrics.go:94</code>), optional access-log
+(constructor at <code>:532</code>, <code>host/handler/apimetrics.go:94</code>), optional access-log
 analytics (<code>:563</code>), then certificate requests, Hack settlement, event cleanup
 and content delivery, deleted-site purge, idle cleanup, saved-data sweep,
 submission emails, notification delivery, address-family checks, network usage,
@@ -816,17 +816,17 @@ leave workers inactive; setup mode returns before normal worker wiring (<code>:1
 <code>NNNN-name.sql</code>, next free number, plain idempotent SQL, additive and safe on a
 live DB. The runner uses the frozen legacy order then numbered files, skips
 historical baseline files, and commits each file with its schema_migrations row
-under a per-database Postgres advisory lock (<code>db/migrations/migrations.go:4</code>,
-<code>db/migrations/migrations.go:302</code>). Init uses that same lock; manual SQL does not.</p>
+under a per-database Postgres advisory lock (<code>host/db/migrations/migrations.go:4</code>,
+<code>host/db/migrations/migrations.go:302</code>). Init uses that same lock; manual SQL does not.</p>
 <p>An older binary is intended to work on the newer additive schema, but startup
 does not prove full backwards compatibility. VerifySchema checks only the
 presence of its listed tables/columns; hosted Hack also checks its listed
 columns and the existence of event_teams_name_idx. It does not compare schema
 versions, reject extra columns/newer migration rows, or check column types or
 index definitions. Missing requirements abort startup; extra schema is accepted
-(<code>cmd/server/main.go:131</code>, <code>internal/db/schemacheck.go:170</code>,
-<code>internal/db/schemacheck.go:196</code>). <code>/healthz</code> means HTTP is answering; <code>/readyz</code>
-also pings Postgres (<code>internal/handler/health.go:19</code>). The version command needs
+(<code>cmd/server/main.go:131</code>, <code>host/db/schemacheck.go:170</code>,
+<code>host/db/schemacheck.go:196</code>). <code>/healthz</code> means HTTP is answering; <code>/readyz</code>
+also pings Postgres (<code>host/handler/health.go:19</code>). The version command needs
 no database and prints release/commit plus embedded migration information
 (<code>cmd/server/migrate.go:148</code>).</p>
 <table>

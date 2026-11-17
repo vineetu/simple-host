@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/host/handler"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 

@@ -25,8 +25,8 @@ export function title () { return 'Entry' }
 // "incomplete" flag: `status === 'not_submitted'` on an entry that has any
 // content (hasAnyContent below) IS the Incomplete case; `status ===
 // 'not_submitted'` with nothing in it at all is a team that never started
-// one. This matches the landed backend (internal/handler/hack_entry_rules.go,
-// internal/db/hack_entries.go EventEntry.Status()) read while building this
+// one. This matches the landed backend (host/handler/hack_entry_rules.go,
+// host/db/hack_entries.go EventEntry.Status()) read while building this
 // screen.
 
 // Audit item 1 (2026-11-02): "How you're judged" card, the rubric a judge

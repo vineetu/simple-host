@@ -12,7 +12,7 @@ loader = importlib.util.spec_from_file_location('compose', Path(__file__).with_n
 compose = importlib.util.module_from_spec(loader)
 loader.loader.exec_module(compose)
 
-platform = yaml.safe_load(Path('internal/webassets/static/openapi.yaml').read_text())
+platform = yaml.safe_load(Path('host/webassets/static/openapi.yaml').read_text())
 internal = json.loads(Path('products/hack/webassets/openapi.internal.json').read_text())
 public_files = ('products/hack/webassets/static/openapi.json', 'products/hack/webassets/static/openapi.yaml')
 for spec in (platform, internal, *(yaml.safe_load(Path(name).read_text()) for name in public_files)):
@@ -41,7 +41,7 @@ for spec, audiences in ((platform, {'public-host', 'internal', 'legacy'}),
     assert spec['tags'][-1]['name'] == 'Deprecated: saved data' or spec is internal
 
 registered = set()
-for root in ('internal', 'cmd', 'products'):
+for root in ('host', 'cmd', 'products'):
     for file in Path(root).rglob('*.go'):
         if file.name.endswith('_test.go'):
             continue

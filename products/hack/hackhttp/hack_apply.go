@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/model"
@@ -20,7 +20,7 @@ import (
 // pending — D1).
 
 // hackAgeRangeOrder/hackAgeRangeLabels and hackGenderOrder/hackGenderLabels
-// moved to internal/rules/hackevents (AgeRangeOrder/AgeRangeLabels,
+// moved to host/rules/hackevents (AgeRangeOrder/AgeRangeLabels,
 // GenderOrder/GenderLabels) in cleanup 3.2 slice 1c: fixed product choices,
 // no handler dependency.
 
@@ -32,7 +32,7 @@ import (
 // mistake).
 const hackUnder18Note = "If you're under 18, a parent or guardian needs to agree to Simple Hack's Terms for you."
 
-// hackApplicationsOpenNow moved to internal/rules/hackevents
+// hackApplicationsOpenNow moved to host/rules/hackevents
 // (ApplicationsOpenNow) in cleanup 3.2 slice 4: fixed product decision, no
 // handler dependency.
 
@@ -136,7 +136,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
-// hackCountryName and hackJoinedViaLabel moved to internal/rules/hackevents
+// hackCountryName and hackJoinedViaLabel moved to host/rules/hackevents
 // (CountryName, JoinedViaLabel) in cleanup 3.2 slice 1c: pure lookups, no
 // handler dependency.
 

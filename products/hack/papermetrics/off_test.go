@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	platform "github.com/vsriram/simple-host/internal/papermetrics"
+	platform "github.com/vsriram/simple-host/host/papermetrics"
 )
 
 // With PAPER_METRICS=off no request carries a measurement, so the recorder's

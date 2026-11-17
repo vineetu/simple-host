@@ -2,12 +2,12 @@ package servertest
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/host/config"
 	"net/http"
 	"net/url"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/host/edition"
 )
 
 func TestHackOnDemandTLSNames(t *testing.T) {

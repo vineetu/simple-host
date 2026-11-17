@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // mcpCallWithKey calls tools/call directly with a personal API key (no OAuth
@@ -20,7 +20,7 @@ func (a *teamSiteApp) mcpCallWithKey(t *testing.T, key, name string, args map[st
 }
 
 // TestHackOutputSchemasMatchRealResults is SIM-384's root-cause check,
-// driven against the real app and database rather than internal/mcp's own
+// driven against the real app and database rather than host/mcp's own
 // fake-upstream fixtures (TestHackToolDispatch and friends): hack_create_event
 // returned "Structured content does not match the tool's output schema: data
 // must NOT have additional properties" on 2026-11-06 even though the event

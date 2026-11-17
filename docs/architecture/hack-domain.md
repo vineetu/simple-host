@@ -7,38 +7,38 @@ Storage publication and delivery consistency are covered in [persistence](persis
 screens and bundles are covered in [frontend](frontend.md).
 
 Source references below give a path and function/type name. Paths are relative to
-`products/hack/` unless prefixed with `internal/` or `products/`, or stated otherwise.
+`products/hack/` unless prefixed with `host/` or `products/`, or stated otherwise.
 They describe the current implementation, including checks still owned by transport.
 
 ## Records and ownership
 
 Shared records have no SQL or HTTP dependencies. Repositories execute SQL over
-`internal/repository/sqlkit.Querier`; application services open workflow transactions.
+`host/repository/sqlkit.Querier`; application services open workflow transactions.
 HTTP decodes and authenticates, calls a service, then builds the response.
 Some response construction still runs inside a service transaction via a callback
 (`app/entries/results.go`, `PublishResults`).
 
 | Record | Shared type and storage | Repository and application owner |
 |---|---|---|
-| Event | `internal/model/hackevents.go`, `Event`; `events` | `repository/hackevents/events.go`; `app/events/create.go` (`CreateEvent`, `SetStage`, `PatchEvent`, `DeleteEvent`) |
-| Member | `internal/model/hackevents.go`, `EventMember`, `EventPerson`; `event_members` | `repository/hackevents/registration.go`, `membership_queries.go`, `leave.go`; `app/members` and `app/events/join.go` |
-| Application | `internal/model/hackevents.go`, `RegistrationApplication`, `ApplicantProfile`; approval/profile fields on membership | `repository/hackevents/registration.go`; `app/members/apply.go`, `registration.go` |
-| Team | `internal/model/hackevents.go`, `EventTeam`, `TeamRequest`; `event_teams`, `event_team_requests` | `repository/hackteams`; `app/teams` |
-| Entry | `internal/model/hackentries.go`, `EventEntry`; `event_entries` | `repository/hackentries/entries.go`; `app/entries/entry.go`, `settle.go`, `rules.go` |
-| Track | `internal/model/hackentries.go`, `EventTrack`; `event_tracks`, team's `track_id` | `repository/hackevents/registration.go`; `app/members/registration.go` |
-| Rubric | `internal/model/hackjudging.go`, `RubricCriterion`; `rubric_criteria` | `repository/hackentries/judging.go`; `app/entries/rubric.go` |
-| Assignment | `internal/model/hackjudging.go`, `JudgeAssignment`; `event_assignments`, `event_track_panels` | `repository/hackentries/options.go`; `app/entries/assignments.go` |
-| Score / conflict | `internal/model/hackjudging.go`, `RawScoreRow`; repository `JudgeScore`, `EventConflict`; `event_scores`, `event_conflicts` | `repository/hackentries/judging.go`, `options.go`; `app/entries/scores.go`, `conflicts.go` |
-| Departed judge | `internal/model/hackevents.go`, `FormerJudge`; `event_former_judges` | `repository/hackevents/leave.go`; `app/members/leave.go`, `app/entries/judging_tx.go` |
-| Vote | `internal/model/hack_misc.go`, `VotingSettings`, `VoteOption`; `event_votes`, settings on event | `repository/hackentries/voting.go`; `app/entries/voting.go` |
+| Event | `host/model/hackevents.go`, `Event`; `events` | `repository/hackevents/events.go`; `app/events/create.go` (`CreateEvent`, `SetStage`, `PatchEvent`, `DeleteEvent`) |
+| Member | `host/model/hackevents.go`, `EventMember`, `EventPerson`; `event_members` | `repository/hackevents/registration.go`, `membership_queries.go`, `leave.go`; `app/members` and `app/events/join.go` |
+| Application | `host/model/hackevents.go`, `RegistrationApplication`, `ApplicantProfile`; approval/profile fields on membership | `repository/hackevents/registration.go`; `app/members/apply.go`, `registration.go` |
+| Team | `host/model/hackevents.go`, `EventTeam`, `TeamRequest`; `event_teams`, `event_team_requests` | `repository/hackteams`; `app/teams` |
+| Entry | `host/model/hackentries.go`, `EventEntry`; `event_entries` | `repository/hackentries/entries.go`; `app/entries/entry.go`, `settle.go`, `rules.go` |
+| Track | `host/model/hackentries.go`, `EventTrack`; `event_tracks`, team's `track_id` | `repository/hackevents/registration.go`; `app/members/registration.go` |
+| Rubric | `host/model/hackjudging.go`, `RubricCriterion`; `rubric_criteria` | `repository/hackentries/judging.go`; `app/entries/rubric.go` |
+| Assignment | `host/model/hackjudging.go`, `JudgeAssignment`; `event_assignments`, `event_track_panels` | `repository/hackentries/options.go`; `app/entries/assignments.go` |
+| Score / conflict | `host/model/hackjudging.go`, `RawScoreRow`; repository `JudgeScore`, `EventConflict`; `event_scores`, `event_conflicts` | `repository/hackentries/judging.go`, `options.go`; `app/entries/scores.go`, `conflicts.go` |
+| Departed judge | `host/model/hackevents.go`, `FormerJudge`; `event_former_judges` | `repository/hackevents/leave.go`; `app/members/leave.go`, `app/entries/judging_tx.go` |
+| Vote | `host/model/hack_misc.go`, `VotingSettings`, `VoteOption`; `event_votes`, settings on event | `repository/hackentries/voting.go`; `app/entries/voting.go` |
 | Results | `repository/hackentries/judging.go`, `EventResultsRow`; `event_results` snapshot | `app/entries/results.go`; pure `rules/hackentries/scoring.go` |
-| Content / announcement | `internal/model/hack_misc.go`, `EventContent`, `EventAnnouncement`; `event_content`, `event_announcements` | `repository/hackevents/content.go`, `announcements.go`; `app/events/content.go` |
-| Notices / mail | `internal/model/hack_misc.go`, `Notice`, `MailNotice`, `MailBatch`, `EventMail`; `event_notices`, `event_announcement_deliveries`, `event_entry_receipts`, `event_entry_reminders` | `repository/hackevents/notice_delivery.go`, `announcements.go`; `app/events/notices.go`, `content.go`, `reminders.go` |
-| Team site / credential | `internal/model/hack_team_state.go`, `TeamIdentity`, `TeamWriteState`, `TeamKeyInfo`; `sites`, `event_team_keys`, `api_keys` | `repository/hackteams/team_sites.go`, `team_keys.go`; `app/teams/keys.go` plus shared site/account services |
+| Content / announcement | `host/model/hack_misc.go`, `EventContent`, `EventAnnouncement`; `event_content`, `event_announcements` | `repository/hackevents/content.go`, `announcements.go`; `app/events/content.go` |
+| Notices / mail | `host/model/hack_misc.go`, `Notice`, `MailNotice`, `MailBatch`, `EventMail`; `event_notices`, `event_announcement_deliveries`, `event_entry_receipts`, `event_entry_reminders` | `repository/hackevents/notice_delivery.go`, `announcements.go`; `app/events/notices.go`, `content.go`, `reminders.go` |
+| Team site / credential | `host/model/hack_team_state.go`, `TeamIdentity`, `TeamWriteState`, `TeamKeyInfo`; `sites`, `event_team_keys`, `api_keys` | `repository/hackteams/team_sites.go`, `team_keys.go`; `app/teams/keys.go` plus shared site/account services |
 
-Shared model types remain under `internal/model/`; repository, application and rule
+Shared model types remain under `host/model/`; repository, application and rule
 owners are under `products/hack/`. Schema constraints and cascade relationships
-are in the repository-root `db/schema.sql`; these records are not separate databases.
+are in the repository-root `host/db/schema.sql`; these records are not separate databases.
 
 The domain rules live in `products/hack/rules/hackevents` (registration, applications,
 stage classification, leave cases, schedule), `hackteams` (participant team stages,
@@ -106,7 +106,7 @@ stateDiagram-v2
 A member has one role in an event: `organiser`, `participant` or `judge`.
 Team admin is a membership flag, not a fourth role. A participant's approval
 status is distinct from the role and from team membership
-(`internal/model/hackevents.go`, `EventMember`, `EventPerson`).
+(`host/model/hackevents.go`, `EventMember`, `EventPerson`).
 
 `app/events/join.go`, `JoinByCode`, admits participants only in `open` or
 `building`; judge links work until `results` or `archived`. A person already in
@@ -142,7 +142,7 @@ organiser placement is separate. `kept_after_leave` prevents unlocking or replac
 members even through organiser placement (`repository/hackteams/teams.go`,
 `MoveParticipantToTeam`; `admin.go`, `SetTeamLock`).
 
-A submission freeze is computed separately by `internal/model/hack_team_state.go`,
+A submission freeze is computed separately by `host/model/hack_team_state.go`,
 `TeamWriteState.Frozen`: stage `judging`, `results` or `archived`, or a reached
 effective deadline. Locking admission alone does not freeze an entry or site.
 The `closed` stage alone does not override a future team extension: closing sets
@@ -174,7 +174,7 @@ stateDiagram-v2
 `excluded_at` is an independent flag over any entry status:
 `included -> excluded -> included`, controlled by organisers. Exclusion preserves
 the entry and scores but removes judging eligibility (`app/entries/entry.go`,
-`SetExcluded`). `internal/model/hackentries.go`, `EventEntry.Status`, derives the visible
+`SetExcluded`). `host/model/hackentries.go`, `EventEntry.Status`, derives the visible
 status from `submitted_at` and `submit_settled_at`.
 
 `app/entries/entry.go`, `Write`, locks membership and team before applying

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
+	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 )
 
 // The retention rehearsal uses real files and HTTP serving, in addition to

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	appstorage "github.com/vsriram/simple-host/internal/app/storage"
+	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	"github.com/vsriram/simple-host/products/hack"
 )
 

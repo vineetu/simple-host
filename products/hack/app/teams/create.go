@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/rules/sites"
+	"github.com/vsriram/simple-host/host/rules/sites"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"

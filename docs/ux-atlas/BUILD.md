@@ -97,7 +97,7 @@ Old deep links keep working: unknown `?s=` values fall back to the section's hom
 | Settings `#leave-open/#delete-open` | `s=settings&tab=danger#leave/#delete` respectively |
 | Event page `#basics/#schedule/#sponsors/#faq/#appearance/#address` | Existing Basics/Schedule/Sponsors/FAQ/Look/Website tab; recognised explicit tab wins |
 
-Judge review target: `?s=queue&tab=conflicts#conflicts` selects the real candidate-team panel with **Know this team?** controls. The shared source for targets, role nav and aliases is `internal/rules/hackevents/navigation.json`; build.py uses its roles[].nav, falling back to spec.json only when the file is missing.
+Judge review target: `?s=queue&tab=conflicts#conflicts` selects the real candidate-team panel with **Know this team?** controls. The shared source for targets, role nav and aliases is `host/rules/hackevents/navigation.json`; build.py uses its roles[].nav, falling back to spec.json only when the file is missing.
 
 ## One app (classic removed 2026-11-02)
 
@@ -172,7 +172,7 @@ Rules of thumb:
 1. The screen matches its prototype at 1280×800 and 390 px (screenshot side by side).
 2. Every feature id listed on that screen in `spec.json` works against the real API.
 3. The role's browser test passes on a local server and then on production with test accounts.
-4. `go vet ./... && go test ./internal/handler/ ./internal/mcp/` pass.
+4. `go vet ./... && go test ./host/handler/ ./host/mcp/` pass.
 5. The atlas shows the built screenshot next to the prototype (`build.py` "Built" view).
 
 ## Changing things later

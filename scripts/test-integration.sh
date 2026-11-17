@@ -38,7 +38,7 @@
 #   bash scripts/test-integration.sh                 # starts its own Postgres via Docker
 #   TEST_PG_URL=postgres://postgres:postgres@127.0.0.1:5432 bash scripts/test-integration.sh
 #   bash scripts/test-integration.sh -run '^TestFoo$' # extra args passed through to `go test`
-#   TEST_PKGS=./internal/handler TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
+#   TEST_PKGS=./host/handler TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
 #     # packages via TEST_PKGS (default ./...), repeat count via TEST_COUNT (default 1);
 #     # `make test-db PKGS=... RUN=... COUNT=...` wraps this.
 #   TEST_WORKERS=1 bash scripts/test-integration.sh  # serial packages (default 3)
@@ -186,8 +186,8 @@ for schema_set in platform product; do
     exit 1
   fi
 
-  echo "== applying db/schema.sql ($schema_set template) =="
-  if ! psql "$target_url" -v ON_ERROR_STOP=1 -f db/schema.sql >/dev/null; then
+  echo "== applying host/db/schema.sql ($schema_set template) =="
+  if ! psql "$target_url" -v ON_ERROR_STOP=1 -f host/db/schema.sql >/dev/null; then
     echo "FAIL: platform schema failed to apply to the throwaway database" >&2
     exit 1
   fi

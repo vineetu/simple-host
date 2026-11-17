@@ -2,7 +2,7 @@
 // Browser proof for "each person's records": visitor sign-in at checkout, add-only
 // orders with own reads, and the owner's view through the connector.
 //
-// Runs against the fixture TestServeVisitorRecordsBrowser writes (internal/handler/
+// Runs against the fixture TestServeVisitorRecordsBrowser writes (host/handler/
 // visitor_records_browser_test.go). Two modes:
 //
 //   recipe (default): publish the page get_page_recipe returns, run its owner setup

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"log"
 
-	"github.com/vsriram/simple-host/internal/app/sites"
-	model "github.com/vsriram/simple-host/internal/model"
-	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
+	"github.com/vsriram/simple-host/host/app/sites"
+	model "github.com/vsriram/simple-host/host/model"
+	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"

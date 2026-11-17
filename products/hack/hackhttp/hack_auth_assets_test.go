@@ -1,7 +1,7 @@
 package hackhttp
 
 import (
-	platformassets "github.com/vsriram/simple-host/internal/webassets"
+	platformassets "github.com/vsriram/simple-host/host/webassets"
 	"strings"
 	"testing"
 )

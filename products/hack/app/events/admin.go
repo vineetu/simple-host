@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
+	accounts "github.com/vsriram/simple-host/host/repository/accounts"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )

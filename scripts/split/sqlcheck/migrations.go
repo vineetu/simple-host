@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vsriram/simple-host/db/migrations"
+	"github.com/vsriram/simple-host/host/db/migrations"
 	hackmigrations "github.com/vsriram/simple-host/products/hack/db/migrations"
 )
 
@@ -22,7 +22,7 @@ var onRE = regexp.MustCompile(`(?i)\bON\s+(?:ONLY\s+)?` + ident)
 var writeRE = regexp.MustCompile(`(?i)\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:ONLY\s+)?` + ident)
 
 func migrationOrder(root string) ([]string, map[string]bool, error) {
-	entries, e := os.ReadDir(filepath.Join(root, "db/migrations"))
+	entries, e := os.ReadDir(filepath.Join(root, "host/db/migrations"))
 	if e != nil {
 		return nil, nil, e
 	}
@@ -97,7 +97,7 @@ func proposeMigrations(root string, order []string, objects []object, z schemaIn
 			out = append(out, m)
 			continue
 		}
-		b, e := os.ReadFile(filepath.Join(root, "db/migrations", n))
+		b, e := os.ReadFile(filepath.Join(root, "host/db/migrations", n))
 		if os.IsNotExist(e) {
 			b, e = os.ReadFile(filepath.Join(root, "products/hack/db/migrations", n))
 		}
@@ -345,7 +345,7 @@ func migrationColumns(root string, z schemaInfo) ([]string, error) {
 			hackTables[ob.Name] = true
 		}
 	}
-	files, e := filepath.Glob(filepath.Join(root, "db/migrations/*hack*.sql"))
+	files, e := filepath.Glob(filepath.Join(root, "host/db/migrations/*hack*.sql"))
 	if e != nil {
 		return nil, e
 	}

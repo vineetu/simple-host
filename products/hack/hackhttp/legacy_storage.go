@@ -3,8 +3,8 @@ package hackhttp
 import (
 	"net/http"
 
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/httpx"
 )
 
 // LegacyStorageGate removes the old saved-data API from hosted Simple Hack.

@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/extension"
-	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
+	"github.com/vsriram/simple-host/host/extension"
+	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )

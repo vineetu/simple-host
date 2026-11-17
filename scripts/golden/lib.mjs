@@ -215,13 +215,13 @@ const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 const API_KEY_RE = /shk_[0-9a-f]{64}/gi;
 const HEX_TOKEN_RE = /\b[0-9a-f]{32,64}\b/gi;
 const ISO_TS_RE = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})/g;
-// hackHandle() (internal/handler/hack_mode.go) mints a hack-mode account's
+// hackHandle() (host/handler/hack_mode.go) mints a hack-mode account's
 // handle as "u-" + 10 random hex chars -- unlike a Host-mode handle (derived
 // from the account's own email/username, so already stable), this one is
 // random every run and then echoed back wherever that account's handle
 // shows up (site/team URLs, "who created this").
 const HACK_HANDLE_RE = /\bu-[0-9a-f]{10}\b/g;
-// signPreviewToken (internal/handler/preview.go) seals (site, version,
+// signPreviewToken (host/handler/preview.go) seals (site, version,
 // *an expiry a few minutes from now*) with a fresh AEAD nonce every call --
 // so even a request for the exact same site+version mints a new token each
 // time it's signed, deterministic-per-run only in that the Nth distinct
@@ -229,7 +229,7 @@ const HACK_HANDLE_RE = /\bu-[0-9a-f]{10}\b/g;
 // the server to mint. base64.RawURLEncoding, so an unpadded run of its
 // alphabet right after the "/__preview/<version>/" path segment.
 const PREVIEW_TOKEN_RE = /(?<=__preview\/\d+\/)[A-Za-z0-9_-]{20,}/g;
-// uiCSP (internal/handler/ui.go) stamps a fresh 16-byte base64 nonce onto
+// uiCSP (host/handler/ui.go) stamps a fresh 16-byte base64 nonce onto
 // every admin/landing page's inline <script> tags on every response, purely
 // for that response's Content-Security-Policy -- never meant to repeat, and
 // never meaningful to compare.
@@ -327,7 +327,7 @@ export function stableStringify(value) {
   return JSON.stringify(value);
 }
 
-// The admin usage sentences of internal/capacity (describe), after byte
+// The admin usage sentences of host/capacity (describe), after byte
 // quantities have become <measurement>.
 const DISK_MESSAGES = [
   /^This server is \d+% full, with <measurement> left\. Publishing will start failing\. Free space or move to a bigger disk now\.$/,

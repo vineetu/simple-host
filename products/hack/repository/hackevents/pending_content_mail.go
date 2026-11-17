@@ -3,7 +3,7 @@ package hackevents
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // PendingContentMail counts each existing partial pending index, including delayed retries.

@@ -2,7 +2,7 @@ package papermetrics
 
 import (
 	"context"
-	platform "github.com/vsriram/simple-host/internal/papermetrics"
+	platform "github.com/vsriram/simple-host/host/papermetrics"
 	"log"
 	"net/http"
 	"strings"

@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	platform "github.com/vsriram/simple-host/internal/config"
+	platform "github.com/vsriram/simple-host/host/config"
 	"strconv"
 	"strings"
 	"time"

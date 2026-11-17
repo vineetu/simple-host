@@ -7,7 +7,7 @@
 // pages in both themes go to <shots-dir>.
 //   NODE_PATH=/opt/pw/node_modules node scripts/e2e-theme.js <base> <shots-dir>
 // <base> serves the UI routes, e.g. the CHROME_SERVE_ADDR test server
-// (go test ./internal/handler -run TestServeChromeForScreenshots), which adds
+// (go test ./host/handler -run TestServeChromeForScreenshots), which adds
 // /jane (a person page), /_404, /_offline and /_takendown.
 const { chromium } = require('playwright');
 const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCode = 1; } else console.log('ok: ' + m); };

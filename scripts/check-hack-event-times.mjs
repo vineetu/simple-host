@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 const require = createRequire(process.env.PLAYWRIGHT_PACKAGE || '/opt/pw/node_modules/playwright/package.json')
 const { chromium } = require('playwright')
-const root = fileURLToPath(new URL('../internal/webassets/static/', import.meta.url))
+const root = fileURLToPath(new URL('../host/webassets/static/', import.meta.url))
 const fixture = `<!doctype html><link rel="stylesheet" href="/hack/kit.css"><main class="page"></main><script type="module">
 import * as ui from '/hack/ui.js';
 import { render } from '/hack/screens/organiser-event-page.js';

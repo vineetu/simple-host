@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/internal/workers"
+	"github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/workers"
 )
 
 type eventCleanupOwner struct {

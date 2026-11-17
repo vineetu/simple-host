@@ -1,7 +1,7 @@
 package hackhttp
 
 import (
-	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/httpx"
 	"io/fs"
 	"net/http"
 	"regexp"

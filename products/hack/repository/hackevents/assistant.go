@@ -6,11 +6,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // ErrAssistantDailyLimit and ErrAssistantMonthlyBudget are the two refusals
-// AssistantReserve returns; the caller (internal/app/hack/events) maps them
+// AssistantReserve returns; the caller (host/app/hack/events) maps them
 // to the contract's daily_limit/monthly_budget error codes.
 var (
 	ErrAssistantDailyLimit    = errors.New("hackevents: assistant daily question limit reached")

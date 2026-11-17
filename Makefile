@@ -10,7 +10,7 @@
 # fails if any of them still skip -- that's what `check` runs. Platform packages
 # use the platform schema alone; products/ packages use the composed schema.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
-#   make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5
+#   make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5
 .PHONY: check check-release inventory test test-rules test-integration test-db boundary-report
 
 # `check` stays the default goal (`make` with no target) even though `test`
@@ -36,7 +36,7 @@ test-db:
 	TEST_PKGS='$(PKGS)' TEST_COUNT='$(COUNT)' bash scripts/test-integration.sh $(if $(RUN),-run '$(RUN)')
 
 check:
-	@test -z "$$(gofmt -l internal/ cmd/ db/ host/ $$(if [ -d products/ ]; then echo products/; fi))" || { echo "gofmt: $$(gofmt -l internal/ cmd/ db/ host/ $$(if [ -d products/ ]; then echo products/; fi))"; exit 1; }
+	@test -z "$$(gofmt -l host/ cmd/ $$(if [ -d products/ ]; then echo products/; fi))" || { echo "gofmt: $$(gofmt -l host/ cmd/ $$(if [ -d products/ ]; then echo products/; fi))"; exit 1; }
 	go build ./...
 	cd host/storage/rules && go build ./...
 	go vet ./...

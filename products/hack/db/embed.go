@@ -2,7 +2,7 @@ package db
 
 import (
 	_ "embed"
-	platform "github.com/vsriram/simple-host/db/migrations"
+	platform "github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/products/hack/db/migrations"
 )
 

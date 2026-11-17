@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"strings"
 	"time"
 
@@ -12,7 +12,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Alias (cleanup 4.1): defined in internal/model.
+// Alias (cleanup 4.1): defined in host/model.
 type EventEntry = model.EventEntry
 
 // entryTextColumns are the plain-text fields of an entry, in the order a

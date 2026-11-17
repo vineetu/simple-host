@@ -1,6 +1,6 @@
 package config
 
-import platform "github.com/vsriram/simple-host/internal/config"
+import platform "github.com/vsriram/simple-host/host/config"
 
 func i64(n int64) *int64 { return &n }
 func Settings() []platform.Setting {

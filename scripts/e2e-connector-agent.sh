@@ -7,7 +7,7 @@
 #   bash scripts/e2e-connector-agent.sh claude [model]     # Claude Code, MCP over HTTP with X-API-Key
 #   bash scripts/e2e-connector-agent.sh codex  [model]     # Codex, through a local header-adding proxy
 #
-# Needs: DB_DSN (throwaway Postgres with db/schema.sql), Playwright (NODE_PATH), CHROMIUM.
+# Needs: DB_DSN (throwaway Postgres with host/db/schema.sql), Playwright (NODE_PATH), CHROMIUM.
 # Output: /tmp/vr-agent-<agent>.{log,out}, /tmp/vr-agent-<agent>-site.log
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -19,7 +19,7 @@ export DB_DSN
 sudo --preserve-env=DB_DSN systemd-run --quiet --wait --pipe --collect -p MemoryMax=3G -p WorkingDirectory="$PWD" --uid="$(id -u)" --gid="$(id -g)" \
   -E HOME="$HOME" -E PATH="$PATH" -E GOCACHE="$(go env GOCACHE)" -E GOMODCACHE="$(go env GOMODCACHE)" -E DB_DSN \
   -E VISITOR_RECORDS_FIXTURE="$fixture" -E VISITOR_RECORDS_TIMEOUT_MIN=60 \
-  bash -c 'go test ./internal/handler/ -count=1 -run TestServeVisitorRecordsBrowser -v' > "/tmp/vr-agent-$agent-fixture.log" 2>&1 &
+  bash -c 'go test ./host/handler/ -count=1 -run TestServeVisitorRecordsBrowser -v' > "/tmp/vr-agent-$agent-fixture.log" 2>&1 &
 for _ in $(seq 1 180); do [ -s "$fixture" ] && break; sleep 2; done
 [ -s "$fixture" ] || { echo "fixture did not start"; exit 1; }
 url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["url"])' "$fixture")

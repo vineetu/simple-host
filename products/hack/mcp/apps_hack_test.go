@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // The tool server's own screens (My sites and the rest), as one of Simple

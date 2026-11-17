@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Browser end-to-end check of the connector consent page (internal/handler/
+// Browser end-to-end check of the connector consent page (host/handler/
 // static/connect.html), in real headless Chromium driven over CDP. No npm
 // dependencies: Node 22's WebSocket and fetch.
 //

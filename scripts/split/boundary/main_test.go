@@ -23,17 +23,13 @@ func writeFixture(t *testing.T, root, name, content string) {
 func TestNamesScope(t *testing.T) {
 	root := t.TempDir()
 	for name, content := range map[string]string{
-		"internal/app/hAcK.go":                        "package app\n// HackComment\nvar HackThing = `HackString`\n",
-		"internal/app/plain_test.go":                  "package app\nvar HackTest = 1\n",
-		"internal/app/testdata/data.go":               "package fixture\nvar HackFixture = 1\n",
-		"internal/server/servertest/a.go":             "package servertest\nvar HackHelper = 1\n",
+		"host/app/hAcK.go":                            "package app\n// HackComment\nvar HackThing = `HackString`\n",
+		"host/app/plain_test.go":                      "package app\nvar HackTest = 1\n",
+		"host/app/testdata/data.go":                   "package fixture\nvar HackFixture = 1\n",
+		"host/server/servertest/a.go":                 "package servertest\nvar HackHelper = 1\n",
 		"host/runtime.go":                             "package host\nvar HackHost = 1\n",
-		"db/db.go":                                    "package db\nvar HackDB = 1\n",
-		"db/migrations/testdata/hack-schema.sql":      "-- historical fixture, still a test input",
+		"host/db/db.go":                               "package db\nvar HackDB = 1\n",
 		"host/db/migrations/testdata/hack-schema.sql": "-- historical fixture, still a test input",
-		"db/migrations/hack.sql":                      "-- HackHistory",
-		"db/migrations/migrations.go":                 "package migrations\nvar HackMigration = 1\n",
-		"db/migrations/one_name_test.go":              "package migrations\nfunc TestHackOneNameBackfill() {}\n",
 		"host/db/migrations/hack.sql":                 "-- HackHistory",
 		"host/db/migrations/migrations.go":            "package migrations\nvar HackMigration = 1\n",
 		"host/db/migrations/one_name_test.go":         "package migrations\nfunc TestHackOneNameBackfill() {}\n",
@@ -52,7 +48,7 @@ func TestNamesScope(t *testing.T) {
 	var out strings.Builder
 	section(&out, "Runtime", runtime)
 	got := out.String()
-	for _, want := range []string{"hAcK.go:0 | filename", "identifier | HackThing", "identifier | HackHost", "identifier | HackDB", "db/migrations/migrations.go:2 | identifier | HackMigration", "host/db/migrations/migrations.go:2 | identifier | HackMigration", "Findings: 6"} {
+	for _, want := range []string{"hAcK.go:0 | filename", "identifier | HackThing", "identifier | HackHost", "identifier | HackDB", "host/db/migrations/migrations.go:2 | identifier | HackMigration", "Findings: 5"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %s", want, got)
 		}
@@ -62,12 +58,12 @@ func TestNamesScope(t *testing.T) {
 			t.Errorf("runtime includes %s", excluded)
 		}
 	}
-	if len(tests) != 7 {
+	if len(tests) != 5 {
 		t.Fatalf("test/fixture findings: %v", tests)
 	}
 	out.Reset()
 	section(&out, "Tests", tests)
-	for _, path := range []string{"db/migrations/one_name_test.go", "host/db/migrations/one_name_test.go"} {
+	for _, path := range []string{"host/db/migrations/one_name_test.go"} {
 		if !strings.Contains(out.String(), path+":2 | identifier | TestHackOneNameBackfill") {
 			t.Errorf("missing migration test %s in %s", path, out.String())
 		}
@@ -86,7 +82,7 @@ func TestPublicTextPatternsAndExceptions(t *testing.T) {
 	if len(rows) != 5 || rows[4].value != "Simple Hack" || rows[4].line != 3 {
 		t.Fatalf("expected four product matches and the unmasked title: %v", rows)
 	}
-	if got := textFindings("internal/webassets/page.txt", b, allow); len(got) != 6 {
+	if got := textFindings("host/webassets/page.txt", b, allow); len(got) != 6 {
 		t.Fatalf("domain exception leaked to authored assets: %v", got)
 	}
 	if got := textFindings("image.bin", []byte("\x00Simple Hack"), nil); len(got) != 0 {
@@ -154,15 +150,15 @@ func TestPublicTextInputsAndEmbeds(t *testing.T) {
 func TestAllowlistRequiresReasonAndMasksOnlyNamedIdentifier(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "allow.txt")
-	writeFixture(t, root, "allow.txt", "internal/app/*.go | ^HackAllowed$ | transition\n")
+	writeFixture(t, root, "allow.txt", "host/app/*.go | ^HackAllowed$ | transition\n")
 	allow, err := readAllow(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mask("internal/app/a.go", "HackAllowed", allow) != "           " || mask("internal/app/a.go", "HackOther", allow) != "HackOther" {
+	if mask("host/app/a.go", "HackAllowed", allow) != "           " || mask("host/app/a.go", "HackOther", allow) != "HackOther" {
 		t.Fatal("exception did not match exactly")
 	}
-	writeFixture(t, root, "allow.txt", "internal/app/*.go | HackAllowed | \n")
+	writeFixture(t, root, "allow.txt", "host/app/*.go | HackAllowed | \n")
 	if _, err := readAllow(path); err == nil {
 		t.Fatal("accepted an exception without a reason")
 	}

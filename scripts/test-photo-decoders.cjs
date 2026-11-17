@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const root = path.join(__dirname, '../internal/webassets/static/photo-codecs/v3');
+const root = path.join(__dirname, '../host/webassets/static/photo-codecs/v3');
 function environment() {
   const ctx = vm.createContext({console, ArrayBuffer, Uint8Array, Uint8ClampedArray, setTimeout});
   ctx.self = ctx;
@@ -26,7 +26,7 @@ function environment() {
   new DataView(malformed).setUint32(14, 0xffffffff, false);
   assert.throws(() => utif.decode(malformed), /TIFF/);
 
-  const expansion = fs.readFileSync(path.join(__dirname, '../internal/handler/testdata/photos/deflate-expansion.tiff'));
+  const expansion = fs.readFileSync(path.join(__dirname, '../host/handler/testdata/photos/deflate-expansion.tiff'));
   const malicious = Uint8Array.from(expansion).buffer;
   assert.throws(() => utif.decodeImage(malicious, utif.decode(malicious)[0]), /strip too large/);
   // Bound each strip, not just the full image, and exercise successful streaming.

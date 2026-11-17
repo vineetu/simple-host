@@ -2,15 +2,15 @@ D1-S4 helper and test-file inventory
 
 Source: git ls-tree at b90ab830bc52e0dd835fa2bfd6125c104c2cb95c.
 Counts include tests and embedded files:
-  internal/hackhttp/: 97 files
-  internal/app/hack/: 68 files
-  internal/repository/hackevents/: 29 files
-  internal/repository/hackteams/: 13 files
-  internal/repository/hackentries/: 11 files
-  internal/rules/hackevents/: 22 files
-  internal/rules/hackteams/: 4 files
-  internal/rules/hackentries/: 11 files
-  internal/server/hack_*_test.go: 52 files
+  host/hackhttp/: 97 files
+  host/app/hack/: 68 files
+  host/repository/hackevents/: 29 files
+  host/repository/hackteams/: 13 files
+  host/repository/hackentries/: 11 files
+  host/rules/hackevents/: 22 files
+  host/rules/hackteams/: 4 files
+  host/rules/hackentries/: 11 files
+  host/server/hack_*_test.go: 52 files
 
 Helpers used by the moved Hack tests from outside their moved files:
   main_test.go: testHackPages -> products/hack/servertest/main_test.go (product template cache).
@@ -19,22 +19,22 @@ Helpers used by the moved Hack tests from outside their moved files:
   selfhosted_pages_test.go defines no helper; its sole Hack test is now in hack_get_started_test.go.
 
 Program boot helpers (previously in cmd/server/wiring_test.go after D1-S2):
-  buildWiring -> internal/server/servertest.Build, takes extensions explicitly and calls server.Build.
-  wiringConfig -> internal/server/servertest.Config, takes a caller-owned disposable DSN.
-  route/worker assertions -> internal/server/servertest.CheckWiring (original snapshots unchanged).
+  buildWiring -> host/server/servertest.Build, takes extensions explicitly and calls server.Build.
+  wiringConfig -> host/server/servertest.Config, takes a caller-owned disposable DSN.
+  route/worker assertions -> host/server/servertest.CheckWiring (original snapshots unchanged).
   checkWiringSnapshot -> private helper in that same package.
   Hack transport fixtures newHackApp/newTeamSiteAppMailer and their helpers stay product-owned:
   they construct partial handler graphs and expose Hack handlers, rather than booting the program.
 
 Test-file kinds after the split:
-  internal/server/main_test.go: package server, per-package testdb.Main.
-  internal/server/acct_oauth_seam_test.go: package server, white-box signInProvider test.
-  internal/server/wiring_test.go: package server, Run/Build tests; never imports servertest.
-  internal/server/wiring_external_test.go: package server_test, shared fixture, Host wiring.
-  internal/server/extension_external_test.go: package server_test, shared config, generic extension ordering/errors.
+  host/server/main_test.go: package server, per-package testdb.Main.
+  host/server/acct_oauth_seam_test.go: package server, white-box signInProvider test.
+  host/server/wiring_test.go: package server, Run/Build tests; never imports servertest.
+  host/server/wiring_external_test.go: package server_test, shared fixture, Host wiring.
+  host/server/extension_external_test.go: package server_test, shared config, generic extension ordering/errors.
   cmd/server/wiring_test.go and hack_extension_test.go: split into the above platform files
     and products/hack/servertest/{wiring,extension}_test.go.
-  internal/server/selfhosted_pages_test.go: Hack assertion extracted into product hack_get_started_test.go.
+  host/server/selfhosted_pages_test.go: Hack assertion extracted into product hack_get_started_test.go.
   products/hack/servertest/main_test.go: package servertest, own testdb.Main and Hack helpers.
   products/hack/servertest/{wiring,extension}_test.go: package servertest, shared platform fixture.
   products/hack/servertest/transport_fixture_test.go: package servertest, Hack transport fixtures.
@@ -92,7 +92,7 @@ Test-file kinds after the split:
   products/hack/servertest/hack_web_mcp_test.go: package servertest, product test.
 
 Additional file splits not covered by the supplied move map:
-  cmd/server/{wiring,hack_extension}_test.go and internal/server/selfhosted_pages_test.go.
+  cmd/server/{wiring,hack_extension}_test.go and host/server/selfhosted_pages_test.go.
   Their assertions were extracted by file creation/deletion; move.sh was not rerun.
 
 Existing rules/hack* allowances in platform rows had no actual imports at this revision;

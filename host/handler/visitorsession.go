@@ -1,0 +1,733 @@
+package handler
+
+import (
+	"context"
+	"crypto/subtle"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	"html"
+	"log"
+	"mime"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/vsriram/simple-host/host/model"
+)
+
+const (
+	writeRouteStatePut       = "state_put"
+	writeRouteStatePatch     = "state_patch"
+	writeRouteCollectionPost = "collection_post"
+)
+
+const (
+	visitorCookieHost = "__Host-sh_vsess"
+	visitorCookieHTTP = "sh_vsess"
+	visitorCSRFHeader = "X-SH-CSRF"
+	visitorCSRFValue  = "1"
+)
+
+func requestIsHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+func visitorCookieName(r *http.Request) string {
+	if requestIsHTTPS(r) {
+		return visitorCookieHost
+	}
+	return visitorCookieHTTP
+}
+
+func requestHostName(r *http.Request) string {
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return strings.ToLower(host)
+}
+
+func setVisitorSessionCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
+	secure := requestIsHTTPS(r)
+	name := visitorCookieHTTP
+	if secure {
+		name = visitorCookieHost
+	}
+	// net/http: MaxAge=0 omits the attribute; MaxAge<0 emits Max-Age=0 (delete).
+	if maxAge == 0 {
+		maxAge = -1
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func visitorCookieValue(r *http.Request) string {
+	if c, err := r.Cookie(visitorCookieName(r)); err == nil && c.Value != "" {
+		return c.Value
+	}
+	// Proto detection can disagree with when the cookie was issued; accept either name.
+	if c, err := r.Cookie(visitorCookieHost); err == nil && c.Value != "" {
+		return c.Value
+	}
+	if c, err := r.Cookie(visitorCookieHTTP); err == nil && c.Value != "" {
+		return c.Value
+	}
+	return ""
+}
+
+// sessionCookieFor is the visitor cookie a state/collections/me request may
+// use. On a claimed <name>.<SITE_DOMAIN> host it is stricter: every such host
+// and the shared host are the same "site" to a browser, so SameSite=Lax would
+// let a page on any of them send this host's cookie along. There only the
+// __Host- cookie counts (a sibling can plant a plain one, never a __Host- one)
+// and only on a same-origin request.
+func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
+	if host := requestHostName(r); h.isPlatformSubdomainHost(host) || h.isSiteHostName(r.Context(), host) || h.isFamilyHostName(host) {
+		if !sameOriginRequest(r) {
+			return ""
+		}
+		return strictVisitorCookie(r)
+	}
+	return visitorCookieValue(r)
+}
+
+// sessionValidFor requires the exact host and site where the visitor signed in.
+// Person hosts never widen a session to the owner's other sites.
+func (h *SiteHandler) sessionValidFor(r *http.Request, sess model.VisitorSession, siteID string) bool {
+	now := time.Now()
+	if !strings.EqualFold(sess.Host, requestHostName(r)) || now.After(sess.ExpiresAt) || now.After(sess.IdleExpiresAt) {
+		return false
+	}
+	return sess.SiteID == siteID
+}
+
+func hasVisitorCSRF(r *http.Request) bool {
+	if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
+		return true
+	}
+	ct := r.Header.Get("Content-Type")
+	if ct == "" {
+		return false
+	}
+	media, _, err := mime.ParseMediaType(ct)
+	return err == nil && media == "application/json"
+}
+
+func (h *SiteHandler) isVisitorApexHost(host string) bool {
+	host = strings.ToLower(host)
+	if host == strings.ToLower(h.siteDomain) || host == "www."+strings.ToLower(h.siteDomain) {
+		return true
+	}
+	// The base's apex and www (sitebase.go) are the app's, never a site's.
+	if b := strings.ToLower(h.siteBase); h.baseSplit() && (host == b || host == "www."+b) {
+		return true
+	}
+	raw := os.Getenv("PUBLIC_BASE_URL")
+	if raw == "" {
+		raw = "https://simple-host.app"
+	}
+	if u, err := url.Parse(raw); err == nil {
+		if ah := strings.ToLower(u.Hostname()); ah != "" && host == ah {
+			return true
+		}
+	}
+	return false
+}
+
+// establishVisitor handles GET /v1/visitor/establish: consume the one-time
+// token, check this browser holds the nonce the sign-in started with, then
+// Set-Cookie on this host and 302 to the stored return_to.
+//
+// The code is burned before any check, so a code tried in the wrong browser
+// (no nonce cookie, or another one) or on the wrong host cannot be retried.
+// Only the __Host- nonce cookie counts over HTTPS: a sibling host under the
+// same parent domain can plant a plain cookie, never a __Host- one.
+func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
+	host := requestHostName(r)
+	once := strings.TrimSpace(r.URL.Query().Get("once"))
+	// Try again restarts sign-in at the site's own address, as a fresh
+	// top-level navigation in this browser (the gate starts a new hop).
+	retry := ""
+	if host != "" && !h.isVisitorApexHost(host) && !strings.EqualFold(host, h.contentHost) {
+		retry = "https://" + r.Host + "/"
+		if !requestIsHTTPS(r) {
+			retry = "http://" + r.Host + "/"
+		}
+	}
+	fail := func(status int, reason string) {
+		logSignInFail(r, "establish", reason, once)
+		h.writeSignInFailed(w, status, reason, retry)
+	}
+	if !signInNavigationAllowed(r) {
+		fail(403, "not_navigation")
+		return
+	}
+	w.Header().Set("Referrer-Policy", "no-referrer")
+
+	if once == "" {
+		fail(http.StatusBadRequest, "no_code")
+		return
+	}
+
+	tok, err := h.storeAccounts().ConsumeEstablishToken(r.Context(), once, host)
+	if err != nil {
+		fail(http.StatusBadRequest, "code_used_or_expired")
+		return
+	}
+	activated := false
+	defer func() {
+		if !activated {
+			_ = h.storeAccounts().DeleteVisitorSession(r.Context(), tok.SessionID)
+		}
+	}()
+	if retry == "" {
+		fail(http.StatusBadRequest, "wrong_host")
+		return
+	}
+	if target, err := url.Parse(tok.ReturnTo); err == nil && strings.EqualFold(target.Hostname(), host) {
+		retry = tok.ReturnTo
+	}
+
+	if !tok.NonceHash.Valid || visitorNonceCookie(r) == "" {
+		fail(http.StatusBadRequest, "nonce_missing")
+		return
+	}
+	if !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
+		fail(http.StatusBadRequest, "nonce_mismatch")
+		return
+	}
+
+	// A revoked or expired parent, an offline site, or a passcode set while
+	// the browser was on the apex must not yield a usable session.
+	sess, err := h.storeAccounts().GetVisitorSession(r.Context(), tok.SessionID, h.limits.KeyIdleExpiry)
+	if err != nil || !h.sessionValidFor(r, sess, sess.SiteID) {
+		fail(400, "session_invalid")
+		return
+	}
+	// The current host binding must still name the original immutable site.
+	target, parseErr := url.Parse(tok.ReturnTo)
+	if parseErr != nil || !strings.EqualFold(target.Hostname(), host) {
+		fail(400, "return_host")
+		return
+	}
+	boundID, ok := h.PersonReturnSite(r.Context(), host, target.Path)
+	if !ok {
+		info, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host)
+		if err != nil || !info.VerifiedAt.Valid {
+			fail(400, "site_unbound")
+			return
+		}
+		boundID = info.SiteID
+	}
+	if boundID != sess.SiteID {
+		fail(400, "site_moved")
+		return
+	}
+	if sess.SSOPassHash.Valid {
+		if off, err := h.sitesSvc().SiteOffline(r.Context(), sess.SiteID); err != nil || off {
+			fail(403, "site_offline")
+			return
+		}
+		if susp, _, err := h.sitesSvc().SiteSuspension(r.Context(), sess.SiteID); err != nil || susp {
+			fail(403, "site_suspended")
+			return
+		}
+		if !h.PasscodeLetsIn(r, sess.SiteID) {
+			logSignInFail(r, "establish", "passcode", once)
+			writeSiteLocked(w)
+			return
+		}
+	}
+	first, err := h.storeAccounts().ActivateVisitorSession(r.Context(), tok.SessionID, h.visitorSessionTTL(), h.visitorSessionIdle())
+	if err != nil {
+		fail(400, "activate")
+		return
+	}
+	activated = true
+	if first {
+		h.emitSiteNotification(sess.SiteID, "visitor.signed_up", map[string]any{"visitor": sess.UserID}, 0)
+	}
+	h.noteOwnerVisitorSignIn(r, sess.SiteID, sess.UserID)
+	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), h.visitorCookieMaxAge())
+	setVisitorNonceCookie(w, r, "", -1)
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, tok.ReturnTo, http.StatusFound)
+}
+
+// logSignInFail records why a sign-in step refused, with a short reason
+// code and at most the first 6 characters of the one-use code or state.
+func logSignInFail(r *http.Request, route, reason, code string) {
+	if len(code) > 6 {
+		code = code[:6]
+	}
+	log.Printf("signin_fail route=%s reason=%s host=%s code=%s sec_fetch=%s/%s/%s",
+		route, reason, requestHostName(r), code,
+		r.Header.Get("Sec-Fetch-Site"), r.Header.Get("Sec-Fetch-Mode"), r.Header.Get("Sec-Fetch-Dest"))
+}
+
+// signInFailedHelp says what went wrong in words a visitor can act on.
+func signInFailedHelp(reason string) string {
+	switch reason {
+	case "nonce_missing":
+		return "This sign-in finished in a different browser or app from the one it started in, for example a link opened from another app into Safari."
+	case "nonce_mismatch":
+		return "A newer sign-in to this site started in this browser, so this one was cancelled."
+	case "code_used_or_expired", "no_code":
+		return "This sign-in link was already used or has expired."
+	case "site_offline", "site_suspended":
+		return "This site is not taking sign-ins right now."
+	}
+	return "Sign-in could not finish."
+}
+
+var signInFailedPage = themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--sh:theme--><title>Sign-in failed</title><style>` + passcodeGateCSS +
+	`html:root main.gate a.primary{display:block;box-sizing:border-box;width:100%;height:48px;line-height:48px;margin-top:12px;border-radius:255px 18px 225px 18px / 18px 225px 18px 255px;background:#116b77;color:#fffdf5;font-family:Caveat,"Segoe Print",cursive;font-size:22px;font-weight:700;text-align:center;text-decoration:none}` +
+	`html:root[data-theme=dark] main.gate a.primary{background:#9edacf;color:#0b1222}` +
+	`</style></head><body><main class="gate"><h1>Sign-in did not finish</h1><p class="lead">__HELP__</p>__ACTION__</main></body></html>`)
+
+// writeSignInFailed is the establish failure page: what happened, and a Try
+// again link that restarts sign-in for this site in this browser.
+func (h *SiteHandler) writeSignInFailed(w http.ResponseWriter, status int, reason, retry string) {
+	action := `<p class="fine">Close this tab and open the site again.</p>`
+	if retry != "" {
+		action = `<a class="primary" href="` + html.EscapeString(retry) + `">Try again</a><p class="fine">Try again signs you in to this site in this browser.</p>`
+	}
+	page := strings.NewReplacer("__HELP__", html.EscapeString(signInFailedHelp(reason)), "__ACTION__", action).Replace(signInFailedPage)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_, _ = w.Write(h.pipeline().hostedStatusPage(page))
+}
+
+// logoutVisitor handles POST /v1/visitor/logout: delete this session and clear
+// the cookie. Requires X-SH-CSRF: 1 or Content-Type: application/json.
+func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
+	if !hasVisitorCSRF(r) {
+		writeJSON(w, http.StatusForbidden, struct {
+			Error string `json:"error"`
+			Code  string `json:"code"`
+		}{Error: "missing CSRF header", Code: "csrf_required"})
+		return
+	}
+
+	if !sameOriginRequest(r) {
+		writeJSON(w, 403, errorResponse{Error: "sign out on the site's own page"})
+		return
+	}
+	// SIM-360 privacy guardrail: the one Sign out ends push on that
+	// device. auth.js's SH.signOut() already unsubscribes the browser's
+	// own PushSubscription and calls /push/unsubscribe itself, but that is
+	// a second, client-initiated request; resolve the session being
+	// destroyed here too and delete that visitor's push rows for this
+	// site server-side, so a blocked or racing client call can never
+	// leave one behind. Best-effort: never blocks or fails the sign-out.
+	h.deleteVisitorPushOnSignOut(r)
+	back, err := h.endSiteSSO(w, r, "/")
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "sign-out unavailable"})
+		return
+	}
+	setVisitorSessionCookie(w, r, "", 0)
+	if back != "" {
+		writeJSON(w, 200, map[string]string{"redirect_url": back})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func writeVisitorAuthRequired(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnauthorized, map[string]any{
+		"error":   "sign-in required to write",
+		"code":    "visitor_auth_required",
+		"sign_in": "/v1/auth/oauth/providers",
+		"retry":   true,
+	})
+}
+
+// visitorWriteGate is the write gate for PUT/PATCH state and POST collections
+// (visitorWriteOK adds who-may-save on top).
+// See docs/history/SPEC.md §4.4. Returns false after writing the error response.
+// On success it also says who is writing (model.Actor, without the email; see
+// actorWithEmail): the site's owner or the platform admin (their key, or the
+// owner signed in on the site), another signed-in visitor, or nobody known.
+func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (model.Actor, bool) {
+	anon := model.Actor{Kind: actorAnonymous}
+	ownerID, allowAnon, err := h.sitesSvc().GetSiteWriteGate(r.Context(), siteID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return anon, false
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return anon, false
+	}
+	// A taken-down site (or one whose owner is suspended) takes no writes
+	// from anyone, the admin included; restore it first.
+	if h.refuseSuspendedSiteID(w, r, siteID) {
+		return anon, false
+	}
+	// A site its owner took offline takes no saves from visitors; the
+	// owner's (or admin's) key and connector keep writing (offline.go).
+	if off, err := h.sitesSvc().SiteOffline(r.Context(), siteID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return anon, false
+	} else if off && !h.ownerKeyWrite(r, ownerID) {
+		writeSiteOffline(w)
+		return anon, false
+	}
+	// A page opened as a preview of a version (preview.go) never saves into
+	// the live site's data.
+	if previewReferer(r) && r.Header.Get("X-API-Key") == "" {
+		writePreviewReadOnly(w)
+		return anon, false
+	}
+
+	mode := h.writeAuthMode
+	if mode == "" {
+		mode = "log"
+	}
+
+	// A site that has its own domain lives there: its shared-host URL takes no
+	// writes at all, key or not (agents use the apex or the domain). Reads stay
+	// public. In log mode this is measured, not enforced.
+	if domain, elsewhere := h.livesOnDomainElsewhere(r, siteID); elsewhere {
+		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
+		if mode == "on" && !allowAnon {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{
+				"error":  "this site saves on its own domain",
+				"code":   "use_custom_domain",
+				"domain": domain,
+			})
+			return anon, false
+		}
+		return h.keyActor(r, ownerID), true
+	}
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		if info, ok, _ := h.sitesSvc().GetSiteDomainInfo(r.Context(), siteID); ok && info.Domain != "" {
+			// Name the address that works: the earlier one while a new
+			// domain is still pending.
+			if own, has, _ := h.siteOwnAddress(r.Context(), siteID); has {
+				info.Domain = own.Domain
+			}
+			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
+			if mode == "on" && !allowAnon {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error":  "this site saves on its own domain",
+					"code":   "use_custom_domain",
+					"domain": info.Domain,
+				})
+				return anon, false
+			}
+			return h.keyActor(r, ownerID), true
+		}
+	}
+
+	if r.Header.Get(visitorPassHeader) != "" {
+		sess, ok := h.internalVisitorSession(r, siteID)
+		if !ok {
+			storageError(w, 403, "forbidden", "visitor pass does not cover this site")
+			return anon, false
+		}
+		if r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
+			storageError(w, 403, "csrf_required", "missing CSRF header")
+			return anon, false
+		}
+		return model.Actor{ID: sess.UserID, Kind: actorVisitor}, true
+	}
+
+	if key := r.Header.Get("X-API-Key"); key != "" {
+		u, ok, resolveErr := h.resolveWriterKey(r.Context(), key)
+		if resolveErr != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return anon, false
+		}
+		// A key writes only to its own account's sites (the platform admin
+		// to any). Any other account's key gets the same 404 as a missing
+		// site, so it learns nothing. Connector tokens and the MCP server
+		// arrive here as an internal key for their person, so the same rule
+		// holds for them.
+		if ok && !u.IsAdmin && u.ID != ownerID {
+			log.Printf("key_write_refused user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return anon, false
+		}
+		if ok {
+			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
+			if u.IsAdmin && u.ID != ownerID {
+				return model.Actor{ID: u.ID, Kind: actorAdmin}, true
+			}
+			return model.Actor{ID: u.ID, Kind: actorOwner}, true
+		}
+		writeJSON(w, http.StatusUnauthorized, struct {
+			Error string `json:"error"`
+			Code  string `json:"code"`
+		}{Error: "invalid API key", Code: "invalid_api_key"})
+		return anon, false
+	}
+
+	if mode == "off" {
+		return anon, true
+	}
+
+	// Shared content host. With PERSON_HOSTS=canonical every page lives on its
+	// person address and the old shared URLs redirect there, so the shared
+	// host is no longer an open scratchpad (INTENT 2026-09-24: anyone can view,
+	// only signed-in can save). Visitor sign-in is never offered there (every
+	// site shares that origin), so a cookie is not even looked at: a write
+	// there needs an API key (above) and anything else gets the same
+	// visitor_auth_required as everywhere else.
+	//
+	// Without canonical person addresses (event and self-hosted instances,
+	// PERSON_HOSTS=off/serve) the shared host is still where pages live and it
+	// stays open (owner decision 2026-09-06; run-hackathon "Saved data is
+	// open"); rate limits and size caps are the only guards there.
+	onContentHost := strings.EqualFold(requestHostName(r), h.contentHost)
+	if onContentHost && !h.personHostsCanonical() {
+		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "public_host")
+		return anon, true
+	}
+
+	if raw := h.sessionCookieFor(r); raw != "" && !onContentHost {
+		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
+			sess, sessErr := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
+			if sessErr == nil {
+				if h.sessionValidFor(r, sess, siteID) {
+					// A suspended person's sign-ins stop working too.
+					// A failed lookup is a server error, not a suspension.
+					if susp, serr := h.storeAccounts().UserSuspended(r.Context(), sess.UserID); serr != nil {
+						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+						return anon, false
+					} else if susp {
+						writeAccountSuspended(w)
+						return anon, false
+					}
+					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
+						_ = h.storeAccounts().TouchVisitorSession(r.Context(), id, h.limits.VisitorSessionIdle)
+						if sess.UserID == ownerID {
+							return model.Actor{ID: sess.UserID, Kind: actorOwner}, true
+						}
+						return model.Actor{ID: sess.UserID, Kind: actorVisitor}, true
+					}
+					if mode == "on" {
+						writeJSON(w, http.StatusForbidden, struct {
+							Error string `json:"error"`
+							Code  string `json:"code"`
+						}{Error: "missing CSRF header", Code: "csrf_required"})
+						return anon, false
+					}
+					// log: treat missing CSRF as anonymous so existing pages still write.
+				}
+			}
+		}
+	}
+
+	outcome := "allowed"
+	if mode == "on" {
+		if allowAnon {
+			outcome = "overridden"
+		} else {
+			outcome = "rejected"
+		}
+	}
+	h.logAnonWrite(r, siteID, siteName, route, collection, mode, outcome)
+	if outcome == "rejected" {
+		writeVisitorAuthRequired(w)
+		return anon, false
+	}
+	return anon, true
+}
+
+// keyActor is who a write that passed without the key check was made by, for
+// the record (history, authors, the watch): the site's owner or the admin
+// when the request carries their valid key, otherwise nobody signed in.
+func (h *SiteHandler) keyActor(r *http.Request, ownerID string) model.Actor {
+	key := r.Header.Get("X-API-Key")
+	if key == "" {
+		return model.Actor{Kind: actorAnonymous}
+	}
+	u, ok, err := h.resolveWriterKey(r.Context(), key)
+	switch {
+	case err != nil || !ok:
+		return model.Actor{Kind: actorAnonymous}
+	case u.ID == ownerID:
+		return model.Actor{ID: u.ID, Kind: actorOwner}
+	case u.IsAdmin:
+		return model.Actor{ID: u.ID, Kind: actorAdmin}
+	}
+	return model.Actor{Kind: actorAnonymous}
+}
+
+func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (model.User, bool, error) {
+	if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) == 1 {
+		return model.User{ID: h.adminUserID, Username: "admin", IsAdmin: true}, true, nil
+	}
+	u, err := h.storeAccounts().GetUserByAPIKey(ctx, key, h.limits.KeyIdleExpiry)
+	if err != nil {
+		// A suspended account's key is refused like an unknown one.
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, model.ErrAccountSuspended) {
+			return model.User{}, false, nil
+		}
+		return model.User{}, false, err
+	}
+	return u, true, nil
+}
+
+func (h *SiteHandler) logAnonWrite(r *http.Request, siteID, name, route, collection, mode, outcome string) {
+	// Never log a cookie value or a request body.
+	log.Printf("anon_write site_id=%s name=%s route=%s collection=%s mode=%s outcome=%s origin_class=%s has_cookie=%t",
+		siteID, name, route, collection, mode, outcome, h.originClass(r, siteID), visitorCookieValue(r) != "")
+}
+
+func (h *SiteHandler) originClass(r *http.Request, siteID string) string {
+	u, err := url.Parse(requestOrigin(r))
+	if err != nil || u.Host == "" {
+		return "allowed_origin"
+	}
+	if strings.EqualFold(u.Host, h.contentHost) {
+		return "content_host"
+	}
+	if h.originIsBoundDomainID(r.Context(), siteID, u.Host) {
+		return "custom_domain"
+	}
+	return "allowed_origin"
+}
+
+// getVisitorMe reports the current site session without extending its lifetime.
+func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	if siteName == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
+		return
+	}
+	if !h.authorizeStateOrigin(w, r, siteName) {
+		writeOriginRefused(w)
+		return
+	}
+	siteID, err := h.resolveSiteID(r, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	// Shared host: sign-in is never offered (one origin for every site). If the
+	// site has its own domain, say so, so the page can send the visitor there.
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		resp := map[string]any{"signed_in": false, "sign_in_available": false, "code": "custom_domain_required"}
+		if info, ok, _ := h.siteOwnAddress(r.Context(), siteID); ok && info.Domain != "" {
+			resp["code"] = "use_custom_domain"
+			resp["domain"] = info.Domain
+		} else if h.personHostsCanonical() {
+			// The site's own address, where visitors sign in.
+			if handle, _, name, err := h.sitesSvc().GetSiteOwner(r.Context(), siteID); err == nil && h.personAddressFor(handle, name) {
+				resp["address"] = h.SiteURL(handle, name)
+			}
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	if domain, elsewhere := h.livesOnDomainElsewhere(r, siteID); elsewhere {
+		writeJSON(w, http.StatusOK, map[string]any{"signed_in": false, "sign_in_available": false, "code": "use_custom_domain", "domain": domain})
+		return
+	}
+	if id, decErr := hex.DecodeString(h.sessionCookieFor(r)); decErr == nil && len(id) == 32 {
+		sess, sessErr := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
+		if sessErr == nil {
+			if h.sessionValidFor(r, sess, siteID) {
+				expires := sess.ExpiresAt
+				if sess.IdleExpiresAt.Before(expires) {
+					expires = sess.IdleExpiresAt
+				}
+				resp := h.visitorSignedInResponse(r, expires, "", "")
+
+				// The same address the site's rules see (visitorEmail).
+				email, err := visitorEmail(r.Context(), h.database, sess.UserID)
+				resp.Email = email
+				if err == nil {
+					identity, ierr := h.storeAccounts().GetLatestOAuthIdentity(r.Context(), sess.UserID)
+					if ierr == nil && strings.EqualFold(identity.Email.String, email) {
+						resp.Provider = identity.Provider
+					} else if ierr != nil && !errors.Is(ierr, sql.ErrNoRows) {
+						err = ierr
+					}
+				}
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+					return
+				}
+				// The same test storage applies (storageOwnerOnSite): the
+				// strict same-origin session, the owner's account, one of
+				// the site's own hosts. On Simple Hack: a team member or an
+				// organiser while the site may change (the storage bindings provider).
+				if h.ed.Storage().EventOwners {
+					if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == sess.UserID && h.storageOwnHost(r, siteID) {
+						owner, oerr := h.storageBindingProvider().OwnerOnSite(r.Context(), siteID, sess.UserID)
+						resp.SiteOwner = oerr == nil && owner
+					}
+				} else {
+					if _, ownerID, _, oerr := h.sitesSvc().GetSiteOwner(r.Context(), siteID); oerr == nil && ownerID == sess.UserID {
+						if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == ownerID {
+							resp.SiteOwner = h.storageOwnHost(r, siteID)
+						}
+					}
+				}
+				writeJSON(w, http.StatusOK, resp)
+				return
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"signed_in": false, "sign_in": "/v1/auth/oauth/providers"})
+}
+
+func (h *SiteHandler) optionsVisitorMe(w http.ResponseWriter, r *http.Request) {
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	if siteName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if !h.authorizeStateOrigin(w, r, siteName) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Max-Age", "600")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type visitorMeResponse struct {
+	SignedIn  bool   `json:"signed_in"`
+	Email     string `json:"email,omitempty"`
+	Provider  string `json:"provider,omitempty"`
+	ExpiresAt string `json:"expires_at"`
+	// SiteOwner: the site's own owner, signed in on one of the site's own
+	// addresses, where the page reads and changes saved data with owner
+	// rights (storageOwnerOnSite). Simple Host only.
+	SiteOwner bool `json:"site_owner,omitempty"`
+}
+
+func (h *SiteHandler) visitorSignedInResponse(r *http.Request, expires time.Time, email, provider string) visitorMeResponse {
+	resp := visitorMeResponse{SignedIn: true, ExpiresAt: expires.Format(time.RFC3339)}
+	if !strings.EqualFold(requestHostName(r), h.contentHost) {
+		resp.Email, resp.Provider = email, provider
+	}
+	return resp
+}

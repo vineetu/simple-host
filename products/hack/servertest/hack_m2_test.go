@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
+	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )

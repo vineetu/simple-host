@@ -80,7 +80,7 @@ certificate is provisioned.
 ## Deleted team selection
 
 Grant 32 retains `selected_team_id=00000000-0000-4000-8000-000000000013`.
-Neither dump nor `db/schema.sql` defines a foreign key on this column, so it
+Neither dump nor `host/db/schema.sql` defines a foreign key on this column, so it
 is **not nulled** on team deletion. `repository/accounts.SelectOAuthTeam`
 stores selection only on the grant; `app/hack/teams.DeleteTeam` deletes the
 team and its API keys without deleting or clearing OAuth grants/tokens.

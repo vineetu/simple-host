@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	platform "github.com/vsriram/simple-host/internal/papermetrics"
+	platform "github.com/vsriram/simple-host/host/papermetrics"
 )
 
 func TestHackMixedKVStorageCounters(t *testing.T) {

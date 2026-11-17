@@ -1,4 +1,4 @@
-> **Status: Done (2026-09-05)** — v2 classified hourly visitor analytics live in `internal/analytics` + `internal/handler/analytics.go`; person-host attribution added 2026-09-25.
+> **Status: Done (2026-09-05)** — v2 classified hourly visitor analytics live in `host/analytics` + `host/handler/analytics.go`; person-host attribution added 2026-09-25.
 
 # Server-side per-site visitor analytics — design
 
@@ -10,9 +10,9 @@ invalidate anything you may remember from the original: every bucket is now
 before the classifier existed), and buckets are **hourly**, not daily.
 
 The authoritative contract for the HTTP shape is
-`internal/handler/static/openapi.yaml`. The code is `internal/analytics/`
-(`ingest.go`, `classify.go`) and `internal/db/analytics.go` (read paths); the
-tables are in `db/schema.sql` and `db/migrations/analytics-v2.sql`. If this
+`host/handler/static/openapi.yaml`. The code is `host/analytics/`
+(`ingest.go`, `classify.go`) and `host/db/analytics.go` (read paths); the
+tables are in `host/db/schema.sql` and `host/db/migrations/analytics-v2.sql`. If this
 document and any of those disagree, they are right and this is stale — fix it
 here rather than "fixing" the code to match.
 
@@ -60,7 +60,7 @@ A goroutine in the Go app (runs as `simplehost`, already has DB) that:
   - host == `<label>.<siteDomain>` (legacy) → label → oldest site_id with that name
   - else (custom domain) → lower(custom_domain)→site_id
   - unresolved → skip,
-- **classifies** the request (`internal/analytics/classify.go`) into `person` / `bot` / `infra`,
+- **classifies** the request (`host/analytics/classify.go`) into `person` / `bot` / `infra`,
   from remote_addr + User-Agent + path. See Classification below,
 - hashes the client IP: `sha256(stable_salt + ip)` truncated to 16 bytes — never store raw IPs
   (privacy). The salt does **not** rotate; see Privacy,
@@ -219,7 +219,7 @@ continues there. logrotate must therefore use `create` + `delaycompress`, **not*
 - Aggregates only; no per-request retention beyond the hourly distinct-hash set (pruned at 400d,
   `pruneRetentionDays`).
 - Bot filtering is **implemented, not deferred**: `user_agent` is logged as the seventh field and
-  every row is classified person / bot / infra at ingest (`internal/analytics/classify.go`).
+  every row is classified person / bot / infra at ingest (`host/analytics/classify.go`).
   Nothing is dropped for being automation — bots and probes are counted and reported in their own
   columns, which is what lets `person` be trusted.
 

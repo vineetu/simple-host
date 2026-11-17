@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/model"
@@ -456,5 +456,5 @@ func writeTeamNameTaken(w http.ResponseWriter) {
 	httpx.WriteError(w, http.StatusConflict, "team_name_taken", "another team already has that name")
 }
 
-// stripInvisible moved to internal/rules/hackevents.StripInvisible in
+// stripInvisible moved to host/rules/hackevents.StripInvisible in
 // cleanup 3.2 slice 1c: pure text normalization, no handler dependency.

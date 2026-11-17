@@ -16,15 +16,15 @@ planned extraction is already complete.
 | Change | Current direction |
 |---|---|
 | Hack endpoint | Registration/HTTP mapping in `products/hack/hackhttp`; workflows in `products/hack/app/*`; pure decisions in `products/hack/rules/*`; SQL in `products/hack/repository/*` |
-| MCP tool | Its capability family registrar and the shared registry in `internal/mcp`; retain service/REST authorization and error mapping |
-| Host sites/storage | `internal/app/{sites,storage}`, rules/repositories and `internal/storage` primitives; old contracts through `app/legacy` |
+| MCP tool | Its capability family registrar and the shared registry in `host/mcp`; retain service/REST authorization and error mapping |
+| Host sites/storage | `host/app/{sites,storage}`, rules/repositories and `host/storage` primitives; old contracts through `app/legacy` |
 | Browser screen / shared MCP screen | [Frontend guide](frontend.md); update the atlas before implementing Hack UX |
 | Background worker | An explicit owner; preserve start conditions, stop/join ordering and transaction boundaries |
 
 `scripts/check-layering.sh` checks imports against
 `scripts/layering/rules.txt`. The product split lists remaining platform-to-product imports as transitional edges,
 each naming its removal slice. Shared server fixtures live in
-`internal/server/servertest`; Hack server tests live in `products/hack/servertest`.
+`host/server/servertest`; Hack server tests live in `products/hack/servertest`.
 It is not proof that every workflow has reached the target layout.
 
 For a new route or tool, include these documentation changes:
@@ -33,7 +33,7 @@ For a new route or tool, include these documentation changes:
    anchors from `docs/feature-ids.txt`; add a new ID there for a new anchor.
 2. Run `make inventory`. Commit generated `docs/generated/routes.md`,
    `mcp-tools.md` and `inventory.json` with the registrations/registry change.
-3. Update `internal/webassets/static/openapi.yaml` for an HTTP contract change,
+3. Update `host/webassets/static/openapi.yaml` for an HTTP contract change,
    including `x-audience`; regenerate `openapi.json` as in [frontend.md](frontend.md).
 4. Update applicable llms.txt, skills and dashboard/showcase presentation.
    Skill edits require a plugin version bump and the sync script.
@@ -59,9 +59,9 @@ The Makefile is the executable list of targets.
 | Command | Purpose / database behaviour |
 |---|---|
 | `make test` | Fast `go test ./...`; explicitly clears DB_DSN and MIGRATE_TEST_DSN, so DB-backed fixtures skip |
-| `go test ./internal/handler/` | Narrow package loop; no DB coverage unless a test DSN is supplied |
+| `go test ./host/handler/` | Narrow package loop; no DB coverage unless a test DSN is supplied |
 | `make test-integration` | Disposable DB, all packages, fails on DB-related skips |
-| `make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5` | Same disposable helper, selected packages/tests/repeats |
+| `make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5` | Same disposable helper, selected packages/tests/repeats |
 | `make check` | Formatting, build, vet, integration and local script/asset checks |
 | `make check-release` | Publication, cross-repository and HTTP/server fixtures |
 
@@ -70,7 +70,7 @@ them. Never point destructive fixtures at a production database.
 For a named no-DB flake, for example:
 
 ```sh
-DB_DSN= MIGRATE_TEST_DSN= go test ./internal/handler -run '^TestNotify' -count=5
+DB_DSN= MIGRATE_TEST_DSN= go test ./host/handler -run '^TestNotify' -count=5
 ```
 
 Substitute the real test name and package. `-count=N` repeats execution
@@ -101,13 +101,13 @@ Without either it fails. The server URL must have no path or query. The
 helper owns the unique database name and appends connection parameters.
 It never defaults to the box's shared production Postgres or invokes sudo.
 
-The helper creates a unique DB, applies `db/schema.sql`, then invokes
+The helper creates a unique DB, applies `host/db/schema.sql`, then invokes
 `go test -p 1 -count=COUNT -json` with DB_DSN and TESTDB_ISOLATE=1.
 `scripts/lib/summarize-go-test.py` fails if a test skips for an unset or
 unreachable DB; unrelated skips are counted separately. Exit cleanup drops
 the DB and removes only the Docker container/volume this run created.
 
-`internal/testdb/testdb.go:Main` clones the schema template per test process,
+`host/testdb/testdb.go:Main` clones the schema template per test process,
 points DB_DSN at that clone, and drops it on exit. `Fresh(t)` creates a
 further per-test clone when global queues cannot be scoped to a test's rows.
 Without isolation enabled, Main runs tests normally and Fresh skips.
@@ -128,13 +128,13 @@ finished reading the fixture.
 
 For notification fixtures the existing pattern is
 `t.Cleanup(func() { cancel(); s.a.sites.WaitNotifications() })`
-(`internal/handler/notify_test.go:TestNotifyVisitorRoutes`). Other workers use
+(`host/handler/notify_test.go:TestNotifyVisitorRoutes`). Other workers use
 their own join method. Do not assume WaitNotifications joins every worker.
 The lifecycle ownership contract is in [target.md §5](target.md#5-transactions-locks-and-workers).
 
 ## What the aggregate checks and CI run
 
-`make check` is the default goal. It checks gofmt under internal/cmd/db,
+`make check` is the default goal. It checks gofmt under host/cmd/db,
 builds all Go packages, runs vet and the disposable integration suite, then
 runs Node UI fixtures, HTML nesting, import layering, docs-sync and plugin
 freshness. It also exercises certificate issuers, nginx configuration
@@ -184,9 +184,9 @@ review; the README documents normalization, scenarios and the real-inventory gat
 
 ## Migration rules
 
-Update both `db/schema.sql` and a new `db/migrations/NNNN-name.sql`, using
+Update both `host/db/schema.sql` and a new `host/db/migrations/NNNN-name.sql`, using
 the next free four-digit number. Use plain, idempotent SQL, additive defaults
-and short locks; follow `db/migrations/migrations.go` rather than renaming an
+and short locks; follow `host/db/migrations/migrations.go` rather than renaming an
 already applied file. Keep the frozen Legacy/Baseline names unchanged.
 
 `TestMigrationNames` rejects malformed names and duplicate numbers. At run
@@ -221,7 +221,7 @@ for heavy local runs. Embedded HTML changes require the same rebuild.
 
 Release `-ldflags -X` fields are:
 
-| Package variable under `github.com/vsriram/simple-host/internal/buildinfo` | Value |
+| Package variable under `github.com/vsriram/simple-host/host/buildinfo` | Value |
 |---|---|
 | `Version` | `git describe --tags --always --dirty` |
 | `Commit` | `git rev-parse --short HEAD` |
@@ -230,8 +230,8 @@ Release `-ldflags -X` fields are:
 `simple-host version` and `simple-hack version` need no DB/config. Their first line is
 `simple-host VERSION (commit COMMIT)`; the second reports embedded migration
 count/last file and points to `migrate -status`. Startup/admin show the same
-build identity (`internal/buildinfo/buildinfo.go:String`,
-`internal/server/migrate.go:runVersionCommand`). A checkout is not evidence of
+build identity (`host/buildinfo/buildinfo.go:String`,
+`host/server/migrate.go:runVersionCommand`). A checkout is not evidence of
 what binary is running.
 
 For hosted systemd, run each candidate's `migrate -status` and then `migrate`
@@ -260,8 +260,8 @@ permit request writes under hosted `SITE_CERT_DIR=/var/lib/simple-host-site-cert
 and `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs`; other issuer markers
 stay read-only (`deploy/{site-certs,domain-certs}/simple-host.service.d-*.conf`).
 Empty BIND_ADDR listens on all interfaces; empty ANALYTICS_SALT derives the
-visitor salt from ADMIN_API_KEY (`internal/config/config.go:Config`,
-`internal/analytics/ingest.go:visitorSalt`, `WithSalt`).
+visitor salt from ADMIN_API_KEY (`host/config/config.go:Config`,
+`host/analytics/ingest.go:visitorSalt`, `WithSalt`).
 
 Keep hosted family settings (`PERSON_HOSTS=canonical`, SITE_HOSTS=canonical),
 certificate paths, WRITE_AUTH_MODE, BIND_ADDR, analytics and GeoIP settings in
@@ -274,7 +274,7 @@ Verify as a client after restart: public `/healthz` (200), `/readyz`, the
 changed page/API, a site host, a person host and the old content-path redirect.
 Check Simple Hack and neighbouring sites named in CLAUDE.md, then startup
 logs for errors. `/healthz` only proves HTTP is responding; `/readyz` also
-pings Postgres (`internal/handler/health.go`). Refresh owner product knowledge
+pings Postgres (`host/handler/health.go`). Refresh owner product knowledge
 through the documented sh-brain-sync operation after a hosted deploy.
 
 Analytics logrotate uses create/delaycompress rather than copytruncate;

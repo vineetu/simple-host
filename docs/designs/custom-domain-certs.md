@@ -1,4 +1,4 @@
-> **Status: Built (2026-09-27); ownership proof and takeover guards added 2026-09-27 (issuer disabled on the box until they are deployed); www / bare partner added 2026-09-27 (branch w2/addr)** — `internal/handler/domaincert.go`, `domaincheck.go`, issuer in `deploy/domain-certs/`. Live once the steps below are done and `DOMAIN_CERT_DIR` is set.
+> **Status: Built (2026-09-27); ownership proof and takeover guards added 2026-09-27 (issuer disabled on the box until they are deployed); www / bare partner added 2026-09-27 (branch w2/addr)** — `host/handler/domaincert.go`, `domaincheck.go`, issuer in `deploy/domain-certs/`. Live once the steps below are done and `DOMAIN_CERT_DIR` is set.
 
 # Custom-domain certificates without the operator
 
@@ -76,6 +76,6 @@ sudo install -m 0755 deploy/domain-certs/issue.sh /usr/local/sbin/simple-host-do
 ```
 
 Then add `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs` to `/etc/simple-host.env` (with
-`sed`, after a backup), apply `db/migrations/cp-domains-custom-domain-certs.sql` and `db/migrations/cp-proof-domain-ownership.sql`, and restart
+`sed`, after a backup), apply `host/db/migrations/cp-domains-custom-domain-certs.sql` and `host/db/migrations/cp-proof-domain-ownership.sql`, and restart
 `simple-host`. Optional `/etc/simple-host-domain-certs.conf` overrides `IP` (this server's
 IPv4; default the apex's A record), `IP6`, `DAILY`, `PER_RUN`, `RETRY_AFTER`.

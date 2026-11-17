@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	platform "github.com/vsriram/simple-host/internal/papermetrics"
-	"github.com/vsriram/simple-host/internal/workers"
+	platform "github.com/vsriram/simple-host/host/papermetrics"
+	"github.com/vsriram/simple-host/host/workers"
 )
 
 // Collector owns the product's measurements while sharing the platform's

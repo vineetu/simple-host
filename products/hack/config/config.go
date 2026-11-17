@@ -23,7 +23,7 @@ type Config struct {
 	// question ceiling (default 30). AssistantPriceInputPerMTokUSD and
 	// AssistantPriceOutputPerMTokUSD price the configured model for the
 	// worst-case-reservation/actual-settlement accounting in
-	// internal/app/hack/events (default 0.5 / 2.0 per million tokens).
+	// host/app/hack/events (default 0.5 / 2.0 per million tokens).
 	AssistantMonthlyBudgetUSD      float64
 	AssistantDailyQuestions        int
 	AssistantPriceInputPerMTokUSD  float64

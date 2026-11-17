@@ -13,16 +13,16 @@ import (
 	"sync"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/extension"
-	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/llm"
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/papermetrics"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-	"github.com/vsriram/simple-host/internal/workers"
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/llm"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/papermetrics"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	"github.com/vsriram/simple-host/products/hack/app/members"
@@ -129,8 +129,8 @@ func Extension() *extension.Extension {
 			hack.SetSites(siteHandler)
 			d.Connector.SetTeamConnections(true)
 			// SIM-394 organiser assistant: off unless both are set. Built here
-			// (not in hackhttp) because the client needs internal/llm and the
-			// docs text needs internal/webassets, neither of which hackhttp may
+			// (not in hackhttp) because the client needs host/llm and the
+			// docs text needs host/webassets, neither of which hackhttp may
 			// import (scripts/layering/rules.txt).
 			if productConfig.AssistantBaseURL != "" && productConfig.AssistantModel != "" {
 				assistantLLM := llm.New(llm.Config{
@@ -197,8 +197,8 @@ func Extension() *extension.Extension {
 	}
 }
 
-// newAssistantDocsTextFunc returns a events.DocsTextFunc: internal/app/hack/events
-// may not import internal/webassets (scripts/layering/rules.txt), so this
+// newAssistantDocsTextFunc returns a events.DocsTextFunc: host/app/hack/events
+// may not import host/webassets (scripts/layering/rules.txt), so this
 // wires webassets' embedded docs tree into hackhttp.AssistantDocsText (the
 // one place the HTML-to-text extraction lives -- SIM-394 L22) and injects
 // the result into the assistant service. The extraction (parse + strip +

@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/extension"
-	"github.com/vsriram/simple-host/internal/server"
-	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
+	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/server"
+	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )
@@ -32,8 +32,8 @@ func TestHackMissingColumnStopsStartup(t *testing.T) {
 	}
 	const want = "schema check (EVENTS=hosted): database is behind this build; missing: events.theme\n" +
 		"Run `simple-host migrate` against this database (on a small box, re-running the install\n" +
-		"command does it), or apply the files in db/migrations/ by hand and record each with\n" +
-		"`simple-host migrate -mark FILE`. A new database takes db/schema.sql"
+		"command does it), or apply the files in host/db/migrations/ by hand and record each with\n" +
+		"`simple-host migrate -mark FILE`. A new database takes host/db/schema.sql"
 	if err := exts[0].CheckSchema(context.Background(), database); err == nil || err.Error() != want {
 		t.Fatalf("product schema error = %v; want %s", err, want)
 	}

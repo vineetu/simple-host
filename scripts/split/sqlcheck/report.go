@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-var headings = []string{"SQL that names a Hack object", "SQL built at run time that names a Hack object", "Embedded .sql files outside db/ that name a Hack object", "Cannot evaluate: SQL built at run time from non-constant parts", "Same word as a platform column, for a person to confirm", "Not SQL: Go lists that name Hack tables or columns", "Other text"}
+var headings = []string{"SQL that names a Hack object", "SQL built at run time that names a Hack object", "Embedded .sql files outside host/db/ that name a Hack object", "Cannot evaluate: SQL built at run time from non-constant parts", "Same word as a platform column, for a person to confirm", "Not SQL: Go lists that name Hack tables or columns", "Other text"}
 
 func truncate(s string, n int) string {
 	r := []rune(s)

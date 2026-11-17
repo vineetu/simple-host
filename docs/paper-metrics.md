@@ -1,6 +1,6 @@
 # Paper metrics: what we measure for "The Thin Server" and how
 
-Status: collection live 2026-10-31 (SIM-335). Code: `internal/papermetrics`. Export:
+Status: collection live 2026-10-31 (SIM-335). Code: `host/papermetrics`. Export:
 `GET /v1/admin/paper-metrics` (admin only) or `bash scripts/paper-metrics-export.sh`.
 
 Two papers draw on the same data. HotOS 2027 (5 pages, due 1 Feb 2027) argues the thesis with a
@@ -143,7 +143,7 @@ Privacy page says so (2026-10-31). The sources they are computed from keep their
 32-byte allocation per request, against a request that costs tens of microseconds or more. The
 database sees one small upsert a minute, one insert every 5 minutes, 58 queries a night, and one
 directory walk a week (the same walk the admin usage page already does). Re-measure with
-`go test ./internal/papermetrics -bench . -benchtime 500000x`.
+`go test ./host/papermetrics -bench . -benchtime 500000x`.
 
 **Threats to validity, to state in the paper.** One box and one operator; a young deployment
 (first site July 2026); most sites are small and many are demos; bots are separated by
@@ -434,7 +434,7 @@ the existing sets. Keep the Hack admin key in SH_KEY, outside command history.
 ### Measurement cost and remaining figure requirements
 
 Measure steady serial and parallel paths with
-`go test ./internal/papermetrics -run '^$' -bench BenchmarkHackWrap -benchtime 500000x -count=3`.
+`go test ./host/papermetrics -run '^$' -bench BenchmarkHackWrap -benchtime 500000x -count=3`.
 Parallel workers target the same event/member, stressing shared gauges, histogram
 cells and member-set lookups. Parallel ns/op is aggregate wall-time throughput,
 not a per-thread response-time distribution. These microbenchmarks do not replace
@@ -446,8 +446,8 @@ the shared host's other work was uncontrolled. Cache and temporary paths were
 under build/. Exact commands:
 
 ```sh
-GOMAXPROCS=4 go test ./internal/papermetrics -run '^$' -bench BenchmarkHackWrap -benchtime 500000x -count=3
-GOMAXPROCS=4 go test ./internal/papermetrics -run '^$' -bench BenchmarkHackWrap -benchtime 500000x -count=8
+GOMAXPROCS=4 go test ./host/papermetrics -run '^$' -bench BenchmarkHackWrap -benchtime 500000x -count=3
+GOMAXPROCS=4 go test ./host/papermetrics -run '^$' -bench BenchmarkHackWrap -benchtime 500000x -count=8
 ```
 
 Each cell is median [min–max] ns/op. Parallel values measure aggregate throughput,
@@ -525,16 +525,16 @@ after both wrapper commands and the R2 component benchmarks. Manifest SHA-256:
 `43098d5141ad38e517d5384b1eb4afb60d1809814937357e63963803d89ecd7d`.
 
 ```text
-066c3af576f2d1ee4a40d9241ba15831be090d140009692c2eaeaf5a93e0149e  internal/papermetrics/hack_counter.go
-8d492ca5b2de8c2305f6595b2796652039c2a524be7f7f1a5c1e86fa87ff423f  internal/papermetrics/histogram.go
-7d355088fe93145b2766c1c76036e8e5f2c04fb58652ed0e895a07baeb670cf7  internal/papermetrics/hack_members.go
-38aeed46522f32bfa954044c6a3bc7fb4803322817f03d666cb910c85ed4103f  internal/papermetrics/papermetrics.go
-7e0b5074546cd8af7179daf3e721d055eff0d9d4c622dda30a6069dae086d93f  internal/papermetrics/classify.go
-1b282ed68a7de6d18512763c05b38a3c264dc38c93f2ccbf01a35c27b75ced08  internal/papermetrics/hack_metadata.go
-3b1eeee3fe5a5895c05aa9e09f3c2e78145dafcdf3fb9bb3c9c91d085b1d6e0e  internal/papermetrics/hack_export.go
-04b49eba092dedd5c221f75bea9c66fae0bf9c85be1a3db3e83a4b5b6d7a4925  internal/papermetrics/export.go
-8f3d1f8fed83c81461d1641fba571c71319427aba34dbbe75b0104956f63a31f  internal/papermetrics/store.go
-cda9c654b923a440462f0387d22ce7d60d9189368c36b12f16d3a378fac5119c  internal/papermetrics/hack_regression_test.go
+066c3af576f2d1ee4a40d9241ba15831be090d140009692c2eaeaf5a93e0149e  host/papermetrics/hack_counter.go
+8d492ca5b2de8c2305f6595b2796652039c2a524be7f7f1a5c1e86fa87ff423f  host/papermetrics/histogram.go
+7d355088fe93145b2766c1c76036e8e5f2c04fb58652ed0e895a07baeb670cf7  host/papermetrics/hack_members.go
+38aeed46522f32bfa954044c6a3bc7fb4803322817f03d666cb910c85ed4103f  host/papermetrics/papermetrics.go
+7e0b5074546cd8af7179daf3e721d055eff0d9d4c622dda30a6069dae086d93f  host/papermetrics/classify.go
+1b282ed68a7de6d18512763c05b38a3c264dc38c93f2ccbf01a35c27b75ced08  host/papermetrics/hack_metadata.go
+3b1eeee3fe5a5895c05aa9e09f3c2e78145dafcdf3fb9bb3c9c91d085b1d6e0e  host/papermetrics/hack_export.go
+04b49eba092dedd5c221f75bea9c66fae0bf9c85be1a3db3e83a4b5b6d7a4925  host/papermetrics/export.go
+8f3d1f8fed83c81461d1641fba571c71319427aba34dbbe75b0104956f63a31f  host/papermetrics/store.go
+cda9c654b923a440462f0387d22ce7d60d9189368c36b12f16d3a378fac5119c  host/papermetrics/hack_regression_test.go
 ```
 
 All round-3 timings are superseded.
@@ -576,5 +576,5 @@ must precede deploying the new binary. Do not run until the coordinator accepts
 the final measurement and test results.
 
 ```sh
-mkdir -p build && sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory="$PWD" --uid="$(id -u)" --gid="$(id -g)" -E HOME="$HOME" -E PATH="$PATH" -E GOCACHE="$(go env GOCACHE)" -E GOMODCACHE="$(go env GOMODCACHE)" bash -euc 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse HEAD) -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o build/simple-host.hack-paper-metrics.new ./cmd/server' && flock /tmp/simple-host-deploy.lock bash -euo pipefail -c 'new="$PWD/build/simple-host.hack-paper-metrics.new"; for pair in simplehost:/etc/simple-host.env simplehack:/etc/simple-hack.env; do dbn=${pair%%:*}; envf=${pair#*:}; sudo -u postgres psql -q -v ON_ERROR_STOP=1 -d "$dbn" -1 -f db/migrations/zs-hack-paper-metrics.sql; sudo -u postgres psql -q -v ON_ERROR_STOP=1 -d "$dbn" -c "ALTER TABLE paper_hack_event OWNER TO $dbn; ALTER TABLE paper_hack_minute OWNER TO $dbn; ALTER TABLE paper_hack_latency OWNER TO $dbn; ALTER TABLE paper_hack_phase OWNER TO $dbn; ALTER TABLE paper_hack_key OWNER TO $dbn; ALTER TABLE paper_hack_daily OWNER TO $dbn; ALTER TABLE paper_run OWNER TO $dbn; ALTER SEQUENCE paper_run_run_id_seq OWNER TO $dbn"; sudo systemd-run --quiet --wait --pipe --collect -p EnvironmentFile="$envf" "$new" migrate -mark zs-hack-paper-metrics.sql; status=$(sudo systemd-run --quiet --wait --pipe --collect -p EnvironmentFile="$envf" "$new" migrate -status); printf "%s\n" "$status"; if printf "%s\n" "$status" | grep -q "^pending"; then exit 1; fi; done; sudo cp -p /usr/local/bin/simple-host "/usr/local/bin/simple-host.bak-$(date -u +%Y%m%d-%H%M%S)"; sudo install -m 755 -o root -g root "$new" /usr/local/bin/simple-host; sudo systemctl restart simple-host simple-hack; for url in https://simple-host.app/healthz https://simple-hack.app/healthz https://simple-host.app/ https://simple-hack.app/ https://madurai-idly.vineetu.simple-host.app/ https://vineetu.simple-host.app/ https://vineetsriram.com/ https://sf-fog.today/; do curl -fsS --retry 5 --retry-connrefused --retry-delay 1 "$url" >/dev/null; done; test "$(curl -s -o /dev/null -w "%{http_code}" https://sites.simple-host.app/vineetu/madurai-idly/)" = 302; curl -fsSI https://sites.simple-host.app/vineetu/madurai-idly/ | tr -d "\r" | grep -qi "^location: https://madurai-idly.vineetu.simple-host.app/$"; sudo systemctl start sh-brain-sync'
+mkdir -p build && sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory="$PWD" --uid="$(id -u)" --gid="$(id -g)" -E HOME="$HOME" -E PATH="$PATH" -E GOCACHE="$(go env GOCACHE)" -E GOMODCACHE="$(go env GOMODCACHE)" bash -euc 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/host/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/host/buildinfo.Commit=$(git rev-parse HEAD) -X github.com/vsriram/simple-host/host/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o build/simple-host.hack-paper-metrics.new ./cmd/server' && flock /tmp/simple-host-deploy.lock bash -euo pipefail -c 'new="$PWD/build/simple-host.hack-paper-metrics.new"; for pair in simplehost:/etc/simple-host.env simplehack:/etc/simple-hack.env; do dbn=${pair%%:*}; envf=${pair#*:}; sudo -u postgres psql -q -v ON_ERROR_STOP=1 -d "$dbn" -1 -f host/db/migrations/zs-hack-paper-metrics.sql; sudo -u postgres psql -q -v ON_ERROR_STOP=1 -d "$dbn" -c "ALTER TABLE paper_hack_event OWNER TO $dbn; ALTER TABLE paper_hack_minute OWNER TO $dbn; ALTER TABLE paper_hack_latency OWNER TO $dbn; ALTER TABLE paper_hack_phase OWNER TO $dbn; ALTER TABLE paper_hack_key OWNER TO $dbn; ALTER TABLE paper_hack_daily OWNER TO $dbn; ALTER TABLE paper_run OWNER TO $dbn; ALTER SEQUENCE paper_run_run_id_seq OWNER TO $dbn"; sudo systemd-run --quiet --wait --pipe --collect -p EnvironmentFile="$envf" "$new" migrate -mark zs-hack-paper-metrics.sql; status=$(sudo systemd-run --quiet --wait --pipe --collect -p EnvironmentFile="$envf" "$new" migrate -status); printf "%s\n" "$status"; if printf "%s\n" "$status" | grep -q "^pending"; then exit 1; fi; done; sudo cp -p /usr/local/bin/simple-host "/usr/local/bin/simple-host.bak-$(date -u +%Y%m%d-%H%M%S)"; sudo install -m 755 -o root -g root "$new" /usr/local/bin/simple-host; sudo systemctl restart simple-host simple-hack; for url in https://simple-host.app/healthz https://simple-hack.app/healthz https://simple-host.app/ https://simple-hack.app/ https://madurai-idly.vineetu.simple-host.app/ https://vineetu.simple-host.app/ https://vineetsriram.com/ https://sf-fog.today/; do curl -fsS --retry 5 --retry-connrefused --retry-delay 1 "$url" >/dev/null; done; test "$(curl -s -o /dev/null -w "%{http_code}" https://sites.simple-host.app/vineetu/madurai-idly/)" = 302; curl -fsSI https://sites.simple-host.app/vineetu/madurai-idly/ | tr -d "\r" | grep -qi "^location: https://madurai-idly.vineetu.simple-host.app/$"; sudo systemctl start sh-brain-sync'
 ```

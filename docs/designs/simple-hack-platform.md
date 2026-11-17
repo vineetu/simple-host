@@ -43,7 +43,7 @@ Signed-in pages live only on the apex, so no team page ever shares an origin wit
 - Results: the public sees winners only; each team privately sees its own scores and the
   judges' comments; the organiser can switch to a full public ranking (M3; fields exist now).
 
-## Data model (db/migrations/hack1-events.sql)
+## Data model (host/db/migrations/hack1-events.sql)
 
 - `events`: one row per event. `slug` is the event's name and address label. `account_id` is an
   internal **holding account** (a `users` row, `event_account = TRUE`, `handle = slug`, username
@@ -245,7 +245,7 @@ answers its own storage paths.
 - Organiser text never becomes HTML anywhere (server templates escape; pages use textContent).
 - CSV exports (M3) neutralise formula injection.
 
-## M2: team sites, keys, entries and the deadline (db/migrations/hack2-team-sites.sql)
+## M2: team sites, keys, entries and the deadline (host/db/migrations/hack2-team-sites.sql)
 
 ### Team sites
 
@@ -282,7 +282,7 @@ still a participant on that team; moved, taken off or removed, the key answers 4
 `team_key_inactive` at once (and is deleted). The organiser can turn any person's key off
 (`DELETE .../people/{user_id}/key`).
 
-`internal/auth/scope.go` holds a team key to the deploy routes plus `teamRoutes` — the site's
+`host/auth/scope.go` holds a team key to the deploy routes plus `teamRoutes` — the site's
 saved data as its owner (declaring kinds, reading what visitors sent, Page info, removing an
 item, who may save), its visit counts and `GET /v1/me` (which answers `{team: {event, team,
 site}}`, never the holding account) — and every `{sitename}` in them must be the team's (403

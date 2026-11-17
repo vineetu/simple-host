@@ -6,8 +6,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )

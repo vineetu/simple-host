@@ -8,11 +8,11 @@ The tables below group screens rather than repeat that inventory.
 
 ## Asset ownership and serving
 
-The browser sources live in `internal/webassets/static/` (the platform) and
+The browser sources live in `host/webassets/static/` (the platform) and
 `products/hack/webassets/static/` (Simple Hack: every `hack-*` file and the
-`hack/` folder): handwritten HTML, CSS and JavaScript. `internal/handler/ui.go`
+`hack/` folder): handwritten HTML, CSS and JavaScript. `host/handler/ui.go`
 and `products/hack/webassets` embed them into the Go binary. Changing a file requires rebuilding and restarting the server.
-A product hands the platform two tables (`internal/extension.Assets`): `Replace`, the platform
+A product hands the platform two tables (`host/extension.Assets`): `Replace`, the platform
 names it supplies its own file for, and `Own`, its own file names. The platform's pages can read
 an own name, but its file server never answers one: the product mounts
 `handler.AssetServices.ProductFiles()` at each address it wants served
@@ -21,7 +21,7 @@ the platform's and the address is the product's.
 There is no browser build step for ordinary Host pages or the Hack website's
 ES modules. MCP Apps have a separate, checked-in generated bundle.
 
-`internal/handler/assets.go:assetPipeline` owns an edition's presentation,
+`host/handler/assets.go:assetPipeline` owns an edition's presentation,
 limits and served-text caches. `ui.go:RegisterUIRoutes` installs the static
 file server and explicit page routes. `chrome.go:chromePage` composes page
 partials, theme/chrome and instance text; CSP middleware stamps script nonces.
@@ -29,7 +29,7 @@ Files needing this pipeline must not bypass it through raw file serving.
 
 Hack pages live in `products/hack/hackhttp`, which receives the asset pipeline
 through `hack.go:hackPages` and `HackHandler.ShareAssets`. The embedded tree
-belongs to `internal/webassets`; presentation and instance rewriting remain in
+belongs to `host/webassets`; presentation and instance rewriting remain in
 `handler`. Hack reads bundles through `webassets` and does not import `handler`
 to read assets.
 
@@ -37,7 +37,7 @@ to read assets.
 
 `docs/site/src/content/docs` holds task guides in MDX. This is the one Astro/Starlight
 exception to the handwritten frontend, with Node 22 used only to build. Run
-`bash scripts/build-docs-site.sh` and commit `internal/webassets/docs-site` with the
+`bash scripts/build-docs-site.sh` and commit `host/webassets/docs-site` with the
 source and package lock. Go builds and runtime need no Node. The README in docs/site
 specifies brand blocks, page budgets, feature links, and authoring conventions.
 
@@ -60,7 +60,7 @@ output; `scripts/docs-site.py check` checks hashes and guide feature IDs without
 
 ## Browser route to screen map
 
-Source filenames in this table are relative to `internal/webassets/static/`,
+Source filenames in this table are relative to `host/webassets/static/`,
 except the `hack-*` files and the `hack/` folder, which are relative to
 `products/hack/webassets/static/`.
 Go owners name the registration or rendering function.
@@ -96,7 +96,7 @@ not cloud provisioning (`static/setup/setup.js:build`, download
 assembly near `values.yaml`). See [advanced settings](../advanced/README.md).
 
 Shared page chrome uses `site.css` tokens and the shared theme switch;
-`internal/handler/theme_test.go` guards the conventions in CLAUDE.md.
+`host/handler/theme_test.go` guards the conventions in CLAUDE.md.
 The Hack module app uses its own light kit.
 
 | Presentation asset | Serving relationship |
@@ -207,7 +207,7 @@ Hack shell did not remove the shared sign-in component.
 map screen API calls to tools through the MCP bridge. These are embedded
 frames, not deployments of the full browser app. Resource assembly lives in
 `products/hack/mcp/hack_apps.go:readHackApp`; the tool server's own screens
-are in `internal/mcp/apps.go`.
+are in `host/mcp/apps.go`.
 
 `apps/bundlegen/bundle.go:framePlugin` substitutes exactly three modules:
 `hack/nav.js`, `hack/tour.js` and `hack/platform.js`. Other screen imports
@@ -242,7 +242,7 @@ and `apps/bundlegen/bundle.go:esbuildVersion`; it is not a floating CLI.
 | `static/openapi.yaml`, product `openapi.part.yaml` | Platform JSON, product JSON/YAML and internal contract | `make inventory` | `scripts/check-docs-sync.sh`, parsed YAML/JSON equality |
 | `static/features.json`, `scripts/features-page.tmpl.html` | `static/features.html` | `python3 scripts/build-features-page.py` | `scripts/check-features-page.py` |
 | `web/analytics-parse.js` | Marked script blocks in `index.html`, `showcase.html`, `analytics.html` | `bash scripts/inline-analytics-parser.sh` | `--check` plus Node parser fixtures in docs-sync |
-| `internal/webassets/simple-host-website/skills`, plugin manifest | `plugins/simple-host/skills` and synced manifest version | `bash scripts/sync-claude-plugin.sh` | `scripts/check-claude-plugin.sh` |
+| `host/webassets/simple-host-website/skills`, plugin manifest | `plugins/simple-host/skills` and synced manifest version | `bash scripts/sync-claude-plugin.sh` | `scripts/check-claude-plugin.sh` |
 | HTTP registrations, MCP registry, FEATURES placement | `docs/generated/{routes.md,mcp-tools.md,inventory.json}` | `make inventory` | `go run ./scripts/inventory check` |
 
 Do not hand-edit the generated bundle/CSS, JSON contract, public feature
@@ -289,7 +289,7 @@ The shared destination map lives in `products/hack/rules/hackevents/navigation.j
 
 ## Reference composition
 
-`internal/webassets/static/openapi.yaml` is the authored platform contract,
+`host/webassets/static/openapi.yaml` is the authored platform contract,
 including its internal and legacy audiences. `products/hack/webassets/openapi.part.yaml`
 owns product operations, shared-operation inclusions and structural overrides.
 An inclusion is an operation ID, or `METHOD /path` for an operation without an ID.

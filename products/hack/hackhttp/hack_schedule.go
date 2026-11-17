@@ -70,10 +70,10 @@ func hackEventLoc(ev model.Event) *time.Location {
 	return loc
 }
 
-// hackEventOver and hackMidnight moved to internal/rules/hackevents
+// hackEventOver and hackMidnight moved to host/rules/hackevents
 // (EventOver, Midnight) in cleanup 3.2 slice 4: pure, no DB/HTTP/clock, and
 // EventOver is also the directory's past-group decision now in
-// internal/app/hack/events.
+// host/app/hack/events.
 
 // hackFixedSchedule builds the fixed rows, sorted by time. Prompts are only
 // filled in for organisers.

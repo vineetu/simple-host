@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
+	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 )
 

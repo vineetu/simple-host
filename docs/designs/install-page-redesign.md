@@ -1,10 +1,10 @@
-> **Status: Superseded (2026-09-24)** — by the Get started rebuild for non-technical people (`internal/handler/static/install.html`, paste-back flow removed).
+> **Status: Superseded (2026-09-24)** — by the Get started rebuild for non-technical people (`host/handler/static/install.html`, paste-back flow removed).
 
 **Status: superseded 2026-10-09.** In-app building is removed; Get started connects people’s own AI apps and agents. The proposal below is historical.
 
 # Install / Get-Started page redesign
 
-**File:** `internal/handler/static/install.html` (embedded in the Go binary → rebuild + redeploy to take effect).
+**File:** `host/handler/static/install.html` (embedded in the Go binary → rebuild + redeploy to take effect).
 **Problem:** the page has too much information. It explains the skill twice, offers ~6 ways to install it, stacks three audiences vertically with no self-selection, duplicates the homepage's "what you can build" cards, and pushes `llms.txt` into the spotlight. New visitors can't tell what to do.
 
 ## Goal

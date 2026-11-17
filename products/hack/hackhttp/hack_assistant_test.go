@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/llm"
+	"github.com/vsriram/simple-host/host/llm"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 
 // fakeProvider is a minimal OpenAI-compatible chat-completions endpoint
 // (an httptest.Server), standing in for the configured ASSISTANT_BASE_URL
-// so these tests exercise the real internal/llm.Client and the real
+// so these tests exercise the real host/llm.Client and the real
 // events.AssistantService, not a hand-rolled test double of either.
 type fakeProvider struct {
 	srv *httptest.Server
@@ -106,7 +106,7 @@ func defaultAssistantConfig() events.AssistantConfig {
 
 // setAssistant wires a's HackHandler to a real events.AssistantService over
 // a real *llm.Client pointed at fp, so a request really round-trips
-// hackhttp -> events.AssistantService -> internal/llm -> the fake HTTP
+// hackhttp -> events.AssistantService -> host/llm -> the fake HTTP
 // provider and back.
 func (a *hackApp) setAssistant(cfg events.AssistantConfig, fp *fakeProvider, docsText func() string) {
 	cfg.BaseURL = fp.srv.URL
@@ -629,7 +629,7 @@ func TestAssistantRateLimitBody(t *testing.T) {
 		return w.call(t, "POST", "/assistant", map[string]any{"messages": []map[string]string{{"role": "user", "content": "hi"}}}, w.org)
 	}
 	var last resp
-	// The limiter's burst is 40 (internal/hackhttp/hack.go); exhaust it.
+	// The limiter's burst is 40 (host/hackhttp/hack.go); exhaust it.
 	// It refills one every 5s, so on a slow box ask until it refuses
 	// rather than exactly 41 times.
 	for i := 0; i < 80; i++ {
@@ -767,7 +767,7 @@ func TestAssistantClientCancelCancelsUpstream(t *testing.T) {
 	case <-fp.canceled:
 		// The upstream request's own context observed the cancellation:
 		// proof it propagated all the way from the client's abort through
-		// hackhttp and internal/llm to the provider HTTP request.
+		// hackhttp and host/llm to the provider HTTP request.
 	case <-time.After(5 * time.Second):
 		t.Fatal("provider never observed the client's cancellation")
 	}

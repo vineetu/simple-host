@@ -103,11 +103,11 @@ func TestMissingOwnerFile(t *testing.T) {
 
 func TestMigrationColumnIsNotRead(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "db/migrations"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "host/db/migrations"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	text := `CREATE TABLE paper_site_footprint (id integer, versions INTEGER, "events" integer, value numeric(10,2), FOREIGN KEY(id) REFERENCES sites(id));`
-	if err := os.WriteFile(filepath.Join(root, "db/migrations/metrics.sql"), []byte(text), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "host/db/migrations/metrics.sql"), []byte(text), 0644); err != nil {
 		t.Fatal(err)
 	}
 	z := parseSchema(text + `CREATE TABLE versions(id integer); CREATE TABLE sites(id integer); CREATE TABLE events(id integer);`)

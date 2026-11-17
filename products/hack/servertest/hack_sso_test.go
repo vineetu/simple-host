@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/config"
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	"github.com/vsriram/simple-host/host/config"
 
-	"github.com/vsriram/simple-host/internal/handler"
-	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	"github.com/vsriram/simple-host/internal/server"
+	"github.com/vsriram/simple-host/host/handler"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	"github.com/vsriram/simple-host/host/server"
 )
 
 func TestSSOHackEventAndTeamHosts(t *testing.T) {

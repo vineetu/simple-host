@@ -19,12 +19,12 @@
 #     until the unlock there, and the unlock is that host's only
 #   - the analytics log line names the family host
 #
-#   DB_DSN=postgres://...fresh database with db/schema.sql... bash scripts/e2e-families.sh
+#   DB_DSN=postgres://...fresh database with host/db/schema.sql... bash scripts/e2e-families.sh
 #
 # BIN defaults to a fresh build. Needs curl, psql (or docker exec, see PSQL),
 # openssl, python3 and nginx (skipped with a note if nginx is missing).
 set -euo pipefail
-: "${DB_DSN:?DB_DSN must name a throwaway database with db/schema.sql applied}"
+: "${DB_DSN:?DB_DSN must name a throwaway database with host/db/schema.sql applied}"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 NGINX=$(command -v nginx || true)
 [ -n "$NGINX" ] || [ ! -x /usr/sbin/nginx ] || NGINX=/usr/sbin/nginx

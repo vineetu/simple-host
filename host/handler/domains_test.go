@@ -1,0 +1,61 @@
+package handler
+
+import (
+	"database/sql"
+	"encoding/json"
+	"testing"
+	"time"
+
+	model "github.com/vsriram/simple-host/host/model"
+)
+
+func TestDomainResponseDeadline(t *testing.T) {
+	bound := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, status string
+		verified     bool
+		expires      string
+		cert         string
+	}{
+		{"unproven pending", "pending", false, "2026-09-07T12:00:00Z", ""},
+		// Released after 24 h too while DNS never pointed here.
+		{"unproven error", "error", false, "2026-09-07T12:00:00Z", ""},
+		// DNS points here but the certificate keeps failing: a week.
+		{"unproven, certificate failing", "pending", false, "2026-09-13T12:00:00Z", "failed"},
+		{"verified pending", "pending", true, "", ""},
+		{"verified active", "active", true, "", ""},
+		{"previously verified error", "error", true, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := domainResponse{Domain: "www.example.com", Status: tc.status}
+			setDomainTimes(&resp, model.SiteDomainInfo{
+				Status:     tc.status,
+				CertStatus: tc.cert,
+				BoundAt:    sql.NullTime{Time: bound, Valid: true},
+				VerifiedAt: sql.NullTime{Time: bound, Valid: tc.verified},
+			}, 24*time.Hour, 7*24*time.Hour)
+			data, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var body map[string]any
+			if err := json.Unmarshal(data, &body); err != nil {
+				t.Fatal(err)
+			}
+			if body["bound_at"] != "2026-09-06T12:00:00Z" {
+				t.Fatalf("bound_at: %s", data)
+			}
+			expires, present := body["expires_at"]
+			if tc.expires == "" {
+				if present {
+					t.Fatalf("unexpected expires_at: %s", data)
+				}
+			} else if expires != tc.expires {
+				t.Fatalf("expires_at: %s", data)
+			}
+			if _, present := body["verified_at"]; present != tc.verified {
+				t.Fatalf("verified_at: %s", data)
+			}
+		})
+	}
+}

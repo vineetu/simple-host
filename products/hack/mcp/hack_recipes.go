@@ -3,7 +3,7 @@ package hackmcp
 import (
 	"embed"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 	"regexp"
 	"strings"
 )

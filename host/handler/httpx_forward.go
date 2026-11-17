@@ -1,0 +1,89 @@
+package handler
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/vsriram/simple-host/host/httpx"
+)
+
+// Transitional (cleanup 3.2): callers move to httpx in 4.x.
+//
+// This file re-exposes host/httpx's protocol helpers under the names
+// host/handler used before the move, so the hundreds of existing call
+// sites (including host/handler/hack*.go, owned by a parallel worker in
+// this step) keep compiling unchanged.
+
+// errorResponse is httpx.ErrorResponse. A type alias (not a new type) so
+// existing composite literals (errorResponse{...}) keep compiling and
+// satisfy httpx.WriteJSON's type switch.
+type errorResponse = httpx.ErrorResponse
+
+var (
+	writeJSON       = httpx.WriteJSON
+	writeJSONETag   = httpx.WriteJSONETag
+	writeProductErr = httpx.WriteError
+	writeInternal   = httpx.WriteInternal
+	acceptsMarkdown = httpx.AcceptsMarkdown
+	csvSafe         = httpx.CSVSafe
+)
+
+// cspNonceKey is httpx.NonceKey. A type alias, not a redefinition, so the
+// context value adminUICSP (ui.go) sets and the one httpx.StampNonce reads
+// are exactly the same key.
+type cspNonceKey = httpx.NonceKey
+
+var stampNonce = httpx.StampNonce
+
+// rateLimiter wraps httpx.RateLimiter with the lowercase method names every
+// existing call site (dozens of files, including hack*.go) already uses.
+// It cannot be a plain `type rateLimiter = httpx.RateLimiter` alias: Go does
+// not let an alias add methods, and httpx's methods are exported (Allow,
+// AllowHTTP, ...) for hackhttp's own future direct use. Embedding promotes
+// those exported methods too, so both spellings work during the transition.
+type rateLimiter struct {
+	*httpx.RateLimiter
+}
+
+// newRateLimiter builds a limiter with the handler-package lowercase API.
+func newRateLimiter(capacity, perSecond float64) *rateLimiter {
+	return &rateLimiter{httpx.NewRateLimiter(capacity, perSecond)}
+}
+
+func (rl *rateLimiter) allow(key string) bool { return rl.RateLimiter.Allow(key) }
+
+// refund returns one token to key's bucket: used when a caller consumed
+// it from this limiter but then failed a second, related check (push's
+// site-then-person budget pair, FIX 7) and must not charge the one that
+// did pass when the whole attempt did not happen.
+func (rl *rateLimiter) refund(key string) { rl.RateLimiter.Refund(key) }
+
+func (rl *rateLimiter) allowHTTP(w http.ResponseWriter, key string) bool {
+	return rl.RateLimiter.AllowHTTP(w, key)
+}
+
+func (rl *rateLimiter) evictIdle(idle time.Duration) {
+	rl.RateLimiter.EvictIdle(idle)
+}
+
+var (
+	clientIP          = httpx.ClientIP
+	tooManyRequests   = httpx.TooManyRequests
+	SetTrustedProxies = httpx.SetTrustedProxies
+)
+
+// rateLimitByIP wraps next, rejecting requests from a client IP that has
+// exhausted its bucket with 429. Deliberately NOT httpx.RateLimitByIP(rl.
+// RateLimiter, next): some handlers are built in tests with a nil *rateLimiter
+// field and never route a request through it, and rl must stay undereferenced
+// until a request actually arrives (matching the pre-move behaviour), not
+// when the route is registered.
+func rateLimitByIP(rl *rateLimiter, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !rl.allowHTTP(w, clientIP(r)) {
+			tooManyRequests(w)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}

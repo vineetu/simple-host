@@ -5,9 +5,9 @@
 // site) in a real browser.
 //
 // Runs against the fixture TestServeVisitorRecordsBrowser writes
-// (internal/handler/visitor_records_browser_test.go):
+// (host/handler/visitor_records_browser_test.go):
 //
-//   VISITOR_RECORDS_FIXTURE=/tmp/f.json DB_DSN=... go test ./internal/handler/ -run TestServeVisitorRecordsBrowser
+//   VISITOR_RECORDS_FIXTURE=/tmp/f.json DB_DSN=... go test ./host/handler/ -run TestServeVisitorRecordsBrowser
 //   node scripts/e2e-storage-presets.mjs /tmp/f.json [--browser chromium|webkit] [--keep] [--shots dir]
 //
 // Needs Playwright (PLAYWRIGHT_DIR) and a Chromium at $CHROMIUM (or Playwright's

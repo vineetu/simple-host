@@ -21,7 +21,7 @@ _drp_spec.loader.exec_module(docs_repo_pages)
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs/site'
-OUTPUT = ROOT / 'internal/webassets/docs-site'
+OUTPUT = ROOT / 'host/webassets/docs-site'
 BRANDS = ('host', 'hack')
 
 def output_tree(brand):
@@ -172,7 +172,7 @@ def check_pagefind(tree):
 
 def check():
     errors = []
-    feature_files = {'host': ROOT / 'internal/webassets/static/features.json',
+    feature_files = {'host': ROOT / 'host/webassets/static/features.json',
                      'hack': ROOT / 'products/hack/webassets/static/features.json'}
     catalogues = {brand: json.loads(path.read_text()) for brand, path in feature_files.items()}
     ids = {brand: {f['id']: f for a in data['areas'] for f in a['features']}
@@ -223,7 +223,7 @@ def check():
                 if any(not SRC.search(m[1]) for m in SCRIPT.finditer(body)):
                     errors.append(f'{page}: inline script')
                 # Every page served as HTML is also served as plain Markdown
-                # for agents (internal/handler/docs.go); write_md_copies
+                # for agents (host/handler/docs.go); write_md_copies
                 # ships index.html's sibling next to its directory, not
                 # inside it, so an agent's slug-derived .md URL resolves.
                 if page.name == 'index.html':

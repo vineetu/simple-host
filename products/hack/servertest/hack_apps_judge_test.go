@@ -49,7 +49,7 @@ func newHackJudgeAppsFixture(t *testing.T) hackJudgeAppsFixture {
 	judgeAccess := a.connect(t, judge, client, testRedirect)["access_token"].(string)
 	inviteAccess := a.connect(t, secondJudge, client, testRedirect)["access_token"].(string)
 	// Declare MCP Apps UI support the way a real host does, once, at
-	// initialize -- clientUIMemory (internal/mcp/clientui.go) is what
+	// initialize -- clientUIMemory (host/mcp/clientui.go) is what
 	// filterHackShowTools / hackShowJudgeAppAllowed read for this
 	// initialize-era connection.
 	for _, access := range []string{judgeAccess, inviteAccess} {

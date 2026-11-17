@@ -126,7 +126,7 @@ type constDef struct {
 
 // The sole product-table query allowed in platform code: D3-S6a's read-only
 // adoption evidence probe. refactor-board/NOTES.md, 2026-11-16 07:20 UTC.
-var productProbeAllowlist = []finding{{File: "internal/server/product.go", Decl: "productEvidence", Text: "SELECT EXISTS (SELECT 1 FROM public.events)"}}
+var productProbeAllowlist = []finding{{File: "host/server/product.go", Decl: "productEvidence", Text: "SELECT EXISTS (SELECT 1 FROM public.events)"}}
 
 func allowedProductProbe(f finding) bool {
 	for _, allowed := range productProbeAllowlist {
@@ -755,7 +755,7 @@ func scan(root string, o options, objects []object, z schemaInfo) (scanResult, e
 		}
 		for _, file := range p.EmbedFiles {
 			path := rel(root, file)
-			if seenEmbed[file] || strings.HasPrefix(path, "db/") || filepath.Ext(file) != ".sql" {
+			if seenEmbed[file] || strings.HasPrefix(path, "host/db/") || filepath.Ext(file) != ".sql" {
 				continue
 			}
 			seenEmbed[file] = true

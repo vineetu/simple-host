@@ -1,6 +1,6 @@
 import { href, resolve } from '../nav.js'
 
-// Client-side mirror of the server's own table (internal/rules/hackentries/
+// Client-side mirror of the server's own table (host/rules/hackentries/
 // entries.go Presets), which follows the atlas's "What do the presets set?"
 // decision. Used to show each preset's lines straight away when a card is
 // picked and to tell when the lines still match a preset. The server is the

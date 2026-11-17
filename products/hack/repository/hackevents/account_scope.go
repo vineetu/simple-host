@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 

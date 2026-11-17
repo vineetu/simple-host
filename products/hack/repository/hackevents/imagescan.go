@@ -3,7 +3,7 @@ package hackevents
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // ClearEventIcon removes an event's icon (the image bytes and their type),

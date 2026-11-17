@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // Tests for the fixes from the 2026-11-02 full production test of Simple

@@ -4,7 +4,7 @@
 // an organiser's custom event website, then driven by visitors and a team
 // member signing in on the team site, and anyone sending to the event inbox.
 //
-//   HACK_PRESETS_FIXTURE=/tmp/f.json DB_DSN=... go test ./internal/handler/ -run TestServeHackPresetsBrowser
+//   HACK_PRESETS_FIXTURE=/tmp/f.json DB_DSN=... go test ./host/handler/ -run TestServeHackPresetsBrowser
 //   node scripts/e2e-hack-presets.mjs /tmp/f.json [--browser chromium|webkit] [--shots dir]
 //
 // Every browser request is forwarded to the fixture with the Host it was

@@ -1,8 +1,8 @@
 // Package hackmcp declares Simple Hack's AI tools and instructions. The tool
-// server (internal/mcp) receives them as one Contribution.
+// server (host/mcp) receives them as one Contribution.
 package hackmcp
 
-import "github.com/vsriram/simple-host/internal/mcp"
+import "github.com/vsriram/simple-host/host/mcp"
 
 // decl is one tool as this package writes it: the listed fields, the
 // declaration options and the function that runs it.

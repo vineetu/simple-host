@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/brain"
-	"github.com/vsriram/simple-host/internal/server"
+	"github.com/vsriram/simple-host/host/brain"
+	"github.com/vsriram/simple-host/host/server"
 )
 
 func main() { os.Exit(run(os.Args[1:])) }

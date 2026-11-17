@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	"github.com/vsriram/simple-host/host/mcp"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
-	appstorage "github.com/vsriram/simple-host/internal/app/storage"
-	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 // The tests in this file are Simple Hack's half of checks the tool server

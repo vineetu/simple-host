@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/extension"
-	"github.com/vsriram/simple-host/internal/server"
-	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
+	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/server"
+	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )

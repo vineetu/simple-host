@@ -28,18 +28,18 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/auth"
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	"github.com/vsriram/simple-host/host/app/operations"
+	"github.com/vsriram/simple-host/host/auth"
 
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/email"
-	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/model"
-	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-	"github.com/vsriram/simple-host/internal/storage"
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/email"
+	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/model"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
@@ -338,7 +338,7 @@ func uniqueSlug() string {
 }
 
 // setHackAppLimits overwrites a's already-built hackhttp.HackHandler's own limits
-// snapshot in place (moved from internal/handler/limits_test.go, cleanup
+// snapshot in place (moved from host/handler/limits_test.go, cleanup
 // 3.2 slice 3: hackApp, its only caller, moved here; limits_test.go's
 // setAppLimits/setConnectorAppLimits stay there for the fixtures that stay
 // there). See that file's withLimits/otherValue for the rest of the
@@ -742,7 +742,7 @@ func (a *teamSiteApp) api(t *testing.T, method, path string, body any, key strin
 
 // do, form, registerClient, consent, connect, rpc and the package-level
 // codeFrom/connectDataRe/newVerifier/authorizeQuery/toolResultOf/
-// testRedirect below are duplicated from internal/handler/connector_test.go
+// testRedirect below are duplicated from host/handler/connector_test.go
 // (connectorApp's own methods; cleanup 3.2 slice 3), for the same reason
 // teamSiteApp no longer embeds connectorApp (see its doc comment): they are
 // the OAuth-connector request helpers hack_connector_test.go and others
@@ -870,7 +870,7 @@ func toolResultOf(t *testing.T, r resp) (string, map[string]any, bool) {
 
 const testRedirect = "https://chat.example.com/oauth/callback"
 
-// newPerson is connectorApp's own (internal/handler/connector_test.go),
+// newPerson is connectorApp's own (host/handler/connector_test.go),
 // duplicated verbatim (same addr format) for the same reason as the rest
 // of teamSiteApp's own-receiver helpers above.
 func (a *teamSiteApp) newPerson(t *testing.T, label string) person {

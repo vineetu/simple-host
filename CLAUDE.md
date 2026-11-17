@@ -26,26 +26,26 @@ https://simple-host.app and runs in production for real users.
 
 - Update `FEATURES.md` and add a line to `CHANGELOG.md` (newest first, plain language). A new
   section or bold-lead feature in `FEATURES.md` also gets an entry in
-  `internal/webassets/static/features.json` (the public /features page: plain words, an example,
+  `host/webassets/static/features.json` (the public /features page: plain words, an example,
   editions, status, docs links; or a `not_shown` row with a why), then
   `python3 scripts/build-features-page.py` regenerates `features.html`. `scripts/check-features-page.py`
   (in `check-docs-sync.sh`) fails on a missing entry or a stale page.
-- Route changed: update `internal/webassets/static/openapi.yaml` (the contract), regenerate
+- Route changed: update `host/webassets/static/openapi.yaml` (the contract), regenerate
   `openapi.json` with
-  `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/webassets/static/openapi.yaml')),open('internal/webassets/static/openapi.json','w'),indent=2)"`,
+  `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('host/webassets/static/openapi.yaml')),open('host/webassets/static/openapi.json','w'),indent=2)"`,
   then `llms.txt` and the skills if it is user-facing. `scripts/check-docs-sync.sh` fails on drift.
-- Skills changed: bump `version` in `internal/webassets/simple-host-website/.claude-plugin/plugin.json` (the
+- Skills changed: bump `version` in `host/webassets/simple-host-website/.claude-plugin/plugin.json` (the
   stale-skill notice reads it from the embedded file), then run
   `bash scripts/sync-claude-plugin.sh`. Never hand-edit `plugins/simple-host/skills/`.
 - The plugin repos github.com/vineetu/simple-host-plugin and simple-hack-plugin are published
   from origin/main by the hourly `sh-plugin-repo-sync.timer` (it runs both `scripts/publish-*claude-plugin-repo.sh`);
   by hand: `sudo systemctl start sh-plugin-repo-sync`, or `DRY_RUN=1 bash scripts/publish-claude-plugin-repo.sh` to preview.
-- Schema changed: edit `db/schema.sql` AND add a file under `db/migrations/` (named `NNNN-what.sql` with the
+- Schema changed: edit `host/db/schema.sql` AND add a file under `host/db/migrations/` (named `NNNN-what.sql` with the
   next free number; never rename an existing file). The file must be plain SQL, idempotent
   (`ADD COLUMN IF NOT EXISTS`, `CREATE ... IF NOT EXISTS`) and safe on a live database
   (additive, defaults, no long locks, no `CONCURRENTLY`): `simple-host migrate` runs every file
   not yet recorded in `schema_migrations`, including on databases built from `schema.sql` that
-  already have its effect. Full rule: `db/migrations/migrations.go`. The historical files listed
+  already have its effect. Full rule: `host/db/migrations/migrations.go`. The historical files listed
   there as baseline are never run. Small boxes migrate from `install.sh` on every run; the
   server migrates on start only with `MIGRATE_ON_START=true` (Kubernetes; off in hosted
   production). Production: apply the file by hand before deploying (the
@@ -59,7 +59,7 @@ https://simple-host.app and runs in production for real users.
   self-hosting docs (docs/advanced, platforms, operations, configuration.md, kubernetes.md) needs
   `bash scripts/build-docs-site.sh` (Node 22.23.4; on this box it finds
   `~/.local/node/node-v22.23.4-linux-arm64`; run it under `systemd-run` with MemoryMax=3G) and the
-  rebuilt `internal/webassets/docs-site` in the same commit. `scripts/check-docs-site.py` (in
+  rebuilt `host/webassets/docs-site` in the same commit. `scripts/check-docs-site.py` (in
   `check-docs-sync.sh`) fails until then.
 - Design docs in `docs/designs/` carry a status line at the top; update it when you ship or drop
   the thing. Finished plans go to `docs/history/`.
@@ -80,18 +80,18 @@ make check
 the DB-backed test fixtures (connector, hack, analytics, netusage, papermetrics -- anything
 gated on `DB_DSN`) a disposable Postgres and fails if any of them skip instead of running;
 `make test` is the fast no-DB loop (`go test ./...`), which still skips those fixtures. Quick
-loop: `go test ./internal/handler/` (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
-Each DB-backed test package has a `TestMain` calling `testdb.Main` (`internal/testdb`): under the
+loop: `go test ./host/handler/` (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
+Each DB-backed test package has a `TestMain` calling `testdb.Main` (`host/testdb`): under the
 script (`TESTDB_ISOLATE=1`) every test process gets its own clone of the schema database, dropped
 afterwards, so packages never share rows. Fixtures that start background workers must cancel and
 join them (`Wait`) in a `t.Cleanup` registered after the one that closes the database. To chase a
-flaky test: `make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5` (packages go in
+flaky test: `make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5` (packages go in
 `PKGS`/`TEST_PKGS`, never as a bare argument to the script).
 
 Build, back up, install, restart both programs from one commit (one line, from the repo root; after the initial two-program deployment has installed both paths):
 
 ```
-sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-host.new ./cmd/simple-host && CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-hack.new ./cmd/simple-hack' && TS=$(date +%Y%m%d-%H%M%S) && sudo cp -p /usr/local/bin/simple-host /usr/local/bin/simple-host.bak-$TS && sudo cp -p /usr/local/bin/simple-hack /usr/local/bin/simple-hack.bak-$TS && sudo install -m 755 -o root -g root /tmp/simple-host.new /usr/local/bin/simple-host && sudo install -m 755 -o root -g root /tmp/simple-hack.new /usr/local/bin/simple-hack && sudo systemctl restart simple-host simple-hack
+sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/host/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/host/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/host/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-host.new ./cmd/simple-host && CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/host/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/host/buildinfo.Commit=$(git rev-parse --short HEAD) -X github.com/vsriram/simple-host/host/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /tmp/simple-hack.new ./cmd/simple-hack' && TS=$(date +%Y%m%d-%H%M%S) && sudo cp -p /usr/local/bin/simple-host /usr/local/bin/simple-host.bak-$TS && sudo cp -p /usr/local/bin/simple-hack /usr/local/bin/simple-hack.bak-$TS && sudo install -m 755 -o root -g root /tmp/simple-host.new /usr/local/bin/simple-host && sudo install -m 755 -o root -g root /tmp/simple-hack.new /usr/local/bin/simple-hack && sudo systemctl restart simple-host simple-hack
 ```
 
 After a hosted deploy, refresh the owner's product knowledge (`/brain/mcp`) so a change to
@@ -127,7 +127,7 @@ Never report branch work as fixed; only what a client can see is shipped.
 - **Do not alter the `simplehost` Postgres role** (password, grants, ownership).
 - **Commands handed to the owner are one line**, copy-pasteable, with self-filling
   substitutions instead of placeholders.
-- **Visitor IPs never go to a third party.** Geolocation is local (`internal/geoip`); nothing
+- **Visitor IPs never go to a third party.** Geolocation is local (`host/geoip`); nothing
   is injected into hosted pages.
 - **Hosted pages never hold an API key.** Middleware reads only `X-API-Key` or a connector
   token; never teach it to accept the visitor cookie.
@@ -157,7 +157,7 @@ Never report branch work as fixed; only what a client can see is shipped.
 - `PERSON_HOSTS` and `SITE_HOSTS` default to `off` so event and self-hosted instances keep the
   path model. simple-host.app runs both as `canonical`.
 
-Background owners satisfy `workers.Owner` and are registered in `internal/server/workers.go`; `GET /v1/admin/usage` reports their `workers` status. Drain HTTP before stopping/joining workers and closing dependencies.
+Background owners satisfy `workers.Owner` and are registered in `host/server/workers.go`; `GET /v1/admin/usage` reports their `workers` status. Drain HTTP before stopping/joining workers and closing dependencies.
 
 ### Skill staleness notice
 
@@ -185,5 +185,5 @@ docker run -d --name simple-host-postgres -p 5432:5432 -e POSTGRES_USER=simpleho
 ```
 DB_DSN='postgres://simplehost:simplehost@localhost:5432/simplehost?sslmode=disable' DATA_DIR=./data/sites SITE_DOMAIN=localhost ADMIN_API_KEY=$(openssl rand -hex 32) go run ./cmd/simple-host
 ```
-Apply `db/schema.sql` to the fresh database first. Without `SITE_DOMAIN` the binary starts in
+Apply `host/db/schema.sql` to the fresh database first. Without `SITE_DOMAIN` the binary starts in
 setup mode.

@@ -11,10 +11,10 @@
 set -u
 cd "$(dirname "$0")/.."
 
-OPENAPI=internal/webassets/static/openapi.yaml
-LLMS=internal/webassets/static/llms.txt
-SKILL_DEPLOY=internal/webassets/simple-host-website/skills/website-deploy/SKILL.md
-SKILL_BUILD=internal/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md
+OPENAPI=host/webassets/static/openapi.yaml
+LLMS=host/webassets/static/llms.txt
+SKILL_DEPLOY=host/webassets/simple-host-website/skills/website-deploy/SKILL.md
+SKILL_BUILD=host/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md
 
 fail=0
 python3 scripts/check-hack-setup.py || fail=1
@@ -33,7 +33,7 @@ documented=$(python3 - <<'PYDOC'
 import json
 from pathlib import Path
 paths = set()
-for name in ('internal/webassets/static/openapi.json', 'products/hack/webassets/openapi.internal.json'):
+for name in ('host/webassets/static/openapi.json', 'products/hack/webassets/openapi.internal.json'):
     paths.update(path for path in json.loads(Path(name).read_text())['paths'] if path.startswith('/v1/'))
 print('\n'.join(sorted(paths)))
 PYDOC
@@ -75,7 +75,7 @@ done <<<"$documented"
 # storage-route pattern. The owner-only device/rule management routes
 # (push/devices, push/rules) are still wrapped with authMiddleware.
 echo "== owner routes wrapped with authMiddleware =="
-unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
+unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' host/handler \
   | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"|/storage/|/push/(vapid-key|subscribe|unsubscribe|mute)"' \
   | grep -vE '"(GET|POST|PUT|PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}"|"(GET|POST) /v1/sites/\{sitename\}/data/\{coll\}/history[^"]*"|"GET /v1/sites/\{sitename\}/data/\{coll\}/kind"|"(PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}"|"POST /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}/undo"|"OPTIONS /v1/sites/\{sitename\}/data/' \
   | grep -v authMiddleware || true)
@@ -120,7 +120,7 @@ echo
 # behind — old response shape, two endpoints missing — while this script printed
 # "docs in sync ✓". Anything generating a client from the json got the old shape.
 echo "== openapi.json matches openapi.yaml =="
-OPENAPI_JSON=internal/webassets/static/openapi.json
+OPENAPI_JSON=host/webassets/static/openapi.json
 if [ ! -e "$OPENAPI_JSON" ]; then
   echo "  FAIL: missing $OPENAPI_JSON"
   fail=1
@@ -185,7 +185,7 @@ else
 fi
 
 # auth.js's API address per page host (the moving-base copy is run by
-# TestAuthJSBases in internal/handler).
+# TestAuthJSBases in host/handler).
 echo "== auth.js picks the API address =="
 if command -v node >/dev/null 2>&1; then
   if out=$(node web/auth-base.test.js 2>&1); then
@@ -204,10 +204,10 @@ fi
 # names simple-host.app but is NOT in rewrittenAssets would tell a hackathon's
 # participants to publish to the public instance instead of their own.
 echo "== assets naming the host are rewritten =="
-listed=$(sed -n '/^var rewrittenAssets = \[\]string{/,/^}/p' internal/handler/instancehost.go \
+listed=$(sed -n '/^var rewrittenAssets = \[\]string{/,/^}/p' host/handler/instancehost.go \
   | grep -oE '"[^"]+"' | tr -d '"')
 missing=""
-for f in internal/webassets/static/*; do
+for f in host/webassets/static/*; do
   base=$(basename "$f")
   grep -q "simple-host\.app" "$f" 2>/dev/null || continue
   grep -qxF "$base" <<<"$listed" && continue
@@ -231,7 +231,7 @@ fi
 # following the hackathon skill hit exactly this and could read none of them.
 echo "== skill references are reachable by URL =="
 missing=""
-for skill in internal/webassets/simple-host-website/skills/*/; do
+for skill in host/webassets/simple-host-website/skills/*/; do
   name=$(basename "$skill")
   [ -d "$skill/references" ] || continue
   for ref in "$skill"references/*.md; do
@@ -260,14 +260,14 @@ fi
 # "until" or "pending". run-hackathon is exempt — event instances keep the path
 # model on sites.<their-domain>/<handle>/<project>/.
 echo "== docs use the site address =="
-canon_docs=(internal/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" internal/webassets/static/*.html openai-plugin/skills internal/mcp/instructions.go internal/mcp/outputs.go internal/mcp/tools.go )
+canon_docs=(host/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" host/webassets/static/*.html openai-plugin/skills host/mcp/instructions.go host/mcp/outputs.go host/mcp/tools.go )
 old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
 offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
-  | grep -v '^internal/webassets/simple-host-website/skills/run-hackathon/' \
+  | grep -v '^host/webassets/simple-host-website/skills/run-hackathon/' \
   | grep -viE 'old|legacy|redirect' || true)
 person_path='(<handle>|\{handle\}|&lt;handle&gt;)\.simple-host\.(app|site)/(<(site|sitename|name)>|\{(site|sitename|name)\}|&lt;(site|sitename|name)&gt;)'
 offending_pp=$(grep -rnE "$person_path" "${canon_docs[@]}" 2>/dev/null \
-  | grep -v '^internal/webassets/simple-host-website/skills/run-hackathon/' \
+  | grep -v '^host/webassets/simple-host-website/skills/run-hackathon/' \
   | grep -viE 'old|legacy|redirect|fallback|briefly|brand-new|new account|until|pending' || true)
 if [ -n "$offending" ]; then
   echo "$offending" | cut -c1-200 | sed 's/^/  FAIL: shared path form as the address (say "old"\/"legacy"\/"redirect" or use <site>.<handle>.simple-host.app): /'
@@ -278,7 +278,7 @@ if [ -n "$offending_pp" ]; then
   fail=1
 fi
 missing_site=""
-for doc in "$LLMS" "$OPENAPI" "$SKILL_DEPLOY" "$SKILL_BUILD" internal/webassets/simple-host-website/skills/connect-domain/SKILL.md internal/mcp/instructions.go; do
+for doc in "$LLMS" "$OPENAPI" "$SKILL_DEPLOY" "$SKILL_BUILD" host/webassets/simple-host-website/skills/connect-domain/SKILL.md host/mcp/instructions.go; do
   grep -qE '<(site|sitename|name)>\.<handle>\.simple-host\.(app|site)' "$doc" || missing_site="$missing_site $doc"
 done
 if [ -n "$missing_site" ]; then
@@ -330,8 +330,8 @@ required += ['/v1/skills/' + name + '/SKILL.md' for name in ['run-hackathon', 'j
 for url in required:
     assert (url, True) in parsed.links, f'{url} missing from collapsed other installs'
 assert all(other for url, other in parsed.links if url.startswith('/v1/skills/')), 'Skill reading belongs under other installs'
-for doc in ['README.md', 'FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'internal/webassets/static/llms.txt']:
-    if doc != 'internal/webassets/static/llms.txt':
+for doc in ['README.md', 'FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'host/webassets/static/llms.txt']:
+    if doc != 'host/webassets/static/llms.txt':
         assert '/get-started' in Path(doc).read_text(), f'{doc} must describe hosted onboarding'
 print('  ok — five-skill install command, onboarding docs and tucked-away downloads agree')
 PY

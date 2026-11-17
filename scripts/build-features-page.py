@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render internal/webassets/static/features.html from features.json.
+"""Render host/webassets/static/features.html from features.json.
 
 features.json is the one source for the public Features page (areas, features, editions,
 status, links). This script fills scripts/features-page.tmpl.html and writes the page.
@@ -17,9 +17,9 @@ import re
 import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-DATA = os.path.join(ROOT, "internal/webassets/static/features.json")
+DATA = os.path.join(ROOT, "host/webassets/static/features.json")
 TMPL = os.path.join(ROOT, "scripts/features-page.tmpl.html")
-OUT = os.path.join(ROOT, "internal/webassets/static/features.html")
+OUT = os.path.join(ROOT, "host/webassets/static/features.html")
 
 EDITIONS = [("host", "Simple Host"), ("enterprise", "Enterprise"), ("smallbox", "Small box")]
 ED_WORD = {"yes": "yes", "no": "no", "partial": "partly", "planned": "planned"}

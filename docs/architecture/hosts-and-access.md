@@ -2,7 +2,7 @@
 
 The host dispatcher and package map are in [ARCHITECTURE.md](../../ARCHITECTURE.md#hosts-and-how-a-request-flows).
 This guide covers the contracts shared by routing, TLS, account and visitor identity, and request
-accounting. Paths below are repository paths; `internal/handler/` is abbreviated as `handler/`.
+accounting. Paths below are repository paths; `host/handler/` is abbreviated as `handler/`.
 Exact endpoints are in [routes](../generated/routes.md); settings are in [configuration](../configuration.md).
 
 ## Host routing and certificates
@@ -70,7 +70,7 @@ with active re-proof hourly (`handler/familyhost.go:StartAddressFamilies`,
 
 | Family hand-off | Contract |
 |---|---|
-| Disk link | `DATA_DIR/families/<suffix>` → `by-id/<user_id>`; `internal/storage/families.go:BindFamily` |
+| Disk link | `DATA_DIR/families/<suffix>` → `by-id/<user_id>`; `host/storage/families.go:BindFamily` |
 | Request | `ADDRESS_FAMILY_CERT_DIR/requests/<suffix>` contains token, relative account link, certificate mode/lineage, site prefix and reserved labels (`handler/familyapi.go:familyRequestBody`) |
 | Issuer | `deploy/family-certs/issue.sh`, installed as `/usr/local/sbin/simple-host-family-certs`; default state `/var/lib/simple-host-family-certs`; path unit plus ten-minute timer |
 | Certificate ownership | Check existing operator wildcard lineage covers `*.<suffix>` and is unexpired. Never issue, renew or delete it; normal certbot renewal owns that work |
@@ -112,14 +112,14 @@ Go routing does not depend on those sidecars.
 Every completed account sign-in issues a fresh key; previous sign-in keys remain valid until
 revocation, expiry or rotation. Rotation deletes existing account keys, ends visitor sessions,
 issues a replacement and disconnects apps (`handler/user.go:verifySignIn`, `rotateAPIKey`,
-`internal/app/accounts/signin_operations.go:RotateKey`). Only SHA-256 hashes are stored. The dashboard retains its
+`host/app/accounts/signin_operations.go:RotateKey`). Only SHA-256 hashes are stored. The dashboard retains its
 key in localStorage and sends `X-API-Key` (`handler/static/index.html`). Admin is a real user row
 upserted at boot (`cmd/server/main.go:main`); visitor cookies never confer account middleware power.
 
 OAuth registration, PKCE and consent guard Streamable HTTP `/mcp`. Tool calls and connector bearer
 REST replay enter the same gated mux as REST; scope/storage gates still apply
 (`handler/connector.go`, `cmd/server/main.go:main`). Replay mints an in-memory `shint_` credential,
-revokes it at request end and has a 15-minute TTL backstop (`internal/repository/accounts/internalkey.go`). A selected
+revokes it at request end and has a 15-minute TTL backstop (`host/repository/accounts/internalkey.go`). A selected
 Hack team uses a separately scoped credential; legacy and chat-facing credential tools are filtered.
 
 `simple-host oauth-client create` registers clients manually (`cmd/server/oauthclient.go`).
@@ -136,21 +136,21 @@ still requires keys or connector tokens. Dashboard sign-out also reads it solely
 browser family (`handler/sso.go:ssoCookie`, `setSSOCookie`, `endBrowserSSO`).
 
 - `sso_passes` stores a hash referencing `api_keys.key_hash` with ON DELETE CASCADE; SSO-created
-  `visitor_sessions.sso_pass_hash` references that pass with the same cascade (`db/schema.sql`).
+  `visitor_sessions.sso_pass_hash` references that pass with the same cascade (`host/db/schema.sql`).
 - Pass reads require live pass/idle expiry, live parent key/idle expiry and an unsuspended account
-  (`internal/app/accounts/sso.go:GetSSOPass`,
-  `internal/repository/accounts/acct_sso.go:GetSSOPass`, `principals.go:liveSSOParent`).
+  (`host/app/accounts/sso.go:GetSSOPass`,
+  `host/repository/accounts/acct_sso.go:GetSSOPass`, `principals.go:liveSSOParent`).
 - Site start stores host, return destination and nonce hash in `sso_hops`, then sends the browser
   to the apex for remembered consent or shared sign-in. Redemption creates a 60-second host- and
   nonce-bound establishment code (`handler/sso.go:startSSO`, `hopSSO`).
 - Pass issuance serializes on the parent key, keeps one pass per key and retires the previous
-  browser family (`internal/app/accounts/sso.go:ReplaceSSOPass`,
-  `internal/repository/accounts/acct_sso.go:ReplaceSSOPass`). Browser verification then calls `/v1/sso/session`.
+  browser family (`host/app/accounts/sso.go:ReplaceSSOPass`,
+  `host/repository/accounts/acct_sso.go:ReplaceSSOPass`). Browser verification then calls `/v1/sso/session`.
 - Site sign-out revokes the parent key (cascading sibling sessions) and stores a short-lived
   `sso_signouts` ticket. Even absent/expired/legacy local sessions receive the apex navigation;
   completion revokes the current apex-cookie family and clears the cookie (`handler/sso.go:endSiteSSO`,
-  `signedOutSSO`, `internal/app/accounts/sso.go:RevokeVisitorSSO`, `CompleteSSOSignout`;
-  SQL in `internal/repository/accounts/acct_sso.go`).
+  `signedOutSSO`, `host/app/accounts/sso.go:RevokeVisitorSSO`, `CompleteSSOSignout`;
+  SQL in `host/repository/accounts/acct_sso.go`).
 - `SetSSOHop` wires automatic named-viewer gates. Provider discovery lets `/auth.js` retain its
   legacy behavior on instances without a hop-capable apex (`cmd/server/main.go`, `handler/sso.go`).
 
@@ -168,7 +168,7 @@ Cached pages and instances without apex SSO retain the provider and email flows:
 |---|---|
 | Provider start | `/v1/visitor/oauth/{provider}` starts on the site origin; an apex start for a site redirects there. Set ten-minute host-only `__Host-sh_vnonce`; store only its SHA-256 with OAuth state (`handler/oauth.go:startOnSite`, `beginOAuth`) |
 | Provider callback | Callback reaches apex and creates a one-time token carrying nonce hash; redirect to the site `/v1/visitor/establish?once=...` (`oauth.go:callback`) |
-| Establish | Admit navigation first, then consume the code before host/nonce/session validation and set host-only `__Host-sh_vsess` on success. Navigation rejection leaves the code usable; host/nonce/session failures after consumption burn it (`handler/visitorsession.go:establishVisitor`, `internal/app/accounts/acct_access.go:ConsumeEstablishToken`, `internal/repository/accounts/acct_visitors.go:ConsumeEstablishToken`) |
+| Establish | Admit navigation first, then consume the code before host/nonce/session validation and set host-only `__Host-sh_vsess` on success. Navigation rejection leaves the code usable; host/nonce/session failures after consumption burn it (`handler/visitorsession.go:establishVisitor`, `host/app/accounts/acct_access.go:ConsumeEstablishToken`, `host/repository/accounts/acct_visitors.go:ConsumeEstablishToken`) |
 | Email | `POST /v1/sites/{site}/visitor/auth` and `/verify` bind codes to the site and issue its visitor cookie (`handler/visitoremail.go`) |
 
 Cookie helpers use HTTP development names without the `__Host-` prefix; HTTPS uses only the
@@ -184,8 +184,8 @@ a suspended account is refused. Owner/admin account API authority is handled sep
 (`handler/viewers.go:viewerAllowed`, `viewersLetIn`, owner access routes in `viewers.go` and `passcode.go`).
 There is no per-page view lock. List on my profile only controls the profile page.
 
-Host grandfathered APIs run through `internal/app/legacy`; storage resources have their own
-policy in `internal/app/storage/access.go`. Hosted Hack returns 410 for state/collection/declared-data,
+Host grandfathered APIs run through `host/app/legacy`; storage resources have their own
+policy in `host/app/storage/access.go`. Hosted Hack returns 410 for state/collection/declared-data,
 saver/history routes on site and handle aliases, and serves only the narrower storage/visitor
 allowlist on custom event hosts (`products/hack/hackhttp/legacy_storage.go`, `hack_mode.go:hackEventAPIAllowed`).
 
@@ -196,7 +196,7 @@ allowlist on custom event hosts (`products/hack/hackhttp/legacy_storage.go`, `ha
 | Private submission | Only signed-in visitors on an own site origin submit, not account keys or shared-host callers; server stamps identity (`app/legacy/collections.go:appendPrivate`) |
 | Private list read | Shared content host returns 404 even with owner/admin keys. Elsewhere owner/admin keys read all; owner browser session on own origin can read. Originless non-owner reads and other visitors, including submitters reading their own submissions, get 404 (`collectionReadView`, `handler/privatecollections.go:ownerBrowserRead`) |
 | Personal (`mine`) | Each person reads/writes their own record; owners may obtain limited counts, not other people's records (`app/legacy/personal.go:GetPersonal`, `personalWriter`) |
-| Shared board | Allowed visitors edit one item at a time; supplied If-Match version is checked, stale edits return 409 `version_conflict`; whole-board clear/replacement is owner-only (`handler/board.go`, `handler/entry_operations.go`, `internal/app/legacy` write operations) |
+| Shared board | Allowed visitors edit one item at a time; supplied If-Match version is checked, stale edits return 409 `version_conflict`; whole-board clear/replacement is owner-only (`handler/board.go`, `handler/entry_operations.go`, `host/app/legacy` write operations) |
 
 ## Notification triggers
 
@@ -230,7 +230,7 @@ The wrapper runs after authentication/IP limiting and before response notices. S
 and file links reuse it after existing resource authorization with caller identity and resolved
 site ID (`handler/site.go:Register`, `site_storage_table.go`, `site_storage_files.go`).
 
-`internal/httpx/ratelimit.go:AllowState` refills a token bucket continuously and consumes a token
+`host/httpx/ratelimit.go:AllowState` refills a token bucket continuously and consumes a token
 under the same mutex that snapshots its remaining balance; `AllowHTTP` derives RateLimit headers
 from that snapshot. The policy window is empty-to-full refill time, not a fixed reset window.
 

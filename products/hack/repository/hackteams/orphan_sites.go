@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // OrphanTeamSites lists live sites of events' holding accounts whose team no

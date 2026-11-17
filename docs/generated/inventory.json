@@ -4,32 +4,32 @@
       "method": "ANY",
       "path": "/",
       "feature_id": "redirects-and-plain-addresses",
-      "source": "internal/handler/setup.go:60",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:60",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:67",
-      "package": "internal/handler",
+      "source": "host/handler/brain.go:67",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:372",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:372",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "DELETE",
       "path": "/v1/admin/address-families/{id}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:965",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:965",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -44,48 +44,48 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:36",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:36",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/domain",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:35",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:35",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/lock",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:40",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:40",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/versions/{version}",
       "feature_id": "site-drafts",
-      "source": "internal/handler/adminsite.go:42",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:42",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/admin/users/{id}",
       "feature_id": "account-data",
-      "source": "internal/handler/site.go:567",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:567",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/events/{name}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/eventdomain.go:55",
-      "package": "internal/handler",
+      "source": "host/handler/eventdomain.go:55",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -220,8 +220,8 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/website/notifications/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:30",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:30",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -236,392 +236,392 @@
       "method": "DELETE",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "internal/handler/site.go:578",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:578",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:958",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:958",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/me/connections/{client_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:386",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:386",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/me/identities/{id}",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:192",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:192",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/me/keys/{id}",
       "feature_id": "signin-alerts",
-      "source": "internal/handler/user.go:186",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:186",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:554",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:554",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/collections/{coll}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:724",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:724",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/collections/{coll}/deleted",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:735",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:735",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/collections/{coll}/deleted/{id}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:736",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:736",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/collections/{coll}/items/{id}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:721",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:721",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:785",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:785",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/data/{coll}/items/{id}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:776",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:776",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "internal/handler/site.go:662",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:662",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/history",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:740",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:740",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "internal/handler/site.go:693",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:693",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/notifications/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:23",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:23",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/push/devices",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:621",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:621",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/push/devices/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:628",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:628",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:538",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:538",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:526",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:526",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:522",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:522",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "internal/handler/site.go:532",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:532",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/versions/{version}",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:610",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:610",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/viewers/{email}",
       "feature_id": "access-named-viewers",
-      "source": "internal/handler/site.go:704",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:704",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/sso/consents/{site}",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/user.go:183",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:183",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
       "feature_id": "collections",
-      "source": "internal/handler/site.go:725",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:725",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:747",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:747",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:748",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:748",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}",
       "feature_id": "collections",
-      "source": "internal/handler/site.go:723",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:723",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:804",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:804",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:797",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:797",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "DELETE",
       "path": "/v1/u/{handle}/sites/{sitename}/history",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:752",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:752",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/",
       "feature_id": "redirects-and-plain-addresses",
-      "source": "internal/handler/ui.go:264",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:264",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/agent-card.json",
       "feature_id": "agents-data-minimisation",
-      "source": "internal/handler/agentcard.go:39",
-      "package": "internal/handler",
+      "source": "host/handler/agentcard.go:39",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/ai-catalog.json",
       "feature_id": "agents-data-minimisation",
-      "source": "internal/handler/mcpservercard.go:68",
-      "package": "internal/handler",
+      "source": "host/handler/mcpservercard.go:68",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/api-catalog",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:163",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:163",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/ard.json",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:162",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:162",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/mcp/server-card.json",
       "feature_id": "agents-data-minimisation",
-      "source": "internal/handler/mcpservercard.go:66",
-      "package": "internal/handler",
+      "source": "host/handler/mcpservercard.go:66",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/muse-client.json",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:357",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:357",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:354",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:354",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:63",
-      "package": "internal/handler",
+      "source": "host/handler/brain.go:63",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:356",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:356",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:352",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:352",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:62",
-      "package": "internal/handler",
+      "source": "host/handler/brain.go:62",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:353",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:353",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/openai-apps-challenge",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/openaichallenge.go:15",
-      "package": "internal/handler",
+      "source": "host/handler/openaichallenge.go:15",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/skills/index.json",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:308",
-      "package": "internal/handler",
+      "source": "host/handler/skillshub.go:308",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/skills/{name}/SKILL.md",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:309",
-      "package": "internal/handler",
+      "source": "host/handler/skillshub.go:309",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/skills/{name}/references/{file}",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:310",
-      "package": "internal/handler",
+      "source": "host/handler/skillshub.go:310",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -636,16 +636,16 @@
       "method": "GET",
       "path": "/admin",
       "feature_id": "admin",
-      "source": "internal/handler/ui.go:194",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:194",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/analytics/{sitename}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:228",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:228",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -660,32 +660,32 @@
       "method": "GET",
       "path": "/apple-touch-icon.png",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:153",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:153",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/auth.js",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/ui.go:139",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:139",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/auth.md",
       "feature_id": "access-email-signin-off",
-      "source": "internal/handler/ui.go:69",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:69",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:66",
-      "package": "internal/handler",
+      "source": "host/handler/brain.go:66",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -700,24 +700,24 @@
       "method": "GET",
       "path": "/costs",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:214",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:214",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:237",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:237",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:242",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:242",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -748,24 +748,24 @@
       "method": "GET",
       "path": "/docs",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:92",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:92",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/docs.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:93",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:93",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/docs/",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:91",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:91",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -844,24 +844,24 @@
       "method": "GET",
       "path": "/enterprise",
       "feature_id": "hack-voting",
-      "source": "internal/handler/ui.go:204",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:204",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/enterprise/architecture",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:206",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:206",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/enterprise/brief",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:205",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:205",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -892,8 +892,8 @@
       "method": "GET",
       "path": "/favicon-32.png",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:153",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:153",
+      "package": "host/handler",
       "dynamic": true
     },
     {
@@ -916,32 +916,32 @@
       "method": "GET",
       "path": "/favicon.ico",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:153",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:153",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/favicon.svg",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:153",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:153",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/features",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:198",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:198",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/features.json",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:139",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:139",
+      "package": "host/handler",
       "dynamic": true
     },
     {
@@ -1044,16 +1044,16 @@
       "method": "GET",
       "path": "/film/{file}",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:169",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:169",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/fonts/{file...}",
       "feature_id": "hack-voting",
-      "source": "internal/handler/setup.go:65",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:65",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -1732,8 +1732,8 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/server/build.go:452",
-      "package": "internal/server",
+      "source": "host/server/build.go:452",
+      "package": "host/server",
       "dynamic": true
     },
     {
@@ -1748,8 +1748,8 @@
       "method": "GET",
       "path": "/hackathons.html",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/server/build.go:452",
-      "package": "internal/server",
+      "source": "host/server/build.go:452",
+      "package": "host/server",
       "dynamic": true
     },
     {
@@ -1764,32 +1764,32 @@
       "method": "GET",
       "path": "/healthz",
       "feature_id": "kubernetes",
-      "source": "internal/handler/health.go:15",
-      "package": "internal/handler",
+      "source": "host/handler/health.go:15",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/host-ink.css",
       "feature_id": "hack-voting",
-      "source": "internal/handler/setup.go:64",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:64",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/import/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:375",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:375",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/index.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:240",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:240",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -1804,24 +1804,24 @@
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:139",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:139",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:146",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:146",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/install.ps1",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:188",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:188",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -1836,8 +1836,8 @@
       "method": "GET",
       "path": "/install.sh",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:187",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:187",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -1852,104 +1852,104 @@
       "method": "GET",
       "path": "/internal/domain-redirect/{handle}/{sitename}",
       "feature_id": "address-families",
-      "source": "internal/handler/site.go:669",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:669",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/domain-redirect/{handle}/{sitename}/{rest...}",
       "feature_id": "address-families",
-      "source": "internal/handler/site.go:670",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:670",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/family/{rest...}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:966",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:966",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/names/taken",
       "feature_id": "hack-voting",
-      "source": "internal/handler/namepeer.go:34",
-      "package": "internal/handler",
+      "source": "host/handler/namepeer.go:34",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/notfound",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:679",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:679",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/offline",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:684",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:684",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/passcode/{rest...}",
       "feature_id": "access-passcode",
-      "source": "internal/handler/site.go:687",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:687",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/showcase/{handle}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/site.go:674",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:674",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/site-redirect/{handle}",
       "feature_id": "site-url",
-      "source": "internal/handler/site.go:676",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:676",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/site-redirect/{handle}/{sitename}",
       "feature_id": "site-url",
-      "source": "internal/handler/site.go:677",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:677",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/site-redirect/{handle}/{sitename}/{rest...}",
       "feature_id": "site-url",
-      "source": "internal/handler/site.go:678",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:678",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/suspended",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:682",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:682",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/internal/tls-ask",
       "feature_id": "address-families",
-      "source": "internal/handler/site.go:668",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:668",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -1972,8 +1972,8 @@
       "method": "GET",
       "path": "/llms.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:241",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:241",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -1988,32 +1988,32 @@
       "method": "GET",
       "path": "/llms.txt",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:139",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:139",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:372",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:372",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/mcp/server-card",
       "feature_id": "agents-data-minimisation",
-      "source": "internal/handler/mcpservercard.go:67",
-      "package": "internal/handler",
+      "source": "host/handler/mcpservercard.go:67",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/oauth/authorize",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:360",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:360",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2028,16 +2028,16 @@
       "method": "GET",
       "path": "/openapi.json",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:143",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:143",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/openapi.yaml",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:143",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:143",
+      "package": "host/handler",
       "dynamic": true
     },
     {
@@ -2052,24 +2052,24 @@
       "method": "GET",
       "path": "/photo-codecs/v3/{file}",
       "feature_id": "dashboard-add-photos",
-      "source": "internal/handler/photos_ui.go:32",
-      "package": "internal/handler",
+      "source": "host/handler/photos_ui.go:32",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/photos",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/photos_ui.go:14",
-      "package": "internal/handler",
+      "source": "host/handler/photos_ui.go:14",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/plugin.zip",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:186",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:186",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2084,48 +2084,48 @@
       "method": "GET",
       "path": "/pricing",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:202",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:202",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/readyz",
       "feature_id": "kubernetes",
-      "source": "internal/handler/health.go:16",
-      "package": "internal/handler",
+      "source": "host/handler/health.go:16",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/recipes/{topic}",
       "feature_id": "storage-recipes",
-      "source": "internal/handler/ui.go:72",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:72",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:220",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:220",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/robots.txt",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:156",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:156",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/setup",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:210",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:210",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2148,8 +2148,8 @@
       "method": "GET",
       "path": "/setup/{$}",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:211",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:211",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2164,8 +2164,8 @@
       "method": "GET",
       "path": "/signin.js",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/ui.go:139",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:139",
+      "package": "host/handler",
       "dynamic": true
     },
     {
@@ -2284,16 +2284,16 @@
       "method": "GET",
       "path": "/sitemap-pages.xml",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:160",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:160",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/sitemap.xml",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:159",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:159",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2308,8 +2308,8 @@
       "method": "GET",
       "path": "/skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:165",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:165",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2324,136 +2324,136 @@
       "method": "GET",
       "path": "/skills/connect-domain",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:177",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:177",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/connect-domain.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:174",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:174",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/connect-domain/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:175",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:175",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/connect-domain/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:178",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/join-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:177",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:177",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/join-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:174",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:174",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/join-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:175",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:175",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/join-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:178",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/judge-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:177",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:177",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/judge-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:174",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:174",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/judge-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:175",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:175",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/judge-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:178",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/run-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:177",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:177",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/run-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:174",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:174",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/run-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:175",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:175",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/run-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:178",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/version",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:166",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:166",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2468,72 +2468,72 @@
       "method": "GET",
       "path": "/skills/website-deploy",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:177",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:177",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/website-deploy-builder",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:177",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:177",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/website-deploy-builder.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:174",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:174",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/website-deploy-builder/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:175",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:175",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/website-deploy-builder/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:178",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/website-deploy.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:174",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:174",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/website-deploy/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:175",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:175",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/skills/website-deploy/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:178",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/support",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:218",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:218",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -2548,48 +2548,48 @@
       "method": "GET",
       "path": "/terms",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:217",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:217",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:960",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:960",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:582",
-      "package": "internal/server",
+      "source": "host/server/build.go:582",
+      "package": "host/server",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/data-watch",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:754",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:754",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/export.tar.gz",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:594",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:594",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "internal/server/build.go:583",
-      "package": "internal/server",
+      "source": "host/server/build.go:583",
+      "package": "host/server",
       "dynamic": false
     },
     {
@@ -2604,160 +2604,160 @@
       "method": "GET",
       "path": "/v1/admin/idle-sites",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:628",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:628",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/image-scan",
       "feature_id": "abuse-limits-and-hardening",
-      "source": "internal/handler/site.go:756",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:756",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "internal/server/build.go:601",
-      "package": "internal/server",
+      "source": "host/server/build.go:601",
+      "package": "host/server",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/signups",
       "feature_id": "admin-signup-source",
-      "source": "internal/handler/site.go:582",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:582",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/signups.csv",
       "feature_id": "admin-signup-source",
-      "source": "internal/handler/site.go:583",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:583",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/sites",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:579",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:579",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/sites/{id}/collections",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:31",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:31",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/sites/{id}/collections/{coll}",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:32",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:32",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/sites/{id}/collections/{coll}/export.csv",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:33",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:33",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/sites/{id}/versions",
       "feature_id": "site-drafts",
-      "source": "internal/handler/adminsite.go:29",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:29",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/usage",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:596",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:596",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/admin/users",
       "feature_id": "admin-signup-source",
-      "source": "internal/handler/site.go:581",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:581",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/analytics/sites",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/site.go:620",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:620",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/auth/oauth/providers",
       "feature_id": "access-company-signin",
-      "source": "internal/handler/oauth.go:173",
-      "package": "internal/handler",
+      "source": "host/handler/oauth.go:173",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/oauth.go:179",
-      "package": "internal/handler",
+      "source": "host/handler/oauth.go:179",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}/callback",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/oauth.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/oauth.go:178",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/brain",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:68",
-      "package": "internal/handler",
+      "source": "host/handler/brain.go:68",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/data-notify/stop",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:769",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:769",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/events",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/eventdomain.go:53",
-      "package": "internal/handler",
+      "source": "host/handler/eventdomain.go:53",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/export",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:603",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:603",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -3196,16 +3196,16 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/website/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:27",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:27",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/hack/events/{slug}/website/notifications/{id}/deliveries",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:33",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:33",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -3292,704 +3292,704 @@
       "method": "GET",
       "path": "/v1/handles/check",
       "feature_id": "access-choose-address",
-      "source": "internal/handler/user.go:179",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:179",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/idle/keep",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:631",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:631",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/idle/restore",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:633",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:633",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/imports/status/{import_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:377",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:377",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "internal/handler/user.go:180",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:180",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:955",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:955",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:956",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:956",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/bio",
       "feature_id": "showcase-pins-and-bio",
-      "source": "internal/handler/site.go:558",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:558",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/connections",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:385",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:385",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/deleted-sites",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:564",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:564",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/email/undo",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:189",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:189",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/export.tar.gz",
       "feature_id": "account-data",
-      "source": "internal/handler/site.go:577",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:577",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/export.zip",
       "feature_id": "account-data",
-      "source": "internal/handler/site.go:575",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:575",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/home",
       "feature_id": "your-home-page",
-      "source": "internal/handler/site.go:562",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:562",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/identities",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:191",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:191",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/me/keys",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/user.go:184",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:184",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:19",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:19",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:380",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:380",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/push/sw.js",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:606",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:606",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/setup/dns-check",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/setup.go:69",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:69",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/setup/state",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/setup.go:66",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:66",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites",
       "feature_id": "publish-file-limits",
-      "source": "internal/handler/site.go:565",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:565",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/access",
       "feature_id": "access-named-viewers",
-      "source": "internal/handler/site.go:701",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:701",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:613",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:613",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics/geo",
       "feature_id": "analytics-own-visits",
-      "source": "internal/handler/site.go:614",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:614",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics/top",
       "feature_id": "analytics-and-geo",
-      "source": "internal/handler/site.go:617",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:617",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/collections",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:712",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:712",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/collections/{coll}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:811",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:811",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/collections/{coll}/deleted",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:732",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:732",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/collections/{coll}/export.csv",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:713",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:713",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/collections/{coll}/history",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:729",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:729",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/collections/{coll}/history/{id}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:730",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:730",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/data",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:762",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:762",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:771",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:771",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/data/{coll}/history",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:786",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:786",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/data/{coll}/history/{id}",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:787",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:787",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/data/{coll}/kind",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:772",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:772",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "internal/handler/site.go:661",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:661",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/export.tar.gz",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:599",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:599",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "internal/handler/site.go:691",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:691",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/me",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:815",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:815",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:20",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:20",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/notifications/{id}/deliveries",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:26",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:26",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/devices",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:620",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:620",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/rules",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:629",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:629",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/vapid-key",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:615",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:615",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/savers",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:764",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:764",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/showcase",
       "feature_id": "showcase-pins-and-bio",
-      "source": "internal/handler/site.go:560",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:560",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/state",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:821",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:821",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/state/history",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:737",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:737",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/state/history/{id}",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:738",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:738",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:535",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:535",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:536",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:536",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:523",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:523",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:524",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:524",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/people",
       "feature_id": "storage-owner-for-visitor",
-      "source": "internal/handler/site.go:520",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:520",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/resources",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:517",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:517",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
       "feature_id": "storage-owner-for-visitor",
-      "source": "internal/handler/site.go:529",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:529",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "internal/handler/site.go:530",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:530",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/usage",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:518",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:518",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/visitors",
       "feature_id": "storage-visitor-emails",
-      "source": "internal/handler/site.go:519",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:519",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:604",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:604",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions/{version}/files",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:605",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:605",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions/{version}/files/{path...}",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:606",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:606",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/skills",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:301",
-      "package": "internal/handler",
+      "source": "host/handler/skillshub.go:301",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/skills/{name}",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:302",
-      "package": "internal/handler",
+      "source": "host/handler/skillshub.go:302",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/skills/{name}/SKILL.md",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:305",
-      "package": "internal/handler",
+      "source": "host/handler/skillshub.go:305",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/skills/{name}/references/{file}",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:306",
-      "package": "internal/handler",
+      "source": "host/handler/skillshub.go:306",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sso/hop",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/sso.go:78",
-      "package": "internal/handler",
+      "source": "host/handler/sso.go:78",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sso/signed-out",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/sso.go:81",
-      "package": "internal/handler",
+      "source": "host/handler/sso.go:81",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/sso/start",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/sso.go:77",
-      "package": "internal/handler",
+      "source": "host/handler/sso.go:77",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/storage-download",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:540",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:540",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/turnstile/frame",
       "feature_id": "storage-comments",
-      "source": "internal/handler/site.go:547",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:547",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/showcase.json",
       "feature_id": "showcase-feed",
-      "source": "internal/handler/site.go:557",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:557",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
       "feature_id": "collections",
-      "source": "internal/handler/site.go:828",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:828",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:744",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:744",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:741",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:741",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:742",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:742",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:792",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:792",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:805",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:805",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:806",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:806",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/kind",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:793",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:793",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/me",
       "feature_id": "visitor-sign-in",
-      "source": "internal/handler/site.go:832",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:832",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/state",
       "feature_id": "saved-state",
-      "source": "internal/handler/site.go:838",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:838",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/state/history",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:749",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:749",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/state/history/{id}",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:750",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:750",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/visitor/establish",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:847",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:847",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/v1/visitor/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/oauth.go:182",
-      "package": "internal/handler",
+      "source": "host/handler/oauth.go:182",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -4004,8 +4004,8 @@
       "method": "GET",
       "path": "/{$}",
       "feature_id": "owner-dashboard-and-owner-app",
-      "source": "internal/handler/ui.go:243",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:243",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -4020,8 +4020,8 @@
       "method": "HEAD",
       "path": "/v1/push/sw.js",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:607",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:607",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -4036,192 +4036,192 @@
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/collections/{coll}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:813",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:813",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:778",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:778",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/data/{coll}/history",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:789",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:789",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/data/{coll}/history/{id}",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:790",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:790",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/data/{coll}/history/{id}/restore",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:791",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:791",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/data/{coll}/items/{id}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:780",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:780",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/data/{coll}/items/{id}/undo",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:781",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:781",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/data/{coll}/kind",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:779",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:779",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/me",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:816",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:816",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/state",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:824",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:824",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/visitor/auth",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:818",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:818",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/visitor/auth/verify",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:820",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:820",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
       "feature_id": "collections",
-      "source": "internal/handler/site.go:830",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:830",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:799",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:799",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:808",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:808",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:809",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:809",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:810",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:810",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:801",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:801",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:802",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:802",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/kind",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:800",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:800",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/me",
       "feature_id": "visitor-sign-in",
-      "source": "internal/handler/site.go:833",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:833",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/state",
       "feature_id": "saved-state",
-      "source": "internal/handler/site.go:841",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:841",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
       "feature_id": "visitor-sign-in",
-      "source": "internal/handler/site.go:835",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:835",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
       "feature_id": "visitor-sign-in",
-      "source": "internal/handler/site.go:837",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:837",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -4284,8 +4284,8 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/website/notifications/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:29",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:29",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -4308,184 +4308,184 @@
       "method": "PATCH",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "internal/handler/site.go:569",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:569",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:957",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:957",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:555",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:555",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/collections/{coll}/items/{id}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:720",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:720",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:784",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:784",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/data/{coll}/items/{id}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:775",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:775",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/notifications/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:22",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:22",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/state",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:823",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:823",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "internal/handler/site.go:531",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:531",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}",
       "feature_id": "collections",
-      "source": "internal/handler/site.go:722",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:722",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:803",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:803",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:796",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:796",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PATCH",
       "path": "/v1/u/{handle}/sites/{sitename}/state",
       "feature_id": "saved-state",
-      "source": "internal/handler/site.go:840",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:840",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/",
       "feature_id": "redirects-and-plain-addresses",
-      "source": "internal/handler/ui.go:262",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:262",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:65",
-      "package": "internal/handler",
+      "source": "host/handler/brain.go:65",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:372",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:372",
+      "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "POST",
       "path": "/oauth/authorize/decision",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:361",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:361",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/oauth/register",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:359",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:359",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/oauth/reviewer-signin",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/connector.go:364",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:364",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/oauth/revoke",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:366",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:366",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/oauth/token",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:365",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:365",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:221",
-      "package": "internal/handler",
+      "source": "host/handler/ui.go:221",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/address-families/{id}/check",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:964",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:964",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -4516,152 +4516,152 @@
       "method": "POST",
       "path": "/v1/admin/image-scan/{id}/report",
       "feature_id": "abuse-limits-and-hardening",
-      "source": "internal/handler/site.go:757",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:757",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/password-users",
       "feature_id": "password-accounts",
-      "source": "internal/handler/password.go:26",
-      "package": "internal/handler",
+      "source": "host/handler/password.go:26",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/sites/{id}/domain",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:34",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:34",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/sites/{id}/restore",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:587",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:587",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/sites/{id}/suspend",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:586",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:586",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/sites/{id}/versions/{version}/preview-link",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:41",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:41",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/users",
       "feature_id": "admin-signup-source",
-      "source": "internal/handler/site.go:566",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:566",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/users/{id}/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:961",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:961",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/users/{id}/enable",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:589",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:589",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/users/{id}/key",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:568",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:568",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/users/{id}/password",
       "feature_id": "password-accounts",
-      "source": "internal/handler/password.go:27",
-      "package": "internal/handler",
+      "source": "host/handler/password.go:27",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/admin/users/{id}/suspend",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:588",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:588",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/auth",
       "feature_id": "access-email-signin-off",
-      "source": "internal/handler/user.go:177",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:177",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/auth/password",
       "feature_id": "password-accounts",
-      "source": "internal/handler/password.go:24",
-      "package": "internal/handler",
+      "source": "host/handler/password.go:24",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/auth/password/signup",
       "feature_id": "password-accounts",
-      "source": "internal/handler/password.go:25",
-      "package": "internal/handler",
+      "source": "host/handler/password.go:25",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/auth/verify",
       "feature_id": "access-email-signin-off",
-      "source": "internal/handler/user.go:178",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:178",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/brain/{tool}",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:69",
-      "package": "internal/handler",
+      "source": "host/handler/brain.go:69",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/data-notify/stop",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:770",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:770",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/events",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/eventdomain.go:54",
-      "package": "internal/handler",
+      "source": "host/handler/eventdomain.go:54",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -4980,24 +4980,24 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/website/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:28",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:28",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/hack/events/{slug}/website/notifications/{id}/rotate-secret",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:32",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:32",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/hack/events/{slug}/website/notifications/{id}/test",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:31",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:31",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -5036,560 +5036,560 @@
       "method": "POST",
       "path": "/v1/idle/keep",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:632",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:632",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/idle/restore",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:634",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:634",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/imports/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:376",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:376",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:954",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:954",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/address-families/{suffix}/check",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:959",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:959",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/api-key/rotate",
       "feature_id": "signin-alerts",
-      "source": "internal/handler/user.go:181",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:181",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/email",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:187",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:187",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/email/undo",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:190",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:190",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/email/verify",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:188",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:188",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/keys",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/user.go:185",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:185",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/password",
       "feature_id": "password-accounts",
-      "source": "internal/handler/password.go:28",
-      "package": "internal/handler",
+      "source": "host/handler/password.go:28",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/me/sign-out",
       "feature_id": "admin-signup-source",
-      "source": "internal/handler/user.go:182",
-      "package": "internal/handler",
+      "source": "host/handler/user.go:182",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:381",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:381",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/setup/finish",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/setup.go:71",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:71",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/setup/free-name",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/setup.go:70",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:70",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/setup/own-domain",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/setup.go:68",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:68",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/setup/verify",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/setup.go:67",
-      "package": "internal/handler",
+      "source": "host/handler/setup.go:67",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/site-signin",
       "feature_id": "access-named-viewers",
-      "source": "internal/handler/site.go:705",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:705",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/site-signout",
       "feature_id": "access-named-viewers",
-      "source": "internal/handler/site.go:706",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:706",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/site-unlock",
       "feature_id": "access-passcode",
-      "source": "internal/handler/site.go:698",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:698",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:548",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:548",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/collections/{coll}",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:812",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:812",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/collections/{coll}/deleted/restore",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:733",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:733",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/collections/{coll}/history/{id}/restore",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:731",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:731",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/collections/{coll}/items/{id}/restore",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:734",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:734",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:773",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:773",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/data/{coll}/history/{id}/restore",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:788",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:788",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/data/{coll}/items/{id}/undo",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:777",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:777",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "internal/handler/site.go:660",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:660",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/domain/check",
       "feature_id": "address-families",
-      "source": "internal/handler/site.go:665",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:665",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/export-link",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:602",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:602",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/files",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:639",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:639",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/lock/sign-out-everyone",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:694",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:694",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:21",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:21",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/notifications/{id}/rotate-secret",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:25",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:25",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/notifications/{id}/test",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_routes.go:24",
-      "package": "internal/handler",
+      "source": "host/handler/notify_routes.go:24",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/photos",
       "feature_id": "dashboard-add-photos",
-      "source": "internal/handler/site.go:642",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:642",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/mute",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:618",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:618",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/subscribe",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:616",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:616",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/unsubscribe",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:617",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:617",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/restore",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:556",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:556",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/savers/block",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:766",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:766",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/state/history/{id}/restore",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:739",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:739",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/files/{name}/download-link",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:539",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:539",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/execute",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:533",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:533",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/query",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:527",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:527",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/schema",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:534",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:534",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
       "feature_id": "storage-owner-for-visitor",
-      "source": "internal/handler/site.go:528",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:528",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/versions/{version}/preview-link",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:612",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:612",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/viewers",
       "feature_id": "access-named-viewers",
-      "source": "internal/handler/site.go:703",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:703",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/visitor/auth",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:817",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:817",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sites/{sitename}/visitor/auth/verify",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:819",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:819",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sso/consent",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/sso.go:79",
-      "package": "internal/handler",
+      "source": "host/handler/sso.go:79",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sso/session",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/sso.go:80",
-      "package": "internal/handler",
+      "source": "host/handler/sso.go:80",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/sso/signed-out",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/sso.go:82",
-      "package": "internal/handler",
+      "source": "host/handler/sso.go:82",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
       "feature_id": "collections",
-      "source": "internal/handler/site.go:829",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:829",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:745",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:745",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:743",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:743",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:746",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:746",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:794",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:794",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore",
       "feature_id": "personal-and-shared-board",
-      "source": "internal/handler/site.go:807",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:807",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:798",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:798",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/state/history/{id}/restore",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:751",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:751",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
       "feature_id": "visitor-sign-in",
-      "source": "internal/handler/site.go:834",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:834",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
       "feature_id": "visitor-sign-in",
-      "source": "internal/handler/site.go:836",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:836",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:383",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:383",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/v1/visitor/logout",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/site.go:848",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:848",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/admin/address-families/{id}/cert-mode",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:962",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:962",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/admin/address-families/{id}/proof-exempt",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:963",
-      "package": "internal/handler",
+      "source": "host/handler/familyapi.go:963",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/admin/sites/{id}/active-version",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:30",
-      "package": "internal/handler",
+      "source": "host/handler/adminsite.go:30",
+      "package": "host/handler",
       "dynamic": false
     },
     {
@@ -5812,200 +5812,200 @@
       "method": "PUT",
       "path": "/v1/me/bio",
       "feature_id": "showcase-pins-and-bio",
-      "source": "internal/handler/site.go:559",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:559",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/me/home",
       "feature_id": "your-home-page",
-      "source": "internal/handler/site.go:563",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:563",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:549",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:549",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/access",
       "feature_id": "access-named-viewers",
-      "source": "internal/handler/site.go:702",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:702",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/active-version",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:607",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:607",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/allow-anonymous-writes",
       "feature_id": "moderation",
-      "source": "internal/handler/site.go:656",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:656",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/allowed-origins",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:655",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:655",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/collections/{coll}/privacy",
       "feature_id": "collections-existing-sites-only",
-      "source": "internal/handler/site.go:716",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:716",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:774",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:774",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/data/{coll}/kind",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:763",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:763",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/files",
       "feature_id": "site-drafts",
-      "source": "internal/handler/site.go:640",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:640",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/keep",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:624",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:624",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/keep-versions",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:627",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:627",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "internal/handler/site.go:692",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:692",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/push/rules",
       "feature_id": "signals-and-notifications",
-      "source": "internal/handler/notify_push.go:630",
-      "package": "internal/handler",
+      "source": "host/handler/notify_push.go:630",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/savers",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:765",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:765",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/showcase",
       "feature_id": "showcase-pins-and-bio",
-      "source": "internal/handler/site.go:561",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:561",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/state",
       "feature_id": "the-per-site-cap",
-      "source": "internal/handler/site.go:822",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:822",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:537",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:537",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:525",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:525",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
       "feature_id": "storage-sql-errors",
-      "source": "internal/handler/site.go:521",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:521",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/visibility",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/site.go:621",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:621",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
       "feature_id": "who-may-save",
-      "source": "internal/handler/site.go:795",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:795",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/u/{handle}/sites/{sitename}/state",
       "feature_id": "saved-state",
-      "source": "internal/handler/site.go:839",
-      "package": "internal/handler",
+      "source": "host/handler/site.go:839",
+      "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "PUT",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:382",
-      "package": "internal/handler",
+      "source": "host/handler/connector.go:382",
+      "package": "host/handler",
       "dynamic": false
     }
   ],

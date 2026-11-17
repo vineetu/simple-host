@@ -2,7 +2,7 @@ package hackmcp
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 	"net/http"
 	"net/http/httptest"
 	"strings"

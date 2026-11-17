@@ -164,7 +164,7 @@ The concrete alias inventory above is mirrored in navigation.json. Recognised ca
 
 ## 3. One navigation map
 
-Canonical file: `internal/rules/hackevents/navigation.json`, embedded by that package. It contains data, no transport imports. A small generator reads it to produce the navigation data export used by `internal/webassets/static/hack/nav.js` and `docs/ux-atlas/prototype/nav.js`; keep route-resolution code handwritten. Atlas `roles[].nav` and settings destinations are generated projections, not separately maintained link lists. `build.py` uses the same source. No runtime frontend build or fetch is required to route.
+Canonical file: `host/rules/hackevents/navigation.json`, embedded by that package. It contains data, no transport imports. A small generator reads it to produce the navigation data export used by `host/webassets/static/hack/nav.js` and `docs/ux-atlas/prototype/nav.js`; keep route-resolution code handwritten. Atlas `roles[].nav` and settings destinations are generated projections, not separately maintained link lists. `build.py` uses the same source. No runtime frontend build or fetch is required to route.
 
 ```json
 {
@@ -296,12 +296,12 @@ Keep the current before-team fallback four rows, pending/rejected gate, stage-sp
 
 | Layer / location | Responsibility |
 |---|---|
-| `internal/rules/hackevents/checklist.go` | Pure catalogue, stage selection, item state/next rules; explicit input facts and `now`, no SQL, ambient clock or HTTP. Embed/read navigation data here. Entry predicates stay in/reuse `rules/hackentries`; pass typed entry-rule facts into hackevents pure rules, never import rules/hackentries from rules/hackevents. |
-| `internal/app/hack/events/checklist.go` | Load member/event/content/settings/marks; obtain judging/entry progress facts through existing entries service; assemble organiser/judge/participant result and abilities. Own acknowledgement/dismissal transactions. Fits target.md's allowed events → entries dependency. |
-| `internal/app/hack/entries` | Reuse EntryProgress, judge queue, actor-scoped conflicts, pre-conflict candidates, eligibility, current standings and tie computation. Assemble scoring-completion facts using JudgeDoneForTeam, not ScoreCoverage (which counts even partially scored pairs). Return typed facts; do not duplicate queue SQL in checklist code. |
-| `internal/repository/hackevents/checklists.go` | SQL for marks/acknowledgements and missing read facts. Reuse existing area repositories for content/settings. No orchestration here. |
-| `internal/hackhttp/hack_checklists.go`, eventView | Authenticate/decode, call app service, resolve DTO links, encode. Thread actual actor/admin context into ability computation. No new computation in handler maps. |
-| `internal/mcp` | Existing REST replay and output schemas, no checklist inference. Map output carries the same resolved links. |
+| `host/rules/hackevents/checklist.go` | Pure catalogue, stage selection, item state/next rules; explicit input facts and `now`, no SQL, ambient clock or HTTP. Embed/read navigation data here. Entry predicates stay in/reuse `rules/hackentries`; pass typed entry-rule facts into hackevents pure rules, never import rules/hackentries from rules/hackevents. |
+| `host/app/hack/events/checklist.go` | Load member/event/content/settings/marks; obtain judging/entry progress facts through existing entries service; assemble organiser/judge/participant result and abilities. Own acknowledgement/dismissal transactions. Fits target.md's allowed events → entries dependency. |
+| `host/app/hack/entries` | Reuse EntryProgress, judge queue, actor-scoped conflicts, pre-conflict candidates, eligibility, current standings and tie computation. Assemble scoring-completion facts using JudgeDoneForTeam, not ScoreCoverage (which counts even partially scored pairs). Return typed facts; do not duplicate queue SQL in checklist code. |
+| `host/repository/hackevents/checklists.go` | SQL for marks/acknowledgements and missing read facts. Reuse existing area repositories for content/settings. No orchestration here. |
+| `host/hackhttp/hack_checklists.go`, eventView | Authenticate/decode, call app service, resolve DTO links, encode. Thread actual actor/admin context into ability computation. No new computation in handler maps. |
+| `host/mcp` | Existing REST replay and output schemas, no checklist inference. Map output carries the same resolved links. |
 
 Add this top-level field, retaining every existing event-view field:
 
@@ -337,7 +337,7 @@ Add this top-level field, retaining every existing event-view field:
 
 Read fresh on every event/checklist request, after the existing due-entry settling/pinning path. Use the same eligibility and effective-deadline reads as the queue. No cached “done” booleans, AI or checklist worker. A new assignment, conflict, rubric edit, score change, deletion or setting update changes the next read. Rubric acknowledgement rows include opaque `version`; server computes and verifies it. Conflict acknowledgement is unversioned. Read actions do not auto-acknowledge.
 
-**Migration `0009-hack-checklists.sql`**, also reflected in `db/schema.sql` at implementation:
+**Migration `0009-hack-checklists.sql`**, also reflected in `host/db/schema.sql` at implementation:
 
 | Table | Columns / key / ownership |
 |---|---|
@@ -361,7 +361,7 @@ Expose new tools through existing Hack family/discovery/inventory. Classify writ
 
 ## 7. Shared checklist component
 
-Module `internal/webassets/static/hack/checklist.js` exports `renderChecklist({ui, checklist, title, renderAction?})` returning a DOM node, and `bindChecklist(node,{api,slug,refresh,alive})` for Not needed / Use this item controls. It receives server-selected state and links; no role/stage predicates. `renderAction` lets participant Home retain its existing Submit callback and labels. Screens retain their countdown/hero wrapper.
+Module `host/webassets/static/hack/checklist.js` exports `renderChecklist({ui, checklist, title, renderAction?})` returning a DOM node, and `bindChecklist(node,{api,slug,refresh,alive})` for Not needed / Use this item controls. It receives server-selected state and links; no role/stage predicates. `renderAction` lets participant Home retain its existing Submit callback and labels. Screens retain their countdown/hero wrapper.
 
 | Part | Existing kit markup / behaviour |
 |---|---|
@@ -397,7 +397,7 @@ Atlas files changed during implementation: `spec.json`, `features.json`, `protot
 
 New atlas feature IDs: `persistent-event-navigation`, `role-aware-signin-landing`, `shared-hack-navigation-map`, `organiser-judge-access`, `organiser-stage-checklist`, `judge-stage-checklist`, `dismiss-optional-checklist-item`, `acknowledge-checklist-item`. Extend existing `follow-entry-checklist`, do not replace its ID. Move existing feature IDs with their controls (including `add-tracks-and-challenges`, `set-reminder-times`, `set-judging-closes`, `entry-rules-first-step`, `choose-entry-preset`, signup/co-organiser/result-setting IDs). Associate new records with valid stable FEATURES anchors during implementation; no orphan atlas features. Add one plain changelog entry per slice and update BUILD's route table with aliases, not replacements.
 
-Slice 1 includes `internal/webassets/static/hack/tours.js`, `products/hack/mcp/apps/frame/organiser-nav.js`, affected frame links and `products/hack/mcp/apps/bundlegen` integration. Shared resolver imports must bundle successfully; absent in-frame destinations retain website links.
+Slice 1 includes `host/webassets/static/hack/tours.js`, `products/hack/mcp/apps/frame/organiser-nav.js`, affected frame links and `products/hack/mcp/apps/bundlegen` integration. Shared resolver imports must bundle successfully; absent in-frame destinations retain website links.
 
 ## 9. Verification required for implementation
 

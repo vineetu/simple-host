@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/rules/sites"
 )
 
 // Event archive links follow the site's export-link pattern. Their signature

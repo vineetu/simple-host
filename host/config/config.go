@@ -1,0 +1,957 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"log"
+	"net"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Defaults are generic. A real deployment sets SITE_DOMAIN, PUBLIC_BASE_URL,
+// and DATA_DIR via env to match its own domain and disk layout. DEPLOY_SCRIPT
+// is an optional post-activation hook (used to re-register shares on hosts that
+// have one); empty means no hook.
+const (
+	defaultDataDir    = "./data/sites"
+	defaultSiteDomain = "simple-host.app"
+	defaultPort       = "8090"
+	// canonicalPublicHost is where a fresh box claims a free hostname from.
+	canonicalPublicHost  = "simple-host.app"
+	defaultDeployScript  = ""
+	defaultPublicBaseURL = "https://simple-host.app"
+	defaultMailFrom      = "Simple Host <noreply@simple-host.app>"
+	// PhotoDNA Cloud Service v1.0 operations (image matching, SIM-200).
+	defaultPhotoDNAMatchURL  = "https://api.microsoftmoderator.com/photodna/v1.0/Match"
+	defaultPhotoDNAReportURL = "https://api.microsoftmoderator.com/photodna/v1.0/Report"
+)
+
+type Config struct {
+	StorageSwitchAt   time.Time
+	DBDSN             string
+	DBMaxOpenConns    int
+	DBMaxIdleConns    int
+	DBConnMaxLifetime time.Duration
+	DBConnMaxIdleTime time.Duration
+	DataDir           string
+	SiteDomain        string
+	// ContentHost is the shared v3 content-serving host (e.g. sites.simple-host.app).
+	// Pages served there call state/collections with this Origin for every site.
+	// Defaults to "sites."+SiteDomain; override with CONTENT_HOST if needed.
+	ContentHost string
+	// CNAMETarget is the hostname users CNAME their custom domains to (e.g.
+	// cname.simple-host.app). Defaults to "cname."+SiteDomain; override with
+	// CNAME_TARGET if needed.
+	CNAMETarget string
+	// CustomDomainIP is the box's public IPv4, returned as the A-record value when
+	// a user connects an APEX custom domain (which can't use a CNAME). Set via
+	// CUSTOM_DOMAIN_IP; empty means apex records fall back to the CNAME target.
+	CustomDomainIP string
+	// CustomDomainIPAlso lists earlier public IPv4s of this box that still
+	// reach it. Domains whose A record names one keep passing every check, but
+	// only CustomDomainIP is ever handed out. Set via CUSTOM_DOMAIN_IP_ALSO
+	// (comma-separated) while owners move their records after an address change.
+	CustomDomainIPAlso []string
+	AdminAPIKey        string
+	Port               string
+	// BindAddr is the interface the HTTP server listens on (BIND_ADDR, e.g.
+	// 127.0.0.1 behind nginx). Empty = all interfaces, which Docker needs.
+	BindAddr      string
+	DeployScript  string
+	PublicBaseURL string
+	MailFrom      string
+	ResendAPIKey  string
+
+	// PasscodeEncKey (PASSCODE_ENC_KEY) seals site passcodes: 32 bytes,
+	// base64. Empty: no site can get a passcode (handler/passcode.go).
+	PasscodeEncKey string
+
+	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
+	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
+	// once expired. Everyone else's sites are permanent (expires_at NULL).
+	// PREVIEW_ACCOUNTS is a comma-separated list of usernames/emails; PreviewTTL
+	// comes from PREVIEW_TTL_HOURS (default 48h). Empty list = feature off.
+	PreviewAccounts map[string]bool
+	PreviewTTL      time.Duration
+
+	// WebPushAccounts gates SIM-360 web push: WEB_PUSH_ACCOUNTS is a
+	// comma-separated list of account handles/usernames allowed to use it
+	// (push routes otherwise 404, and auth.js's SH.push.* refuses), or
+	// "all"/"*" to enable it for every account. Empty: off everywhere.
+	// Unlike PreviewAccounts this one allows a wildcard, since the flag's
+	// whole job is "the owner tests it first, then flips it on for
+	// everyone" rather than naming every account forever.
+	WebPushAccounts    map[string]bool
+	WebPushAccountsAll bool
+
+	// AnalyticsLog is the path to the nginx analytics access log. Empty (the
+	// default) disables the log ingester entirely — safe for local dev and
+	// hosts that have not configured the analytics log yet.
+	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
+	AnalyticsLog string
+
+	// NetworkInterface is NETWORK_INTERFACE: the interface the admin page's
+	// box network use is read from. Empty: the default route's.
+	NetworkInterface string
+
+	// AnalyticsSalt (ANALYTICS_SALT) is the visitor ip_hash salt, used verbatim.
+	// Empty = derive it from ADMIN_API_KEY as before. To keep existing hashes,
+	// set it to hex(sha256(ADMIN_API_KEY + "|visitor")).
+	AnalyticsSalt string
+
+	// GeoIPDir holds the DB-IP Lite databases (dbip-city-lite.mmdb,
+	// dbip-asn-lite.mmdb) used to show where API callers are, resolved on this
+	// box. GEOIP_DIR overrides; the default is a "geoip" directory beside
+	// DATA_DIR (so /srv/simple-host/geoip when DATA_DIR=/srv/simple-host/sites),
+	// deliberately NOT inside it, where it would sit among the served sites.
+	// Missing files mean blank locations, never a network lookup.
+	GeoIPDir string
+
+	SiteDomainSet  bool
+	SetupPublicAPI string
+	SetupPassword  string
+	EventDNSToken  string
+	EventDNSTeamID string
+	EventDomains   []string
+
+	// WriteAuthMode gates anonymous state/collections writes: off | log | on.
+	// Unset or any unrecognized value is "log". The source default is never "on".
+	WriteAuthMode string
+
+	// PersonHosts is off | serve | canonical (owner decision 2026-09-25).
+	// off: sites live only at <content host>/<handle>/<site>/ (the default, and
+	// what event and self-hosted instances keep). serve: <handle>.<SITE_DOMAIN>
+	// answers too, but every address the product hands out is still the path
+	// URL. canonical: person hosts answer and are the address handed out.
+	PersonHosts string
+
+	// SiteHosts is off | serve | canonical (owner decision 2026-09-26): each
+	// site at its own origin <site>.<handle>.<SITE_DOMAIN>. Needs PersonHosts
+	// on. off (default): no site hosts. serve: they answer, addresses handed
+	// out stay the person-path form. canonical: they are the address handed
+	// out, and person-path/legacy URLs redirect there — per person, only once
+	// that person's certificate is ready (SiteCertDir).
+	SiteHosts string
+
+	// EventNamePeer (EVENT_NAME_PEER) is the loopback address of the other
+	// instance that hands out names under the same zone: simple-host.app's
+	// self-host claims (/v1/events) and simple-hack.app's hosted events ask
+	// each other before taking a name. Empty: no peer.
+	EventNamePeer string
+	// TeamSiteFlatHosts is TEAM_SITE_FLAT_HOSTS=true (default false; hosted
+	// events only). A team's site is served at <team>--<event>.<SITE_DOMAIN>
+	// (one DNS label) instead of <team>.<event>.<SITE_DOMAIN> (two), so one
+	// wildcard certificate (*.<SITE_DOMAIN>) and one ingress rule cover every
+	// event and team instead of a certificate SAN and a Helm upgrade per
+	// event (AWS ALB's cert-SAN and rule limits). Hosted simple-hack.app
+	// keeps this off: with it off, behaviour is byte-for-byte unchanged.
+	TeamSiteFlatHosts bool
+	// SiteCertDir holds the per-person certificate hand-off with the root
+	// issuer: requests/<handle> (written here) and ready/<handle> (written by
+	// the issuer once *.<handle>.<SITE_DOMAIN> is served). Empty: every person
+	// counts as ready (an operator with a certificate that already covers two
+	// labels, or local development).
+	SiteCertDir string
+	// SiteBaseDomain is SITE_BASE_DOMAIN: the domain people's addresses live
+	// under (<handle>.<base>, <site>.<handle>.<base>, free <name>.<base>),
+	// when that is not the app's own domain (owner decision 2026-09-28: the
+	// hosted move is paused 2026-10-09). Default: SITE_DOMAIN,
+	// which is today's single-domain behaviour exactly. The app itself —
+	// dashboard, sign-in, API, emails, the content host and the CNAME target
+	// — always stays on SITE_DOMAIN.
+	SiteBaseDomain string
+	// SiteBaseMove is SITE_BASE_MOVE: off | serve | canonical | redirect |
+	// permanent. How far the move from SITE_DOMAIN to SITE_BASE_DOMAIN has
+	// gone: off (SITE_DOMAIN serves; a distinct configured base 301s back), serve (both
+	// answer, SITE_DOMAIN addresses are handed out), canonical (base
+	// addresses are handed out, old ones still answer), redirect (old ones
+	// 302 to the base) and permanent (301). No effect while the base equals
+	// SITE_DOMAIN.
+	SiteBaseMove string
+	// SiteBaseCertDir is SITE_BASE_CERT_DIR: the per-person certificate
+	// hand-off (SiteCertDir's layout) for *.<handle>.<SITE_BASE_DOMAIN>.
+	SiteBaseCertDir string
+	// DomainCertDir holds the custom-domain certificate hand-off with the root
+	// issuer (deploy/domain-certs/): requests/<domain> (written here once the
+	// domain resolves to this server), ready/<domain> and failed/<domain>
+	// (written by the issuer). Empty: certificates are issued by hand.
+	DomainCertDir string
+	// FamilyCertDir (ADDRESS_FAMILY_CERT_DIR) is the address-family hand-off
+	// with the root issuer (deploy/family-certs): requests/<suffix> from the
+	// app, ready/<suffix> and failed/<suffix> from the issuer. Empty: no
+	// family is ever served.
+	FamilyCertDir string
+	// IdleCleanup is IDLE_CLEANUP=on (default off): warn owners of sites
+	// idle for IDLE_AFTER_DAYS (90), move them to Recently deleted
+	// IDLE_GRACE_DAYS (30) later unless kept (limits.go). IdleCleanupMaxEmails caps the emails one run sends (default 50).
+	IdleCleanup          bool
+	IdleCleanupMaxEmails int
+	// IdleCleanupExemptHandles is IDLE_CLEANUP_EXEMPT_HANDLES (comma list):
+	// accounts whose sites the cleanup never warns or removes.
+	IdleCleanupExemptHandles []string
+
+	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
+	GoogleOAuthClientID     string
+	GoogleOAuthClientSecret string
+	// Cloudflare Turnstile, the spam check on the comments preset
+	// (TURNSTILE_SITE_KEY, TURNSTILE_SECRET or TURNSTILE_SECRET_FILE). Both
+	// empty: the preset is not offered.
+	TurnstileSiteKey        string
+	TurnstileSecret         string
+	GitHubOAuthClientID     string
+	GitHubOAuthClientSecret string
+
+	// Image matching (SIM-200): uploaded images are checked against known
+	// abuse hash sets through PhotoDNA. Everything is off while
+	// PhotoDNAKey is empty (PHOTODNA_API_KEY or, preferred,
+	// PHOTODNA_API_KEY_FILE). The report fields name the operator on the
+	// CyberTipline report; AlertEmail is where a match is announced;
+	// EvidenceDir ("" = <DATA_DIR>/.evidence, resolved in main) keeps the
+	// quarantined copy and the record of each match.
+	PhotoDNAKey          string
+	PhotoDNAMatchURL     string
+	PhotoDNAReportURL    string
+	PhotoDNAAutoReport   bool
+	ImageScanReportOrg   string
+	ImageScanReportName  string
+	ImageScanReportEmail string
+	ImageScanAlertEmail  string
+	ImageScanEvidenceDir string
+
+	// Company sign-in (OIDC): OIDC_ISSUER, OIDC_CLIENT_ID and
+	// OIDC_CLIENT_SECRET turn it on only when all three are set; a partial
+	// set is a misconfiguration (warning, treated as off), the same
+	// forgiving rule as Google and the optional provider above.
+	OIDCIssuer       string
+	OIDCClientID     string
+	OIDCClientSecret string
+	// AllowedEmailDomains is ALLOWED_EMAIL_DOMAINS, lower-cased. Empty: any
+	// verified email the identity provider vouches for may sign in. Required
+	// when OIDCIssuer is Google's.
+	AllowedEmailDomains []string
+	// OIDCLabel is OIDC_LABEL, the button's name ("Sign in with <label>").
+	// Default "your company account".
+	OIDCLabel string
+	// OIDCInsecureAllowed is OIDC_INSECURE_ALLOWED=true: permits a
+	// plain-http issuer. Local testing only.
+	OIDCInsecureAllowed bool
+	// MigrateOnStart is MIGRATE_ON_START=true: before listening, the server
+	// builds an empty database from the embedded schema.sql and applies every
+	// pending migration (`simple-host migrate -init`). For a container
+	// platform with no psql and no install command (Kubernetes). Default off:
+	// a hosted box migrates by hand or from its install command.
+	MigrateOnStart bool
+	// TrustedProxyCIDRs is TRUSTED_PROXY_CIDRS: the networks the reverse
+	// proxies in front of this server connect from (a load balancer, an
+	// ingress controller). With it set, X-Forwarded-For is believed only from
+	// a peer inside one of them, walked from the right past every trusted
+	// hop. Empty (default): the last X-Forwarded-For entry is believed from
+	// any peer, which is right behind one local nginx that appends it.
+	TrustedProxyCIDRs []*net.IPNet
+	// EmailSignIn is EMAIL_SIGNIN: "on" (default) or "off". off turns
+	// email-code sign-in off everywhere (account, connector, team-site
+	// visitors); refused at load unless company or password sign-in is configured.
+	EmailSignIn        string
+	PasswordSignIn     string
+	PasswordSelfSignup string
+
+	// OpenAIAppsChallenge is the OpenAI plugin portal's domain-verification
+	// token, served verbatim at /.well-known/openai-apps-challenge. Unset: 404.
+	OpenAIAppsChallenge string
+	// ReviewAccountEmail and ReviewAccountPasswordHash turn on the plugin
+	// reviewer's password sign-in for that one account on the connector's
+	// consent page. Both or neither; see host/handler/reviewer.go.
+	ReviewAccountEmail        string
+	ReviewAccountPasswordHash string
+
+	// SignupBlockedCountries is SIGNUP_BLOCKED_COUNTRIES: ISO-3166 alpha-2
+	// country codes (comma-separated, case-insensitive), resolved from the
+	// request's IP with the local geo database (host/geoip) — never a
+	// third-party lookup. Empty (the default): the feature is off and every
+	// sign-in and sign-up is allowed. A country on the list refuses every
+	// email-code and OAuth sign-in or sign-up attempt from it, a new account
+	// and an existing one alike; an API key keeps working regardless of
+	// where a request comes from (that is not a sign-in), and a request
+	// whose country cannot be resolved is always allowed. See
+	// host/handler/signupgeo.go.
+	SignupBlockedCountries []string
+
+	// LegacyStorageCutoff is LEGACY_STORAGE_CUTOFF: a YYYY-MM-DD date meaning
+	// 00:00 UTC that day. Sites created at or after this instant get 410
+	// from the old saved-data routes. Zero: the gate is off (empty, "off",
+	// or an unparsable value).
+	LegacyStorageCutoff time.Time
+
+	// Limits is every operational time and limit (limits.go,
+	// docs/advanced/). main installs it with SetActive.
+	Limits Limits
+}
+
+// ParseLegacyStorageCutoff parses LEGACY_STORAGE_CUTOFF. Empty or "off"
+// disables the gate (ok true, zero time). A YYYY-MM-DD date is 00:00 UTC
+// that day. Anything else is ok false.
+func ParseLegacyStorageCutoff(v string) (time.Time, bool) {
+	v = strings.TrimSpace(v)
+	if v == "" || strings.EqualFold(v, "off") {
+		return time.Time{}, true
+	}
+	t, err := time.ParseInLocation("2006-01-02", v, time.UTC)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+// Load keeps the original warning, file-read and error order. Pure environment
+// reads within each error-free phase are grouped by SettingGroups area; they
+// have no side effects. Areas recur where combining them would change which
+// warning or validation error is observed first (notably proxy before OIDC,
+// events before site certificates, and limits before the database pool).
+func Load() (Config, error) {
+	var cfg Config
+	for _, load := range []func(*Config) error{
+		loadServer,
+		loadStoragePaths,
+		loadEmail,
+		loadDomains,
+		loadObservability,
+		loadAccounts,
+		loadDataSpamCheck,
+		loadSitesImageScan,
+		loadAccountProviders,
+		loadStorageStartup,
+		loadServerProxy,
+		validateAccountSignIn,
+		loadDataWriteAuth,
+		loadServerPersonHosts,
+		loadGroupAddresses,
+		loadServerSiteAddresses,
+		loadCleanup,
+		loadDataLegacyCutoff,
+		loadSitesPreview,
+		loadWebPush,
+		loadOperationalLimits,
+		loadStoragePool,
+		validateRequiredSettings,
+	} {
+		if err := load(&cfg); err != nil {
+			return Config{}, err
+		}
+	}
+	return cfg, nil
+}
+
+func loadServer(cfg *Config) error {
+	cfg.SiteDomain = getEnvOrDefault("SITE_DOMAIN", defaultSiteDomain)
+	cfg.Port = getEnvOrDefault("PORT", defaultPort)
+	cfg.BindAddr = strings.TrimSpace(os.Getenv("BIND_ADDR"))
+	cfg.DeployScript = getEnvOrDefault("DEPLOY_SCRIPT", defaultDeployScript)
+	cfg.PublicBaseURL = getEnvOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL)
+	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
+	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
+	// Event hostnames: handed to a hackathon organiser under a domain we own,
+	// pointing at their server. Unset means the feature is off and organisers
+	// must bring their own domain.
+	// Whether an operator actually chose a hostname. SiteDomain itself always
+	// has a value because it falls back to the canonical host, so it cannot
+	// answer this: an unset SITE_DOMAIN and one deliberately set to the
+	// canonical host are indistinguishable by the time it is read.
+	cfg.SiteDomainSet = strings.TrimSpace(os.Getenv("SITE_DOMAIN")) != ""
+
+	// Setup mode: where to claim a free hostname from, and an optional password
+	// supplied through the provider's user-data field at creation.
+	cfg.SetupPublicAPI = getEnvOrDefault("SETUP_PUBLIC_API", "https://"+canonicalPublicHost)
+	cfg.SetupPassword = os.Getenv("SETUP_PASSWORD")
+
+	cfg.OpenAIAppsChallenge = strings.TrimSpace(os.Getenv("OPENAI_APPS_CHALLENGE"))
+	return nil
+}
+
+func loadStoragePaths(cfg *Config) error {
+	cfg.DBDSN = os.Getenv("DB_DSN")
+	cfg.DataDir = getEnvOrDefault("DATA_DIR", defaultDataDir)
+	return nil
+}
+
+func loadEmail(cfg *Config) error {
+	cfg.MailFrom = getEnvOrDefault("MAIL_FROM", defaultMailFrom)
+	cfg.ResendAPIKey = os.Getenv("RESEND_API_KEY")
+	return nil
+}
+
+func loadDomains(cfg *Config) error {
+	// CNAME_TARGET defaults to cname.<SITE_DOMAIN> — the record humans add when
+	// binding a custom domain.
+	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
+	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
+	for _, ip := range strings.Split(os.Getenv("CUSTOM_DOMAIN_IP_ALSO"), ",") {
+		if ip = strings.TrimSpace(ip); ip != "" {
+			cfg.CustomDomainIPAlso = append(cfg.CustomDomainIPAlso, ip)
+		}
+	}
+	cfg.EventDNSToken = os.Getenv("EVENT_DNS_TOKEN")
+	cfg.EventDNSTeamID = os.Getenv("EVENT_DNS_TEAM_ID")
+	for _, d := range strings.Split(os.Getenv("EVENT_DOMAINS"), ",") {
+		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
+			cfg.EventDomains = append(cfg.EventDomains, d)
+		}
+	}
+	return nil
+}
+
+func loadObservability(cfg *Config) error {
+	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
+	cfg.NetworkInterface = strings.TrimSpace(os.Getenv("NETWORK_INTERFACE"))
+	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
+	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
+	return nil
+}
+
+func loadAccounts(cfg *Config) error {
+	cfg.AdminAPIKey = os.Getenv("ADMIN_API_KEY")
+	cfg.ReviewAccountEmail = os.Getenv("REVIEW_ACCOUNT_EMAIL")
+	cfg.ReviewAccountPasswordHash = os.Getenv("REVIEW_ACCOUNT_PASSWORD_HASH")
+	for _, c := range strings.Split(os.Getenv("SIGNUP_BLOCKED_COUNTRIES"), ",") {
+		if c = strings.ToUpper(strings.TrimSpace(c)); c == "" {
+			continue
+		}
+		if !isAlpha2CountryCode(c) {
+			log.Printf("warning: SIGNUP_BLOCKED_COUNTRIES has %q, not a 2-letter ISO-3166 country code; ignoring it", c)
+			continue
+		}
+		cfg.SignupBlockedCountries = append(cfg.SignupBlockedCountries, c)
+	}
+	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
+	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+	return nil
+}
+
+func loadDataSpamCheck(cfg *Config) error {
+	cfg.TurnstileSiteKey, cfg.TurnstileSecret = loadTurnstile()
+	return nil
+}
+
+func loadSitesImageScan(cfg *Config) error {
+	cfg.PasscodeEncKey = strings.TrimSpace(os.Getenv("PASSCODE_ENC_KEY"))
+	cfg.PhotoDNAKey = loadPhotoDNAKey()
+	cfg.PhotoDNAMatchURL = strings.TrimSpace(getEnvOrDefault("PHOTODNA_MATCH_URL", defaultPhotoDNAMatchURL))
+	cfg.PhotoDNAReportURL = strings.TrimSpace(getEnvOrDefault("PHOTODNA_REPORT_URL", defaultPhotoDNAReportURL))
+	switch v := strings.ToLower(strings.TrimSpace(os.Getenv("PHOTODNA_AUTO_REPORT"))); v {
+	case "on":
+		cfg.PhotoDNAAutoReport = true
+	case "", "off":
+	default:
+		log.Printf("warning: PHOTODNA_AUTO_REPORT=%q is not on or off; treating as off", v)
+	}
+	cfg.ImageScanReportOrg = strings.TrimSpace(os.Getenv("IMAGE_SCAN_REPORT_ORG"))
+	cfg.ImageScanReportName = strings.TrimSpace(os.Getenv("IMAGE_SCAN_REPORT_NAME"))
+	cfg.ImageScanReportEmail = strings.TrimSpace(os.Getenv("IMAGE_SCAN_REPORT_EMAIL"))
+	cfg.ImageScanAlertEmail = strings.TrimSpace(os.Getenv("IMAGE_SCAN_ALERT_EMAIL"))
+	cfg.ImageScanEvidenceDir = strings.TrimSpace(os.Getenv("IMAGE_SCAN_EVIDENCE_DIR"))
+	return nil
+}
+
+func loadAccountProviders(cfg *Config) error {
+	cfg.GitHubOAuthClientID = os.Getenv("GITHUB_OAUTH_CLIENT_ID")
+	cfg.GitHubOAuthClientSecret = os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
+	if xorNonEmpty(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret) {
+		log.Printf("warning: Google OAuth is misconfigured (need both GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET); treating as off")
+	}
+	if xorNonEmpty(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret) {
+		log.Printf("warning: optional OAuth provider is misconfigured (need both GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET); treating as off")
+	}
+
+	cfg.OIDCIssuer = strings.TrimSpace(os.Getenv("OIDC_ISSUER"))
+	cfg.OIDCClientID = strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID"))
+	cfg.OIDCClientSecret = os.Getenv("OIDC_CLIENT_SECRET")
+	for _, d := range strings.Split(os.Getenv("ALLOWED_EMAIL_DOMAINS"), ",") {
+		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
+			cfg.AllowedEmailDomains = append(cfg.AllowedEmailDomains, d)
+		}
+	}
+	cfg.OIDCLabel = getEnvOrDefault("OIDC_LABEL", "your company account")
+	cfg.OIDCInsecureAllowed = strings.EqualFold(strings.TrimSpace(os.Getenv("OIDC_INSECURE_ALLOWED")), "true")
+	return nil
+}
+
+func loadStorageStartup(cfg *Config) error {
+	var err error
+	cfg.StorageSwitchAt, err = ParseStorageSwitchAt(os.Getenv("STORAGE_SWITCH_AT"), os.Getenv("STORAGE_RULES") == "on")
+	if err != nil {
+		return err
+	}
+	cfg.MigrateOnStart = strings.EqualFold(strings.TrimSpace(os.Getenv("MIGRATE_ON_START")), "true")
+	return nil
+}
+
+func loadServerProxy(cfg *Config) error {
+	cidrs, err := parseCIDRList(os.Getenv("TRUSTED_PROXY_CIDRS"))
+	if err != nil {
+		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	}
+	cfg.TrustedProxyCIDRs = cidrs
+	return nil
+}
+
+func validateAccountSignIn(cfg *Config) error {
+	if set := nonEmptyCount(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret); set > 0 && set < 3 {
+		log.Printf("warning: company sign-in is misconfigured (need all of OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET); treating as off")
+		cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret = "", "", ""
+	}
+	if cfg.OIDCIssuer != "" {
+		u, err := url.Parse(cfg.OIDCIssuer)
+		if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+			return fmt.Errorf("OIDC_ISSUER must be an absolute https URL, not %q", cfg.OIDCIssuer)
+		}
+		if u.Scheme == "http" && !cfg.OIDCInsecureAllowed {
+			return fmt.Errorf("OIDC_ISSUER %q is plain http; set OIDC_INSECURE_ALLOWED=true for local testing only", cfg.OIDCIssuer)
+		}
+		if isGoogleOIDCIssuer(cfg.OIDCIssuer) && len(cfg.AllowedEmailDomains) == 0 {
+			return errors.New("ALLOWED_EMAIL_DOMAINS is required when OIDC_ISSUER is Google (https://accounts.google.com)")
+		}
+	}
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("EMAIL_SIGNIN"))); mode {
+	case "on", "off":
+		cfg.EmailSignIn = mode
+	case "":
+		cfg.EmailSignIn = "on"
+	default:
+		log.Printf("warning: EMAIL_SIGNIN must be on or off, not %q; treating as on", mode)
+		cfg.EmailSignIn = "on"
+	}
+	cfg.PasswordSignIn = "off"
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("PASSWORD_SIGNIN")), "on") {
+		cfg.PasswordSignIn = "on"
+	}
+	cfg.PasswordSelfSignup = "on"
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("PASSWORD_SELF_SIGNUP")), "off") {
+		cfg.PasswordSelfSignup = "off"
+	}
+	if cfg.EmailSignIn == "off" && !cfg.CompanySignInEnabled() && cfg.PasswordSignIn != "on" {
+		return errors.New("EMAIL_SIGNIN=off needs company sign-in configured (OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET) or PASSWORD_SIGNIN=on: otherwise nobody could sign in")
+	}
+	return nil
+}
+
+func loadDataWriteAuth(cfg *Config) error {
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("WRITE_AUTH_MODE"))); mode {
+	case "off", "log", "on":
+		cfg.WriteAuthMode = mode
+	case "":
+		cfg.WriteAuthMode = "log"
+	default:
+		log.Printf("warning: invalid WRITE_AUTH_MODE %q; treating as log", mode)
+		cfg.WriteAuthMode = "log"
+	}
+	return nil
+}
+
+func loadServerPersonHosts(cfg *Config) error {
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("PERSON_HOSTS"))); mode {
+	case "off", "serve", "canonical":
+		cfg.PersonHosts = mode
+	case "":
+		cfg.PersonHosts = "off"
+	default:
+		log.Printf("warning: invalid PERSON_HOSTS %q; treating as off", mode)
+		cfg.PersonHosts = "off"
+	}
+	return nil
+}
+
+func loadGroupAddresses(cfg *Config) error {
+	cfg.EventNamePeer = strings.TrimRight(strings.TrimSpace(os.Getenv("EVENT_NAME_PEER")), "/")
+	if p := cfg.EventNamePeer; p != "" {
+		u, err := url.Parse(p)
+		if err != nil || u.Scheme != "http" || !isLoopbackHost(u.Hostname()) || u.Path != "" {
+			return fmt.Errorf("EVENT_NAME_PEER must be http://127.0.0.1:<port> (a loopback address), not %q", p)
+		}
+	}
+	cfg.TeamSiteFlatHosts = strings.EqualFold(strings.TrimSpace(os.Getenv("TEAM_SITE_FLAT_HOSTS")), "true")
+	return nil
+}
+
+func loadServerSiteAddresses(cfg *Config) error {
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_HOSTS"))); mode {
+	case "off", "serve", "canonical":
+		cfg.SiteHosts = mode
+	case "":
+		cfg.SiteHosts = "off"
+	default:
+		log.Printf("warning: invalid SITE_HOSTS %q; treating as off", mode)
+		cfg.SiteHosts = "off"
+	}
+	cfg.SiteCertDir = strings.TrimSpace(os.Getenv("SITE_CERT_DIR"))
+	cfg.SiteBaseDomain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(os.Getenv("SITE_BASE_DOMAIN")), "."))
+	if cfg.SiteBaseDomain == "" {
+		cfg.SiteBaseDomain = cfg.SiteDomain
+	}
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_BASE_MOVE"))); mode {
+	case "off", "serve", "canonical", "redirect", "permanent":
+		cfg.SiteBaseMove = mode
+	case "":
+		cfg.SiteBaseMove = "off"
+	default:
+		log.Printf("warning: invalid SITE_BASE_MOVE %q; treating as off", mode)
+		cfg.SiteBaseMove = "off"
+	}
+	cfg.SiteBaseCertDir = strings.TrimSpace(os.Getenv("SITE_BASE_CERT_DIR"))
+	if err := checkSiteBaseCertDir(*cfg); err != nil {
+		return err
+	}
+	cfg.DomainCertDir = strings.TrimSpace(os.Getenv("DOMAIN_CERT_DIR"))
+	cfg.FamilyCertDir = strings.TrimSpace(os.Getenv("ADDRESS_FAMILY_CERT_DIR"))
+	return nil
+}
+
+func loadCleanup(cfg *Config) error {
+	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
+	if v := strings.TrimSpace(os.Getenv("IDLE_CLEANUP_MAX_EMAILS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.IdleCleanupMaxEmails = n
+		} else {
+			log.Printf("warning: invalid IDLE_CLEANUP_MAX_EMAILS %q; using the default", v)
+		}
+	}
+	for _, hd := range strings.Split(os.Getenv("IDLE_CLEANUP_EXEMPT_HANDLES"), ",") {
+		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
+			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)
+		}
+	}
+	return nil
+}
+
+func loadDataLegacyCutoff(cfg *Config) error {
+	if raw := strings.TrimSpace(os.Getenv("LEGACY_STORAGE_CUTOFF")); raw != "" {
+		t, ok := ParseLegacyStorageCutoff(raw)
+		if !ok {
+			log.Printf("warning: invalid LEGACY_STORAGE_CUTOFF %q; treating as off", raw)
+		} else {
+			cfg.LegacyStorageCutoff = t
+		}
+	}
+	return nil
+}
+
+// loadWebPush reads WEB_PUSH_ACCOUNTS: a comma-separated allowlist of
+// account handles, or "all"/"*" to enable web push for every account.
+func loadWebPush(cfg *Config) error {
+	cfg.WebPushAccounts = map[string]bool{}
+	for _, a := range strings.Split(os.Getenv("WEB_PUSH_ACCOUNTS"), ",") {
+		if a = strings.TrimSpace(strings.ToLower(a)); a == "" {
+			continue
+		} else if a == "all" || a == "*" {
+			cfg.WebPushAccountsAll = true
+		} else {
+			cfg.WebPushAccounts[a] = true
+		}
+	}
+	return nil
+}
+
+func loadSitesPreview(cfg *Config) error {
+	cfg.PreviewAccounts = map[string]bool{}
+	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {
+		if a = strings.TrimSpace(strings.ToLower(a)); a != "" {
+			cfg.PreviewAccounts[a] = true
+		}
+	}
+	cfg.PreviewTTL = 48 * time.Hour
+	if v := os.Getenv("PREVIEW_TTL_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.PreviewTTL = time.Duration(n) * time.Hour
+		}
+	}
+	return nil
+}
+
+func loadOperationalLimits(cfg *Config) error {
+	limits, err := limitsFromEnv()
+	if err != nil {
+		return err
+	}
+	cfg.Limits = limits
+	return nil
+}
+
+func loadStoragePool(cfg *Config) error {
+	// A zero open limit would restore database/sql's unbounded default.
+	for _, setting := range []struct {
+		name, raw string
+		min       int
+		dest      *int
+	}{
+		{"DB_MAX_OPEN_CONNS", getEnvOrDefault("DB_MAX_OPEN_CONNS", "25"), 1, &cfg.DBMaxOpenConns},
+		{"DB_MAX_IDLE_CONNS", getEnvOrDefault("DB_MAX_IDLE_CONNS", "5"), 0, &cfg.DBMaxIdleConns},
+	} {
+		n, err := strconv.Atoi(strings.TrimSpace(setting.raw))
+		if err != nil || n < setting.min {
+			return fmt.Errorf("%s must be a whole number >= %d", setting.name, setting.min)
+		}
+		*setting.dest = n
+	}
+	for _, setting := range []struct {
+		name, raw string
+		dest      *time.Duration
+	}{
+		{"DB_CONN_MAX_LIFETIME_MINUTES", getEnvOrDefault("DB_CONN_MAX_LIFETIME_MINUTES", "30"), &cfg.DBConnMaxLifetime},
+		{"DB_CONN_MAX_IDLE_MINUTES", getEnvOrDefault("DB_CONN_MAX_IDLE_MINUTES", "5"), &cfg.DBConnMaxIdleTime},
+	} {
+		n, err := strconv.Atoi(strings.TrimSpace(setting.raw))
+		if err != nil || n < 1 || int64(n) > int64((1<<63-1)/time.Minute) {
+			return fmt.Errorf("%s must be a positive whole number of minutes that fits a duration", setting.name)
+		}
+		*setting.dest = time.Duration(n) * time.Minute
+	}
+	return nil
+}
+
+func validateRequiredSettings(cfg *Config) error {
+	if cfg.DBDSN == "" {
+		return errors.New("DB_DSN is required")
+	}
+	if cfg.AdminAPIKey == "" {
+		return errors.New("ADMIN_API_KEY is required (no default — set it explicitly so the public source doesn't ship a known key)")
+	}
+	return nil
+}
+
+// checkSiteBaseCertDir refuses a split base without its certificate hand-off.
+// Without SITE_BASE_CERT_DIR every person would count as having a
+// certificate under SITE_BASE_DOMAIN, so site hosts there would be handed out
+// and redirected to before they are served (a TLS error nothing can fix after
+// the handshake). The directory must already hold ready/ (written by the
+// root issuer) and requests/ (written here; the unit makes only that
+// writable), so the service never creates them itself.
+func checkSiteBaseCertDir(cfg Config) error {
+	base := strings.ToLower(strings.TrimSpace(cfg.SiteBaseDomain))
+	d := strings.ToLower(strings.TrimSpace(cfg.SiteDomain))
+	if cfg.SiteBaseMove == "off" || base == "" || base == d ||
+		strings.HasSuffix(base, "."+d) || strings.HasSuffix(d, "."+base) {
+		return nil // one domain, or a nested base the handler ignores
+	}
+	if cfg.SiteBaseCertDir == "" {
+		return fmt.Errorf("SITE_BASE_CERT_DIR is required when SITE_BASE_DOMAIN (%s) differs from SITE_DOMAIN (%s) and SITE_BASE_MOVE is %s: without it every person would count as having a certificate under %s", base, d, cfg.SiteBaseMove, base)
+	}
+	for _, sub := range []string{"ready", "requests"} {
+		p := filepath.Join(cfg.SiteBaseCertDir, sub)
+		st, err := os.Stat(p)
+		if err != nil {
+			return fmt.Errorf("SITE_BASE_CERT_DIR %s: %s/ is missing (create %s/ root-owned and requests/ owned by the service user): %v", cfg.SiteBaseCertDir, sub, cfg.SiteBaseCertDir, err)
+		}
+		if !st.IsDir() {
+			return fmt.Errorf("SITE_BASE_CERT_DIR %s: %s is not a directory", cfg.SiteBaseCertDir, p)
+		}
+	}
+	return nil
+}
+
+// HandoutBase is the domain addresses are handed out under: SITE_BASE_DOMAIN
+// once SITE_BASE_MOVE is canonical or later, else SITE_DOMAIN. The handler's
+// SiteHandler.HandoutBase answers the same from the same three settings.
+func (c Config) HandoutBase() string {
+	base := strings.ToLower(strings.TrimSpace(c.SiteBaseDomain))
+	d := strings.ToLower(strings.TrimSpace(c.SiteDomain))
+	switch c.SiteBaseMove {
+	case "canonical", "redirect", "permanent":
+		if base != "" && d != "" && base != d && !strings.HasSuffix(base, "."+d) && !strings.HasSuffix(d, "."+base) {
+			return base
+		}
+	}
+	return d
+}
+
+// GoogleOAuthEnabled reports whether both Google client vars are set.
+func (c Config) GoogleOAuthEnabled() bool {
+	return c.GoogleOAuthClientID != "" && c.GoogleOAuthClientSecret != ""
+}
+
+// GitHubOAuthEnabled reports whether both optional provider client vars are set.
+func (c Config) GitHubOAuthEnabled() bool {
+	return c.GitHubOAuthClientID != "" && c.GitHubOAuthClientSecret != ""
+}
+
+// CompanySignInEnabled reports whether OIDC_ISSUER, OIDC_CLIENT_ID and
+// OIDC_CLIENT_SECRET are all set (Load already rejects a partial set).
+func (c Config) CompanySignInEnabled() bool {
+	return c.OIDCIssuer != "" && c.OIDCClientID != "" && c.OIDCClientSecret != ""
+}
+
+// EmailSignInEnabled reports whether email-code sign-in works on this
+// install: a Resend key to send codes with, and EMAIL_SIGNIN not off.
+func (c Config) EmailSignInEnabled() bool {
+	return c.ResendAPIKey != "" && c.EmailSignIn != "off"
+}
+
+// EnabledVisitorProviders returns the enabled provider names in stable order
+// (google, github, then oidc). Empty when none are configured.
+func (c Config) EnabledVisitorProviders() []string {
+	var names []string
+	if c.GoogleOAuthEnabled() {
+		names = append(names, "google")
+	}
+	if c.GitHubOAuthEnabled() {
+		names = append(names, "github")
+	}
+	if c.CompanySignInEnabled() {
+		names = append(names, "oidc")
+	}
+	return names
+}
+
+// OAuthRedirectURI is the apex callback registered with the IdP. It is derived
+// from PUBLIC_BASE_URL — there is no separate redirect-base env var.
+func (c Config) OAuthRedirectURI(provider string) string {
+	return strings.TrimRight(c.PublicBaseURL, "/") + "/v1/auth/oauth/" + provider + "/callback"
+}
+
+func xorNonEmpty(a, b string) bool {
+	return (a == "") != (b == "")
+}
+
+// nonEmptyCount is how many of the given strings are non-empty, for the
+// company sign-in "all three or none" check.
+func nonEmptyCount(ss ...string) int {
+	n := 0
+	for _, s := range ss {
+		if s != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// isGoogleOIDCIssuer reports whether issuer is Google's, the one issuer
+// OIDC_ISSUER may name where ALLOWED_EMAIL_DOMAINS is mandatory (a Google
+// consumer account can carry any verified address, including one at a
+// company's domain it does not control).
+func isGoogleOIDCIssuer(issuer string) bool {
+	return strings.TrimRight(strings.ToLower(issuer), "/") == "https://accounts.google.com"
+}
+
+// isAlpha2CountryCode reports whether s is two uppercase ASCII letters, the
+// shape of an ISO-3166 alpha-2 country code (e.g. "US", not "USA").
+func isAlpha2CountryCode(s string) bool {
+	if len(s) != 2 {
+		return false
+	}
+	return s[0] >= 'A' && s[0] <= 'Z' && s[1] >= 'A' && s[1] <= 'Z'
+}
+
+func getEnvOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+// isLoopbackHost: 127.0.0.0/8, ::1 or localhost.
+func isLoopbackHost(h string) bool {
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
+// loadPhotoDNAKey reads the PhotoDNA subscription key from PHOTODNA_API_KEY
+// or, preferred, the file PHOTODNA_API_KEY_FILE names (a systemd
+// credential). Missing or unreadable means image matching is off; the key
+// itself is never printed.
+func loadPhotoDNAKey() string {
+	key := strings.TrimSpace(os.Getenv("PHOTODNA_API_KEY"))
+	if path := strings.TrimSpace(os.Getenv("PHOTODNA_API_KEY_FILE")); key == "" && path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("warning: PHOTODNA_API_KEY_FILE cannot be read (%v); image matching is off", err)
+			return ""
+		}
+		key = strings.TrimSpace(string(b))
+	}
+	return key
+}
+
+// loadTurnstile reads the Turnstile site key and secret. The secret comes
+// from TURNSTILE_SECRET or, preferred, the file TURNSTILE_SECRET_FILE names
+// (a systemd credential). Anything missing or unreadable turns the spam check
+// off, which also takes the comments preset off; it never prints the secret.
+func loadTurnstile() (string, string) {
+	key := strings.TrimSpace(os.Getenv("TURNSTILE_SITE_KEY"))
+	secret := strings.TrimSpace(os.Getenv("TURNSTILE_SECRET"))
+	if path := strings.TrimSpace(os.Getenv("TURNSTILE_SECRET_FILE")); secret == "" && path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("warning: TURNSTILE_SECRET_FILE cannot be read (%v); the spam check and the comments preset are off", err)
+			return "", ""
+		}
+		secret = strings.TrimSpace(string(b))
+	}
+	if key == "" || secret == "" {
+		if key != "" || secret != "" {
+			log.Printf("warning: Turnstile needs both TURNSTILE_SITE_KEY and a secret (TURNSTILE_SECRET or TURNSTILE_SECRET_FILE); the spam check and the comments preset are off")
+		}
+		return "", ""
+	}
+	return key, secret
+}
+
+// parseCIDRList reads a comma-separated list of networks (10.0.0.0/8,
+// fd00::/8) or single addresses (a /32 or /128). Empty is nil.
+func parseCIDRList(raw string) ([]*net.IPNet, error) {
+	var out []*net.IPNet
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if !strings.Contains(item, "/") {
+			ip := net.ParseIP(item)
+			if ip == nil {
+				return nil, fmt.Errorf("%q is not an address or a network", item)
+			}
+			if v4 := ip.To4(); v4 != nil {
+				item += "/32"
+			} else {
+				item += "/128"
+			}
+		}
+		_, network, err := net.ParseCIDR(item)
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a network", item)
+		}
+		out = append(out, network)
+	}
+	return out, nil
+}
+
+// SpamCheckConfigured reports whether this install offers the spam check, read
+// the way the server reads it. Operator commands use it so the rules they
+// compile are the rules the server will accept.
+func SpamCheckConfigured() bool {
+	key, secret := loadTurnstile()
+	return key != "" && secret != ""
+}
+
+// ParseStorageSwitchAt accepts an RFC3339 UTC instant, or empty for no date.
+func ParseStorageSwitchAt(raw string, rulesEnabled bool) (time.Time, error) {
+	if raw == "" {
+		return time.Time{}, nil
+	}
+	at, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}, errors.New("STORAGE_SWITCH_AT must be RFC3339 UTC")
+	}
+	_, offset := at.Zone()
+	if offset != 0 {
+		return time.Time{}, errors.New("STORAGE_SWITCH_AT must be RFC3339 UTC")
+	}
+	if !rulesEnabled {
+		return time.Time{}, errors.New("STORAGE_SWITCH_AT requires STORAGE_RULES=on")
+	}
+	return at.UTC(), nil
+}

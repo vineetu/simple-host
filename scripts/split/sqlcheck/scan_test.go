@@ -233,7 +233,7 @@ func TestProductEvidenceAllowlist(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module evidencefixture\n\ngo 1.23\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(root, "internal/server")
+	dir := filepath.Join(root, "host/server")
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}

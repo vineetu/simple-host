@@ -96,5 +96,5 @@ Each OAuth refresh issues a new refresh token.
 
 Setting only one Google OAuth credential is treated as off. Country sign-in
 restrictions apply to both new and existing accounts. The plugin reviewer
-password flow is implemented in `internal/handler/reviewer.go`.
+password flow is implemented in `host/handler/reviewer.go`.
 The admin is a real account, upserted from `ADMIN_API_KEY` at boot.

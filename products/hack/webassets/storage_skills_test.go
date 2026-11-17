@@ -10,7 +10,7 @@ import (
 )
 
 // The toolkit's copies of the storage skills give the same access advice as
-// the platform's (internal/webassets has the same check for its own copies).
+// the platform's (host/webassets has the same check for its own copies).
 // Recipe topic names are stable. Check access advice, rather than banning words
 // such as "records" that are still valid recipe topics and file-bucket presets.
 func TestToolkitStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {

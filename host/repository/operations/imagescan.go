@@ -1,0 +1,353 @@
+package operations
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
+)
+
+// Image matching (SIM-200): the hash cache, the work queue and the record of
+// each match. No row here references a site, event or account by foreign
+// key, so a record outlives whatever it was found on. Nothing here holds an
+// image; the evidence copy lives on disk under the handler's evidence dir.
+
+type ImageScanJob = model.ImageScanJob
+type ImageMatch = model.ImageMatch
+type ImageScanQueueCounts = model.ImageScanQueueCounts
+
+// Lease length while a worker holds a job, and the retry ceiling.
+const (
+	imageScanLease      = 15 * time.Minute
+	imageScanMaxBackoff = 6 * time.Hour
+)
+
+func nullUUID(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func nullVersion(n int) any {
+	if n == 0 {
+		return nil
+	}
+	return n
+}
+
+// LookupImageHash answers the cached verdict for these bytes.
+func LookupImageHash(ctx context.Context, q sqlkit.Querier, sha string) (verdict, trackingID string, found bool, err error) {
+	err = q.QueryRowContext(ctx, `SELECT verdict, tracking_id FROM image_scan_hashes WHERE sha256 = $1`, sha).Scan(&verdict, &trackingID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, err
+	}
+	return verdict, trackingID, true, nil
+}
+
+// RecordImageHash stores or replaces the verdict for these bytes.
+func RecordImageHash(ctx context.Context, q sqlkit.Querier, sha, verdict, provider, trackingID, detail string) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO image_scan_hashes (sha256, verdict, provider, tracking_id, detail, checked_at)
+		VALUES ($1, $2, $3, $4, $5, now())
+		ON CONFLICT (sha256) DO UPDATE SET verdict = EXCLUDED.verdict, provider = EXCLUDED.provider,
+			tracking_id = EXCLUDED.tracking_id, detail = EXCLUDED.detail, checked_at = now()`,
+		sha, verdict, provider, trackingID, detail)
+	return err
+}
+
+// EnqueueImageScan adds a job unless the same bytes at the same place and
+// version are already waiting. A given-up job for them is made due again
+// with a fresh count of attempts, so a re-upload is checked, and it takes
+// the re-upload's writer and time (a report names who uploaded it last and
+// when). Returns whether
+// a row was inserted or made due.
+func EnqueueImageScan(ctx context.Context, q sqlkit.Querier, j ImageScanJob) (bool, error) {
+	const same = `kind = $1 AND site_id IS NOT DISTINCT FROM $2::uuid AND event_id IS NOT DISTINCT FROM $3::uuid
+		   AND team_id IS NOT DISTINCT FROM $4::uuid AND resource_name = $5 AND path = $6 AND sha256 = $7
+		   AND version IS NOT DISTINCT FROM $8::integer`
+	args := []any{j.Kind, nullUUID(j.SiteID), nullUUID(j.EventID), nullUUID(j.TeamID), j.ResourceName, j.Path, j.SHA256, nullVersion(j.Version)}
+	res, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET attempts = 0, last_error = '', next_attempt_at = now(),
+		writer_id = $9, created_at = now()
+		 WHERE `+same+` AND next_attempt_at = 'infinity'`, append(args, j.WriterID)...)
+	if err != nil {
+		return false, err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return false, err
+	} else if n > 0 {
+		return true, nil
+	}
+	var exists bool
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM image_scan_queue WHERE `+same+`)`, args...).Scan(&exists); err != nil {
+		return false, err
+	}
+	if exists {
+		return false, nil
+	}
+	_, err = q.ExecContext(ctx, `
+		INSERT INTO image_scan_queue (kind, site_id, event_id, team_id, version, resource_name, path, writer_id, sha256, bytes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		j.Kind, nullUUID(j.SiteID), nullUUID(j.EventID), nullUUID(j.TeamID), nullVersion(j.Version), j.ResourceName, j.Path, j.WriterID, j.SHA256, j.Bytes)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+const imageScanJobColumns = `id, kind, COALESCE(site_id::text, ''), COALESCE(event_id::text, ''), COALESCE(team_id::text, ''),
+	COALESCE(version, 0), resource_name, path, writer_id, sha256, bytes, attempts, last_error, created_at`
+
+func scanImageScanJob(rows *sql.Rows) (ImageScanJob, error) {
+	var j ImageScanJob
+	err := rows.Scan(&j.ID, &j.Kind, &j.SiteID, &j.EventID, &j.TeamID, &j.Version, &j.ResourceName, &j.Path,
+		&j.WriterID, &j.SHA256, &j.Bytes, &j.Attempts, &j.LastError, &j.CreatedAt)
+	return j, err
+}
+
+// ClaimImageScans takes up to limit due jobs, oldest first, and leases them
+// (next_attempt_at moves fifteen minutes out) so another worker skips them.
+func ClaimImageScans(ctx context.Context, database *sql.DB, limit int) ([]ImageScanJob, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `
+		SELECT `+imageScanJobColumns+` FROM image_scan_queue
+		 WHERE next_attempt_at <= now()
+		 ORDER BY id
+		 LIMIT $1
+		 FOR UPDATE SKIP LOCKED`, limit)
+	if err != nil {
+		return nil, err
+	}
+	var jobs []ImageScanJob
+	for rows.Next() {
+		j, err := scanImageScanJob(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		jobs = append(jobs, j)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, j := range jobs {
+		if _, err := tx.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() + $2 * interval '1 second' WHERE id = $1`,
+			j.ID, int(imageScanLease.Seconds())); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+// DeferImageScan records a failed attempt and schedules the next one: one
+// minute after the first, doubled per attempt, six hours at most.
+func DeferImageScan(ctx context.Context, q sqlkit.Querier, id int64, errText string, attempts int) error {
+	wait := time.Minute
+	for i := 1; i < attempts && wait < imageScanMaxBackoff; i++ {
+		wait *= 2
+	}
+	if wait > imageScanMaxBackoff {
+		wait = imageScanMaxBackoff
+	}
+	_, err := q.ExecContext(ctx, `
+		UPDATE image_scan_queue SET attempts = $2, last_error = $3, next_attempt_at = now() + $4 * interval '1 second'
+		 WHERE id = $1`, id, attempts, errText, int(wait.Seconds()))
+	return err
+}
+
+// GiveUpImageScan records the last failed attempt and parks the job for
+// good (next_attempt_at 'infinity'): it stays listed, never claimed again.
+func GiveUpImageScan(ctx context.Context, q sqlkit.Querier, id int64, errText string, attempts int) error {
+	_, err := q.ExecContext(ctx, `
+		UPDATE image_scan_queue SET attempts = $2, last_error = $3, next_attempt_at = 'infinity'
+		 WHERE id = $1`, id, attempts, errText)
+	return err
+}
+
+// PostponeImageScan moves a job's next attempt d out without counting an
+// attempt (a site in Recently deleted waits for a restore or the purge).
+// Only while the site is still deleted: a restore in between has already
+// made the job due (WakeImageScans), and that stands.
+func PostponeImageScan(ctx context.Context, q sqlkit.Querier, id int64, d time.Duration) error {
+	_, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() + $2 * interval '1 second'
+		 WHERE id = $1 AND EXISTS (SELECT 1 FROM sites WHERE id = image_scan_queue.site_id AND deleted_at IS NOT NULL)`,
+		id, int(d.Seconds()))
+	return err
+}
+
+// DeleteImageScan removes a finished job.
+func DeleteImageScan(ctx context.Context, q sqlkit.Querier, id int64) error {
+	_, err := q.ExecContext(ctx, `DELETE FROM image_scan_queue WHERE id = $1`, id)
+	return err
+}
+
+// WakeImageScans makes a restored site's waiting jobs due now (not the ones
+// given up for good).
+
+// ImageScanQueueCountsNow reports what is due, what is on a retry, what was
+// given up, and what waits on a site in Recently deleted. A job waiting on
+// a deleted site counts there only, not as due or retrying.
+func ImageScanQueueCountsNow(ctx context.Context, q sqlkit.Querier) (ImageScanQueueCounts, error) {
+	var c ImageScanQueueCounts
+	err := q.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE q.next_attempt_at <= now() AND s.deleted_at IS NULL),
+		       count(*) FILTER (WHERE q.attempts > 0 AND q.next_attempt_at <> 'infinity' AND s.deleted_at IS NULL),
+		       count(*) FILTER (WHERE q.next_attempt_at = 'infinity'),
+		       count(*) FILTER (WHERE s.deleted_at IS NOT NULL AND q.next_attempt_at <> 'infinity')
+		  FROM image_scan_queue q LEFT JOIN sites s ON s.id = q.site_id`).Scan(&c.Pending, &c.Retrying, &c.GaveUp, &c.SiteDeleted)
+	return c, err
+}
+
+// InsertImageMatch records a match and returns its id.
+func InsertImageMatch(ctx context.Context, q sqlkit.Querier, m ImageMatch) (int64, error) {
+	var raw any
+	if len(m.Raw) > 0 && json.Valid(m.Raw) {
+		raw = string(m.Raw)
+	}
+	var uploaded any
+	if !m.UploadedAt.IsZero() {
+		uploaded = m.UploadedAt
+	}
+	status := m.ReportStatus
+	if status == "" {
+		status = "pending"
+	}
+	var id int64
+	err := q.QueryRowContext(ctx, `
+		INSERT INTO image_scan_matches (kind, site_id, site_name, owner_id, owner_handle, owner_email,
+			event_id, event_slug, team_id, version, resource_name, path, writer_id,
+			sha256, bytes, content_type, provider, tracking_id, source, violations, raw, uploaded_at, report_status,
+			uploader, address)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+		RETURNING id`,
+		m.Kind, nullUUID(m.SiteID), m.SiteName, nullUUID(m.OwnerID), m.OwnerHandle, m.OwnerEmail,
+		nullUUID(m.EventID), m.EventSlug, nullUUID(m.TeamID), nullVersion(m.Version), m.ResourceName, m.Path, m.WriterID,
+		m.SHA256, m.Bytes, m.ContentType, m.Provider, m.TrackingID, m.Source, m.Violations, raw, uploaded, status,
+		m.Uploader, m.Address).Scan(&id)
+	return id, err
+}
+
+const imageMatchColumns = `id, kind, COALESCE(site_id::text, ''), site_name, COALESCE(owner_id::text, ''), owner_handle, owner_email,
+	COALESCE(event_id::text, ''), event_slug, COALESCE(team_id::text, ''), COALESCE(version, 0), resource_name, path, writer_id,
+	sha256, bytes, content_type, provider, tracking_id, source, violations, COALESCE(raw::text, ''), evidence_path,
+	COALESCE(uploaded_at, detected_at), detected_at, taken_down, alerted_at, report_status, report_id, reported_at, report_error,
+	uploader, address`
+
+type imageMatchScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanImageMatch(row imageMatchScanner) (ImageMatch, error) {
+	var m ImageMatch
+	var raw string
+	err := row.Scan(&m.ID, &m.Kind, &m.SiteID, &m.SiteName, &m.OwnerID, &m.OwnerHandle, &m.OwnerEmail,
+		&m.EventID, &m.EventSlug, &m.TeamID, &m.Version, &m.ResourceName, &m.Path, &m.WriterID,
+		&m.SHA256, &m.Bytes, &m.ContentType, &m.Provider, &m.TrackingID, &m.Source, &m.Violations, &raw, &m.EvidencePath,
+		&m.UploadedAt, &m.DetectedAt, &m.TakenDown, &m.AlertedAt, &m.ReportStatus, &m.ReportID, &m.ReportedAt, &m.ReportError,
+		&m.Uploader, &m.Address)
+	if err != nil {
+		return ImageMatch{}, err
+	}
+	if raw != "" {
+		m.Raw = json.RawMessage(raw)
+	}
+	return m, nil
+}
+
+// ListImageMatches is every match whose report is still open (pending,
+// failed, or off) plus the newest limit matches, newest first.
+func ListImageMatches(ctx context.Context, q sqlkit.Querier, limit int) ([]ImageMatch, error) {
+	rows, err := queryContext(ctx, q, `SELECT `+imageMatchColumns+` FROM image_scan_matches
+		 WHERE report_status IN ('pending', 'failed', 'off')
+		    OR id IN (SELECT id FROM image_scan_matches ORDER BY detected_at DESC, id DESC LIMIT $1)
+		 ORDER BY detected_at DESC, id DESC`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ImageMatch{}
+	for rows.Next() {
+		m, err := scanImageMatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// GetImageMatch loads one match. sql.ErrNoRows for an unknown id.
+func GetImageMatch(ctx context.Context, q sqlkit.Querier, id int64) (ImageMatch, error) {
+	return scanImageMatch(q.QueryRowContext(ctx, `SELECT `+imageMatchColumns+` FROM image_scan_matches WHERE id = $1`, id))
+}
+
+// SetImageMatchEvidence records where the quarantined copy went.
+func SetImageMatchEvidence(ctx context.Context, q sqlkit.Querier, id int64, path string) error {
+	_, err := q.ExecContext(ctx, `UPDATE image_scan_matches SET evidence_path = $2 WHERE id = $1`, id, path)
+	return err
+}
+
+// SetImageMatchTakenDown marks the site or event as taken down for this match.
+func SetImageMatchTakenDown(ctx context.Context, q sqlkit.Querier, id int64) error {
+	_, err := q.ExecContext(ctx, `UPDATE image_scan_matches SET taken_down = true WHERE id = $1`, id)
+	return err
+}
+
+// SetImageMatchAlerted stamps the alert email as sent.
+func SetImageMatchAlerted(ctx context.Context, q sqlkit.Querier, id int64) error {
+	_, err := q.ExecContext(ctx, `UPDATE image_scan_matches SET alerted_at = now() WHERE id = $1`, id)
+	return err
+}
+
+// SetImageMatchReport records the outcome of filing the report. 'filed'
+// stamps reported_at; any status keeps the error text given.
+func SetImageMatchReport(ctx context.Context, q sqlkit.Querier, id int64, status, reportID, errText string) error {
+	switch status {
+	case "pending", "filed", "failed", "off":
+	default:
+		return fmt.Errorf("db: unknown report status %q", status)
+	}
+	_, err := q.ExecContext(ctx, `
+		UPDATE image_scan_matches SET report_status = $2, report_id = $3, report_error = $4,
+			reported_at = CASE WHEN $2 = 'filed' THEN now() ELSE reported_at END
+		 WHERE id = $1`, id, status, reportID, errText)
+	return err
+}
+
+// DeleteStorageFileRow drops a files-storage object's row after its bytes
+// are removed from disk.
+func DeleteStorageFileRow(ctx context.Context, q sqlkit.Querier, siteID, resourceName, path string) error {
+	_, err := q.ExecContext(ctx, `DELETE FROM site_storage_files WHERE site_id = $1 AND resource_name = $2 AND path = $3`, siteID, resourceName, path)
+	return err
+}
+
+func PendingImageScans(ctx context.Context, db *sql.DB, n *int64) error {
+	return db.QueryRowContext(ctx, `SELECT count(*) FROM image_scan_queue WHERE next_attempt_at < 'infinity'`).Scan(n)
+}
+
+func queryContext(ctx context.Context, q sqlkit.Querier, query string, args ...any) (*sql.Rows, error) {
+	switch t := q.(type) {
+	case *sql.DB:
+		return t.QueryContext(ctx, query, args...)
+	case *sql.Tx:
+		return t.QueryContext(ctx, query, args...)
+	default:
+		return nil, fmt.Errorf("db: querier does not support QueryContext")
+	}
+}

@@ -1,4 +1,4 @@
-> **Status: Superseded (2026-09-25)** — path-based addressing replaced by per-person subdomains (`personhost.go`); the custom-domain half lives on in `internal/handler/domains.go`.
+> **Status: Superseded (2026-09-25)** — path-based addressing replaced by per-person subdomains (`personhost.go`); the custom-domain half lives on in `host/handler/domains.go`.
 
 # Design: Path-Based User Sites + Custom Domains (v3)
 
@@ -86,7 +86,7 @@ real isolation uses a custom domain.
   `versions.disk_path`, `sweepExpiredSites`, the view-lock cache + cookie **name + HMAC
   payload**, `siteFromHost` (×3 handlers), and the handler-layer `viewSessionOK`/
   `authorizeStateOrigin`. (Authenticated `GetSiteByUser(user_id,name)` paths are already safe.)
-- `db/schema.sql` is out of sync with code (missing `state`, `state_version`,
+- `host/db/schema.sql` is out of sync with code (missing `state`, `state_version`,
   `view_password_hash`, and the whole `collection_items` table) → `pg_dump` live first.
 - ideaflow.page is the same binary, config-gated by `SITE_DOMAIN`/`DEPLOY_SCRIPT`; it must
   stay on the legacy per-site model (§11).

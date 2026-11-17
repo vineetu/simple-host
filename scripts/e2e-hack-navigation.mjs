@@ -20,7 +20,7 @@ async function person(role, width = 1280) {
   // Serve the current source modules while the DB fixture stays alive between iterations.
   await page.route('**/hack/**', async route => {
     const path = new URL(route.request().url()).pathname
-    const file = 'internal/webassets/static' + path
+    const file = 'host/webassets/static' + path
     if (!fs.existsSync(file)) return route.continue()
     await route.fulfill({ body: fs.readFileSync(file), contentType: path.endsWith('.css') ? 'text/css' : 'text/javascript' })
   })

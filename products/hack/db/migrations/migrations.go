@@ -3,7 +3,7 @@ package migrations
 
 import (
 	"embed"
-	platform "github.com/vsriram/simple-host/db/migrations"
+	platform "github.com/vsriram/simple-host/host/db/migrations"
 )
 
 //go:embed *.sql

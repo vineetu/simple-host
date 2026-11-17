@@ -1094,7 +1094,7 @@ adds a warning to successful preset saves during the notice period, for SQLite
 and key-value resources only. It does not retire routes or change access in
 this slice. The server logs the number still using presets once at startup.</p>
 <p>Wording comes from JSON templates. To change it without rebuilding, copy
-<code>internal/app/storage/storage-notice.json</code> from the source into
+<code>host/app/storage/storage-notice.json</code> from the source into
 <code>DATA_DIR/storage-notice.json</code> (outside all site directories), edit it and
 restart. The fields are <code>presets</code>, <code>legacy</code>, <code>save_warning</code>, <code>rules_guide</code> and
 <code>moving_guide</code>; <code>&lt;DATE&gt;</code>, <code>&lt;RULES_GUIDE_URL&gt;</code> and <code>&lt;MOVING_GUIDE_URL&gt;</code> are filled

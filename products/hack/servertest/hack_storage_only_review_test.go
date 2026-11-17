@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/host/handler"
 )
 
 // Checks the public router and both connector grant shapes, not only the
@@ -119,7 +119,7 @@ func runTestHackStorageOnlyReview(t *testing.T) {
 	}
 }
 
-// TestHostRetainsLegacyStorageReview moved to internal/handler/
+// TestHostRetainsLegacyStorageReview moved to host/handler/
 // kinds_review_test.go (cleanup 3.2 slice 3): it is 100% Host-only (no
 // hackhttp.HackHandler, no team site), just filed here alongside the Hack storage
 // review it shipped with; its fixture (kindsSite/savedDataSite, and the

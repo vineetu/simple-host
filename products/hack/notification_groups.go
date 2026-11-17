@@ -3,8 +3,8 @@ package hack
 import (
 	"context"
 	"database/sql"
-	notifications "github.com/vsriram/simple-host/internal/app/notifications"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	notifications "github.com/vsriram/simple-host/host/app/notifications"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 

@@ -1,9 +1,9 @@
 package hack
 
 import (
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/extension"
-	"github.com/vsriram/simple-host/internal/server"
+	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/server"
 	"strings"
 	"testing"
 )

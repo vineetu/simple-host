@@ -12,12 +12,12 @@
 # existing one keeps asking, and the server's log never holds a passcode or
 # an unlock cookie.
 #
-#   DB_DSN=postgres://...fresh database with db/schema.sql... bash scripts/e2e-passcode.sh
+#   DB_DSN=postgres://...fresh database with host/db/schema.sql... bash scripts/e2e-passcode.sh
 #
 # BIN defaults to a fresh build in a temp dir. Needs curl, psql or docker
 # (for the custom-domain row), and nginx (skipped with a note if missing).
 set -euo pipefail
-: "${DB_DSN:?DB_DSN must name a throwaway database with db/schema.sql applied}"
+: "${DB_DSN:?DB_DSN must name a throwaway database with host/db/schema.sql applied}"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 PORT=${PORT:-18093}

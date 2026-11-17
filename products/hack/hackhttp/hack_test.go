@@ -21,21 +21,21 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/internal/auth"
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	appsites "github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/auth"
 
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/model"
-	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/model"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 )
 
 // person and resp (cleanup 3.2 slice 3): duplicated from
-// internal/handler/connector_test.go rather than reused — a _test.go
+// host/handler/connector_test.go rather than reused — a _test.go
 // file's symbols, even exported ones, are never visible to another
 // package, so these two tiny generic HTTP-test types get their own copy
 // here, the same way hack_entries.go's own hackApp.newKeyOnlyPerson already
@@ -69,7 +69,7 @@ func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (
 }
 
 // replyMailer is an email.Sender that also records SendNoticeReplyTo calls.
-// Duplicated from internal/handler/idle_test.go (cleanup 3.2 slice 3):
+// Duplicated from host/handler/idle_test.go (cleanup 3.2 slice 3):
 // hack_cleanup_test.go and hack_rehearsal_test.go both moved with it, and
 // it has no handler-private dependency.
 type replyMailer struct {
@@ -85,7 +85,7 @@ func (m *replyMailer) SendNoticeReplyTo(to, replyTo, subject, text string) error
 	return nil
 }
 
-// failingReplyMailer is idle_test.go's own (internal/handler), duplicated
+// failingReplyMailer is idle_test.go's own (host/handler), duplicated
 // (cleanup 3.2 slice 3): hack_cleanup_test.go, its only mover, needs it.
 type failingReplyMailer struct{ replyMailer }
 
@@ -254,7 +254,7 @@ func (a *hackApp) cleanupEvent(slug string) {
 }
 
 // mailbox captures sign-in codes and notices. Duplicated from
-// internal/handler/account_email_test.go (cleanup 3.2 slice 3): no
+// host/handler/account_email_test.go (cleanup 3.2 slice 3): no
 // handler-private dependency, used by hack_ink_browser_test.go and
 // hack_presets_browser_test.go.
 type mailbox struct {
@@ -295,7 +295,7 @@ func (m *mailbox) to(address string) []string {
 
 // tarGzOf is a gzipped tar holding index.html plus a file of n zero bytes:
 // a few KB on the wire, n bytes unpacked. Duplicated from
-// internal/handler/sizeoverrides_test.go (cleanup 3.2 slice 3):
+// host/handler/sizeoverrides_test.go (cleanup 3.2 slice 3):
 // hack_upload_link_test.go, its only mover, needs it; no handler-private
 // dependency.
 func tarGzOf(t *testing.T, n int) string {
@@ -320,7 +320,7 @@ func tarGzOf(t *testing.T, n int) string {
 	return buf.String()
 }
 
-// wantCode is kinds_test.go's own (internal/handler), duplicated (cleanup
+// wantCode is kinds_test.go's own (host/handler), duplicated (cleanup
 // 3.2 slice 3): no handler-private dependency once resp/person are here.
 func wantCode(t *testing.T, what string, r resp, status int, code string) {
 	t.Helper()
@@ -338,7 +338,7 @@ func wantCode(t *testing.T, what string, r resp, status int, code string) {
 	}
 }
 
-// waitBlocked is review_fixes_test.go's own (internal/handler), duplicated
+// waitBlocked is review_fixes_test.go's own (host/handler), duplicated
 // (cleanup 3.2 slice 3): a one-line sleep, no handler-private dependency.
 func waitBlocked() { time.Sleep(300 * time.Millisecond) }
 
@@ -349,7 +349,7 @@ func uniqueSlug() string {
 }
 
 // setHackAppLimits overwrites a's already-built HackHandler's own limits
-// snapshot in place (moved from internal/handler/limits_test.go, cleanup
+// snapshot in place (moved from host/handler/limits_test.go, cleanup
 // 3.2 slice 3: hackApp, its only caller, moved here; limits_test.go's
 // setAppLimits/setConnectorAppLimits stay there for the fixtures that stay
 // there). See that file's withLimits/otherValue for the rest of the

@@ -5,14 +5,14 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // The replay contract is checked against a real database computation,
 // including the state change after an event-wide mark: what the tool returns
 // is what the REST route returns for the same organiser and event.
 //
-// Moved from internal/mcp (D2-S10d): it needs Hack's tables, so it runs
+// Moved from host/mcp (D2-S10d): it needs Hack's tables, so it runs
 // against the whole program instead of a scripted upstream.
 func TestChecklistDatabaseReplayParity(t *testing.T) {
 	a := newTeamSiteApp(t)

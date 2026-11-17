@@ -18,12 +18,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/rules/sites"
+	appsites "github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
@@ -83,7 +83,7 @@ type HackHandler struct {
 	// limits is this instance's edition.Limits() snapshot. A plain field,
 	// not handler's shared limitSet embedding (cleanup 3.2 slice 1c: that
 	// type's methods are unexported in another package once this type
-	// moves to internal/hackhttp), so the three values this package reads
+	// moves to host/hackhttp), so the three values this package reads
 	// (siteLimitFor, exportLinkTTL, idleReplyTo below) are HackHandler's
 	// own methods over the same edition.Limits fields.
 	limits productconfig.Limits
@@ -173,8 +173,8 @@ func (h *HackHandler) judgeHandle(ctx context.Context, name string) (HandleVerdi
 }
 
 // hackPages is what moving Hack code needs of the site's asset/chrome
-// pipeline (assetPipeline, assets.go — stays in internal/handler this slice;
-// its proposed eventual home is internal/webassets per
+// pipeline (assetPipeline, assets.go — stays in host/handler this slice;
+// its proposed eventual home is host/webassets per
 // docs/architecture/target.md §2, at which point this interface, and every
 // hack-owned caller of sh.pipeline()/h.pipeline(), needs no interface at
 // all). Every method here is exported on *assetPipeline for exactly this
@@ -374,7 +374,7 @@ func paperHackStage(r *http.Request, ev hackmodel.Event) {
 // NewHackHandlerForTest builds a *HackHandler with a specific archive-link
 // key and limits, bypassing NewHackHandler's random key and edition-derived
 // limits. Test hook (cleanup 3.2 slice 3): opaque_tokens_test.go
-// (internal/handler) checks that export/preview/file and hack archive
+// (host/handler) checks that export/preview/file and hack archive
 // tokens never cross-authenticate even when minted from the same underlying
 // key — only the domain string tells them apart — so it needs the exact
 // same key the SiteHandler side of that test uses.
@@ -451,7 +451,7 @@ func newHackArchiveKey() []byte {
 // then its earlier ones), else siteArchiveDefault. Mirrors handler's own
 // limitSet.siteLimitFor (limits.go) so the values read stay identical;
 // duplicated here (not shared) because that method is unexported in
-// another package once this type moves to internal/hackhttp.
+// another package once this type moves to host/hackhttp.
 func (h *HackHandler) siteLimitFor(ctx context.Context, database *sql.DB, user *model.User) (limit int64, override bool) {
 	if h.limits.MaxArchiveOverrides == "" || user == nil {
 		return h.siteArchiveDefault, false
@@ -664,8 +664,8 @@ func hackNeedUser(w http.ResponseWriter, r *http.Request) *model.User {
 	return user
 }
 
-// writeHackErr and writeInternal moved to internal/httpx (httpx.WriteError,
-// httpx.WriteInternal); see internal/handler/httpx_forward.go. (cleanup 3.2,
+// writeHackErr and writeInternal moved to host/httpx (httpx.WriteError,
+// httpx.WriteInternal); see host/handler/httpx_forward.go. (cleanup 3.2,
 // slice 1a)
 
 func writeEventNotFound(w http.ResponseWriter) {
@@ -1933,7 +1933,7 @@ func rfc3339Time(t time.Time) string {
 }
 
 // randomHackCode and normalizeHackCode moved to
-// internal/rules/hackevents (RandomCode, NormalizeCode) in cleanup 3.2
+// host/rules/hackevents (RandomCode, NormalizeCode) in cleanup 3.2
 // slice 1c: pure Hack code generation/matching, no handler dependency.
 
 // teamCodeFromInput accepts either a bare team code or a pasted team link

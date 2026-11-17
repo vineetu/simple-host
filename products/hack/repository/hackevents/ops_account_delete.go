@@ -2,7 +2,7 @@ package hackevents
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 func AccountHasRunningEvents(ctx context.Context, q sqlkit.Querier, userID string) (bool, error) {

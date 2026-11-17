@@ -1,7 +1,7 @@
 // famStorage registers event storage and the Hack page recipe.
 package hackmcp
 
-import "github.com/vsriram/simple-host/internal/mcp"
+import "github.com/vsriram/simple-host/host/mcp"
 
 func hackStorageTools() []mcp.Tool {
 	tools := eventStorageTools()

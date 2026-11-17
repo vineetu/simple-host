@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/extension"
-	"github.com/vsriram/simple-host/internal/papermetrics"
-	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
+	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/papermetrics"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )

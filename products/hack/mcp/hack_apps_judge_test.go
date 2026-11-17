@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/products/hack/mcp/apps/bundlegen"
 )
 

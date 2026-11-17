@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 

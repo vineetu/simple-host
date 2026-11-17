@@ -109,7 +109,7 @@ if kubectl -n "$ns" rollout status deploy/simple-hack --timeout=180s >/dev/null;
 
 log=$(kubectl -n "$ns" logs deploy/simple-hack -c simple-hack)
 migration_log=$(kubectl -n "$ns" logs deploy/simple-hack -c migrate)
-grep -q 'built the schema from db/schema.sql' <<<"$migration_log" && ok "empty database: schema built by init container" || bad "schema not built"
+grep -q 'built the schema from host/db/schema.sql' <<<"$migration_log" && ok "empty database: schema built by init container" || bad "schema not built"
 grep -q 'hosted events: on' <<<"$log" && ok "hack mode on" || bad "hack mode off"
 grep -q 'trusted proxies:' <<<"$log" && ok "trusted proxies set" || bad "trusted proxies not set"
 status=$(kubectl -n "$ns" exec deploy/simple-hack -- /usr/local/bin/simple-host migrate -status 2>&1 | tail -1)

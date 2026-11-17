@@ -118,78 +118,78 @@ text/host/showcase-page.txt:3430 | text | hackathon
 Findings: 111
 
 ## Platform embedded assets
-internal/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md:69 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md:83 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md:22 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md:38 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md:239 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy-builder/references/handoff-and-examples.md:75 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy-builder/references/handoff-and-examples.md:94 | text | hackathon
-internal/webassets/simple-host-website/skills/website-deploy-builder/references/handoff-and-examples.md:238 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/SKILL.md:176 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/backend.md:44 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/home-page.md:49 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/notifications.md:4 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/notifications.md:21 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/operations.md:481 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/publishing.md:35 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/publishing.md:48 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/publishing.md:336 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/storage.md:226 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/storage.md:238 | text | hackathon
-internal/webassets/simple-host-website/skills/website-deploy/references/storage.md:379 | text | Simple Hack
-internal/webassets/simple-host-website/skills/website-deploy/references/storage.md:380 | text | Simple Hack
-internal/webassets/static/admin.html:295 | text | hackathon
-internal/webassets/static/admin.html:1425 | text | hackathon
-internal/webassets/static/architecture.html:362 | text | Simple Hack
-internal/webassets/static/architecture.html:363 | text | Simple Hack
-internal/webassets/static/architecture.html:364 | text | Simple Hack
-internal/webassets/static/architecture.html:540 | text | Simple Hack
-internal/webassets/static/architecture.html:540 | text | simple-hack
-internal/webassets/static/architecture.html:618 | text | Simple Hack
-internal/webassets/static/auth.js:143 | text | simple-hack
-internal/webassets/static/auth.js:152 | text | Simple Hack
-internal/webassets/static/connect.html:187 | text | Simple Hack
-internal/webassets/static/connect.html:207 | text | Simple Hack
-internal/webassets/static/connect.html:256 | text | Simple Hack
-internal/webassets/static/connect.html:316 | text | hackathon
-internal/webassets/static/enterprise.html:223 | text | hackathon
-internal/webassets/static/enterprise.html:223 | text | simple-hack
-internal/webassets/static/host-ink.css:122 | text | Simple Hack
-internal/webassets/static/install.html:500 | text | hackathon
-internal/webassets/static/partials/footer.html:7 | text | hackathon
-internal/webassets/static/partials/footer.html:7 | text | simple-hack
-internal/webassets/static/privacy.html:42 | text | Simple Hack
-internal/webassets/static/privacy.html:58 | text | Simple Hack
-internal/webassets/static/privacy.html:58 | text | simple-hack
-internal/webassets/static/privacy.html:61 | text | Simple Hack
-internal/webassets/static/privacy.html:61 | text | simple-hack
-internal/webassets/static/privacy.html:71 | text | Simple Hack
-internal/webassets/static/privacy.html:71 | text | simple-hack
-internal/webassets/static/privacy.html:74 | text | Simple Hack
-internal/webassets/static/privacy.html:75 | text | Simple Hack
-internal/webassets/static/privacy.html:75 | text | simple-hack
-internal/webassets/static/privacy.html:76 | text | Simple Hack
-internal/webassets/static/privacy.html:116 | text | Simple Hack
-internal/webassets/static/privacy.html:155 | text | Simple Hack
-internal/webassets/static/setup/small-box-settings.json:304 | text | Simple Hack
-internal/webassets/static/setup/small-box-settings.json:315 | text | Simple Hack
-internal/webassets/static/setup/small-box-settings.json:2918 | text | hackathon
-internal/webassets/static/setup/small-box-settings.json:2918 | text | simple-hack
-internal/webassets/static/setup/small-box-settings.json:2933 | text | hackathon
-internal/webassets/static/setup/small-box-settings.json:2955 | text | simple-hack
-internal/webassets/static/setup/small-box-settings.json:3208 | text | simple-hack
-internal/webassets/static/showcase.html:3020 | text | hackathon
-internal/webassets/static/site.css:64 | text | Simple Hack
-internal/webassets/static/support.html:36 | text | Simple Hack
-internal/webassets/static/support.html:43 | text | simple-hack
-internal/webassets/static/support.html:48 | text | Simple Hack
-internal/webassets/static/support.html:49 | text | simple-hack
-internal/webassets/static/support.html:50 | text | simple-hack
-internal/webassets/static/support.html:51 | text | Simple Hack
-internal/webassets/static/support.html:51 | text | simple-hack
-internal/webassets/static/terms.html:42 | text | Simple Hack
-internal/webassets/static/terms.html:60 | text | Simple Hack
-internal/webassets/static/terms.html:60 | text | simple-hack
-internal/webassets/static/terms.html:62 | text | hackathon
+host/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md:69 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md:83 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md:22 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md:38 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md:239 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy-builder/references/handoff-and-examples.md:75 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy-builder/references/handoff-and-examples.md:94 | text | hackathon
+host/webassets/simple-host-website/skills/website-deploy-builder/references/handoff-and-examples.md:238 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/SKILL.md:176 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/backend.md:44 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/home-page.md:49 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/notifications.md:4 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/notifications.md:21 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/operations.md:481 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/publishing.md:35 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/publishing.md:48 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/publishing.md:336 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/storage.md:226 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/storage.md:238 | text | hackathon
+host/webassets/simple-host-website/skills/website-deploy/references/storage.md:379 | text | Simple Hack
+host/webassets/simple-host-website/skills/website-deploy/references/storage.md:380 | text | Simple Hack
+host/webassets/static/admin.html:295 | text | hackathon
+host/webassets/static/admin.html:1425 | text | hackathon
+host/webassets/static/architecture.html:362 | text | Simple Hack
+host/webassets/static/architecture.html:363 | text | Simple Hack
+host/webassets/static/architecture.html:364 | text | Simple Hack
+host/webassets/static/architecture.html:540 | text | Simple Hack
+host/webassets/static/architecture.html:540 | text | simple-hack
+host/webassets/static/architecture.html:618 | text | Simple Hack
+host/webassets/static/auth.js:143 | text | simple-hack
+host/webassets/static/auth.js:152 | text | Simple Hack
+host/webassets/static/connect.html:187 | text | Simple Hack
+host/webassets/static/connect.html:207 | text | Simple Hack
+host/webassets/static/connect.html:256 | text | Simple Hack
+host/webassets/static/connect.html:316 | text | hackathon
+host/webassets/static/enterprise.html:223 | text | hackathon
+host/webassets/static/enterprise.html:223 | text | simple-hack
+host/webassets/static/host-ink.css:122 | text | Simple Hack
+host/webassets/static/install.html:500 | text | hackathon
+host/webassets/static/partials/footer.html:7 | text | hackathon
+host/webassets/static/partials/footer.html:7 | text | simple-hack
+host/webassets/static/privacy.html:42 | text | Simple Hack
+host/webassets/static/privacy.html:58 | text | Simple Hack
+host/webassets/static/privacy.html:58 | text | simple-hack
+host/webassets/static/privacy.html:61 | text | Simple Hack
+host/webassets/static/privacy.html:61 | text | simple-hack
+host/webassets/static/privacy.html:71 | text | Simple Hack
+host/webassets/static/privacy.html:71 | text | simple-hack
+host/webassets/static/privacy.html:74 | text | Simple Hack
+host/webassets/static/privacy.html:75 | text | Simple Hack
+host/webassets/static/privacy.html:75 | text | simple-hack
+host/webassets/static/privacy.html:76 | text | Simple Hack
+host/webassets/static/privacy.html:116 | text | Simple Hack
+host/webassets/static/privacy.html:155 | text | Simple Hack
+host/webassets/static/setup/small-box-settings.json:304 | text | Simple Hack
+host/webassets/static/setup/small-box-settings.json:315 | text | Simple Hack
+host/webassets/static/setup/small-box-settings.json:2918 | text | hackathon
+host/webassets/static/setup/small-box-settings.json:2918 | text | simple-hack
+host/webassets/static/setup/small-box-settings.json:2933 | text | hackathon
+host/webassets/static/setup/small-box-settings.json:2955 | text | simple-hack
+host/webassets/static/setup/small-box-settings.json:3208 | text | simple-hack
+host/webassets/static/showcase.html:3020 | text | hackathon
+host/webassets/static/site.css:64 | text | Simple Hack
+host/webassets/static/support.html:36 | text | Simple Hack
+host/webassets/static/support.html:43 | text | simple-hack
+host/webassets/static/support.html:48 | text | Simple Hack
+host/webassets/static/support.html:49 | text | simple-hack
+host/webassets/static/support.html:50 | text | simple-hack
+host/webassets/static/support.html:51 | text | Simple Hack
+host/webassets/static/support.html:51 | text | simple-hack
+host/webassets/static/terms.html:42 | text | Simple Hack
+host/webassets/static/terms.html:60 | text | Simple Hack
+host/webassets/static/terms.html:60 | text | simple-hack
+host/webassets/static/terms.html:62 | text | hackathon
 Findings: 74

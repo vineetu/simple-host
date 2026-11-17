@@ -113,14 +113,14 @@ def changes(before, after, product, reason):
 
 
 def initial_schema(url):
-    sql(url, git_file('db/schema.sql'))
-    runner = git_file('db/migrations/migrations.go')
+    sql(url, git_file('host/db/schema.sql'))
+    runner = git_file('host/db/migrations/migrations.go')
     legacy = re.search(r'var Legacy = \[\]string\{(.*?)\n\}', runner, re.S).group(1)
     names = re.findall(r'"([^"]+)"', legacy)
-    files = command(['git', 'ls-tree', '--name-only', START + ':db/migrations']).splitlines()
+    files = command(['git', 'ls-tree', '--name-only', START + ':host/db/migrations']).splitlines()
     names += sorted(n for n in files if re.match(r'^\d{4}-.*\.sql$', n))
     for name in names:
-        sql(url, git_file('db/migrations/' + name))
+        sql(url, git_file('host/db/migrations/' + name))
 
 
 def additions():
@@ -130,7 +130,7 @@ def additions():
             continue
         name, owner, _ = map(str.strip, line.split('|', 2))
         if re.match(r'^\d{4}-', name) and int(name[:4]) > 17:
-            folder = 'products/hack/db/migrations' if owner == 'hack' else 'db/migrations'
+            folder = 'products/hack/db/migrations' if owner == 'hack' else 'host/db/migrations'
             out.append((name, owner, ROOT / folder / name))
     return sorted(out)
 

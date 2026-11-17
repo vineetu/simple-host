@@ -83,7 +83,7 @@ class RehearsalIntegration(unittest.TestCase):
         database = 'kv_rehearsal_input_' + uuid.uuid4().hex
         cls.sql('CREATE DATABASE "' + database + '"', 'postgres')
         try:
-            cls.run_pg(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-f', ROOT / 'db/schema.sql'], database)
+            cls.run_pg(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-f', ROOT / 'host/db/schema.sql'], database)
             cls.run_pg(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-f', ROOT / 'products/hack/db/schema.sql'], database)
             cls.sql("INSERT INTO instance_config(key,value) VALUES "
                     "('site_domain','saved.invalid'),('content_host','content.saved.invalid')", database)

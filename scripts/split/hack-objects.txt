@@ -1,4 +1,4 @@
-# Authority: proposed from db/schema.sql and checked against the D1-S6 ownership rules.
+# Authority: proposed from host/db/schema.sql and checked against the D1-S6 ownership rules.
 # Explicitly NOT Hack:
 # site_events, site_event_deliveries: MCP Events tables.
 # event_domains: platform feature.

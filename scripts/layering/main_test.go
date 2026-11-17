@@ -22,6 +22,12 @@ func TestMatch(t *testing.T) {
 		{"repository/**", "repository/sites/nested", true},
 		{"repository/**", "repository2", false},
 		{"/**", "@/cmd/server", false},
+		{"@/host/storage/rules", "storage/rules", true},
+		{"@/host/app/**", "app/sites", true},
+		{"@/host/app", "app/sites", false},
+		{"@/host/**", "model", true},
+		{"@/host/**", "@/cmd/server", false},
+		{"@/products/hack/**", "@/products/hack/app/events", true},
 	} {
 		if got := match(tc.pattern, tc.path); got != tc.want {
 			t.Errorf("match(%q, %q) = %v", tc.pattern, tc.path, got)
@@ -33,11 +39,11 @@ func TestNormalize(t *testing.T) {
 		in   pkg
 		want string
 	}{
-		{pkg{ImportPath: "internal/a [internal/a.test]", ForTest: "internal/a"}, "internal/a"},
-		{pkg{ImportPath: "internal/a_test [internal/a.test]"}, "internal/a"},
+		{pkg{ImportPath: "host/a [host/a.test]", ForTest: "host/a"}, "host/a"},
+		{pkg{ImportPath: "host/a_test [host/a.test]"}, "host/a"},
 		{pkg{ImportPath: "cmd/review.test", Name: "main", Match: []string{"./..."}}, "cmd/review.test"},
-		{pkg{ImportPath: "internal/a.test", Name: "a"}, "internal/a.test"},
-		{pkg{ImportPath: "internal/a_test"}, "internal/a_test"},
+		{pkg{ImportPath: "host/a.test", Name: "a"}, "host/a.test"},
+		{pkg{ImportPath: "host/a_test"}, "host/a_test"},
 	} {
 		if got := normalize(tc.in); got != tc.want {
 			t.Errorf("normalize(%+v) = %q, want %q", tc.in, got, tc.want)
@@ -63,7 +69,7 @@ func TestExclusions(t *testing.T) {
 func TestLocalAndDisplay(t *testing.T) {
 	for _, tc := range []struct{ path, localPath, displayed string }{
 		{module + "products/hack/app/events", "@/products/hack/app/events", "products/hack/app/events"},
-		{module + "internal/model", "model", "internal/model"},
+		{module + "host/model", "model", "host/model"},
 		{module + "cmd/server", "@/cmd/server", "cmd/server"},
 		{module + "db", "@/db", "db"},
 		{strings.TrimSuffix(module, "/"), "@/", ""},
@@ -85,7 +91,7 @@ func TestProductContract(t *testing.T) {
 	platformEdge := edge{"handler", "@/products/hack/app/teams", "production"}
 	testEdge := edge{"handler", "@/products/hack/app/teams", "test"}
 	const transition = "[transitional]\nhandler -> @/products/hack/app/teams production # removal step D2-S4b\n"
-	detail := "internal/handler imports products/hack/app/teams (production), removal step D2-S4b"
+	detail := "host/handler imports products/hack/app/teams (production), removal step D2-S4b"
 	stale := "transitional edge no longer needed: " + detail + "; delete this line from rules.txt"
 	for _, tc := range []struct {
 		name, rules string
@@ -122,7 +128,7 @@ func TestProductContract(t *testing.T) {
 			if !reflect.DeepEqual(lines, tc.wantLines) {
 				t.Errorf("lines = %v, want %v", lines, tc.wantLines)
 			}
-			if tc.name == "platform imports product" && (len(issues) != 1 || !strings.Contains(issues[0], "internal/handler imports products/hack/app/teams (production) — not in")) {
+			if tc.name == "platform imports product" && (len(issues) != 1 || !strings.Contains(issues[0], "host/handler imports products/hack/app/teams (production) — not in")) {
 				t.Errorf("missing violation: %v", issues)
 			}
 		})
@@ -175,37 +181,37 @@ func TestCheckerOnFixtureModule(t *testing.T) {
 	}
 	const final = "[final]\n@/products/hack/** -> /** @/products/hack/**\n"
 	const transition = "[transitional]\nhandler -> @/products/hack/app/teams production # removal step D2-S4b\n"
-	const detail = "internal/handler imports products/hack/app/teams (production), removal step D2-S4b"
+	const detail = "host/handler imports products/hack/app/teams (production), removal step D2-S4b"
 	for _, tc := range []struct {
 		name, handlerImport, testImport, transition, wantLine string
 		wantErr                                               bool
 		edges                                                 int
 	}{
 		{name: "product imports platform and product", edges: 3},
-		{name: "platform imports product", handlerImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", wantLine: "internal/handler imports products/hack/app/teams (production) — not in", wantErr: true},
+		{name: "platform imports product", handlerImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", wantLine: "host/handler imports products/hack/app/teams (production) — not in", wantErr: true},
 		{name: "transitional import", handlerImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", transition: transition, wantLine: "transitional edge in use: " + detail, edges: 4},
 		{name: "stale transition", transition: transition, wantLine: "transitional edge no longer needed: " + detail + "; delete this line from rules.txt", wantErr: true},
-		{name: "production transition does not excuse test", testImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", transition: transition, wantLine: "internal/handler imports products/hack/app/teams (test) — not in", wantErr: true},
+		{name: "production transition does not excuse test", testImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", transition: transition, wantLine: "host/handler imports products/hack/app/teams (test) — not in", wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			files := map[string]string{
 				"go.mod":                           "module github.com/vsriram/simple-host\n\n" + goLine + "\n",
-				"internal/model/model.go":          "package model\n",
-				"internal/handler/handler.go":      "package handler\n" + tc.handlerImport + "\n",
+				"host/model/model.go":              "package model\n",
+				"host/handler/handler.go":          "package handler\n" + tc.handlerImport + "\n",
 				"products/hack/app/teams/teams.go": "package teams\n",
 				"products/hack/app/events/events.go": `package events
 import (
- _ "github.com/vsriram/simple-host/internal/model"
+ _ "github.com/vsriram/simple-host/host/model"
  _ "github.com/vsriram/simple-host/products/hack/app/teams"
 )
 `,
-				"products/hack/app/events/events_test.go":   "package events\nimport _ \"github.com/vsriram/simple-host/internal/model\"\n",
-				"products/hack/app/events/external_test.go": "package events_test\nimport _ \"github.com/vsriram/simple-host/internal/model\"\n",
+				"products/hack/app/events/events_test.go":   "package events\nimport _ \"github.com/vsriram/simple-host/host/model\"\n",
+				"products/hack/app/events/external_test.go": "package events_test\nimport _ \"github.com/vsriram/simple-host/host/model\"\n",
 				rulesFile: final + tc.transition,
 			}
 			if tc.testImport != "" {
-				files["internal/handler/handler_test.go"] = "package handler\n" + tc.testImport + "\n"
+				files["host/handler/handler_test.go"] = "package handler\n" + tc.testImport + "\n"
 			}
 			for name, content := range files {
 				path := filepath.Join(dir, name)

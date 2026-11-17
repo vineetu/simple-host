@@ -637,10 +637,29 @@ leftover_prefixed() {
  grep -qF 'scripts/mcpjam/fixture.sh:3:' "$tmp/log"
 }
 
+dot_prefixes() {
+ fresh
+ cat > internal/alpha/guard.go <<'EOF'
+package alpha
+
+import "strings"
+
+// Escapes reports a path that leaves its root; the prefixes are not paths.
+func Escapes(p string) bool {
+	return strings.HasPrefix(p, "../") || strings.HasPrefix(p, "./..") || p == ".." || p == "."
+}
+EOF
+ git add internal
+ run
+ grep -qF 'strings.HasPrefix(p, "../") || strings.HasPrefix(p, "./..") || p == ".." || p == "."' host/alpha/guard.go
+ go build ./...
+ assert_rerun
+}
+
 # The subshell is a standalone command, never the condition of an if: errexit
 # remains active inside every case and every helper called by the case.
 failures=0
-for case in bare_root_scope late_relative escaped_literals embed_comment_spans leftover_prefixed plain dynamic_failure late_reference late_file collision nested_move longest idempotent dry_run file_wildcard layering_and_text plan_errors untracked_and_discovery root_tokens destination_tree_errors nested_destination_errors untracked_destinations twin_relative_and_cleanup lexer_and_embed dynamic_disk_validation module_rerun_and_replace whole_root_and_text_scope empty_wildcard leftover_paths batched_git runtime_failure; do
+for case in bare_root_scope late_relative escaped_literals embed_comment_spans leftover_prefixed plain dynamic_failure late_reference late_file collision nested_move longest idempotent dry_run file_wildcard layering_and_text plan_errors untracked_and_discovery root_tokens destination_tree_errors nested_destination_errors untracked_destinations twin_relative_and_cleanup lexer_and_embed dynamic_disk_validation module_rerun_and_replace whole_root_and_text_scope empty_wildcard leftover_paths batched_git runtime_failure dot_prefixes; do
  set +e
  (
   set -euo pipefail

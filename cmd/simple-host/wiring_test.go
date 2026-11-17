@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/server"
-	"github.com/vsriram/simple-host/internal/server/servertest"
-	"github.com/vsriram/simple-host/internal/testdb"
+	"github.com/vsriram/simple-host/host/server"
+	"github.com/vsriram/simple-host/host/server/servertest"
+	"github.com/vsriram/simple-host/host/testdb"
 )
 
 func TestMain(m *testing.M) { testdb.Main(m) }
@@ -19,7 +19,7 @@ func TestHostWiring(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(app.Close)
-	servertest.CheckWiring(t, app, "../..", "internal/server/testdata", "host")
+	servertest.CheckWiring(t, app, "../..", "host/server/testdata", "host")
 }
 
 func TestCompatibilityRedirects(t *testing.T) {

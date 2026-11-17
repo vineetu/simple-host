@@ -49,8 +49,8 @@ func local(s string) string {
 		return ""
 	}
 	s = strings.TrimPrefix(s, module)
-	if strings.HasPrefix(s, "internal/") {
-		return strings.TrimPrefix(s, "internal/")
+	if strings.HasPrefix(s, "host/") {
+		return strings.TrimPrefix(s, "host/")
 	}
 	return "@/" + s
 }
@@ -58,7 +58,7 @@ func display(s string) string {
 	if strings.HasPrefix(s, "@/") {
 		return strings.TrimPrefix(s, "@/")
 	}
-	return "internal/" + s
+	return "host/" + s
 }
 func expand(s string) []string {
 	i := strings.IndexByte(s, '{')
@@ -78,6 +78,13 @@ func expand(s string) []string {
 }
 func match(pattern, path string) bool {
 	for _, p := range expand(pattern) {
+		// The platform lives under host/ (D3-S7), so an explicit @/host/x names the same package as x.
+		if rest, ok := strings.CutPrefix(p, "@/host/"); ok {
+			p = rest
+			if rest == "**" {
+				p = "/**"
+			}
+		}
 		if p == "/**" {
 			if !strings.HasPrefix(path, "@/") {
 				return true

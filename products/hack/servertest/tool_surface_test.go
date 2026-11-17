@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/extension"
-	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	"github.com/vsriram/simple-host/internal/server"
-	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
+	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/extension"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	"github.com/vsriram/simple-host/host/server"
+	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )

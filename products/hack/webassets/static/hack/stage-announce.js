@@ -11,13 +11,13 @@
 // is its own server call, not a stage). `opts.back` is true for a
 // backward move picked through Change stage (an earlier stage than the
 // event's current one) -- draft, open, building, closed or judging only:
-// the stage picker never offers archived as a target (internal/
+// the stage picker never offers archived as a target (host/
 // webassets/static/hack/screens/_orgA-util.js stagePicker), and nothing
 // sits after results except archived, so results is never a backward
 // target either. Moving back to Judging reopens scoring.
 //
 // Every string here must fit the announcements endpoint's real limits:
-// title 1-120 chars, body 1-3000 chars (internal/hackhttp/hack_content.go
+// title 1-120 chars, body 1-3000 chars (host/hackhttp/hack_content.go
 // postAnnouncement's checkHackLine(title, 1, 120) / checkHackText(body, 1,
 // 3000)). All suggestions here are well under both.
 export function suggestedAnnouncement(move, opts) {

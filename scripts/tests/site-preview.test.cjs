@@ -17,8 +17,8 @@ function mount({clipboard = true, modes = ['inline', 'fullscreen'], response = '
     addEventListener:(name,fn)=>events[name]=fn,createElement:element,body:{classList:{toggle(){}}}}, URL,
     navigator:{clipboard:{writeText:async value=>{if(!clipboard) throw Error('denied'); requests.push({copied:value});}}},
     ResizeObserver:class{observe(){}}, setTimeout:(fn,ms)=>{timers.push({fn,ms});return timers.length;},clearTimeout(){}});
-vm.runInContext(fs.readFileSync('internal/mcp/apps/frames.js','utf8'),context);
-  vm.runInContext(fs.readFileSync('internal/mcp/apps/site-preview.js','utf8'),context);
+vm.runInContext(fs.readFileSync('host/mcp/apps/frames.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('host/mcp/apps/site-preview.js','utf8'),context);
   const result = (extra={}) => handlers['tool-result']({structuredContent:{name:'<img src=x onerror=alert(1)>',url:'https://blog.alice.simple-host.app/',site_preview:{open_to_anyone:true},...extra}});
   return {get:id=>get('preview-'+id),result,handlers,events,requests,timers,app};
 }
@@ -88,12 +88,12 @@ test('unrelated results cannot replace the get_site card or its links',async()=>
  assert.equal(m.get('visual').children.length,count);await m.get('open').onclick();assert.equal(m.requests.at(-1).url,'https://blog.alice.simple-host.app/');
 });
 test('shared frame URL refuses ports and non-platform authorities and preserves queries',()=>{
- const ctx=vm.createContext({URL,window:{SHPreviewConfig:{frameDomains:['https://*.simple-host.app']}}});vm.runInContext(fs.readFileSync('internal/mcp/apps/frames.js','utf8'),ctx);
+ const ctx=vm.createContext({URL,window:{SHPreviewConfig:{frameDomains:['https://*.simple-host.app']}}});vm.runInContext(fs.readFileSync('host/mcp/apps/frames.js','utf8'),ctx);
  for(const value of ['https://user@a.simple-host.app/','https://a.simple-host.app:443/','https://a.simple-host.app:8443/','https://a_b.simple-host.app/','https://simple-host.app/','http://a.simple-host.app/','https://a.simple-host.app.evil/']) assert.equal(ctx.SHFrameURL(value),'',value);
  assert.equal(ctx.SHFrameURL('https://a.simple-host.app/path?x=2#part'),'https://a.simple-host.app/path?x=2&_sh_preview=1#part');
 });
 test('Claude secondary light text reaches 4.5 contrast on both surfaces',()=>{
- const css=fs.readFileSync('internal/mcp/apps/shared.css','utf8');const tokens=css.match(/:root\[data-host=claude\]\{([^}]+)/)[1];
+ const css=fs.readFileSync('host/mcp/apps/shared.css','utf8');const tokens=css.match(/:root\[data-host=claude\]\{([^}]+)/)[1];
  const color=name=>tokens.match(new RegExp('--'+name+':(#[a-f0-9]{6})'))[1];
  const luminance=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
  for(const background of ['bg','surface'])assert.ok((luminance(color(background))+.05)/(luminance(color('sub'))+.05)>=4.5);

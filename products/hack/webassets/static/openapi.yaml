@@ -1,4 +1,4 @@
-# Generated; edit internal/webassets/static/openapi.yaml and products/hack/webassets/openapi.part.yaml.
+# Generated; edit host/webassets/static/openapi.yaml and products/hack/webassets/openapi.part.yaml.
 {
   "components": {
     "parameters": {

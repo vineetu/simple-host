@@ -1,17 +1,17 @@
 # names (report only; findings do not fail)
 # Allowlist: scripts/allow/source-names.txt; each exception has a reason.
-# Scope: internal/, host/, db/ filenames and Go identifiers; comments and string literals are not identifiers.
+# Scope: host/, host/, host/db/ filenames and Go identifiers; comments and string literals are not identifiers.
 
 ## Runtime source
 Findings: 0
 
 ## Test files and fixtures
-internal/server/testdata/routes-hack.txt:0 | filename | routes-hack.txt
-internal/server/testdata/workers-hack.txt:0 | filename | workers-hack.txt
+host/server/testdata/routes-hack.txt:0 | filename | routes-hack.txt
+host/server/testdata/workers-hack.txt:0 | filename | workers-hack.txt
 Findings: 2
 
 ## Generated inventories
 Not scanned: docs/generated/ is the union of both products.
 
 ## History
-Not scanned: docs/history/, CHANGELOG.md, PARITY.md, SQL migration scripts in db/migrations/ and host/db/migrations/ (testdata remains in scope).
+Not scanned: docs/history/, CHANGELOG.md, PARITY.md, SQL migration scripts in host/db/migrations/ and host/db/migrations/ (testdata remains in scope).

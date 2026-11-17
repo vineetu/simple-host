@@ -11,20 +11,20 @@ Hack transitions and transaction boundaries.
 
 | Store | Contents | Implementation and workflow owner |
 |---|---|---|
-| PostgreSQL | Accounts, sites, versions, policies, KV, legacy data, Hack records, outboxes, metrics | Area packages in `internal/repository/*`; application services orchestrate workflows |
-| Per-resource SQLite | A site's tables, indexes, views and triggers | `internal/storage/runtime_*.go` implements mechanics; `internal/app/storage` owns policy, quotas and mutations |
-| Deploy files | Retained version trees and the live serving copy | `internal/storage/disk.go`, called by `internal/app/sites.Service` |
-| Runtime files | Uploaded bucket objects and SQLite database files | `internal/storage` mechanics and `internal/app/storage.Service`; image scanning also removes flagged bytes |
-| KV | Namespaced keys and JSONB values | PostgreSQL `site_storage_kv`, through `internal/repository/storage` and `internal/app/storage` |
+| PostgreSQL | Accounts, sites, versions, policies, KV, legacy data, Hack records, outboxes, metrics | Area packages in `host/repository/*`; application services orchestrate workflows |
+| Per-resource SQLite | A site's tables, indexes, views and triggers | `host/storage/runtime_*.go` implements mechanics; `host/app/storage` owns policy, quotas and mutations |
+| Deploy files | Retained version trees and the live serving copy | `host/storage/disk.go`, called by `host/app/sites.Service` |
+| Runtime files | Uploaded bucket objects and SQLite database files | `host/storage` mechanics and `host/app/storage.Service`; image scanning also removes flagged bytes |
+| KV | Namespaced keys and JSONB values | PostgreSQL `site_storage_kv`, through `host/repository/storage` and `host/app/storage` |
 
 PostgreSQL remains the main database in both editions. SQLite is local runtime
 storage for a website, not a replacement for PostgreSQL. Enterprise replicas/S3
 are outside this local SQLite contract; see
 [site storage primitives](../designs/site-storage-primitives.md).
 
-SQL belongs to the area repositories; the retired `internal/db` compatibility
+SQL belongs to the area repositories; the retired `host/db` compatibility
 package has no remaining callers. Startup schema verification lives in
-`internal/repository/operations/schemacheck.go` for platform columns and
+`host/repository/operations/schemacheck.go` for platform columns and
 `products/hack/db/schemacheck.go` for Hack columns and its team-name index.
 `Extension.CheckSchema` runs after the platform check at startup and after migrations;
 without a product hook only the platform schema is required. See the [package contract](target.md).
@@ -33,11 +33,11 @@ The pinned CGO-free `ncruces/go-sqlite3` driver uses compiled Go translated from
 its SQLite WebAssembly build. It needs neither runtime code generation nor
 writable-executable memory, so it fits the hosted systemd restrictions.
 Evidence: `go.mod`, the pinned dependency's `wrap.go` (`sqlite3_wasm.New`), and
-`internal/storage/runtime_sqlite.go`.
+`host/storage/runtime_sqlite.go`.
 
 ## Identities, resources and tables
 
-`db/schema.sql` defines platform tables and foreign keys; Hack adds
+`host/db/schema.sql` defines platform tables and foreign keys; Hack adds
 `products/hack/db/schema.sql` after it. A fresh platform database contains no
 Hack tables. Existing databases retain their product objects and migration history.
 Some definitions
@@ -85,7 +85,7 @@ Analytics and operational records also belong to the database:
   `site_referrer_daily`, `analytics_ingest_state`: log-derived traffic and cursor.
 - `site_view_daily`, `site_visitor_daily`: retained legacy tables, never newly
   written and never to be dropped; pruning uses analytics retention (default
-  400 days). See `internal/analytics/ingest.go` retention cleanup.
+  400 days). See `host/analytics/ingest.go` retention cleanup.
 - `api_request_daily`, `api_ip_daily`: API counts and caller addresses truncated
   to IPv4 /24 or IPv6 /48; default retention is 30 days. Self-call and growth
   aggregates use `api_self_daily` and `api_growth_daily`.
@@ -96,9 +96,9 @@ Analytics and operational records also belong to the database:
 - `paper_*` tables: measurement records; `image_scan_hashes`, `image_scan_queue`,
   `image_scan_matches`: scan cache, queued work and findings.
 
-Evidence: `db/schema.sql`; `internal/app/operations/apimetrics.go` (`pruneOld`);
-`internal/analytics/ingest.go`; `internal/repository/sites/sites.go`
-(`DropOldSiteName`); `internal/repository/storage/access.go` (`LoadTables`).
+Evidence: `host/db/schema.sql`; `host/app/operations/apimetrics.go` (`pruneOld`);
+`host/analytics/ingest.go`; `host/repository/sites/sites.go`
+(`DropOldSiteName`); `host/repository/storage/access.go` (`LoadTables`).
 
 ## Disk layout and lifecycle
 
@@ -122,13 +122,13 @@ domains/<domain>         symlink to ../by-id/<user-id>/<site>
 continues serving, removes the old `current`, then renames the copy into place.
 There is a short remove/rename gap; this is not an atomic symlink exchange.
 `EnsureHandleLink` and `BindDomain` create the address symlinks.
-Evidence: `internal/storage/disk.go`, functions named above.
+Evidence: `host/storage/disk.go`, functions named above.
 
 Rename, trash and restore move the site's directory, so runtime resources travel
 with it. Permanent deletion removes it. Resource declarations and KV are keyed
 by site ID and follow PostgreSQL lifecycle rules rather than path names.
-Evidence: `internal/storage/disk.go` (`RenameSite`, `DeleteSite`),
-`internal/storage/trash.go`, `internal/app/sites/deleted.go`.
+Evidence: `host/storage/disk.go` (`RenameSite`, `DeleteSite`),
+`host/storage/trash.go`, `host/app/sites/deleted.go`.
 
 The suspension marker mirrors site or owner suspension and is reconciled at
 boot. Go checks it when serving; nginx and Caddy check it when reading disk and
@@ -136,11 +136,11 @@ route to `/internal/suspended`. List on my profile is stored in sites.visibility
 It only controls the profile page. Legacy unlisted marker files are inert and removed once
 when disk storage opens, including in Recently deleted; missing files are tolerated and the
 count is logged. Every open site can be found by search engines. Evidence:
-`internal/storage/disk.go`, `internal/handler/seo.go`.
+`host/storage/disk.go`, `host/handler/seo.go`.
 
 ## Publication and rollback
 
-`internal/app/sites/service.go` owns the ordering through `Service.Create`,
+`host/app/sites/service.go` owns the ordering through `Service.Create`,
 `Service.Update`, `activateVersion` and `Rollback`:
 
 1. Take account/site locks and perform the transaction-time gates. Updates lock
@@ -166,24 +166,24 @@ it attempts to put the previous serving tree back and logs a failed compensation
 It does not restore KV, SQLite, raw files, legacy state or history. Those stores
 live outside deployment versions. A rollback to the current version is a no-op.
 
-The deploy-version writer is `internal/storage/disk.go`, used through site
+The deploy-version writer is `host/storage/disk.go`, used through site
 workflows. It is not the only writer beneath a site directory: runtime resources
-are written by `app/storage` using `internal/storage` helpers; the image-scan
-worker can remove flagged deploy/runtime images (`internal/app/operations/imagescan.go`).
+are written by `app/storage` using `host/storage` helpers; the image-scan
+worker can remove flagged deploy/runtime images (`host/app/operations/imagescan.go`).
 Do not treat an upload mutex as a global filesystem lock across processes.
 
 ## Lock scope and quota accounting
 
 | Scope | Mechanism and evidence |
 |---|---|
-| Account/site within one process | `internal/handler/site.go:lockSite` uses `uploadLocks` keyed by user/name; `storagecaps.go:lockAccountFiles` uses the empty site name for the account cap lock |
-| Runtime resource writes | `internal/app/storage/service.go:writeLock` uses the injected shared mutex map, bounded wait/write contexts and a resource recheck under lock |
+| Account/site within one process | `host/handler/site.go:lockSite` uses `uploadLocks` keyed by user/name; `storagecaps.go:lockAccountFiles` uses the empty site name for the account cap lock |
+| Runtime resource writes | `host/app/storage/service.go:writeLock` uses the injected shared mutex map, bounded wait/write contexts and a resource recheck under lock |
 | PostgreSQL site/user mutation | `repository/sites/sites.go:LockSiteForUpdate`, `LockUserHandle`, `LockUserForFileCaps` use row locks within the caller's transaction |
-| Domain/namespace claims | Transaction advisory locks in `internal/repository/sites/domains.go`, `internal/repository/sites/store_families.go` and `repository/accounts/accounts.go:LockPlatformName` serialize competing claims |
-| SQLite capacity | `internal/storage/sqlite_gate.go:SQLiteGate` bounds concurrent work; SQLite transactions/authorizers control individual statements |
+| Domain/namespace claims | Transaction advisory locks in `host/repository/sites/domains.go`, `host/repository/sites/store_families.go` and `repository/accounts/accounts.go:LockPlatformName` serialize competing claims |
+| SQLite capacity | `host/storage/sqlite_gate.go:SQLiteGate` bounds concurrent work; SQLite transactions/authorizers control individual statements |
 | Migrations and delivery | Database locks/leases described below; these work across processes |
 
-Storage policy checks and quota checks belong to `internal/app/storage`, not the
+Storage policy checks and quota checks belong to `host/app/storage`, not the
 HTTP/MCP caller. Presets store four actions and may have SQLite table overrides;
 owner tools bypass the page matrix, while owner visitor sessions receive only
 storage-data authority. See `access.go`, `matrix.go` and `rows.go` in that package.
@@ -210,11 +210,11 @@ page budgets and use transactions; fixed row writes commit before checkpointing,
 so a checkpoint error is logged rather than turning a committed write into a
 failed response. Runtime writes invalidate disk-usage caches.
 Evidence: `app/storage/kv.go`, `files.go:PutFile`, `row_write.go:finishTableWrite`,
-`internal/storage/runtime_sql_cap.go`, `runtime_row_mechanics.go`.
+`host/storage/runtime_sql_cap.go`, `runtime_row_mechanics.go`.
 
 Deployment site/account file caps are separate: `app/sites/filecaps.go`
 (`checkFileCaps`) projects the live copy, incoming version and retained versions
-before writing; `internal/storage/footprint.go` measures disk footprint.
+before writing; `host/storage/footprint.go` measures disk footprint.
 Do not substitute runtime storage usage for that deployment calculation.
 
 ## Outbox and delivery leases
@@ -225,8 +225,8 @@ under `PASSCODE_ENC_KEY`. Associated data is `notification:<id>` for signing
 secrets and `notification:<id>:header` for header tokens. Values are opened only
 when needed for signing, sending or refresh comparison. New subscriptions need
 the encryption key; startup can seal old plaintext records as a data-only sweep.
-Evidence: `internal/handler/notify_secrets.go`, `passcode.go`,
-`internal/repository/notifications/notifications.go:SaveNotification`, `SealNotificationSecrets`.
+Evidence: `host/handler/notify_secrets.go`, `passcode.go`,
+`host/repository/notifications/notifications.go:SaveNotification`, `SealNotificationSecrets`.
 
 `emitSiteEvent` locks the site row, appends `site_events` with increasing `seq`,
 and inserts matching `site_event_deliveries` in one PostgreSQL transaction.
@@ -235,8 +235,8 @@ until retention cleanup. The outbox insert is separate from the originating
 storage mutation: services release write locks before emitting notifications.
 There is no atomic PostgreSQL/SQLite/file/outbox commit.
 
-Delivery runs through `internal/app/notifications/delivery.go` (`Deliver`,
-`ProcessDelivery`), started by `internal/handler/notify.go:StartNotifications`; SQL is in `internal/repository/notifications/notifications.go`:
+Delivery runs through `host/app/notifications/delivery.go` (`Deliver`,
+`ProcessDelivery`), started by `host/handler/notify.go:StartNotifications`; SQL is in `host/repository/notifications/notifications.go`:
 
 - `ClaimNotificationDelivery` expires old leases, counting them as timeout
   attempts; selects due eligible work with `FOR UPDATE OF d SKIP LOCKED`; and
@@ -259,13 +259,13 @@ person/kind transaction advisory lock used for notice batches.
 
 ## Schema installation and upgrades
 
-Fresh databases use `db/schema.sql`. `migrations.Init` creates it only when the
+Fresh databases use `host/db/schema.sql`. `migrations.Init` creates it only when the
 `users` table is absent; `Apply` then runs pending tracked files even on that fresh
 schema. Thus every new migration must be idempotent against the canonical schema.
 For upgrades, apply schema changes before starting a binary that requires them;
 startup's required-column check refuses an incompatible schema.
 
-`db/migrations/migrations.go` defines the exact rules:
+`host/db/migrations/migrations.go` defines the exact rules:
 
 - Edit `schema.sql` and add plain SQL named `NNNN-name.sql` using the next free
   number. Keep it additive, defaulted and safe for the old binary; no long table
@@ -322,15 +322,15 @@ Owner site/account exports include runtime files, resource declarations, KV and
 file authorship alongside legacy recovery data. SQLite is checkpointed before
 exporting main files; WAL/SHM sidecars are excluded. These exports are not a full
 instance database backup or all retained deployment versions. Evidence:
-`internal/app/sites/export.go:writeSiteArchive`, `writeStorageArchive`,
-`internal/storage/export_sqlite.go`; see [deployment profiles](../operations/deployment-profiles.md).
+`host/app/sites/export.go:writeSiteArchive`, `writeStorageArchive`,
+`host/storage/export_sqlite.go`; see [deployment profiles](../operations/deployment-profiles.md).
 
 ## Legacy adapter and design references
 
-`internal/app/legacy.Adapter` is the shared compatibility workflow layer for
+`host/app/legacy.Adapter` is the shared compatibility workflow layer for
 state, collections/private submissions, declared kinds/data, Personal `mine`,
 shared `board`, savers, history/undo, watch and notification behavior. Its SQL is
-in `internal/repository/legacy`. HTTP and
+in `host/repository/legacy`. HTTP and
 MCP reuse this adapter; there is no separate MCP legacy persistence engine.
 
 Host keeps these APIs because live sites can depend on their versions, origin
@@ -343,7 +343,7 @@ recovery exports. The rejection gate does not delete data.
 Grandfathered visitor raw SQL is a separate compatibility path in the current
 SQLite API, including Hack: an existing qualifying full-mode resource without a
 matrix can retain it until its policy changes. New matrices use fixed row routes.
-See `internal/rules/storage` and `app/storage/legacy_sql.go`.
+See `host/rules/storage` and `app/storage/legacy_sql.go`.
 
 Retirement requires an inventory of dependent sites, proven export/restore,
 owner-controlled migration and recovery support, parity/client compatibility

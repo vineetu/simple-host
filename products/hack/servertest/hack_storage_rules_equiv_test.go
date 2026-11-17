@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/host/model"
+	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
-	"github.com/vsriram/simple-host/internal/model"
-	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
 // Preset equivalence on Simple Hack (R3-S5b). Every request goes over HTTP to

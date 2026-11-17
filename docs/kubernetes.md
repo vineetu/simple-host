@@ -120,7 +120,7 @@ kubectl -n simple-hack logs deploy/simple-hack
 ```
 
 The log shows `MIGRATE_ON_START: building the schema if the database is
-empty`, `built the schema from db/schema.sql`, the migrations being
+empty`, `built the schema from host/db/schema.sql`, the migrations being
 recorded, then `hosted events: on (the hackathon platform at
 https://hack.example.com)` and the listen line. The pod is Ready when
 `/readyz` can ping Postgres.

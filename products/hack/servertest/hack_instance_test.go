@@ -3,15 +3,15 @@ package servertest
 import (
 	"archive/zip"
 	"bytes"
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/host/config"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )

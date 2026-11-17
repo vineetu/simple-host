@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = Path('internal/webassets/static/openapi.yaml')
+BASE = Path('host/webassets/static/openapi.yaml')
 PART = Path('products/hack/webassets/openapi.part.yaml')
 PRODUCT = Path('products/hack/webassets')
 METHODS = {'get', 'put', 'post', 'delete', 'patch', 'options', 'head', 'trace'}
@@ -170,9 +170,9 @@ def generated():
     internal = compose(base, part)
     public = go_json(public_spec(internal, 'public-hack'))
     return {
-        Path('internal/webassets/static/openapi.json'): json.dumps(base, indent=2, ensure_ascii=False),
+        Path('host/webassets/static/openapi.json'): json.dumps(base, indent=2, ensure_ascii=False),
         PRODUCT / 'static/openapi.json': public,
-        PRODUCT / 'static/openapi.yaml': '# Generated; edit internal/webassets/static/openapi.yaml and products/hack/webassets/openapi.part.yaml.\n' + public,
+        PRODUCT / 'static/openapi.yaml': '# Generated; edit host/webassets/static/openapi.yaml and products/hack/webassets/openapi.part.yaml.\n' + public,
         PRODUCT / 'openapi.internal.json': go_json(internal),
     }
 

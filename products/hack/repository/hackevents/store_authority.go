@@ -3,7 +3,7 @@ package hackevents
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 func HackSiteOwnerOnSite(ctx context.Context, q sqlkit.Querier, siteID, userID string) (bool, error) {

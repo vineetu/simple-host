@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // homepageLinks is the homepage's Link header value. Duplicated from
-// discovery.go's HomepageLinks (internal/handler, cleanup 3.2 slice 3): pure
+// discovery.go's HomepageLinks (host/handler, cleanup 3.2 slice 3): pure
 // data with no instance dependency, so a copy here is simpler than an
 // injected value for the one call site that reads it.
 const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"`

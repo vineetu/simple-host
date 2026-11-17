@@ -70,7 +70,7 @@ jobs:
             echo "### Docs sync"
             echo '```'
             tail -40 .docs-sync/check.log
-            git status --porcelain -- docs/site internal/webassets/docs-site ':!internal/webassets/docs-site/*/pagefind/**' | head -40
+            git status --porcelain -- docs/site host/webassets/docs-site ':!host/webassets/docs-site/*/pagefind/**' | head -40
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -90,7 +90,7 @@ jobs:
             2. Read .docs-sync/check.log: it lists what the docs check found. Fix what lives in docs/site
                (task guides under docs/site/src/content/docs, areas.json, old-anchors.json). The API, MCP tool,
                self-hosting and changelog pages are generated at build time; do not hand-write them.
-            3. See what changed recently: `git log -n 20 --stat -- FEATURES.md CHANGELOG.md internal/webassets/static internal/mcp docs`.
+            3. See what changed recently: `git log -n 20 --stat -- FEATURES.md CHANGELOG.md host/webassets/static host/mcp docs`.
                Update the task guide for each changed feature: plain words, the same structure as the existing
                pages, no sections about what is missing. Simple Host pages must never mention Simple Hack; keep
                Hack-only text inside brand:hack blocks or hack-only pages.
@@ -107,21 +107,21 @@ jobs:
           set -euo pipefail
           # Only docs/site and its build output may change; anything else is discarded.
           rm -rf .docs-sync
-          { git diff --name-only | grep -vE '^(docs/site/|internal/webassets/docs-site/)' || true; } | while IFS= read -r f; do
+          { git diff --name-only | grep -vE '^(docs/site/|host/webassets/docs-site/)' || true; } | while IFS= read -r f; do
             echo "Discarding change outside docs/site: $f"; git checkout -- "$f"; done
-          { git ls-files --others --exclude-standard | grep -vE '^(docs/site/|internal/webassets/docs-site/)' || true; } | while IFS= read -r f; do
+          { git ls-files --others --exclude-standard | grep -vE '^(docs/site/|host/webassets/docs-site/)' || true; } | while IFS= read -r f; do
             echo "Discarding new file outside docs/site: $f"; rm -f -- "$f"; done
           bash scripts/build-docs-site.sh > /tmp/docs-build.log 2>&1 || { tail -40 /tmp/docs-build.log; exit 1; }
           set +e; python3 scripts/check-docs-site.py > /tmp/docs-check-after.log 2>&1; after=$?; set -e
           # Pagefind output differs by CPU, so it alone is not a change worth proposing.
-          if [ -z "$(git status --porcelain -- docs/site internal/webassets/docs-site ':!internal/webassets/docs-site/*/pagefind/**')" ]; then
+          if [ -z "$(git status --porcelain -- docs/site host/webassets/docs-site ':!host/webassets/docs-site/*/pagefind/**')" ]; then
             echo "Docs are current."; exit 0
           fi
           branch=docs-sync
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -C "$branch"
-          git add -- docs/site internal/webassets/docs-site
+          git add -- docs/site host/webassets/docs-site
           git -c core.hooksPath=/dev/null commit -q --no-verify -m "Docs: bring /docs/ up to date with ${HEAD_SHA::12}"
           git push -q --force origin "$branch"
           {

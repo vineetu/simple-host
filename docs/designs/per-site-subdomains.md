@@ -1,4 +1,4 @@
-> **Status: Done (2026-09-26)** — every site at `https://<site>.<handle>.simple-host.app/` (`internal/handler/sitehost.go`, `SITE_HOSTS=canonical`); per-person certificates from the issuer in `deploy/site-certs/`. Supersedes the address half of `per-person-subdomains-plan.md`.
+> **Status: Done (2026-09-26)** — every site at `https://<site>.<handle>.simple-host.app/` (`host/handler/sitehost.go`, `SITE_HOSTS=canonical`); per-person certificates from the issuer in `deploy/site-certs/`. Supersedes the address half of `per-person-subdomains-plan.md`.
 
 # Per-site subdomains (2026-09-26)
 
@@ -82,7 +82,7 @@ Without `SITE_CERT_DIR` every person counts as ready (for instances with their o
   site-host start, so old pages and hand-written links keep working. The email-code path has no
   cross-browser step (the code is typed into the page and redeemed by a same-origin request that
   sets the cookie in its response), so it needs no binding. Migration
-  `db/migrations/visitor-signin-nonce.sql`.
+  `host/db/migrations/visitor-signin-nonce.sql`.
 - All `<site>.<handle>` hosts are same-site with each other and the apex until simple-host.app is
   on the Public Suffix List (`public-suffix-list-submission.md`); cookies are host-only and writes
   require `X-SH-CSRF`, so that gap does not open cross-site writes.

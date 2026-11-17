@@ -36,7 +36,7 @@ two instances. Set `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `DATA_DIR`, `PORT` and
 accepts `EVENTS=hosted` or unset for compatibility. Host refuses `EVENTS=hosted`;
 the program selects the product, not the environment. This describes the required operator contract,
 not a verification of secret-file contents (`deploy/prod/simple-host.service:11`,
-`/etc/systemd/system/simple-hack.service:9`, `internal/config/config.go:16`,
+`/etc/systemd/system/simple-hack.service:9`, `host/config/config.go:16`,
 `deploy/hack/README.md:4`). Hosted family addresses use `PERSON_HOSTS=canonical`
 and `SITE_HOSTS=canonical` (`ARCHITECTURE.md`, Deploy).
 
@@ -53,7 +53,7 @@ A fresh empty database needs the matching program's
 `migrate -init -record-product`; do not load schema.sql separately. An existing
 database with no product record needs that program's explicit
 `migrate -record-product` once. Ordinary startup checks the recorded product
-and schema (`internal/server/migrate.go`, `internal/server/build.go`).
+and schema (`host/server/migrate.go`, `host/server/build.go`).
 The shared migration rules below apply.
 
 ### Upgrade steps and rollback
@@ -189,7 +189,7 @@ absent, applies pending files under the advisory lock, and checks the schema.
 The database role must own the database. With migrateOnStart disabled, the
 operator must run the same image's `migrate -init` first
 (`deploy/kubernetes/simple-hack/values.yaml:37`, `cmd/server/main.go:115`,
-`db/migrations/migrations.go:417`, `docs/kubernetes.md:175`).
+`host/db/migrations/migrations.go:417`, `docs/kubernetes.md:175`).
 
 ### Upgrade steps and rollback
 
@@ -201,7 +201,7 @@ Use `helm rollback` or restore the previous manifest/image for binary rollback;
 SQL stays applied. Earlier successful migration files remain committed if a
 later file fails. Restore DB plus volume together if data rollback is needed
 (`docs/kubernetes.md:152`, `docs/kubernetes.md:187`,
-`db/migrations/migrations.go:20`). Check external `/healthz`, `/readyz`, a team
+`host/db/migrations/migrations.go:20`). Check external `/healthz`, `/readyz`, a team
 site, and `kubectl exec` the pod's `/usr/local/bin/simple-hack version`.
 The Hack image keeps a `simple-host` alias for existing chart commands for
 this release only; a locally built chart image must use `--target hack`.
@@ -213,7 +213,7 @@ The chart probes healthz for startup/liveness and readyz for readiness
 Workers are goroutines in the server, not separate queue services in any
 profile. `cmd/server/main.go` starts connector expiry sweep (`:379`), hosted
 Hack cleanup (`:421`), optional event-domain sweep (`:509`), API metric flushing
-(constructor at `:532`, `internal/handler/apimetrics.go:94`), optional access-log
+(constructor at `:532`, `host/handler/apimetrics.go:94`), optional access-log
 analytics (`:563`), then certificate requests, Hack settlement, event cleanup
 and content delivery, deleted-site purge, idle cleanup, saved-data sweep,
 submission emails, notification delivery, address-family checks, network usage,
@@ -224,8 +224,8 @@ Migrations are forward-only: there is no down command. New files must be
 `NNNN-name.sql`, next free number, plain idempotent SQL, additive and safe on a
 live DB. The runner uses the frozen legacy order then numbered files, skips
 historical baseline files, and commits each file with its schema_migrations row
-under a per-database Postgres advisory lock (`db/migrations/migrations.go:4`,
-`db/migrations/migrations.go:302`). Init uses that same lock; manual SQL does not.
+under a per-database Postgres advisory lock (`host/db/migrations/migrations.go:4`,
+`host/db/migrations/migrations.go:302`). Init uses that same lock; manual SQL does not.
 
 An older binary is intended to work on the newer additive schema, but startup
 does not prove full backwards compatibility. VerifySchema checks only the
@@ -233,9 +233,9 @@ presence of its listed tables/columns; hosted Hack also checks its listed
 columns and the existence of event_teams_name_idx. It does not compare schema
 versions, reject extra columns/newer migration rows, or check column types or
 index definitions. Missing requirements abort startup; extra schema is accepted
-(`cmd/server/main.go:131`, `internal/db/schemacheck.go:170`,
-`internal/db/schemacheck.go:196`). `/healthz` means HTTP is answering; `/readyz`
-also pings Postgres (`internal/handler/health.go:19`). The version command needs
+(`cmd/server/main.go:131`, `host/db/schemacheck.go:170`,
+`host/db/schemacheck.go:196`). `/healthz` means HTTP is answering; `/readyz`
+also pings Postgres (`host/handler/health.go:19`). The version command needs
 no database and prints release/commit plus embedded migration information
 (`cmd/server/migrate.go:148`).
 

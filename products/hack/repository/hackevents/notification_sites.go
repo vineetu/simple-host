@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // HackNotificationSite resolves the person's team site or organiser website.

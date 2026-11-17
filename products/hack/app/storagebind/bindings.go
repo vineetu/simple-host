@@ -5,9 +5,9 @@ import (
 	"context"
 	"database/sql"
 
+	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
-	appstorage "github.com/vsriram/simple-host/internal/app/storage"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 

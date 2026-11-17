@@ -5,13 +5,13 @@
 # the database (no email provider needed), then runs the Playwright checks
 # in Chromium and WebKit.
 #
-#   DB_DSN=postgres://...fresh database with db/schema.sql applied... \
+#   DB_DSN=postgres://...fresh database with host/db/schema.sql applied... \
 #     bash scripts/e2e-admin-layout.sh
 #
 # BIN defaults to a fresh build. Needs psql and Playwright
 # (PLAYWRIGHT_DIR=/opt/pw/node_modules, or installed another way).
 set -euo pipefail
-: "${DB_DSN:?DB_DSN must name a throwaway database with db/schema.sql applied}"
+: "${DB_DSN:?DB_DSN must name a throwaway database with host/db/schema.sql applied}"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 PORT=${PORT:-18199}

@@ -5,7 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	platform "github.com/vsriram/simple-host/internal/papermetrics"
+	platform "github.com/vsriram/simple-host/host/papermetrics"
 	"net/http"
 	"net/http/httptest"
 	"os"

@@ -34,21 +34,21 @@ func patternInputs(sites []dynamicSite, prefix, suffix string) []string {
 	return values
 }
 func validateDynamicInputs(root string) error {
-	ui := dynamicSites["internal/handler/ui.go:RegisterUIRoutes"]
-	connector := dynamicSites["internal/handler/connector.go:Register"]
+	ui := dynamicSites["host/handler/ui.go:RegisterUIRoutes"]
+	connector := dynamicSites["host/handler/connector.go:Register"]
 	hackVersions := dynamicSites["products/hack/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
 	ownFiles := dynamicSites["products/hack/asset_files.go:RegisterOwnFiles"]
 	hackFilm := dynamicSites["products/hack/hackhttp/hack_film.go:RegisterHackFilm"]
 	inputs := []dynamicInput{
-		{"internal/server/build.go", "Build", "range", nil, 1, "opts.Redirects"},
-		{"cmd/simple-host/main.go", "compatibilityRedirects", "keys", patternInputs(dynamicSites["internal/server/build.go:Build"], "", ""), 0, ""},
-		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
-		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
-		{"internal/handler/ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},
-		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles()"},
-		{"internal/handler/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
-		{"internal/handler/connector.go", "museClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
-		{"internal/handler/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
+		{"host/server/build.go", "Build", "range", nil, 1, "opts.Redirects"},
+		{"cmd/simple-host/main.go", "compatibilityRedirects", "keys", patternInputs(dynamicSites["host/server/build.go:Build"], "", ""), 0, ""},
+		{"host/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
+		{"host/handler/ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
+		{"host/handler/ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},
+		{"host/handler/ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles()"},
+		{"host/handler/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
+		{"host/handler/connector.go", "museClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
+		{"host/handler/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
 		{"products/hack/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["products/hack/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
@@ -63,7 +63,7 @@ func validateDynamicInputs(root string) error {
 		{"products/hack/hackhttp/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
 	}
 	for registration := 4; registration <= 7; registration++ {
-		inputs = append(inputs, dynamicInput{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, registration, "assets.bundledSkillDirs()"})
+		inputs = append(inputs, dynamicInput{"host/handler/ui.go", "RegisterUIRoutes", "range", nil, registration, "assets.bundledSkillDirs()"})
 	}
 	for _, input := range inputs {
 		if err := validateDynamicInput(root, input); err != nil {
@@ -71,7 +71,7 @@ func validateDynamicInputs(root string) error {
 		}
 	}
 	// bundledSkillDirs reads these embedded directories rather than a Go list.
-	for product, bundle := range map[string]string{"host": "internal/webassets/simple-host-website/skills", "hack": "products/hack/webassets/hack-toolkit/skills"} {
+	for product, bundle := range map[string]string{"host": "host/webassets/simple-host-website/skills", "hack": "products/hack/webassets/hack-toolkit/skills"} {
 		var dirs []string
 		entries, err := os.ReadDir(filepath.Join(root, bundle))
 		if err != nil {

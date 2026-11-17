@@ -2,7 +2,7 @@ package hackevents
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // ChecklistMarks reads shared dismissals and only the caller's personal acknowledgements.

@@ -3,7 +3,7 @@ package hackmcp
 import (
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 func hackPublicReadOnly() map[string]any {

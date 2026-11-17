@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	rulesauth "github.com/vsriram/simple-host/internal/rules/auth"
+	rulesauth "github.com/vsriram/simple-host/host/rules/auth"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 

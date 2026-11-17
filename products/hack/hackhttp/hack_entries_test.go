@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // Entries (M2): a participant's own entry and screenshot, and the organiser

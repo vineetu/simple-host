@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs/site'
-OUTPUT = ROOT / 'internal/webassets/docs-site'
+OUTPUT = ROOT / 'host/webassets/docs-site'
 BRANDS = ('host', 'hack')
 
 _spec = importlib.util.spec_from_file_location('docs_site', ROOT / 'scripts/docs-site.py')
@@ -25,7 +25,7 @@ docs_site = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(docs_site)
 dr = docs_site.docs_reference
 
-SKILLS_DIR = {'host': ROOT / 'internal/webassets/simple-host-website/skills',
+SKILLS_DIR = {'host': ROOT / 'host/webassets/simple-host-website/skills',
               'hack': ROOT / 'products/hack/webassets/hack-toolkit/skills'}
 BRAND_DOMAIN = {'host': 'simple-host.app', 'hack': 'simple-hack.app'}
 
@@ -159,7 +159,7 @@ def problems_links():
     # features.json "Docs" links (SIM-390 item 4d): every entry must resolve
     # per brand, AND every feature not in not_shown with a brand on (yes/partial)
     # must carry at least one /docs/ link that resolves in every such brand.
-    feature_files = {'host': ROOT / 'internal/webassets/static/features.json',
+    feature_files = {'host': ROOT / 'host/webassets/static/features.json',
                      'hack': ROOT / 'products/hack/webassets/static/features.json'}
     for selected_brand, features_path in feature_files.items():
         features = json.loads(features_path.read_text())
@@ -190,7 +190,7 @@ def problems_links():
                     errors.append(f'features.json {feature.get("id")}: no /docs/ link resolving in every brand it is on ({", ".join(needed)})')
 
     per_brand_docs = {
-        'host': [ROOT / 'internal/webassets/static/llms.txt'],
+        'host': [ROOT / 'host/webassets/static/llms.txt'],
         'hack': [ROOT / 'products/hack/webassets/static/hack-llms.txt'],
     }
     for brand in BRANDS:
@@ -224,7 +224,7 @@ PHRASE_RE = re.compile(r'\bphrase\(\s*"((?:[^"\\]|\\.)*)"')
 
 
 def limits_phrases():
-    text = (ROOT / 'internal/handler/limitstext.go').read_text()
+    text = (ROOT / 'host/handler/limitstext.go').read_text()
     return [json.loads('"' + m + '"') for m in PHRASE_RE.findall(text)]
 
 

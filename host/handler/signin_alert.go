@@ -1,0 +1,197 @@
+package handler
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/vsriram/simple-host/host/app/accounts"
+)
+
+// SignInAlerts emails the owner after each successful sign-in (emailed code or
+// link, Google) and each AI app connected through the consent screen: when,
+// from which browser or app, and where "Sign out everywhere" is. Never the IP
+// or a location. At most one per account, browser/app and UTC day; none for
+// event accounts, the plugin reviewer account or an account that turned them
+// off. API key calls never send one.
+type SignInAlerts struct {
+	accounts      *accounts.Service
+	mailer        signInCodeSender
+	publicBaseURL string
+	reviewerEmail string
+	// run sends in the background so a sign-in never waits on the mail
+	// provider; tests make it synchronous.
+	run func(func())
+	now func() time.Time
+}
+
+func newSignInAlerts(service *accounts.Service, mailer signInCodeSender, publicBaseURL string) *SignInAlerts {
+	return &SignInAlerts{
+		accounts:      service,
+		mailer:        mailer,
+		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
+		run:           func(f func()) { go f() },
+		now:           time.Now,
+	}
+}
+
+// Alert sends the alert for a sign-in by userID from userAgent. app names the
+// AI app just connected, or is empty for a plain sign-in.
+func (a *SignInAlerts) Alert(userID, userAgent, app string) {
+	if a == nil || userID == "" {
+		return
+	}
+	mailer, ok := a.mailer.(noticeSender)
+	if !ok {
+		return
+	}
+	at := a.now().UTC()
+	summary := summarizeUserAgent(userAgent)
+	a.run(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		a.accounts.DeliverSignInAlert(ctx, userID, a.reviewerEmail, summary, app, mailer, func(email, handle string) (string, string) {
+			return signInAlertText(email, a.ownerAppURL(handle), summary, app, at)
+		})
+	})
+}
+
+// ownerAppURL is where the account's "Sign out everywhere" and the alert
+// switch are: Settings on the owner app for an account with an address, else /dashboard.
+func (a *SignInAlerts) ownerAppURL(handle string) string {
+	if handle != "" {
+		return a.publicBaseURL + "/" + handle + "#settings"
+	}
+	return a.publicBaseURL + "/dashboard"
+}
+
+var (
+	reportedEmail = regexp.MustCompile(`\S*@\S*`)
+	reportedURL   = regexp.MustCompile(`(?i)\S*(://|www\.)\S*`)
+	reportedHost  = regexp.MustCompile(`\S*\w\.\w\S*`)
+	reportedOdd   = regexp.MustCompile(`[^\p{L}\p{N} ()_+-]+`)
+	reportedSpace = regexp.MustCompile(`\s+`)
+)
+
+// reportedName makes a name an app or browser gave about itself safe to
+// quote in an email: addresses, links and anything that looks like a domain
+// are dropped (mail clients turn those into links), odd characters go, and it
+// is cut to 40 characters. "" when nothing is left.
+func reportedName(s string) string {
+	s = reportedEmail.ReplaceAllString(s, " ")
+	s = reportedURL.ReplaceAllString(s, " ")
+	s = reportedHost.ReplaceAllString(s, " ")
+	s = reportedOdd.ReplaceAllString(s, " ")
+	s = strings.TrimSpace(reportedSpace.ReplaceAllString(s, " "))
+	if r := []rune(s); len(r) > 40 {
+		s = strings.TrimSpace(string(r[:40]))
+	}
+	return s
+}
+
+func signInAlertText(to, link, summary, app string, at time.Time) (string, string) {
+	when := at.Format("2 Jan 2006, 15:04") + " UTC"
+	subject := "New sign-in to your Simple Host account"
+	what := "Your Simple Host account (" + to + ") was signed in to."
+	if app != "" {
+		// The name is self-declared by the app, so it stays out of the
+		// subject and is quoted, cleaned, as what the app reported.
+		subject = "An app was connected to your Simple Host account"
+		name := reportedName(app)
+		if name == "" {
+			name = "an unnamed app"
+		}
+		what = "An app (\"" + name + "\", as reported by the app) was connected to your Simple Host account (" + to + "). It can now publish and manage your sites for you."
+	}
+	from := reportedName(summary)
+	if from == "" {
+		from = "an unknown browser or app"
+	}
+	text := fmt.Sprintf(`%s
+
+When: %s
+From: "%s" (as reported by the browser or app)
+
+If this was you, there is nothing to do.
+
+If it wasn't, open %s and press "Sign out everywhere": every key stops working, every connected app is disconnected and every sign-in on your sites ends. Then write to support@simple-host.app.
+
+You can turn these emails off on the same page.
+
+Simple Host
+`, what, when, from, link)
+	return subject, supportText(text)
+}
+
+var (
+	uaEdge    = regexp.MustCompile(`\bEdg(e|A|iOS)?/`)
+	uaOpera   = regexp.MustCompile(`\b(OPR|Opera)/`)
+	uaFirefox = regexp.MustCompile(`\b(Firefox|FxiOS)/`)
+	uaChrome  = regexp.MustCompile(`\b(Chrome|CriOS)/`)
+	uaSafari  = regexp.MustCompile(`\bSafari/`)
+	uaProduct = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]{0,39}`)
+)
+
+// summarizeUserAgent turns a User-Agent into a few plain words ("Chrome on
+// macOS", "curl"). Only the browser and system families are kept, never
+// versions, so it identifies nobody and dedupes cleanly.
+func summarizeUserAgent(ua string) string {
+	ua = strings.TrimSpace(ua)
+	if ua == "" {
+		return "an unknown browser or app"
+	}
+	browser := ""
+	switch {
+	case uaEdge.MatchString(ua):
+		browser = "Edge"
+	case uaOpera.MatchString(ua):
+		browser = "Opera"
+	case uaFirefox.MatchString(ua):
+		browser = "Firefox"
+	case uaChrome.MatchString(ua):
+		browser = "Chrome"
+	case uaSafari.MatchString(ua):
+		browser = "Safari"
+	}
+	system := ""
+	switch {
+	case strings.Contains(ua, "iPhone"):
+		system = "iPhone"
+	case strings.Contains(ua, "iPad"):
+		system = "iPad"
+	case strings.Contains(ua, "Android"):
+		system = "Android"
+	case strings.Contains(ua, "CrOS"):
+		system = "ChromeOS"
+	case strings.Contains(ua, "Windows"):
+		system = "Windows"
+	case strings.Contains(ua, "Mac OS X") || strings.Contains(ua, "Macintosh"):
+		system = "macOS"
+	case strings.Contains(ua, "Linux"):
+		system = "Linux"
+	}
+	switch {
+	case browser != "" && system != "":
+		return browser + " on " + system
+	case browser != "":
+		return browser
+	case system != "" && strings.HasPrefix(ua, "Mozilla/"):
+		return "a browser on " + system
+	}
+	// Not a browser: an agent, script or app. Its product name is enough.
+	if name := uaProduct.FindString(ua); name != "" && name != "Mozilla" {
+		return name
+	}
+	return "an unknown browser or app"
+}
+
+// maskEmail shows enough of an address to recognise it: n***@example.com.
+func maskEmail(address string) string {
+	local, domain, ok := strings.Cut(address, "@")
+	if !ok || local == "" {
+		return "***"
+	}
+	return local[:1] + "***@" + domain
+}

@@ -21,16 +21,16 @@ import (
 	"testing"
 	"time"
 
-	notifyapp "github.com/vsriram/simple-host/internal/app/notifications"
-	"github.com/vsriram/simple-host/internal/mcp"
-	"github.com/vsriram/simple-host/internal/model"
-	notifyrepo "github.com/vsriram/simple-host/internal/repository/notifications"
+	notifyapp "github.com/vsriram/simple-host/host/app/notifications"
+	"github.com/vsriram/simple-host/host/mcp"
+	"github.com/vsriram/simple-host/host/model"
+	notifyrepo "github.com/vsriram/simple-host/host/repository/notifications"
 	"github.com/vsriram/simple-host/products/hack"
 )
 
 // testPasscodeKey, notifyTestSecret, notifyRandom, receivedNotification,
 // notificationReceiver/newNotificationReceiver/.snapshot()/.setStatus() and
-// assertNotificationSealed below are duplicated from internal/handler
+// assertNotificationSealed below are duplicated from host/handler
 // (passcode_test.go, notify_test.go, notify.go, notify_secrets_test.go;
 // cleanup 3.2 slice 3): pure test scaffolding or pure helpers with no
 // handler-private dependency once the client-swap itself moves behind

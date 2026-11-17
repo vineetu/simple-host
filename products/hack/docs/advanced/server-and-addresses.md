@@ -66,7 +66,7 @@ them. They are refused, with "this name is reserved; pick another", to a new or 
 handle, to a newly claimed free address `<name>.<domain>`, and to an account's automatic
 handle at sign-up (it gets `<name>-2` instead). Accounts and sites that already hold one keep it,
 and it keeps working. The list lives in one place in the code (`reservedNewNames` in
-`internal/handler/platformsubdomain.go`):
+`host/handler/platformsubdomain.go`):
 
 admin, administrator, root, sys, system, support, help, helpdesk, info, contact, hello,
 security, abuse, postmaster, hostmaster, webmaster, noreply, no-reply, mail, email, smtp, www,

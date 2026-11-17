@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
@@ -232,7 +232,7 @@ func InsertEvent(ctx context.Context, q sqlkit.Querier, e Event) (Event, error) 
 	// preset (the create handler passes its expanded rules JSON;
 	// zv-hack-entry-summary.sql section 2 -- a Go table, not a DB default,
 	// so the preset's field list lives in one place,
-	// internal/rules/hackentries/entries.go). entry_rules_chosen: the
+	// host/rules/hackentries/entries.go). entry_rules_chosen: the
 	// create handler passes false (0005-hack-entry-rules-chosen.sql,
 	// SIM-382) -- the organiser hasn't saved a choice yet, which is what
 	// gates Overview's "Choose what teams hand in" first step.

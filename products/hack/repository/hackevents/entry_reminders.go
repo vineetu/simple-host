@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // NoticeEntryReminder is the entry deadline reminder (entries slice 3,
-// db/migrations/zx-hack-entry-reminders.sql; generalised to custom offsets by
+// host/db/migrations/zx-hack-entry-reminders.sql; generalised to custom offsets by
 // 0003-hack-notices-judges-messages.sql): before a team's effective
 // deadline, every current member of a team whose entry is not submitted
 // gets an email through the notices queue. It is email only (born seen):

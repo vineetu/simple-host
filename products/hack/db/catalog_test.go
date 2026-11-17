@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	schema "github.com/vsriram/simple-host/db"
-	"github.com/vsriram/simple-host/db/migrations"
-	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
+	schema "github.com/vsriram/simple-host/host/db"
+	"github.com/vsriram/simple-host/host/db/migrations"
+	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
 	productmigrations "github.com/vsriram/simple-host/products/hack/db/migrations"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )

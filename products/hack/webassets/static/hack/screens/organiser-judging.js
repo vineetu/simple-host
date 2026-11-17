@@ -155,7 +155,7 @@ ${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href('org
       card.appendChild(ui.el('div', { class: 'note info', text: 'Assignments not generated yet' }))
     }
     // Audit item 2 (2026-11-02): in panel mode, a team matches no track
-    // panel and so gets no judges at all (internal/db/hack_judging_options.go,
+    // panel and so gets no judges at all (host/db/hack_judging_options.go,
     // the panel branch requires p.track_id=t.track_id). `teams` already
     // carries each team's track (GET .../teams, teamOrganiserFrom), so this
     // is computed client-side -- no server change needed to name them.

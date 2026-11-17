@@ -1,4 +1,4 @@
-D3-S2a: classification of all 16 functions in internal/handler/hack_assets.go
+D3-S2a: classification of all 16 functions in host/handler/hack_assets.go
 
 Product-owned receiver hackhttp.Assets (AssetServices, inkBase, private zip cache):
   HackInstanceText
@@ -23,8 +23,8 @@ Product-only helpers:
   connectStepsListHTML
 
 Shared platform helpers (NOTES.md ruling, unchanged):
-  publicOpenAPISpec -> internal/handler/public_openapi.go
-  openAPIMethod -> internal/handler/public_openapi.go
+  publicOpenAPISpec -> host/handler/public_openapi.go
+  openAPIMethod -> host/handler/public_openapi.go
 
 HackSkillNames and Connect* records move with their product callers.
 
@@ -44,54 +44,54 @@ names the later slice that takes it. Lines are as of this commit.
 A. Branches that only pass through to a product hook or to Replace (no
    product text in the platform; the flag is redundant with "a product is
    installed" and goes when the edition's product values go, D3-S4):
-  internal/handler/authmd.go:16        fills {sign_in}, then the InstanceText hook
-  internal/handler/basetext.go:171     calls the product Rewrite for auth.js
-  internal/handler/basetext.go:294     cache key separates product text from platform text
-  internal/handler/skillshub.go:210    served skill text goes through the InstanceText hook
-  internal/handler/assets.go:86        chromeHack: the chrome template's product flag
-  internal/handler/ui.go:98            handlerOnlyFS: hides hack-directory.html / hack-voting.html
+  host/handler/authmd.go:16        fills {sign_in}, then the InstanceText hook
+  host/handler/basetext.go:171     calls the product Rewrite for auth.js
+  host/handler/basetext.go:294     cache key separates product text from platform text
+  host/handler/skillshub.go:210    served skill text goes through the InstanceText hook
+  host/handler/assets.go:86        chromeHack: the chrome template's product flag
+  host/handler/ui.go:98            handlerOnlyFS: hides hack-directory.html / hack-voting.html
                                        from the file server (they have their own routes)
-  internal/handler/ui.go:153,154       discovery documents: which hosts the document names
-  internal/handler/ui.go:234           home page markdown: which landing file is read
-  internal/handler/product_assets.go:82 and internal/server/build.go:222
+  host/handler/ui.go:153,154       discovery documents: which hosts the document names
+  host/handler/ui.go:234           home page markdown: which landing file is read
+  host/handler/product_assets.go:82 and host/server/build.go:222
                                        PluginVersion(product): which plugin.json is read
 
 B. Branches that hold product TEXT OR LOGIC in the platform (not converted
    here; each needs a contract this slice does not have):
-  internal/handler/chrome.go:583-588   setup-helper.html on a product install (d.Hack, the
+  host/handler/chrome.go:583-588   setup-helper.html on a product install (d.Hack, the
                                        chromeHack flag): the "Set up Simple Hack" title, the
                                        description, data-setup-product="hack" and the lede
                                        are swapped into the platform's page. Product text in
                                        the platform; the script half of the setup page moved
                                        in this slice, the page's own words did not. -> D3-S3
                                        (public text).
-  internal/handler/ui.go:358           hack-get-started.html on another install: swaps the
+  host/handler/ui.go:358           hack-get-started.html on another install: swaps the
                                        "Install the five Simple Hack skills" step and two
                                        sentences. Wants a per-page product rewrite hook
                                        (PersonalPresentationHTML is the nearest). -> D3-S2b,
                                        which owns hack_get_started.go and the toolkit.
-  internal/handler/chrome.go:358       enterprise.html: the link to /hackathons points at this
+  host/handler/chrome.go:358       enterprise.html: the link to /hackathons points at this
                                        install on a product install. -> D3-S3 (public text).
-  internal/handler/instancehost.go:132 the "public-hack" audience name. Dead on Hack: the
+  host/handler/instancehost.go:132 the "public-hack" audience name. Dead on Hack: the
                                        OpenAPISpec hook is always set there and is used
                                        first. Left byte for byte because D3-S3 replaces the
                                        whole block ("until D3-S3 replaces it" in the brief).
-  internal/handler/instancehost.go:151,154 features.json markers and the host rewrite for
+  host/handler/instancehost.go:151,154 features.json markers and the host rewrite for
                                        features/openapi on a product install. -> D3-S3.
-  internal/handler/instancehost.go:209 the THIS SERVER note is for the platform's llms.txt
+  host/handler/instancehost.go:209 the THIS SERVER note is for the platform's llms.txt
                                        only. -> D3-S3.
-  internal/handler/chrome.go:140       the "made and run by" owner line of the hosted
+  host/handler/chrome.go:140       the "made and run by" owner line of the hosted
                                        platform. -> D3-S4 (hosted-service values).
-  internal/handler/chrome.go:372,378   product chrome: the product stylesheet link and the
+  host/handler/chrome.go:372,378   product chrome: the product stylesheet link and the
                                        hosted/self blocks. -> D3-S4.
-  internal/handler/docs.go:44,49       docs pages: self-hosted rewrite and hosted/self blocks.
+  host/handler/docs.go:44,49       docs pages: self-hosted rewrite and hosted/self blocks.
                                        -> D3-S3 (docs text).
-  internal/handler/skillshub.go:166    catalogue plugin name ("simple-hack"). -> D3-S2b.
-  internal/handler/ui.go:155           the platform registers /skills.zip only when no
+  host/handler/skillshub.go:166    catalogue plugin name ("simple-hack"). -> D3-S2b.
+  host/handler/ui.go:155           the platform registers /skills.zip only when no
                                        product does (the product route replaces it).
-  internal/handler/ui.go:159,177,179,180 skills version, plugin zip, install.sh, install.ps1:
+  host/handler/ui.go:159,177,179,180 skills version, plugin zip, install.sh, install.ps1:
                                        product names and archives. -> D3-S2b.
-  internal/handler/ui.go:198           /hackathons redirects to / on the platform; the
+  host/handler/ui.go:198           /hackathons redirects to / on the platform; the
                                        product serves the page. -> D3-S4.
 
 Decision recorded: what Replace holds
@@ -154,10 +154,10 @@ Review round 3
 ==============
 
 Hack's landing-film files stay in the platform's embed in this slice:
-internal/webassets/static/film/hack-film-* and hack-companies-film-* (12
+host/webassets/static/film/hack-film-* and hack-companies-film-* (12
 files: mp4, webm and poster at two widths each), served by
-internal/handler/film.go:27-31. They are not in this slice's file list.
--> D3-S2b, whose done-when is "find internal/webassets -iname '*hack*' is
+host/handler/film.go:27-31. They are not in this slice's file list.
+-> D3-S2b, whose done-when is "find host/webassets -iname '*hack*' is
 empty"; that cannot hold while they are here.
 
 AssetServices.Static returns a platform file as the product-neutral view
@@ -206,25 +206,25 @@ AssetServices therefore has six methods, one more than the brief lists.
 
 Film (review round 3 above). The 12 files moved to
 products/hack/webassets/static/film/. HackFilmTypes and the companies list
-left internal/handler/film.go for products/hack/hackhttp/hack_film.go, which
+left host/handler/film.go for products/hack/hackhttp/hack_film.go, which
 registers one exact route per file (the platform keeps "GET /film/{file}" for
 its own films). Hack's answers are byte-identical, headers included. On Host
 the 12 addresses answer 404 instead of 200 (scripts/golden/approved/D3-S2b.json);
 no Host page links to them.
 
 Section B lines assigned to D3-S2b:
-  internal/handler/ui.go:358 (hack-get-started.html on another install)
+  host/handler/ui.go:358 (hack-get-started.html on another install)
       -> products/hack/hackhttp/hack_get_started.go:serveHackGetStarted. The
          platform exports ChromePage (the chromed page before the nonce) for
          it; the three swaps run at the same point as before.
-  internal/handler/skillshub.go:166 (catalogue plugin name)
+  host/handler/skillshub.go:166 (catalogue plugin name)
       -> ProductAssetHooks.CatalogPlugin, a new string field ("" = the
          platform's "website-deploy"); Hack sets "simple-hack".
-  internal/handler/ui.go:177,179,180 (/plugin.zip, /install.sh, /install.ps1)
+  host/handler/ui.go:177,179,180 (/plugin.zip, /install.sh, /install.ps1)
       -> the platform registers its three routes only when no product is
          installed (as it already did for /skills.zip); Hack registers its
          own 410 answers in RegisterHackGetStarted, same status and text.
-  internal/handler/ui.go:159 (/skills/version)
+  host/handler/ui.go:159 (/skills/version)
       -> products/hack/extension.go: Assets.Routes registers Hack's response
          using AssetServices.PluginVersion(), with the same bytes and headers.
          The platform registers only its own response. The boot-time
@@ -233,10 +233,10 @@ Section B lines assigned to D3-S2b:
 ProductAssetHooks.RewritePluginZip stays declared and unread by the platform:
 Hack's versioned archive routes call their own function directly.
 
-The toolkit. internal/webassets/hack_embed.go and
-internal/webassets/hack-toolkit/ are now products/hack/webassets/hack_embed.go
+The toolkit. host/webassets/hack_embed.go and
+host/webassets/hack-toolkit/ are now products/hack/webassets/hack_embed.go
 and products/hack/webassets/hack-toolkit/ (HackFiles, HackSkills, the builder,
-metadata and the download site). `find internal/webassets -iname '*hack*'` is
+metadata and the download site). `find host/webassets -iname '*hack*'` is
 empty.
 
 NOT moved: the root hack-toolkit/ folder (the brief says -> products/hack/toolkit/).

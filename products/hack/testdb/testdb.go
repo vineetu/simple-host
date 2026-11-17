@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	platform "github.com/vsriram/simple-host/internal/testdb"
+	platform "github.com/vsriram/simple-host/host/testdb"
 )
 
 // Main runs product tests in their own clone of the composed schema template.

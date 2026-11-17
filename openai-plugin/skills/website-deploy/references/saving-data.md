@@ -1,4 +1,4 @@
-<!-- Derived from simple-host-website/skills/website-deploy/references/backend.md and internal/handler/static/auth.js. Keep in step. -->
+<!-- Derived from simple-host-website/skills/website-deploy/references/backend.md and host/handler/static/auth.js. Keep in step. -->
 
 # Deprecated saved data: existing sites only
 

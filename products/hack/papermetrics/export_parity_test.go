@@ -2,7 +2,7 @@ package papermetrics
 
 import (
 	"bytes"
-	platform "github.com/vsriram/simple-host/internal/papermetrics"
+	platform "github.com/vsriram/simple-host/host/papermetrics"
 	"net/http"
 	"net/http/httptest"
 	"os"

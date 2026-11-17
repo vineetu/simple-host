@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/auth"
-	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	"github.com/vsriram/simple-host/host/auth"
+	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 

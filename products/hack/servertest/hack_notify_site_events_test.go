@@ -3,7 +3,7 @@ package servertest
 import (
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // Site events (SIM-356): the engine side only. The hooks that call

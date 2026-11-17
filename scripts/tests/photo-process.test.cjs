@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const context = vm.createContext({ TextEncoder });
-vm.runInContext(fs.readFileSync('internal/webassets/static/photo-process.js', 'utf8'), context);
-vm.runInContext(fs.readFileSync('internal/mcp/apps/photo-picker.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('host/webassets/static/photo-process.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('host/mcp/apps/photo-picker.js', 'utf8'), context);
 const {slug, shrink} = context.SHPhotos;
 const {occupiedPaths, photoPath, batches} = context.SHPhotoBatch;
 test('readable names match /photos', () => {
@@ -45,7 +45,7 @@ test('bridge ignores foreign sources and malformed messages and handles the stan
     document:{documentElement:root,body:{getBoundingClientRect:()=>({height:120})}},
     matchMedia:()=>({matches:false}), ResizeObserver:class{observe(){}}, URL, setTimeout, clearTimeout
   });
-  vm.runInContext(fs.readFileSync('internal/mcp/apps/bridge.js','utf8'),bridge);
+  vm.runInContext(fs.readFileSync('host/mcp/apps/bridge.js','utf8'),bridge);
   const app=bridge.window.SHApp, start=app.start();
   assert.equal(sent[0].method,'ui/initialize');assert.equal(origins[0],'*');
   const reply={jsonrpc:'2.0',id:sent[0].id,result:{hostInfo:{name:'Claude'},hostContext:{theme:'dark'}}};
@@ -88,7 +88,7 @@ function picker({commit = true, fail = true, failAt = 1, maxBodyBytes = 16000000
     Blob, URL, setTimeout, clearTimeout, Uint8Array,
     Worker:class { constructor(){if(!workerAllowed)throw Error('CSP');} terminate(){} postMessage(){queueMicrotask(()=>this.onmessage({data:wasmAllowed?{ready:true}:{error:'CSP'}}));} },
     SHPhotos:{slug, codecKind:context.SHPhotos.codecKind, dataURL:async()=> 'data:image/webp;base64,YWJj',shrink:async f=>{shrunk.push(f);if(f.bad)throw Error('bad');return {blob:{size:3},ext:'.webp'};}}, TextEncoder});
-  vm.runInContext(fs.readFileSync('internal/mcp/apps/photo-picker.js','utf8'),ctx);
+  vm.runInContext(fs.readFileSync('host/mcp/apps/photo-picker.js','utf8'),ctx);
   handlers['tool-input']({arguments:{site:'blog'}});handlers['tool-result']({structuredContent:{}});
   return {get,document,handlers,writes,shrunk,setFiles:value=>files=value,
     add:files=>get('files').events.change({target:{files:files.map(f=>({slice:()=>({arrayBuffer:async()=>new ArrayBuffer(0)}),...f})),value:''}}),save:()=>get('finish').events.click()};
@@ -150,7 +150,7 @@ async function photosPage({account='alice',handle='bob',sites=[{name:'blog',user
   },
   crypto:require('node:crypto').webcrypto,btoa,TextEncoder,Uint8Array,URLSearchParams,URL:{createObjectURL:()=> 'blob:fixture',revokeObjectURL(){}},
   FormData:class{append(){}},SHPhotos:{slug,shrink:async()=>({blob:{size:3},ext:'.webp'})}});
- vm.runInContext(fs.readFileSync('internal/webassets/static/photos.js','utf8'),ctx);
+ vm.runInContext(fs.readFileSync('host/webassets/static/photos.js','utf8'),ctx);
  await new Promise(resolve=>setImmediate(resolve));
  get('site').value ||= token?'blog':'';
  return {get,session,signIn,search,posts,
@@ -182,7 +182,7 @@ for (const capabilities of [{workerAllowed:false},{wasmAllowed:false}]) {
 
 function decodeHarness(overrides = {}) {
  const ctx=vm.createContext({setTimeout,clearTimeout,Date,Uint8Array,DataView,ArrayBuffer,...overrides});
- const source=fs.readFileSync('internal/webassets/static/photo-process.js','utf8').replace('root.SHPhotos = {','root.SHPhotos = { decode, nativeDimensions,');
+ const source=fs.readFileSync('host/webassets/static/photo-process.js','utf8').replace('root.SHPhotos = {','root.SHPhotos = { decode, nativeDimensions,');
  vm.runInContext(source,ctx);return ctx.SHPhotos;
 }
 const photoFile = (bytes, name='photo.png') => ({name,size:bytes.length,arrayBuffer:async()=>Uint8Array.from(bytes).buffer});
@@ -208,8 +208,8 @@ test('native headers reject oversized images before any browser decoder starts',
 });
 test('native header parser accepts small canvas JPEG and WebP fixtures',()=>{
  const h=decodeHarness();h.nativeDimensions(Uint8Array.from(png()).buffer);
- for(const name of fs.readdirSync('internal/handler/testdata/photos').filter(n=>/\.(jpg|webp)$/.test(n))) {
-  const bytes=fs.readFileSync('internal/handler/testdata/photos/'+name);
+ for(const name of fs.readdirSync('host/handler/testdata/photos').filter(n=>/\.(jpg|webp)$/.test(n))) {
+  const bytes=fs.readFileSync('host/handler/testdata/photos/'+name);
   h.nativeDimensions(Uint8Array.from(bytes).buffer);
  }
 });

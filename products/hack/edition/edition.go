@@ -1,8 +1,8 @@
 package edition
 
 import (
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/edition"
 )
 
 // Kind identifies the product edition.

@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Notices: "notify people when something waits on them" (2026-11-02, audit
-// item 7, db/migrations/zw-hack-wait-notices.sql). One event_notices row per
+// item 7, host/db/migrations/zw-hack-wait-notices.sql). One event_notices row per
 // person per thing that happened. The row is the in-app news line (seen_at)
 // and the email queue (email_state) at once. The live to-dos (a join request
 // waiting for a team's admins, an invite, an application waiting for the

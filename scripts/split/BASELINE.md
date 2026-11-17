@@ -80,7 +80,7 @@ server holding an account `owner` with 174 sites and a second account
 first needs that script writes its fixture and deletes the entry.
 
 **One flaky test, not listed:** `TestMatrixAuthorArchivesGroupPostsOnce`
-(`internal/wpimport/matrix_test.go:1183`) asserts a wall-clock limit of 3 s.
+(`host/wpimport/matrix_test.go:1183`) asserts a wall-clock limit of 3 s.
 It failed in a no-database `make test` while another session pushed the box
 to a load of 17 to 49 ("20,000 sparse author archives rescanned all posts:
 4.44s"), failed 1 of 3 runs alone at load 47, and passed in all seven full
@@ -129,7 +129,7 @@ Checks nested inside those steps ran with them: `check-docs-sync.sh` runs
 `web/analytics-parse.test.js`, `web/auth-base.test.js`, `check-features.sh`,
 `settings_docs.py --check --local-only`, `check-profiles.sh`,
 `check-features-page.py` and `docs/ux-atlas/build.py --check`;
-`check-fresh-install.sh` runs `go test ./db/migrations/` against three
+`check-fresh-install.sh` runs `go test ./host/db/migrations/` against three
 throwaway databases. There is one Go module; no nested module exists yet.
 
 ## Checks that `make check` does not run
@@ -152,7 +152,7 @@ throwaway databases. There is one Go module; no nested module exists yet.
 | `deploy/prod/nginx-internal-lock_test.sh`, `nginx-site-base-domain_test.sh`, `nginx-sso-log_test.sh` | pass | 3 | |
 | `deploy/hack/setup-instance_test.sh` | flaky | 0.2 | 1 failure in 5 runs ("--apply exited non-zero"), passes alone |
 | `node --test scripts/tests/hack-needs.test.mjs`, `scripts/test-photo-decoders.cjs`, `scripts/test-hack-mail-report.py` | pass | <1 | |
-| `scripts/check-reserved-subdomains.sh` | fail, every run | 0 | "could not read reservedSubdomainLabels": it reads `internal/handler/platformsubdomain.go`, and the list moved to `internal/rules/sites/sites.go` |
+| `scripts/check-reserved-subdomains.sh` | fail, every run | 0 | "could not read reservedSubdomainLabels": it reads `host/handler/platformsubdomain.go`, and the list moved to `host/rules/sites/sites.go` |
 | `scripts/check-hack-event-times.mjs` | fail, 3 of 3 | 31 | `page.waitForFunction: Timeout 30000ms exceeded` |
 | `scripts/test-photo-token.cjs` | fail | 0 | needs Playwright on the module path and a fixture path argument; not a standalone check |
 
@@ -188,7 +188,7 @@ cgroup and used about 100 MiB more.
 | `make test`, nothing cached, box overloaded | 73 s (and the flaky test failed) | 740 MiB | 17 / 33 / 49 |
 | `make test`, results cached | 22 s | 409 MiB | 5.9 / 7.2 / 7.9 |
 | every step except the two database ones (`--skip` form above) | 53 s | 334 MiB | 5.1 / 6.2 / 7.7 |
-| `go build ./... && go vet ./... && go test -count=1 ./internal/handler/` (no database) | 18 s | 331 MiB | 4.7 / 5.0 / 5.3 |
+| `go build ./... && go vet ./... && go test -count=1 ./host/handler/` (no database) | 18 s | 331 MiB | 4.7 / 5.0 / 5.3 |
 | one golden run, today's harness | 10 s | 183 MiB | 6.9 / 7.0 / 7.0 |
 | one golden run, the D0-S3a harness (unmerged, both products, wider coverage) | about 60 s | not sampled | near 10 |
 | `go build ./cmd/server`, warm cache | 3 s | 186 MiB | about 6 |
@@ -219,8 +219,8 @@ connections, listeners and filesystem writes, including shared fixture helpers:
 - Twelve packages already use `testdb.Main` to clone the template, with
   names containing the template name, process ID and random suffix.
   Migration fixtures use `MIGRATE_TEST_DSN`, which this runner clears.
-- Two exceptions were found and fixed: `internal/mcp`'s
-  `TestChecklistDatabaseReplayParity` and `internal/testdb`'s
+- Two exceptions were found and fixed: `host/mcp`'s
+  `TestChecklistDatabaseReplayParity` and `host/testdb`'s
   `TestRecordingDB` connected directly to the template. Even a read-only
   connection there can block another package's `CREATE DATABASE … TEMPLATE`.
   They now use a separate `testdb.Fresh` clone when isolation is enabled;
@@ -269,7 +269,7 @@ Run 1's failure is attributed by Go to `TestSignupSourceRecordedAtCreation`,
 which had run for zero seconds when the **package** timeout fired. The timeout
 is unchanged. That individual test passes when rerun by itself against a
 new disposable database (1 pass, 0 failures, 0 skips). The changed Go
-packages (`internal/mcp`, `internal/testdb`, `internal/wpimport`) all passed
+packages (`host/mcp`, `host/testdb`, `host/wpimport`) all passed
 in the full run. This run does not meet the required zero-failure totals or the
 40% speedup threshold (322.2 seconds). Run 2 hit the same package timeout
 during `TestSSORedteamListedConsentAndPending/abandon`, after that subtest
@@ -326,7 +326,7 @@ All five runs exited zero and a catalog query verified that each run's
 template and uniquely prefixed clones were gone. The additional attempt
 started after load had fallen to 6.30; it used a private temporary directory
 to retain the runner's JSON stream for package timing analysis. During that
-run, load rose again. `internal/handler` took 441.262 seconds and started
+run, load rose again. `host/handler` took 441.262 seconds and started
 11.979 seconds after the first Go package. `products/hack/hackhttp` took
 286.076 seconds and started at 75.147 seconds. At these measured package
 durations, starting the handler first would still exceed 322.2 seconds;
@@ -345,9 +345,9 @@ database access or service change was performed.
 
 ### X1-S1 package-isolation follow-up (2026-11-13)
 
-The audit missed `db/migrations/TestHackOneNameBackfill`: it opens `DB_DSN`
+The audit missed `host/db/migrations/TestHackOneNameBackfill`: it opens `DB_DSN`
 directly, so its connection could prevent other packages from cloning the
-shared template. `db/migrations/main_test.go` now calls `testdb.Main`, giving
+shared template. `host/db/migrations/main_test.go` now calls `testdb.Main`, giving
 the package its own clone. The separate `MIGRATE_TEST_DSN` path is unchanged.
 No assertions or timeouts were weakened.
 
@@ -355,7 +355,7 @@ No assertions or timeouts were weakened.
 original template and creates another clone while that connection stays
 open. A temporary Go overlay disabling the `TestMain` isolation made this
 regression fail at the missing-template assertion; with isolation restored,
-`TEST_PKGS='./db/migrations ./internal/testdb' TEST_COUNT=3` passed through
+`TEST_PKGS='./host/db/migrations ./host/testdb' TEST_COUNT=3` passed through
 the parallel runner (21 pass, 0 fail, 4 distinct skips, zero database-related
 skips; the four migration-only skips repeat in each iteration).
 The migration package also passed with all three `MIGRATE_*_DSN` fixtures

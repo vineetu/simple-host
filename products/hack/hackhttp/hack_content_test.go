@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 

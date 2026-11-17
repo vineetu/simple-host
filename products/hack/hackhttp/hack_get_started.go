@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"net/http"
 
-	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/httpx"
 
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )

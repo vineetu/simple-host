@@ -15,10 +15,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/app/operations"
-	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	opsrepo "github.com/vsriram/simple-host/internal/repository/operations"
-	"github.com/vsriram/simple-host/internal/storage"
+	"github.com/vsriram/simple-host/host/app/operations"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	opsrepo "github.com/vsriram/simple-host/host/repository/operations"
+	"github.com/vsriram/simple-host/host/storage"
 	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
@@ -27,7 +27,7 @@ import (
 // deploys queue images, the worker quarantines a match (evidence copy, file
 // removed, site taken down, alert sent), the hash cache short-circuits the
 // service, retries back off, and the admin routes list and report. Needs
-// DB_DSN with db/migrations/zz-sim-200-image-scan.sql applied.
+// DB_DSN with host/db/migrations/zz-sim-200-image-scan.sql applied.
 
 // testPNG is a real PNG, unique per call so the hash cache never knows it.
 func testPNG(t *testing.T) []byte {

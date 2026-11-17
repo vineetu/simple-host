@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/extension"
-	"github.com/vsriram/simple-host/internal/papermetrics"
-	platformtest "github.com/vsriram/simple-host/internal/server/servertest"
+	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/papermetrics"
+	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack"
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"github.com/vsriram/simple-host/products/hack/testdb"

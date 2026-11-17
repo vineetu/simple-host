@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/auth"
-	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	"github.com/vsriram/simple-host/host/auth"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 

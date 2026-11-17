@@ -8,11 +8,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // The helpers below are this package's copies of the tool server's own test
-// helpers (internal/mcp/server_test.go), built with Hack's contribution.
+// helpers (host/mcp/server_test.go), built with Hack's contribution.
 
 func newTestServer(up http.Handler) *mcp.Server {
 	product := Contribution()

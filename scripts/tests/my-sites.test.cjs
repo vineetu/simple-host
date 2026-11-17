@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const context = vm.createContext({URL});
-vm.runInContext(fs.readFileSync('internal/mcp/apps/my-sites.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('host/mcp/apps/my-sites.js', 'utf8'), context);
 const {renderEntry, node, badge, identifier} = context.SHSites;
 // A DOM double rejects HTML parsing; tests exercise the production constructors.
 class Element {
@@ -45,7 +45,7 @@ function mountSites(callTool=async()=>({}), hack=false) {
   callTool:async(name,args)=>{queries.push({...args,tool:name});return callTool(name,args);},callToolResult:async(name,args)=>{queries.push({...args,tool:name});return callTool(name,args);},openLink:async url=>{queries.push({open:url});}};
  const ctx=vm.createContext({document:{getElementById:get,createElement:tag=>{assert.notEqual(tag,'iframe');return element();},addEventListener(){},body:{dataset:{dashboard:'true',mode:hack?'events':''}}},SHApp:app,URL,IntersectionObserver:class {constructor(){throw Error('My sites must not observe thumbnails');}}});
  if(hack)vm.runInContext(fs.readFileSync('products/hack/mcp/apps/hack-sites.js','utf8'),ctx);
- vm.runInContext(fs.readFileSync('internal/mcp/apps/my-sites.js','utf8'),ctx);
+ vm.runInContext(fs.readFileSync('host/mcp/apps/my-sites.js','utf8'),ctx);
  return {get,handlers,queries,app};
 }
 test('every site uses its initial tile without nested frames or preview URLs',()=>{

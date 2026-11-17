@@ -3,21 +3,21 @@ package hackentries
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // RubricCriterion is one row of rubric_criteria, in position order.
-// Alias (cleanup 4.1): defined in internal/model.
+// Alias (cleanup 4.1): defined in host/model.
 type RubricCriterion = model.RubricCriterion
 
 // NamedTeam is a team id, display name and URL slug. Assignment skips teams with no members.
-// Alias (cleanup 4.1): defined in internal/model.
+// Alias (cleanup 4.1): defined in host/model.
 type NamedTeam = model.NamedTeam
 
 // NamedJudge is a judge's user id and the display name they joined with.
-// Alias (cleanup 4.1): defined in internal/model.
+// Alias (cleanup 4.1): defined in host/model.
 type NamedJudge = model.NamedJudge
 
 // EventConflict is one declared judge/team conflict, with names filled in.
@@ -39,7 +39,7 @@ type ConflictPair struct {
 }
 
 // JudgeAssignment is one judge assigned to one team.
-// Alias (cleanup 4.1): defined in internal/model.
+// Alias (cleanup 4.1): defined in host/model.
 type JudgeAssignment = model.JudgeAssignment
 
 // ListRubric returns the event's criteria in position order.
@@ -453,7 +453,7 @@ func CriterionIDsForEvent(ctx context.Context, q sqlkit.Querier, eventID string)
 
 // RawScoreRow is one row of event_scores joined with names, for the judge
 // queue's "scores_count" and for the CSV export.
-// Alias (cleanup 4.1): defined in internal/model.
+// Alias (cleanup 4.1): defined in host/model.
 type RawScoreRow = model.RawScoreRow
 
 // ListRawScores is every score row of the event with names resolved, for the

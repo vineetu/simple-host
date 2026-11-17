@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 

@@ -2,7 +2,7 @@ package hackhttp
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/model"
 	metrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"net/http"
 	"strings"

@@ -36,7 +36,7 @@ func isolatedDB(t *testing.T) *sql.DB {
 	}
 	d.SetMaxOpenConns(1)
 	t.Cleanup(func() { d.Close() })
-	ddl, err := os.ReadFile("../../../db/schema.sql")
+	ddl, err := os.ReadFile("../../../host/db/schema.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

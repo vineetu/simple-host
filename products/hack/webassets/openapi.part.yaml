@@ -11310,7 +11310,7 @@ overrides:
     longer permits the operation.
 - op: getAdminPaperMetrics
   set: /description
-  value: 'Admin-only. Service-wide aggregates kept by internal/papermetrics (method in docs/paper-metrics.md):
+  value: 'Admin-only. Service-wide aggregates kept by host/papermetrics (method in docs/paper-metrics.md):
     server-side time per route class (histograms and percentiles), five-minute process and box samples,
     nightly counts, weekly anonymous per-site footprint rows, the per-route API counts, and Hack event
     snapshots, populated one-minute activity, mergeable class/status histograms, relative minute/phase

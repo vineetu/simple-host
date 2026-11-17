@@ -43,7 +43,7 @@ func run(root string, args []string, out, errs io.Writer) int {
 	fs.BoolVar(&o.Tests, "tests", false, "include tests")
 	fs.BoolVar(&o.Prose, "prose", false, "list ordinary-word prose")
 	fs.StringVar(&o.Objects, "objects", "scripts/split/hack-objects.txt", "authority file")
-	fs.StringVar(&o.Schema, "schema", "db/schema.sql", "schema file")
+	fs.StringVar(&o.Schema, "schema", "host/db/schema.sql", "schema file")
 	fs.StringVar(&o.Report, "report", "scripts/split/reports/platform-hack-queries.txt", "report path, or -")
 	prop := fs.Bool("propose-objects", false, "propose schema ownership")
 	mig := fs.Bool("migrations", false, "check migration ownership")
@@ -66,7 +66,7 @@ func run(root string, args []string, out, errs io.Writer) int {
 	// Ownership analysis needs both halves; the product schema itself is the
 	// authoritative object list for the enforced platform query scan.
 	var productSchema schemaInfo
-	if o.Schema == "db/schema.sql" {
+	if o.Schema == "host/db/schema.sql" {
 		product, err := os.ReadFile(path("products/hack/db/schema.sql"))
 		if err != nil {
 			return fail(err)
@@ -141,7 +141,7 @@ func run(root string, args []string, out, errs io.Writer) int {
 	if *fix {
 		return fail(fmt.Errorf("-fix requires -migrations"))
 	}
-	if o.Schema == "db/schema.sql" && o.Objects == "scripts/split/hack-objects.txt" {
+	if o.Schema == "host/db/schema.sql" && o.Objects == "scripts/split/hack-objects.txt" {
 		objects = nil
 		for _, name := range sortedKeys(productSchema.Tables) {
 			objects = append(objects, object{Kind: "table", Name: name})

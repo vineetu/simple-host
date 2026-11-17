@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/vsriram/simple-host/internal/workers"
+	"github.com/vsriram/simple-host/host/workers"
 )
 
 // Mailer is the shared transactional sender supplied by the composition root.

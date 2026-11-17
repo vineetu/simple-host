@@ -6,10 +6,10 @@ import (
 	"errors"
 	"strings"
 
-	sites "github.com/vsriram/simple-host/internal/app/sites"
-	model "github.com/vsriram/simple-host/internal/model"
-	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
-	siterules "github.com/vsriram/simple-host/internal/rules/sites"
+	sites "github.com/vsriram/simple-host/host/app/sites"
+	model "github.com/vsriram/simple-host/host/model"
+	siterepo "github.com/vsriram/simple-host/host/repository/sites"
+	siterules "github.com/vsriram/simple-host/host/rules/sites"
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 

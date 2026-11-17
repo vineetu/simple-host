@@ -36,21 +36,21 @@ psql_run() {
 cleanup() { psql_run -c "DROP DATABASE IF EXISTS $DB;" >/dev/null 2>&1; }
 trap cleanup EXIT
 
-echo "== applying db/schema.sql to a fresh database =="
+echo "== applying host/db/schema.sql to a fresh database =="
 cleanup
 psql_run -c "CREATE DATABASE $DB;" >/dev/null 2>&1 || { echo "  FAIL: cannot create $DB"; exit 1; }
 
-errs=$(psql_run -d "$DB" -f db/schema.sql 2>&1 | grep -cE "^psql.*ERROR" || true)
+errs=$(psql_run -d "$DB" -f host/db/schema.sql 2>&1 | grep -cE "^psql.*ERROR" || true)
 if [ "$errs" -ne 0 ]; then
   echo "  FAIL: schema.sql reported $errs error(s)"
-  psql_run -d "$DB" -f db/schema.sql 2>&1 | grep -E "^psql.*ERROR" | head -10 | sed 's/^/    /'
+  psql_run -d "$DB" -f host/db/schema.sql 2>&1 | grep -E "^psql.*ERROR" | head -10 | sed 's/^/    /'
   fail=1
 else
   echo "  ok — schema applied cleanly"
 fi
 
 # One query per feature the schema has to support. Each mirrors a real query in
-# internal/db/. A missing column or table fails here instead of in production.
+# host/db/. A missing column or table fails here instead of in production.
 echo "== every feature's query shape runs =="
 NIL=00000000-0000-0000-0000-000000000000
 run() {
@@ -143,7 +143,7 @@ run "Hack wait notices" "SELECT n.id,n.kind,n.seen_at,n.email_state,COALESCE(p.e
 # file once, and a failing file rolls back. Skipped when go is not installed.
 echo "== simple-host migrate on a fresh and an older database =="
 if command -v go >/dev/null 2>&1; then
-  for package in ./db/migrations ./products/hack/db/migrations; do
+  for package in ./host/db/migrations ./products/hack/db/migrations; do
     MDB=${DB}_migrate
     MDB_old=${MDB}_old
     MDB_new=${MDB}_new
@@ -183,7 +183,7 @@ fi
 
 echo
 if [ "$fail" -ne 0 ]; then
-  echo "FRESH INSTALL BROKEN — db/schema.sql cannot run the product."
+  echo "FRESH INSTALL BROKEN — host/db/schema.sql cannot run the product."
   exit 1
 fi
 echo "fresh install ok ✓"

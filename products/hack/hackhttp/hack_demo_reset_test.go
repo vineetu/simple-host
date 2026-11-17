@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	hackeventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"

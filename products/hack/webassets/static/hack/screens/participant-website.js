@@ -512,7 +512,7 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
 // leaking straight through errText's server-message-first fallback, so it
 // gets the same client-side override as invalid_archive, worded to name the
 // actual fix (a zip with the site's own folder as its root, not index.html
-// at the top). The extractor's text (internal/tarball/extract.go,
+// at the top). The extractor's text (host/tarball/extract.go,
 // sanitize.go) also distinguishes a corrupt/unreadable archive from one
 // that was readable but refused for containing unsafe or duplicate paths
 // (zip-slip, symlink-style escapes), and those are different things for a

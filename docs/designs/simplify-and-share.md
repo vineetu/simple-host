@@ -23,7 +23,7 @@ is still outstanding.**
 | `go build`, `go vet`, `go test ./...` are green on `main` | run locally before any edit |
 | Three skills ship: `website-deploy` (21,888 B), `website-deploy-builder` (14,684 B), `connect-domain` (6,975 B) | `wc -c simple-host-website/skills/*/SKILL.md` |
 | `npx skills add vineetu/simple-host` works and discovers all three skills | ran `npx skills@latest add vineetu/simple-host -l` |
-| There is **no collaboration/sharing** anywhere in the backend | `grep -ri "editor\|collaborat" internal/` → zero authorization hits |
+| There is **no collaboration/sharing** anywhere in the backend | `grep -ri "editor\|collaborat" host/` → zero authorization hits |
 
 The sibling internal instance (same lineage, diverged) shipped a simplification
 pass over the last ~40 commits. This document is what of that pass applies here,
@@ -80,7 +80,7 @@ Proposed split (byte estimates from the current line ranges):
 `buildSkillsZip()` and `buildSingleSkillZip()` both walk recursively (`fs.WalkDir`
 over the skill root), so nested `references/` directories are packaged into
 `/skills.zip` and `/skills/<name>.zip` with **no Go change**. Verified by reading
-`internal/handler/ui.go`.
+`host/handler/ui.go`.
 
 Net effect: the always-loaded surface drops from ~22 KB to ~6 KB, and an agent
 answering "deploy this folder" reads ~11 KB instead of 22 KB.
@@ -94,7 +94,7 @@ a sibling directory:
 |---|---|
 | `copilot skill add https://simple-host.app/skills/website-deploy/SKILL.md` | `install.html:278-279` |
 | `hermes skills install …/SKILL.md --name website-deploy` | `install.html:295` |
-| `/.well-known/skills/index.json`, which advertises `"files": ["SKILL.md"]` | `internal/handler/skillshub.go:141` |
+| `/.well-known/skills/index.json`, which advertises `"files": ["SKILL.md"]` | `host/handler/skillshub.go:141` |
 
 A user on any of these ends up with a router that points at `references/*.md`
 files they do not have. That is strictly worse than the 22 KB monolith.
@@ -117,7 +117,7 @@ Required alongside the split:
 
 ## 2. The install page tells people the wrong thing about ChatGPT
 
-`internal/handler/static/install.html` predates OpenAI merging the Codex app into
+`host/handler/static/install.html` predates OpenAI merging the Codex app into
 the ChatGPT app (~2026-07-09). Today the page offers three paths, and the
 ChatGPT path is the *paste-JSON-back* path:
 
@@ -161,7 +161,7 @@ the **hand-registered legacy routes**, which name only two skills:
 
 - `/skills/connect-domain.zip` → **404** (verified). `serveSkillZip` /
   `serveSkillMarkdown` are registered for `website-deploy` and
-  `website-deploy-builder` only (`internal/handler/ui.go:74-77`).
+  `website-deploy-builder` only (`host/handler/ui.go:74-77`).
 - Those are exactly the routes `install.html` links to.
 
 Fix by registering the routes for every bundled skill (loop over
@@ -194,7 +194,7 @@ inbox, which makes it longer than the internal one. Recommend keeping it as an
 
 ## 3. The homepage is a sign-in wall
 
-`internal/handler/static/index.html` (101,772 B) is not a marketing page — it is
+`host/handler/static/index.html` (101,772 B) is not a marketing page — it is
 the application. A logged-out visitor gets a headline, three feature cards, and
 an email box (`index.html:1015-1027`). Everything else — the AI builder, the site
 list, the "Deploy with your agent" callout (`index.html:1139-1150`) — is behind
@@ -247,7 +247,7 @@ The user's framing: *"it doesn't have the sharing skill too."* The skill is the
 visible part; the backend is the actual gap.
 
 **Today every site has exactly one owner.** `sites.user_id` is a single FK
-(`db/schema.sql:17`), and the ownership check is literally "fetch the row scoped
+(`host/db/schema.sql:17`), and the ownership check is literally "fetch the row scoped
 to this user" — `db.GetSiteByUser(...)`, which returns `sql.ErrNoRows` → 404 for
 anyone else. There is no second person who can deploy, roll back, or even list a
 site they didn't create.
@@ -265,16 +265,16 @@ The design is sound and matches what the internal instance actually shipped.
    `analytics.go` were added after the design was written:
 
    ```
-   internal/handler/site.go:283, 331, 785, 1020, 1077, 1136, 1206
-   internal/handler/domains.go:152, 210, 258
-   internal/handler/analytics.go:23
+   host/handler/site.go:283, 331, 785, 1020, 1077, 1136, 1206
+   host/handler/domains.go:152, 210, 258
+   host/handler/analytics.go:23
    ```
 
    Each needs a `need` role decided: analytics and domain-read are plausibly
    `viewer`; domain bind/unbind should be `owner`, not `editor`, because a domain
    is a global namespace claim.
 
-2. **The schema lives in `db/schema.sql` now**, not in `README.md` as the design
+2. **The schema lives in `host/db/schema.sql` now**, not in `README.md` as the design
    states. There is still no migration framework, so this is a hand-applied
    `psql` step against the live database.
 
@@ -327,13 +327,13 @@ nonsensical here:
 
 | # | Defect | Evidence |
 |---|---|---|
-| D1 | `/skills/connect-domain.zip` and `/skills/connect-domain/SKILL.md` are 404 | routes absent at `internal/handler/ui.go:74-77`; confirmed 404 against live |
+| D1 | `/skills/connect-domain.zip` and `/skills/connect-domain/SKILL.md` are 404 | routes absent at `host/handler/ui.go:74-77`; confirmed 404 against live |
 | D2 | Claude.ai, Copilot, and the pasteable-prompt install paths all silently install 2 of 3 skills | `install.html:245-246, 260, 272, 278-279` |
 | D3 | `%USERPROFILE%` in a PowerShell context creates a literally-named folder | `install.html:272` |
 | D4 | `~/.agents/skills/` is labelled "Codex CLI" | `install.html:255` |
 | D5 | The shared-origin caveat for state/collections is documented for agents but never for humans | present at `website-deploy/SKILL.md:203-208`, absent from every HTML page |
 | D6 | `scripts/check-docs-sync.sh` — the documented pre-deploy check — aborts on macOS | it uses `declare -A` (bash 4+); macOS ships bash 3.2, so with `set -u` it dies at line 45 with `state: unbound variable`, skips the whole capability-coverage section, and never prints its success line. Fixed in this branch by replacing the associative array with tab-separated lines, and widened to search a skill's whole directory so a split skill still passes. |
-| D7 | `/.well-known/skills/index.json` hardcodes `"files": ["SKILL.md"]` | `internal/handler/skillshub.go:141` — wrong the moment any skill gains a second file |
+| D7 | `/.well-known/skills/index.json` hardcodes `"files": ["SKILL.md"]` | `host/handler/skillshub.go:141` — wrong the moment any skill gains a second file |
 
 ---
 

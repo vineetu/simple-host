@@ -4,7 +4,7 @@ checkall-1	bash scripts/split/check-all.sh --quiet (as first committed, no golde
 make-test	make test (nothing cached; box overloaded; TestMatrixAuthorArchivesGroupPostsOnce failed)	2026-11-13T00:44:46Z	2	73	776146944	17.11 / 32.87 / 49.38	17.11	49.38
 make-check	FRESH_DB=sh_freshcheck_d0s4 make check	2026-11-13T00:52:43Z	0	623	485474304	3.53 / 5.19 / 8.28	7.06	5.20
 make-test-2	make test (results cached)	2026-11-13T01:03:18Z	0	22	428797952	5.91 / 7.20 / 7.92	5.99	7.38
-fast-pkg-nocache	go build ./... && go vet ./... && go test -count=1 ./internal/handler/ (no database)	2026-11-13T01:04:44Z	0	18	346988544	4.66 / 4.95 / 5.25	4.66	4.84
+fast-pkg-nocache	go build ./... && go vet ./... && go test -count=1 ./host/handler/ (no database)	2026-11-13T01:04:44Z	0	18	346988544	4.66 / 4.95 / 5.25	4.66	4.84
 make-test-nocache	go test -count=1 ./... (no database; what make test runs, uncached)	2026-11-13T01:05:02Z	0	29	563744768	4.84 / 6.06 / 6.69	4.84	6.32
 static-steps	check-all.sh with every step except test-integration and check-fresh-install	2026-11-13T01:03:44Z	0	53	350232576	5.07 / 6.21 / 7.74	7.19	5.07
 build-bin	CGO_ENABLED=0 go build ./cmd/server (warm cache)	2026-11-13T01:05:40Z	0	3	194670592	5.73 / 5.73 / 5.73	6.05	5.73

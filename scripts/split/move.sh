@@ -273,6 +273,10 @@ def rewrite_relative(value, source, destination, rows, future):
     # Rules 1,2: resolve relative literals from their source location, including twins.
     if not value.startswith(('./', '../')):
         return value
+    # Bare dot segments ("../", "./..") name no file: they are prefixes that
+    # code compares against (a traversal guard), never a path to repair.
+    if re.fullmatch(r'(?:\.\.?/)*\.\.?/?', value):
+        return value
     leading = re.split(r'[*?\[]', value, 1)[0].rstrip('/')
     target = P.normpath(P.join(P.dirname(source), leading))
     full = P.normpath(P.join(P.dirname(source), value))

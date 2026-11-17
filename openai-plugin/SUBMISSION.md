@@ -107,11 +107,11 @@ AgentCat (agentcat.com) processes connector usage analytics. For each tool call 
 
 Start the Simple Host connection in ChatGPT. On the Simple Host sign-in page, expand **Other ways to sign in**, enter the reviewer email **openai-review@simple-host.app** and the password supplied in the portal, choose **Sign in**, then **Allow**. No email code or 2FA.
 
-The sign-in page is served at `https://simple-host.app/oauth/authorize` with the connection's OAuth parameters. Start it from ChatGPT rather than opening the address without those parameters. The exact disclosure label is in `internal/handler/static/connect.html`. Verify that reviewer sign-in is enabled before submitting.
+The sign-in page is served at `https://simple-host.app/oauth/authorize` with the connection's OAuth parameters. Start it from ChatGPT rather than opening the address without those parameters. The exact disclosure label is in `host/handler/static/connect.html`. Verify that reviewer sign-in is enabled before submitting.
 
 ## Integration prerequisites
 
-The privacy page's daily analytics hash wording requires the companion analytics change before release. At package preparation time, `internal/analytics/ingest.go` still derives a lasting hash. Verify daily rotation, absence of stored IPs in analytics, and no hash disclosure before publishing the policy. This task changes package and page text, not Go results or analytics behavior.
+The privacy page's daily analytics hash wording requires the companion analytics change before release. At package preparation time, `host/analytics/ingest.go` still derives a lasting hash. Verify daily rotation, absence of stored IPs in analytics, and no hash disclosure before publishing the policy. This task changes package and page text, not Go results or analytics behavior.
 
 The Claude skill sources remain outside this change. `simple-host-website/skills/connect-domain/SKILL.md` and `simple-host-website/skills/connect-domain/references/registrars.md` still contain the registrar credential path, as do their generated copies under `plugins/simple-host/skills/connect-domain/`. The OpenAI skills are separately maintained copies; `scripts/build-openai-plugin.sh` packages them directly, and `scripts/sync-claude-plugin.sh` does not generate them.
 

@@ -1,0 +1,5 @@
+# D3-S7 (split track, section 4): the platform moves under host/.
+# Run only through scripts/split/move-d3s7.sh, which passes the reviewed --text inputs.
+internal/storage host/storage
+internal/* host/*
+db host/db

@@ -72,7 +72,7 @@ func TestNavigationHelp(t *testing.T) {
 		}
 	}
 	// The whole layer goes into every assistant prompt: keep it compact
-	// (the whole-prompt guard is in internal/hackhttp's assistant tests).
+	// (the whole-prompt guard is in host/hackhttp's assistant tests).
 	if rendered >= 56_000 {
 		t.Errorf("rendered help is %d bytes; tighten wording to < 56 KB, or select records per question", rendered)
 	}

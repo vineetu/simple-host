@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // Phase 2 (organiser core, SIM-344): one resource, ui://simple-hack/
@@ -101,7 +101,7 @@ func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mc
 	// participant of this same event -- rather than opening one with
 	// nothing useful (and nothing writable) in it. loadMember sets
 	// member.Role to "organiser" for a platform admin inspecting without
-	// real membership too (internal/handler/hack.go), so admin_view
+	// real membership too (host/handler/hack.go), so admin_view
 	// inspections pass this check the same way the real screens' own
 	// adminLock() expects. No event data in the error (Grok security
 	// review pattern from the judge app, SIM-344): a refusal carries no

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Dashboard rules proof, using only an isolated local Postgres/HTTP fixture.
 // Start (TEST_PG_URL is a bare URL to a disposable test server):
-//   STORAGE_RULES_FIXTURE=/tmp/rules.json TEST_PKGS=./internal/handler TEST_COUNT=1 bash scripts/test-integration.sh -run '^TestServeStorageRulesBrowser$' -timeout 35m
+//   STORAGE_RULES_FIXTURE=/tmp/rules.json TEST_PKGS=./host/handler TEST_COUNT=1 bash scripts/test-integration.sh -run '^TestServeStorageRulesBrowser$' -timeout 35m
 // Then, in another shell:
 //   PLAYWRIGHT_DIR=/opt/pw/node_modules CHROMIUM=/usr/local/bin/chromium node scripts/e2e-storage-rules.mjs /tmp/rules.json --shots /tmp/rules-shots
 // TestServeStorageRulesBrowser sets STORAGE_RULES=on and KV_STORE=sqlite;

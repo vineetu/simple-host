@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
@@ -259,7 +259,7 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDirectory serves the public directory groups. The grouping and the
-// applications_open rule now live in internal/app/hack/events (Directory)
+// applications_open rule now live in host/app/hack/events (Directory)
 // and the rules it calls; this handler keeps transport: it calls the
 // service, then builds the exact same JSON, including the url/icon_url/
 // color/apply_url fields it computes from its own config (cleanup 3.2

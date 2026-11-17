@@ -1,7 +1,7 @@
 package edition
 
 import (
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/host/config"
 	"testing"
 )
 

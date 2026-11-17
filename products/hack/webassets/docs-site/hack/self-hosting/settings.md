@@ -138,7 +138,7 @@ the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [Your home page](https://github.com/vineetu/simple-host/blob/main/docs/your-home-page.md).
 
 Defaults in `<angle brackets>` are derived from other settings. Server, sign-in,
-email and other non-knob settings are read by `internal/config/config.go`;
+email and other non-knob settings are read by `host/config/config.go`;
 `MAX_ARCHIVE_MB` and `KEEP_VERSIONS` are read by the handler.
 
 ## Operational times and limits
@@ -147,7 +147,7 @@ Every operational time and limit Simple Host enforces can be changed per install
 environment variable. Unset (or blank) means the value in the generated Default column.
 Hosted installations may override these defaults.
 
-- **Where they are read.** Once, at startup, in `internal/config/limits.go` (`Knobs()` is the
+- **Where they are read.** Once, at startup, in `host/config/limits.go` (`Knobs()` is the
   list). A value that is not a whole number, is out of range, or does not fit with another
   setting stops the server with an error naming the variable, rather than running with a value
   nobody chose. Every knob that differs from its default is printed once in the startup log
@@ -160,7 +160,7 @@ Hosted installations may override these defaults.
   owner app, the landing and feature pages, the privacy page, the admin page, `llms.txt`, the
   OpenAPI spec, the skills served from this install, and the connector's MCP instructions,
   tool descriptions and results. Served pages and documents are written with the defaults and
-  rewritten when served (`internal/handler/limitstext.go`, the same way the hostnames are
+  rewritten when served (`host/handler/limitstext.go`, the same way the hostnames are
   rewritten for an instance on another domain); with every knob at its default nothing is
   rewritten. The skills published to the Claude and ChatGPT plugin directories describe
   simple-host.app and keep its values.

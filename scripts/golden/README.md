@@ -442,7 +442,7 @@ Hack Team A serves (200), is deleted (204), then taken down while deleted (200).
 deleted restore is attempted through REST (403 `team_key_scope` with the team key, 404 with the
 member key) and MCP `restore_site` (HTTP 200 tool error wrapping the same 403). The status says
 `exists: false`, `taken_down: true`, and the page stays 404. `teamRoutes` in
-`internal/auth/scope.go` does not allow POST site restore; the member's account is not the separate
+`host/auth/scope.go` does not allow POST site restore; the member's account is not the separate
 team's holding account. There is no public admin trash restore route.
 
 The harness cannot obtain a Hack credential that can exercise a successful restore of the deleted
@@ -522,8 +522,8 @@ Each rule below removes a specific source of run variation while keeping observa
 - **Calendar dates:** the complete relative-date request list is `GET /v1/admin/growth as admin`,
   for both products. Only this request substitutes dates in the run's UTC window, from 400 days
   before today through tomorrow, using `<today>`, `<today-1>`, `<today+1>`, etc. This keeps
-  bucket relationships across days. `internal/app/operations/apigrowth.go` builds the current and
-  comparison windows using the database day from `internal/repository/operations/api.go:APIToday`.
+  bucket relationships across days. `host/app/operations/apigrowth.go` builds the current and
+  comparison windows using the database day from `host/repository/operations/api.go:APIToday`.
   Other recorded usage/analytics answers contain counts and ISO instants, not clock-derived calendar
   date strings. All other responses retain calendar dates. A UTC midnight crossing fails the run.
 
@@ -539,7 +539,7 @@ Each rule below removes a specific source of run variation while keeping observa
 
 - **Disk state:** in those admin usage responses the root `status` (`ok`, `filling` or `full`)
   becomes `<disk-status>`, and the root `message` becomes `<disk-message>` when it is one of the
-  three sentences `internal/capacity` writes for those states. The server picks the state and the
+  three sentences `host/capacity` writes for those states. The server picks the state and the
   sentence from how full the machine's disk is at that moment, so a reference and a candidate
   recorded minutes apart on a busy box could differ with no change in the program. Any other
   status value or wording is left as it is and compared; nothing else in the response is touched.
@@ -609,8 +609,8 @@ without recording those requests. It waits for progress from both startup tasks:
 
 | Startup progress awaited | Code |
 | --- | --- |
-| `operations.network_usage` | `internal/app/operations/network.go:networkUsageWorker.Start`; `netusage.Sample` persists the first sample |
-| `operations.paper_metrics` | `internal/app/operations/paper_worker.go:PaperMetrics.Start`; `papermetrics.InitializeRun` registers provenance |
+| `operations.network_usage` | `host/app/operations/network.go:networkUsageWorker.Start`; `netusage.Sample` persists the first sample |
+| `operations.paper_metrics` | `host/app/operations/paper_worker.go:PaperMetrics.Start`; `papermetrics.InitializeRun` registers provenance |
 
 The harness counts successful observation requests per instance. Only
 `GET /v1/admin/api-analytics as admin.self_calls_today` and
@@ -626,17 +626,17 @@ pending values remain `<n>` and null pending remains null.
 
 | Timer task names | Code |
 | --- | --- |
-| `operations.api_metrics` | `internal/app/operations/apimetrics.go:flushLoop` (20-second flush; startup prune/backfill need not make progress) |
-| `accounts.connector_sweep` | `internal/handler/connector.go:SweepWorker` (hourly) |
-| `accounts.visitor_auth` | `internal/app/accounts/visitor_auth_worker.go:Start` (first expiry after 30 seconds) |
-| `http.connector.caches`, `http.oauth.caches`, `http.site.caches`, `http.user.caches` | `internal/handler/http_caches.go:Start` (periodic eviction) |
+| `operations.api_metrics` | `host/app/operations/apimetrics.go:flushLoop` (20-second flush; startup prune/backfill need not make progress) |
+| `accounts.connector_sweep` | `host/handler/connector.go:SweepWorker` (hourly) |
+| `accounts.visitor_auth` | `host/app/accounts/visitor_auth_worker.go:Start` (first expiry after 30 seconds) |
+| `http.connector.caches`, `http.oauth.caches`, `http.site.caches`, `http.user.caches` | `host/handler/http_caches.go:Start` (periodic eviction) |
 | `http.hack.limiters` | `products/hack/hackhttp/limiter_workers.go:Start` (ten minutes) |
-| `mail.submissions`, `notifications.delivery` | `internal/handler/kinds.go:SubmissionEmailOwner`, `internal/handler/notify.go:Start`; `app/notifications` delivery trackers (periodic queue claims) |
-| `operations.geoip_watch` | `internal/geoip/geoip.go:WatchWorker` (minute; initial missing-file error is retained) |
-| `operations.saved_data_sweep` | `internal/handler/saveddata.go:Start` (empty startup scan, later periodic maintenance) |
+| `mail.submissions`, `notifications.delivery` | `host/handler/kinds.go:SubmissionEmailOwner`, `host/handler/notify.go:Start`; `app/notifications` delivery trackers (periodic queue claims) |
+| `operations.geoip_watch` | `host/geoip/geoip.go:WatchWorker` (minute; initial missing-file error is retained) |
+| `operations.saved_data_sweep` | `host/handler/saveddata.go:Start` (empty startup scan, later periodic maintenance) |
 | `hack.event_cleanup` | `products/hack/hackhttp/event_cleanup_workers.go:Start` (ten-minute initial delay) |
-| `sites.hack_sweep` | `internal/handler/hack_mode.go:startHackSweep` (empty startup scan, then minute ticks) |
-| `sites.address_families`, `sites.domain_checks`, `sites.idle_cleanup`, `sites.preview_expiry` | `internal/handler/familyhost.go`, `domaincheck.go`, `idle.go`, `site.go` (delayed scans; disabled in base) |
+| `sites.hack_sweep` | `host/handler/hack_mode.go:startHackSweep` (empty startup scan, then minute ticks) |
+| `sites.address_families`, `sites.domain_checks`, `sites.idle_cleanup`, `sites.preview_expiry` | `host/handler/familyhost.go`, `domaincheck.go`, `idle.go`, `site.go` (delayed scans; disabled in base) |
 
 Other reported tasks retain their status nullness. `notifications.retention` sweeps synchronously
 before readiness. `sites.trash_purge` starts on an empty throwaway database.

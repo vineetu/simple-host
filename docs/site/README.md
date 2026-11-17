@@ -2,7 +2,7 @@
 
 Source MDX lives in `src/content/docs`. Run `bash scripts/build-docs-site.sh` from
 any directory with Node 22.23.4, npm, and Python 3. Commit the
-source, lockfile, and `internal/webassets/docs-site` together. Go needs no Node.
+source, lockfile, and `host/webassets/docs-site` together. Go needs no Node.
 On the shared development box, run the build under `systemd-run` with MemoryMax=3G.
 CI uses Node 22.23.4 and `npm ci`, rebuilds both brands, and rejects output drift
 outside `pagefind/`. Pagefind's arm64 and x64 binaries are both pinned to 1.6.0,

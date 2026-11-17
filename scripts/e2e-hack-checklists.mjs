@@ -27,7 +27,7 @@ async function person(role, width) {
  let before = false
  await page.route('**/hack/**', async route => {
   const path = new URL(route.request().url()).pathname
-  const file = 'internal/webassets/static' + path
+  const file = 'host/webassets/static' + path
   if (!fs.existsSync(file)) return route.continue()
   const pinned = file.endsWith('/screens/participant-home.js') || file.endsWith('/kit.css')
   const body = before && pinned ? execFileSync('git', ['show', '3ef2a7e5:' + file]) : fs.readFileSync(file)

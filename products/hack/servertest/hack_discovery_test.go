@@ -10,17 +10,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/buildinfo"
+	"github.com/vsriram/simple-host/host/buildinfo"
 
-	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
 // agentCard/agentCardTool/agentCardAuth, mcpServerCard/mcpServerCardIcon/
 // mcpServerCardRemote, aiCatalog and checkAPIError below are duplicated
-// from internal/handler/{agentcard,mcpservercard,api_errors_test}.go
+// from host/handler/{agentcard,mcpservercard,api_errors_test}.go
 // (cleanup 3.2 slice 3): pure JSON-shape DTOs (and one JSON-decoding
 // assertion helper) with no handler-private dependency, used here only to
 // decode a response body — the production types staying unexported in

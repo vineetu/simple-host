@@ -2,7 +2,7 @@ package servertest
 
 // The Simple Hack cases of the shared page tests. They run against the real
 // extension (installAssets), never a copy of its files or callbacks; the
-// platform's own tests in internal/handler cover the platform install only.
+// platform's own tests in host/handler cover the platform install only.
 
 import (
 	"bytes"
@@ -19,11 +19,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/config"
 
-	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
@@ -387,7 +387,7 @@ func TestHackDocsLimitsText(t *testing.T) {
 
 // Each Hack chrome page, as served, carries the shared theme script exactly
 // once, in <head> before any stylesheet of its own. This is the Hack half of
-// internal/handler's TestEveryServedPageCarriesTheOneThemeScript; the pages
+// host/handler's TestEveryServedPageCarriesTheOneThemeScript; the pages
 // left the platform's static folder, so that test no longer reaches them.
 func TestHackServedPagesCarryTheOneThemeScript(t *testing.T) {
 	var buf bytes.Buffer
@@ -591,11 +591,11 @@ func TestHackAuthJSStillHasCard(t *testing.T) {
 	}
 }
 
-// The shared theme rule (internal/handler/theme_test.go) applied to the
+// The shared theme rule (host/handler/theme_test.go) applied to the
 // product's own pages, scripts, stylesheets and docs: none decides its own
 // theme. The Hack landings stay light through CSS alone.
 func TestHackFilesDoNotDecideTheirOwnTheme(t *testing.T) {
-	// A copy of themeBanned in internal/handler/theme_test.go (unexported,
+	// A copy of themeBanned in host/handler/theme_test.go (unexported,
 	// in a test file, so it cannot be imported); keep the two lists equal.
 	banned := []string{
 		"prefers-color-scheme", "matchMedia", "themeDefault", "data-theme-default",

@@ -76,8 +76,8 @@ class RunnerTest(unittest.TestCase):
             dest = self.root / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / rel, dest)
-        (self.root / "db").mkdir()
-        (self.root / "db/schema.sql").write_text("-- empty fixture template\n")
+        (self.root / "host/db").mkdir(parents=True)
+        (self.root / "host/db/schema.sql").write_text("-- empty fixture template\n")
         (self.root / "products/hack/db").mkdir(parents=True)
         (self.root / "products/hack/db/schema.sql").write_text("-- empty product fixture\n")
         go_version = re.search(r"^go .+$", (ROOT / "go.mod").read_text(), re.MULTILINE)[0]
@@ -266,7 +266,7 @@ sys.exit(result.returncode)
                     output = result.stdout + result.stderr
                     self.assertTrue(created_file.exists(), output)
                     self.assertEqual(result.returncode, 128 + sig, output)
-                    self.assertNotIn("applying db/schema.sql", output)
+                    self.assertNotIn("applying host/db/schema.sql", output)
                     self.assert_databases_removed(output)
                 finally:
                     # Keep this regression safe even when run against the old,

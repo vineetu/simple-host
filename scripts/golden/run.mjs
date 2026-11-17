@@ -736,7 +736,7 @@ async function seedAndCallConverted({ instance, at, registerSecret }) {
  }
  // Convert(public), including policy names and the canonical version. Written
  // as JSON between the markers: TestGoldenConvertedScenarioRules
- // (internal/app/storage) reads it and compares it with Convert's output.
+ // (host/app/storage) reads it and compares it with Convert's output.
  // golden-converted-rules:begin (JSON)
  const rules = { "version": 1, "policies": [
   { "name": "read", "command": "read", "using": "true" },
@@ -987,7 +987,7 @@ async function seedAndCallHost({ instance: host, calls, usedNames, at }) {
 // ---- Hack instance: seed + request list ------------------------------------
 
 // The event's dates are seed input, not server-generated noise: the server
-// (parseEventTime + rfc3339UTC in internal/handler/hack.go) just echoes a
+// (parseEventTime + rfc3339UTC in host/handler/hack.go) just echoes a
 // bare YYYY-MM-DD back as that day's midnight UTC, formatted RFC3339. main()
 // puts their RFC3339 form into knownSeedTimestamps() so the normalizer in
 // lib.mjs leaves these two exact values as-is instead of folding them into

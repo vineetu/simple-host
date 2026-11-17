@@ -5,9 +5,9 @@
 // file is the website's own implementation: real history/location and
 // native forms, unchanged from what judge-scoring.js, public-judge.js,
 // organiser-people.js and organiser-judging.js did inline before this
-// file existed. internal/mcp/apps/frame/platform.js is the MCP frame's
+// file existed. host/mcp/apps/frame/platform.js is the MCP frame's
 // swapped-in equivalent, selected by the same esbuild OnResolve plugin
-// (internal/mcp/apps/bundlegen) that swaps nav.js and tour.js. Behaviour on
+// (host/mcp/apps/bundlegen) that swaps nav.js and tour.js. Behaviour on
 // this side is byte-for-byte what it replaced; see that file for the
 // frame-side reasoning each function exists for.
 

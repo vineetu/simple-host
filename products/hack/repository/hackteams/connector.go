@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // ConnectorTarget stores a connected app's choice. Membership is checked here

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	_ "github.com/lib/pq"
-	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
+	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
@@ -45,8 +45,8 @@ func TestVerifyHackSchemaMissingColumnAndIndex(t *testing.T) {
 			restore: `ALTER TABLE events ADD COLUMN theme text`,
 			want: "database is behind this build; missing: events.theme\n" +
 				"Run `simple-host migrate` against this database (on a small box, re-running the install\n" +
-				"command does it), or apply the files in db/migrations/ by hand and record each with\n" +
-				"`simple-host migrate -mark FILE`. A new database takes db/schema.sql",
+				"command does it), or apply the files in host/db/migrations/ by hand and record each with\n" +
+				"`simple-host migrate -mark FILE`. A new database takes host/db/schema.sql",
 		},
 		{
 			name:    "index",

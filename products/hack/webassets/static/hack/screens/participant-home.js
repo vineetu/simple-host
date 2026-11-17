@@ -15,7 +15,7 @@ export function title() { return 'Overview' }
 // the full note): the deadline sweep settles an incomplete draft as
 // `progress.steps[id=submit].status === "not_submitted"` -- still judged,
 // flagged, never a separate boolean. Confirmed against the landed backend
-// (internal/handler/hack_entry_rules.go entryProgressJSON) while building
+// (host/handler/hack_entry_rules.go entryProgressJSON) while building
 // this screen.
 const PLAIN = {
   title: 'project name', problem: 'the problem', tagline: 'the solution', audience: "who it's for",

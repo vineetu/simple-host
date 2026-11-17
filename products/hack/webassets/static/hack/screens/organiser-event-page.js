@@ -52,7 +52,7 @@ const CRAYONS = [['', 'Automatic'], ['red', 'Red'], ['teal', 'Teal'], ['indigo',
 const SWATCH_HEX = { red: '#d15d48', teal: '#267b79', indigo: '#4a49a8', orange: '#e9a45f', yellow: '#f2c94c', grass: '#86ab74', blush: '#ee8f92' }
 // SIM-353: whole-page styles for the public event page. '' (Classic) is
 // today's look -- no data-theme, no themes.css link, byte-identical HTML.
-// The Go allowlist (hackThemes in internal/hackhttp/hack_themes.go) is the
+// The Go allowlist (hackThemes in host/hackhttp/hack_themes.go) is the
 // one source of truth for which non-empty ids are real; this list mirrors
 // it for display order and copy only.
 const THEMES = [
@@ -1183,7 +1183,7 @@ ${readOnly ? '' : '<div class="drop" id="drop-zone"><svg class="ico" viewBox="0 
     try {
       // ?create=1: the server's underlying site record for this event's
       // website is created lazily on the first upload, same as a team
-      // site (internal/handler/hack_uploads_test.go's own upload() helper
+      // site (host/handler/hack_uploads_test.go's own upload() helper
       // always appends it); the old inline file input never did, so a
       // brand-new event's very first website upload 404'd.
       const r = await apiBytes('PUT', path + '/website?create=1', buf, 'application/zip')

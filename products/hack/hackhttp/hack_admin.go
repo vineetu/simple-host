@@ -7,15 +7,15 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // hackAccountAdmin is handler's accountAdmin (accounts.go), duplicated here
 // (cleanup 3.2 slice 1c) so the platform-admin endpoints below need no
-// cross-package reference once HackHandler moves to internal/hackhttp.
+// cross-package reference once HackHandler moves to host/hackhttp.
 // Same 401/404 shape (a signed-in non-admin should not learn the admin
 // endpoint exists).
 func hackAccountAdmin(w http.ResponseWriter, r *http.Request) bool {

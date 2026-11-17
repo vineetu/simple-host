@@ -3,7 +3,7 @@ name: website-deploy
 description: Publish or update a site and its saved data on Simple Host (simple-host.app). Use when the person asks to put their files online, change an existing site, or configure forms and saved entries. Covers KV, SQLite, and files with row rules and file-bucket presets, visitor sign-in, domains, named viewers, versions, downloads, and visitor counts.
 ---
 
-<!-- Derived from simple-host-website/skills/website-deploy/SKILL.md and internal/mcp/instructions.go. Keep in step. -->
+<!-- Derived from simple-host-website/skills/website-deploy/SKILL.md and host/mcp/instructions.go. Keep in step. -->
 
 # Publish and update a website on Simple Host
 

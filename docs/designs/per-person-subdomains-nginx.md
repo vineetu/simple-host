@@ -9,7 +9,7 @@ links are still served exactly as before, because the content-host nginx block
 opened. This is the one change to make there, by hand.
 
 The Go side is already deployed: `GET /internal/site-redirect/{handle}[/{site}[/{rest...}]]`
-(`internal/handler/personhost.go`, `contentHostRedirect`). In canonical mode it answers **302**
+(`host/handler/personhost.go`, `contentHostRedirect`). In canonical mode it answers **302**
 to the person address (path and query kept; an old handle kept as an alias — `admin` — maps to
 its new one; a site with its own domain goes to the domain). A site pinned to the content host
 (`vineetu/eb2-wait`, see below) or any request while `PERSON_HOSTS` is not `canonical` is
@@ -85,5 +85,5 @@ and the integration token). To move it:
    `https://vineetu.simple-host.app`. The token line must be copied from the content-host file by
    hand (it is the secret).
 2. Remove `"vineetu/eb2-wait": true` from `contentHostOnlySites` in
-   `internal/handler/personhost.go`, rebuild, deploy.
+   `host/handler/personhost.go`, rebuild, deploy.
 3. Drop the `$sh_site` exception from the content-host block (it then redirects like the rest).

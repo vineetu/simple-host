@@ -1,6 +1,6 @@
 package hackmcp
 
-import "github.com/vsriram/simple-host/internal/mcp"
+import "github.com/vsriram/simple-host/host/mcp"
 
 // Hack uses the personal credential for these tools, as for event storage.
 func hackNotificationTools() []mcp.Tool {

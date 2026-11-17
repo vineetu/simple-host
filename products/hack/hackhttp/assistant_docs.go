@@ -26,9 +26,9 @@ var AssistantDocPages = []struct{ Path, URL string }{
 // AssistantDocsText builds the DOCS block (each page as
 // "## [<title>](<url>)" plus its extracted text, capped) from fsys. It is
 // the one place this HTML-to-text extraction lives: cmd/server calls it to
-// build the real server's prompt (internal/app/hack/events may not import
-// internal/webassets -- scripts/layering/rules.txt -- so cmd/server passes
-// the product's docs-site/hack tree in), and internal/hackhttp's own eval test
+// build the real server's prompt (host/app/hack/events may not import
+// host/webassets -- scripts/layering/rules.txt -- so cmd/server passes
+// the product's docs-site/hack tree in), and host/hackhttp's own eval test
 // (assistant_eval_test.go) calls it too, so the eval runs against the
 // exact production prompt instead of a second, maybe-drifted copy of this
 // extraction.

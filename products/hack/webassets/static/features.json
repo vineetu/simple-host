@@ -1536,7 +1536,7 @@
      "covers": [
       "storage-recipes"
      ],
-     "evidence": "FEATURES.md \u00a723 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in internal/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
+     "evidence": "FEATURES.md \u00a723 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in host/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
     },
     {
      "id": "each-persons-records",
@@ -2007,7 +2007,7 @@
       }
      ],
      "covers": [],
-     "evidence": "FEATURES.md \u00a74 Routes row (allowed-origins, owner); cap of 20 confirmed in internal/handler/site.go ('too many origins (max 20)'); current page state-cross-origin (Agent only). Not stated for Enterprise; marked no.",
+     "evidence": "FEATURES.md \u00a74 Routes row (allowed-origins, owner); cap of 20 confirmed in host/handler/site.go ('too many origins (max 20)'); current page state-cross-origin (Agent only). Not stated for Enterprise; marked no.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -2236,7 +2236,7 @@
      "covers": [
       "who-may-save"
      ],
-     "evidence": "FEATURES.md \u00a75 Kinds subsection ('Who may save here', not_allowed_to_save, +tag); 500 from internal/handler/limitstext.go (SAVED_DATA_SAVERS_MAX); current page who-may-save; PARITY row 'Saved-data kinds and who may save'.",
+     "evidence": "FEATURES.md \u00a75 Kinds subsection ('Who may save here', not_allowed_to_save, +tag); 500 from host/handler/limitstext.go (SAVED_DATA_SAVERS_MAX); current page who-may-save; PARITY row 'Saved-data kinds and who may save'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     },
@@ -3572,7 +3572,7 @@
       }
      ],
      "covers": [],
-     "evidence": "features.html #skill-connect-domain; FEATURES.md \u00a79 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (\u00a721) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in internal/handler/hack_assets.go excludes connect-domain."
+     "evidence": "features.html #skill-connect-domain; FEATURES.md \u00a79 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (\u00a721) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in host/handler/hack_assets.go excludes connect-domain."
     },
     {
      "id": "skill-install-page",
@@ -4546,7 +4546,7 @@
      "covers": [
       "analytics-own-visits"
      ],
-     "evidence": "FEATURES.md \u00a712 'Your own visits are not counted' (2026-11-02, SIM-151); PARITY row 'Own visits left out of view counts'; web/analytics-parse.js owner class; internal/mcp/tools.go text in list_sites, get_site and site_analytics."
+     "evidence": "FEATURES.md \u00a712 'Your own visits are not counted' (2026-11-02, SIM-151); PARITY row 'Own visits left out of view counts'; web/analytics-parse.js owner class; host/mcp/tools.go text in list_sites, get_site and site_analytics."
     },
     {
      "id": "analytics-infra-separated",
@@ -4918,7 +4918,7 @@
       }
      ],
      "covers": [],
-     "evidence": "features.html #analytics-countries; FEATURES.md \u00a712 (site_geo_daily, internal/geoip DB-IP mmdb, geoip-refresh timer); PARITY row 'Analytics' ('geo is a public-web need')."
+     "evidence": "features.html #analytics-countries; FEATURES.md \u00a712 (site_geo_daily, host/geoip DB-IP mmdb, geoip-refresh timer); PARITY row 'Analytics' ('geo is a public-web need')."
     },
     {
      "id": "analytics-api",

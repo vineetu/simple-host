@@ -495,7 +495,7 @@
     {
       "op": "set",
       "path": "/areas/2/features/4/evidence",
-      "value": "FEATURES.md §23 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in internal/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
+      "value": "FEATURES.md §23 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in host/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
     },
     {
       "op": "set",
@@ -1137,7 +1137,7 @@
     {
       "op": "set",
       "path": "/areas/5/features/5/evidence",
-      "value": "features.html #skill-connect-domain; FEATURES.md §9 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (§21) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in internal/handler/hack_assets.go excludes connect-domain."
+      "value": "features.html #skill-connect-domain; FEATURES.md §9 Skills row (connect-domain + references/registrars.md); Hack connector lists connect_domain/domain_status/remove_domain (§21) and the two shared website skills; PARITY row 'Skills and plugin' (no Enterprise domain skill). HackSkillNames in host/handler/hack_assets.go excludes connect-domain."
     },
     {
       "op": "set",

@@ -141,7 +141,7 @@ export async function render(ctx) {
   let judgesOnly = counts.judges ?? 0
   let pendingCount = 0
   // Audit item 2 (2026-11-02): in panel mode, a team with no track matches
-  // no track panel and gets no judges at all (internal/db/hack_judging_options.go).
+  // no track panel and gets no judges at all (host/db/hack_judging_options.go).
   // Fetched only before "Start judging" is offered -- the same conditional-
   // fetch pattern as the pending-approvals and zero-judges heads-ups above.
   let noTrackTeams = []

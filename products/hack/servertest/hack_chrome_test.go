@@ -2,7 +2,7 @@ package servertest
 
 import (
 	"bytes"
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/host/config"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"html/template"
 	"io/fs"
@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/webassets"
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 

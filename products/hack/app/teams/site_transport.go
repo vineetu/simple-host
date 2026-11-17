@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/host/model"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
