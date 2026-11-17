@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the install entrypoints on owned TEST_PG_URL databases."""
+"""Exercise initialization and Compose publish/restart on owned TEST_PG_URL databases."""
 import contextlib
 import json
 import os
@@ -26,6 +26,10 @@ BASE = os.environ.get('TEST_PG_URL')
 if not BASE:
     print('SKIP: product initialization rehearsal needs TEST_PG_URL')
     sys.exit(0)
+
+pg_address = urllib.parse.urlsplit(BASE)
+if pg_address.port in (5432, 55412):
+    raise SystemExit('Use the disposable TEST_PG_URL server, not port 5432 or 55412')
 
 
 def run(args, **kwargs):
@@ -214,7 +218,9 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                 thread = threading.Thread(target=relay.serve_forever, daemon=True)
                 thread.start()
                 try:
-                    for existing in (False, True):
+                    # Frozen pre-D4-S7b files also run with the new images.
+                    # Keep existing data/volumes across the second startup.
+                    for legacy, existing in ((False, False), (False, True), (True, True)):
                         with database() as url:
                             if existing:
                                 sql(url, (ROOT / 'host/db/schema.sql').read_text())
@@ -224,15 +230,18 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                             compose_env = dict(env, IMAGE=image, SIMPLE_HACK_IMAGE=image,
                                                DB_PASSWORD='fixture-only', PASSCODE_ENC_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
                                                ANALYTICS_SALT='fixture-only', SITE_DOMAIN='hack.example.test' if MODE == 'hack' else 'host.example.test',
+                                               CONTENT_HOST='sites.host.example.test', PUBLIC_BASE_URL='https://' + ('hack.example.test' if MODE == 'hack' else 'host.example.test'),
                                                TLS_MODE='internal', PASSWORD_SIGNIN='on', DOCKER_CONFIG=str(docker_config))
                             path = ROOT / ('compose.yaml' if MODE == 'root' else 'deploy/hack/standalone/compose.yaml')
+                            if legacy:
+                                path = ROOT / 'deploy/install/testdata' / ('pre-d4-s7b-host.yaml' if MODE == 'root' else 'pre-d4-s7b-hack.yaml')
                             config = json.loads(run(['docker', 'compose', '-f', str(path),
                                                      'config', '--format', 'json'], env=compose_env))
                             migration = 'migrate' if MODE == 'root' else 'release'
                             services = config['services']
                             # Retain the real app -> migration dependency and
                             # the environment produced by the published recipe.
-                            services = {name: services[name] for name in (migration, 'app')}
+                            services = {name: services[name] for name in ((migration, 'app', 'web') if MODE == 'root' else (migration, 'app'))}
                             services[migration].pop('depends_on', None)
                             services['app']['depends_on'].pop('db', None)
                             remote = urllib.parse.urlsplit(url)
@@ -240,30 +249,46 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                             authority = (credentials + marker if marker else '') + ':' + str(pg.port)
                             container_url = urllib.parse.urlunsplit(remote._replace(
                                 netloc=authority, query=remote.query + '&host=/test-pg&connect_timeout=5'))
-                            for service in services.values():
+                            for name, service in services.items():
                                 service.pop('build', None)
                                 service.pop('ports', None)
                                 service.pop('volumes', None)
                                 service['restart'] = 'no'
+                                if name == 'web':
+                                    continue
                                 service['environment']['DB_DSN'] = container_url
                                 # GeoIP needs no download for an install check.
                                 service['environment']['GEOIP_DIR'] = '/tmp/geo'
                             if MODE == 'root':
                                 services['app']['ports'] = ['127.0.0.1::8090']
                                 services['app']['volumes'] = ['sites:/data/sites']
+                                # Content files are served by the HTTPS virtual
+                                # host; port 80 only proxies setup/API requests.
+                                # Use Caddy's local CA instead of public ACME.
+                                caddyfile = work / 'Caddyfile'
+                                caddy_source = (ROOT / 'deploy/compose/Caddyfile').read_text()
+                                assert caddy_source.count('\ttls {\n\t\ton_demand\n\t}') == 1
+                                caddyfile.write_text(caddy_source.replace('\ttls {\n\t\ton_demand\n\t}',
+                                                                          '\ttls {\n\t\ton_demand\n\t\tissuer internal\n\t}'))
+                                services['web']['ports'] = ['127.0.0.1::443']
+                                services['web']['volumes'] = [str(caddyfile) + ':/etc/caddy/Caddyfile:ro',
+                                                               'sites:/data/sites:ro', 'caddy_logs:/var/log/caddy']
                                 target_port = '8090'
                             else:
-                                services['app']['ports'] = ['127.0.0.1::8080']
+                                services['app']['ports'] = ['127.0.0.1::8080', '127.0.0.1::8443']
                                 services['app']['volumes'] = ['data:/data']
                                 target_port = '8080'
-                            for service in services.values():
-                                service.setdefault('volumes', []).append(str(socket_dir) + ':/test-pg:ro')
+                            for name in (migration, 'app'):
+                                services[name].setdefault('volumes', []).append(str(socket_dir) + ':/test-pg:ro')
                             fixture = work / 'compose-fixture.json'
-                            fixture.write_text(json.dumps({'services': services, 'volumes': {'sites': {}, 'data': {}}}))
+                            fixture.write_text(json.dumps({'services': services, 'volumes': {'sites': {}, 'data': {}, 'caddy_logs': {}}}))
                             compose = ['docker', 'compose', '-p', tag, '-f', str(fixture)]
                             try:
-                                for _ in range(2):
-                                    run(compose + ['up', '-d', '--no-build', '--force-recreate', 'app'], env=compose_env)
+                                for restart in (False, True):
+                                    if restart:
+                                        run(compose + ['restart', 'app'], env=compose_env)
+                                    else:
+                                        run(compose + ['up', '-d', '--no-build'], env=compose_env)
                                     address = run(compose + ['port', 'app', target_port], env=compose_env).strip()
                                     for attempt in range(300):
                                         try:
@@ -279,8 +304,50 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                                     assert state['State'] == 'exited' and state['ExitCode'] == 0, state
                                     assert sql(url, 'SELECT count(*) FROM install_product') == '1'
                                     assert sql(url, 'SELECT product FROM install_product') == ('simple-host' if MODE == 'root' else 'simple-hack')
-                                    run(compose + ['down', '-v'], env=compose_env)
-                                print('PASS: Compose ' + MODE + (' adoption and rerun' if existing else ' fresh install and rerun'))
+                                    public = run(compose + ['port', 'web' if MODE == 'root' else 'app',
+                                                            '443' if MODE == 'root' else '8443'], env=compose_env).strip()
+                                    domain = compose_env['SITE_DOMAIN']
+                                    scheme, port = 'https', '443'
+
+                                    def request(method, path, body=None, key=None, host=domain):
+                                        args = ['curl', '--silent', '--show-error', '--fail-with-body', '--insecure',
+                                                '--noproxy', '*', '--max-time', '20', '--connect-to',
+                                                host + ':' + port + ':' + public, '-X', method]
+                                        if key:
+                                            args += ['-H', 'X-API-Key: ' + key]
+                                        if body is not None:
+                                            args += ['-H', 'Content-Type: application/json', '--data-binary', json.dumps(body)]
+                                        return run(args + [scheme + '://' + host + path])
+
+                                    if not restart:
+                                        request('POST', '/v1/auth/password/signup',
+                                                {'username': 'compose-builder', 'password': 'compose fixture password'})
+                                    signed_in = json.loads(request('POST', '/v1/auth/password',
+                                                                  {'login': 'compose-builder', 'password': 'compose fixture password'}))
+                                    key = signed_in['api_key']
+                                    if not restart:
+                                        page = '<h1>Compose persistent site</h1>'
+                                        if MODE == 'root':
+                                            request('POST', '/v1/sites/compose-site/files', {'files': {'index.html': page}}, key)
+                                            visitor_host = 'sites.host.example.test'
+                                            visitor_path = '/' + signed_in['handle'] + '/compose-site/'
+                                        else:
+                                            request('POST', '/v1/hack/events', {
+                                                'slug': 'compose-event', 'title': 'Compose fixture', 'organiser_name': 'Test Organiser',
+                                                'organisation': 'Test', 'contact_email': 'compose@example.test',
+                                                'purpose': 'Compose rehearsal', 'expected_participants': 10,
+                                                'starts_at': '2027-06-01T10:00:00Z', 'ends_at': '2027-06-02T10:00:00Z', 'time_zone': 'UTC'}, key)
+                                            request('PUT', '/v1/hack/events/compose-event/website/files?create=1',
+                                                    {'files': {'index.html': page}}, key)
+                                            visitor_host, visitor_path = 'compose-event.hack.example.test', '/'
+                                    assert request('GET', visitor_path, host=visitor_host) == page
+                                # Keep the installer's prior rerun coverage as
+                                # well as the app restart/persistence check.
+                                run(compose + ['run', '--rm', '--no-deps', migration], env=compose_env)
+                                assert sql(url, 'SELECT count(*) FROM install_product') == '1'
+                                assert request('GET', visitor_path, host=visitor_host) == page
+                                print('PASS: Compose ' + MODE + (' old file/new image' if legacy else ' adoption' if existing else ' fresh install') +
+                                      ', password sign-in, publish, persisted page after restart and migration rerun')
                             finally:
                                 run(compose + ['down', '-v', '--remove-orphans'], env=compose_env)
                 finally:

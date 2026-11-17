@@ -2099,6 +2099,13 @@ throwaway kind cluster (empty database built on start, issued-key sign-in, event
 site, survives a pod replacement). The `hack-v*` workflow lints the chart and packages it with
 the release. Status: checked in kind on 2026-11-02; not yet installed on a real cluster.
 
+Compose packaging (D4-S7b): root Compose starts `simple-host` directly; the Hack
+standalone wrapper starts `simple-hack` beside Caddy and retains its `release`
+service. Local-image installer rehearsals cover password sign-in, site publishing,
+persistence across an app restart, and the pre-slice Compose files with new images.
+Root Compose no longer forwards `EVENTS`. Its opt-in `static` profile only renders
+at this stage; runtime acceptance is D4-S5a and default traffic stays on the app.
+
 **Standalone full-platform package (published v0.8.13).** `deploy/hack/standalone/` <a id="standalone-full-platform-package"></a>
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.

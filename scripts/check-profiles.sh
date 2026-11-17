@@ -72,6 +72,10 @@ for path in ['compose.yaml', 'deploy/hack/standalone/compose.yaml',
     for service, value in config['services'].items():
         env = value.get('environment', {})
         names = set(env) if isinstance(env, dict) else {v.split('=')[0] for v in env}
+        # D4-S7b renders Static before D4-S4a registers its settings. Keep
+        # that exception local to the opt-in Static service.
+        if service == 'static' and value.get('profiles') == ['static']:
+            names -= set('STATIC_BIND STATIC_PORT STATIC_API_URL STATIC_STATE_DIR STATIC_REFRESH_SECONDS'.split())
         names_ok(names, f'{path}:{service}')
         if service in ('app', 'release'):
             supplied(names, f'{path}:{service}')

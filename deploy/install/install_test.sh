@@ -99,4 +99,27 @@ with tempfile.TemporaryDirectory(prefix='notify-install-test-') as tmp:
 print('PASS: installer generates and preserves PASSCODE_ENC_KEY, upgrades existing .env, passes the key through compose, and replaces .env privately and atomically')
 PY
 
+python3 - "$ROOT" <<'PY'
+import json, os, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+env = dict(os.environ, DB_PASSWORD='compose-fixture', ADMIN_API_KEY='compose-fixture', EVENTS='hosted')
+command = ['docker', 'compose', '-f', str(root / 'compose.yaml')]
+default = subprocess.check_output(command + ['config', '--services'], env=env, text=True).splitlines()
+assert 'static' not in default, 'Static must be off by default'
+config = json.loads(subprocess.check_output(command + ['--profile', 'static', 'config', '--format', 'json'], env=env))
+services = config['services']
+for name in ('app', 'migrate', 'static'):
+    assert 'EVENTS' not in services[name]['environment'], name + ' accepts the removed product selector'
+static = services['static']
+assert static['profiles'] == ['static'] and static['command'] == ['static']
+assert static['image'] == services['app']['image']
+mounts = {v['target']: v for v in static['volumes']}
+assert mounts['/data/sites']['read_only']
+assert not mounts['/data/static-state'].get('read_only', False)
+assert static['environment']['STATIC_STATE_DIR'] == '/data/static-state'
+assert static['environment']['STATIC_API_URL'] == 'http://app:8090'
+assert services['web']['depends_on'].keys() == {'app'}
+print('PASS: Compose renders with Static off by default and opt-in read-only site files plus writable state')
+PY
+
 python3 "$ROOT/deploy/install/product_init_test.py" root

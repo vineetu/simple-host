@@ -38,7 +38,6 @@ services:
     command: ["migrate", "-init", "-record-product"]
     environment:
       DB_DSN: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
-      EVENTS: ${EVENTS:-}
 
   app:
     build: .
@@ -185,7 +184,6 @@ services:
       ADDRESS_FAMILY_CACHE_SECONDS: ${ADDRESS_FAMILY_CACHE_SECONDS:-}
       EVENT_TTL_DAYS: ${EVENT_TTL_DAYS:-}
       EVENT_MAX_CLAIMS: ${EVENT_MAX_CLAIMS:-}
-      EVENTS: ${EVENTS:-}
       EVENT_NAME_PEER: ${EVENT_NAME_PEER:-}
       EVENT_CREATE_PER_DAY: ${EVENT_CREATE_PER_DAY:-}
       EVENT_MAX_ACTIVE_PER_ORGANISER: ${EVENT_MAX_ACTIVE_PER_ORGANISER:-}
@@ -305,6 +303,36 @@ services:
       # Read-only: the ingester only ever reads the access log Caddy writes.
       - caddy_logs:/var/log/caddy:ro
 
+  # Built now, off by default. End-to-end acceptance is D4-S5a; enabling
+  # this profile alone does not redirect Caddy traffic through Static.
+  static:
+    build: .
+    image: ${IMAGE:-@HOST_LOCAL_IMAGE@}
+    profiles: [static]
+    command: [static]
+    logging: *logging
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DB_DSN: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
+      DATA_DIR: /data/sites
+      SITE_DOMAIN: ${SITE_DOMAIN-}
+      CONTENT_HOST: ${CONTENT_HOST-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL-}
+      PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:-}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
+      STATIC_BIND: 0.0.0.0
+      STATIC_PORT: "@STATIC_PORT@"
+      STATIC_API_URL: http://app:@APP_PORT@
+      STATIC_STATE_DIR: /data/static-state
+      STATIC_REFRESH_SECONDS: "10"
+    expose: ["@STATIC_PORT@"]
+    volumes:
+      - sites:/data/sites:ro
+      - static_state:/data/static-state
+
   web:
     image: @CADDY_IMAGE@
     logging: *logging
@@ -330,3 +358,4 @@ volumes:
   sites:
   caddy_data:
   caddy_config:
+  static_state:

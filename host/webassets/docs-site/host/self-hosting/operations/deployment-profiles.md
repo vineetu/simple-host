@@ -24,9 +24,21 @@ Before changing either instance, take paired database and site-directory backups
 
 ### What runs
 
-The root `compose.yaml` runs Postgres 16, one server container and Caddy. The server image is the nonroot Go binary, HTTP 8090, `DATA_DIR=/data/sites`; Caddy publishes 80/443 by default. Named volumes hold the database, sites, Caddy logs, certificates and config. Caddy proxies APIs and can serve site files from its read-only sites mount (`compose.yaml:14`, `compose.yaml:37`, `compose.yaml:277`, `Dockerfile:31`, `deploy/compose/Caddyfile:86`). Workers run inside the server process, as listed below.
+The root `compose.yaml` runs Postgres 16, one server container and Caddy.
+The server image is the nonroot Go binary, HTTP 8090, `DATA_DIR=/data/sites`;
+Caddy publishes 80/443 by default. Named volumes hold the database, sites,
+Caddy logs, certificates and config. Caddy proxies APIs and can serve site files
+from its read-only sites mount (`compose.yaml:14`, `compose.yaml:37`,
+`compose.yaml:277`, `Dockerfile:31`, `deploy/compose/Caddyfile:86`).
+The root Dockerfile defaults to its `host` target and starts `simple-host`
+directly. Root Compose does not pass `EVENTS` through. Its optional `static`
+profile renders a `simple-host static` service with read-only site files and a
+separate writable state volume. It is off by default; routing and end-to-end
+acceptance belong to D4-S5a, so enabling the profile alone does not change
+Caddy's upstream.
+Workers run inside the server process, as listed below.
 
-The entrypoint sets `EVENTS=hosted`. Its `/data` volume holds sites, logs and Caddy state; the server listens on 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080. Default published ports are 80/443 and loopback 18080.
+Its `/data` volume holds sites, logs and Caddy state; the server listens on 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080. Default published ports are 80/443 and loopback 18080.
 
 ### How settings are supplied
 
@@ -34,7 +46,7 @@ Compose substitutes `.env`/shell values into explicit container environment entr
 
 ### Migration ownership
 
-Compose: the installer migrates before starting the new app. The root installer pulls the image, starts the database, runs `docker compose run --rm -T app migrate`, then starts the app. Failure leaves the app unrestarted. For an empty database volume, Postgres loads the mounted schema.sql first; migrate then applies/records pending files under the advisory lock (`deploy/install/install.sh:273`, `compose.yaml:22`). Plain `compose up` on an existing database does not do that upgrade step by itself. Standalone's installer stops the app and runs `release` before starting it; Compose also gates app startup on successful release. Its entrypoint loads schema.sql with psql when `public.users` is absent, then executes migrate.
+Compose: the installer migrates before starting the new app. The root installer pulls the image, starts the database, runs `docker compose run --rm -T app migrate -init -record-product`, then starts the app. Failure leaves the app unrestarted. Compose also gates app startup on the one-shot `migrate` service, which initializes an empty database or records an existing install and applies pending migrations under the advisory lock. Standalone's installer stops the app and runs `release` before starting it; Compose also gates app startup on successful release. Both products keep their site volumes across restarts. The installer rehearsals build local images, sign in, publish a site and check it after restarting the app; they also run the pre-D4-S7b Compose files with the new images (`deploy/install/product_init_test.py`).
 
 ### Upgrade steps and rollback
 

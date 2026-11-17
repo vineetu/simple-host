@@ -39,6 +39,7 @@ ENTRYPOINT ["/usr/local/bin/simple-hack"]
 # Keep Host last: an unqualified build is the platform alone.
 FROM gcr.io/distroless/static-debian12:nonroot AS host
 COPY --from=build --chown=nonroot:nonroot /data-empty /data/sites
+COPY --from=build --chown=nonroot:nonroot /data-empty /data/static-state
 COPY --from=build /out/simple-host /usr/local/bin/simple-host
 USER nonroot
 ENV DATA_DIR=/data/sites PORT=@APP_PORT@
