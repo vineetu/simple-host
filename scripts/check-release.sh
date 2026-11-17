@@ -13,39 +13,15 @@ fi
 [ "$#" -eq 0 ] || { echo "usage: $0 [--mcpjam]"; exit 1; }
 fail=0
 
-release_tmp=$(mktemp -d)
-trap 'rm -rf "$release_tmp"' EXIT
-
-# Offline docs-sync runs settings_docs.py --check --local-only.
-# Supply a known Enterprise source here for the cross-repo comparison.
-echo "== settings docs and Enterprise setup settings =="
-enterprise_source=${ENTERPRISE_REPO:-}
-if [ -z "$enterprise_source" ]; then
-  enterprise_source="$release_tmp/enterprise"
-  mkdir -p "$enterprise_source/docs/advanced"
-  settings_url=https://raw.githubusercontent.com/vineetu/simple-host-enterprise/main/docs/advanced/settings.json
-  if ! status=$(curl -sSL --connect-timeout 10 --max-time 30 -o "$enterprise_source/docs/advanced/settings.json" -w '%{http_code}' "$settings_url"); then
-    echo "  FAIL: Enterprise settings could not be checked: network unavailable or request failed ($settings_url)"; fail=1
-    enterprise_source=""
-  elif [ "$status" != 200 ]; then
-    echo "  FAIL: published Enterprise settings unavailable: HTTP $status ($settings_url)"; fail=1
-    enterprise_source=""
-  fi
-fi
-if [ -n "$enterprise_source" ]; then
-  if [ ! -r "$enterprise_source/docs/advanced/settings.json" ]; then
-    echo "  FAIL: ENTERPRISE_REPO has no readable docs/advanced/settings.json"; fail=1
-  else
-    ENTERPRISE_REPO="$enterprise_source" python3 scripts/settings_docs.py --check || fail=1
-  fi
-fi
+# Enterprise is frozen; release checks retain the local settings contract.
+echo "== local settings docs =="
+python3 scripts/settings_docs.py --check --local-only || fail=1
 
 # SIM-394: the hack organiser assistant's eval set, against the real
 # configured model. Only when ASSISTANT_BASE_URL/ASSISTANT_MODEL are
 # already in the environment (there is no default endpoint to check
 # against, and this never invents or prints credentials) -- same
-# conditional-on-having-credentials shape as the Enterprise settings check above,
-# not the hard run_fixture requirement below.
+# conditional-on-having-credentials check, not the hard run_fixture requirement below.
 if [ -n "${ASSISTANT_BASE_URL:-}" ] && [ -n "${ASSISTANT_MODEL:-}" ]; then
   echo "== hack organiser assistant eval (SIM-394) =="
   bash scripts/check-hack-assistant-eval.sh || fail=1

@@ -1,0 +1,1 @@
+{"product":"host","step":"read-data","surface":"mcp","response":{"status":200,"body":{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"}}},"error":"host/read-data/mcp: replay base: tools/call storage_get_kv: JSON-RPC error"}

@@ -1,0 +1,1 @@
+{"product":"host","step":"delete-site","surface":"api","response":{"status":302},"error":"host/delete-site/api: replay base: moderation-site-delete: unsuccessful HTTP status 302"}

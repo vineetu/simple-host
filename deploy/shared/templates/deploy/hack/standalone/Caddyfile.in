@@ -1,0 +1,59 @@
+{
+	admin off
+	http_port @HACK_HTTP_PORT@
+	https_port @HACK_HTTPS_PORT@
+	auto_https disable_redirects
+	# Empty for a direct VPS; Coolify supplies a servers/listener_wrappers
+	# stanza to accept PROXY protocol only from its private proxy network.
+	{$CADDY_PROXY_PROTOCOL}
+	on_demand_tls {
+		ask http://127.0.0.1:@APP_PORT@/internal/tls-ask
+	}
+}
+
+http://:@HACK_HEALTH_PORT@ {
+	@health path /healthz /readyz
+	handle @health {
+		reverse_proxy 127.0.0.1:@APP_PORT@
+	}
+	handle {
+		respond 404
+	}
+}
+
+http://:@HACK_HTTP_PORT@ {
+	redir https://{host}{uri} 308
+}
+
+https://:@HACK_HTTPS_PORT@ {
+	tls {
+		import /data/caddy-config/tls-directive.caddy
+	}
+	log {
+		output file /data/logs/access.log {
+			mode 644
+			roll_size 64MiB
+			roll_at 00:00
+			roll_keep 35
+			roll_keep_for 672h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Api-Key delete
+			}
+		}
+	}
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+	# The Go host router serves event pages, team files, previews and APIs.
+	# Do not reuse the legacy small-box sites.<domain> file-server rules.
+	handle {
+		reverse_proxy 127.0.0.1:@APP_PORT@ {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto https
+		}
+	}
+}

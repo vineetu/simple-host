@@ -2,7 +2,7 @@
 # local postgres superuser (it creates and drops a throwaway database).
 # check-prices-age.sh only warns: the cost calculator's prices are checked monthly.
 # check-release needs network access, Docker and nginx; it holds publication,
-# the Enterprise settings comparison and HTTP/server fixture checks.
+# local settings and HTTP/server fixture checks.
 #
 # `test` is the fast loop: go test ./... with no database, so the ~15 DB-backed
 # fixtures (see scripts/test-integration.sh) skip. `test-integration` gives
@@ -11,7 +11,7 @@
 # use the platform schema alone; products/ packages use the composed schema.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5
-.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries
+.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries parity
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -69,6 +69,9 @@ check:
 	bash deploy/prod/sh-uptime-watch_test.sh
 	bash deploy/install/install_test.sh
 	bash deploy/hack/standalone/tests/install_test.sh
+	bash deploy/shared/render_test.sh
+	bash scripts/check-parity-outcomes.sh
+	bash scripts/parity/test.sh
 	bash deploy/digitalocean/droplet/test/pins_test.sh
 	bash scripts/check-fresh-install.sh
 	@bash scripts/check-prices-age.sh || echo "WARNING: the cost calculator's prices need their monthly check (not a failure)"
@@ -76,6 +79,11 @@ check:
 # Publication, cross-repository and HTTP/server fixtures need network access.
 check-release:
 	bash scripts/check-release.sh
+
+# Both products: verify the matrix, replay all scenarios, then run the browser
+# fixtures with their existing explicit exceptions.
+parity:
+	bash scripts/check-parity-outcomes.sh --run
 
 inventory:
 	python3 scripts/compose-openapi.py

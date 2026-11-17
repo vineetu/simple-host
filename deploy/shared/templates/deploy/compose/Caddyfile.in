@@ -1,0 +1,229 @@
+{
+	# No `email` directive on purpose. Caddy substitutes an unset environment
+	# variable as nothing, and a bare `email` fails to parse, which crash-loops
+	# the container for any organiser who did not set one. Let's Encrypt allows
+	# account registration without an address; it is only used for expiry
+	# notices, and these instances are short-lived.
+	admin off
+
+	# Certificates are fetched the first time a hostname is asked for, after the
+	# application confirms the name is its own.
+	#
+	# This is what lets a box be installed before it knows where it lives. The
+	# hostname never appears in this file, so setup does not have to rewrite
+	# configuration it cannot reach, and nothing has to be restarted: the
+	# application records the choice, and the next request for that name gets a
+	# certificate.
+	on_demand_tls {
+		ask http://app:@APP_PORT@/internal/tls-ask
+	}
+}
+
+# Every hostname this instance answers to, over HTTPS.
+https:// {
+	tls {
+		on_demand
+	}
+
+	log {
+		# Access log for the analytics ingester. Caddy writes JSON; the ingester
+		# reads it directly.
+		output file /var/log/caddy/access.log {
+			# Caddy runs as root in its official image; the server runs as
+			# nonroot. Without an explicit mode the log is created 0600 and the
+			# ingester gets permission denied on every run, which shows up as
+			# every site reporting zero views rather than as an error anyone
+			# would notice.
+			mode 644
+			# The log holds visitor IPs, and the privacy page says log files
+			# are deleted after 30 days. Roll daily at midnight UTC (on a clock,
+			# so a quiet box rolls too; size alone could take months) and delete
+			# rolls 28 days after they were rolled: a roll holds the day before
+			# it, and old rolls are removed at the next daily roll, so the
+			# oldest line on disk is about 30 days old. roll_keep only bounds
+			# how many size rolls a busy box keeps. roll_at needs Caddy 2.11+
+			# (caddy:2-alpine is 2.11.4).
+			#
+			# Rolls are named access-<time>-<reason>.log and gzipped at once;
+			# the ingester finishes the newest one after a roll, and
+			# analytics-rebuild replays them all.
+			roll_size 64MiB
+			roll_at 00:00
+			roll_keep 35
+			roll_keep_for 672h
+		}
+		# The API key a client sends in X-API-Key must not land in a file that
+		# is kept for 30 days.
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Api-Key delete
+			}
+		}
+	}
+
+	# /internal/* is for this file's own rewrites below (and Caddy's own
+	# certificate check, which reaches the app directly): from outside it is
+	# not found, on every hostname. Otherwise /internal/tls-ask would tell
+	# anyone which names this box serves.
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+
+	# The API belongs to the application on every hostname.
+	@api path /v1/*
+	handle @api {
+		reverse_proxy app:@APP_PORT@
+	}
+
+	# Participant content lives on sites.<dashboard>, matched by shape rather
+	# than by name, because the name is not known when this file is written.
+	# Serving it here keeps the application out of the content path.
+	# A regex, not `host sites.*`: Caddy's host wildcard covers exactly one
+	# label, so `sites.*` matches sites.example but never
+	# sites.event.example.com, which is the shape every event actually uses.
+	#
+	# The same rules as the hosted nginx content host
+	# (deploy/prod/nginx-sites-content-host.conf): what is not a file on disk
+	# goes to the application, so an old name of a renamed site redirects, a
+	# site with its own address redirects there, /<handle>/ is the person's
+	# page, and a miss is the branded not-found page rather than an empty 404.
+	@content header_regexp Host ^sites\.
+	handle @content {
+		# A route, so everything runs in the order written.
+		route {
+			@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
+			redir @nodir {uri}/ 308
+
+			@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
+			route @site {
+				# A site with its own address lives there: the application
+				# answers a redirect with the same path.
+				@domainredirect file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/domain-redirect
+				}
+				route @domainredirect {
+					rewrite * /internal/domain-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					reverse_proxy app:@APP_PORT@
+				}
+				# A site the operator has taken down carries a `suspended`
+				# marker in its folder: every path of it answers the
+				# application's take-down page instead.
+				@suspended file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/suspended
+				}
+				route @suspended {
+					rewrite * /internal/suspended
+					reverse_proxy app:@APP_PORT@
+				}
+				# Taken offline by its owner: the offline page (after the
+				# take-down check, which wins).
+				@offline file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/offline
+				}
+				route @offline {
+					rewrite * /internal/offline
+					reverse_proxy app:@APP_PORT@
+				}
+				# Locked by its owner with a passcode: the app's passcode gate
+				# (after the offline check). It gets the whole original path
+				# and query, /internal/passcode/<handle>/<site>/...?..., and
+				# sends the visitor on to the site's own address.
+				@passcode file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/passcode
+				}
+				route @passcode {
+					rewrite * /internal/passcode{uri}
+					reverse_proxy app:@APP_PORT@
+				}
+				@redirects file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/redirects
+				}
+				route @redirects {
+					rewrite * /internal/passcode{uri}
+					reverse_proxy app:@APP_PORT@
+				}
+				@legacyredirects file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/current/_redirects
+				}
+				route @legacyredirects {
+					rewrite * /internal/passcode{uri}
+					reverse_proxy app:@APP_PORT@
+				}
+				# No such site here: the application redirects an old name
+				# of a renamed site to its new address, or answers the
+				# not-found page.
+				@nosite not file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/current/
+				}
+				route @nosite {
+					rewrite * /internal/site-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					reverse_proxy app:@APP_PORT@
+				}
+				rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
+				root * /data/sites/handles
+				@plain {
+					not file {path}
+					file {path}.html
+				}
+				route @plain {
+					rewrite * {path}.html
+				}
+				header X-Content-Type-Options nosniff
+				file_server
+			}
+
+			# /<handle> and /<handle>/: the person's page of public sites.
+			@person path_regexp person ^/([a-z0-9-]{1,39})/?$
+			route @person {
+				rewrite * /internal/showcase/{re.person.1}
+				reverse_proxy app:@APP_PORT@
+			}
+
+			# Anything else here (the bare root, a path no site can have)
+			# is the not-found page.
+			rewrite * /internal/notfound
+			reverse_proxy app:@APP_PORT@ {
+				header_up X-Original-URI {http.request.orig_uri}
+			}
+		}
+	}
+
+	# A file a site does not have: the branded not-found page, which links
+	# back to the person's page (the application reads X-Original-URI).
+	handle_errors 404 {
+		@contentmiss header_regexp Host ^sites\.
+		route @contentmiss {
+			rewrite * /internal/notfound
+			reverse_proxy app:@APP_PORT@ {
+				header_up X-Original-URI {http.request.orig_uri}
+			}
+		}
+	}
+
+	# Everything else is the dashboard, sign-in and, before setup, the setup page.
+	handle {
+		reverse_proxy app:@APP_PORT@
+	}
+}
+
+# Plain HTTP on the raw address. A box installed from a catalog has no hostname
+# yet, and the person who created it only knows its IP, so the setup page has to
+# be reachable before any certificate can exist.
+:80 {
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+	handle {
+		reverse_proxy app:@APP_PORT@
+	}
+}
