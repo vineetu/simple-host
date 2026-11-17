@@ -3,8 +3,9 @@
 A current map of the binary, request paths and package boundaries. Read [FEATURES.md](FEATURES.md)
 for behavior and [INTENT.md](INTENT.md) for product decisions. The focused guides under
 [docs/architecture/](docs/architecture/) explain domain state, persistence, frontend and contribution.
-[Target architecture](docs/architecture/target.md) gives the dependency rationale and where to add a feature;
-its planned packages are not all present yet.
+[Target architecture](docs/architecture/target.md) gives the implemented dependency contract and where to add a feature.
+[Products and add-ons](docs/architecture/products.md) lists the hooks and their callers, plus the
+light-product and add-on designs, which are not built.
 
 ## What runs
 
@@ -36,7 +37,7 @@ Source: `host/edition/{routes,presentation,identity,storage,notifications}.go`;
 | Component | Responsibility and source |
 |---|---|
 | Go service | HTTP pages/API, site-host files, OAuth/MCP, background work; `host/server/build.go` |
-| Postgres | Accounts, site metadata, resources/KV, Hack state, sessions, outboxes and aggregates; `host/db/schema.sql` |
+| Postgres | Platform accounts, site metadata, resources, sessions, outboxes and aggregates in `host/db/schema.sql`; Hack adds state from `products/hack/db/schema.sql`. SQLite stores moved KV namespaces. |
 | Local disk | Deployment versions, links/markers, runtime SQLite and raw files; `host/storage` |
 | TLS reverse proxy | Hosted nginx routes hosts and serves some files directly; self-hosted Caddy configurations are in `deploy/` |
 | Certificate issuers | External root-owned request/ready-marker services; `deploy/site-certs/`, `domain-certs/`, `family-certs/` |
@@ -155,6 +156,14 @@ different routes; the [access guide](docs/architecture/hosts-and-access.md) spec
 
 ## Boundaries
 
+The repository has three areas: `host/` is the platform, `products/` holds full products,
+and `addons/` will be created with the first add-on. There is one Go module, except for
+the nested rules-engine module at `host/storage/rules`. Platform runtime code imports
+only platform code; a product imports the platform and itself. Products and add-ons
+never import each other. `host/server` assembles the product's one description from
+`host/extension`; platform consumers declare its plain interfaces and function fields.
+See the [contribution and hook inventory](docs/architecture/products.md#composition-and-contribution-points).
+
 Current flow: HTTP/MCP transport → application services → rules and repositories/disk mechanics.
 Services own extracted workflows and transactions; rules make pure decisions; repositories execute
 SQL. This is an ongoing boundary, not a claim that transport is already free of SQL or disk calls.
@@ -167,7 +176,8 @@ The following packages exist today; Hack-only packages live under `products/hack
 | `products/hack/hackhttp` | Hack HTTP/pages and transport mapping; held-site interfaces use the platform's `handler.GroupRef` |
 | `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events; refusal codes (`call.go`: `codedError`/`CodedError`, `codeHints`) let a converted error site carry an AgentCat-visible code instead of the generic `tool_error`, and `server.go`'s `resolveArgAlias` accepts a sibling tool family's name for the same argument before the schema's additionalProperties check runs (SIM-359) |
 | `products/hack/mcp/apps/{bundlegen,gentool}` | Browser-bundle generator and command for Hack's screens-in-chat |
-| `webassets` | Embedded static pages, Hack modules and Host/Hack skill/download bundles; no internal dependencies |
+| `webassets` | Platform pages, docs, skills and downloads; Hack owns its embeds in `products/hack/webassets` |
+| `server`, `extension` | Program composition, CLI and lifecycle; the platform-typed product description and returned contributions |
 | `workers` | Standard-library lifecycle owners, cancellation, joins and progress/status tracking |
 | `httpx` | Shared HTTP responses, limits, signed links and route metadata |
 | `auth` | Account credential/context and scope middleware, with injected account authorization |
@@ -195,24 +205,36 @@ The following packages exist today; Hack-only packages live under `products/hack
 | `brain`, `buildinfo` | Product-knowledge bundle support; stamped version/commit/build time |
 | `testdb`, `geoip/geoiptest` | Test fixtures |
 
-`scripts/check-layering.sh` checks Go imports, including test imports, against the final allowlist
-in `scripts/layering/rules.txt`. The product split records each remaining platform-to-Hack
-edge in `[transitional]` with the slice that removes it. Platform server tests use
+`scripts/check-layering.sh` checks Go imports, including test imports, against both the fine
+allowlist and the independent area rules in `scripts/layering/rules.txt`. `[transitional]`
+is empty and adding an edge there fails. Only `host/server/**`, `products/**` and
+`cmd/simple-hack` may import `host/extension`. Build-time inventory and SQL ownership tools
+have explicit inspection exceptions; the `simple-host` dependency list contains no product.
+Naming, SQL and embedded-text checks retain narrow documented exceptions, including existing
+public cross-references; a green scan does not prove all historical text is gone.
+Platform server tests use
 `host/server/servertest` from `package server_test`; Hack integration tests and
-their own isolated database fixture live in `products/hack/servertest`. `sitelocks` from the
-target map do not exist yet. Shared lock maps are injected by existing wiring
+their own isolated database fixture live in `products/hack/servertest`. Shared lock maps
+are injected by existing wiring
 (`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
 Follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
 
-Outside `host/`: `products/hack` owns its extension, HTTP, app, repository and rule
-packages (including the navigation embeds); `host/db/schema.sql` and `host/db/migrations` define fresh/install upgrades;
+Outside the platform, `products/hack` owns its extension, HTTP, MCP, app, repository, rule,
+model, config, edition, assets and measurement packages. `host/db/schema.sql` and
+`host/db/migrations` own platform installation; `products/hack/db` adds Hack's schema and
+migrations in the combined order. Fresh Host databases create no Hack tables; existing
+databases retain unused product objects and history. Startup checks `install_product`
+before writes. The read-only adoption-evidence probe in `host/server/product.go` is the
+single allowlisted platform product-table query. See [persistence](docs/architecture/persistence.md#install-product-identity).
+
 `cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools; `host/server/reviewaccount.go`
 manages reviewer accounts. `handler/instancehost.go` rewrites instance hostnames in assets.
-`openai-plugin/` is the ChatGPT package. `deploy/` holds proxy,
+`openai-plugin/` is the Host ChatGPT package; Hack owns its bundles under
+`products/hack/webassets/hack-toolkit/`. `deploy/` holds proxy,
 issuer and deployment templates; `scripts/` holds checks/generators/ops. Website skills live in
 `host/webassets/simple-host-website/`, with generated plugin copies; frontend sources, embeds and generated
 MCP Apps are mapped in [frontend](docs/architecture/frontend.md). Hosted Hack onboarding
-`/get-started` is rendered through `handler/chrome.go:chromePageRaw` from `static/hack-get-started.html`.
+`/get-started` uses the shared page pipeline with `products/hack/webassets/static/hack-get-started.html`.
 
 The Host owner page (`static/showcase.html`) groups its sections in `owner-tab-sites`,
 `owner-tab-analytics`, and `owner-tab-settings` panels. `switchOwnerTab` hides panels;
@@ -225,8 +247,9 @@ Simple Hack has no person pages.
 
 `docs/site` is the one exception to the handwritten frontend: Astro/Starlight builds
 Markdown twice, for Host and Hack. `scripts/build-docs-site.sh` uses Node 22 only at
-build time; committed output in `host/webassets/docs-site/{host,hack}` has its own
-`all:` embed and is never reachable through the ordinary static server. `handler/docs.go`
+build time; committed output in `host/webassets/docs-site/host` and
+`products/hack/webassets/docs-site/hack` has dedicated `all:` embeds and is never
+reachable through the ordinary static server. `handler/docs.go`
 serves `/docs/` with shared chrome, theme, instance text, limits, and UI CSP. Assembled
 HTML and extracted shared chrome scripts are cached per asset pipeline. Pagefind search
 uses only that brand's compiled pages. The API reference (`/docs/api/`) and MCP tools reference (`/docs/mcp/`) are generated per brand by `scripts/docs-reference.py`.
@@ -237,6 +260,7 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
 | Need | Read |
 |---|---|
 | Hosts, certificates, identity, view locks and request accounting | [Hosts and access](docs/architecture/hosts-and-access.md) |
+| Product boundary, hook callers, light-product and add-on designs | [Products and add-ons](docs/architecture/products.md) |
 | Event/team/entry state and actors | [Hack domain](docs/architecture/hack-domain.md) |
 | Tables, disk layout, quotas, transactions, locks, outboxes and recovery | [Persistence](docs/architecture/persistence.md) |
 | Screens, shared browser code, generated assets, themes and skills | [Frontend](docs/architecture/frontend.md) |
