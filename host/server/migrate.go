@@ -120,8 +120,10 @@ func migrateDatabase(ctx context.Context, database *sql.DB, exts []*extension.Ex
 		if initSchema {
 			if built, err := set.InitConn(ctx, conn, programProduct(exts), logf); err != nil {
 				return fmt.Errorf("init failed: %w", err)
-			} else if built && logf != nil {
-				logf("built the schema from host/db/schema.sql")
+			} else if built {
+				if logf != nil {
+					logf("built the schema from host/db/schema.sql")
+				}
 			}
 		}
 		if explicit {
@@ -147,7 +149,25 @@ func migrateDatabase(ctx context.Context, database *sql.DB, exts []*extension.Ex
 	if err := operationrepo.VerifySchema(ctx, database); err != nil {
 		return err
 	}
-	return checkProductSchema(ctx, database, exts)
+	if err := checkProductSchema(ctx, database, exts); err != nil {
+		return err
+	}
+	// The marker was committed with schema creation, and survives failed checks
+	// or a killed installer. Adoption never creates it and never stamps a release.
+	return migrations.WithLock(ctx, database, func(conn *sql.Conn) error {
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if _, err := tx.ExecContext(ctx, `UPDATE install_product SET release=$1, release_at=now() WHERE "only" AND release='' AND EXISTS (SELECT 1 FROM instance_config WHERE key='first_install_pending_release' AND value=$2)`, buildinfo.Version, programProduct(exts)); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM instance_config WHERE key='first_install_pending_release' AND value=$1`, programProduct(exts)); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
 }
 
 func waitForDB(database *sql.DB, limit time.Duration) error {

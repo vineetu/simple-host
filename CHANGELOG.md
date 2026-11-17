@@ -1,5 +1,9 @@
 # Changelog
 
+2026-11-17: Fix interrupted Compose upgrade recovery, nonroot maintenance-lock ownership and private atomic configuration publication. Preserve environment substitutions and the original service set across retries; resume incomplete first installations and their release recording (D4-S10a review).
+
+2026-11-17: Add the self-hosted upgrade compatibility check and Compose backup/restore protocol. Retries preserve the original paired backup; restore puts database, files, configuration and image digests back together. Command registration follows separately (D4-S10a).
+
 2026-11-17: Kubernetes has charts for both Simple Host and Simple Hack, each starting its own program. Both refuse extra replicas and rolling upgrades, take their pins from the shared versions file, and include a rehearsal that keeps the claim and saved SQLite data across a Helm upgrade (D4-S8).
 
 2026-11-17: Add the optional Static page-server command, saved-copy startup, read-only serving and streamed API hand-over. It stays off in normal startup and deployment (D4-S4a).

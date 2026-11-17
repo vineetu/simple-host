@@ -736,11 +736,12 @@ the environment map in <code>/opt/simple-hack/compose.yaml</code>; upgrades repl
 <h2 id="upgrade">Upgrade</h2>
 <p>Download and unpack the new release as in step 2, setting <code>VERSION</code> to the new version.
 From that release’s directory, run:</p>
-<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> bash</span><span style="color:#9ECBFF"> deploy/hack/standalone/upgrade.sh</span><span style="color:#79B8FF"> --image</span><span style="color:#9ECBFF"> ghcr.io/vineetu/simple-hack:</span><span style="color:#E1E4E8">$VERSION</span></span></code></pre>
-<p>The upgrade keeps your domain, credentials, database and files, and saves the previous
-settings as <code>/opt/simple-hack/.env.previous</code>. It stops the app while applying migrations.
-If a migration fails, fix the cause and rerun the upgrade. Do not downgrade a migrated database;
-restore a matching backup instead.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> bash</span><span style="color:#9ECBFF"> deploy/hack/standalone/upgrade.sh</span><span style="color:#79B8FF"> --to</span><span style="color:#9ECBFF"> "</span><span style="color:#E1E4E8">$VERSION</span><span style="color:#9ECBFF">"</span><span style="color:#79B8FF"> --image</span><span style="color:#9ECBFF"> ghcr.io/vineetu/simple-hack:</span><span style="color:#E1E4E8">$VERSION</span></span></code></pre>
+<p>Use a candidate release that includes the <code>upgrade</code> command. The script stops
+all writers and takes one paired backup of the database, data volume, environment,
+Compose file and running image digests. A failed upgrade retains that original
+backup on retry. See <a href="https://github.com/vineetu/simple-host/blob/main/docs/upgrades.md">upgrade and paired restore</a> for
+supported starting versions, attempt state, restore and the Kubernetes procedure.</p>
 <p>If your previous release did not include <code>zi-site-search-summary.sql</code>, run this once after upgrading:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> docker</span><span style="color:#9ECBFF"> compose</span><span style="color:#79B8FF"> --project-directory</span><span style="color:#9ECBFF"> /opt/simple-hack</span><span style="color:#79B8FF"> --env-file</span><span style="color:#9ECBFF"> /opt/simple-hack/.env</span><span style="color:#9ECBFF"> run</span><span style="color:#79B8FF"> --rm</span><span style="color:#79B8FF"> --no-deps</span><span style="color:#79B8FF"> -T</span><span style="color:#9ECBFF"> app</span><span style="color:#9ECBFF"> site-summary-backfill</span></span></code></pre>
 <h2 id="back-up">Back up</h2>

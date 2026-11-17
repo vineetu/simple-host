@@ -88,13 +88,14 @@ Download and unpack the new release as in step 2, setting `VERSION` to the new v
 From that release's directory, run:
 
 ```sh
-sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:$VERSION
+sudo bash deploy/hack/standalone/upgrade.sh --to "$VERSION" --image ghcr.io/vineetu/simple-hack:$VERSION
 ```
 
-The upgrade keeps your domain, credentials, database and files, and saves the previous
-settings as `/opt/simple-hack/.env.previous`. It stops the app while applying migrations.
-If a migration fails, fix the cause and rerun the upgrade. Do not downgrade a migrated database;
-restore a matching backup instead.
+Use a candidate release that includes the `upgrade` command. The script stops
+all writers and takes one paired backup of the database, data volume, environment,
+Compose file and running image digests. A failed upgrade retains that original
+backup on retry. See [upgrade and paired restore](https://github.com/vineetu/simple-host/blob/main/docs/upgrades.md) for
+supported starting versions, attempt state, restore and the Kubernetes procedure.
 
 If your previous release did not include `zi-site-search-summary.sql`, run this once after upgrading:
 

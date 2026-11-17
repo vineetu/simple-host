@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/testdb"
@@ -73,7 +74,7 @@ func TestProductRecordStates(t *testing.T) {
 			cfg := productConfig(t, dsn)
 			switch state {
 			case "matching":
-				productExec(t, db, `INSERT INTO install_product(product) VALUES ('simple-host')`)
+				productExec(t, db, `INSERT INTO install_product(product, release) VALUES ('simple-host', 'kept-release')`)
 			case "other":
 				productExec(t, db, `INSERT INTO install_product(product) VALUES ('another-product')`)
 			case "missing-table":
@@ -88,11 +89,20 @@ func TestProductRecordStates(t *testing.T) {
 				if err := db.QueryRow(`SELECT count(*), min(product) FROM install_product`).Scan(&count, &product); err != nil || count != 1 || product != "simple-host" {
 					t.Fatalf("record: %d %q %v", count, product, err)
 				}
+				var release string
+				var dated bool
+				if err := db.QueryRow(`SELECT release, release_at IS NOT NULL FROM install_product`).Scan(&release, &dated); err != nil || release != buildinfo.Version || !dated {
+					t.Fatalf("first install release: %q dated=%v err=%v", release, dated, err)
+				}
 				return
 			}
 			if state == "matching" {
 				if err := migrateDatabase(context.Background(), db, nil, true, t.Logf, false); err != nil {
 					t.Fatal(err)
+				}
+				var release string
+				if err := db.QueryRow(`SELECT release FROM install_product`).Scan(&release); err != nil || release != "kept-release" {
+					t.Fatalf("ordinary migrate changed release: %q err=%v", release, err)
 				}
 				return
 			}

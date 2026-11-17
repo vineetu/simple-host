@@ -13,11 +13,52 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/host/extension"
 	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
 	"github.com/vsriram/simple-host/host/testdb"
 )
+
+func TestFirstInstallReleaseResumesAfterSchemaFailure(t *testing.T) {
+	database, _ := productDB(t, true)
+	ctx := context.Background()
+	wantErr := errors.New("interrupted after schema creation")
+	exts := []*extension.Extension{{CheckSchema: func(context.Context, *sql.DB) error { return wantErr }}}
+	if err := migrateDatabase(ctx, database, exts, true, t.Logf, true); !errors.Is(err, wantErr) {
+		t.Fatalf("first install failure: %v", err)
+	}
+	var release, pending string
+	if err := database.QueryRow(`SELECT release FROM install_product`).Scan(&release); err != nil || release != "" {
+		t.Fatalf("incomplete first install release=%q err=%v", release, err)
+	}
+	if err := database.QueryRow(`SELECT value FROM instance_config WHERE key='first_install_pending_release'`).Scan(&pending); err != nil || pending != "simple-host" {
+		t.Fatalf("missing durable first-install marker: %q %v", pending, err)
+	}
+	if err := migrateDatabase(ctx, database, nil, true, t.Logf, true); err != nil {
+		t.Fatal(err)
+	}
+	var dated bool
+	if err := database.QueryRow(`SELECT release, release_at IS NOT NULL FROM install_product`).Scan(&release, &dated); err != nil || release != buildinfo.Version || !dated {
+		t.Fatalf("resumed release=%q dated=%v err=%v", release, dated, err)
+	}
+	var count int
+	if err := database.QueryRow(`SELECT count(*) FROM instance_config WHERE key='first_install_pending_release'`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("marker not cleared: %d %v", count, err)
+	}
+}
+
+func TestAdoptionDoesNotStampFirstInstallRelease(t *testing.T) {
+	database, _ := productDB(t, false)
+	if err := migrateDatabase(context.Background(), database, nil, true, t.Logf, true); err != nil {
+		t.Fatal(err)
+	}
+	var release string
+	var dated bool
+	if err := database.QueryRow(`SELECT release, release_at IS NOT NULL FROM install_product`).Scan(&release, &dated); err != nil || release != "" || dated {
+		t.Fatalf("adoption stamped release=%q dated=%v err=%v", release, dated, err)
+	}
+}
 
 func TestMigrationStatusOutput(t *testing.T) {
 	at := time.Date(2026, 11, 13, 1, 2, 3, 0, time.UTC)

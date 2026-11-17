@@ -2,6 +2,7 @@
 # Exercise the actual configuration-writing section without touching a host.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+python3 "$ROOT/deploy/install/upgrade_retry_test.py"
 python3 - "$ROOT" <<'PY'
 import base64, os, pathlib, subprocess, sys, tempfile
 import yaml

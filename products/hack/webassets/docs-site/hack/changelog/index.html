@@ -608,6 +608,12 @@
 								<div class="sl-markdown-content"><h2 id="november-2026">November 2026</h2>
 <ul>
 <li>
+<p><strong>Nov 17:</strong> Fix interrupted Compose upgrade recovery, nonroot maintenance-lock ownership and private atomic configuration publication. Preserve environment substitutions and the original service set across retries; resume incomplete first installations and their release recording (D4-S10a review).</p>
+</li>
+<li>
+<p><strong>Nov 17:</strong> Add the self-hosted upgrade compatibility check and Compose backup/restore protocol. Retries preserve the original paired backup; restore puts database, files, configuration and image digests back together. Command registration follows separately (D4-S10a).</p>
+</li>
+<li>
 <p><strong>Nov 17:</strong> Kubernetes has charts for both Simple Host and Simple Hack, each starting its own program. Both refuse extra replicas and rolling upgrades, take their pins from the shared versions file, and include a rehearsal that keeps the claim and saved SQLite data across a Helm upgrade (D4-S8).</p>
 </li>
 <li>

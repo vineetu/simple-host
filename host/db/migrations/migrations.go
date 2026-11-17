@@ -502,6 +502,12 @@ func (s Set) InitConn(ctx context.Context, conn *sql.Conn, product string, logf 
 		if _, err := tx.ExecContext(ctx, `INSERT INTO install_product (product) VALUES ($1)`, product); err != nil {
 			return false, err
 		}
+		// Only schema creation marks a first install. Keep this in its schema
+		// transaction so a later migration/check failure can resume completion
+		// without mistaking adoption of an older database for a fresh install.
+		if _, err := tx.ExecContext(ctx, `INSERT INTO instance_config (key, value) VALUES ('first_install_pending_release', $1)`, product); err != nil {
+			return false, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return false, err

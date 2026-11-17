@@ -18,7 +18,7 @@ MAIL_FROM="Équipe $hack <events@example.test>"
 EOF
 bash "$HERE/install.sh" --dir "$WORK/install" --config "$WORK/config" --prepare-only
 cp "$WORK/install/.env" "$WORK/before"
-INSTALL_DIR="$WORK/install" bash "$HERE/upgrade.sh" --image local-hack:upgrade --prepare-only
+bash "$HERE/install.sh" --dir "$WORK/install" --image local-hack:upgrade --prepare-only
 python3 - "$WORK" <<'PY'
 import base64,json,pathlib,sys
 root=pathlib.Path(sys.argv[1])

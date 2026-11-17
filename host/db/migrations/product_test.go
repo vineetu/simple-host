@@ -19,6 +19,7 @@ func TestInitProductRecordAtomic(t *testing.T) {
 		t.Fatal(err)
 	}
 	set := Set{Platform: Catalog{FS: fstest.MapFS{}, Schema: `CREATE TABLE users(id int);
+        CREATE TABLE instance_config(key text PRIMARY KEY, value text NOT NULL);
         CREATE TABLE install_product("only" boolean PRIMARY KEY DEFAULT true CHECK ("only"), product text NOT NULL CHECK (product='simple-host'));`}}
 	ctx := context.Background()
 	init := func(product string) error {
@@ -40,5 +41,9 @@ func TestInitProductRecordAtomic(t *testing.T) {
 	var product string
 	if err := db.QueryRow(`SELECT product FROM install_product`).Scan(&product); err != nil || product != "simple-host" {
 		t.Fatalf("record=%q: %v", product, err)
+	}
+	var pending string
+	if err := db.QueryRow(`SELECT value FROM instance_config WHERE key='first_install_pending_release'`).Scan(&pending); err != nil || pending != product {
+		t.Fatalf("first-install marker=%q: %v", pending, err)
 	}
 }

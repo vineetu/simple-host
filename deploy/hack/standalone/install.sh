@@ -124,6 +124,11 @@ for file in compose.yaml install.sh upgrade.sh; do
   fi
 done
 chmod 700 "$INSTALL_DIR/install.sh" "$INSTALL_DIR/upgrade.sh"
+shared="$HERE/../../shared/upgrade.sh"
+[ -f "$shared" ] || shared="$HERE/shared-upgrade.sh"
+if [ "$shared" != "$INSTALL_DIR/shared-upgrade.sh" ]; then
+  install -m 700 "$shared" "$INSTALL_DIR/shared-upgrade.sh"
+fi
 # The bind mount in compose.yaml always needs this directory, even when
 # running with the default public TLS and no company files to copy.
 mkdir -p "$INSTALL_DIR/tls"

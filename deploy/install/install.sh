@@ -31,10 +31,11 @@ set -euo pipefail
 VERSION="v0.7.22"
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
+CONTENT_SET=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --host)           HOST="$2"; shift 2 ;;
-    --content)        CONTENT="$2"; shift 2 ;;
+    --content)        CONTENT="$2"; CONTENT_SET=1; shift 2 ;;
     --image)          IMAGE="$2"; shift 2 ;;
     --email)          ACME_EMAIL="$2"; shift 2 ;;
     --ref)            REF="$2"; shift 2 ;;
@@ -71,6 +72,53 @@ SETUP_ONLY=0
 
 DIR=/opt/simple-host
 say() { echo "==> $*"; }
+
+# Existing installs take their original backup before configuration or Compose
+# files can be rewritten. The downloaded script belongs to this candidate.
+installed_app=""
+if [ -f "$DIR/.env" ] && [ -f "$DIR/compose.yaml" ]; then
+  # Prepared files alone do not prove first installation reached app creation.
+  # A failed lookup must stop here, before any installed files are rewritten.
+  installed_app=$(docker compose --project-directory "$DIR" --env-file "$DIR/.env" -f "$DIR/compose.yaml" ps -aq app)
+  if [ -z "$installed_app" ]; then
+    # Containers disappear on compose down; the database volume survives. Start
+    # only that database and inspect its schema before choosing first install.
+    installed_db=$(docker volume ls -q --filter label=com.docker.compose.project=simple-host --filter label=com.docker.compose.volume=db)
+    if [ -n "$installed_db" ]; then
+      docker compose --project-directory "$DIR" --env-file "$DIR/.env" -f "$DIR/compose.yaml" up -d --no-deps --no-build --wait db
+      initialized=$(docker compose --project-directory "$DIR" --env-file "$DIR/.env" -f "$DIR/compose.yaml" exec -T db sh -c 'exec psql -XAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT to_regclass('\''public.users'\'') IS NOT NULL"')
+      if [ "$initialized" = t ]; then
+        # Schema creation commits before migrations and verification finish.
+        # Resume that first install until migrate has recorded its release.
+        pending=$(docker compose --project-directory "$DIR" --env-file "$DIR/.env" -f "$DIR/compose.yaml" exec -T db sh -c 'exec psql -XAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT EXISTS (SELECT 1 FROM instance_config WHERE key='\''first_install_pending_release'\'' AND value='\''simple-host'\'')"')
+        [ "$pending" = t ] || installed_app=persistent-database
+      fi
+    fi
+  fi
+fi
+if [ -n "$installed_app" ]; then
+  upgrade_stage=$(mktemp -d "$DIR/.upgrade-download.XXXXXX")
+  trap 'rm -rf "$upgrade_stage"' EXIT
+  curl -fsSL --max-time 30 "https://raw.githubusercontent.com/vineetu/simple-host/$REF/deploy/shared/upgrade.sh" -o "$upgrade_stage/upgrade.sh"
+  curl -fsSL --max-time 30 "https://raw.githubusercontent.com/vineetu/simple-host/$REF/compose.yaml" -o "$upgrade_stage/compose.yaml"
+  curl -fsSL --max-time 30 "https://raw.githubusercontent.com/vineetu/simple-host/$REF/deploy/compose/Caddyfile" -o "$upgrade_stage/Caddyfile"
+  overrides=()
+  if [ -n "$HOST" ]; then
+    overrides+=(--set-env "SITE_DOMAIN=$HOST" --set-env "SITE_ADDR=$HOST" --set-env "PUBLIC_BASE_URL=https://$HOST")
+  fi
+  if [ "$CONTENT_SET" -eq 1 ]; then
+    overrides+=(--set-env "CONTENT_HOST=$CONTENT" --set-env "CONTENT_ADDR=$CONTENT")
+  fi
+  [ -z "$ACME_EMAIL" ] || overrides+=(--set-env "ACME_EMAIL=$ACME_EMAIL")
+  [ -z "$MAX_SITE_MB" ] || overrides+=(--set-env "MAX_ARCHIVE_MB=$MAX_SITE_MB")
+  [ -z "$KEEP_VERSIONS" ] || overrides+=(--set-env "KEEP_VERSIONS=$KEEP_VERSIONS")
+  # Keep the restore entry point after a failed run.
+  install -m 700 "$upgrade_stage/upgrade.sh" "$DIR/shared-upgrade.sh"
+  bash "$DIR/shared-upgrade.sh" --dir "$DIR" --product simple-host \
+    --image "$IMAGE" --compose "$upgrade_stage/compose.yaml" \
+    --caddyfile "$upgrade_stage/Caddyfile" "${overrides[@]}"
+  exit
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   say "installing docker"

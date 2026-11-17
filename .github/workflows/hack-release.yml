@@ -64,7 +64,7 @@ jobs:
           source_version=$(grep -Eo 'simple-hack:[0-9]+\.[0-9]+\.[0-9]+' deploy/hack/standalone/compose.yaml | head -1 | cut -d: -f2)
           [[ "$source_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           source_pattern=${source_version//./\\.}
-          for file in deploy/hack/standalone/{install.sh,compose.yaml,Dockerfile,coolify/compose.yaml,digitalocean/template.json,digitalocean/prepare.sh}; do
+          for file in deploy/hack/standalone/{install.sh,upgrade.sh,compose.yaml,Dockerfile,coolify/compose.yaml,digitalocean/template.json,digitalocean/prepare.sh}; do
             sed -i "s/$source_pattern/$version/g" "dist/$package/$file"
           done
           # Only update instructions for this package. Historic verification of
@@ -93,6 +93,9 @@ jobs:
               path.write_text(body)
           PY
           printf 'Simple Hack %s\n\nStart with docs/platforms/simple-hack-standalone.md.\nImage: ghcr.io/%s/simple-hack:%s\nSource: %s\n' "$version" "${GITHUB_REPOSITORY_OWNER,,}" "$version" "$GITHUB_SHA" > "dist/$package/README.txt"
+          mkdir -p "dist/$package/deploy/shared"
+          cp docs/upgrades.md "dist/$package/docs/"
+          cp deploy/shared/upgrade.sh "dist/$package/deploy/shared/upgrade.sh"
           cd dist
           tar -czf "$package.tar.gz" "$package"
           zip -qr "$package.zip" "$package"
