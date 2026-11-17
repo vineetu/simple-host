@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -86,52 +85,47 @@ func TestLocalAndDisplay(t *testing.T) {
 	}
 }
 
-func TestProductContract(t *testing.T) {
-	const final = "[final]\n@/products/hack/** -> /** @/products/hack/** @/db @/db/migrations\n"
-	platformEdge := edge{"handler", "@/products/hack/app/teams", "production"}
-	testEdge := edge{"handler", "@/products/hack/app/teams", "test"}
-	const transition = "[transitional]\nhandler -> @/products/hack/app/teams production # removal step D2-S4b\n"
-	detail := "host/handler imports products/hack/app/teams (production), removal step D2-S4b"
-	stale := "transitional edge no longer needed: " + detail + "; delete this line from rules.txt"
+func TestAreaAndFineContract(t *testing.T) {
+	f, err := os.Open("rules.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	rules, trans, err := readRules(f)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
-		name, rules string
-		edges       []edge
-		wantIssues  int
-		wantLines   []string
+		from, to string
+		want     bool
 	}{
-		{"product imports platform and itself", final, []edge{
-			{"@/products/hack/app/events", "model", "production"},
-			{"@/products/hack/app/events", "@/products/hack/app/teams", "production"},
-			{"@/products/hack/app/events", "@/db", "production"},
-			{"@/products/hack/app/events", "@/db/migrations", "production"},
-		}, 0, nil},
-		{"platform imports product", final, []edge{platformEdge}, 1, nil},
-		{"transitional import", final + transition, []edge{platformEdge}, 0, []string{"transitional edge in use: " + detail}},
-		{"stale transition", final + transition, nil, 1, []string{stale}},
-		{"final makes transition redundant", final + "handler -> @/products/hack/app/teams\n" + transition, []edge{platformEdge}, 1, []string{stale}},
-		{"test makes transition redundant", final + "[test]\nhandler -> @/products/hack/app/teams\n" + strings.ReplaceAll(transition, "production", "test"), []edge{testEdge}, 1, []string{strings.ReplaceAll(stale, "production", "test")}},
-		{"test permission does not allow production", final + "[test]\nhandler -> @/products/hack/app/teams\n" + transition, []edge{platformEdge}, 0, []string{"transitional edge in use: " + detail}},
+		{"handler", "app/sites", true},
+		{"handler", "@/products/hack/app/teams", false},
+		{"repository/sites", "handler", false},
+		{"server", "extension", true},
+		{"server/servertest", "extension", true},
+		{"handler", "extension", false},
+		{"@/cmd/simple-host", "extension", false},
+		{"@/cmd/simple-hack", "extension", true},
+		{"@/products/hack", "extension", true},
+		{"@/cmd/simple-host", "@/products/hack", false},
+		{"@/products/hack", "@/products/other", false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			rules, trans, err := readRules(strings.NewReader(tc.rules))
-			if err != nil {
-				t.Fatal(err)
+		for _, kind := range []string{"production", "test"} {
+			issues, _ := evaluate(rules, trans, map[edge]bool{{tc.from, tc.to, kind}: true})
+			if (len(issues) == 0) != tc.want {
+				t.Errorf("%s -> %s (%s): %v", tc.from, tc.to, kind, issues)
 			}
-			edges := map[edge]bool{}
-			for _, e := range tc.edges {
-				edges[e] = true
-			}
-			issues, lines := evaluate(rules, trans, edges)
-			if len(issues) != tc.wantIssues {
-				t.Errorf("issues = %v, want %d", issues, tc.wantIssues)
-			}
-			if !reflect.DeepEqual(lines, tc.wantLines) {
-				t.Errorf("lines = %v, want %v", lines, tc.wantLines)
-			}
-			if tc.name == "platform imports product" && (len(issues) != 1 || !strings.Contains(issues[0], "host/handler imports products/hack/app/teams (production) — not in")) {
-				t.Errorf("missing violation: %v", issues)
-			}
-		})
+		}
+	}
+	// A fine allow row cannot open the platform-to-product boundary.
+	rules["final"] = append(rules["final"], rule{"handler", []string{"@/products/hack"}})
+	if issues, _ := evaluate(rules, trans, map[edge]bool{{"handler", "@/products/hack", "production"}: true}); len(issues) == 0 {
+		t.Fatal("fine row bypassed area check")
+	}
+	trans[edge{"handler", "model", "production"}] = "D3-S8"
+	if issues, _ := evaluate(rules, trans, nil); len(issues) == 0 {
+		t.Fatal("accepted nonempty transitional section")
 	}
 }
 
@@ -179,18 +173,19 @@ func TestCheckerOnFixtureModule(t *testing.T) {
 	if goLine == "" {
 		t.Fatal("repo go.mod has no go line")
 	}
-	const final = "[final]\n@/products/hack/** -> /** @/products/hack/**\n"
+	const final = "[areas]\n/** -> /** !extension\n@/products/hack/** -> /** @/products/hack/**\n[final]\n@/products/hack/** -> /** @/products/hack/**\n"
 	const transition = "[transitional]\nhandler -> @/products/hack/app/teams production # removal step D2-S4b\n"
-	const detail = "host/handler imports products/hack/app/teams (production), removal step D2-S4b"
+	const detail = "transitional edges are forbidden: host/handler imports products/hack/app/teams (production)"
 	for _, tc := range []struct {
-		name, handlerImport, testImport, transition, wantLine string
-		wantErr                                               bool
-		edges                                                 int
+		name, handlerImport, testImport, repositoryImport, transition, wantLine string
+		wantErr                                                                 bool
+		edges                                                                   int
 	}{
 		{name: "product imports platform and product", edges: 3},
+		{name: "repository imports handler", repositoryImport: "import _ \"github.com/vsriram/simple-host/host/handler\"", wantLine: "host/repository/sites imports host/handler (production) — not in", wantErr: true},
 		{name: "platform imports product", handlerImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", wantLine: "host/handler imports products/hack/app/teams (production) — not in", wantErr: true},
-		{name: "transitional import", handlerImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", transition: transition, wantLine: "transitional edge in use: " + detail, edges: 4},
-		{name: "stale transition", transition: transition, wantLine: "transitional edge no longer needed: " + detail + "; delete this line from rules.txt", wantErr: true},
+		{name: "transitional import", handlerImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", transition: transition, wantLine: detail, wantErr: true},
+		{name: "stale transition", transition: transition, wantLine: detail, wantErr: true},
 		{name: "production transition does not excuse test", testImport: "import _ \"github.com/vsriram/simple-host/products/hack/app/teams\"", transition: transition, wantLine: "host/handler imports products/hack/app/teams (test) — not in", wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -209,6 +204,9 @@ import (
 				"products/hack/app/events/events_test.go":   "package events\nimport _ \"github.com/vsriram/simple-host/host/model\"\n",
 				"products/hack/app/events/external_test.go": "package events_test\nimport _ \"github.com/vsriram/simple-host/host/model\"\n",
 				rulesFile: final + tc.transition,
+			}
+			if tc.repositoryImport != "" {
+				files["host/repository/sites/sites.go"] = "package sites\n" + tc.repositoryImport + "\n"
 			}
 			if tc.testImport != "" {
 				files["host/handler/handler_test.go"] = "package handler\n" + tc.testImport + "\n"

@@ -1,4 +1,4 @@
-# Paths are relative to internal/; @/ prefixes module-root paths (including cmd and scripts).
+# Paths are relative to host/; @/ prefixes module-root paths (including cmd and scripts).
 # Each row is FROM -> space-separated TO patterns. Braces are alternatives; /** includes the package and descendants. - means none.
 # A !pattern excludes destinations from that row; other matching rows still apply.
 [final]
@@ -79,4 +79,17 @@ server/servertest -> testdb
 @/products/hack/servertest -> server/servertest
 @/products/hack/servertest -> @/host/storage/rules
 [transitional]
-# Each edge names the slice that removes its final caller.
+# Must remain empty: every transitional edge now fails the check.
+
+# Independent area pass: these rows NEVER grant a fine-layer permission.
+[areas]
+@/host/** -> @/host/** !extension
+# Composition roots allowed by the D3-S8 board ruling (including servertest).
+server/** -> extension
+@/products/hack/** -> @/host/** @/products/hack/**
+@/cmd/simple-host -> @/host/** !extension
+@/cmd/simple-hack -> @/host/** @/products/hack/**
+@/cmd/{analytics-rebuild,ip-country-load} -> @/host/** !extension
+# Build-time inventory and SQL ownership tools inspect both products (D1-S6/D3-S3).
+@/scripts/{inventory,split/sqlcheck} -> @/host/** !extension @/products/hack/**
+@/scripts/layering -> -

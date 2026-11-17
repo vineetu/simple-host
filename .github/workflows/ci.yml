@@ -17,7 +17,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: postgres
         ports:
-          - 5432:5432
+          - 5432/tcp
         options: >-
           --health-cmd pg_isready
           --health-interval 5s
@@ -61,16 +61,16 @@ jobs:
       - name: rules engine module
         run: make test-rules
 
-      - name: make check
+      - name: make check (including five product boundary checks)
         env:
           # check-fresh-install.sh defaults to `sudo -u postgres psql`, which is
           # how it runs on the server. In CI the database is a service container.
-          PSQL: psql -h 127.0.0.1 -U postgres
+          PSQL: psql -h 127.0.0.1 -p ${{ job.services.postgres.ports[5432] }} -U postgres
           PGPASSWORD: postgres
           # scripts/test-integration.sh (run by `make check`) creates its own
           # platform-only and composed throwaway templates on this server.
           # Package paths select the schema, including for narrowed TEST_PKGS runs.
-          TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:5432
+          TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}
         run: make check
 
       - name: make check-release

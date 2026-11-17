@@ -1,10 +1,13 @@
 package main
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -20,146 +23,146 @@ func writeFixture(t *testing.T, root, name, content string) {
 	}
 }
 
-func TestNamesScope(t *testing.T) {
+func TestNamesBoundary(t *testing.T) {
 	root := t.TempDir()
-	for name, content := range map[string]string{
-		"host/app/hAcK.go":                            "package app\n// HackComment\nvar HackThing = `HackString`\n",
-		"host/app/plain_test.go":                      "package app\nvar HackTest = 1\n",
-		"host/app/testdata/data.go":                   "package fixture\nvar HackFixture = 1\n",
-		"host/server/servertest/a.go":                 "package servertest\nvar HackHelper = 1\n",
-		"host/runtime.go":                             "package host\nvar HackHost = 1\n",
-		"host/db/db.go":                               "package db\nvar HackDB = 1\n",
-		"host/db/migrations/testdata/hack-schema.sql": "-- historical fixture, still a test input",
-		"host/db/migrations/hack.sql":                 "-- HackHistory",
-		"host/db/migrations/migrations.go":            "package migrations\nvar HackMigration = 1\n",
-		"host/db/migrations/one_name_test.go":         "package migrations\nfunc TestHackOneNameBackfill() {}\n",
-		"products/hack/product.go":                    "package hack\nvar HackProduct = 1\n",
-		"docs/generated/hack.go":                      "package generated\nvar HackInventory = 1\n",
-		"docs/history/hack.go":                        "package history\nvar HackHistory = 1\n",
-		"CHANGELOG.md":                                "Hack history",
-		"PARITY.md":                                   "Hack history",
-	} {
-		writeFixture(t, root, name, content)
-	}
-	runtime, tests, err := names(root, nil)
-	if err != nil {
+	writeFixture(t, root, "scripts/allow/source-names.txt", "# no exceptions\n")
+	writeFixture(t, root, "host/app/plain.go", "package app\n// HackComment\nvar Plain = `HackString`\n")
+	writeFixture(t, root, "products/hack/product.go", "package hack\nvar HackProduct = 1\n")
+	if err := run(root, "names", ""); err != nil {
 		t.Fatal(err)
 	}
-	var out strings.Builder
-	section(&out, "Runtime", runtime)
-	got := out.String()
-	for _, want := range []string{"hAcK.go:0 | filename", "identifier | HackThing", "identifier | HackHost", "identifier | HackDB", "host/db/migrations/migrations.go:2 | identifier | HackMigration", "Findings: 5"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %q in %s", want, got)
-		}
-	}
-	for _, excluded := range []string{"HackComment", "HackString", "HackTest", "HackFixture", "HackHelper", "HackHistory", "HackInventory", "HackProduct"} {
-		if strings.Contains(got, excluded) {
-			t.Errorf("runtime includes %s", excluded)
-		}
-	}
-	if len(tests) != 5 {
-		t.Fatalf("test/fixture findings: %v", tests)
-	}
-	out.Reset()
-	section(&out, "Tests", tests)
-	for _, path := range []string{"host/db/migrations/one_name_test.go"} {
-		if !strings.Contains(out.String(), path+":2 | identifier | TestHackOneNameBackfill") {
-			t.Errorf("missing migration test %s in %s", path, out.String())
-		}
-		fixture := filepath.ToSlash(filepath.Join(filepath.Dir(path), "testdata/hack-schema.sql"))
-		if !strings.Contains(out.String(), fixture+":0 | filename | hack-schema.sql") {
-			t.Errorf("missing migration fixture %s in %s", fixture, out.String())
-		}
-	}
-}
-
-func TestPublicTextPatternsAndExceptions(t *testing.T) {
-	allow := []exception{{"text/host/*.txt", "configured domain", regexp.MustCompile(`"domain":\s*"simple-hack\.app"`)}}
-	b := []byte("Simple Hack simple-hack SIMPLEHACK hAcKaThOn\nSIM-123 HACK_SETTING hack\n" +
-		`{"domain": "simple-hack.app", "title": "Simple Hack"}` + "\n")
-	rows := textFindings("text/host/domains.txt", b, allow)
-	if len(rows) != 5 || rows[4].value != "Simple Hack" || rows[4].line != 3 {
-		t.Fatalf("expected four product matches and the unmasked title: %v", rows)
-	}
-	if got := textFindings("host/webassets/page.txt", b, allow); len(got) != 6 {
-		t.Fatalf("domain exception leaked to authored assets: %v", got)
-	}
-	if got := textFindings("image.bin", []byte("\x00Simple Hack"), nil); len(got) != 0 {
-		t.Fatal("binary scanned as prose")
-	}
-}
-
-func TestPublicTextInputsAndEmbeds(t *testing.T) {
-	for _, platform := range []string{"internal", "host"} {
-		t.Run(platform, func(t *testing.T) {
-			root := t.TempDir()
-			writeFixture(t, root, "go.mod", "module example.com/boundaryfixture\n\ngo 1.24\n")
-			writeFixture(t, root, platform+"/webassets/assets.go", "package webassets\nimport \"embed\"\n//go:embed all:static\nvar Files embed.FS\n")
-			writeFixture(t, root, platform+"/webassets/static/page.html", "Simple Hack")
-			writeFixture(t, root, platform+"/webassets/static/.hidden.txt", "Hackathon")
-			writeFixture(t, root, platform+"/webassets/unembedded.txt", "Simple Hack")
-			writeFixture(t, root, platform+"/mcp/apps.go", "package mcp\nimport \"embed\"\n//go:embed apps/*.js recipes/*.md\nvar Files embed.FS\n")
-			writeFixture(t, root, platform+"/mcp/apps/bundle.js", "hackathon")
-			writeFixture(t, root, platform+"/mcp/recipes/example.md", "Simple Hack")
-			writeFixture(t, root, platform+"/mcp/unembedded.txt", "Simple Hack")
-			writeFixture(t, root, "recording/text/host/page.txt", "Simple Hack")
-			writeFixture(t, root, "recording/text/hack/page.txt", "Hackathon Simple Hack")
-			textDir := filepath.Join(root, "recording/text/host")
-			recorded, assets, err := publicText(root, textDir, nil)
-			if err != nil {
-				t.Fatal(err)
+	for _, path := range []string{"host/app/bad.go", "host/app/plain_test.go", "host/app/testdata/data.go", "host/db/migrations/hack.sql"} {
+		t.Run(path, func(t *testing.T) {
+			writeFixture(t, root, path, "package app\nvar HackThing = 1\n")
+			if err := run(root, "names", ""); err == nil {
+				t.Fatal("accepted product name")
 			}
-			if len(recorded) != 1 || recorded[0].path != "text/host/page.txt" || len(assets) != 4 {
-				t.Fatalf("wrong inputs: recorded=%v assets=%v", recorded, assets)
-			}
-			wantAssets := []finding{
-				{platform + "/webassets/static/.hidden.txt", "text", "Hackathon", 1},
-				{platform + "/webassets/static/page.html", "text", "Simple Hack", 1},
-				{platform + "/mcp/apps/bundle.js", "text", "hackathon", 1},
-				{platform + "/mcp/recipes/example.md", "text", "Simple Hack", 1},
-			}
-			if !reflect.DeepEqual(assets, wantAssets) {
-				t.Fatalf("embedded findings: got %v, want %v", assets, wantAssets)
-			}
-			for _, dir := range []string{filepath.Join(root, "missing"), t.TempDir()} {
-				if _, _, err := publicText(root, dir, nil); err == nil {
-					t.Errorf("accepted missing/empty recording: %s", dir)
-				}
-			}
-			writeFixture(t, root, "scripts/allow/public-text.txt", "# no exceptions\n")
-			if err := run(root, "public-text", textDir); err != nil {
-				t.Fatalf("findings should not fail: %v", err)
-			}
-			report := filepath.Join(root, "scripts/split/reports/public-text.txt")
-			first, err := os.ReadFile(report)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := run(root, "public-text", textDir); err != nil {
-				t.Fatal(err)
-			}
-			second, err := os.ReadFile(report)
-			if err != nil || !reflect.DeepEqual(first, second) {
-				t.Fatal("report regeneration differs", err)
-			}
+			os.Remove(filepath.Join(root, path))
 		})
 	}
 }
 
-func TestAllowlistRequiresReasonAndMasksOnlyNamedIdentifier(t *testing.T) {
+func TestPublicTextAndArchives(t *testing.T) {
+	for _, tc := range []struct{ name, body string }{
+		{"page.txt", "Simple Hack"}, {"page.txt", "hAcKaThOn"},
+		{"simple-hack.txt", "ordinary copy"}, {"simple-hack/page.txt", "ordinary copy"},
+		{"simple-hack/", ""},
+	} {
+		for _, archive := range []string{"plain", "zip", "gzip", "zip-gzip", "tar"} {
+			t.Run(tc.name+"/"+tc.body+"/"+archive, func(t *testing.T) {
+				path, data := tc.name, []byte(tc.body)
+				if strings.Contains(archive, "gzip") {
+					var b bytes.Buffer
+					g := gzip.NewWriter(&b)
+					g.Name = path
+					g.Write(data)
+					g.Close()
+					path, data = "neutral.gz", b.Bytes()
+				}
+				if strings.Contains(archive, "zip") {
+					var b bytes.Buffer
+					z := zip.NewWriter(&b)
+					w, err := z.Create(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					w.Write(data)
+					z.Close()
+					path, data = "neutral.zip", b.Bytes()
+				}
+				if archive == "tar" {
+					var b bytes.Buffer
+					w := tar.NewWriter(&b)
+					h := &tar.Header{Name: path, Mode: 0644, Size: int64(len(data))}
+					if strings.HasSuffix(path, "/") {
+						h.Typeflag = tar.TypeDir
+					}
+					if err := w.WriteHeader(h); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := w.Write(data); err != nil {
+						t.Fatal(err)
+					}
+					if err := w.Close(); err != nil {
+						t.Fatal(err)
+					}
+					path, data = "neutral.tar", b.Bytes()
+				}
+				rows, err := assetFindings("host/webassets/"+path, data)
+				if err != nil {
+					t.Fatal(err)
+				}
+				root := t.TempDir()
+				allow := filepath.Join(root, "allow.txt")
+				writeFixture(t, root, "allow.txt", "# no exceptions\n")
+				if err := checkCounts(allow, "host/", rows); err == nil {
+					t.Fatal("accepted embedded product name")
+				}
+			})
+		}
+	}
+}
+
+func TestExactAllowCounts(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "allow.txt")
-	writeFixture(t, root, "allow.txt", "host/app/*.go | ^HackAllowed$ | transition\n")
-	allow, err := readAllow(path)
+	writeFixture(t, root, "allow.txt", "host/page.html | 1 | hosted cross-reference to the sister product\n")
+	rows := textFindings("host/page.html", []byte("Simple Hack"))
+	if err := checkCounts(path, "host/", rows); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range [][]finding{nil, append(rows, rows...), {{path: "host/other.html", kind: "text", value: "Simple Hack"}}} {
+		if err := checkCounts(path, "host/", bad); err == nil {
+			t.Fatal("accepted stale or extra match")
+		}
+	}
+	writeFixture(t, root, "allow.txt", "host/page.html | 1 | \n")
+	if err := checkCounts(path, "host/", rows); err == nil {
+		t.Fatal("accepted missing reason")
+	}
+}
+
+func TestPublicTextInputsAndAllEmbeds(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root, "go.mod", "module example.com/boundaryfixture\n\ngo 1.24\n")
+	for _, pkg := range []string{"webassets", "mcp", "db", "app/storage", "storage/rules"} {
+		writeFixture(t, root, "host/"+pkg+"/embed.go", "package fixture\nimport \"embed\"\n//go:embed all:assets\nvar files embed.FS\n")
+		writeFixture(t, root, "host/"+pkg+"/assets/.hidden.txt", "Simple Hack")
+		writeFixture(t, root, "host/"+pkg+"/unembedded.txt", "Simple Hack")
+	}
+	writeFixture(t, root, "host/storage/rules/go.mod", "module example.com/enginefixture\n\ngo 1.24\n")
+	writeFixture(t, root, "recording/text/host/page.txt", "Simple Hack")
+	writeFixture(t, root, "recording/text/hack/page.txt", "Simple Hack")
+	writeFixture(t, root, "scripts/allow/public-text.txt", "# no exceptions\n")
+	recorded, assets, err := publicText(root, filepath.Join(root, "recording/text/host"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mask("host/app/a.go", "HackAllowed", allow) != "           " || mask("host/app/a.go", "HackOther", allow) != "HackOther" {
-		t.Fatal("exception did not match exactly")
+	if len(recorded) != 1 || len(assets) != 5 {
+		t.Fatalf("recorded=%v assets=%v", recorded, assets)
 	}
-	writeFixture(t, root, "allow.txt", "host/app/*.go | HackAllowed | \n")
-	if _, err := readAllow(path); err == nil {
-		t.Fatal("accepted an exception without a reason")
+	if err := run(root, "public-text", filepath.Join(root, "recording/text/host")); err == nil {
+		t.Fatal("accepted product text")
+	}
+	for _, dir := range []string{filepath.Join(root, "missing"), t.TempDir()} {
+		if _, _, err := publicText(root, dir); err == nil {
+			t.Fatal("accepted empty/missing recording")
+		}
+	}
+}
+
+func TestHostProgramRejectsProductDependency(t *testing.T) {
+	script, err := filepath.Abs("../../check-binary.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	writeFixture(t, root, "go.mod", "module github.com/vsriram/simple-host\n\ngo 1.24\n")
+	writeFixture(t, root, "products/hack/hack.go", "package hack\n")
+	writeFixture(t, root, "cmd/simple-host/main.go", "package main\nimport _ \"github.com/vsriram/simple-host/products/hack\"\nfunc main() {}\n")
+	cmd := exec.Command("bash", script, "--root", root)
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "forbidden product package") {
+		t.Fatalf("err=%v output=%s", err, out)
 	}
 }

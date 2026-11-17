@@ -11,7 +11,7 @@
 # use the platform schema alone; products/ packages use the composed schema.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5
-.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report
+.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -45,6 +45,9 @@ check:
 	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs scripts/tests/hack-stage-announce.test.mjs scripts/tests/hack-publish-results.test.mjs scripts/tests/hack-event-times.test.mjs scripts/tests/hack-navigation.test.mjs scripts/golden/tests/*.test.mjs
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh
+	bash scripts/split/namescan.sh
+	bash scripts/check-public-text.sh
+	bash scripts/check-binary.sh
 	bash scripts/split/check-all_test.sh
 	bash scripts/split/move_test.sh
 	go run ./scripts/split/sqlcheck -tests -report -
@@ -79,17 +82,17 @@ inventory:
 	python3 scripts/build-features-page.py
 	go run ./scripts/inventory write
 
-# Report only, deliberately outside check. Reuse a golden recording with
-# GOLDEN_TEXT_DIR=/path/to/run/text/host; otherwise record the current program
-# using only the caller's disposable TEST_PG_URL. No shared baseline is saved.
+# The same five enforced boundaries run before either product is released.
+# Public text uses GOLDEN_TEXT_DIR when supplied, otherwise disposable TEST_PG_URL.
+check-boundaries:
+	bash scripts/check-layering.sh
+	bash scripts/split/namescan.sh
+	go run ./scripts/split/sqlcheck -tests -report -
+	go test ./host/webassets -run '^TestPlatformEmbeddedText$$' -count=1
+	bash scripts/check-public-text.sh
+	bash scripts/check-binary.sh
+
+# Retain the existing developer command, now enforcing its findings.
 boundary-report:
 	bash scripts/split/namescan.sh
-	@if [ -n "$${GOLDEN_TEXT_DIR:-}" ]; then \
-		bash scripts/check-public-text.sh "$$GOLDEN_TEXT_DIR"; \
-	else \
-		set -eu; : "$${TEST_PG_URL:?set TEST_PG_URL or GOLDEN_TEXT_DIR for boundary-report}"; \
-		work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; \
-		go build -o "$$work/" ./cmd/simple-host ./cmd/simple-hack; \
-		GOLDEN_PG_URL="$$TEST_PG_URL" node scripts/golden/run.mjs --host "$$work/simple-host" --hack "$$work/simple-hack" --out "$$work/recording" --scenario all; \
-		bash scripts/check-public-text.sh "$$work/recording/text/host"; \
-	fi
+	bash scripts/check-public-text.sh

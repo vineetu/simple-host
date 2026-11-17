@@ -12,6 +12,18 @@ permissions:
 jobs:
   binaries:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
 
@@ -35,6 +47,14 @@ jobs:
       # runner. No emulation, no per-architecture runner.
       - name: rules engine module
         run: make test-rules
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: five product boundary checks
+        env:
+          TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}
+        run: make check-boundaries
 
       - name: build
         run: |

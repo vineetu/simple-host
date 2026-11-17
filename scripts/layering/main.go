@@ -155,7 +155,7 @@ func readRules(reader io.Reader) (map[string][]rule, map[edge]string, error) {
 				return nil, nil, fmt.Errorf("%s:%d: duplicate transitional rule", rulesFile, line)
 			}
 			trans[e] = strings.TrimSpace(strings.SplitN(raw, "# removal step ", 2)[1])
-		} else if section == "final" || section == "test" {
+		} else if section == "final" || section == "test" || section == "areas" {
 			sections[section] = append(sections[section], rule{parts[0], tos})
 		} else {
 			return nil, nil, fmt.Errorf("%s:%d: unknown section", rulesFile, line)
@@ -166,25 +166,16 @@ func readRules(reader io.Reader) (map[string][]rule, map[edge]string, error) {
 
 // evaluate applies the import contract independently of package discovery.
 func evaluate(rules map[string][]rule, trans map[edge]string, edges map[edge]bool) (issues, lines []string) {
-	normal := func(e edge) bool {
-		return allowed(rules["final"], e.from, e.to) ||
-			(e.kind == "test" && allowed(rules["test"], e.from, e.to))
-	}
 	for e := range edges {
-		_, transitional := trans[e]
-		if !normal(e) && !transitional {
-			issues = append(issues, fmt.Sprintf("%s imports %s (%s) — not in %s; see docs/architecture/target.md §2", display(e.from), display(e.to), e.kind, rulesFile))
+		fine := allowed(rules["final"], e.from, e.to) ||
+			(e.kind == "test" && allowed(rules["test"], e.from, e.to))
+		area := allowed(rules["areas"], e.from, e.to)
+		if !fine || !area {
+			issues = append(issues, fmt.Sprintf("%s imports %s (%s) — not in %s (fine=%t, area=%t); see docs/architecture/target.md §2", display(e.from), display(e.to), e.kind, rulesFile, fine, area))
 		}
 	}
-	for e, step := range trans {
-		detail := fmt.Sprintf("%s imports %s (%s), removal step %s", display(e.from), display(e.to), e.kind, step)
-		if !edges[e] || normal(e) {
-			line := "transitional edge no longer needed: " + detail + "; delete this line from rules.txt"
-			lines = append(lines, line)
-			issues = append(issues, line)
-		} else {
-			lines = append(lines, "transitional edge in use: "+detail)
-		}
+	for e := range trans {
+		issues = append(issues, fmt.Sprintf("transitional edges are forbidden: %s imports %s (%s)", display(e.from), display(e.to), e.kind))
 	}
 	sort.Strings(issues)
 	sort.Strings(lines)

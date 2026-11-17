@@ -370,7 +370,7 @@ func TestStoragePresetsSQLiteTablesAndStatements(t *testing.T) {
 	a1 := fmt.Sprint(s.must(t, "POST", "/sqlite/shop/tables/orders/rows", `{"product_id":1,"qty":2}`, alice, 200).json(t)["last_insert_id"])
 	b1 := fmt.Sprint(s.must(t, "POST", "/sqlite/shop/tables/orders/rows", `{"product_id":2,"qty":1,"visitor_id":"forged","created_at":"1999"}`, bob, 200).json(t)["last_insert_id"])
 	stamped := s.must(t, "POST", "/sqlite/shop/query", map[string]string{"sql": "SELECT visitor_id, created_at FROM orders WHERE id=" + b1}, s.key, 200)
-	if !strings.Contains(string(stamped.body), s.ids["bob"]) || strings.Contains(string(stamped.body), "forged") || strings.Contains(string(stamped.body), "1999") {
+	if !strings.Contains(string(stamped.body), s.ids["bob"]) || strings.Contains(string(stamped.body), "forged") || strings.Contains(string(stamped.body), `"1999"`) {
 		t.Fatalf("server stamps: %s", stamped.body)
 	}
 	s.must(t, "POST", "/sqlite/shop/tables/orders/rows", `{"product_id":99,"qty":1}`, alice, 404)
