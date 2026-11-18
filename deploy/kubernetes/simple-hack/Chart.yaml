@@ -3,8 +3,8 @@ name: simple-hack
 description: Simple Hack, the hackathon platform, on an existing Kubernetes cluster with your own Postgres and load balancer.
 type: application
 # Pinned by deploy/shared/versions.env.
-version: 0.1.0
-appVersion: "0.8.20"
+version: 0.9.0
+appVersion: "0.9.0"
 kubeVersion: ">=1.27.0-0"
 home: https://simple-hack.app
 sources:

@@ -2102,8 +2102,8 @@ alone, starting `simple-host`. Both charts refuse replicas other than 1 and
 strategies other than Recreate; versions and images come from
 `deploy/shared/versions.env`. `test-chart.sh` checks both in `make check-release`;
 `kind-check.sh simple-host` and `kind-check.sh simple-hack` rehearse each product.
-The `hack-v*` workflow lints the chart and packages it with
-the release. Status: checked in kind on 2026-11-02; not yet installed on a real cluster.
+The unified `v*` release workflow tests and packages both charts.
+Status: checked in kind on 2026-11-02; not yet installed on a real cluster.
 
 Compose packaging (D4-S7b): root Compose starts `simple-host` directly; the Hack
 standalone wrapper starts `simple-hack` beside Caddy and retains its `release`
@@ -2116,11 +2116,11 @@ at this stage; runtime acceptance is D4-S5a and default traffic stays on the app
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
-the DigitalOcean and Coolify guides describe their separate paths. The dedicated
-`hack-v*` workflow builds the base and Simple Hack images from one checkout
-and packages the installers, schema, and guides as ZIP and tar.gz downloads. It
-does not change the existing small-box release pins. v0.8.13 (2026-10-31) carries
-the new default Simple Hack web app, private team finding (SIM-225), announcement
+the DigitalOcean and Coolify guides describe their separate paths. The unified
+`v*` release workflow builds the base and standalone Simple Hack images from
+one checkout and packages the installers, schema, and guides as ZIP and tar.gz
+downloads. v0.8.13 (2026-10-31) carries the new default Simple Hack web app,
+private team finding (SIM-225), announcement
 edit and delete, zip-upload and personal-data-minimisation fixes, the organiser
 Event page as sub-pages with a collapsible sidebar, and applying without a join
 link (`EVENT_APPLY_PENDING_PER_EVENT`); it was checked in local Docker containers

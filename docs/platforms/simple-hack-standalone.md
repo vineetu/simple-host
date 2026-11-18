@@ -20,8 +20,8 @@ One wildcard certificate for `*.hack.<domain>` does not cover team addresses suc
 2. Download and unpack the release:
 
    ```sh
-   VERSION=0.8.20
-   curl -fLO https://github.com/vineetu/simple-host/releases/download/hack-v$VERSION/simple-hack-$VERSION.tar.gz
+   VERSION=0.9.0
+   curl -fLO https://github.com/vineetu/simple-host/releases/download/v$VERSION/simple-hack-$VERSION.tar.gz
    tar xzf simple-hack-$VERSION.tar.gz
    cd simple-hack-$VERSION
    ```

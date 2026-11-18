@@ -2,7 +2,7 @@
 # Publication checks and HTTP/server fixtures, deliberately outside make check.
 # --mcpjam uses the fixture prepared by the separate MCPJam CI workflow.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 if [ "${1:-}" = --mcpjam ] && [ "$#" -eq 1 ]; then
   command -v npx >/dev/null || { echo "FAIL: MCPJam requires npx and npm network access"; exit 1; }
@@ -12,6 +12,24 @@ if [ "${1:-}" = --mcpjam ] && [ "$#" -eq 1 ]; then
 fi
 [ "$#" -eq 0 ] || { echo "usage: $0 [--mcpjam]"; exit 1; }
 fail=0
+
+echo "== release workflow =="
+if command -v actionlint >/dev/null; then
+  # GitHub Actions supports queue: max. actionlint 1.7.12 does not know this key yet.
+  actionlint -ignore 'unexpected key "queue" for "concurrency" section' .github/workflows/release.yml || fail=1
+fi
+for script in scripts/release/{build,package-hack}.sh; do
+  bash -n "$script" || fail=1
+done
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/release/publish_test.py || fail=1
+
+echo "== packaged installation downloads =="
+stage=$(mktemp -d) || exit 1
+trap 'rm -rf "$stage"' EXIT
+for tag in v0.9.0 v0.9.0-rc.1; do
+  bash scripts/release/build.sh install-assets "$tag" "$stage/$tag" || fail=1
+done
+python3 scripts/release/upgrade_version_test.py "$stage/v0.9.0-rc.1/simple-hack-0.9.0-rc.1.tar.gz" || fail=1
 
 # Enterprise is frozen; release checks retain the local settings contract.
 echo "== local settings docs =="

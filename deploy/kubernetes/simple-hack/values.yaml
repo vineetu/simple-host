@@ -20,7 +20,7 @@ strategy:
 # build or private registry; pullSecrets names registry Secrets in this namespace.
 image:
   repository: ghcr.io/vineetu/simple-host
-  tag: "hack-0.8.20"
+  tag: "hack-0.9.0"
   pullPolicy: IfNotPresent
   pullSecrets: []
 

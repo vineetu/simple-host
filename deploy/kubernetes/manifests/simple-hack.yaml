@@ -9,9 +9,9 @@ metadata:
   labels:
     app.kubernetes.io/name: simple-hack
     app.kubernetes.io/instance: simple-hack
-    app.kubernetes.io/version: "0.8.20"
+    app.kubernetes.io/version: "0.9.0"
     app.kubernetes.io/managed-by: Helm
-    helm.sh/chart: simple-hack-0.1.0
+    helm.sh/chart: simple-hack-0.9.0
 spec:
   podSelector:
     matchLabels:
@@ -69,9 +69,9 @@ metadata:
   labels:
     app.kubernetes.io/name: simple-hack
     app.kubernetes.io/instance: simple-hack
-    app.kubernetes.io/version: "0.8.20"
+    app.kubernetes.io/version: "0.9.0"
     app.kubernetes.io/managed-by: Helm
-    helm.sh/chart: simple-hack-0.1.0
+    helm.sh/chart: simple-hack-0.9.0
 data:
   KV_STORE: "postgres"
   STORAGE_RULES: "off"
@@ -113,9 +113,9 @@ metadata:
   labels:
     app.kubernetes.io/name: simple-hack
     app.kubernetes.io/instance: simple-hack
-    app.kubernetes.io/version: "0.8.20"
+    app.kubernetes.io/version: "0.9.0"
     app.kubernetes.io/managed-by: Helm
-    helm.sh/chart: simple-hack-0.1.0
+    helm.sh/chart: simple-hack-0.9.0
   annotations:
     # The sites outlive the release: `helm uninstall` leaves this claim.
     helm.sh/resource-policy: keep
@@ -133,9 +133,9 @@ metadata:
   labels:
     app.kubernetes.io/name: simple-hack
     app.kubernetes.io/instance: simple-hack
-    app.kubernetes.io/version: "0.8.20"
+    app.kubernetes.io/version: "0.9.0"
     app.kubernetes.io/managed-by: Helm
-    helm.sh/chart: simple-hack-0.1.0
+    helm.sh/chart: simple-hack-0.9.0
 spec:
   type: ClusterIP
   selector:
@@ -154,9 +154,9 @@ metadata:
   labels:
     app.kubernetes.io/name: simple-hack
     app.kubernetes.io/instance: simple-hack
-    app.kubernetes.io/version: "0.8.20"
+    app.kubernetes.io/version: "0.9.0"
     app.kubernetes.io/managed-by: Helm
-    helm.sh/chart: simple-hack-0.1.0
+    helm.sh/chart: simple-hack-0.9.0
 spec:
   # Exactly one pod, and the old one stops before the new one starts: the
   # server's upload locks, import tracker and rate limits are in-process, and
@@ -176,7 +176,7 @@ spec:
         app.kubernetes.io/instance: simple-hack
       annotations:
         # A changed setting restarts the pod; the server reads them at start.
-        checksum/config: 6e0fca003721d64416bd9c1abbe77b1d1822c85fa51593fbedc44c57a8c59369
+        checksum/config: 5ef013b767c819e14a2d7c1ce5a1cc847deb690200b8bceb3989d89ee742524b
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -195,7 +195,7 @@ spec:
       # performed here; the server's MIGRATE_ON_START never adopts old tables.
       initContainers:
         - name: migrate
-          image: ghcr.io/vineetu/simple-host:hack-0.8.20
+          image: ghcr.io/vineetu/simple-host:hack-0.9.0
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/simple-hack"]
           args: ["migrate", "-init", "-record-product"]
@@ -212,7 +212,7 @@ spec:
       containers:
         - name: simple-hack
           command: ["/usr/local/bin/simple-hack"]
-          image: ghcr.io/vineetu/simple-host:hack-0.8.20
+          image: ghcr.io/vineetu/simple-host:hack-0.9.0
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -274,9 +274,9 @@ metadata:
   labels:
     app.kubernetes.io/name: simple-hack
     app.kubernetes.io/instance: simple-hack
-    app.kubernetes.io/version: "0.8.20"
+    app.kubernetes.io/version: "0.9.0"
     app.kubernetes.io/managed-by: Helm
-    helm.sh/chart: simple-hack-0.1.0
+    helm.sh/chart: simple-hack-0.9.0
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 64m
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"

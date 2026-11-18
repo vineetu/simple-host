@@ -2,7 +2,7 @@
 
 Run events, teams, team sites, judging and results on your own server.
 People use password accounts without email.
-Its default `ghcr.io/vineetu/simple-hack:0.8.20` image can be overridden with `SIMPLE_HACK_IMAGE`.
+Its default `ghcr.io/vineetu/simple-hack:0.9.0` image can be overridden with `SIMPLE_HACK_IMAGE`.
 
 ## What you need
 

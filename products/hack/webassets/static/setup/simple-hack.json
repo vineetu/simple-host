@@ -1,12 +1,12 @@
 {
-  "version": "0.8.20",
+  "version": "0.9.0",
   "steps": [
     {
       "text": "Use a Linux server with Docker and its Compose plugin. Point `{DOMAIN}` and `*.{DOMAIN}` at it."
     },
     {
       "title": "Download and unpack the release",
-      "code": "VERSION=0.8.20\ncurl -fLO https://github.com/vineetu/simple-host/releases/download/hack-v$VERSION/simple-hack-$VERSION.tar.gz\ntar xzf simple-hack-$VERSION.tar.gz\ncd simple-hack-$VERSION"
+      "code": "VERSION=0.9.0\ncurl -fLO https://github.com/vineetu/simple-host/releases/download/v$VERSION/simple-hack-$VERSION.tar.gz\ntar xzf simple-hack-$VERSION.tar.gz\ncd simple-hack-$VERSION"
     },
     {
       "title": "Create the configuration file",

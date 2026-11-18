@@ -149,7 +149,8 @@ needs local tools/Postgres, and Docker can need an initial image download.
 
 `make check-release` runs `scripts/check-release.sh`:
 
-- Compare Enterprise settings from the published source, or ENTERPRISE_REPO.
+- Check the release workflow with `actionlint` when available and check local settings.
+- Test both Helm charts.
 - Run nginx HTTP fixtures using nginx/curl/openssl/Python, and the Caddy
   Docker fixture after fetching its required images.
 
@@ -165,8 +166,79 @@ both aggregate targets and skips if the directory is unreadable.
 |---|---|
 | `.github/workflows/ci.yml` | Push/PR: Go from go.mod, Node 22, PyYAML, nginx, Postgres 16 service; `make check`, then `make check-release` |
 | `mcpjam.yml` | Main push/PR: local server/DB fixture and `check-release.sh --mcpjam`; weekly/manual main-only evals use the configured Anthropic key |
-| `release.yml` | `v*` tags: installer-pin check, stamped cross-platform binaries and multiarch image publication |
-| `hack-release.yml` | `hack-v*` tags: chart checks, versioned installation archives/chart and multiarch images |
+| `release.yml` | On `v*` tags, checks boundaries and charts, then builds two stamped programs, three multiarchitecture images, two Helm charts, and installation, toolkit and plugin downloads |
+
+## Cut a release
+
+Both products use one tag. `hack-v0.8.20` was the last tag of the separate Hack
+release family. The Railway, Render, Fly and Coolify platform recipes still
+install the earlier platform release until they are reworked.
+
+Run the release checks and rehearse with an approved `vX.Y.Z-rc.1` tag first.
+The release workflow builds all assets from the tagged commit and verifies the
+tag and commit by running every downloadable binary on its native Linux or
+macOS runner. It also checks each binary's build settings and runs `version`
+in each image on both Linux architectures. It pushes candidate image tags under
+`ghcr.io/<owner>/<repo>/dry-run/` and retains the other files as a workflow
+artifact for the install and upgrade rehearsals. For either Compose product,
+follow `docs/upgrades.md` in the unpacked RC archive. For a fresh Host install,
+use the tagged installer command there with its explicit RC source ref and dry-run
+image. The upgrade helper checks the full candidate version, including the RC suffix.
+
+GHCR creates new packages as private by default. Grant the rehearsal operator
+Read access to the candidate Host and Hack packages. For Compose, run
+`docker login ghcr.io --username YOUR_GITHUB_LOGIN` as the OS account that
+runs the installer (root for a sudo install). At the password prompt, enter
+a GitHub personal access token (classic) scoped to `read:packages`.
+On DigitalOcean, log in on the target droplet and use the archive's standalone
+installer. Building a Packer snapshot requires an image its temporary droplet can pull.
+For Kubernetes, create a `kubernetes.io/dockerconfigjson` Secret named
+`ghcr-read` in the install namespace with those read-only credentials. Pass
+`--set-string 'image.pullSecrets[0]=ghcr-read'` to Helm. The packaged manual
+migration command copies the pull secrets and security contexts from the Deployment.
+
+After approval and **before pushing the stable tag**, save the approved release
+notes in a GitHub draft release for the exact `vX.Y.Z` tag. The authored notes
+live in `docs/releases/vX.Y.Z.md`; create the draft from that file with
+`gh release create vX.Y.Z --draft --title vX.Y.Z --notes-file docs/releases/vX.Y.Z.md`.
+The notes say to install fresh: there is no upgrade path from an earlier release.
+State that Static ships switched off and is not for production use yet.
+Leave the draft unpublished.
+Push the matching tag at the approved commit with both products' installer pins
+set to that release. The workflow attaches the verified downloads to the draft
+and publishes its authored notes.
+The workflow publishes the root Host image at `ghcr.io/<owner>/<repo>:X.Y.Z`,
+the root Hack image at `ghcr.io/<owner>/<repo>:hack-X.Y.Z`, and the
+standalone Hack image at `ghcr.io/<owner>/simple-hack:X.Y.Z`. The GitHub release
+contains both programs, both charts, the standalone archives, the toolkit and
+plugin bundles, and their checksums. Bundle filenames and the Host Claude
+manifest carry the tagged release version. The bundled skills send the
+`X-Skill-Version` embedded in the Host server.
+Stable runs use the GitHub Actions queue and hold the same lock through
+promotion. To resume an interrupted publication, rerun the original workflow
+run within its artifact retention period. It reuses the verified OCI archives
+and downloads, skips image tags with the expected digest, and stops on a
+conflicting digest. A matching draft resumes with its missing assets and is
+published after checksum verification and a fresh check of the tag's commit.
+An older release leaves GitHub's latest designation as it stands. The promotion job updates Host
+`:latest` only when GitHub's latest stable release tag still points to the built commit.
+
+To build from a Linux checkout without publishing, start with two empty
+directories. Reuse the populated image directory for verification.
+
+```bash
+bash scripts/release/build.sh artifacts v0.9.0-rc.1 /tmp/release-assets
+bash scripts/release/build.sh images v0.9.0-rc.1 /tmp/release-images
+bash scripts/release/build.sh verify-images v0.9.0-rc.1 /tmp/release-images
+```
+
+The artifact build uses Go, Helm, jq, Python with Pillow and PyYAML, and ZIP tools.
+On another target platform, run `bash scripts/release/build.sh verify-binaries v0.9.0-rc.1 /tmp/release-assets`
+with the same checkout and built files to check that platform's downloads.
+The image build uses a Docker Buildx builder with OCI export and emulation for
+the other architecture. Set `RELEASE_PLATFORMS` to the native Linux platform
+for both image commands in a single-architecture rehearsal. Verification uses
+Skopeo and Docker.
 
 ## Golden API comparisons
 

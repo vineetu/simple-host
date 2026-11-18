@@ -6,8 +6,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 INSTALL_DIR=${INSTALL_DIR:-/opt/simple-hack}
 SHARED="$HERE/shared-upgrade.sh"
 [ -f "$SHARED" ] || SHARED="$HERE/../../shared/upgrade.sh"
-IMAGE="ghcr.io/vineetu/simple-hack:0.8.20"
-TO="0.8.20"
+IMAGE="ghcr.io/vineetu/simple-hack:0.9.0"
+TO="0.9.0"
 args=()
 while [ "$#" -gt 0 ]; do
   case "$1" in

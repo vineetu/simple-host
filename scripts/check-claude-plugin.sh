@@ -2,7 +2,7 @@
 # The Claude plugin (plugins/simple-host) must carry exactly the source skills
 # at the source version. Fix drift with: bash scripts/sync-claude-plugin.sh
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 SRC=host/webassets/simple-host-website/skills
 DST=plugins/simple-host/skills
@@ -28,8 +28,10 @@ fi
 [ "$fail" -eq 0 ] && echo "  ok — $SKILLS are verbatim copies"
 
 echo "== claude plugin version, marketplace and X-Skill-Version literals match skills version =="
-if python3 - <<'PY'
+if python3 - "$@" <<'PY'
 import json, sys
+from zipfile import ZipFile
+
 src = json.load(open("host/webassets/simple-host-website/.claude-plugin/plugin.json"))["version"]
 plug = json.load(open("plugins/simple-host/.claude-plugin/plugin.json"))
 mk = {e["name"]: e for e in json.load(open(".claude-plugin/marketplace.json"))["plugins"]}
@@ -43,6 +45,7 @@ if mk.get("simple-host", {}).get("source") != "./plugins/simple-host": bad.appen
 # the server embeds (this plugin.json); a stale literal earns every call a
 # "your skill is out of date" notice. Bump both together.
 import os, re
+version_header = re.compile(r'X-Skill-Version:\s*`?"?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)')
 lits = 0
 for root in ("host/webassets/simple-host-website/skills", "plugins/simple-host/skills"):
     for d, _, fs in os.walk(root):
@@ -50,10 +53,23 @@ for root in ("host/webassets/simple-host-website/skills", "plugins/simple-host/s
             p = os.path.join(d, f)
             try: text = open(p, encoding="utf-8").read()
             except (UnicodeDecodeError, OSError): continue
-            for v in re.findall(r"X-Skill-Version:\s*`?\"?(\d+\.\d+\.\d+)", text):
+            for v in version_header.findall(text):
                 lits += 1
                 if v != src: bad.append(f"{p}: X-Skill-Version {v} != plugin.json {src}")
 if lits == 0: bad.append("no X-Skill-Version literal found in the skills (the check pattern is stale)")
+for bundle in sys.argv[1:]:
+    with ZipFile(bundle) as archive:
+        headers = []
+        for member in archive.infolist():
+            if member.is_dir() or not member.filename.startswith('skills/'):
+                continue
+            try:
+                text = archive.read(member).decode('utf-8')
+            except UnicodeDecodeError:
+                continue
+            headers.extend(version_header.findall(text))
+        if not headers or any(header != src for header in headers):
+            bad.append(f'{bundle}: archived X-Skill-Version literals must match embedded skill version {src}')
 mcp = json.load(open("plugins/simple-host/.mcp.json"))["mcpServers"]
 if mcp != {"simple-host": {"type": "http", "url": "https://simple-host.app/mcp"}}: bad.append(f".mcp.json unexpected: {mcp}")
 for b in bad: print("  FAIL:", b)
