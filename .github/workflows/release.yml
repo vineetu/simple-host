@@ -78,6 +78,15 @@ jobs:
         env:
           TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}
         run: make check-boundaries
+      - name: Install the pinned Helm 3
+        # The checked-in manifests are compared byte for byte with a fresh render, and Helm 4 renders
+        # extra blank lines. The runner image's Helm changes without notice, so the version is pinned here.
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/helm.tgz" https://get.helm.sh/helm-v3.19.0-linux-amd64.tar.gz
+          echo "a7f81ce08007091b86d8bd696eb4d86b8d0f2e1b9f6c714be62f82f96a594496  $RUNNER_TEMP/helm.tgz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/helm.tgz" -C "$RUNNER_TEMP"
+          sudo install -m 755 "$RUNNER_TEMP/linux-amd64/helm" /usr/local/bin/helm
+          helm version --short
       - name: Check both charts and the Hack setup pins
         env:
           TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}
