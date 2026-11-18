@@ -29,3 +29,27 @@ func TestStaticConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestStaticAPIURLOrigin(t *testing.T) {
+	t.Setenv("DB_DSN", "postgres://unreachable.invalid/test")
+	for _, tc := range []struct {
+		address string
+		valid   bool
+	}{
+		{"http://api:8090", true},
+		{"https://api.example/", true},
+		{"http://api:8090/api", false},
+		{"http://api:8090/%2F", false},
+		{"http://user@api:8090", false},
+		{"http://api:8090/?", false},
+		{"http://api:8090/#", false},
+	} {
+		t.Run(tc.address, func(t *testing.T) {
+			t.Setenv("STATIC_API_URL", tc.address)
+			_, err := LoadStatic()
+			if (err == nil) != tc.valid {
+				t.Errorf("LoadStatic() error = %v, want valid = %t", err, tc.valid)
+			}
+		})
+	}
+}

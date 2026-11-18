@@ -510,15 +510,16 @@ func TestAccessMarkerProtectionLockWaitEnds(t *testing.T) {
 	}
 }
 
-// Header is first used by ownerFrameGuard after all three marker checks.
-// Pause there without adding a production-only scheduling hook.
+// Pause at ownerFrameGuard, after the marker checks and before opening current.
+// The Static site-host route sets nosniff before entering the file handler.
 type accessPauseWriter struct {
 	*httptest.ResponseRecorder
-	pause func()
+	pause       func()
+	viaSiteHost bool
 }
 
 func (w *accessPauseWriter) Header() http.Header {
-	if w.pause != nil {
+	if w.pause != nil && (!w.viaSiteHost || w.ResponseRecorder.Header().Get("X-Content-Type-Options") == "nosniff") {
 		fn := w.pause
 		w.pause = nil
 		fn()
@@ -526,6 +527,15 @@ func (w *accessPauseWriter) Header() http.Header {
 	return w.ResponseRecorder.Header()
 }
 func TestAccessMarkerDirectoryReuse(t *testing.T) {
+	testAccessMarkerDirectoryReuse(t, false)
+}
+
+func TestStaticDirectoryReuse(t *testing.T) {
+	testAccessMarkerDirectoryReuse(t, true)
+}
+
+func testAccessMarkerDirectoryReuse(t *testing.T, viaStatic bool) {
+	t.Helper()
 	for _, change := range []string{"delete", "rename"} {
 		for _, rel := range []string{"/", "/gone"} {
 			t.Run(change+rel, func(t *testing.T) {
@@ -534,7 +544,17 @@ func TestAccessMarkerDirectoryReuse(t *testing.T) {
 				if r := accessRequest(t, p, "PUT", "/v1/sites/trip/files", map[string]any{"files": map[string]string{"index.html": "old page", "404.html": "old missing", "_redirects": "/gone /404.html 410!"}}); r.status != 200 {
 					t.Fatal(r.status)
 				}
-				w := &accessPauseWriter{ResponseRecorder: httptest.NewRecorder()}
+				serve := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					p.sites.serveSiteFileRel(w, r, uid, "trip", rel)
+				})
+				if viaStatic {
+					table, _, err := p.sites.LoadSiteTable(context.Background())
+					if err != nil {
+						t.Fatal(err)
+					}
+					serve = staticPageFront(t, p, table).Config.Handler.ServeHTTP
+				}
+				w := &accessPauseWriter{ResponseRecorder: httptest.NewRecorder(), viaSiteHost: viaStatic}
 				w.pause = func() {
 					if change == "rename" {
 						if r := accessRequest(t, p, "PATCH", "/v1/sites/trip", map[string]any{"name": "voyage"}); r.status != 200 {
@@ -557,7 +577,7 @@ func TestAccessMarkerDirectoryReuse(t *testing.T) {
 					}
 				}
 				req := httptest.NewRequest("GET", "https://"+p.host+rel, nil)
-				p.sites.serveSiteFileRel(w, req, uid, "trip", rel)
+				serve(w, req)
 				if w.pause != nil {
 					t.Fatal("request did not reach pause")
 				}

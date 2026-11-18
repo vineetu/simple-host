@@ -2,7 +2,10 @@ package handler
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/vsriram/simple-host/host/model"
@@ -16,11 +19,6 @@ func (h *SiteHandler) StaticErrorPage() http.Handler {
 // StaticAPIRequest identifies requests needing API-owned state even when no
 // routing copy is loaded.
 func (h *SiteHandler) StaticAPIRequest(r *http.Request) bool {
-	// Static does not install the product's ownership provider. Let the API
-	// apply the owner frame guard to signed-in group members and organisers.
-	if h.ed.Storage().EventOwners && visitorCookieValue(r) != "" {
-		return true
-	}
 	// Preview tokens belong to the API's signing key, including person-path
 	// previews where the site name precedes the preview segment.
 	_, rest, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
@@ -44,7 +42,7 @@ func (h *SiteHandler) StaticAPIRequest(r *http.Request) bool {
 
 // StaticPages installs only page routes. This handler must be a separate
 // instance from the API handler: it has no mutating routes or workers.
-// Access-marked requests are handed over whole until D4-S4b runs their gates.
+// The API handles every access-marked request, including its framing and cache headers.
 func (h *SiteHandler) StaticPages(table model.SiteTable, api http.Handler, retry func(http.ResponseWriter, *http.Request, model.RoutingAddress) bool) http.Handler {
 	h.SetSiteFacts(NewCopyFacts(table))
 	upstream := api
@@ -87,14 +85,16 @@ func (h *SiteHandler) StaticPages(table model.SiteTable, api http.Handler, retry
 			api.ServeHTTP(w, r)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/internal/") {
-			if address, missing := h.staticMissingAddress(r); missing && retry(w, r, address) {
-				return
-			}
-			internal.ServeHTTP(w, r)
+		address, err := h.staticMissingAddress(r)
+		if err != nil {
+			h.renderServiceError(w, r)
 			return
 		}
-		if address, missing := h.staticMissingAddress(r); missing && retry(w, r, address) {
+		if address != (model.RoutingAddress{}) && retry(w, r, address) {
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/internal/") {
+			internal.ServeHTTP(w, r)
 			return
 		}
 		pages.ServeHTTP(w, r)
@@ -150,7 +150,7 @@ func (h *SiteHandler) staticPersonRootNeedsAPI(r *http.Request) bool {
 // staticMissingAddress uses routing facts and disk markers to detect a miss.
 // Only unmarked homes are probed for path collisions. A miss gets one bounded
 // database lookup at the Static boundary, then normal resolution.
-func (h *SiteHandler) staticMissingAddress(r *http.Request) (model.RoutingAddress, bool) {
+func (h *SiteHandler) staticMissingAddress(r *http.Request) (model.RoutingAddress, error) {
 	ctx := r.Context()
 	host := requestHostName(r)
 	if r.URL.Path == "/internal/tls-ask" {
@@ -169,7 +169,7 @@ func (h *SiteHandler) staticMissingAddress(r *http.Request) (model.RoutingAddres
 			host = domain
 		}
 		if isOwnHost(host, h.contentHost) || isOwnHost(host, h.siteDomain) && !h.ed.Storage().EventSites {
-			return model.RoutingAddress{}, false
+			return model.RoutingAddress{}, nil
 		}
 		if h.ed.Storage().EventSites {
 			for _, base := range h.servedBases() {
@@ -177,29 +177,29 @@ func (h *SiteHandler) staticMissingAddress(r *http.Request) (model.RoutingAddres
 					continue
 				}
 				if h.groupTLSHostExists(ctx, host) {
-					return model.RoutingAddress{}, false
+					return model.RoutingAddress{}, nil
 				}
 				if name, group, _, ok := h.siteHostParts(ctx, host); ok {
-					return model.RoutingAddress{Group: group, GroupSite: name}, true
+					return model.RoutingAddress{Group: group, GroupSite: name}, nil
 				}
 				label := strings.TrimSuffix(host, "."+base)
 				if label != "" && !strings.Contains(label, ".") {
-					return model.RoutingAddress{Group: label}, true
+					return model.RoutingAddress{Group: label}, nil
 				}
 			}
 		}
 	}
 	if _, err := h.siteFacts().GetSiteByCustomDomain(ctx, host); err == nil {
-		return model.RoutingAddress{}, false
+		return model.RoutingAddress{}, nil
 	}
 	if name, handle, _, ok := h.siteHostParts(ctx, host); ok && h.siteHostsOn() {
-		return h.staticPairMissing(ctx, handle, name)
+		return h.staticPairMissing(ctx, handle, name), nil
 	}
 	for _, prefix := range []string{"/internal/site-redirect/", "/internal/domain-redirect/", "/internal/passcode/"} {
 		if host == h.contentHost && strings.HasPrefix(r.URL.Path, prefix) {
 			parts := strings.Split(strings.TrimPrefix(r.URL.Path, prefix), "/")
 			if len(parts) >= 2 {
-				return h.staticPairMissing(ctx, parts[0], parts[1])
+				return h.staticPairMissing(ctx, parts[0], parts[1]), nil
 			}
 		}
 	}
@@ -210,40 +210,83 @@ func (h *SiteHandler) staticMissingAddress(r *http.Request) (model.RoutingAddres
 			// name a sibling published since the last routing load.
 			if u, err := h.siteFacts().GetUserByHandle(ctx, label); err == nil {
 				if home, has, _ := h.siteFacts().HomeSite(ctx, u.ID); has {
-					// Marked homes reach their gate before any path probe or
-					// sibling lookup, even when the copy predates the marker.
-					if h.disk.IsSuspended(home.UserID, home.Name) || h.disk.IsOffline(home.UserID, home.Name) || h.disk.HasPasscodeMarker(home.UserID, home.Name) {
-						return model.RoutingAddress{}, false
-					}
-					if h.homePathExists(home, r.URL.Path) {
-						return model.RoutingAddress{}, false
+					if hides, err := h.staticHomeHidesSibling(home, r.URL.Path); err != nil || hides {
+						return model.RoutingAddress{}, err
 					}
 				}
 			}
-			return h.staticPairMissing(ctx, label, name)
+			return h.staticPairMissing(ctx, label, name), nil
 		}
 		if _, err := h.siteFacts().GetUserByHandleOrAlias(ctx, label); err == nil {
-			return model.RoutingAddress{}, false
+			return model.RoutingAddress{}, nil
 		}
 	}
 	if _, found, _ := h.familySiteForHost(ctx, host); found {
-		return model.RoutingAddress{}, false
+		return model.RoutingAddress{}, nil
 	}
 	if host == h.siteDomain || host == h.contentHost {
-		return model.RoutingAddress{}, false
+		return model.RoutingAddress{}, nil
 	}
-	return model.RoutingAddress{Domain: host}, true
+	return model.RoutingAddress{Domain: host}, nil
 }
 
-func (h *SiteHandler) staticPairMissing(ctx context.Context, handle, name string) (model.RoutingAddress, bool) {
+// Check the home's markers and collision through one directory handle even
+// when publication or rename replaces the home before the routing lookup.
+func (h *SiteHandler) staticHomeHidesSibling(home model.Site, rel string) (bool, error) {
+	root, err := os.OpenRoot(h.disk.SiteDir(home.UserID, home.Name))
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer root.Close()
+	if marker, err := staticMarker(root.Lstat); err != nil || marker != "" {
+		return marker != "", err
+	}
+	return h.homePathExists(root, home, rel), nil
+}
+
+// staticMarker checks each marker on the open site directory in serving order.
+func staticMarker(lstat func(string) (fs.FileInfo, error)) (string, error) {
+	for _, marker := range []string{"suspended", "offline", "passcode"} {
+		_, err := lstat(marker)
+		if err == nil {
+			return marker, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+	}
+	return "", nil
+}
+
+func (h *SiteHandler) staticFileGate(w http.ResponseWriter, r *http.Request, lstat func(string) (fs.FileInfo, error), protected http.Handler) bool {
+	marker, err := staticMarker(lstat)
+	switch {
+	case err != nil:
+		h.renderServiceError(w, r)
+	case marker == "suspended":
+		h.serveTakedown(w, r)
+	case marker == "offline":
+		h.serveOffline(w, r)
+	case marker == "passcode":
+		protected.ServeHTTP(w, r)
+	default:
+		return false
+	}
+	return true
+}
+
+func (h *SiteHandler) staticPairMissing(ctx context.Context, handle, name string) model.RoutingAddress {
 	if u, err := h.siteFacts().GetUserByHandleOrAlias(ctx, handle); err == nil {
 		if _, err := h.siteFacts().AddressedSite(ctx, u.ID, name); err == nil {
-			return model.RoutingAddress{}, false
+			return model.RoutingAddress{}
 		}
 		if _, _, err := h.siteFacts().AddressedOldSite(ctx, u.ID, name); err == nil {
-			return model.RoutingAddress{}, false
+			return model.RoutingAddress{}
 		}
 		handle = u.Handle.String
 	}
-	return model.RoutingAddress{Handle: handle, Name: name}, true
+	return model.RoutingAddress{Handle: handle, Name: name}
 }

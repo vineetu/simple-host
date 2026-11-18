@@ -129,7 +129,7 @@ files older than seven days before exposing a table. Identity is read only from
 identity means no saved copy is read or written; a successful database load can
 still provide the first in-memory copy. No API startup code writes identity here.
 
-## Optional Static process (D4-S4a)
+## Optional Static process
 
 `simple-host static` (or `simple-hack static` for the product's routing facts)
 starts a separate listener. `STATIC_BIND` defaults to `127.0.0.1`, `STATIC_PORT`
@@ -148,9 +148,24 @@ product Wire function or user-data writes run. A product contributes only its
 read-only routing loader through `Extension.LoadRoutingFacts`.
 
 The existing page handlers serve public and unlisted pages and the front's
-`/internal/*` page hand-offs. Offline and take-down markers still run before any
-file read. Access-marked pages are forwarded whole to the API for now; running
-passcode gates locally belongs to D4-S4b. API routes, sign-in, previews,
+`/internal/*` page hand-offs. Static checks the opened site directory for take-down, offline and
+access markers in that order before serving a file from it. Any access marker,
+regardless of its contents, sends the request to the API with the original host,
+path, cookies and method. The API supplies the status, body, framing and cache
+headers for both passcode and named-viewer sites. During an API outage these
+sites return the service-error page (503), even to visitors with a valid cookie.
+Static waits up to five seconds for the API’s response headers on a protected page.
+Static serves unmarked public and unlisted pages from the routing copy. If Simple
+Host cannot look up a visitor session, or Simple Hack needs the product’s owner
+check, the API supplies the page and its framing headers. If the API cannot be
+reached, times out or returns a server error, Static checks the same directory’s markers again and
+serves the unmarked page with `X-Frame-Options: SAMEORIGIN` and
+`Content-Security-Policy: frame-ancestors 'self'`. Marker lookup errors return
+the service-error page. Take-down and offline markers take precedence even
+when the request carries a visitor cookie.
+Serving passcode sites in Static is deferred to later work tracked in Linear.
+
+API routes, sign-in, previews,
 showcases and person roots without a home also go to the API. An unavailable API
 answers 503. Requests and responses stream, including imports. Original Host is
 preserved, X-Forwarded-Host is removed, and forwarding uses the existing trusted

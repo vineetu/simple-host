@@ -83,9 +83,16 @@ func (h *SiteHandler) isHomeSiteHost(ctx context.Context, siteID, host string) b
 	return err == nil && has && s.ID == siteID && !s.Deleted && !s.Offline && !s.Suspended()
 }
 
+func (h *SiteHandler) openProbeCurrent(siteRoot *os.Root, site model.Site) (*os.Root, error) {
+	if siteRoot != nil {
+		return siteRoot.OpenRoot("current")
+	}
+	return os.OpenRoot(h.disk.SiteDir(site.UserID, site.Name) + "/current")
+}
+
 // homePathExists mirrors file/directory lookup without escaping the site's root.
-func (h *SiteHandler) homePathExists(s model.Site, rel string) bool {
-	root, err := os.OpenRoot(h.disk.SiteDir(s.UserID, s.Name) + "/current")
+func (h *SiteHandler) homePathExists(siteRoot *os.Root, s model.Site, rel string) bool {
+	root, err := h.openProbeCurrent(siteRoot, s)
 	if err != nil {
 		return false
 	}
@@ -125,11 +132,7 @@ func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user
 		return false
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	// Gate before checking for a collision: a locked site's files stay undiscoverable.
-	if h.siteGate(w, r, s.UserID, s.Name, r.URL.Path) {
-		return true
-	}
-	if !h.homePathExists(s, r.URL.Path) {
+	redirectSibling := func() bool {
 		seg, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
 		if other, err := h.siteFacts().AddressedSite(r.Context(), user.ID, seg); err == nil {
 			_, escTail, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
@@ -156,7 +159,24 @@ func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user
 			http.Redirect(w, r, target, http.StatusFound)
 			return true
 		}
+		return false
 	}
-	h.serveSiteFile(w, r, s.UserID, s.Name, r.URL.Path, r.URL.EscapedPath())
+	probe := func(root *os.Root) bool {
+		return !h.homePathExists(root, s, r.URL.Path) && redirectSibling()
+	}
+	if h.staticAPI == nil {
+		h.serveSiteFileWithProbe(w, r, s.UserID, s.Name, r.URL.Path, r.URL.EscapedPath(), probe)
+		return true
+	}
+	root, err := os.OpenRoot(h.disk.SiteDir(s.UserID, s.Name))
+	if errors.Is(err, os.ErrNotExist) {
+		return redirectSibling() // no home file can shadow the sibling
+	}
+	if err != nil {
+		h.renderServiceError(w, r)
+		return true
+	}
+	defer root.Close()
+	h.serveOpenedSiteFile(w, r, root, s.UserID, s.Name, r.URL.Path, r.URL.EscapedPath(), probe)
 	return true
 }

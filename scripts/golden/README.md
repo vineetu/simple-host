@@ -753,8 +753,8 @@ page hand-offs pass through Static, preserving their original Host. Other API
 requests and seeding retain their direct transport, including the name-peer
 route whose guard intentionally refuses forwarded requests.
 Compare with a direct recording of the same candidate. This covers public and
-unlisted Host-style pages on both products; access-marked requests currently
-hand over to the API (local protected gates are D4-S4b).
+unlisted Host-style pages on both products. Static forwards access-marked
+requests to the API, which handles passcodes and named viewers.
 Use `GOLDEN_PG_URL="$TEST_PG_URL"` to select the disposable server explicitly.
 
 When comparing the deployed reference with D4-S4a, select `--slice D4-S4a`.

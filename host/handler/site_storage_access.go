@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"regexp"
@@ -262,29 +264,37 @@ func (h *SiteHandler) storageSiteOwnerOnSite(r *http.Request, c storageCall) boo
 // On Simple Hack the owner is the team's members or the event's organisers
 // (storageOwnerOnSite), and sibling team sites share one registrable domain
 // the same way.
-func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ownerID string) {
+func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ownerID string) (needsAPI bool) {
 	// A copy cached without the cookie must not stand in for one with it.
 	w.Header().Add("Vary", "Cookie")
 	switch r.Header.Get("Sec-Fetch-Dest") {
 	case "empty", "image", "script", "style", "font", "audio", "video", "track", "manifest", "worker", "sharedworker", "serviceworker":
-		return // never framed (empty: fetch and XHR); no database lookup per subresource
+		return false // never framed (empty: fetch and XHR); no database lookup per subresource
 	}
 	id, err := hex.DecodeString(strictVisitorCookie(r))
 	if err != nil || len(id) != 32 {
-		return
+		return false
+	}
+	if h.staticAPI != nil && h.ed.Storage().EventOwners {
+		return true // only the API has the product's ownership bindings
 	}
 	sess, err := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
 	if err != nil || !strings.EqualFold(sess.Host, requestHostName(r)) || time.Now().After(sess.ExpiresAt) {
-		return
+		return err != nil && !errors.Is(err, sql.ErrNoRows)
 	}
 	if h.ed.Storage().EventOwners {
 		paperRecorder(r.Context()).Member(r.Context(), sess.UserID)
 		if ok, err := h.storageBindingProvider().OwnerOnSite(r.Context(), sess.SiteID, sess.UserID); err != nil || !ok {
-			return
+			return err != nil && !errors.Is(err, sql.ErrNoRows)
 		}
 	} else if sess.UserID != ownerID {
-		return
+		return false
 	}
+	setOwnerFrameHeaders(w)
+	return false
+}
+
+func setOwnerFrameHeaders(w http.ResponseWriter) {
 	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 	if !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors 'self'") {
 		w.Header().Add("Content-Security-Policy", "frame-ancestors 'self'")

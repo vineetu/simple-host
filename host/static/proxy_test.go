@@ -55,6 +55,15 @@ func TestProxyClientAddressAndLimits(t *testing.T) {
 }
 
 func TestProxyStreamsLargeImportAndResponse(t *testing.T) {
+	testProxyStreams(t, "POST", "/v1/import", false)
+}
+
+func TestPageHandoffStreamsRequestAndResponse(t *testing.T) {
+	testProxyStreams(t, "GET", "/page", true)
+}
+
+func testProxyStreams(t *testing.T, method, path string, handoff bool) {
+	t.Helper()
 	const remaining = 8 << 20
 	readFirst := make(chan struct{})
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +76,7 @@ func TestProxyStreamsLargeImportAndResponse(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		if string(b) != "start" || r.URL.Path != "/v1/import" {
+		if string(b) != "start" || r.URL.Path != path || r.Method != method {
 			t.Error("wrong import prefix or path")
 		}
 		close(readFirst)
@@ -81,7 +90,11 @@ func TestProxyStreamsLargeImportAndResponse(t *testing.T) {
 	}))
 	defer api.Close()
 	target, _ := url.Parse(api.URL)
-	front := httptest.NewServer(NewProxy(target, nil))
+	proxy := NewProxy(target, nil)
+	if handoff {
+		proxy = pageHandoff(proxy)
+	}
+	front := httptest.NewServer(proxy)
 	defer front.Close()
 	reader, writer := io.Pipe()
 	defer reader.Close()
@@ -98,7 +111,12 @@ func TestProxyStreamsLargeImportAndResponse(t *testing.T) {
 	}()
 	defer close(sendRest)
 	client := &http.Client{Timeout: 5 * time.Second}
-	response, err := client.Post(front.URL+"/v1/import", "application/octet-stream", reader)
+	req, err := http.NewRequest(method, front.URL+path, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	response, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,5 +139,29 @@ func TestProxyStreamsLargeImportAndResponse(t *testing.T) {
 	}
 	if err = <-writerDone; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestProxyQueryHandling(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, r.URL.RawQuery)
+	}))
+	defer api.Close()
+	target, _ := url.Parse(api.URL)
+	proxy := NewProxy(target, nil)
+	const raw = "q=one%2Ftwo&return=x;y"
+	for _, tc := range []struct {
+		path, want string
+		handler    http.Handler
+	}{
+		{"/protected", raw, pageHandoff(proxy)},
+		{"/v1/test", "q=one%2Ftwo", proxy},
+		{"/mcp", "q=one%2Ftwo", proxy},
+	} {
+		w := httptest.NewRecorder()
+		tc.handler.ServeHTTP(w, httptest.NewRequest("GET", tc.path+"?"+raw, nil))
+		if got := w.Body.String(); got != tc.want {
+			t.Errorf("%s query = %q, want %q", tc.path, got, tc.want)
+		}
 	}
 }

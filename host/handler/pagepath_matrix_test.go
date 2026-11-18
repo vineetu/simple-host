@@ -34,7 +34,8 @@ func TestPagePathMatrix(t *testing.T) {
 	t.Cleanup(func() { instanceIsHostedService = hosted })
 	limits := config.DefaultLimits()
 	limits.RateTLSAsk.Burst = 10000
-	a, certDir := newSiteApp(t, "canonical", edition.Default(limits))
+	baseEdition := edition.Default(limits)
+	a, certDir := newSiteApp(t, "canonical", baseEdition)
 	owner := a.newPerson(t, "matrix-owner")
 	viewer := a.newPerson(t, "matrix-viewer")
 	setHandle(t, a, owner, "matrix-owner")
@@ -280,14 +281,19 @@ func TestPagePathMatrix(t *testing.T) {
 					}
 				}
 				a.sites.database = db
-				if state == "public" || state == "unlisted" {
+				switch state {
+				case "public", "unlisted", "passcode-anonymous", "passcode-valid", "passcode-old",
+					"viewers-anonymous", "viewers-listed", "viewers-removed", "offline", "taken-down", "owner-suspended":
 					routing := static.New(static.Options{DataDir: a.sites.disk.DataDir(), StateDir: t.TempDir(), Product: "simple-host", Lookup: a.sites.LookupRoutingSite, Logf: func(string, ...any) {}, Load: func(context.Context) (model.SiteTable, time.Time, error) { return table, time.Now(), nil }})
 					if err := routing.Refresh(context.Background()); err != nil {
 						t.Fatal(err)
 					}
 					target, _ := url.Parse(a.srv.URL)
 					via := static.NewHandler(routing, static.NewProxy(target, nil), func(table model.SiteTable, api http.Handler, retry func(http.ResponseWriter, *http.Request, model.RoutingAddress) bool) http.Handler {
-						h := NewSiteHandler(a.sites.ed, "", db, a.sites.disk, pcSiteDomain, pcContentHost, "", "", "", "", nil, 0, "", "", nil, nil)
+						// The flat-host fixture switches routing editions after construction.
+						// Give both handlers the same initial assets and current routing policy.
+						h := NewSiteHandler(baseEdition, "", db, a.sites.disk, pcSiteDomain, pcContentHost, "", "", "", "", nil, 0, "", "", nil, nil)
+						h.ed = a.sites.ed
 						h.SetPersonHosts("canonical")
 						h.SetSiteHosts("canonical", certDir)
 						h.SetAddressFamilies(famDir)
@@ -298,7 +304,8 @@ func TestPagePathMatrix(t *testing.T) {
 						path, host string
 						want       resp
 					}{{p, addr.host, page}, {"/internal/tls-ask?domain=" + addr.host, pcSiteDomain, tls}} {
-						req := httptest.NewRequest("GET", "http://"+check.host+check.path, nil)
+						// Match the HTTPS visitor origin used by a.at, including secure cookies.
+						req := httptest.NewRequest("GET", "https://"+check.host+check.path, nil)
 						for k, v := range headers {
 							req.Header.Set(k, v)
 						}

@@ -304,31 +304,26 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		// The gate (take-down, offline, passcode) before anything that
-		// could tell whether a file exists (the redirect below).
-		if h.siteGate(w, r, site.UserID, site.Name, r.URL.Path) {
-			return
-		}
-		// A root-absolute link written for an older address of this site
-		// (/<handle>/<site>/... on the content host, /<site>/... on the
-		// person host) lands here: when no such file exists, send it to the
-		// same path at this site's root.
-		if rest, ok := h.oldAddressPrefix(user.Handle.String, site, r.URL.Path, escaped); ok {
-			http.Redirect(w, r, "/"+strings.TrimLeft(rest, "/")+query, http.StatusMovedPermanently)
-			return
-		}
-		h.serveSiteFileRel(w, r, site.UserID, site.Name, r.URL.Path)
+		h.serveSiteFileWithProbe(w, r, site.UserID, site.Name, r.URL.Path, escaped, func(siteRoot *os.Root) bool {
+			// A root-absolute link written for an older address of this site
+			// redirects to the same path at its root when no such file exists.
+			rest, ok := h.oldAddressPrefix(siteRoot, user.Handle.String, site, r.URL.Path, escaped)
+			if ok {
+				http.Redirect(w, r, "/"+strings.TrimLeft(rest, "/")+query, http.StatusMovedPermanently)
+			}
+			return ok
+		})
 	})
 }
 
 // oldAddressPrefix: p starts with /<handle>/<site>/ or /<site>/ and the site
 // has no file there. Returns the escaped remainder after the prefix.
-func (h *SiteHandler) oldAddressPrefix(handle string, site model.Site, p, escaped string) (string, bool) {
+func (h *SiteHandler) oldAddressPrefix(siteRoot *os.Root, handle string, site model.Site, p, escaped string) (string, bool) {
 	for _, prefix := range []string{"/" + handle + "/" + site.Name + "/", "/" + site.Name + "/"} {
 		if !strings.HasPrefix(p, prefix) || !strings.HasPrefix(escaped, prefix) {
 			continue
 		}
-		if h.siteHasPath(site.UserID, site.Name, p) {
+		if h.siteHasPath(siteRoot, site, p) {
 			return "", false
 		}
 		return strings.TrimPrefix(escaped, prefix), true
@@ -338,8 +333,8 @@ func (h *SiteHandler) oldAddressPrefix(handle string, site model.Site, p, escape
 
 // siteHasPath reports whether rel names a file or directory in the site's
 // live version (os.Root refuses escapes).
-func (h *SiteHandler) siteHasPath(userID, siteName, rel string) bool {
-	root, err := os.OpenRoot(h.disk.SiteDir(userID, siteName) + "/current")
+func (h *SiteHandler) siteHasPath(siteRoot *os.Root, site model.Site, rel string) bool {
+	root, err := h.openProbeCurrent(siteRoot, site)
 	if err != nil {
 		return false
 	}

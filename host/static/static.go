@@ -16,6 +16,7 @@ import (
 type Pages func(model.SiteTable, http.Handler, func(http.ResponseWriter, *http.Request, model.RoutingAddress) bool) http.Handler
 
 func NewHandler(copy *Reloader, api http.Handler, pages Pages, apiRequest ...func(*http.Request) bool) http.Handler {
+	pageAPI := pageHandoff(api)
 	var mu sync.Mutex
 	var snapshot *Snapshot
 	var current http.Handler
@@ -41,7 +42,7 @@ func NewHandler(copy *Reloader, api http.Handler, pages Pages, apiRequest ...fun
 		}
 		mu.Lock()
 		if snapshot != s {
-			current = pages(s.Table, api, func(w http.ResponseWriter, r *http.Request, address model.RoutingAddress) bool {
+			current = pages(s.Table, pageAPI, func(w http.ResponseWriter, r *http.Request, address model.RoutingAddress) bool {
 				if r.Context().Value(retryKey{}) == true {
 					return false
 				}

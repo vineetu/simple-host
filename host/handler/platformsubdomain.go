@@ -12,6 +12,7 @@ import (
 	"time"
 
 	appsites "github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 )
 
@@ -177,22 +178,55 @@ func (h *SiteHandler) serveSiteFileRel(w http.ResponseWriter, r *http.Request, u
 // serveSiteFile is serveSiteFileRel with the (escaped, server-built) public
 // path a directory redirect appends its "/" to.
 func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) {
+	h.serveSiteFileWithProbe(w, r, userID, siteName, rel, publicPath, nil)
+}
+
+// A site-host legacy redirect or a selected-home collision can reveal whether
+// a file exists. Static runs that probe against the same gated root it serves.
+func (h *SiteHandler) serveSiteFileWithProbe(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string, probe func(*os.Root) bool) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// Keep the single process's existing by-name gate and redirect behavior.
+	if probe != nil && h.staticAPI == nil {
+		if h.siteGate(w, r, userID, siteName, rel) || probe(nil) {
+			return
+		}
+	}
 	// Keep the directory we checked even if its name is reused mid-request.
 	siteRoot, err := os.OpenRoot(h.disk.SiteDir(userID, siteName))
 	if err != nil {
-		http.NotFound(w, r)
+		if h.staticAPI != nil && !errors.Is(err, os.ErrNotExist) {
+			h.renderServiceError(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
 		return
 	}
 	defer siteRoot.Close()
-	if h.siteGateRoot(w, r, siteRoot, userID, siteName, rel) {
+	h.serveOpenedSiteFile(w, r, siteRoot, userID, siteName, rel, publicPath, probe)
+}
+
+func (h *SiteHandler) serveOpenedSiteFile(w http.ResponseWriter, r *http.Request, siteRoot *os.Root, userID, siteName, rel, publicPath string, probe func(*os.Root) bool) {
+	if h.staticAPI != nil {
+		if h.staticFileGate(w, r, siteRoot.Lstat, h.staticAPI) || (probe != nil && probe(siteRoot)) {
+			return
+		}
+	} else if h.siteGateRoot(w, r, siteRoot, userID, siteName, rel) {
 		return
 	}
-	h.ownerFrameGuard(w, r, userID)
+	if h.ownerFrameGuard(w, r, userID) && h.staticAPI != nil {
+		if httpx.TryPageAPI(w, r, h.staticAPI) {
+			return
+		}
+		// A marker may have appeared while waiting for the API.
+		if h.staticFileGate(w, r, siteRoot.Lstat, h.StaticErrorPage()) {
+			return
+		}
+		setOwnerFrameHeaders(w)
+	}
 	if h.applyRootRedirect(w, r, siteRoot, rel, publicPath) {
 		return
 	}

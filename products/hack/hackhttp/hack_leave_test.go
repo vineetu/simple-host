@@ -1188,6 +1188,7 @@ func TestHackScorePutRaceRejectsDepartedJudge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer lockTx.Rollback()
 	var lockedID string
 	if err := lockTx.QueryRow(`SELECT id FROM events WHERE slug=$1 FOR UPDATE`, slug).Scan(&lockedID); err != nil {
 		t.Fatal(err)
@@ -1198,7 +1199,26 @@ func TestHackScorePutRaceRejectsDepartedJudge(t *testing.T) {
 		putDone <- a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
 			map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 5}}}, a.key(judge))
 	}()
-	waitBlocked() // the PUT's own event-row lock now waits on lockTx's FOR UPDATE.
+	// The PUT must have passed its initial membership check and reached the
+	// event-row lock before we commit the leave. A row-lock waiter waits on
+	// the transaction ID of the holder, which here has locked only this event.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var waiting bool
+		if err := lockTx.QueryRow(`SELECT EXISTS (
+			SELECT 1 FROM pg_locks WHERE locktype = 'transactionid'
+			AND transactionid = pg_current_xact_id()::xid AND NOT granted
+		)`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("score PUT did not reach the event-row lock")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	if _, err := lockTx.Exec(`DELETE FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, judgeID); err != nil {
 		t.Fatal(err)

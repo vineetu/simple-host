@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -36,8 +37,9 @@ func LoadStatic() (StaticConfig, error) {
 	}
 	cfg.RefreshInterval = time.Duration(seconds) * time.Second
 	target, err := url.Parse(cfg.APIURL)
-	if err != nil || target.Host == "" || (target.Scheme != "http" && target.Scheme != "https") || target.User != nil || target.RawQuery != "" || target.Fragment != "" {
-		return cfg, fmt.Errorf("STATIC_API_URL must be an http or https API address")
+	if err != nil || target.Hostname() == "" || (target.Scheme != "http" && target.Scheme != "https") ||
+		target.User != nil || (target.Path != "" && target.Path != "/") || strings.ContainsAny(cfg.APIURL, "?#") {
+		return cfg, fmt.Errorf("STATIC_API_URL must be an HTTP or HTTPS origin with an optional trailing slash")
 	}
 	if cfg.DBDSN == "" {
 		return cfg, fmt.Errorf("DB_DSN is required")
