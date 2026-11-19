@@ -573,6 +573,9 @@
 								<div class="sl-markdown-content"><h2 id="november-2026">November 2026</h2>
 <ul>
 <li>
+<p><strong>Nov 19:</strong> The separate static page server is removed. Pages are served only by the one program, as before; nothing changes for visitors or site owners. The <code>static</code> command, its five <code>STATIC_*</code> settings (an env file that still sets them starts as before), the opt-in <code>static</code> Compose service and its state volume, and the database install lock that only maintenance commands would have taken are gone. The data-directory maintenance lock and the install identity stay: upgrades still use them for their backup (ST-D1).</p>
+</li>
+<li>
 <p><strong>Nov 19:</strong> The PhotoDNA image check is removed. It was never switched on (it needed a PhotoDNA key that was never approved), so nothing changes for uploads, sites or events: images were never checked. The check’s settings (<code>PHOTODNA_*</code>, <code>IMAGE_SCAN_*</code>), its background worker, the admin Image matches section and its <code>/v1/admin/image-scan</code> routes, and its runbook are gone; an environment file that still sets the old settings starts as before. The <code>image_scan_*</code> tables stay unused, with no migration.</p>
 </li>
 <li>

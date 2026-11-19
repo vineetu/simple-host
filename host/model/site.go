@@ -82,10 +82,6 @@ type Site struct {
 	// (sites.access = 'specific'; handler/viewers.go). Populated wherever
 	// Passcode is.
 	NamedViewers bool
-
-	// Response-only projections used by the page-routing copy. Never access grants.
-	PageNoIndex     bool `json:"-"`
-	HomeUnavailable bool `json:"-"`
 }
 
 // Suspended reports whether the site is taken down, by itself or through its

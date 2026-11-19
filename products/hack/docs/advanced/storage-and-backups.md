@@ -57,11 +57,10 @@ entries to `storage/kv.json` and omit the internal `runtime/kv/` files.
 
 ## Maintenance locks and the install identity
 
-Servers hold a shared lock on `DATA_DIR/.maintenance.lock` for their lifetime,
-and a shared Postgres advisory lock on their database while they run. A server
-refuses to start while something else holds either lock exclusively. The kernel
-releases the file lock if the process dies, and Postgres releases the advisory
-lock when the connection ends; leave the lock file in place. The file is empty
+Servers hold a shared lock on `DATA_DIR/.maintenance.lock` for their lifetime.
+A server refuses to start while something else, such as an upgrade taking its
+backup, holds the lock exclusively. The kernel releases the lock if the process
+dies; leave the lock file in place. The file is empty
 and world-readable, and a server opens it read-only, so a lock file created by
 another user does not stop the server. If the server cannot read the file, its
 error gives the file's path, owner and mode.

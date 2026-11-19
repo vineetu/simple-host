@@ -754,11 +754,10 @@ include its <code>-wal</code> file; copying the main file alone can lose committ
 Stopping first avoids copying files while they change. Site exports write the
 entries to <code>storage/kv.json</code> and omit the internal <code>runtime/kv/</code> files.</p>
 <h2 id="maintenance-locks-and-the-install-identity">Maintenance locks and the install identity</h2>
-<p>Servers hold a shared lock on <code>DATA_DIR/.maintenance.lock</code> for their lifetime,
-and a shared Postgres advisory lock on their database while they run. A server
-refuses to start while something else holds either lock exclusively. The kernel
-releases the file lock if the process dies, and Postgres releases the advisory
-lock when the connection ends; leave the lock file in place. The file is empty
+<p>Servers hold a shared lock on <code>DATA_DIR/.maintenance.lock</code> for their lifetime.
+A server refuses to start while something else, such as an upgrade taking its
+backup, holds the lock exclusively. The kernel releases the lock if the process
+dies; leave the lock file in place. The file is empty
 and world-readable, and a server opens it read-only, so a lock file created by
 another user does not stop the server. If the server cannot read the file, its
 error gives the file’s path, owner and mode.</p>

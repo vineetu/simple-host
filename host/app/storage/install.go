@@ -7,9 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
-	"sync"
-	"time"
 
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	repo "github.com/vsriram/simple-host/host/repository/storage"
@@ -87,90 +84,4 @@ func EnsureInstallIdentity(ctx context.Context, db *sql.DB, dataDir string) erro
 		return fmt.Errorf("save the install identity in %s (the database already has it; the two now disagree until the file is written): %w", runtime.InstallIDPath(dataDir), err)
 	}
 	return nil
-}
-
-// InstallHold is a serving program's shared hold on the install advisory lock.
-// The lock lives on one connection of its own, outside the request pool. If
-// that connection ends (a database restart) the hold takes the lock again.
-type InstallHold struct {
-	db     *sql.DB
-	mu     sync.Mutex
-	lock   *repo.InstallLock
-	cancel context.CancelFunc
-	done   chan struct{}
-}
-
-// installHoldInterval is how often the hold checks its connection.
-var installHoldInterval = 15 * time.Second
-
-// HoldInstallShared takes the shared install lock on the database at dsn and
-// keeps it until Close. It fails at once with repo.ErrDatabaseMaintenance when
-// a maintenance command holds the lock exclusively.
-func HoldInstallShared(ctx context.Context, dsn string) (*InstallHold, error) {
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return nil, err
-	}
-	db.SetMaxOpenConns(1)
-	lock, err := repo.LockInstall(ctx, db, false)
-	if err != nil {
-		db.Close()
-		return nil, err
-	}
-	loopCtx, cancel := context.WithCancel(context.Background())
-	h := &InstallHold{db: db, lock: lock, cancel: cancel, done: make(chan struct{})}
-	go h.keep(loopCtx)
-	return h, nil
-}
-
-func (h *InstallHold) keep(ctx context.Context) {
-	defer close(h.done)
-	tick := time.NewTicker(installHoldInterval)
-	defer tick.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.C:
-		}
-		h.mu.Lock()
-		if h.lock != nil && !h.lock.Alive(ctx) {
-			h.lock.Close()
-			h.lock = nil
-			log.Printf("WARNING: the connection holding this server's install lock ended; taking the lock again")
-		}
-		if h.lock == nil && ctx.Err() == nil {
-			lock, err := repo.LockInstall(ctx, h.db, false)
-			switch {
-			case err == nil:
-				h.lock = lock
-				log.Printf("install lock taken again")
-			case errors.Is(err, repo.ErrDatabaseMaintenance):
-				log.Printf("WARNING: a maintenance command is running on this database; serving pool connections must acquire their own shared lock before database work can resume")
-			case ctx.Err() == nil:
-				log.Printf("WARNING: could not take the install lock again: %v", err)
-			}
-		}
-		h.mu.Unlock()
-	}
-}
-
-// Held reports whether the hold has the lock right now.
-func (h *InstallHold) Held() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.lock != nil
-}
-
-// Close stops the keeper, releases the lock and closes the connection.
-func (h *InstallHold) Close() {
-	h.cancel()
-	<-h.done
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.lock != nil {
-		h.lock.Close()
-		h.lock = nil
-	}
-	h.db.Close()
 }

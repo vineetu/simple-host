@@ -467,12 +467,12 @@ try:
         new = config(candidate)
         if new['name'] != project:
             raise RuntimeError('Candidate Compose project differs from the install.')
-        for service in ('app', 'static', 'migrate', 'release'):
+        for service in ('app', 'migrate', 'release'):
             if service in new['services']:
                 new['services'][service]['image'] = a.image
         # Preserve the running DB version; this procedure does not upgrade Postgres.
         new['services']['db']['image'] = tool_image
-        for service in ('app', 'static', 'migrate', 'release', 'db'):
+        for service in ('app', 'migrate', 'release', 'db'):
             if service in template['services']:
                 template['services'][service]['image'] = new['services'][service]['image']
         target_file = work / 'candidate.json'

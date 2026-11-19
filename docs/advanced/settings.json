@@ -115,66 +115,6 @@
       "small_box": false
     },
     {
-      "name": "STATIC_BIND",
-      "group": "server",
-      "description": "The interface the optional static page server listens on.",
-      "type": "string",
-      "default": "127.0.0.1",
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
-      "name": "STATIC_PORT",
-      "group": "server",
-      "description": "The port the optional static page server listens on.",
-      "type": "int",
-      "default": "8091",
-      "min": 1,
-      "max": 65535,
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
-      "name": "STATIC_API_URL",
-      "group": "server",
-      "description": "The API address Static forwards other requests to. The API must trust Static's address in TRUSTED_PROXY_CIDRS.",
-      "type": "string",
-      "default": "http://127.0.0.1:8090",
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
-      "name": "STATIC_STATE_DIR",
-      "group": "server",
-      "description": "The folder where Static saves its routing copy. The site data directory stays read-only.",
-      "type": "string",
-      "default": "<parent of DATA_DIR>/static-state",
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
-      "name": "STATIC_REFRESH_SECONDS",
-      "group": "server",
-      "description": "Seconds between Static's full routing loads. Failed loads keep the previous copy.",
-      "type": "int",
-      "default": "10",
-      "min": 1,
-      "max": 86400,
-      "unit": "seconds",
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
       "name": "BIND_ADDR",
       "group": "server",
       "description": "The interface the server listens on, like 127.0.0.1 behind a proxy. Empty listens on all.",

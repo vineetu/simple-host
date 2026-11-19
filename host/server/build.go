@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -33,7 +32,6 @@ import (
 	"github.com/vsriram/simple-host/host/papermetrics"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
-	storagerepo "github.com/vsriram/simple-host/host/repository/storage"
 	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/host/workers"
 )
@@ -91,7 +89,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 		log.Printf("WARNING: %s", w)
 	}
 
-	db, err := storagerepo.OpenServingDB(cfg.DBDSN)
+	db, err := sql.Open("postgres", cfg.DBDSN)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %v", err)
 	}
@@ -149,18 +147,6 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	if err := checkProductSchema(context.Background(), db, exts); err != nil {
 		return nil, err
 	}
-	// The install lock (shared): a command that rewrites saved data takes it
-	// exclusive, so it cannot rewrite this database while any server uses it,
-	// from this data directory or another. Every request/worker pool connection
-	// also holds it shared, including new connections after a database restart.
-	installHold, err := storageapp.HoldInstallShared(context.Background(), cfg.DBDSN)
-	if err != nil {
-		if errors.Is(err, storagerepo.ErrDatabaseMaintenance) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("take the install lock: %v", err)
-	}
-	closeDeps = func() { installHold.Close(); db.Close(); maintenance.Close() }
 	// The install identity ties this database to this data directory. It is
 	// created once, when neither has one. A mismatch does not stop the server
 	// (it serves as before), but maintenance commands refuse until it is fixed.
@@ -473,7 +459,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	// Caller location comes from local DB-IP files only (no network lookup);
 	// the watcher picks up the monthly refresh without a restart.
 	geo := geoip.Open(cfg.GeoIPDir)
-	closeDeps = func() { geo.Close(); installHold.Close(); db.Close(); maintenance.Close() }
+	closeDeps = func() { geo.Close(); db.Close(); maintenance.Close() }
 
 	// Sign-in/sign-up country block (SIGNUP_BLOCKED_COUNTRIES): local lookup
 	// only, off by default. A listed country refuses every email-code and

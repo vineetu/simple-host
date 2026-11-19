@@ -511,15 +511,13 @@ func TestAccessMarkerProtectionLockWaitEnds(t *testing.T) {
 }
 
 // Pause at ownerFrameGuard, after the marker checks and before opening current.
-// The Static site-host route sets nosniff before entering the file handler.
 type accessPauseWriter struct {
 	*httptest.ResponseRecorder
-	pause       func()
-	viaSiteHost bool
+	pause func()
 }
 
 func (w *accessPauseWriter) Header() http.Header {
-	if w.pause != nil && (!w.viaSiteHost || w.ResponseRecorder.Header().Get("X-Content-Type-Options") == "nosniff") {
+	if w.pause != nil {
 		fn := w.pause
 		w.pause = nil
 		fn()
@@ -527,15 +525,6 @@ func (w *accessPauseWriter) Header() http.Header {
 	return w.ResponseRecorder.Header()
 }
 func TestAccessMarkerDirectoryReuse(t *testing.T) {
-	testAccessMarkerDirectoryReuse(t, false)
-}
-
-func TestStaticDirectoryReuse(t *testing.T) {
-	testAccessMarkerDirectoryReuse(t, true)
-}
-
-func testAccessMarkerDirectoryReuse(t *testing.T, viaStatic bool) {
-	t.Helper()
 	for _, change := range []string{"delete", "rename"} {
 		for _, rel := range []string{"/", "/gone"} {
 			t.Run(change+rel, func(t *testing.T) {
@@ -547,14 +536,7 @@ func testAccessMarkerDirectoryReuse(t *testing.T, viaStatic bool) {
 				serve := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					p.sites.serveSiteFileRel(w, r, uid, "trip", rel)
 				})
-				if viaStatic {
-					table, _, err := p.sites.LoadSiteTable(context.Background())
-					if err != nil {
-						t.Fatal(err)
-					}
-					serve = staticPageFront(t, p, table).Config.Handler.ServeHTTP
-				}
-				w := &accessPauseWriter{ResponseRecorder: httptest.NewRecorder(), viaSiteHost: viaStatic}
+				w := &accessPauseWriter{ResponseRecorder: httptest.NewRecorder()}
 				w.pause = func() {
 					if change == "rename" {
 						if r := accessRequest(t, p, "PATCH", "/v1/sites/trip", map[string]any{"name": "voyage"}); r.status != 200 {

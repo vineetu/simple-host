@@ -47,12 +47,10 @@ func Extension() *extension.Extension {
 	var productConfig productconfig.Config
 	catalog := hackdb.Catalog()
 	return &extension.Extension{
-		Name:                    "simple-hack",
-		LoadRoutingFacts:        hackevents.LoadRoutingFacts,
-		LookupGroupRoutingFacts: hackevents.LookupRoutingFacts,
-		ValidateProduct:         validateInstallProduct,
-		Migrations:              &catalog,
-		MigrationOrder:          hackmigrations.ProductOrder,
+		Name:            "simple-hack",
+		ValidateProduct: validateInstallProduct,
+		Migrations:      &catalog,
+		MigrationOrder:  hackmigrations.ProductOrder,
 		Config: extension.ConfigSpec{Settings: productconfig.Settings(), Load: func(getenv func(string) string) ([]string, error) {
 			var warnings []string
 			var err error

@@ -11,7 +11,6 @@ func commands(exts []*extension.Extension) []command {
 	set := migrationSet(exts)
 	versionCommand := func([]string) int { return runVersionCommand(set) }
 	return []command{
-		{"static", func(args []string) int { return runStaticCommand(args, exts) }},
 		{"prune-versions", runPruneVersions},
 		{"oauth-client", runOAuthClientCommand},
 		{"review-account", runReviewAccountCommand},

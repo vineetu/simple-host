@@ -53,7 +53,6 @@ the existing service-error page, so a stalled export cannot hang visitors.
 
 A request checked before a protection change may finish; the protocol does not
 revoke an in-flight response. nginx/Caddy still use the existing settle pause.
-Static is not started or installed by this slice.
 
 The database-backed handler tests inject failures before and after autocommit,
 including a failed recovery read, pause a stale sync, and replace directories

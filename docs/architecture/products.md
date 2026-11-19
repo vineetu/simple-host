@@ -86,7 +86,7 @@ product query belongs to the product.
 |---|---|
 | `Assets.Replace`, `Own`, `Files`, `Skills` | `host/handler`'s asset pipeline. `Replace` is authoritative with no fallback for a missing replacement. `Own` files answer over HTTP only where the product mounts `AssetServices.ProductFiles()` through `Assets.Routes`. |
 | `Assets.Rewrite` | `host/handler/basetext.go` calls the product rewrite in the shared page/text pipeline. |
-| `ProductAssetHooks.GroupTexts` | `host/handler/grouphost.go` reads group error-page wording when group services are absent, including Static. |
+| `ProductAssetHooks.GroupTexts` | `host/handler/grouphost.go` reads group error-page wording when group services are absent. |
 | `ProductAssetHooks.InstanceText` | `host/handler` chrome, docs, discovery, auth text, skills and instance-text paths call `productInstanceText`. |
 | `ProductAssetHooks.SkillAvailable`, `CatalogPlugin` | `host/handler/skillshub.go` filters skills and supplies the catalogue's plugin name. |
 | `ProductAssetHooks.ExpandConnectSteps`, `PersonalPresentationHTML` | `host/handler/chrome.go` expands connect steps and adapts personal presentation. |

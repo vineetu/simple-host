@@ -258,36 +258,6 @@ services:
       # Read-only: the ingester only ever reads the access log Caddy writes.
       - caddy_logs:/var/log/caddy:ro
 
-  # Built now, off by default. End-to-end acceptance is D4-S5a; enabling
-  # this profile alone does not redirect Caddy traffic through Static.
-  static:
-    build: .
-    image: ${IMAGE:-simple-host:local}
-    profiles: [static]
-    command: [static]
-    logging: *logging
-    restart: unless-stopped
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    environment:
-      DB_DSN: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
-      DATA_DIR: /data/sites
-      SITE_DOMAIN: ${SITE_DOMAIN-}
-      CONTENT_HOST: ${CONTENT_HOST-}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL-}
-      PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:-}
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
-      STATIC_BIND: 0.0.0.0
-      STATIC_PORT: "8092"
-      STATIC_API_URL: http://app:8090
-      STATIC_STATE_DIR: /data/static-state
-      STATIC_REFRESH_SECONDS: "10"
-    expose: ["8092"]
-    volumes:
-      - sites:/data/sites:ro
-      - static_state:/data/static-state
-
   web:
     image: caddy:2-alpine
     logging: *logging
@@ -313,4 +283,3 @@ volumes:
   sites:
   caddy_data:
   caddy_config:
-  static_state:

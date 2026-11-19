@@ -666,13 +666,9 @@ The server image is the nonroot Go binary, HTTP 8090, <code>DATA_DIR=/data/sites
 Caddy publishes 80/443 by default. Named volumes hold the database, sites,
 Caddy logs, certificates and config. Caddy proxies APIs and can serve site files
 from its read-only sites mount (<code>compose.yaml:14</code>, <code>compose.yaml:37</code>,
-<code>compose.yaml:277</code>, <code>Dockerfile:31</code>, <code>deploy/compose/Caddyfile:86</code>).
+<code>compose.yaml:276</code>, <code>Dockerfile:31</code>, <code>deploy/compose/Caddyfile:86</code>).
 The root Dockerfile defaults to its <code>host</code> target and starts <code>simple-host</code>
-directly. Root Compose does not pass <code>EVENTS</code> through. Its optional <code>static</code>
-profile renders a <code>simple-host static</code> service with read-only site files and a
-separate writable state volume. It is off by default; routing and end-to-end
-acceptance belong to D4-S5a, so enabling the profile alone does not change
-Caddy’s upstream.
+directly. Root Compose does not pass <code>EVENTS</code> through.
 Workers run inside the server process, as listed below.</p>
 <p>Standalone Hack is a Compose profile with its own package: Postgres plus an app container running both Caddy and the
 server, and a one-shot <code>release</code> container. Build the root Dockerfile’s <code>hack</code>

@@ -303,10 +303,10 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		h.serveSiteFileWithProbe(w, r, site.UserID, site.Name, r.URL.Path, escaped, func(siteRoot *os.Root) bool {
+		h.serveSiteFileWithProbe(w, r, site.UserID, site.Name, r.URL.Path, escaped, func() bool {
 			// A root-absolute link written for an older address of this site
 			// redirects to the same path at its root when no such file exists.
-			rest, ok := h.oldAddressPrefix(siteRoot, user.Handle.String, site, r.URL.Path, escaped)
+			rest, ok := h.oldAddressPrefix(user.Handle.String, site, r.URL.Path, escaped)
 			if ok {
 				http.Redirect(w, r, "/"+strings.TrimLeft(rest, "/")+query, http.StatusMovedPermanently)
 			}
@@ -317,12 +317,12 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 
 // oldAddressPrefix: p starts with /<handle>/<site>/ or /<site>/ and the site
 // has no file there. Returns the escaped remainder after the prefix.
-func (h *SiteHandler) oldAddressPrefix(siteRoot *os.Root, handle string, site model.Site, p, escaped string) (string, bool) {
+func (h *SiteHandler) oldAddressPrefix(handle string, site model.Site, p, escaped string) (string, bool) {
 	for _, prefix := range []string{"/" + handle + "/" + site.Name + "/", "/" + site.Name + "/"} {
 		if !strings.HasPrefix(p, prefix) || !strings.HasPrefix(escaped, prefix) {
 			continue
 		}
-		if h.siteHasPath(siteRoot, site, p) {
+		if h.siteHasPath(site, p) {
 			return "", false
 		}
 		return strings.TrimPrefix(escaped, prefix), true
@@ -332,8 +332,8 @@ func (h *SiteHandler) oldAddressPrefix(siteRoot *os.Root, handle string, site mo
 
 // siteHasPath reports whether the site's live version has something at rel
 // (os.Root refuses escapes).
-func (h *SiteHandler) siteHasPath(siteRoot *os.Root, site model.Site, rel string) bool {
-	root, err := h.openProbeCurrent(siteRoot, site)
+func (h *SiteHandler) siteHasPath(site model.Site, rel string) bool {
+	root, err := os.OpenRoot(h.disk.SiteDir(site.UserID, site.Name) + "/current")
 	if err != nil {
 		return false
 	}

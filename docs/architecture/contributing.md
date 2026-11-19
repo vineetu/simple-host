@@ -200,7 +200,6 @@ notes in a GitHub draft release for the exact `vX.Y.Z` tag. The authored notes
 live in `docs/releases/vX.Y.Z.md`; create the draft from that file with
 `gh release create vX.Y.Z --draft --title vX.Y.Z --notes-file docs/releases/vX.Y.Z.md`.
 The notes say to install fresh: there is no upgrade path from an earlier release.
-State that Static ships switched off and is not for production use yet.
 Leave the draft unpublished.
 Push the matching tag at the approved commit with both products' installer pins
 set to that release. The workflow attaches the verified downloads to the draft

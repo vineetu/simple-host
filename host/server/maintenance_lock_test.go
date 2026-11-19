@@ -5,12 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"os"
-	"strings"
 	"testing"
-	"time"
 
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
-	storagerepo "github.com/vsriram/simple-host/host/repository/storage"
 	"github.com/vsriram/simple-host/host/server"
 	"github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/host/storage"
@@ -50,9 +47,8 @@ func TestMaintenanceServerLifetime(t *testing.T) {
 }
 
 // The server creates the install identity once, when neither the database nor
-// the data directory has one, and holds the install advisory lock shared for
-// as long as it lives. A mismatch is logged and does not stop it.
-func TestInstallIdentityAndLockServerLifetime(t *testing.T) {
+// the data directory has one. A mismatch is logged and does not stop it.
+func TestInstallIdentityServerLifetime(t *testing.T) {
 	dsn := testdb.Fresh(t)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -68,14 +64,6 @@ func TestInstallIdentityAndLockServerLifetime(t *testing.T) {
 	inDB, onDisk, err := appstorage.InstallIdentity(ctx, db, cfg.DataDir)
 	if err != nil || inDB == "" || inDB != onDisk {
 		t.Fatalf("identity after the first start: %q %q %v", inDB, onDisk, err)
-	}
-	// While it serves, no command can take the database exclusively.
-	lock, err := storagerepo.LockInstall(ctx, db, true)
-	if lock != nil {
-		lock.Close()
-	}
-	if !errors.Is(err, storagerepo.ErrDatabaseInUse) {
-		t.Errorf("running server does not hold the install lock: %v", err)
 	}
 	app.Close()
 
@@ -103,30 +91,4 @@ func TestInstallIdentityAndLockServerLifetime(t *testing.T) {
 	if err = appstorage.CheckInstallIdentity(ctx, db, other.DataDir); !errors.Is(err, appstorage.ErrInstallIdentity) {
 		t.Fatalf("mismatch not refused: %v", err)
 	}
-
-	// Closed servers have released the lock; a command holding it stops a start.
-	// Wait for Postgres to process the closed pool connections. The probe's
-	// transaction-scoped lock is released as soon as the statement returns.
-	wait, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if _, err := db.ExecContext(wait, "SELECT pg_advisory_xact_lock($1)", storagerepo.InstallLockKey); err != nil {
-		t.Fatalf("waiting for closed servers to release the install lock: %v", err)
-	}
-	lock, err = storagerepo.LockInstall(ctx, db, true)
-	if err != nil {
-		t.Fatalf("install lock not released by closed servers: %v", err)
-	}
-	app, err = server.Build(cfg, nil)
-	if app != nil {
-		app.Close()
-	}
-	if !errors.Is(err, storagerepo.ErrDatabaseMaintenance) || !strings.Contains(err.Error(), "maintenance command") {
-		t.Fatalf("server startup during database maintenance: %v", err)
-	}
-	lock.Close()
-	app, err = server.Build(cfg, nil)
-	if err != nil {
-		t.Fatalf("server startup after maintenance: %v", err)
-	}
-	app.Close()
 }

@@ -29,13 +29,9 @@ The server image is the nonroot Go binary, HTTP 8090, `DATA_DIR=/data/sites`;
 Caddy publishes 80/443 by default. Named volumes hold the database, sites,
 Caddy logs, certificates and config. Caddy proxies APIs and can serve site files
 from its read-only sites mount (`compose.yaml:14`, `compose.yaml:37`,
-`compose.yaml:277`, `Dockerfile:31`, `deploy/compose/Caddyfile:86`).
+`compose.yaml:276`, `Dockerfile:31`, `deploy/compose/Caddyfile:86`).
 The root Dockerfile defaults to its `host` target and starts `simple-host`
-directly. Root Compose does not pass `EVENTS` through. Its optional `static`
-profile renders a `simple-host static` service with read-only site files and a
-separate writable state volume. It is off by default; routing and end-to-end
-acceptance belong to D4-S5a, so enabling the profile alone does not change
-Caddy's upstream.
+directly. Root Compose does not pass `EVENTS` through.
 Workers run inside the server process, as listed below.
 
 Its `/data` volume holds sites, logs and Caddy state; the server listens on 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080.

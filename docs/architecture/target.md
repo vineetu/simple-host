@@ -7,8 +7,7 @@ It follows the owner decisions of 2026-11-12 in [INTENT.md](../../INTENT.md), wh
 supersede the earlier single-program cleanup plan. [ARCHITECTURE.md](../../ARCHITECTURE.md)
 is the current runtime map. [Products and add-ons](products.md) records the actual
 extension points and the designs for light products and add-ons; those two designs
-have no implementation yet. Day 4 work, including the separate Static page server,
-is outside this boundary's completion claim.
+have no implementation yet. Day 4 work is outside this boundary's completion claim.
 
 ## 2. Package map and import contract
 

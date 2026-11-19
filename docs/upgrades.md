@@ -58,7 +58,7 @@ The installed Compose configuration retains environment references, so later
 published by a synced atomic rename into a new private file.
 
 The script stops every server and writer in this Compose project, including
-one-off containers, `web`, `static`, and Hack's `release` service. It takes the
+one-off containers, `web`, and Hack's `release` service. It takes the
 exclusive data-directory maintenance lock before backing up; a remaining server
 or maintenance command refuses the operation. The database stays running.
 
@@ -80,8 +80,8 @@ One attempt is named
 - `COMPLETE`: written last, binding the manifest's checksum.
 
 The command runs with `--attempt` and `-record-product`. On success the script
-starts the app, requires `/readyz`, and starts the previously running web and
-Static services. Only then does it move `CURRENT` to `LAST`. Both the backup and
+starts the app, requires `/readyz`, and starts the previously running web
+service. Only then does it move `CURRENT` to `LAST`. Both the backup and
 older backups remain. The next upgrade creates a fresh attempt and captures data
 written since the previous one.
 
@@ -129,8 +129,7 @@ window, one installation at a time:
 1. Before stopping pods, save the installed chart/version, `helm get values`,
    environment/Secret manifests and the actual running `imageID` digests into a
    private attempt directory. Stop or suspend release/migration Jobs and every
-   other writer. Scale the app and any Static server to zero and wait for their
-   pods to terminate. A failing readiness probe alone proves nothing.
+   other writer. Scale the app to zero and wait for its pods to terminate. A failing readiness probe alone proves nothing.
 2. Mount the data PVC in one maintenance pod, as its owning UID. Hold the
    exclusive `.maintenance.lock` for the whole paired backup; refuse if it is
    held elsewhere. Save `pg_dump -Fc`, a tar archive of the whole PVC, saved

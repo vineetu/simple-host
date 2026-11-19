@@ -1857,8 +1857,7 @@ Compose packaging (D4-S7b): root Compose starts `simple-host` directly; the Hack
 standalone wrapper starts `simple-hack` beside Caddy and retains its `release`
 service. Local-image installer rehearsals cover password sign-in, site publishing,
 persistence across an app restart, and the pre-slice Compose files with new images.
-Root Compose no longer forwards `EVENTS`. Its opt-in `static` profile only renders
-at this stage; runtime acceptance is D4-S5a and default traffic stays on the app.
+Root Compose no longer forwards `EVENTS`.
 
 **Standalone full-platform package (published v0.8.13).** `deploy/hack/standalone/` <a id="standalone-full-platform-package"></a>
 contains a Docker Compose install/upgrade path with a private, persistent environment
@@ -2489,8 +2488,6 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 
 ## 20. Operations (health, schema, CLI) <a id="operations"></a>
 
-The optional `static` subcommand serves public site pages from a read-only site tree and a saved routing copy, forwarding API and access-marked requests to the API. It is built for testing and stays off in normal startup and deployment. See [page routing](docs/architecture/page-path.md#optional-static-process).
-
 | Surface | Details |
 |---|---|
 | Routes | `GET /healthz` · `GET /readyz` (DB ping) — `h/health.go` |
@@ -2643,8 +2640,8 @@ byte order and indexed bounds for literal prefixes and cursors.
 The server saves a random install identity in `DATA_DIR/.install-id` and in
 the `install_identity` table when neither has one, and logs a warning at start
 when they do not match. Servers hold a shared data-directory maintenance lock and
-a shared Postgres advisory lock on their database, and refuse to start while
-either is held exclusively. A server opens the maintenance lock file read-only.
+refuse to start while it is held exclusively (the small-box upgrade holds it for
+its backup). A server opens the maintenance lock file read-only.
 See `docs/advanced/storage-and-backups.md`.
 
 SQLite table-row operations share a per-site concurrency limit across resources

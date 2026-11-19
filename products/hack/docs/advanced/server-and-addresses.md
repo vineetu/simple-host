@@ -38,11 +38,6 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `CONTENT_HOST` | `sites.<SITE_DOMAIN>` | text | The separate hostname sites are served from, so pages never share an origin with the dashboard. |
 | `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://<SITE_DOMAIN>. |
 | `PORT` | `8090` | 1–65535 | The port the server listens on. |
-| `STATIC_BIND` | `127.0.0.1` | text | The interface the optional static page server listens on. |
-| `STATIC_PORT` | `8091` | 1–65535 | The port the optional static page server listens on. |
-| `STATIC_API_URL` | `http://127.0.0.1:8090` | text | The API address Static forwards other requests to. The API must trust Static's address in TRUSTED_PROXY_CIDRS. |
-| `STATIC_STATE_DIR` | `<parent of DATA_DIR>/static-state` | text | The folder where Static saves its routing copy. The site data directory stays read-only. |
-| `STATIC_REFRESH_SECONDS` | `10` | 1–86400 seconds | Seconds between Static's full routing loads. Failed loads keep the previous copy. |
 | `BIND_ADDR` | none | text | The interface the server listens on, like 127.0.0.1 behind a proxy. Empty listens on all. |
 | `TRUSTED_PROXY_CIDRS` | none | text | The networks the proxies in front of this server connect from, comma-separated (10.0.0.0/8,fd00::/8). Set, X-Forwarded-For is believed only from a peer in one of them and read right to left past every trusted hop, so a client cannot choose its own address for rate limits. Empty believes the last entry from any peer, which is right behind one local nginx. **Security-sensitive.** |
 | `DEPLOY_SCRIPT` | none | text | A script run after each site goes live. Empty runs nothing. |
