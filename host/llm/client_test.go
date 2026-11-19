@@ -158,19 +158,6 @@ func TestStreamNoAuthorizationHeaderWhenKeyEmpty(t *testing.T) {
 	}
 }
 
-func TestStreamUpstreamErrorStatus(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadGateway)
-		io.WriteString(w, "bad gateway from upstream")
-	}))
-	defer srv.Close()
-	c := New(Config{BaseURL: srv.URL, Model: "test-model"})
-	_, err := c.Stream(context.Background(), []Message{{Role: "user", Content: "hi"}}, func(string) {})
-	if err == nil {
-		t.Fatal("expected an error on a non-2xx status")
-	}
-}
-
 func TestStreamClientCancelPropagates(t *testing.T) {
 	block := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

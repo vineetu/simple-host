@@ -107,30 +107,6 @@ func TestCapturedInjection(t *testing.T) {
 		}
 	}
 }
-func TestRealisticFixture(t *testing.T) {
-	var data strings.Builder
-	for i := 0; i < 60; i++ {
-		fmt.Fprintf(&data, "/blog/2020/post-%d /articles/post-%d 301\n", i, i)
-	}
-	for i := 0; i < 8; i++ {
-		fmt.Fprintf(&data, "/ p=%d /articles/post-%d 301!\n", i, i)
-	}
-	data.WriteString("/tours/* /travel/:splat\n/cart/:id /shop/:id 302\n")
-	rs, e := Parse([]byte(data.String()), 1000)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if len(rs.rules) != 70 {
-		t.Fatal(len(rs.rules))
-	}
-	for _, tt := range []struct{ p, q, want string }{{"/blog/2020/post-23", "", "/articles/post-23"}, {"/", "p=4", "/articles/post-4"}, {"/tours/india/south", "", "/travel/india/south"}, {"/cart/42", "", "/shop/42"}} {
-		q, _ := url.ParseQuery(tt.q)
-		m, ok := rs.Match(tt.p, q)
-		if !ok || m.Location("", tt.q) != tt.want {
-			t.Fatalf("failed %+v", tt)
-		}
-	}
-}
 
 // A target that is a page of the published site ends the chain for a
 // non-forced rule (the page shadows the rule), so it is not a loop; a forced

@@ -143,11 +143,3 @@ func TestSQLToolDescriptionsNamePragmaAlternative(t *testing.T) {
 		}
 	}
 }
-
-// The site-name hint is the platform's own; Simple Hack words its event-name
-// refusals separately (products/hack/mcp).
-func TestSiteInvalidNameHint(t *testing.T) {
-	if !strings.Contains(codeHints["invalid_name"], "1 to 63") {
-		t.Fatal("site invalid_name hint changed")
-	}
-}

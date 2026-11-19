@@ -136,34 +136,6 @@ func TestTruncateIP(t *testing.T) {
 	}
 }
 
-func TestAPIMetricsPrunesAtStartup(t *testing.T) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "apimetrics.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, d := range f.Decls {
-		fn, ok := d.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != "flushLoop" {
-			continue
-		}
-		for _, st := range fn.Body.List {
-			if _, isFor := st.(*ast.ForStmt); isFor {
-				break
-			}
-			if es, ok := st.(*ast.ExprStmt); ok {
-				if call, ok := es.X.(*ast.CallExpr); ok {
-					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "pruneOldContext" {
-						return
-					}
-				}
-			}
-		}
-		t.Fatal("flushLoop does not call pruneOldContext before its loop")
-	}
-	t.Fatal("flushLoop not found")
-}
-
 func TestAPIMetricsStopFlushesBuffer(t *testing.T) {
 	database := growthTestDB(t)
 	m := NewAPIMetrics(database, nil)

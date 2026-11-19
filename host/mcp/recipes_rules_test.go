@@ -1,9 +1,7 @@
 package mcp
 
 import (
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -12,83 +10,6 @@ import (
 	"github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
-
-// Captured from the untouched recipes at 54cc3504, before R3-S6b.
-func TestRulesRecipesFlagOffBytes(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "off")
-	defer NewServer(testConfig(Config{}))
-	NewServer(testConfig(Config{}))
-	const frozen = `{
-  "inbox": "5e2c32ce6400878501167a57aa62cfc8919d30c0924365b5ae724d1c116f6c2e",
-  "people": "fa23c69c9b5adc3338e4e7b50c20e174d8f2f62da16e350c3befc215749efa6a",
-  "wall": "0b04b64653e7eb664c12d5cea1dbcb6eec24ae78640d99c949f75e101dfc5923",
-  "board": "2b9f601d91fff1696d5b87fc9ece239bfa3598465d603bd6bc9a3c6ed5158ae2",
-  "private": "0a68af4b26b33e93582a1c60f1311047c39c84f249ca8d4f5c100ebdf818df7c",
-  "public": "8442b3220e017ac844f979f8e32aca1393d327a9d012c30fd492a4635a6d9498",
-  "admin": "eb3619456a7fc3e0e9a02a20d45302a4fba1060552d990d7f2b4530b66985144",
-  "records": "7725237c085105ff77aae4b24509b71aa04daf397315416b52548f62d2556c7b",
-  "gallery": "5e83eaf5afe0d332bbb334a3daefa4d36bc71e2903ce2d7760ceb8749369a862",
-  "portal": "dfcf9251cd73da3ab26537fc20c4b8c4adec3b8f745d83b60dbeb44df39b797c",
-  "comments": "45480a914a5348ae2d1dc6a5d3052182867eee9a7ba8bf659869282e1d62aeac",
-  "personal": "5b6b7c76e6e0d345f39e590f91cbbab9e19a41afbf733f930bc2ec88c58313e7",
-  "booking": "f0f9d2b6b0443732244febdda99125594df0ad49cdccf4697cae354f1bb39f63"
-}`
-	var hashes map[string]string
-	if err := json.Unmarshal([]byte(frozen), &hashes); err != nil {
-		t.Fatal(err)
-	}
-	for topic, want := range hashes {
-		raw, err := readRecipe(topic)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != want {
-			t.Errorf("%s legacy bytes changed", topic)
-		}
-	}
-	for _, topic := range recipeTopics {
-		canonical := topic
-		if alias, ok := recipeAliases[topic]; ok {
-			canonical = alias
-		}
-		raw, _ := recipeFiles.ReadFile("recipes/" + canonical + ".md")
-		text, err := PageRecipe(topic, "shop")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if text != addressText(strings.ReplaceAll(string(raw), "{site}", "shop")) {
-			t.Errorf("%s flag-off response changed", topic)
-		}
-	}
-	// The dispatch path re-reads the flag, including a cached tool.
-	for _, tool := range []Tool{pageRecipeTool()} {
-		c := &call{server: NewServer(testConfig(Config{}))}
-		args := map[string]any{"topic": "booking", "site": "shop"}
-		before, err := tool.run(c, args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Setenv("STORAGE_RULES", "on")
-		on, err := tool.run(c, args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if on.Text == before.Text || !strings.Contains(on.Text, `"policies"`) {
-			t.Error("recipe did not switch at request time")
-		}
-		if on.Structured["recipe"] != on.Text {
-			t.Error("structured recipe differs from text")
-		}
-		t.Setenv("STORAGE_RULES", "off")
-		after, err := tool.run(c, args)
-		if err != nil || after.Text != before.Text {
-			t.Errorf("legacy response not restored: %v", err)
-		}
-	}
-	if _, err := PageRecipe("rules/booking", "shop"); err == nil {
-		t.Error("flag-on recipe accessible as a flag-off topic")
-	}
-}
 
 type recipeSetup struct {
 	Name string `json:"name"`

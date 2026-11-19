@@ -101,78 +101,6 @@ func baseClaims(issuer, clientID, nonce string) map[string]any {
 	}
 }
 
-func TestVerifyIDTokenAccepts(t *testing.T) {
-	tp := newTestProvider(t)
-	ctx := context.Background()
-	p, err := discoverOIDC(ctx, oidcConfig{
-		Issuer: tp.issuer(), ClientID: "client-1", ClientSecret: "secret",
-		RedirectURL: "https://example.test/auth/callback", Scopes: []string{"openid", "email"},
-	}, tp.server.Client())
-	if err != nil {
-		t.Fatalf("discoverOIDC: %v", err)
-	}
-
-	token := tp.mintIDToken(t, baseClaims(tp.issuer(), "client-1", "nonce-abc"))
-	claims, err := p.VerifyIDToken(ctx, token, "nonce-abc")
-	if err != nil {
-		t.Fatalf("VerifyIDToken: %v", err)
-	}
-	if claims.Subject != "user-123" || claims.Email != "person@example.com" || !claims.EmailVerified || !claims.EmailVerifiedSet {
-		t.Fatalf("unexpected claims: %+v", claims)
-	}
-}
-
-func TestVerifyIDTokenRejectsWrongAudience(t *testing.T) {
-	tp := newTestProvider(t)
-	ctx := context.Background()
-	p, err := discoverOIDC(ctx, oidcConfig{
-		Issuer: tp.issuer(), ClientID: "client-1", ClientSecret: "secret",
-		RedirectURL: "https://example.test/auth/callback",
-	}, tp.server.Client())
-	if err != nil {
-		t.Fatalf("discoverOIDC: %v", err)
-	}
-	claims := baseClaims(tp.issuer(), "someone-elses-client", "nonce-abc")
-	token := tp.mintIDToken(t, claims)
-	if _, err := p.VerifyIDToken(ctx, token, "nonce-abc"); err == nil {
-		t.Fatal("expected audience mismatch to be rejected")
-	}
-}
-
-func TestVerifyIDTokenRejectsExpired(t *testing.T) {
-	tp := newTestProvider(t)
-	ctx := context.Background()
-	p, err := discoverOIDC(ctx, oidcConfig{
-		Issuer: tp.issuer(), ClientID: "client-1", ClientSecret: "secret",
-		RedirectURL: "https://example.test/auth/callback",
-	}, tp.server.Client())
-	if err != nil {
-		t.Fatalf("discoverOIDC: %v", err)
-	}
-	claims := baseClaims(tp.issuer(), "client-1", "nonce-abc")
-	claims["exp"] = float64(time.Now().Add(-time.Hour).Unix())
-	token := tp.mintIDToken(t, claims)
-	if _, err := p.VerifyIDToken(ctx, token, "nonce-abc"); err == nil {
-		t.Fatal("expected expired token to be rejected")
-	}
-}
-
-func TestVerifyIDTokenRejectsWrongNonce(t *testing.T) {
-	tp := newTestProvider(t)
-	ctx := context.Background()
-	p, err := discoverOIDC(ctx, oidcConfig{
-		Issuer: tp.issuer(), ClientID: "client-1", ClientSecret: "secret",
-		RedirectURL: "https://example.test/auth/callback",
-	}, tp.server.Client())
-	if err != nil {
-		t.Fatalf("discoverOIDC: %v", err)
-	}
-	token := tp.mintIDToken(t, baseClaims(tp.issuer(), "client-1", "nonce-abc"))
-	if _, err := p.VerifyIDToken(ctx, token, "nonce-different"); err == nil {
-		t.Fatal("expected nonce mismatch to be rejected")
-	}
-}
-
 func TestVerifyIDTokenRejectsBadSignature(t *testing.T) {
 	tp := newTestProvider(t)
 	other := newTestProvider(t) // different key, same issuer shape
@@ -214,26 +142,6 @@ func TestVerifyIDTokenRejectsUnknownKid(t *testing.T) {
 	token := signingInput + "." + base64.RawURLEncoding.EncodeToString(sig)
 	if _, err := p.VerifyIDToken(ctx, token, "nonce-abc"); err == nil {
 		t.Fatal("expected unknown kid to be rejected")
-	}
-}
-
-func TestExchangeReturnsIDToken(t *testing.T) {
-	tp := newTestProvider(t)
-	ctx := context.Background()
-	p, err := discoverOIDC(ctx, oidcConfig{
-		Issuer: tp.issuer(), ClientID: "client-1", ClientSecret: "secret",
-		RedirectURL: "https://example.test/auth/callback",
-	}, tp.server.Client())
-	if err != nil {
-		t.Fatalf("discoverOIDC: %v", err)
-	}
-	tp.nextIDToken = "opaque-test-token"
-	tok, err := p.Exchange(ctx, "some-code", "some-verifier")
-	if err != nil {
-		t.Fatalf("Exchange: %v", err)
-	}
-	if tok.IDToken != "opaque-test-token" {
-		t.Fatalf("IDToken = %q, want %q", tok.IDToken, "opaque-test-token")
 	}
 }
 

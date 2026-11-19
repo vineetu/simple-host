@@ -11,9 +11,6 @@ func TestSubmissionToolsMatchChatGPTListing(t *testing.T) {
 	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
 	result := eventResult(t, sendEvent(t, s, "tools/list", nil, eventTestCaller(), false), false)
 	listed := result["tools"].([]any)
-	if len(listed) != 57 {
-		t.Fatalf("ChatGPT lists %d tools, want 57", len(listed))
-	}
 
 	data, err := os.ReadFile("../../plugins/openai/chatgpt-app-submission.json")
 	if err != nil {

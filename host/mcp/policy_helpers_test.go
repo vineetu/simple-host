@@ -17,6 +17,3 @@ func analyticsResponse(name string, value any) any {
 func analyticsSecretField(name, field string) bool {
 	return analyticsSecretFieldForPolicy(testPolicy(name), field)
 }
-func dropAnalyticsValues(name string, value any) any {
-	return dropAnalyticsValuesForPolicy(testPolicy(name), value)
-}

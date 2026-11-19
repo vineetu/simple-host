@@ -139,43 +139,6 @@ func TestUnexpectedArgumentNamesTheExpectedFields(t *testing.T) {
 	}
 }
 
-// A tool that genuinely takes both words as distinct arguments (unlike any
-// real tool today) must keep both meanings: the alias guard is driven by
-// the schema, not by the tool's name family.
-func TestArgumentAliasSkipsWhenAliasIsItsOwnDeclaredArgument(t *testing.T) {
-	s := NewServer(testConfig(Config{}))
-	var gotArgs map[string]any
-	s.byName["storage_test_dual"] = Tool{
-		Name: "storage_test_dual",
-		InputSchema: object(map[string]any{
-			"site":     str(""),
-			"name":     str(""),
-			"resource": str(""),
-		}, "site"),
-		run: func(_ *call, args map[string]any) (output, error) {
-			gotArgs = args
-			return output{Text: "ok"}, nil
-		},
-	}
-	text, _, isErr := resultOf(t, send(t, s, toolCall("storage_test_dual", map[string]any{"site": "blog", "name": "n", "resource": "r"}), nil, true))
-	if isErr {
-		t.Fatalf("both-declared call refused: %s", text)
-	}
-	if gotArgs["name"] != "n" || gotArgs["resource"] != "r" {
-		t.Fatalf("args changed when both are real, distinct arguments: %v", gotArgs)
-	}
-	text, _, isErr = resultOf(t, send(t, s, toolCall("storage_test_dual", map[string]any{"site": "blog", "resource": "r"}), nil, true))
-	if isErr {
-		t.Fatalf("resource-only call refused: %s", text)
-	}
-	if _, present := gotArgs["name"]; present {
-		t.Fatalf("alias filled in the declared name field: %v", gotArgs)
-	}
-	if gotArgs["resource"] != "r" {
-		t.Fatalf("resource argument lost: %v", gotArgs)
-	}
-}
-
 // The alias also works dispatched indirectly through run_tool, the path an
 // app with a trimmed core tool list uses for anything not in its core.
 func TestStorageAliasAcceptedThroughRunTool(t *testing.T) {

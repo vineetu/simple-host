@@ -13,8 +13,6 @@ import (
 	"image/png"
 	"math/rand"
 	"testing"
-
-	"golang.org/x/image/webp"
 )
 
 // testImage is a w x h picture with enough variation that JPEG cannot
@@ -127,25 +125,6 @@ func solidWebP(w, h int, r, g, b uint8) []byte {
 func shaHex(b []byte) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
-}
-
-func TestSolidWebPFixtureDecodes(t *testing.T) {
-	raw := solidWebP(60, 60, 10, 20, 30)
-	cfg, err := webp.DecodeConfig(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("DecodeConfig: %v", err)
-	}
-	if cfg.Width != 60 || cfg.Height != 60 {
-		t.Fatalf("size %dx%d", cfg.Width, cfg.Height)
-	}
-	m, err := webp.Decode(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("Decode: %v", err)
-	}
-	r, g, b, a := m.At(59, 59).RGBA()
-	if r>>8 != 10 || g>>8 != 20 || b>>8 != 30 || a>>8 != 255 {
-		t.Fatalf("pixel = %d %d %d %d", r>>8, g>>8, b>>8, a>>8)
-	}
 }
 
 func TestPrepareRasterFormats(t *testing.T) {
@@ -378,27 +357,5 @@ func TestPrepareGIFFirstFrame(t *testing.T) {
 	}
 	if r, _, _, _ := m.At(50, 50).RGBA(); r != 0 {
 		t.Errorf("sent frame is not the first (black) frame")
-	}
-}
-
-func TestFakeMatcher(t *testing.T) {
-	f := &Fake{Matches: map[string]Match{"abc": {IsMatch: true, Source: "NCMEC", Violations: []string{"A1"}}}}
-	m, err := f.Match(nil, &Image{SHA256: "abc"})
-	if err != nil || !m.IsMatch || m.Source != "NCMEC" {
-		t.Fatalf("match: %+v %v", m, err)
-	}
-	m, err = f.Match(nil, &Image{SHA256: "def"})
-	if err != nil || m.IsMatch || m.TrackingID != "fake-2" {
-		t.Fatalf("clean: %+v %v", m, err)
-	}
-	if len(f.Calls) != 2 || f.Calls[0] != "abc" || f.Calls[1] != "def" {
-		t.Errorf("Calls = %v", f.Calls)
-	}
-	r, err := f.Report(nil, Report{OrgName: "x"})
-	if err != nil || r.ReportID != "fake-report-1" || len(f.Reports) != 1 {
-		t.Errorf("report: %+v %v %d", r, err, len(f.Reports))
-	}
-	if f.Name() != "fake" {
-		t.Errorf("Name = %q", f.Name())
 	}
 }

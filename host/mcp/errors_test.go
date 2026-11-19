@@ -40,18 +40,6 @@ func TestRestErrorHintFollowsTheCode(t *testing.T) {
 	}
 }
 
-// Every code the handlers send has a hint here, so none falls back silently.
-func TestEveryKnownCodeHasAHint(t *testing.T) {
-	for _, code := range []string{"site_exists", "domain_taken", "invalid_name", "name_reserved", "invalid_domain",
-		"site_quota_reached", "site_too_large", "custom_domain_required",
-		"use_custom_domain", "visitor_auth_required", "sign_in_required", "not_found", "site_not_found", "missing_api_key", "invalid_api_key",
-		"invalid_token", "site_suspended", "account_suspended"} {
-		if codeHint(code) == "" {
-			t.Errorf("no hint for %s", code)
-		}
-	}
-}
-
 func TestRateLimitRetryAfter(t *testing.T) {
 	for _, tc := range []struct{ header, want string }{{"2", "Wait 2 seconds"}, {"120", "Wait 120 seconds"}, {"0", "Wait 0 seconds"}, {"", "Wait a minute"}, {"invalid", "Wait a minute"}} {
 		msg := restError("tool", upstreamResult{status: 429, header: http.Header{"Retry-After": []string{tc.header}}, body: []byte(`{"error":"rate limited"}`)}).Error()

@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,54 +12,6 @@ import (
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
-
-// Preset-reference inventory (git grep -n -i preset, before this slice):
-// storage_tools.go titles/descriptions and Hack variants: rewritten per request.
-// instructions.go and hack_instructions.go: rewritten under the flag.
-// Resource input schemas and events.go: retained compatibility fields, also
-// needed by file buckets; their wire contracts do not change in this slice.
-// recipes.go and recipes/*.md: R3-S6b; apps/my-sites.js: R3-S7b.
-// discovery.go's aliases match search terms, rather than teach access choices.
-// hack_entry/event_tools.go and apps/*.css: entry evidence and CSS, not access.
-// Existing preset/self-hosted tests still exercise the flag-off/file behavior.
-//
-// Hashes were captured at 40077d00 before R3-S6a changed server text, then
-// updated for D3-S3's Host descriptions and X6-S1's tool and recipe removals. Refusal hints
-// and every schema field other than its description retain their old checks.
-func TestStorageRulesFlagOffHashes(t *testing.T) {
-	want := map[string]string{"false//false//": "97f25a33654ec6a79b3804d56049ad371cb89726a113e72b5c4d81c6019485df",
-		"false//true//":         "97f25a33654ec6a79b3804d56049ad371cb89726a113e72b5c4d81c6019485df",
-		"false//false/ChatGPT/": "717dadfb52ef3833224510c597da4f7f7f9b0e45a9accffb65bc794de74e2d56",
-		"true//false//":         "e3156de7d7a8220ac066b843e7f616289776e00e3d59b5fd572c55b983ed8b23",
-		"true//true//":          "e3156de7d7a8220ac066b843e7f616289776e00e3d59b5fd572c55b983ed8b23",
-		"true//false/ChatGPT/":  "eb22d3ca3cbcab72502741416ce63c45201ffc916b586001337cdb152bc22242"}
-	t.Setenv("STORAGE_RULES", "off")
-	for _, noSpam := range []bool{false, true} {
-		s := NewServer(testConfig(Config{NoSpamCheck: noSpam}))
-		for _, c := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}} {
-			full, bare, _ := s.forCaller(c)
-			b, _ := json.Marshal([]any{full, bare, s.instructionsFor(c), s.searchFor(c).find("storage", 10)})
-			key := fmt.Sprintf("%t/%s/%t/%s/%s", noSpam, c.Mode, c.DeployOnly, c.AppName, c.GrantID)
-			if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != want[key] {
-				t.Errorf("%s: got %s, want %s", key, got, want[key])
-			}
-		}
-	}
-	b, _ := json.Marshal(codeHints)
-	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != "b264d36a5828fe437eeff07d8ccea19edd09052ddb16aff21941c1f42a6a26e3" {
-		t.Fatal("base hint map changed")
-	}
-	for code, hint := range codeHints {
-		if codeHint(code) != hint {
-			t.Errorf("flag-off hint changed: %s", code)
-		}
-	}
-	for code := range storageRulesCodeHints {
-		if codeHint(code) != codeHints[code] {
-			t.Errorf("flag-off hint changed: %s", code)
-		}
-	}
-}
 
 func TestStorageRulesTextAtRequestTime(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "off")

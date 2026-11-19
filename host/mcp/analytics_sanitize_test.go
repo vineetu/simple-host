@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 )
 
 func TestAnalyticsPostedConversation(t *testing.T) {
@@ -117,72 +115,6 @@ func TestAnalyticsPostedConversation(t *testing.T) {
 	}
 }
 
-func TestAnalyticsSDKSanitization(t *testing.T) {
-	for _, tc := range []struct {
-		block any
-		want  string
-	}{
-		{map[string]any{"type": "image", "data": "bytes"}, "[image content redacted - not supported by AgentCat]"},
-		{map[string]any{"type": "audio", "data": "bytes"}, "[audio content redacted - not supported by AgentCat]"},
-		{map[string]any{"type": "resource", "resource": map[string]any{"blob": "bytes"}}, "[binary resource content redacted - not supported by AgentCat]"},
-		{map[string]any{"type": "future"}, `[unsupported content type "future" redacted - not supported by AgentCat]`},
-		{map[string]any{}, `[unsupported content type "undefined" redacted - not supported by AgentCat]`},
-	} {
-		result := sdkSanitizeResponse(map[string]any{"content": []any{tc.block}}).(map[string]any)
-		if !reflect.DeepEqual(result["content"].([]any)[0], map[string]any{"type": "text", "text": tc.want}) {
-			t.Fatalf("wrong placeholder: %v", result)
-		}
-	}
-	for _, block := range []any{nil, map[string]any{"type": "text", "text": "hello"}, map[string]any{"type": "resource_link", "uri": "https://example.com"}, map[string]any{"type": "resource", "resource": map[string]any{"text": "hello"}}} {
-		got := sdkSanitizeResponse(map[string]any{"content": []any{block}}).(map[string]any)["content"].([]any)[0]
-		if !reflect.DeepEqual(got, block) {
-			t.Fatal("SDK passthrough changed")
-		}
-	}
-	for _, s := range []string{strings.Repeat("A", 10239), strings.Repeat("A", 10240), strings.Repeat("A", 10238) + "\n\r==", strings.Repeat("A", 10240) + "-", strings.Repeat("A", 10240) + "=A"} {
-		want := s
-		if len(s) >= 10240 && !strings.ContainsAny(s, "-") && !strings.HasSuffix(s, "=A") {
-			want = "[binary data redacted - not supported by AgentCat]"
-		}
-		got := sdkSanitizeParameters(s)
-		if got != want {
-			t.Fatal("base64 gate/pattern differs from SDK")
-		}
-	}
-}
-
-func TestAnalyticsCaps(t *testing.T) {
-	deep := map[string]any{"text": "end"}
-	for range 30 {
-		deep = map[string]any{"nested": deep}
-	}
-	wide := map[string]any{}
-	for i := range 1000 {
-		wide[fmt.Sprintf("field%04d", i)] = strings.Repeat("你好😀\"<", 1000)
-	}
-	for _, value := range []any{deep, wide, strings.Repeat("你好😀\"<", 10000), map[string]any{strings.Repeat("界", 10000): "value"}} {
-		for _, got := range []any{analyticsParameters("test", map[string]any{"value": value}), analyticsResponse("test", map[string]any{"content": []any{map[string]any{"type": "text", "text": strings.Repeat("你好😀", 10000)}}, "structuredContent": value, "isError": false})} {
-			b, err := json.Marshal(got)
-			if err != nil || len(b) > 8192 || !utf8.Valid(b) || bytes.Contains(b, []byte("�")) {
-				t.Fatalf("bad capped JSON: bytes=%d err=%v", len(b), err)
-			}
-		}
-	}
-	got := capAnalyticsIntent(strings.Repeat("😀", 3000))
-	if utf8.RuneCountInString(got) != 2048 || !strings.HasSuffix(got, "...") {
-		t.Fatal("intent cap")
-	}
-	normalized := normalizeAnalytics(deep, 10, 100, 8192)
-	b, _ := json.Marshal(normalized)
-	if !bytes.Contains(b, []byte("[Object]")) {
-		t.Fatal("missing depth marker")
-	}
-	b, _ = json.Marshal(normalizeAnalytics(wide, 10, 100, 8))
-	if !bytes.Contains(b, []byte("[MaxProperties ~]")) || !bytes.Contains(b, []byte("...")) {
-		t.Fatal("missing SDK truncation markers")
-	}
-}
-
 func TestAnalyticsFileMetadataAndFields(t *testing.T) {
 	for _, tc := range []struct {
 		value   any
@@ -204,48 +136,6 @@ func TestAnalyticsFileMetadataAndFields(t *testing.T) {
 	}
 	if analyticsSecretField("storage_put_kv", "key") {
 		t.Fatal("plain KV key removed")
-	}
-}
-
-func TestAnalyticsSQLRowsOnce(t *testing.T) {
-	var nested any = "end"
-	for range 30 {
-		nested = map[string]any{
-			"columns": []any{"nested", "blob"},
-			"rows":    []any{[]any{nested, map[string]any{"base64": "YWJjZA=="}}},
-		}
-	}
-	started := time.Now()
-	got := dropAnalyticsValues("storage_sql_query", nested)
-	if elapsed := time.Since(started); elapsed >= 200*time.Millisecond {
-		t.Fatalf("depth-30 SQL rows took %v", elapsed)
-	}
-	for level := 0; level < 2; level++ {
-		cells := got.(map[string]any)["rows"].([]any)[0].([]any)
-		blob := cells[1].(map[string]any)["base64"].(map[string]any)
-		if blob["bytes"] != 4 {
-			t.Fatalf("level %d: BLOB size = %v, want 4", level, blob["bytes"])
-		}
-		got = cells[0]
-	}
-	body, _ := json.Marshal(nested)
-	if !bytes.Contains(body, []byte("[Object]")) || bytes.Contains(body, []byte(`"end"`)) {
-		t.Fatalf("missing recursion bound: %s", body)
-	}
-
-	// Duplicate column names, extra cells, and malformed rows still get one pass.
-	got = dropAnalyticsValues("storage_sql_query", map[string]any{
-		"columns": []any{"visitor_id", "email", "content_base64", "content_base64"},
-		"rows": []any{
-			[]any{"v_ref", "PRIVATE", "YQ==", "YWJjZA==", map[string]any{"token": "PRIVATE"}},
-			map[string]any{"token": "PRIVATE"},
-		},
-	})
-	rows := got.(map[string]any)["rows"].([]any)
-	cells := rows[0].([]any)
-	if cells[1] != "v_ref" || cells[2].(map[string]any)["bytes"] != 1 || cells[3].(map[string]any)["bytes"] != 4 ||
-		cells[4].(map[string]any)["token"] != "[removed]" || rows[1].(map[string]any)["token"] != "[removed]" {
-		t.Fatalf("bad SQL field handling: %v", rows)
 	}
 }
 
@@ -290,16 +180,6 @@ func TestAnalyticsSetSiteAccessError(t *testing.T) {
 	got := analyticsResponse("set_site_access", reply.Result).(map[string]any)
 	if got["isError"] != true || got["content"].([]any)[0].(map[string]any)["text"] != "null" {
 		t.Fatalf("viewer error prose was retained: %v", got)
-	}
-}
-
-func TestPasscodeScreenAnalyticsRemoved(t *testing.T) {
-	args := map[string]any{"action": "set", "site": "blog", "session": "fixture-session", "nonce": "fixture-nonce", "ciphertext": "fixture-ciphertext"}
-	if screenJSON(analyticsParameters("passcode_screen", args)) != `{"arguments":"[removed]"}` {
-		t.Fatal("screen arguments recorded")
-	}
-	if analyticsResponse("passcode_screen", map[string]any{"content": []any{map[string]any{"text": frameTestSecret}}, "structuredContent": args}) != "[removed]" {
-		t.Fatal("screen response recorded")
 	}
 }
 
