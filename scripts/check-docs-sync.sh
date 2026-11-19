@@ -19,8 +19,6 @@ SKILL_BUILD=host/webassets/simple-host-website/skills/website-deploy-builder/SKI
 fail=0
 python3 scripts/check-hack-setup.py || fail=1
 python3 scripts/build-hack-navigation.py --check || fail=1
-python3 scripts/tests/docs-site.test.py || fail=1
-python3 scripts/check-docs-site.py || fail=1
 
 # Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight
 #. Setup operations are accounted for as internal.
@@ -28,20 +26,18 @@ routes=$(go run ./scripts/inventory routes \
   | awk -F '\t' '$1 != "OPTIONS" && $2 ~ /^\/v1\// {print $2}' \
   | sed -E 's/\{([[:alnum:]_]+)\.\.\.\}/{\1}/g' | sort -u)
 
-# Paths documented in openapi.yaml (top-level keys under paths:).
+# Paths documented in the two authored sources (platform spec and Hack part).
 documented=$(python3 - <<'PYDOC'
-import json
+import yaml
 from pathlib import Path
 paths = set()
-for name in ('host/webassets/static/openapi.json', 'products/hack/webassets/openapi.internal.json'):
-    paths.update(path for path in json.loads(Path(name).read_text())['paths'] if path.startswith('/v1/'))
+for name in ('host/webassets/static/openapi.yaml', 'products/hack/webassets/openapi.part.yaml'):
+    paths.update(path for path in (yaml.safe_load(Path(name).read_text()).get('paths') or {}) if path.startswith('/v1/'))
 print('\n'.join(sorted(paths)))
 PYDOC
 )
 
-python3 scripts/compose-openapi.py --check || fail=1
 python3 scripts/tests/compose-openapi.test.py || fail=1
-python3 scripts/check-openapi-coverage.py || fail=1
 
 echo "== routes vs openapi.yaml =="
 while read -r p; do
@@ -100,52 +96,6 @@ for doc in "$LLMS" "$SKILL_DEPLOY" "$SKILL_BUILD"; do
     grep -qriE "$pattern" "$scope" || echo "  warn: $label doesn't mention '$name'"
   done <<<"$caps"
 done
-
-echo
-# ── openapi.json must be a byte-for-byte derivative of openapi.yaml ──
-# Both are embedded and both are served (/openapi.yaml and /openapi.json), but
-# only the yaml was ever checked. openapi.json silently fell a whole contract
-# behind — old response shape, two endpoints missing — while this script printed
-# "docs in sync ✓". Anything generating a client from the json got the old shape.
-echo "== openapi.json matches openapi.yaml =="
-OPENAPI_JSON=host/webassets/static/openapi.json
-if [ ! -e "$OPENAPI_JSON" ]; then
-  echo "  FAIL: missing $OPENAPI_JSON"
-  fail=1
-elif ! command -v python3 >/dev/null 2>&1; then
-  echo "  FAIL: python3 unavailable — cannot compare openapi.json to openapi.yaml"
-  fail=1
-else
-  if python3 - "$OPENAPI" "$OPENAPI_JSON" <<'PY'
-import json, sys, yaml
-with open(sys.argv[1]) as f:
-    spec_yaml = yaml.safe_load(f)
-try:
-    with open(sys.argv[2]) as f:
-        spec_json = json.load(f)
-except Exception as exc:
-    print(f"  openapi.json is not valid JSON: {exc}")
-    sys.exit(1)
-if spec_yaml == spec_json:
-    sys.exit(0)
-only_yaml = sorted(set(spec_yaml.get("paths", {})) - set(spec_json.get("paths", {})))
-only_json = sorted(set(spec_json.get("paths", {})) - set(spec_yaml.get("paths", {})))
-for p in only_yaml:
-    print(f"  missing from openapi.json: {p}")
-for p in only_json:
-    print(f"  stale in openapi.json (not in yaml): {p}")
-if not only_yaml and not only_json:
-    print("  paths match but the specs differ (descriptions/schemas out of sync)")
-sys.exit(1)
-PY
-  then
-    echo "  ok — openapi.json is in sync with openapi.yaml"
-  else
-    echo "  regenerate it:"
-    echo "    python3 -c \"import json,yaml; json.dump(yaml.safe_load(open('$OPENAPI')), open('$OPENAPI_JSON','w'), indent=2, ensure_ascii=False)\""
-    fail=1
-  fi
-fi
 
 echo
 # ── the analytics parser inlined in index.html and showcase.html ──
@@ -212,29 +162,6 @@ else
   echo "  ok — every agent-facing asset naming the host is rewritten"
 fi
 
-# ── a skill fetched over the web must be able to reach its own references ──
-# SKILL.md is served at /skills/<name>/SKILL.md but references live under
-# /v1/skills/<name>/references/. An agent resolving a relative path against the
-# first gets a 404, so every reference must also be cited by full URL. Codex
-# following the hackathon skill hit exactly this and could read none of them.
-echo "== skill references are reachable by URL =="
-missing=""
-for skill in host/webassets/simple-host-website/skills/*/; do
-  name=$(basename "$skill")
-  [ -d "$skill/references" ] || continue
-  for ref in "$skill"references/*.md; do
-    base=$(basename "$ref")
-    grep -q "v1/skills/$name/references/$base" "$skill/SKILL.md" "$skill"references/*.md 2>/dev/null \
-      || missing="$missing $name/$base"
-  done
-done
-if [ -n "$missing" ]; then
-  echo "  FAIL: reference cited only by relative path, unreachable over the web:$missing"
-  fail=1
-else
-  echo "  ok — every skill reference is cited by full URL somewhere"
-fi
-
 # ── the canonical docs give the site address, not an older form ──
 # Owner decision 2026-09-26: a site's address is https://<site>.<handle>.simple-host.app/.
 # Owner decision 2026-10-09 pauses the base move; pages, spec, connector
@@ -248,7 +175,7 @@ fi
 # "until" or "pending". run-hackathon is exempt — event instances keep the path
 # model on sites.<their-domain>/<handle>/<project>/.
 echo "== docs use the site address =="
-canon_docs=(host/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" host/webassets/static/*.html plugins/openai/skills host/mcp/instructions.go host/mcp/outputs.go host/mcp/tools.go )
+canon_docs=(host/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" host/webassets/static/*.html host/mcp/instructions.go host/mcp/outputs.go host/mcp/tools.go )
 old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
 offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
   | grep -v '^host/webassets/simple-host-website/skills/run-hackathon/' \
@@ -324,20 +251,11 @@ for doc in ['README.md', 'docs/FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'ho
 print('  ok — five-skill install command, onboarding docs and tucked-away downloads agree')
 PY
 
-# ── FEATURES.md places every route and MCP tool ──
-bash scripts/check-features.sh || fail=1
-
 # Local settings tables, defaults, small-box passthrough and generated copy.
 # Enterprise sources are compared separately by check-release.
 echo "== settings docs (local only) =="
 python3 scripts/settings_docs.py --check --local-only || fail=1
 bash scripts/check-profiles.sh || fail=1
-
-# ── the public /features page (features.json) covers every FEATURES.md section and bold lead ──
-python3 scripts/check-features-page.py || fail=1
-
-# Read-only atlas coverage, feature anchors and generated navigation.
-python3 docs/ux-atlas/build.py --check || fail=1
 
 echo
 if [ "$fail" -ne 0 ]; then

@@ -4,8 +4,7 @@ import "net/http"
 
 // assetReplacements is the explicit list of platform names supplied by Hack:
 // for each, Hack's file is served and the platform's is not consulted.
-// "docs-site" is not a file name: it names Hack's docs tree. ".well-known" and
-// "setup" are the platform's folders, so a directory read lists Hack's.
+// ".well-known" and "setup" are the platform's folders, so a directory read lists Hack's.
 func assetReplacements() map[string]string {
 	return map[string]string{
 		"setup/small-box-settings.json": "static/setup/small-box-settings.json",
@@ -14,7 +13,6 @@ func assetReplacements() map[string]string {
 		".well-known/ard.json":          "static/.well-known/hack-ard.json",
 		"apple-touch-icon.png":          "static/apple-touch-icon-hack.png",
 		"auth.md":                       "static/hack-auth.md",
-		"docs-site":                     "docs-site/hack",
 		"favicon-32.png":                "static/favicon-32-hack.png",
 		"favicon.ico":                   "static/favicon-hack.ico",
 		"favicon.svg":                   "static/favicon-hack.svg",
@@ -22,7 +20,6 @@ func assetReplacements() map[string]string {
 		"setup":                         "static/setup",
 		"setup/setup.js":                "static/setup/setup-hack.js",
 		"openapi.json":                  "static/openapi.json",
-		"openapi.yaml":                  "static/openapi.yaml",
 		"features.json":                 "static/features.json",
 		"features.html":                 "static/features.html",
 		"setup-helper.html":             "static/setup-helper.html",

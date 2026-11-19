@@ -23,11 +23,15 @@
 #       plugin.json is plugins/openai/plugin.json renamed, with copy that does
 #       not promise a connector.
 #
+# The skills come from the one source the server also serves
+# (host/webassets/simple-host-website/skills, or $SKILLS); plugins/openai holds
+# only the manifest, MCP entry and icons.
+#
 # Every check the portal documents for the package is run here first, so a
 # failure shows up on this box rather than as a portal error code.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-SRC=plugins/openai
+SKILLS=$(cd "${SKILLS:-host/webassets/simple-host-website/skills}" && pwd)
 OUT=dist
 mkdir -p "$OUT"
 
@@ -129,8 +133,6 @@ if problems:
 print(f"{src} checks ok ({kind}): {name} {man['version']}, skills: {', '.join(sorted(names))}")
 PY
 }
-validate "$SRC" mcp
-
 # Deterministic archives: fixed order, fixed timestamps, no extra attributes,
 # no dotfiles, regular files only.
 build_zip() { # build_zip <out.zip> <staging dir>
@@ -142,12 +144,16 @@ build_zip() { # build_zip <out.zip> <staging dir>
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
-mkdir -p "$STAGE/full" "$STAGE/skills"
-cp "$SRC/plugin.json" "$SRC/mcp.json" "$STAGE/full/"
-cp -R "$SRC/skills" "$SRC/assets" "$STAGE/full/"
+# The plugin package is assembled first, then checked as it will ship.
+SRC="$STAGE/full"
+mkdir -p "$SRC" "$STAGE/skills"
+cp plugins/openai/plugin.json plugins/openai/mcp.json "$SRC/"
+cp -R plugins/openai/assets "$SRC/"
+cp -R "$SKILLS" "$SRC/skills"
+validate "$SRC" mcp
 # The portal's Skills tab takes only skill folders: "one skill root or one
 # directory of skill roots". No plugin.json or assets alongside them.
-cp -R "$SRC/skills" "$STAGE/skills/"
+cp -R "$SKILLS" "$STAGE/skills/skills"
 build_zip "$OUT/simple-host-openai-plugin.zip" "$STAGE/full"
 build_zip "$OUT/simple-host-openai-skills.zip" "$STAGE/skills"
 

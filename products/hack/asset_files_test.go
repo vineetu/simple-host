@@ -55,8 +55,8 @@ func TestAssetTablesNameTheRightFiles(t *testing.T) {
 		if _, err := fs.Stat(hackassets.Static, file); err != nil {
 			t.Errorf("Replace %s: %v", name, err)
 		}
-		if name == "docs-site" {
-			continue // names Hack's docs tree, not a static file
+		if name == "openapi.json" {
+			continue // the platform serves its openapi.yaml at this address
 		}
 		if _, err := fs.Stat(webassets.Static, "static/"+name); err != nil {
 			t.Errorf("Replace lists %s, which is not a platform name", name)

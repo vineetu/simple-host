@@ -51,7 +51,6 @@ check:
 	go run ./scripts/split/sqlcheck -tests -report -
 	go run ./scripts/split/sqlcheck -migrations
 	bash scripts/check-docs-sync.sh
-	bash scripts/check-claude-plugin.sh
 	bash deploy/cert-issuers/runtime_test.sh
 	python3 deploy/cert-issuers/requeue_test.py
 	bash deploy/cert-issuers/watch_test.sh

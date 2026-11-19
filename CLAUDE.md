@@ -28,15 +28,15 @@ https://simple-host.app and runs in production for real users.
   section or bold-lead feature in `FEATURES.md` also gets an entry in
   `host/webassets/static/features.json` (the public /features page: plain words, an example,
   editions, status, docs links; or a `not_shown` row with a why), then
-  `python3 scripts/build-features-page.py` regenerates `features.html`. `scripts/check-features-page.py`
-  (in `check-docs-sync.sh`) fails on a missing entry or a stale page.
-- Route changed: update `host/webassets/static/openapi.yaml` (the contract), regenerate
-  `openapi.json` with
-  `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('host/webassets/static/openapi.yaml')),open('host/webassets/static/openapi.json','w'),indent=2)"`,
-  then `llms.txt` and the skills if it is user-facing. `scripts/check-docs-sync.sh` fails on drift.
-- Skills changed: bump `version` in `host/webassets/simple-host-website/.claude-plugin/plugin.json` (the
-  stale-skill notice reads it from the embedded file), then run
-  `bash scripts/sync-claude-plugin.sh`. Never hand-edit `plugins/simple-host/skills/`.
+  `python3 scripts/build-features-page.py` regenerates `features.html`.
+- Route changed: update `host/webassets/static/openapi.yaml` (the contract; the server reads it
+  directly; one line per description), then `llms.txt` and the skills if it is user-facing. A Hack
+  route goes in `products/hack/webassets/openapi.part.yaml`; `make inventory` recomposes Hack's
+  served `openapi.json`. `scripts/check-docs-sync.sh` fails when a /v1 route and the spec disagree.
+- Skills changed: there is one set, `host/webassets/simple-host-website/skills` (Hack:
+  `products/hack/webassets/hack-toolkit/skills`), served by the program and copied into the
+  Claude and ChatGPT plugins only at publish/release time. Bump `version` in
+  `host/webassets/simple-host-website/.claude-plugin/plugin.json` (the stale-skill notice reads it).
 - The plugin repos github.com/vineetu/simple-host-plugin and simple-hack-plugin are published
   from origin/main by the hourly `sh-plugin-repo-sync.timer` (it runs both `scripts/publish-*claude-plugin-repo.sh`);
   by hand: `sudo systemctl start sh-plugin-repo-sync`, or `DRY_RUN=1 bash scripts/publish-claude-plugin-repo.sh` to preview.
@@ -55,12 +55,6 @@ https://simple-host.app and runs in production for real users.
 - There is no Host-vs-Enterprise table here any more (`PARITY.md` deleted 2026-11-19): the
   separate Enterprise repo is frozen and Enterprise will be rebuilt here as add-ons (INTENT
   2026-11-12). Do not check changes against the Enterprise repo.
-- Docs: a change to openapi.yaml, MCP tool text, CHANGELOG.md, docs/site or the
-  self-hosting docs (docs/advanced, platforms, operations, configuration.md, kubernetes.md) needs
-  `bash scripts/build-docs-site.sh` (Node 22.23.4; on this box it finds
-  `~/.local/node/node-v22.23.4-linux-arm64`; run it under `systemd-run` with MemoryMax=3G) and the
-  rebuilt `host/webassets/docs-site` in the same commit. `scripts/check-docs-site.py` (in
-  `check-docs-sync.sh`) fails until then.
 - Design docs in `docs/designs/` carry a status line at the top; update it when you ship or drop
   the thing. Finished plans go to `docs/history/`.
 
@@ -161,16 +155,6 @@ older `X-Skill-Version` header (none at all is a plain API call: no notice) adds
 when the body is an object, a `_notice` field spliced in (other fields keep their exact bytes). A
 response never changes shape because of the header: an array stays a bare array. The MCP
 server surfaces it to the agent. State endpoints, static serving and downloads are not wrapped.
-
-## Docs sync agent (GitHub)
-
-`.github/workflows/docs-sync.yml` runs after each `check` run on main (and by hand). It rebuilds
-the docs and runs `scripts/check-docs-site.py`. If a rebuild alone brings them up to date, it
-opens (or updates) the `docs-sync` pull request with the output. If the check still fails, it
-first runs the Claude Code GitHub Action (`anthropics/claude-code-action`, pinned by commit) to
-edit `docs/site`; changes anywhere else are discarded. It never pushes to main. Pull requests
-are held to the same check by `ci.yml`. Setup, once: the repository secret `ANTHROPIC_API_KEY`,
-and Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests".
 
 ## Local dev
 

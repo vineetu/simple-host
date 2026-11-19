@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/webassets"
 )
 
 // One light/dark setting for the whole site (INTENT, 2026-09-28): every page
@@ -139,7 +138,7 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		"/", "/dashboard", "/install.html", "/docs/", "/architecture.html", "/privacy.html",
+		"/", "/dashboard", "/install.html", "/architecture.html", "/privacy.html",
 		"/features", "/enterprise", "/enterprise/brief", "/enterprise/architecture",
 		"/setup", "/costs", "/terms", "/support", "/admin", "/analytics/my-site", "/connect.html",
 	} {
@@ -152,11 +151,7 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 			t.Errorf("%s: status %d", path, rec.Code)
 			continue
 		}
-		body := rec.Body.String()
-		if strings.HasPrefix(path, "/docs/") {
-			body = inlineDocsChromeForTest(t, mux, body)
-		}
-		check(path, body, true)
+		check(path, rec.Body.String(), true)
 	}
 	// Every page source with chrome is covered, including ones only a handler
 	// serves (connect.html, notfound.html, showcase.html).
@@ -184,30 +179,5 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		"service error":  serviceErrorPage,
 	} {
 		check(label, body, false)
-	}
-}
-
-// Starlight may query viewport size for its mobile sidebar, never the OS theme.
-func TestDocsUseSharedTheme(t *testing.T) {
-	err := fs.WalkDir(webassets.DocsTree(), ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		if ext := filepath.Ext(p); ext != ".html" && ext != ".js" && ext != ".css" {
-			return nil
-		}
-		body, _ := fs.ReadFile(webassets.DocsTree(), p)
-		for _, banned := range themeBanned {
-			if banned == "matchMedia" {
-				continue
-			} // Starlight's viewport and reduced-motion queries.
-			if bytes.Contains(body, []byte(banned)) {
-				t.Errorf("docs %s contains %s", p, banned)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 }

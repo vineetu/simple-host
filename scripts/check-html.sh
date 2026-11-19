@@ -50,9 +50,7 @@ failed = False
 # or every page it is injected into inherits the stray tag.
 for path in sorted(glob.glob("host/webassets/static/*.html") +
                    glob.glob("host/webassets/static/partials/*.html") +
-                   glob.glob("products/hack/webassets/static/*.html") +
-                   glob.glob("products/hack/webassets/docs-site/**/*.html", recursive=True) +
-                   glob.glob("host/webassets/docs-site/**/*.html", recursive=True)):
+                   glob.glob("products/hack/webassets/static/*.html")):
     checker = Checker()
     checker.feed(open(path, encoding="utf-8").read())
     problems = checker.problems + [

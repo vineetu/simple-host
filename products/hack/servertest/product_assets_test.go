@@ -1,9 +1,7 @@
 package servertest
 
 import (
-	"errors"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
-	"io/fs"
 	"strings"
 	"testing"
 )
@@ -37,22 +35,5 @@ func TestProductSetupScript(t *testing.T) {
 	host := get(t, chromeTestMux(t, productedition.Host), "", "/setup/setup.js").Body.String()
 	if host == "" || len(body) <= len(host) {
 		t.Errorf("Hack setup script (%d bytes) is not the platform's (%d bytes) plus the product's choice", len(body), len(host))
-	}
-}
-
-// Hack's docs root is not a static file name: the file server misses
-// /docs-site, as it did before the product's files moved, so the address
-// answers 404 and never redirects into the product's folder. (The bare
-// fixture has no database for the handle lookup that follows the miss, so
-// this checks the lookup the file server uses.)
-func TestHackDocsRootIsNotServedAsAFile(t *testing.T) {
-	static := chromeTestHandler(productedition.Hack).Pages().StaticFS()
-	for _, name := range []string{"static/docs-site", "static/docs-site/index.html"} {
-		if _, err := fs.Stat(static, name); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("%s: static lookup reached the docs root: %v", name, err)
-		}
-	}
-	if _, err := fs.Stat(static, "static/hack-ink.css"); err != nil {
-		t.Errorf("a listed product file is no longer found: %v", err)
 	}
 }

@@ -191,14 +191,10 @@ def generated():
     base = yaml.safe_load((ROOT / BASE).read_text())
     part = yaml.safe_load((ROOT / PART).read_text())
     validate_refs(base)
-    internal = compose(base, part)
-    public = go_json(public_spec(internal, 'public-hack'))
-    return {
-        Path('host/webassets/static/openapi.json'): json.dumps(base, indent=2, ensure_ascii=False),
-        PRODUCT / 'static/openapi.json': public,
-        PRODUCT / 'static/openapi.yaml': '# Generated; edit host/webassets/static/openapi.yaml and products/hack/webassets/openapi.part.yaml.\n' + public,
-        PRODUCT / 'openapi.internal.json': go_json(internal),
-    }
+    public = go_json(public_spec(compose(base, part), 'public-hack'))
+    # The platform serves its YAML directly; only Hack's composed public
+    # reference is generated (the binary embeds it).
+    return {PRODUCT / 'static/openapi.json': public}
 
 
 def main():

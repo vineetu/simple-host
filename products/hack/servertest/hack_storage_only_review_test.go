@@ -127,17 +127,6 @@ func TestHackRegisteredDocsReview(t *testing.T) {
 		}
 		return rec.Body.Bytes()
 	}
-	page := string(get("/docs/"))
-	for _, text := range []string{"<title>Docs | Simple Hack</title>", "id=\"_top\"", `href="/get-started"`} {
-		if !strings.Contains(page, text) {
-			t.Errorf("Hack docs missing %q", text)
-		}
-	}
-	for _, old := range []string{"npx skills add", "/install.sh", "simple-host.app/skills.zip", "<h1>Simple Host REST API</h1>"} {
-		if strings.Contains(page, old) {
-			t.Errorf("Hack docs retained %q", old)
-		}
-	}
 	llms := string(get("/llms.txt"))
 	if !strings.Contains(llms, "SH.storage.kv()") || strings.Contains(llms, "SH.data(") {
 		t.Fatal("Hack llms route does not describe current-only storage")

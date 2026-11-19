@@ -122,15 +122,20 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 				body = rw.apply(body)
 			}
 		} else {
+			// Both API addresses serve one JSON reference: a product's own
+			// composed openapi.json, else the platform's authored YAML,
+			// filtered to its public operations.
 			sourceName := name
+			_, replaced := p.product.replace["openapi.json"]
 			if name == "openapi.yaml" || name == "openapi.json" {
-				sourceName = "openapi.json"
+				sourceName = "openapi.yaml"
+				if replaced {
+					sourceName = "openapi.json"
+				}
 			}
 			body, err = p.staticFS().ReadFile("static/" + sourceName)
-			if err == nil && (name == "openapi.yaml" || name == "openapi.json") {
-				if _, replaced := p.product.replace["openapi.json"]; !replaced {
-					body, err = publicOpenAPISpec(body, "public-host")
-				}
+			if err == nil && (name == "openapi.yaml" || name == "openapi.json") && !replaced {
+				body, err = publicOpenAPISpec(body, "public-host")
 			}
 			if err == nil && name == "features.json" {
 				body = stripBracketMarkers(body, "self", "hosted")

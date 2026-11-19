@@ -1,34 +1,30 @@
 package hackhttp
 
 import (
-	"bytes"
 	"io/fs"
 	"strings"
-
-	"golang.org/x/net/html"
 )
 
 // AssistantDocsTextCapBytes caps the whole DOCS block the SIM-394 organiser
 // assistant's system prompt embeds (api-contract.md: "cap 16 KB total").
 const AssistantDocsTextCapBytes = 16 * 1024
 
-// AssistantDocPages are the Hack docs pages the assistant knows about
-// (api-contract.md). Path is relative to the docs filesystem passed to
-// AssistantDocsText (the product's docs-site/hack tree in production); URL is the
-// public /docs/... address included in the prompt's DOCS section.
+// AssistantDocPages are the Hack skills the assistant knows about. Path is
+// relative to the skills filesystem passed to AssistantDocsText (the
+// product's embedded skill tree in production); URL is the public address
+// included in the prompt's DOCS section.
 var AssistantDocPages = []struct{ Path, URL string }{
-	{"start/index.html", "/docs/start/"},
-	{"start/judge/index.html", "/docs/start/judge/"},
-	{"start/join/index.html", "/docs/start/join/"},
-	{"limits/index.html", "/docs/limits/"},
+	{"skills/run-hackathon/SKILL.md", "/v1/skills/run-hackathon"},
+	{"skills/join-hackathon/SKILL.md", "/v1/skills/join-hackathon"},
+	{"skills/judge-hackathon/SKILL.md", "/v1/skills/judge-hackathon"},
 }
 
 // AssistantDocsText builds the DOCS block (each page as
 // "## [<title>](<url>)" plus its extracted text, capped) from fsys. It is
-// the one place this HTML-to-text extraction lives: cmd/server calls it to
+// the one place this text extraction lives: cmd/server calls it to
 // build the real server's prompt (host/app/hack/events may not import
 // host/webassets -- scripts/layering/rules.txt -- so cmd/server passes
-// the product's docs-site/hack tree in), and host/hackhttp's own eval test
+// the product's skill tree in), and host/hackhttp's own eval test
 // (assistant_eval_test.go) calls it too, so the eval runs against the
 // exact production prompt instead of a second, maybe-drifted copy of this
 // extraction.
@@ -39,7 +35,7 @@ func AssistantDocsText(fsys fs.FS) string {
 		if err != nil {
 			continue
 		}
-		title, body := extractAssistantDocPage(raw)
+		title, body := extractAssistantSkill(raw)
 		if title == "" {
 			title = p.URL
 		}
@@ -58,64 +54,22 @@ func AssistantDocsText(fsys fs.FS) string {
 	return text
 }
 
-// extractAssistantDocPage returns a docs page's title (<h1>, else <title>)
-// and its <main> content as plain, whitespace-collapsed text: every tag,
-// script and style stripped (api-contract.md).
-func extractAssistantDocPage(raw []byte) (title, body string) {
-	doc, err := html.Parse(bytes.NewReader(raw))
-	if err != nil {
-		return "", ""
-	}
-	var mainNode, h1Node, titleNode *html.Node
-	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode {
-			switch n.Data {
-			case "main":
-				if mainNode == nil {
-					mainNode = n
-				}
-			case "h1":
-				if h1Node == nil {
-					h1Node = n
-				}
-			case "title":
-				if titleNode == nil {
-					titleNode = n
-				}
-			}
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
+// extractAssistantSkill returns a skill's title (its first "# " heading)
+// and its text without the front matter, whitespace-collapsed.
+func extractAssistantSkill(raw []byte) (title, body string) {
+	text := string(raw)
+	if rest, ok := strings.CutPrefix(text, "---\n"); ok {
+		if end := strings.Index(rest, "\n---"); end >= 0 {
+			text = rest[end+4:]
 		}
 	}
-	walk(doc)
-
-	var textOf func(*html.Node) string
-	textOf = func(n *html.Node) string {
-		if n.Type == html.TextNode {
-			return n.Data
+	for _, line := range strings.Split(text, "\n") {
+		if heading, ok := strings.CutPrefix(line, "# "); ok {
+			title = strings.TrimSpace(heading)
+			break
 		}
-		if n.Type != html.ElementNode || n.Data == "script" || n.Data == "style" {
-			return ""
-		}
-		var b strings.Builder
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			b.WriteString(textOf(c))
-			b.WriteString(" ")
-		}
-		return b.String()
 	}
-
-	if h1Node != nil {
-		title = collapseAssistantWhitespace(textOf(h1Node))
-	} else if titleNode != nil {
-		title = collapseAssistantWhitespace(textOf(titleNode))
-	}
-	if mainNode != nil {
-		body = collapseAssistantWhitespace(textOf(mainNode))
-	}
-	return title, body
+	return title, collapseAssistantWhitespace(text)
 }
 
 func collapseAssistantWhitespace(s string) string {

@@ -86,11 +86,12 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		_, _ = w.Write(body)
 	})
 	assets := sh.pipeline()
-	// Product docs are separate from the static file tree.
-	assets.docs.baseURL = strings.TrimRight(publicBaseURL, "/")
-	mux.Handle("GET /docs/", assets.adminUICSP(http.HandlerFunc(assets.serveDocs)))
-	mux.Handle("GET /docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
-	mux.Handle("GET /docs.html", http.RedirectHandler("/docs/", http.StatusMovedPermanently))
+	// The docs website is gone: its old addresses point at the API
+	// description and llms.txt.
+	mux.Handle("GET /docs.html", http.RedirectHandler("/openapi.json", http.StatusMovedPermanently))
+	mux.Handle("GET /docs/api/", http.RedirectHandler("/openapi.json", http.StatusMovedPermanently))
+	mux.Handle("GET /docs", http.RedirectHandler("/llms.txt", http.StatusMovedPermanently))
+	mux.Handle("GET /docs/", http.RedirectHandler("/llms.txt", http.StatusMovedPermanently))
 	sub, _ := fs.Sub(assets.staticFS(), "static")
 	// fileServerFor is the static file server over one view of the tree,
 	// with this install's 404 page for a name the view does not have.
@@ -392,10 +393,6 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 		}
 		nonce := base64.StdEncoding.EncodeToString(b[:])
 		policy := policyFmt
-		if strings.HasPrefix(r.URL.Path, "/docs/") {
-			// Pagefind searches its local index with WebAssembly, not JavaScript eval.
-			policy = strings.Replace(policy, "script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'", 1)
-		}
 		if p.chromeProduct {
 			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
 			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")

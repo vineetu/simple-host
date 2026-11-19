@@ -45,7 +45,7 @@ func assertStrictScriptCSP(t *testing.T, label string, rec *httptest.ResponseRec
 			t.Errorf("%s: inline script without the response nonce: %s", label, tag)
 		}
 	}
-	if inline == 0 && !strings.HasPrefix(label, "/docs/") {
+	if inline == 0 {
 		t.Errorf("%s: no inline scripts found; the check is not looking at a real page", label)
 	}
 	if hit := inlineAttrRe.FindString(body); hit != "" {
@@ -59,7 +59,7 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 	t.Cleanup(func() { instanceIsHostedService = oldHosted })
 	mux := chromeTestMux(t, platformTestEdition())
 	for _, path := range []string{
-		"/", "/install.html", "/docs/", "/architecture.html", "/privacy.html",
+		"/", "/install.html", "/architecture.html", "/privacy.html",
 		"/features.html", "/enterprise.html",
 		"/dashboard", "/features", "/enterprise", "/enterprise/brief",
 		"/enterprise/architecture", "/terms", "/support",

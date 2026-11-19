@@ -63,7 +63,7 @@ func TestAPIRoutingErrors(t *testing.T) {
 					t.Errorf("Allow = %q, want %q", r.Header().Get("Allow"), tc.allow)
 				}
 				if tc.status == 405 || tc.code == "not_found" {
-					if !strings.Contains(body.Hint, "https://simple-host.app/docs/") {
+					if !strings.Contains(body.Hint, "https://simple-host.app/openapi.json") {
 						t.Errorf("missing discovery hint: %+v", body)
 					}
 				}

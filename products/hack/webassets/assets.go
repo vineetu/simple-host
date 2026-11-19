@@ -3,5 +3,5 @@ package webassets
 
 import "embed"
 
-//go:embed all:static all:docs-site
+//go:embed all:static
 var Static embed.FS

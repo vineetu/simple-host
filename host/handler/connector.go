@@ -386,7 +386,7 @@ func (h *ConnectorHandler) protectedResourceMetadata(w http.ResponseWriter, r *h
 		"bearer_methods_supported": []string{"header"},
 		"scopes_supported":         h.scopesSupported(),
 		"resource_name":            "Simple Host",
-		"resource_documentation":   h.issuer + "/docs/",
+		"resource_documentation":   h.issuer + "/llms.txt",
 	})
 }
 
@@ -407,7 +407,7 @@ func (h *ConnectorHandler) authorizationServerMetadata(w http.ResponseWriter, r 
 		"token_endpoint_auth_methods_supported":          authMethods,
 		"revocation_endpoint_auth_methods_supported":     authMethods,
 		"authorization_response_iss_parameter_supported": true,
-		"service_documentation":                          h.issuer + "/docs/",
+		"service_documentation":                          h.issuer + "/llms.txt",
 	})
 }
 

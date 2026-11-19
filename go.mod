@@ -18,6 +18,7 @@ require (
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
 	golang.org/x/tools v0.51.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 replace github.com/vsriram/simple-host/host/storage/rules => ./host/storage/rules

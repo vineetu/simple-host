@@ -3,12 +3,9 @@ package servertest
 import (
 	"encoding/json"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/handler"
 	webassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
@@ -42,24 +39,6 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	}
 	if !strings.Contains(string(filtered), "/storage/resources") {
 		t.Fatal("current storage missing from Hack OpenAPI")
-	}
-	groupSite := chromeTestHandler(productedition.Hack)
-	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-hack.app", groupSite)
-	mountHackFiles(mux, groupSite)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/docs/", nil))
-	if w.Code != http.StatusOK {
-		t.Fatalf("Hack docs: %d", w.Code)
-	}
-	page := w.Body.String()
-	if !strings.Contains(page, "Simple Hack") || !strings.Contains(page, "<title>Docs | Simple Hack</title>") || !strings.Contains(page, `href="/get-started"`) {
-		t.Fatal("Hack docs missing current heading or skills link")
-	}
-	for _, stale := range []string{"npx skills add", "https://simple-host.app/skills.zip", "<h1>Simple Host REST API</h1>"} {
-		if strings.Contains(page, stale) {
-			t.Errorf("Hack docs still contains %q", stale)
-		}
 	}
 }
 

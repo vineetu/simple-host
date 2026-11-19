@@ -267,7 +267,7 @@ func TestAPIErrorInstanceReference(t *testing.T) {
 			rec := httptest.NewRecorder()
 			app.ServeHTTP(rec, req)
 			body := checkAPIError(t, rec, tc.status, tc.code)
-			if body.Hint != "See "+strings.TrimRight(base, "/")+"/docs/ for supported routes and methods." {
+			if body.Hint != "See "+strings.TrimRight(base, "/")+"/openapi.json for supported routes and methods." {
 				t.Errorf("wrong hint: %s", body.Hint)
 			}
 		}

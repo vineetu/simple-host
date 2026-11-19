@@ -10,21 +10,17 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"testing"
 
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	"github.com/vsriram/simple-host/host/auth"
-	"github.com/vsriram/simple-host/host/config"
 
 	"github.com/vsriram/simple-host/host/handler"
-	"github.com/vsriram/simple-host/host/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
@@ -37,31 +33,6 @@ func hackMuxAt(t *testing.T, base, publicBaseURL string) (*http.ServeMux, *handl
 	installAssets(sh, mux)
 	handler.RegisterUIRoutes(mux, publicBaseURL, sh)
 	return mux, sh
-}
-
-func hackDocsTree(t *testing.T) fs.FS {
-	t.Helper()
-	tree, err := fs.Sub(hackassets.Static, "docs-site/hack")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tree
-}
-
-func hackDocsRoutes(t *testing.T) []string {
-	t.Helper()
-	var routes []string
-	err := fs.WalkDir(hackDocsTree(t), ".", func(name string, entry fs.DirEntry, err error) error {
-		if err == nil && !entry.IsDir() && (name == "index.html" || strings.HasSuffix(name, "/index.html")) {
-			routes = append(routes, "/docs/"+strings.TrimSuffix(name, "index.html"))
-		}
-		return err
-	})
-	if err != nil || len(routes) == 0 {
-		t.Fatalf("Hack docs pages: %d, %v", len(routes), err)
-	}
-	sort.Strings(routes)
-	return routes
 }
 
 func TestHackAuthMarkdownConfiguration(t *testing.T) {
@@ -182,7 +153,7 @@ func TestSelfHostedHackNamesNoHostedDomain(t *testing.T) {
 
 	mux, sh := hackMuxAt(t, "https://hack.example.test", "https://hack.example.test")
 	for _, p := range []string{
-		"/support", "/privacy.html", "/terms", "/docs/", "/features",
+		"/support", "/privacy.html", "/terms", "/features",
 		"/pricing", "/report", "/architecture.html", "/llms.txt",
 		"/features.json", "/openapi.json",
 	} {
@@ -249,126 +220,6 @@ var (
 	docsScriptSrcRE = regexp.MustCompile(`\bsrc="`)
 )
 
-func TestHackDocsRoutes(t *testing.T) {
-	mux := chromeTestMux(t, productedition.Hack)
-	for _, route := range []string{"/docs", "/docs.html"} {
-		r := get(t, mux, "", route)
-		if r.Code != 301 || r.Header().Get("Location") != "/docs/" {
-			t.Errorf("%s: %d, Location %q", route, r.Code, r.Header().Get("Location"))
-		}
-	}
-	for _, route := range hackDocsRoutes(t) {
-		r := get(t, mux, "", route)
-		if r.Code != 200 || !strings.HasPrefix(r.Header().Get("Content-Type"), "text/html") {
-			t.Fatalf("%s: %d %s", route, r.Code, r.Header().Get("Content-Type"))
-		}
-		body := r.Body.String()
-		for _, want := range []string{`<header class="sh-header`, `class="sh-footer"`, `id="theme-toggle"`} {
-			if strings.Count(body, want) != 1 {
-				t.Errorf("%s: expected one %s", route, want)
-			}
-		}
-		footer := body[strings.Index(body, `<footer class="sh-footer"`):]
-		if strings.Count(footer, `href="/docs/" aria-current="page"`) != 1 {
-			t.Errorf("%s: footer docs link not current", route)
-		}
-		if strings.Contains(body, `href="/docs/docs/"`) || strings.Contains(body, `href="/hack-llms.txt"`) {
-			t.Errorf("%s: invalid public documentation link", route)
-		}
-		if strings.Contains(body, "<!--sh:") {
-			t.Errorf("%s: unresolved marker", route)
-		}
-		for _, script := range docsScriptTagRE.FindAllStringSubmatch(body, -1) {
-			if !docsScriptSrcRE.MatchString(script[1]) {
-				t.Errorf("%s: inline script", route)
-			}
-		}
-		if !strings.Contains(r.Header().Get("Content-Security-Policy"), "script-src 'self' 'wasm-unsafe-eval'") {
-			t.Errorf("%s: missing UI CSP", route)
-		}
-		if !strings.Contains(body, "Simple Hack") {
-			t.Errorf("%s: missing Simple Hack", route)
-		}
-	}
-	for route, mime := range map[string]string{"/docs/pagefind/pagefind.js": "javascript", "/docs/old-anchors.js": "javascript"} {
-		r := get(t, mux, "", route)
-		if r.Code != 200 || !strings.Contains(r.Header().Get("Content-Type"), mime) || r.Header().Get("Cache-Control") == "" {
-			t.Errorf("asset %s: %d %v", route, r.Code, r.Header())
-		}
-	}
-	for _, route := range []string{"/docs/unknown/", "/docs/missing.js"} {
-		if r := get(t, mux, "", route); r.Code != 404 {
-			t.Errorf("%s: %d", route, r.Code)
-		}
-	}
-	body := get(t, mux, "", "/docs/webhooks/").Body.String()
-	if strings.Contains(body, "site.deployed") || strings.Contains(body, "visitor.signed_up") {
-		t.Error("Host events leaked into Hack")
-	}
-	if r := get(t, mux, "", "/docs/guides/storage?q=hello%20world&from=old"); r.Code != 301 || r.Header().Get("Location") != "/docs/guides/storage/?q=hello%20world&from=old" {
-		t.Fatalf("redirect: %d %q", r.Code, r.Header().Get("Location"))
-	}
-}
-
-func TestHackDocsMarkdownCopies(t *testing.T) {
-	mux := chromeTestMux(t, productedition.Hack)
-	r := get(t, mux, "", "/docs/index.md")
-	if r.Code != 200 || !strings.HasPrefix(r.Header().Get("Content-Type"), "text/markdown") {
-		t.Fatalf("/docs/index.md: %d %s", r.Code, r.Header().Get("Content-Type"))
-	}
-	if !strings.HasPrefix(strings.TrimSpace(r.Body.String()), "# Docs") {
-		t.Errorf("/docs/index.md: expected a leading H1, got %q", r.Body.String()[:40])
-	}
-	if strings.Contains(r.Body.String(), "<LinkCard") || strings.Contains(r.Body.String(), "import ") {
-		t.Error("/docs/index.md: unconverted MDX component or import survived")
-	}
-	if r := get(t, mux, "", "/docs/guides/storage.md"); r.Code != 200 {
-		t.Errorf("/docs/guides/storage.md: %d", r.Code)
-	}
-	if r := get(t, mux, "", "/docs/unknown.md"); r.Code != 404 {
-		t.Errorf("/docs/unknown.md: %d", r.Code)
-	}
-}
-
-// A self-hosted Hack install's docs name the install, not a hosted service.
-func TestHackDocsRuntimeText(t *testing.T) {
-	handler.SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
-	defer handler.SetInstanceHosts("simple-host.app", "", "")
-	mux, _ := hackMuxAt(t, "https://docs-box.example", "https://docs-box.example")
-	body := get(t, mux, "docs-box.example", "/docs/guides/agents/").Body.String()
-	if strings.Contains(body, "npx skills add") || !strings.Contains(body, "this install") {
-		t.Error("hosted/self blocks were not resolved")
-	}
-	if strings.Contains(body, "https://simple-host.app/mcp") || strings.Contains(body, "https://simple-hack.app/mcp") {
-		t.Error("hosted instance URL leaked")
-	}
-}
-
-// The limits page of a Hack install states the install's own allowances.
-func TestHackDocsLimitsText(t *testing.T) {
-	t.Setenv("SITE_STORAGE_MAX_BYTES", "2345678")
-	t.Setenv("SITE_STORAGE_FILE_MAX_BYTES", "123456")
-	handler.SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
-	defer handler.SetInstanceHosts("simple-host.app", "", "")
-	env := map[string]string{"MAX_SITES_PER_ACCOUNT": "250", "DOMAIN_UNPROVEN_HOURS": "36"}
-	limits, err := config.LoadLimits(func(k string) string { return env[k] })
-	if err != nil {
-		t.Fatal(err)
-	}
-	sh := handler.NewSiteHandler(productedition.ForKindWithLimits(productedition.Hack, limits), "https://docs-box.example", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
-	mux := http.NewServeMux()
-	installAssets(sh, mux)
-	handler.RegisterUIRoutes(mux, "https://docs-box.example", sh)
-	rec := get(t, mux, "docs-box.example", "/docs/limits/")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("/docs/limits/: %d", rec.Code)
-	}
-	body := rec.Body.String()
-	if !strings.Contains(body, "Up to 2,345,678 bytes") || !strings.Contains(body, "Up to 123,456 bytes per file") {
-		t.Error("storage byte allowances were not rewritten")
-	}
-}
-
 // Each Hack chrome page, as served, carries the shared theme script exactly
 // once, in <head> before any stylesheet of its own. This is the Hack half of
 // host/handler's TestEveryServedPageCarriesTheOneThemeScript; the pages
@@ -405,76 +256,6 @@ func TestHackServedPagesCarryTheOneThemeScript(t *testing.T) {
 		if st := strings.Index(body, "<style"); st >= 0 && i > st {
 			t.Errorf("%s: theme script comes after the page's own <style>", path)
 		}
-	}
-}
-
-func TestHackDocsAnchorTargetsExist(t *testing.T) {
-	tree := hackDocsTree(t)
-	script, err := fs.ReadFile(tree, "old-anchors.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	match := regexp.MustCompile(`const targets = (\{[^;]+\});`).FindSubmatch(script)
-	if match == nil {
-		t.Fatal("missing generated anchor map")
-	}
-	var targets map[string]string
-	if err := json.Unmarshal(match[1], &targets); err != nil {
-		t.Fatal(err)
-	}
-	if len(targets) < 15 {
-		t.Fatal("incomplete anchor map")
-	}
-	for anchor, target := range targets {
-		if anchor == "install-skills" {
-			if target != "/install.html" {
-				t.Errorf("install-skills target = %q", target)
-			}
-			if _, err := fs.Stat(webassets.Static, "static/install.html"); err != nil {
-				t.Fatal(err)
-			}
-			continue
-		}
-		u, err := url.Parse(target)
-		if err != nil || !strings.HasPrefix(u.Path, "/docs/") {
-			t.Fatalf("invalid target %q", target)
-		}
-		page, err := fs.ReadFile(tree, strings.TrimPrefix(u.Path, "/docs/")+"index.html")
-		if err != nil {
-			t.Errorf("#%s: %v", anchor, err)
-			continue
-		}
-		if u.Fragment != "" && !regexp.MustCompile(`<h[1-6]\b[^>]*\bid="`+regexp.QuoteMeta(u.Fragment)+`"`).Match(page) {
-			t.Errorf("#%s: missing heading %s", anchor, target)
-		}
-	}
-}
-
-func TestHackDocsBrandAndSearchCopy(t *testing.T) {
-	tree := hackDocsTree(t)
-	err := fs.WalkDir(tree, ".", func(name string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".html") {
-			return err
-		}
-		body, err := fs.ReadFile(tree, name)
-		if err != nil {
-			return err
-		}
-		for _, block := range regexp.MustCompile(`(?s)<!--sh:(?:hosted|self)-->(.*?)<!--/sh:(?:hosted|self)-->`).FindAllSubmatch(body, -1) {
-			if bytes.HasPrefix(bytes.TrimSpace(block[1]), []byte("<li")) {
-				continue
-			} // TOC links, outside Pagefind body.
-			if !bytes.Contains(block[1], []byte("data-pagefind-ignore")) {
-				t.Errorf("%s: instance text indexed", name)
-			}
-		}
-		if bytes.Contains(body, []byte("Sites per account")) || bytes.Contains(body, []byte("Follow Connect Domain")) {
-			t.Errorf("%s: Host-only instructions on Hack", name)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 

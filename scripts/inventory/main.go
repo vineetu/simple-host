@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/host/mcp"
-	"github.com/vsriram/simple-host/host/webassets"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 )
 
@@ -50,21 +49,7 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: inventory routes|tools|tools-json|openapi-json|write|check")
-	}
-	if args[0] == "tools-json" || args[0] == "openapi-json" {
-		flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
-		edition := flags.String("edition", "host", "host or hack")
-		if err := flags.Parse(args[1:]); err != nil {
-			return err
-		}
-		if *edition != "host" && *edition != "hack" {
-			return fmt.Errorf("unknown edition: %s", *edition)
-		}
-		if args[0] == "openapi-json" {
-			return writeOpenAPIJSON(*edition)
-		}
-		return writeToolsJSON(*edition)
+		return fmt.Errorf("usage: inventory routes|tools|write|check")
 	}
 	if args[0] == "tools" {
 		flags := flag.NewFlagSet("tools", flag.ContinueOnError)
@@ -465,56 +450,6 @@ func featureLines(text string) []string {
 		}
 	}
 	return lines
-}
-
-// docsTool is one connector tool as the docs reference shows it.
-type docsTool struct {
-	Name        string         `json:"name"`
-	Title       string         `json:"title,omitempty"`
-	Family      string         `json:"family"`
-	Listed      bool           `json:"listed"`
-	Description string         `json:"description"`
-	InputSchema map[string]any `json:"input_schema"`
-}
-
-// writeToolsJSON prints every tool a connector of this edition can call, in
-// registration order. Hidden declarations are not part of the public surface.
-func writeToolsJSON(edition string) error {
-	tools := []docsTool{}
-	for _, t := range programToolInventory() {
-		if t.Edition != edition || t.Hidden {
-			continue
-		}
-		tools = append(tools, docsTool{t.Name, t.Title, t.Family, t.Listed, t.Description, t.InputSchema})
-	}
-	out, err := json.MarshalIndent(tools, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Println(string(out))
-	return err
-}
-
-// writeOpenAPIJSON prints the edition's public API contract, exactly as the
-// server filters it for /openapi.json.
-func writeOpenAPIJSON(edition string) error {
-	path := "host/webassets/static/openapi.json"
-	if edition == "hack" {
-		path = "products/hack/webassets/static/openapi.json"
-	}
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	out := source
-	if edition == "host" {
-		out, err = webassets.PublicOpenAPISpec(source, "public-host")
-	}
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Println(string(out))
-	return err
 }
 
 // programToolInventory supplies the concrete product's name to generated docs.

@@ -34,7 +34,7 @@ func (h *HackHandler) registerAssistant(mux *http.ServeMux, wrap func(http.Handl
 // unsupervised join/judge link. Every other "*url*" field this view
 // carries (icon_url, the event's own public url/builtin_url) is a public
 // address anyway, and none of them render as a clickable link in the
-// browser regardless (only /e/{slug}/... and /docs/... hrefs do), so
+// browser regardless (only /e/{slug}/... and /v1/skills/... hrefs do), so
 // dropping them all costs nothing the assistant actually needs.
 var assistantSecretKeyWords = []string{"code", "token", "key", "secret", "password", "email", "link", "url"}
 

@@ -74,5 +74,5 @@ Relay permission errors; do not retry with another role or key. On an expired
 or revoked token, refresh or reconnect. OAuth errors use `error` and optional
 `error_description`; REST errors use `error` and, where specified, `code`.
 Revoke a token at `/oauth/revoke`, authenticating as the registered client, or
-disconnect the app from the account's connections. See `/openapi.json` and
-`/docs/api/` for the local API reference.
+disconnect the app from the account's connections. See `/openapi.json` for
+the local API reference.

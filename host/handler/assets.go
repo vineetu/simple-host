@@ -25,7 +25,7 @@ import (
 type assetPipeline struct {
 	product productAssets
 	// pres is the edition's presentation policy: ProductAssets selects Simple
-	// Hack's skills, auth.js, docs and copy.
+	// Hack's skills, auth.js and copy.
 	pres edition.PresentationPolicy
 	// hostedEvents is the edition's Routes().HostedEvents (pricing numbers).
 	hostedEvents bool
@@ -46,8 +46,6 @@ type assetPipeline struct {
 	// text holds swapped copies of embedded files, by base and name
 	// (baseTextFS.Open).
 	text sync.Map
-
-	docs docsCache
 
 	// skillsZip and pluginZip are this instance's platform downloads,
 	// each built once. Product download caches belong to the product.
@@ -294,12 +292,8 @@ func (h *SiteHandler) RebasePagesForTest(instanceURL string) {
 type selectedAssets struct{ p *assetPipeline }
 
 func (s selectedAssets) source(name string) (fs.FS, string) {
-	// docsSiteRoot is the one Replace entry that is not a static file name:
-	// only docsTree reads it, so /docs-site answers as it does with no product.
-	if key := strings.TrimPrefix(name, "static/"); key != docsSiteRoot {
-		if file, ok := s.p.product.file(key); ok {
-			return s.p.product.files, file
-		}
+	if file, ok := s.p.product.file(strings.TrimPrefix(name, "static/")); ok {
+		return s.p.product.files, file
 	}
 	return embeddedStatic, name
 }

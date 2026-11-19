@@ -159,7 +159,6 @@ var navKeys = map[string]string{
 	"/features.html":           "features",
 	"/pricing":                 "pricing",
 	"/pricing.html":            "pricing",
-	"/docs/":                   "docs",
 	"/architecture.html":       "architecture",
 	"/privacy.html":            "privacy",
 	"/terms":                   "terms",
@@ -171,9 +170,6 @@ var navKeys = map[string]string{
 // the main origin.
 func (p *assetPipeline) chromeDataFor(r *http.Request, base string) ChromeData {
 	current := navKeys[r.URL.Path]
-	if strings.HasPrefix(r.URL.Path, "/docs/") {
-		current = "docs"
-	}
 	return ChromeData{
 		ProductStyleVersion: p.productStyleVersion(), ProductStylePath: p.pres.StylePath, ProductStyleClass: p.pres.StyleClass,
 		Base:          base,

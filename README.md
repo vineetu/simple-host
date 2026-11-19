@@ -10,7 +10,7 @@ Ask your AI app for a website, and it goes live at its own address, `https://<si
 - **Run your own → https://simple-host.app/setup?product=small-box**
 - **Features:** https://simple-host.app/features
 - **Architecture:** https://simple-host.app/architecture.html
-- **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [API docs](https://simple-host.app/docs/) · [Get started in your AI app](https://simple-host.app/install.html)
+- **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [Get started in your AI app](https://simple-host.app/install.html)
 - **Enterprise edition:** https://simple-host.app/enterprise · [github.com/vineetu/simple-host-enterprise](https://github.com/vineetu/simple-host-enterprise)
 - **Enterprise on your Kubernetes cluster → https://simple-host.app/setup?product=enterprise** (Helm or Kubernetes YAML; existing or in-cluster Postgres)
 - **What Enterprise costs to run → https://simple-host.app/costs** (AWS, Azure and Google Cloud at list prices, for your number of people)
@@ -140,7 +140,7 @@ Start with the [configuration entry](docs/configuration.md).
 
 ## API
 
-Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contract is [`openapi.yaml`](https://simple-host.app/openapi.yaml); a readable version is [docs/](https://simple-host.app/docs/).
+Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contract is [`openapi.yaml`](https://simple-host.app/openapi.yaml).
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -160,7 +160,7 @@ Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contra
 - [CHANGELOG.md](CHANGELOG.md): what changed, newest first.
 - `make check`: format, build, vet, tests (including the DB-backed fixtures, against a
   disposable Postgres) and the doc-sync checks. `make test` is the fast no-DB loop.
-- Skills source: [`host/webassets/simple-host-website/skills/`](host/webassets/simple-host-website/skills/). The Claude plugin in [`plugins/simple-host/`](plugins/simple-host/) is a generated copy (`bash scripts/sync-claude-plugin.sh`).
+- Skills source: [`host/webassets/simple-host-website/skills/`](host/webassets/simple-host-website/skills/). The Claude and ChatGPT plugins in [`plugins/`](plugins/) hold only their manifests; their publish scripts copy the skills in.
 
 ## License
 

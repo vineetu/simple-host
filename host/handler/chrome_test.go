@@ -367,7 +367,7 @@ func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
 		mux := chromeTestMux(t, platformTestEdition())
 		for _, p := range []string{
 			"/install.html", "/support", "/privacy.html", "/terms",
-			"/docs/", "/features", "/pricing", "/report",
+			"/features", "/pricing", "/report",
 			"/architecture.html", "/llms.txt",
 		} {
 			assertNoHostedDomain(t, p, get(t, mux, "host.example.test", p).Body.String())

@@ -17,7 +17,6 @@ import (
 	"github.com/vsriram/simple-host/host/llm"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/webassets"
-	"io/fs"
 )
 
 // assistantEvalCase is one row of testdata/assistant_eval.json (organiser
@@ -94,8 +93,8 @@ func (c assistantEvalCase) withSlug(slug string) assistantEvalCase {
 // AssistantService.buildSystemPrompt gates judge targets on canJudge,
 // which hack_assistant.go computes as events.MembershipAbilities(member).Judge;
 // the caller passes that same bool here rather than this test
-// re-deriving its own notion of "can judge"), plus the four Hack docs
-// pages' /docs/... URLs. A made-up link is a wrong answer.
+// re-deriving its own notion of "can judge"), plus the three Hack
+// skills' /v1/skills/... URLs. A made-up link is a wrong answer.
 func assistantValidHrefs(t *testing.T, slug string, canJudge bool) map[string]bool {
 	t.Helper()
 	var nav struct {
@@ -108,10 +107,9 @@ func assistantValidHrefs(t *testing.T, slug string, canJudge bool) map[string]bo
 		t.Fatalf("parse navigation.json: %v", err)
 	}
 	out := map[string]bool{
-		"/docs/start/":       true,
-		"/docs/start/judge/": true,
-		"/docs/start/join/":  true,
-		"/docs/limits/":      true,
+		"/v1/skills/run-hackathon":   true,
+		"/v1/skills/join-hackathon":  true,
+		"/v1/skills/judge-hackathon": true,
 	}
 	for _, target := range nav.Targets {
 		if target.Role != "organiser" && !(canJudge && target.Role == "judge") {
@@ -128,8 +126,8 @@ func assistantValidHrefs(t *testing.T, slug string, canJudge bool) map[string]bo
 
 // normaliseAssistantHref mirrors assistant.js normaliseHref: the browser
 // drops whitespace and invisible characters inside an href and reads a
-// leading "//e/" or "//docs/" as the app path, then shows a link only for
-// /e/<slug>/ and /docs/. The grader judges the link the organiser would get.
+// leading "//e/" or "//v1/skills/" as the app path, then shows a link only for
+// /e/<slug>/ and /v1/skills/. The grader judges the link the organiser would get.
 func normaliseAssistantHref(h string) string {
 	h = strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) || (r >= 0x200b && r <= 0x200f) || r == 0x2060 || r == 0xfeff {
@@ -137,7 +135,7 @@ func normaliseAssistantHref(h string) string {
 		}
 		return r
 	}, h)
-	if strings.HasPrefix(h, "//e/") || strings.HasPrefix(h, "//docs/") {
+	if strings.HasPrefix(h, "//e/") || strings.HasPrefix(h, "//v1/skills/") {
 		h = h[1:]
 	}
 	return h
@@ -364,8 +362,7 @@ func assistantEvalRunOK(perCasePass []bool, answerable, unsureAnswerable int) bo
 // so the eval tests the exact production prompt rather than a second,
 // maybe-drifted copy of the same logic.
 func evalDocsText() string {
-	tree, _ := fs.Sub(webassets.Static, "docs-site/hack")
-	return AssistantDocsText(tree)
+	return AssistantDocsText(webassets.HackSkills)
 }
 
 // assistantEvalFixture is one event the eval asks questions about.

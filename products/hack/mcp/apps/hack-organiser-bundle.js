@@ -3809,10 +3809,10 @@
   }
   function normaliseHref(href2) {
     const h = String(href2 || "").replace(/[\s​-‏⁠﻿]/g, "");
-    return /^\/\/(e|docs)\//.test(h) ? h.slice(1) : h;
+    return /^\/\/(e|v1\/skills)\//.test(h) ? h.slice(1) : h;
   }
   function allowedHref(h, slug) {
-    return (h.startsWith("/e/" + slug + "/") || h.startsWith("/docs/")) && !h.includes("..");
+    return (h.startsWith("/e/" + slug + "/") || h.startsWith("/v1/skills/")) && !h.includes("..");
   }
   var INLINE_RE = /`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
   function appendInline(node, text, slug) {

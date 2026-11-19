@@ -4,16 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
-// The public API references are derived here so the server and the docs
-// reference generator (scripts/inventory openapi-json) share one filter.
-
-// PublicOpenAPISpec selects operations from a contract by audience.
-// Internal operations remain in the contract for coverage, never in a public spec.
+// PublicOpenAPISpec selects operations from a contract (YAML, or JSON, which
+// is YAML too) by audience and returns them as JSON. Internal operations
+// remain in the contract, never in a public spec.
 func PublicOpenAPISpec(source []byte, audience string) ([]byte, error) {
 	var spec map[string]any
-	if err := json.Unmarshal(source, &spec); err != nil {
+	if err := yaml.Unmarshal(source, &spec); err != nil {
 		return nil, err
 	}
 	paths, ok := spec["paths"].(map[string]any)

@@ -188,7 +188,6 @@ func servedTexts(t *testing.T) map[string]string {
 		}
 	}
 	add(staticFiles, "static", "")
-	add(webassets.Docs, "docs-site", "")
 	add(webassets.Host, "skills", "")
 	return out
 }
@@ -431,9 +430,9 @@ func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
 		{"/.well-known/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},
 		{"/skills/website-deploy", "**Archive limit** is 300 MB."},
 		{"/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},
-		{"/v1/skills/website-deploy/references/packaging-and-validation.md", "The API rejects archives over 300 MB."},
-		{"/.well-known/skills/website-deploy/references/packaging-and-validation.md", "The API rejects archives over 300 MB."},
-		{"/skills/website-deploy/references/packaging-and-validation.md", "The API rejects archives over 300 MB."},
+		{"/v1/skills/website-deploy/references/rest-api.md", "The API rejects archives over 300 MB."},
+		{"/.well-known/skills/website-deploy/references/rest-api.md", "The API rejects archives over 300 MB."},
+		{"/skills/website-deploy/references/rest-api.md", "The API rejects archives over 300 MB."},
 	} {
 		rec := get(t, mux, "simple-host.app", c.path)
 		if rec.Code != http.StatusOK {

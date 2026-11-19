@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -21,11 +20,10 @@ import (
 	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/webassets"
 )
 
 // hostSitemapPaths and hackSitemapPaths are the platform's own public
-// marketing pages, one list per brand, followed by docs and eligible hosted sites.
+// marketing pages, one list per brand, followed by eligible hosted sites.
 var (
 	hostSitemapPaths = []string{
 		"/", "/features", "/pricing", "/install.html",
@@ -88,15 +86,14 @@ type cachedSitemaps struct {
 // serveSitemapXML preserves the pages-only helper used by standalone callers.
 func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool, policies ...edition.PresentationPolicy) {
 	base, product := sitemapBase(r, hostedEvents, policies...)
-	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, product, webassets.DocsTree(), policies...), nil))
+	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, product, policies...), nil))
 }
 
-func sitemapPages(base string, product bool, tree fs.FS, policies ...edition.PresentationPolicy) []sitemapURL {
+func sitemapPages(base string, product bool, policies ...edition.PresentationPolicy) []sitemapURL {
 	paths := hostSitemapPaths
 	if product && len(policies) > 0 {
 		paths = strings.Fields(policies[0].SitemapPaths)
 	}
-	paths = append(append([]string{}, paths...), docsPaths(tree)...)
 	lastmod := ""
 	if built, err := time.Parse(time.RFC3339, buildinfo.BuildTime); err == nil {
 		lastmod = built.UTC().Format(time.RFC3339)
@@ -207,7 +204,7 @@ func (h *SiteHandler) serveSitemap(w http.ResponseWriter, r *http.Request) {
 				urls = append(urls, sitemapURL{address, lastmod})
 			}
 		}
-		cached = cachedSitemaps{time.Now().Add(sitemapTTL), buildSitemaps(base, sitemapPages(base, product, h.pipeline().docsTree(), h.ed.Presentation()), urls)}
+		cached = cachedSitemaps{time.Now().Add(sitemapTTL), buildSitemaps(base, sitemapPages(base, product, h.ed.Presentation()), urls)}
 		if h.sitemaps.byBrand == nil {
 			h.sitemaps.byBrand = make(map[string]cachedSitemaps)
 		}

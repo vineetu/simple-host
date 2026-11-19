@@ -102,15 +102,15 @@ function capMessages(messages) {
 // Never innerHTML of model text. Paragraphs, line breaks, **bold**,
 // *italic*, `inline code`, fenced code blocks, - / 1. lists, [label](href)
 // links. A link renders as <a> only when its href is relative and starts
-// with /e/{slug}/ or /docs/; anything else renders as its plain label.
+// with /e/{slug}/ or /v1/skills/; anything else renders as its plain label.
 // Models sometimes put a space, an invisible character or a second slash
 // in an href; read those as the app path (the eval grader does the same).
 function normaliseHref(href) {
   const h = String(href || '').replace(/[\s​-‏⁠﻿]/g, '')
-  return /^\/\/(e|docs)\//.test(h) ? h.slice(1) : h
+  return /^\/\/(e|v1\/skills)\//.test(h) ? h.slice(1) : h
 }
 function allowedHref(h, slug) {
-  return (h.startsWith('/e/' + slug + '/') || h.startsWith('/docs/')) && !h.includes('..')
+  return (h.startsWith('/e/' + slug + '/') || h.startsWith('/v1/skills/')) && !h.includes('..')
 }
 const INLINE_RE = /`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*/g
 function appendInline(node, text, slug) {
@@ -828,7 +828,7 @@ async function buildFloating(ctx, { api, ev, checklist, slug, key }) {
       closePanel()
     })
     // L7: on phone the sheet covers the whole screen, so a link inside a
-    // reply (a /e/ or /docs/ link) has to close the sheet itself once
+    // reply (a /e/ or /v1/skills/ link) has to close the sheet itself once
     // navigation is under way -- otherwise the sheet is left open over
     // whatever screen the click just navigated to.
     if (phone) {

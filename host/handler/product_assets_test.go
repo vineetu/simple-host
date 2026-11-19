@@ -47,28 +47,6 @@ func TestProductAssetPrecedence(t *testing.T) {
 	}
 }
 
-// The docs-site entry of Replace names the product's docs tree. It is read
-// only by docsTree: the static file lookup never sees it, so the file server
-// misses /docs-site exactly as it does on an install with no product (the
-// request then falls through to the handle lookup and its 404, not to a
-// redirect into the product's folder).
-func TestProductDocsRootIsNotAStaticName(t *testing.T) {
-	files := fstest.MapFS{"docs/own/index.html": {Data: []byte("product docs")}}
-	sh := chromeTestHandler(platformTestEdition())
-	sh.SetProductAssets(map[string]string{docsSiteRoot: "docs/own"}, nil, files, nil, ProductAssetHooks{}, nil)
-	for _, name := range []string{"static/docs-site", "static/docs-site/index.html"} {
-		if _, err := fs.Stat(sh.Pages().StaticFS(), name); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("static lookup of %s reached the docs root: %v", name, err)
-		}
-	}
-	if _, err := fs.ReadDir(sh.Pages().StaticFS(), "static/docs-site"); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("static directory read reached the docs root: %v", err)
-	}
-	if body, err := fs.ReadFile(sh.Pages().docsTree(), "index.html"); err != nil || string(body) != "product docs" {
-		t.Errorf("docsTree: %q, %v", body, err)
-	}
-}
-
 func TestProductOnlyAssetRequiresRoute(t *testing.T) {
 	sh := chromeTestHandler(platformTestEdition())
 	sh.SetProductAssets(nil, nil, fstest.MapFS{"product-only.js": {Data: []byte("private source")}}, nil, ProductAssetHooks{}, nil)

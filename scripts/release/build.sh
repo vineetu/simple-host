@@ -226,10 +226,14 @@ case $command in
     verify_native_binaries
     build_install_assets
 
-    mkdir -p "$stage/scripts" "$stage/host-claude" "$stage/hack-toolkit" "$stage/plugins"
+    # Both Simple Host plugins take their skills from the one source the
+    # server serves.
+    mkdir -p "$stage/scripts" "$stage/host-claude/skills" "$stage/hack-toolkit" "$stage/plugins" "$stage/skills"
     cp scripts/build-openai-plugin.sh "$stage/scripts/"
     cp -a plugins/openai "$stage/plugins/"
+    git archive --format=tar HEAD:host/webassets/simple-host-website/skills | tar -x -C "$stage/skills"
     git archive --format=tar HEAD:plugins/simple-host | tar -x -C "$stage/host-claude"
+    cp -a "$stage/skills/." "$stage/host-claude/skills/"
     kit=products/hack/webassets/hack-toolkit
     cp -a "$kit"/{build.py,metadata,skills,CLAUDE-README.md,SUBMISSION.md} "$stage/hack-toolkit/"
     python3 - "$version" "$stage/plugins/openai/plugin.json" "$stage/host-claude/.claude-plugin/plugin.json" \
@@ -245,12 +249,19 @@ for name in manifests:
     manifest['version'] = version
     path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')
 PY
-    FALLBACK=1 bash "$stage/scripts/build-openai-plugin.sh"
+    SKILLS="$stage/skills" FALLBACK=1 bash "$stage/scripts/build-openai-plugin.sh"
     mv "$stage/dist/simple-host-openai-plugin.zip" "$out/simple-host-openai-plugin-$version.zip"
     mv "$stage/dist/simple-host-openai-skills.zip" "$out/simple-host-openai-skills-$version.zip"
     mv "$stage/dist/website-deploy-toolkit-$version.zip" "$out/"
     (cd "$stage/host-claude" && zip -qr "$out/simple-host-claude-$version.zip" .)
-    bash scripts/check-claude-plugin.sh "$out/simple-host-claude-$version.zip"
+    python3 - "$out/simple-host-claude-$version.zip" <<'PY'
+import sys
+from zipfile import ZipFile
+names = set(ZipFile(sys.argv[1]).namelist())
+for need in ['.claude-plugin/plugin.json', '.mcp.json'] + [f'skills/{s}/SKILL.md' for s in ('website-deploy', 'website-deploy-builder', 'connect-domain')]:
+    if need not in names:
+        raise SystemExit(f'{sys.argv[1]}: missing {need}')
+PY
 
     python3 "$stage/hack-toolkit/build.py"
     for bundle in openai claude skills-only skills; do

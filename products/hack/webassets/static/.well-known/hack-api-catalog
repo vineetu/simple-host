@@ -26,11 +26,6 @@
           "href": "https://simple-hack.app/llms.txt",
           "type": "text/plain",
           "title": "Simple Hack role and connector guide"
-        },
-        {
-          "href": "https://simple-hack.app/docs/",
-          "type": "text/html",
-          "title": "Simple Hack API reference"
         }
       ]
     }

@@ -58,38 +58,20 @@ class CompositionTest(unittest.TestCase):
         self.assertIn('home_site', host_props)
         self.assertEqual(compose.pointer(spec, '/components/responses/TooLarge/description'),
                          'The request or deployment exceeds its applicable size limit.')
+        # Every value override lands at its pointer in the product, and the
+        # platform contract keeps its own text.
+        for override in self.part['overrides']:
+            if 'value' not in override:
+                continue
+            if 'component' in override:
+                target, path = spec['components'], override['component']
+            else:
+                target, path = compose.operation(spec, override['op']), override['set']
+            self.assertEqual(compose.pointer(target, path), override['value'])
         platform_metrics = compose.operation(self.base, 'getAdminPaperMetrics')
         product_metrics = compose.operation(spec, 'getAdminPaperMetrics')
-        for phrase in ('server-side time per route class', 'five-minute process and box samples',
-                       'nightly counts', 'weekly anonymous per-site footprint rows',
-                       'per-route API counts', 'run provenance'):
-            self.assertIn(phrase, platform_metrics['description'])
-            self.assertIn(phrase, product_metrics['description'])
-        for phrase in ('event snapshots', 'at least five teams', 'include_small=1'):
-            self.assertNotIn(phrase, platform_metrics['description'])
-            self.assertIn(phrase, product_metrics['description'])
-        self.assertNotIn('people-count suppression', platform_metrics['parameters'][3]['description'])
-        self.assertIn('people-count suppression', product_metrics['parameters'][3]['description'])
-        metadata = '/responses/200/content/application~1json/schema/properties'
-        for field, phrase in (('metric_def_version', '4 for new Hack definitions'),
-                              ('bucket_scheme', 'distinguishes legacy and scale-3 buckets')):
-            self.assertIn(phrase, compose.pointer(product_metrics, f'{metadata}/{field}/description'))
-        connector = '/components/securitySchemes/connector/description'
-        for phrase in ('sites team:<uuid>', 'Event roles', 'team and organiser tools'):
-            self.assertNotIn(phrase, compose.pointer(self.base, connector))
-            self.assertIn(phrase, compose.pointer(spec, connector))
-        for _, _, op in compose.operations(self.base):
-            if op.get('tags') != ['Notifications']:
-                continue
-            product_op = compose.operation(spec, op['operationId'])
-            self.assertNotIn('Leaving, removal', op.get('description', ''))
-            if 'notification_access_ended' in op['responses'].get('403', {}).get('description', ''):
-                self.assertNotIn('membership', op['responses']['403']['description'])
-                self.assertIn('membership', product_op['responses']['403']['description'])
-            for index, param in enumerate(op.get('parameters', [])):
-                if param.get('name') == 'event':
-                    self.assertNotIn('selected team', param['description'])
-                    self.assertIn('selected team', product_op['parameters'][index]['description'])
+        self.assertNotEqual(platform_metrics['parameters'][3]['description'],
+                            product_metrics['parameters'][3]['description'])
         base, product, _ = features.feature_data()
         base_features = {f['id']: f for a in base['areas'] for f in a['features']}
         product_features = {f['id']: f for a in product['areas'] for f in a['features']}

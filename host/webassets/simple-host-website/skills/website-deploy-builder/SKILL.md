@@ -3,41 +3,40 @@ name: website-deploy-builder
 description: Plan a website on Simple Host before building it. Use when the person has an idea for a site or web tool but has not settled what it should do, asks whether Simple Host can handle bookings, forms, accounts, payments, a database, private pages or server code, or wants to know what to build with Simple Host KV, SQLite or files. Explains who can read and write what, then hands implementation to website-deploy.
 ---
 
-# Website Deploy Builder
+# Plan a website on Simple Host
 
 Use this skill to decide what to build. When the person has chosen, hand the build to the
 `website-deploy` skill, which publishes it. Use the signed-in Simple Host connector; if it is
 missing, ask the person to connect Simple Host (https://simple-host.app/install.html). Never ask
-for sign-in codes, API keys or passwords in chat.
+for sign-in codes, API keys or passwords in chat. Planning needs no tool calls.
+
+Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. Read the website-deploy `references/storage.md` for row-rule syntax, which file buckets use too.
 
 ## What Simple Host is
 
 A static-file host: every site lives at `https://<sitename>.<handle>.simple-host.app/` and serves
-HTML, CSS, JS, images and fonts. Nothing runs on the server. Each site can still save data in
+HTML, CSS, JS, images and fonts. Simple Host serves static files and its built-in storage; it does not run your own server code. Each site can still save data in
 three kinds of resource the owner creates: KV (named JSON values), SQLite (tables and queries) and
-files (photos, PDFs). SQLite and key-value resources use row rules for who may read, add, edit and
-delete; each SQLite table may have its own set. File buckets take the same rules, over `path` and `visitor_id` (the uploader). Visitors sign in on the site itself with an emailed code or Google, never
-with an account or a password.
-
-For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets take the same rules, over `path` and `visitor_id` (the uploader).
+files (photos, PDFs). SQLite and KV use row rules for read, add, edit and delete; SQLite tables may
+replace the resource default. File buckets take the same rules, over `path` and `visitor_id` (the uploader). Visitors sign in with Google or an emailed code; no password or sign-up form.
 
 ## Map the request
 
 | They want | Plan |
 |---|---|
 | a landing page, portfolio, CV, multi-page site | static only, relative links |
-| bookings, appointments, table reservations | SQLite rules for author-or-owner reads, recipe `booking`: the customer signs in when they book and sees their status; the owner confirms from chat |
-| a quote request, contact form, waitlist, sign-up, application, feedback | SQLite rules for owner-only reads and public add, recipe `inbox`: anyone sends without signing in; only the owner reads |
-| a menu, prices, opening hours the owner updates | KV rules for public reads and owner writes, recipe `public`: the owner changes it from chat, no republish |
-| orders from a small shop | SQLite rules for author-or-owner reads with a status and a linked change table |
+| bookings, appointments, table reservations | SQLite author-or-owner read rules, recipe `booking`: the customer signs in when they book and sees their status; the owner confirms from chat |
+| a quote request, contact form, waitlist, sign-up, application, feedback | SQLite owner-only read and public add rules, recipe `inbox`: anyone sends without signing in; only the owner reads |
+| a menu, prices, opening hours the owner updates | KV public read and owner write rules, recipe `public`: the owner changes it from chat, no republish |
+| orders from a small shop | SQLite author-or-owner read rules with a status and a linked change table |
 | a client portal | one site per client, opened only to that client's email (named viewers), recipe `portal` |
-| reviews, comments, a guestbook anyone may post to without signing in | recipe `comments` with a checked add rule: a spam check instead of sign-in; the owner removes posts or approves each one first |
+| reviews, comments, a guestbook anyone may post to without signing in | checked add rules, recipe `comments`: a spam check instead of sign-in; the owner removes posts or approves each one first |
 | reviews, comments, a guestbook by people who sign in | recipe `wall`: everyone reads, people sign in to post |
 | photos visitors share | files with public read and signed-in add rules, recipe `gallery` |
-| a shared sign-up sheet or task list | rules requiring sign-in to read, add and edit; recipe `board` |
-| things each visitor keeps for themselves | rules requiring author-or-owner access; recipe `personal` |
+| a shared sign-up sheet or task list | signed-in shared rules, recipe `board` |
+| things each visitor keeps for themselves | author-or-owner rules, recipe `personal` |
 | only some people may open the whole site | named viewers by email, or one shared passcode; ask which if they did not say |
-| their own domain, or a shorter free address | the `connect-domain` skill, or a free `<name>.simple-host.app` |
+| their own domain, or a shorter address | the `connect-domain` skill, or a short `<name>.simple-host.app` |
 | a tool that runs only in the browser | static plus `localStorage` or `IndexedDB` |
 | data from a public API | static plus `fetch()` to a CORS-enabled API, no secret keys in the page |
 
@@ -48,8 +47,8 @@ For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.ro
    processing, custom account systems, long-running jobs) and suggest a substitute or another
    service for that part.
 3. If visitors save anything, state each resource, its rules, and whether sign-in is needed,
-   before designing the page. Personal details need owner-only or author-or-owner reads; sign-in alone
-   does not make them private.
+   before designing the page. Personal details go in `inbox`, `records` or `personal`, never in a
+   resource everyone signed in can read.
 4. Always pair a form with a way for the owner to read it back: from chat with
    `storage_sql_query`, or an owner page on the site (recipe `admin`).
 5. Give a short plan: how to structure it, the storage shape, and the gotchas.
@@ -59,26 +58,8 @@ For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.ro
 
 ## Advanced: open only when the plan needs it
 
-If a file is not on disk next to this one, fetch its URL.
-
 | Need | Reference |
 |---|---|
-| Every capability with its REST and connector routes, the capability tree (browser storage, external APIs, exports, routing, addresses), the full request-to-capability table | `references/capabilities.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/capabilities.md |
-| Example prompts for another agent, the deploy handoff, home page, file sizes, each person's records worked example | `references/handoff-and-examples.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/handoff-and-examples.md |
-| Row rules, file rules and the page helper in full | the `website-deploy` skill's `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
-| Simple Hack team or event sites | the separate Simple Hack `website-deploy-builder` skill |
-
-## Choose access when creating
-
-For a new private site, use `create_site` with `access: "specific"` and optional
-`viewers: ["person@example.com"]` in the same call. With no viewers only the owner
-can open it. Never create open and then lock it. Ask who can open it: anyone with
-the address (the unchanged default), or only the owner and the people they name.
-Keep emails exactly as given. REST JSON create accepts these body fields; archive
-create accepts `?access=specific&viewers=a@example.com,b@example.com` (also repeated
-`viewers=`). PUT `?create=1` adds viewers only on creation. On an existing site,
-`specific` requires it already be specific (409 `access_differs`); `anyone` never
-changes its access. Plain PUT rejects creation access/viewers; later use
-`set_site_access` / `grant_site_viewer`. Named viewers require visitor sign-in and
-the site's own address; unavailable on Simple Hack. Passcodes stay in the dashboard,
-never in chat or tool arguments.
+| What a site can be, what is not a fit, the full idea-to-plan map, what to say up front, the handoff | `references/capabilities.md` |
+| Row rules, file rules, the page helper and each person's records worked example | the `website-deploy` skill's `references/storage.md` |
+| Home page and showcase; file sizes | the `website-deploy` skill's `references/home-page.md` and `references/limits.md` |

@@ -9,7 +9,7 @@ import (
 )
 
 func TestPublicAPIAudiences(t *testing.T) {
-	source, err := embeddedStatic.ReadFile("static/openapi.json")
+	source, err := embeddedStatic.ReadFile("static/openapi.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
