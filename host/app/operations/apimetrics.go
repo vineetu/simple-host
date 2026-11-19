@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/geoip"
 	"github.com/vsriram/simple-host/host/workers"
@@ -293,6 +294,12 @@ func (m *APIMetrics) pruneOldContext(ctx context.Context) {
 	if result, err := repo.PruneAPI(ctx, m.db, "growth", m.ed.Limits().APIGrowthRetention); err != nil {
 		m.tracker.Fail("growth prune", err)
 	} else if n, _ := result.RowsAffected(); n > 0 {
+		m.tracker.Progress()
+	}
+	// Records of writes a visitor's AI made go after 30 days too.
+	if n, err := appstorage.PruneVisitorAIWrites(ctx, m.db); err != nil {
+		m.tracker.Fail("visitor AI write records prune", err)
+	} else if n > 0 {
 		m.tracker.Progress()
 	}
 }

@@ -471,9 +471,10 @@ visitor.json         Sites where you are signed in as a visitor (first sign-in
                      and the changes recorded against you on other people's
                      saved data while signed in ("changed": which site, what
                      and when; the site's owner sees your address next to
-                     each). Changes made without signing in are not linked
-                     to you, so they are not here; for help with those,
-                     write to support@simple-host.app.
+                     each). These records are kept 30 days. Changes made
+                     without signing in are not linked to you, so they are
+                     not here; for help with those, write to
+                     support@simple-host.app.
 sites/<name>/        One folder per site, the same as that site's download:
                      files/ (the live version) and storage/ (its saved data).
 recently-deleted/<name>/

@@ -78,3 +78,20 @@ func RecordVisitorAIWrite(ctx context.Context, db *sql.DB, siteID, resource, op,
 	_, err := db.ExecContext(ctx, `INSERT INTO data_history(site_id,kind,name,op,actor_id,actor_kind,actor_app) VALUES($1,'storage',$2,$3,$4,'visitor',$5)`, siteID, resource, op, userID, app)
 	return err
 }
+
+// PruneVisitorAIWrites deletes data_history rows older than 30 days, in
+// batches along idx_data_history_created, and returns how many went.
+func PruneVisitorAIWrites(ctx context.Context, db *sql.DB) (int64, error) {
+	var total int64
+	for {
+		res, err := db.ExecContext(ctx, `DELETE FROM data_history WHERE id IN (SELECT id FROM data_history WHERE created_at < now() - interval '30 days' LIMIT 5000)`)
+		if err != nil {
+			return total, err
+		}
+		n, _ := res.RowsAffected()
+		total += n
+		if n < 5000 {
+			return total, nil
+		}
+	}
+}

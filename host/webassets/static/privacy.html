@@ -169,6 +169,7 @@
       <li><strong>Account:</strong> until you delete it. Deleting it removes it and all its data at once.</li>
       <li><strong>Sites and versions:</strong> until you delete the site. The four latest site versions are kept by default. A deleted site is restorable for 7 days, then its files and saved data are purged.</li>
       <li><strong>Current storage:</strong> KV values, SQLite rows, and file objects are kept until the owner deletes them or the site is deleted. Data for a deleted site is purged after the site retention period. Current storage does not have automatic 30-day change history.</li>
+      <li><strong>Records of writes by a visitor's AI app:</strong> when a signed-in visitor's AI app saves to a site for them, we note the site, the resource, the kind of change, the app and the visitor. These notes are deleted after 30 days.</li>
       <li><strong>Older saved data:</strong> the older lists and shared state were removed on 19 November 2026. What they held stays stored, read by no page or tool, until the site or the account is deleted; deleting your account still removes the entries you sent while signed in.</li>
       <li><strong>Notification history:</strong> event and delivery history is kept for 7 days by default. Subscriptions remain until removed or expired, or the site is deleted.</li>
       <li><strong>Server logs:</strong> 30 days.</li>

@@ -173,3 +173,9 @@ func (s *Service) VisitorToolWrite(ctx context.Context, in VisitorToolWriteInput
 	}
 	return result, nil
 }
+
+// PruneVisitorAIWrites deletes the write records VisitorToolWrite keeps once
+// they are 30 days old, as the privacy page promises.
+func PruneVisitorAIWrites(ctx context.Context, db *sql.DB) (int64, error) {
+	return repository.PruneVisitorAIWrites(ctx, db)
+}
