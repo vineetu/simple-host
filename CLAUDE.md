@@ -52,9 +52,9 @@ https://simple-host.app and runs in production for real users.
   binary refuses to start if a column it reads is missing), then
   `simple-host migrate -mark <file>` (or just `simple-host migrate`); `migrate -status` lists
   what is pending.
-- `PARITY.md` (Host vs Enterprise) is frozen history as of 2026-11-12: the separate Enterprise
-  repo is frozen and Enterprise will be rebuilt here as add-ons (INTENT 2026-11-12). Do not add
-  rows to it or check changes against the Enterprise repo.
+- There is no Host-vs-Enterprise table here any more (`PARITY.md` deleted 2026-11-19): the
+  separate Enterprise repo is frozen and Enterprise will be rebuilt here as add-ons (INTENT
+  2026-11-12). Do not check changes against the Enterprise repo.
 - Docs: a change to openapi.yaml, MCP tool text, CHANGELOG.md, docs/site or the
   self-hosting docs (docs/advanced, platforms, operations, configuration.md, kubernetes.md) needs
   `bash scripts/build-docs-site.sh` (Node 22.23.4; on this box it finds

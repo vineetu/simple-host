@@ -43,7 +43,7 @@ func TestShowcaseStorageSwitch(t *testing.T) {
 // gallery is hidden before first paint for the handle this browser signed in
 // as, the page asks /v1/me and /v1/sites once each, and the owner's own page
 // never downloads every account's sites (?all=1). Browser proof:
-// scripts/e2e-owner-dashboard.mjs.
+// scripts/e2e/e2e-owner-dashboard.mjs.
 func TestShowcaseOwnerFastPath(t *testing.T) {
 	raw, err := staticFiles.ReadFile("static/showcase.html")
 	if err != nil {

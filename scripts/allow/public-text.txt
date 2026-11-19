@@ -1,6 +1,6 @@
 # Exact embedded file/member or text/host path | product-name match count | reason
 # Counts pin existing copy, including unstable generated/minified lines.
-# History outside embeds (docs/history, CHANGELOG.md, PARITY.md) is not scanned.
+# History outside embeds (docs/history, CHANGELOG.md) is not scanned.
 host/db/migrations/event-domains.sql | 1 | history: existing event-address schema comment
 host/db/schema.sql | 1 | history: existing event-address schema comment
 host/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md | 3 | hosted cross-reference to the sister product

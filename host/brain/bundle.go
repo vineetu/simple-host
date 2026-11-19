@@ -28,9 +28,6 @@ type Bundle struct {
 	Parity    []ParityRow `json:"parity"`
 	Decisions []Decision  `json:"decisions"`
 	Changes   []Change    `json:"changes"`
-	// ParityCopiesMatch is false when the two repos' PARITY.md differ (the
-	// rule is that they are identical); the hosted copy is the one parsed.
-	ParityCopiesMatch bool `json:"parity_copies_match"`
 }
 
 // Source is one repo the bundle was built from.

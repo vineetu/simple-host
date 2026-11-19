@@ -15,7 +15,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
-// Opt-in server for scripts/e2e-hack-forms.mjs, using real editable event APIs.
+// Opt-in server for scripts/e2e/e2e-hack-forms.mjs, using real editable event APIs.
 func TestServeHackFormsBrowser(t *testing.T) {
 	file := os.Getenv("HACK_FORMS_FIXTURE")
 	if file == "" {

@@ -133,7 +133,7 @@ file for later secure portal entry.
    complete portal upload and checks under the intended verified publisher.
    The reviewed connector-only 0.2.6 toolkit is current; older first-party ZIPs are withdrawn. No
    OpenAI/Claude directory approval or marketplace publication follows from a
-   ZIP or repository alone. See [submission preparation](../../hack-toolkit/SUBMISSION.md).
+   ZIP or repository alone. See [submission preparation](../../products/hack/webassets/hack-toolkit/SUBMISSION.md).
 
 Do not describe these external steps as shipped until provider or portal
 evidence exists. Keep future production checks separate from the local M6 cast.

@@ -324,13 +324,13 @@ page = Path('products/hack/webassets/static/hack-get-started.html').read_text()
 parsed = Onboarding()
 parsed.feed(page)
 assert parsed.command and parsed.command in Path('README.md').read_text(), 'README install command differs from onboarding'
-assert 'tree/main/hack-toolkit' in parsed.command, 'Install only the hosted Hack skill set'
+assert 'tree/main/products/hack/webassets/hack-toolkit' in parsed.command, 'Install only the hosted Hack skill set'
 required = ['/skills.zip', '/hack-skills.zip']
 required += ['/v1/skills/' + name + '/SKILL.md' for name in ['run-hackathon', 'join-hackathon', 'judge-hackathon', 'website-deploy', 'website-deploy-builder']]
 for url in required:
     assert (url, True) in parsed.links, f'{url} missing from collapsed other installs'
 assert all(other for url, other in parsed.links if url.startswith('/v1/skills/')), 'Skill reading belongs under other installs'
-for doc in ['README.md', 'docs/FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'host/webassets/static/llms.txt']:
+for doc in ['README.md', 'docs/FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'host/webassets/static/llms.txt']:
     if doc != 'host/webassets/static/llms.txt':
         assert '/get-started' in Path(doc).read_text(), f'{doc} must describe hosted onboarding'
 print('  ok — five-skill install command, onboarding docs and tucked-away downloads agree')

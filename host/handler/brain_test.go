@@ -31,7 +31,6 @@ func brainFixture(t *testing.T) string {
 		"host": {
 			"INTENT.md":        "# INTENT\n\n## What this is, and why it exists\n\nSimple Host hosts sites.\n\n## Non-goals\n\n- Server code.\n\n## Decisions already made\n\n- **2026-10-14. Comments use Cloudflare Turnstile.** Never home-built.\n",
 			"docs/FEATURES.md": "# FEATURES\n\n## 1. Sites\n\n### Archive upload\n\nPublishes a site archive.\n",
-			"PARITY.md":        parity,
 			"CHANGELOG.md":     "# Changelog\n\n## 2026-10-16: Brain\n\n- Owner knowledge.\n",
 		},
 		"ent": {

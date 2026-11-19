@@ -102,7 +102,7 @@ func freshness(b *Bundle) map[string]any {
 	for _, s := range b.Sources {
 		sources = append(sources, map[string]any{"repo": s.Repo, "label": s.Label, "commit": s.Commit, "commit_time": s.CommitTime.Format(time.RFC3339)})
 	}
-	return map[string]any{"built_at": b.BuiltAt.Format(time.RFC3339), "sources": sources, "parity_copies_match": b.ParityCopiesMatch}
+	return map[string]any{"built_at": b.BuiltAt.Format(time.RFC3339), "sources": sources}
 }
 
 // ---- argument helpers ----------------------------------------------------------
@@ -372,7 +372,7 @@ func (q querier) parity(args map[string]any) (Result, error) {
 	}
 	meta := map[string]any{
 		"editions": "Hosted means simple-host.app and the small box that anyone runs (the same binary; Simple Hack is the same binary too). Enterprise is the Kubernetes edition behind a company's own OIDC.",
-		"source":   RepoHost + "/PARITY.md#feature-table",
+		"source":   parityDoc + "#feature-table",
 	}
 	if feature == "" {
 		rows := []any{}

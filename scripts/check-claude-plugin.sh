@@ -82,6 +82,3 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 echo "claude plugin in sync ✓"
-
-# The public GitHub install address remains /hack-toolkit.
-diff -r products/hack/webassets/hack-toolkit/skills hack-toolkit/skills

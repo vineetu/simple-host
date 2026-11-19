@@ -98,8 +98,7 @@ func brainFreshnessSchema() map[string]any {
 			"repo": outString("Repo name."), "commit": outString("Short commit."), "commit_time": outString("Commit time (RFC 3339)."),
 			"label": outString("Set for a local source that is a live product or an unshipped plan; empty for the two main repos."),
 		}, "repo", "commit", "commit_time", "label")),
-		"parity_copies_match": outBool("Whether PARITY.md is identical in both repos, as the rule requires."),
-	}, "built_at", "sources", "parity_copies_match")
+	}, "built_at", "sources")
 }
 
 func brainSince(what string) map[string]any {
@@ -151,7 +150,7 @@ func BrainTools(q BrainQuery) []Tool {
 			}, "query", "features", "parity"), q),
 
 		brainTool("parity", "Parity across editions",
-			"Which editions have a feature, from PARITY.md: for each row, how hosted (simple-host.app and the small box) and Enterprise do it and its status (same, different on purpose with the reason, gap → hosted, gap → enterprise). With feature, the best matching rows in full; without it, the whole table with shortened cells and counts per status.",
+			"Which editions have a feature, from the Enterprise repo's PARITY.md (frozen since 2026-11-12): for each row, how hosted (simple-host.app and the small box) and Enterprise do it and its status (same, different on purpose with the reason, gap → hosted, gap → enterprise). With feature, the best matching rows in full; without it, the whole table with shortened cells and counts per status.",
 			object(map[string]any{"feature": str("Feature name or keywords. Leave out for the whole table.")}),
 			outObject(map[string]any{
 				"feature": outString("The feature asked for, or empty for the whole table."),
@@ -210,7 +209,7 @@ func BrainTools(q BrainQuery) []Tool {
 			}, "query", "results"), q),
 
 		brainTool("get_doc", "Read a source document",
-			"Read one source document, or one section of it, by the path the other tools return (for example simple-host/INTENT.md, or simple-host/PARITY.md#feature-table). Only the documents this server was built from can be read. A long document comes back shortened with its outline; then ask for a section.",
+			"Read one source document, or one section of it, by the path the other tools return (for example simple-host/INTENT.md, or simple-host-enterprise/PARITY.md#feature-table). Only the documents this server was built from can be read. A long document comes back shortened with its outline; then ask for a section.",
 			object(map[string]any{
 				"path":    str("Document path such as simple-host/docs/FEATURES.md; a #section suffix is accepted."),
 				"section": str("Section id or heading, optional."),

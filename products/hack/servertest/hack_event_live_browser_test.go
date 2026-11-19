@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Opt-in fixture for scripts/e2e-hack-event-live.mjs: a real uploaded recipe,
+// Opt-in fixture for scripts/e2e/e2e-hack-event-live.mjs: a real uploaded recipe,
 // two live team sites/entries, tracks, and scored but unpublished results.
 func TestServeHackEventLiveBrowser(t *testing.T) {
 	file := os.Getenv("HACK_EVENT_LIVE_FIXTURE")

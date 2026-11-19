@@ -15,11 +15,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Keep the GitHub skill-install URL already printed on /get-started working.
-rm -rf hack-toolkit/skills
-mkdir -p hack-toolkit
-cp -R products/hack/webassets/hack-toolkit/skills hack-toolkit/skills
-
 SRC=host/webassets/simple-host-website/skills
 DST=plugins/simple-host/skills
 SKILLS="website-deploy website-deploy-builder connect-domain"

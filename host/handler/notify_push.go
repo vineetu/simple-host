@@ -70,7 +70,7 @@ func (h *SiteHandler) webPushEnabledForHandle(handle string) bool {
 // (FIX 13: a lookup failure used to collapse to false, indistinguishable
 // from a conclusive "off").
 func (h *SiteHandler) webPushAllowed(ctx context.Context, siteID string) (bool, error) {
-	// Simple Host only for this first pass (FEATURES.md §19, PARITY.md):
+	// Simple Host only for this first pass (FEATURES.md §19):
 	// Simple Hack and Enterprise have not ported web push. Not a lookup
 	// failure: the edition is known at startup, not looked up per call.
 	if h.ed.Notifications().EventScoped {

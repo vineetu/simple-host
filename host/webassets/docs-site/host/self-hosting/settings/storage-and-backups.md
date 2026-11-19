@@ -196,31 +196,6 @@ rename has the same safe result. Repeating rollback skips namespaces already on
 Postgres. Set `KV_STORE=postgres` before restarting if new namespaces should use
 Postgres too.
 
-### Rehearse the cutover and both ways back
-
-`TEST_PG_URL` supplies a bare disposable Postgres server URL; the script creates and drops only its own database. Inputs are read only. It uses fresh local credentials, removes copied notification subscriptions and saved setup hostnames on the scratch database, and inherits no provider credentials. The scratch environment supplies its local hostname.
-
-The script restores the copies, starts a loopback instance, dry-runs, checks free
-space (data plus dump plus 20%), stops, takes the paired backup with sizes and
-SHA-256 hashes, applies, verifies and restarts with `KV_STORE=sqlite`. It compares
-all key-value records and live-site owner reads, usage and exported `kv.json`,
-and exercises page and owner-tool writes, reads and deletes on an invented site.
-It compares the usage tool's decoded response with its pre-stop response. Apply
-must leave every key-value namespace on SQLite and the Postgres KV table empty;
-rollback must return every namespace, including newly created ones, to Postgres.
-It then makes new keys, edits, deletes, a new namespace and a namespace
-deletion, verifies, stops, rolls back, restarts and compares again. Finally it
-restores the paired dump and files onto an emptied scratch directory and compares
-with the backup-time state. This last restore deliberately loses the later
-changes; it is a last resort, never an overlay onto the current directory.
-
-The output directory retains JSON-lines move logs, per-step wall times, backup
-sizes/hashes and key-value read throughput before and after moving (100 reads
-with one and four clients on one site, `SITE_STORAGE_SITE_INFLIGHT=1`). Scratch
-databases, file copies and backups are deleted on exit. Keep the output from both
-installs for the cutover review. A rehearsal on invented fixtures alone does not
-establish that production copies have passed.
-
 The upgrade journal and step list are not available in this release. When they
 land, the move registers as `OptIn` (`upgrade --with kv-move`), with progress per
 namespace, not a remembered install-wide completion. Every attempt must inspect

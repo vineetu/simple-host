@@ -281,9 +281,8 @@ the registered routes, real screen modules and server responses/rules.
 Use the [Hack domain guide](hack-domain.md) for transitions and permissions.
 
 The reviewed Hack skill source is `products/hack/webassets/hack-toolkit/skills`.
-`scripts/sync-claude-plugin.sh` also copies it to `hack-toolkit/skills` to keep
-the published GitHub install address working; `check-claude-plugin.sh` checks
-that compatibility copy. Embedded and downloaded bytes retain their existing paths.
+The GitHub install address on `/get-started` points at its parent folder; there is no
+second copy.
 
 The shared destination map lives in `products/hack/rules/hackevents/navigation.json`. Run `python3 scripts/build-hack-navigation.py` for `hack/navigation-data.js`; docs-sync checks it. Atlas build.py projects the same role navigation. Settings editors live in focused `_settings-*` modules, Tracks in `_event-tracks.js`; activity screens retain operations and exports.
 

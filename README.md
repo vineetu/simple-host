@@ -49,7 +49,7 @@ For Claude Code and Codex, install the five Hack skills (Node.js required), then
 the OAuth connector in your agent:
 
 ```sh
-npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes
+npx -y skills add https://github.com/vineetu/simple-host/tree/main/products/hack/webassets/hack-toolkit --global --agent codex claude-code --yes
 ```
 
 ## Features

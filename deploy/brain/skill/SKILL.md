@@ -6,7 +6,7 @@ description: Read this skill first whenever the owner of Simple Host asks about 
 # Simple Host product knowledge (owner only)
 
 The owner's private knowledge base at `https://simple-host.app/v1/brain`, rebuilt every hour and after
-every deploy from the INTENT, FEATURES, PARITY and CHANGELOG files of both repos, plus design,
+every deploy from the INTENT, FEATURES and CHANGELOG files of both repos, the Enterprise parity table, plus design,
 platform and release docs. It only reads. It answers only the owner's account; anyone else gets 403.
 
 Ask it before answering any question about these products. Quote what it returns and name the source
@@ -39,7 +39,7 @@ arguments and `Content-Type: application/json`; the answer is `{"text": "...", "
 | `decisions` | dated owner decisions and their reasons | `query`, `since` (2026-10-13 or 3d), `product`, `limit` (all optional) |
 | `recent_changes` | what changed lately (default the last 7 days) | `since`, `product`, `limit` (optional) |
 | `search` | full-text search over every source | `query` |
-| `get_doc` | read a document or one section | `path` such as `simple-host/PARITY.md`, `section` (optional) |
+| `get_doc` | read a document or one section | `path` such as `simple-host-enterprise/PARITY.md`, `section` (optional) |
 
 Example: "Does Enterprise have the archive upload?" is
 `POST /v1/brain/parity` with `{"feature":"archive upload"}`.

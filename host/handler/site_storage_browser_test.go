@@ -49,7 +49,7 @@ func TestStorageStoryBrowser(t *testing.T) {
 	if err := os.WriteFile(fp, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("node", "scripts/e2e-storage-shop.js")
+	cmd := exec.Command("node", "scripts/e2e/e2e-storage-shop.js")
 	cmd.Dir = "../.."
 	cmd.Env = append(os.Environ(), "STORAGE_SHOP_FIXTURE="+fp)
 	out, err := cmd.CombinedOutput()

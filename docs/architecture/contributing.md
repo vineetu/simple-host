@@ -38,7 +38,7 @@ For a new route or tool, include these documentation changes:
 4. Update applicable llms.txt, skills and dashboard/showcase presentation.
    Skill edits require a plugin version bump and the sync script.
 5. Update FEATURES.md and CHANGELOG.md (newest first) for feature
-   changes (PARITY.md is frozen history since 2026-11-12). New public feature sections/bold leads also need a
+   changes. New public feature sections/bold leads also need a
    `static/features.json` row and regenerated `features.html`.
 
 Enforcement is specific: `scripts/check-features.sh` runs inventory checking

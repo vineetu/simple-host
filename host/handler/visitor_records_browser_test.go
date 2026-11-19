@@ -18,7 +18,7 @@ import (
 // the "each person's records" recipe, then waits for the script to finish:
 //
 //	VISITOR_RECORDS_FIXTURE=/tmp/fixture.json DB_DSN=... go test ./host/handler/ -run TestServeVisitorRecordsBrowser
-//	node scripts/e2e-visitor-records.mjs /tmp/fixture.json
+//	node scripts/e2e/e2e-visitor-records.mjs /tmp/fixture.json
 //
 // It is a fixture, not an assertion: the script asserts, then POSTs
 // /_fixture/stop. Skipped unless VISITOR_RECORDS_FIXTURE is set. Nothing here

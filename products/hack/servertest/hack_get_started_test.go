@@ -369,7 +369,7 @@ func TestHackGetStartedOnAnotherInstall(t *testing.T) {
 		return rec
 	}
 	hosted := page("https://simple-hack.app").Body.String()
-	for _, want := range []string{"<li>Install the five Simple Hack skills", "npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit", "with Google or an email code", "Yes. Running an event, joining, judging and hosting team sites are free."} {
+	for _, want := range []string{"<li>Install the five Simple Hack skills", "npx -y skills add https://github.com/vineetu/simple-host/tree/main/products/hack/webassets/hack-toolkit", "with Google or an email code", "Yes. Running an event, joining, judging and hosting team sites are free."} {
 		if !strings.Contains(hosted, want) {
 			t.Errorf("simple-hack.app page lacks %q", want)
 		}

@@ -40,7 +40,6 @@ func fixtureRepos(t *testing.T) (string, string) {
 		"- **2026-10-16. Simple Hack for companies is the Docker package, not Kubernetes.** Because one small server is enough.\n"+
 		"- an undated item ends the one before\n")
 	write(host, "docs/FEATURES.md", "# FEATURES\n\n## 1. Sites and deploy\n\nDeploy a tarball.\n\n### Archive upload\n\nUpload a static site archive through a one-time link.\n")
-	write(host, "PARITY.md", parity)
 	write(host, "CHANGELOG.md", "# Changelog\n\n## 2026-10-16: Simple Hack for companies\n\n- Company sign-in.\n- A /companies page\n  with a film.\n\n## 2026-09-01: Old\n\n- Old thing.\n")
 	write(host, "products/hack/webassets/static/hack-llms.txt", "Simple Hack (https://simple-hack.app): hackathons for everyone.\n\nSimple Hack for companies: the self-hosted package.\n")
 	write(host, "docs/platforms/README.md", "# Where it runs\n\nThe small box needs a disk.\n")
@@ -113,8 +112,11 @@ func TestBuildParsesSources(t *testing.T) {
 	if len(b.Parity) != 3 || b.Parity[0].State != "gap_enterprise" || b.Parity[1].State != "same" || b.Parity[2].State != "different_on_purpose" {
 		t.Fatalf("parity rows: %+v", b.Parity)
 	}
-	if b.Parity[0].Date != "2026-10-14" || !b.ParityCopiesMatch {
-		t.Errorf("parity date %q, copies match %v", b.Parity[0].Date, b.ParityCopiesMatch)
+	if b.Parity[0].Date != "2026-10-14" {
+		t.Errorf("parity date %q", b.Parity[0].Date)
+	}
+	if Allowed("simple-host/PARITY.md") {
+		t.Error("the deleted simple-host PARITY.md is still allowlisted")
 	}
 	titles := map[string]Decision{}
 	for _, d := range b.Decisions {

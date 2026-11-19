@@ -137,7 +137,7 @@ Agreed with the owner on 2026-11-12. Source of truth for the refactor; where the
 Settled with the owner:
 
 - **Layers.** Platform = Simple Host. Add-ons = a secrets service and workers (none built now). Products = Simple Hack (built), travel and trainers (not built).
-- **Enterprise is frozen and comes back as add-ons.** Nobody uses it. Its separate repo is frozen and is not moved here during the refactor. After the split it is rebuilt in this repo as an organisation pack of add-ons: object storage for site files first, then company-only sign-in, audit log, access levels and teams, admin tooling. The refactor only shapes the storage layer so an object-storage backend can slot in later. The Host-vs-Enterprise parity rule and its check are removed; `PARITY.md` stays as history because other tooling reads it. Reason: a parity rule against a product nobody runs costs every change and protects no one.
+- **Enterprise is frozen and comes back as add-ons.** Nobody uses it. Its separate repo is frozen and is not moved here during the refactor. After the split it is rebuilt in this repo as an organisation pack of add-ons: object storage for site files first, then company-only sign-in, audit log, access levels and teams, admin tooling. The refactor only shapes the storage layer so an object-storage backend can slot in later. The Host-vs-Enterprise parity rule and its check are removed; `PARITY.md` was deleted from this repo on 2026-11-19 (owner decision); the frozen Enterprise repo keeps its copy, and the owner's knowledge base reads the table from there. Reason: a parity rule against a product nobody runs costs every change and protects no one.
 - **Self-hosting.** Docker Compose is the tested way; Kubernetes (Helm) is the second way, for organisations; an install on its own address is set up one way; self-hosters run documented upgrade steps.
 - **Roles.** The main session plans and orchestrates; Opus agents and Codex Sol build; Codex Astra reviews; no smaller models for build work.
 - **Impact tiers decide when the owner is involved.** Low (nothing visible changes) ships silently into a digest. Medium (visible, reversible) ships and is shown. High (sign-in, keys, permissions, account deletion, data that moves or cannot be undone, anything sent to other people, live web-server settings) waits for the owner's go. The tier follows what a change does, not only which files it touches.
@@ -572,7 +572,7 @@ Not doing: separate modules per product, a plugin framework, renamed tables, a q
   403, tools never listed), it only reads, it reuses the connector's OAuth with its own resource
   so its tokens and the public connector's are not interchangeable, and it stays out of public
   docs, llms.txt, Get started, the skills and the plugins. It is always current: rebuilt hourly
-  and after every hosted deploy from both repos' origin/main, so a change to PARITY.md or an
+  and after every hosted deploy from both repos' origin/main, so a change to FEATURES.md or an
   INTENT reaches it the same hour.
 - **2026-10-16. Tasks and outreach live in Linear.** The owner's Linear workspace (team "Simple
   hack", key SIM) tracks owner to-dos (projects "Simple Host" and "Simple Hack") and outreach to

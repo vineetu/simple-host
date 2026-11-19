@@ -26,7 +26,7 @@ const (
 // each repo's root. Nothing else is read: no .env, no config, no code.
 var allowlist = map[string][]string{
 	RepoHost: {
-		"INTENT.md", "docs/FEATURES.md", "PARITY.md", "CHANGELOG.md",
+		"INTENT.md", "docs/FEATURES.md", "CHANGELOG.md",
 		"host/webassets/static/llms.txt", "products/hack/webassets/static/hack-llms.txt",
 		"docs/designs/*.md", "docs/platforms/*.md", "docs/advanced/README.md",
 		"docs/history/*release*.md",
@@ -45,7 +45,7 @@ var sourceLabel = map[string]string{
 }
 
 var mustHave = map[string][]string{
-	RepoHost:       {"INTENT.md", "docs/FEATURES.md", "PARITY.md", "CHANGELOG.md"},
+	RepoHost:       {"INTENT.md", "docs/FEATURES.md", "CHANGELOG.md"},
 	RepoEnterprise: {"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md"},
 	RepoConsole:    {"INTENT.md", "FEATURES.md"},
 	RepoTravel:     {"INTENT.md", "REQUIREMENTS.md", "CHANGELOG.md"},
@@ -125,15 +125,12 @@ func Build(hostDir, enterpriseDir string, now time.Time, locals ...LocalSource) 
 	sort.SliceStable(b.Decisions, func(i, j int) bool { return b.Decisions[i].Date > b.Decisions[j].Date })
 	sort.SliceStable(b.Changes, func(i, j int) bool { return changeKey(b.Changes[i]) > changeKey(b.Changes[j]) })
 
-	hostParity, entParity := b.doc(RepoHost+"/PARITY.md"), b.doc(RepoEnterprise+"/PARITY.md")
-	if hostParity == nil {
-		return nil, errors.New("simple-host PARITY.md is missing")
-	}
-	b.Parity = parseParity(*hostParity)
+	// The parity table is the Enterprise repo's frozen record; readDocs has
+	// already refused a checkout without it (mustHave).
+	b.Parity = parseParity(*b.doc(parityDoc))
 	if len(b.Parity) == 0 {
 		return nil, errors.New("no rows found in PARITY.md's feature table")
 	}
-	b.ParityCopiesMatch = entParity != nil && docText(*hostParity) == docText(*entParity)
 	b.Products = buildProducts(b, versions)
 	if len(b.Decisions) == 0 || len(b.Changes) == 0 {
 		return nil, errors.New("no decisions or no changes parsed; the source layout changed")
@@ -516,6 +513,9 @@ func changeKey(c Change) string {
 	}
 	return c.Date
 }
+
+// parityDoc is the one document the parity table is read from.
+const parityDoc = RepoEnterprise + "/PARITY.md"
 
 // parseParity reads the four-column feature table of PARITY.md.
 func parseParity(d Doc) []ParityRow {

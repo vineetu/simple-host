@@ -19,7 +19,7 @@ import (
 // for the browser proof of storage presets on Simple Hack:
 //
 //	HACK_PRESETS_FIXTURE=/tmp/f.json DB_DSN=... go test ./products/hack/servertest/ -run TestServeHackPresetsBrowser
-//	node scripts/e2e-hack-presets.mjs /tmp/f.json
+//	node scripts/e2e/e2e-hack-presets.mjs /tmp/f.json
 //
 // A fixture, not an assertion: the script asserts, then POSTs /_fixture/stop.
 func TestServeHackPresetsBrowser(t *testing.T) {

@@ -899,9 +899,9 @@ async function seedAndCallHost({ instance: host, calls, usedNames, at }) {
   await at('me', 'GET', '/v1/me', { apiKey: owner });
   await at('me-keys', 'GET', '/v1/me/keys', { apiKey: owner });
 
-  // Site 1: deployed from a tarball (the repo's own sample-site.tar.gz),
+  // Site 1: deployed from a tarball (scripts/golden/sample-site.tar.gz),
   // then a second version through the JSON files API, then a passcode.
-  const tarball = readFileSync(path.join(REPO_ROOT, 'sample-site.tar.gz'));
+  const tarball = readFileSync(path.join(REPO_ROOT, 'scripts/golden/sample-site.tar.gz'));
   await at('site1-create-tarball', 'POST', '/v1/sites/site-one', {
     apiKey: owner,
     raw: tarball,
@@ -1205,7 +1205,7 @@ async function seedAndCallHack({ instance: hack, calls, namer, exact, usedNames,
   // Team Alpha's own site, deployed from the repo's sample tarball through
   // the event (its first deploy, so ?create=1), which is what lets its
   // entry above satisfy the one-video-or-a-live-site rule.
-  const tarball = readFileSync(path.join(REPO_ROOT, 'sample-site.tar.gz'));
+  const tarball = readFileSync(path.join(REPO_ROOT, 'scripts/golden/sample-site.tar.gz'));
   await at('team-a-site-deploy', 'PUT', `/v1/hack/events/${slug}/site?create=1`, {
     apiKey: participants[0],
     raw: tarball,

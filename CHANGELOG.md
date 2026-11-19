@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-19: Tidied the top of the repository, step 2. The Simple Hack skills install command now points at `products/hack/webassets/hack-toolkit` (the one copy of the skills; the root `hack-toolkit/` duplicate is gone), so copy the command from `/get-started` again if you saved the old one. `PARITY.md` and the key-value move rehearsal script are removed, and the browser scripts are under `scripts/e2e/` (C1-S2).
+
 2026-11-19: Tidied the top of the repository. `FEATURES.md` is now `docs/FEATURES.md`, the ChatGPT plugin source is `plugins/openai/`, the plugin download site is `docs/brand/host-toolkit/` and the MCPJam eval suites are under `scripts/mcpjam/evals/`. Nothing changes for people using the service (C1-S1).
 
 2026-11-19: Simple Host retired the WordPress and Squarespace export importer. You can still publish a site from a ZIP file or an archive upload link.

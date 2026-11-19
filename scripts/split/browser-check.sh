@@ -132,7 +132,7 @@ PY
     fi
 fi
 run() {
-    setsid timeout -k 30 1200 node "scripts/e2e-${runner}.mjs" "$@" &
+    setsid timeout -k 30 1200 node "scripts/e2e/e2e-${runner}.mjs" "$@" &
     node_pid=$!
     node_group=$node_pid
     wait "$node_pid"
