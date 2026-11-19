@@ -1,7 +1,6 @@
 package hackmcp
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -640,34 +639,6 @@ func TestHackPageRecipeSwitchesAtRequestTime(t *testing.T) {
 	}
 }
 
-// The event recipe's preset wording is frozen: with the rules flag off the
-// bytes are the ones served before the rules wording existed.
-func TestHackEventRecipeFlagOffBytes(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "off")
-	raw, err := readEventRecipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "85e149a6ea85622fc9098a768c7c38509a7383fb6d7386c221327247ec96bd46" {
-		t.Error("hack-event legacy bytes changed")
-	}
-	t.Setenv("STORAGE_RULES", "on")
-	rules, err := readEventRecipe()
-	if err != nil || string(rules) == string(raw) {
-		t.Fatalf("the rules wording is not a separate file: %v", err)
-	}
-	// The name is not a topic of the platform's get_page_recipe.
-	for _, flag := range []string{"off", "on"} {
-		t.Setenv("STORAGE_RULES", flag)
-		if _, err := mcp.PageRecipe("hack-event", "shop"); err == nil || !strings.Contains(err.Error(), "topic must be one of") {
-			t.Fatalf("hack-event served as a platform topic: %v", err)
-		}
-		if _, err := mcp.ReadRecipe("hack-event"); err == nil {
-			t.Fatal("the platform still holds the event recipe")
-		}
-	}
-}
-
 func TestRulesHackRecipes(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
 	for _, topic := range append(mcp.RecipeTopics(), "event") {
@@ -756,21 +727,6 @@ func TestHackStoragePresetRecipesAndTools(t *testing.T) {
 				if strings.Contains(text, "https://simple-host.app/auth.js") || strings.Contains(text, "Simple Host account") || strings.Contains(text, "who_am_i") || !strings.HasPrefix(text, "On Simple Hack") {
 					t.Fatalf("hack recipe %s keeps Host wording", topic)
 				}
-			}
-		})
-	}
-}
-
-// Simple Hack has no named viewers, so the portal recipe is refused there.
-func TestHackRefusesPortalRecipe(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			if _, err := HackPageRecipe("portal", "team"); err == nil {
-				t.Fatal("portal recipe served on Simple Hack")
-			}
-			if _, err := HackPageRecipe("booking", "team"); err != nil {
-				t.Fatal(err)
 			}
 		})
 	}

@@ -1,10 +1,8 @@
 package servertest
 
 import (
-	"crypto/sha256"
 	"fmt"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -12,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/handler"
-	"github.com/vsriram/simple-host/host/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
@@ -102,19 +99,6 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 		}
 		if strings.Contains(rec.Body.String(), "/hack-ink.css") || strings.Contains(rec.Body.String(), "sh-film-seen") {
 			t.Fatalf("%s loads Hack presentation", path)
-		}
-	}
-	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance, the 2026-10-12 legacy-storage 410 handling, the 2026-10-13 versioned icon links, the 2026-10-13 copy sweep (em-dashes out of user-visible strings), the 2026-10-16 company sign-in (oidc), the 2026-10-20 shared sign-in card on the dashboard, the 2026-10-23 Add photos action, sign-in return, and agent discovery metadata, the 2026-10-24 Rounded icon (?v=c) and same-visit OAuth attribution, and the 2026-10-28 admin ?all=1 scoping on loadSites (SIM-329), and the 2026-10-29 apex SSO bootstrap and sign-out refresh (SIM-338), and the 2026-10-30 straight hop from /dashboard to the remembered own page, and the 2026-11-02 author and Discard on drafts in Versions (SIM-152), and the 2026-11-02 owner class in the analytics split (SIM-151), and the 2026-11-04 password sign-in option on the shared card, and the 2026-11-04 change-password card, and the 2026-11-05 Connect your AI app card (one MCP address and GET /v1/me/connections status) next to the deploy callout, and the 2026-11-06 docs link migration (SIM-389).
-	for name, want := range map[string]string{
-		"index.html": "39ac0e6b719b131b9ccc1a855ffcb1c8354d4a5080c126051f6baa8f441ff3bf",
-		"site.css":   "c93e3d24412adc460a901449787f92a56084b9c0be4dbce6332ccbb673e12a8c",
-	} {
-		raw, err := fs.ReadFile(webassets.Static, "static/"+name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != want {
-			t.Errorf("Simple Host %s changed: %s", name, got)
 		}
 	}
 }

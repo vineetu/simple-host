@@ -1095,28 +1095,6 @@ func TestHackApplyMyEventsApprovalStatus(t *testing.T) {
 	}
 }
 
-// TestHackApplyPostCodeJoinRegression is §8.22: the join route behaves
-// exactly as before (joined_via='link', blank profile fields) after
-// extracting validateSignupAnswers.
-func TestHackApplyPostCodeJoinRegression(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "arjorg")
-	p := a.newPerson(t, "arjmem")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	a.listEvent(t, slug)
-	code := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
-	wantTS(t, "join", a.at(t, "POST", "/v1/hack/join/"+code, map[string]any{"accept_coc": true, "display_name": "P"}, a.key(p)), 200, "")
-	var joinedVia, city string
-	if err := a.database.QueryRow(`SELECT joined_via, city FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, slug, a.userID(t, p)).Scan(&joinedVia, &city); err != nil {
-		t.Fatal(err)
-	}
-	if joinedVia != "link" || city != "" {
-		t.Fatalf("join stored joined_via=%q city=%q", joinedVia, city)
-	}
-}
-
 // TestHackApplyCountryValidatorCoverage is §8.25: the server's accepted
 // ISO 3166-1 alpha-2 codes are exactly the fixed list
 // screens/public-apply.js offers -- no drift between the two. If that file

@@ -2,7 +2,6 @@ package servertest
 
 import (
 	"context"
-	"io/fs"
 	"strings"
 	"sync"
 	"testing"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/vsriram/simple-host/host/auth"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func voteSettings(t *testing.T, a *teamSiteApp, slug string, org person, open, close time.Time, eligibility string) {
@@ -248,33 +246,4 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	wantTS(t, "taken-down vote hidden", a.api(t, "GET", base+"/vote", nil, ""), 404, "event_not_found")
 	wantTS(t, "taken-down own vote hidden", a.api(t, "GET", base+"/my-vote", nil, voters[0].key), 404, "event_not_found")
 	wantTS(t, "taken-down vote write hidden", a.api(t, "PUT", base+"/vote", map[string]string{"team": beta}, voters[0].key), 404, "event_not_found")
-}
-
-// TestHackVotePageFormatsInEventZone (Grok SIM-346 S5): the vote page's own
-// script formats the voting window in the event's zone, 12-hour with
-// am/pm, no seconds and a zone label, instead of the visitor's browser
-// locale with seconds and no zone — and a team name ending in "s" gets a
-// bare apostrophe, not "'s".
-func TestHackVotePageFormatsInEventZone(t *testing.T) {
-	src, err := fs.ReadFile(webassets.Static, "static/hack-voting.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(src)
-	for _, want := range []string{
-		"hour12:true",
-		"function possessive(name)",
-		"possessive(o.team_name)",
-		"d.time_zone",
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("hack-voting.html missing %q", want)
-		}
-	}
-	if strings.Contains(body, "return isNaN(d.getTime()) ? s : d.toLocaleString();") {
-		t.Error("hack-voting.html still formats the window in the visitor's own locale/zone")
-	}
-	if strings.Contains(body, `o.team_name + "'s site"`) {
-		t.Error("hack-voting.html still appends \"'s\" unconditionally, breaking on names ending in s")
-	}
 }

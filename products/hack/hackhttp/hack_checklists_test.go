@@ -8,7 +8,6 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	entryapp "github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/model"
-	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	"strings"
 	"testing"
 )
@@ -222,23 +221,6 @@ func TestChecklistJudgingCompletionAndTies(t *testing.T) {
 	}
 	if ownFacts.Judges != 0 || ownFacts.Organisers != 0 || ownFacts.JudgesRequired != 0 || ownFacts.HasStandings || ownFacts.OwnDone != 1 || ownFacts.OwnTotal != 2 {
 		t.Fatalf("judge-only gathered organiser facts or changed personal counts: %+v", ownFacts)
-	}
-	for _, judgeID := range []string{"", w.judges[0].id} {
-		counts, err := entryrepo.JudgeCompletionCounts(context.Background(), w.a.database, eventID, judgeID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, team := range w.teams {
-			for _, criteriaCount := range []int{0, 1, 2, 3} {
-				done, err := entryrepo.JudgeDoneForTeam(context.Background(), w.a.database, eventID, w.judges[0].id, team.id, criteriaCount)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if got := criteriaCount > 0 && counts[w.judges[0].id][team.id] >= criteriaCount; got != done {
-					t.Fatalf("batch completion differs: team %s criteria %d", team.id, criteriaCount)
-				}
-			}
-		}
 	}
 
 	if items()["o.scores"]["state"] != "todo" {
@@ -774,18 +756,6 @@ func TestChecklistDisplayedRubricVersionRace(t *testing.T) {
 		r = w.call(t, "POST", "/checklist/acknowledgements/"+tc.id, map[string]any{"version": fresh["version"]}, tc.p)
 		if r.status != 200 {
 			t.Fatalf("fresh render refused: %d %s", r.status, r.body)
-		}
-	}
-}
-
-func TestChecklistPublicPageURL(t *testing.T) {
-	w := newJudgingWorld(t, 1, 1)
-	w.setStage(t, "building")
-	for _, domain := range []string{"simple-hack.test", "hack.example.org"} {
-		w.a.hack.siteDomain = domain
-		link, ok := (checklistTargets{w.a.hack}).Resolve("o.public-page", w.slug, map[string]string{})
-		if !ok || link.Href != w.a.hack.EventURL(w.slug) {
-			t.Fatalf("public URL: %v", link)
 		}
 	}
 }

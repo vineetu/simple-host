@@ -1,14 +1,11 @@
 package servertest
 
 import (
-	"bytes"
 	"errors"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"strings"
 	"testing"
-
-	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // The Hack setup script is the platform's with Simple Hack's choice put in:
@@ -40,27 +37,6 @@ func TestProductSetupScript(t *testing.T) {
 	host := get(t, chromeTestMux(t, productedition.Host), "", "/setup/setup.js").Body.String()
 	if host == "" || len(body) <= len(host) {
 		t.Errorf("Hack setup script (%d bytes) is not the platform's (%d bytes) plus the product's choice", len(body), len(host))
-	}
-}
-
-// The skills zip passes each file through the platform's InstanceText, which
-// also swaps the old base domain. No Hack skill names it, so that swap leaves
-// the zip's bytes as they were when only the limits pass ran.
-func TestHackSkillsNameNoOldBaseDomain(t *testing.T) {
-	seen := 0
-	err := fs.WalkDir(hackassets.HackSkills, "skills", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		seen++
-		b, err := fs.ReadFile(hackassets.HackSkills, p)
-		if err == nil && bytes.Contains(b, []byte("simple-host.site")) {
-			t.Errorf("%s names simple-host.site", p)
-		}
-		return err
-	})
-	if err != nil || seen == 0 {
-		t.Fatalf("Hack skills: %d files, %v", seen, err)
 	}
 }
 

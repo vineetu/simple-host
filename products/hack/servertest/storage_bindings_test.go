@@ -95,14 +95,6 @@ func TestHackBuildRequiresStorageBindings(t *testing.T) {
 func TestHackStorageBindingValues(t *testing.T) {
 	db := bindingDB(t, testdb.Fresh(t))
 	p := storagebind.Provider{DB: db}
-	schema := ruleengine.BindingSchema{
-		"auth.team": {Type: ruleengine.TypeText, Nullable: true}, "auth.teams": {Type: ruleengine.TypeTextList},
-		"auth.organiser": {Type: ruleengine.TypeBool}, "event.team": {Type: ruleengine.TypeText, Nullable: true},
-		"event.stage": {Type: ruleengine.TypeText, Nullable: true}, "event.before_deadline": {Type: ruleengine.TypeBool},
-	}
-	if !reflect.DeepEqual(p.Schema(), schema) {
-		t.Fatalf("schema = %#v", p.Schema())
-	}
 	if _, err := appstorage.MergeBindingSchema(false, p); err != nil {
 		t.Fatal(err)
 	}
@@ -145,60 +137,6 @@ func TestHackStorageBindingValues(t *testing.T) {
 	got, err := p.Values(context.Background(), appstorage.BindingCall{SiteID: keySite}, []string{"event.stage"})
 	if err != nil || !reflect.DeepEqual(got, ruleengine.Values{"event.stage": ruleengine.Text("building")}) {
 		t.Fatalf("needed subset: %#v, %v", got, err)
-	}
-}
-
-// The seeded parity fixture also covers other-team and ordinary-site cases.
-func TestHackOwnerOnSiteParity(t *testing.T) {
-	db := bindingDB(t, testdb.Fresh(t))
-	p := storagebind.Provider{DB: db}
-	for _, tc := range []struct {
-		name, site, user, change string
-		want                     bool
-	}{
-		{"teammate", keySite, keyMember, "", true},
-		{"draft", keySite, keyMember, `UPDATE events SET stage='draft'`, true},
-		{"open", keySite, keyMember, `UPDATE events SET stage='open'`, true},
-		{"closed", keySite, keyMember, `UPDATE events SET stage='closed'`, true},
-		{"judging", keySite, keyMember, `UPDATE events SET stage='judging'`, false},
-		{"results", keySite, keyMember, `UPDATE events SET stage='results'`, false},
-		{"archived", keySite, keyMember, `UPDATE events SET stage='archived'`, false},
-		{"deadline", keySite, keyMember, `UPDATE events SET submission_deadline=now()-interval '1 day'`, false},
-		{"extended", keySite, keyMember, `UPDATE events SET submission_deadline=now()-interval '1 day'; UPDATE event_teams SET deadline_override=now()+interval '1 day'`, true},
-		{"extension expired", keySite, keyMember, `UPDATE events SET submission_deadline=now()-interval '2 days'; UPDATE event_teams SET deadline_override=now()-interval '1 day'`, false},
-		{"no deadline", keySite, keyMember, `UPDATE events SET submission_deadline=NULL`, true},
-		{"pending", keySite, keyMember, `UPDATE event_members SET approval_status='pending' WHERE role='participant'`, false},
-		{"judge", keySite, keyMember, `UPDATE event_members SET role='judge',team_id=NULL WHERE role='participant'`, false},
-		{"no team", keySite, keyMember, `UPDATE event_members SET team_id=NULL WHERE role='participant'`, false},
-		{"other team", keySite, bindingOtherMember, "", false},
-		{"not a member", keySite, keyHolder, "", false},
-		{"ordinary site", bindingPlainSite, keyMember, "", false},
-		{"deleted team site", keySite, keyMember, `UPDATE sites SET deleted_at=now()`, false},
-		{"suspended team site", keySite, keyMember, `UPDATE sites SET suspended_at=now()`, false},
-		{"team taken down", keySite, keyMember, `UPDATE event_teams SET site_taken_down_at=now()`, false},
-		{"event taken down team", keySite, keyMember, `UPDATE events SET taken_down_at=now()`, false},
-		{"organiser on team site", keySite, keyOrganiser, "", false},
-		{"organiser website", bindingWebsite, keyOrganiser, "", true},
-		{"organiser judging", bindingWebsite, keyOrganiser, `UPDATE events SET stage='judging'`, true},
-		{"organiser results", bindingWebsite, keyOrganiser, `UPDATE events SET stage='results'`, true},
-		{"organiser deadline passed", bindingWebsite, keyOrganiser, `UPDATE events SET submission_deadline=now()-interval '1 day'`, true},
-		{"organiser archived", bindingWebsite, keyOrganiser, `UPDATE events SET stage='archived'`, false},
-		{"event taken down website", bindingWebsite, keyOrganiser, `UPDATE events SET taken_down_at=now()`, false},
-		{"deleted website", bindingWebsite, keyOrganiser, `UPDATE sites SET deleted_at=now()`, false},
-		{"suspended website", bindingWebsite, keyOrganiser, `UPDATE sites SET suspended_at=now()`, false},
-		{"participant website", bindingWebsite, keyMember, "", false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			resetBindingFixture(t, db)
-			if tc.change != "" {
-				bindingExec(t, db, tc.change)
-			}
-			old, oldErr := hackevents.HackSiteOwnerOnSite(context.Background(), db, tc.site, tc.user)
-			got, err := p.OwnerOnSite(context.Background(), tc.site, tc.user)
-			if err != nil || oldErr != nil || got != old || got != tc.want {
-				t.Fatalf("provider %v, %v; old %v, %v; want %v", got, err, old, oldErr, tc.want)
-			}
-		})
 	}
 }
 

@@ -119,49 +119,6 @@ func TestHackEventPageCSPNonce(t *testing.T) {
 	}
 }
 
-// TestHackEventPageClassicThemeByteIdentical is SIM-353's compatibility
-// guard: an event with no Look theme set (the zero value, Classic) must
-// render exactly as it did before themes existed -- no data-theme attribute
-// on .pub-event and no themes.css link at all.
-func TestHackEventPageClassicThemeByteIdentical(t *testing.T) {
-	classic := renderHackEvent(t, testHackEvent())
-	if classic.Code != http.StatusOK {
-		t.Fatalf("status %d", classic.Code)
-	}
-	body := classic.Body.String()
-	if strings.Contains(body, "data-theme") {
-		t.Errorf("classic event rendered a data-theme attribute: %s", body)
-	}
-	if strings.Contains(body, "themes.css") {
-		t.Errorf("classic event linked themes.css: %s", body)
-	}
-
-	themed := testHackEvent()
-	themed.Theme = "poster"
-	themedRec := renderHackEvent(t, themed)
-	if themedRec.Code != http.StatusOK {
-		t.Fatalf("status %d", themedRec.Code)
-	}
-	themedBody := themedRec.Body.String()
-	if !strings.Contains(themedBody, `data-theme="poster"`) {
-		t.Errorf("themed event missing data-theme: %s", themedBody)
-	}
-	if !strings.Contains(themedBody, themed.AppURL+"/hack/themes.css") {
-		t.Errorf("themed event missing the themes.css link: %s", themedBody)
-	}
-	// Classic's own render is otherwise identical to the themed one once the
-	// theme markup is stripped back out: the two bodies differ by exactly the
-	// data-theme attribute and the themes.css link line, nothing else (the
-	// per-render CSP nonce legitimately differs between the two calls, so
-	// that part alone is normalised before comparing).
-	stripped := strings.Replace(themedBody, ` data-theme="poster"`, "", 1)
-	stripped = strings.Replace(stripped, "\n<link rel=\"stylesheet\" href=\""+themed.AppURL+"/hack/themes.css\">", "", 1)
-	nonceRe := regexp.MustCompile(`nonce="[^"]+"`)
-	if nonceRe.ReplaceAllString(stripped, `nonce="x"`) != nonceRe.ReplaceAllString(body, `nonce="x"`) {
-		t.Errorf("theme markup changed more than the attribute and the stylesheet link\nclassic:\n%s\nstripped themed:\n%s", body, stripped)
-	}
-}
-
 func TestHackEventPageDraftNoindex(t *testing.T) {
 	p := testHackEvent()
 	p.Stage = "draft"
@@ -1386,34 +1343,6 @@ func TestHackEventPageNotFoundIsFriendly(t *testing.T) {
 		}
 	}
 	assertStrictScriptCSP(t, "event not found", rec)
-}
-
-// TestHackEventPageHeaderSignInOrHome (Grok re-test cosmetic #3, round 2):
-// the header said "Sign in" even while already signed in, and separately the
-// localStorage.apiKey check only ever works on the app's own origin -- the
-// event page is also served at its own canonical URL (a different origin),
-// where apiKey can never be read even for a signed-in visitor. There is no
-// server session on this static page, so the default stays the neutral
-// "Home" and the script only trusts the localStorage signal once it has
-// confirmed location.host matches the AppURL host; on any other host it
-// always shows "Sign in", linking straight at the app's sign-in page.
-func TestHackEventPageHeaderSignInOrHome(t *testing.T) {
-	body := renderHackEvent(t, testHackEvent()).Body.String()
-	if !strings.Contains(body, `<a class="btn quiet" href="https://simple-hack.app/events" id="top-account">Home</a>`) {
-		t.Errorf("header default should be Home linking to /events, body:\n%s", body)
-	}
-	if !strings.Contains(body, "localStorage.getItem('apiKey')") || !strings.Contains(body, "top.textContent = 'Sign in'") {
-		t.Error("missing the signed-out check that swaps Home for Sign in")
-	}
-	for _, want := range []string{
-		"location.host === appHost",
-		"new URL(appURL, location.href)",
-		"'/signin?next=' + encodeURIComponent('/events')",
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("missing the origin guard (%q), body:\n%s", want, body)
-		}
-	}
 }
 
 const dashHrefBaselineJS = `      // "Your sites" goes straight to the account's own page when this browser

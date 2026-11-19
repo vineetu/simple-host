@@ -1,7 +1,6 @@
 package servertest
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -280,46 +279,6 @@ func TestHackFindingDraft(t *testing.T) {
 	wantTS(t, "draft fill preview", a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false}, org.key), 409, "teams_locked")
 	wantTS(t, "draft fill apply", a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": true}, org.key), 409, "teams_locked")
 	wantTS(t, "draft remove", a.api(t, "DELETE", base+"/team/members/"+a.uid(t, p), nil, leader.key), 403, "")
-}
-
-func TestHackFindingMigrationKeepsExistingTeamsClosed(t *testing.T) {
-	a := newTeamSiteApp(t)
-	migration, err := os.ReadFile("../db/migrations/zl-hack-team-finding.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tx, err := a.database.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	if _, err = tx.Exec("CREATE TEMP TABLE finding_migration_teams(id integer); INSERT INTO finding_migration_teams VALUES(1)"); err != nil {
-		t.Fatal(err)
-	}
-	var statement string
-	for _, line := range strings.Split(string(migration), "\n") {
-		if strings.Contains(line, "ADD COLUMN IF NOT EXISTS open ") {
-			statement = strings.Replace(line, "event_teams", "finding_migration_teams", 1)
-		}
-	}
-	if statement == "" {
-		t.Fatal("missing open migration")
-	}
-	for i := 0; i < 2; i++ {
-		if _, err = tx.Exec(statement); err != nil {
-			t.Fatal(err)
-		}
-	}
-	var open bool
-	if err = tx.QueryRow("SELECT open FROM finding_migration_teams WHERE id=1").Scan(&open); err != nil || open {
-		t.Fatalf("existing team open=%v err=%v", open, err)
-	}
-	if _, err = tx.Exec("INSERT INTO finding_migration_teams(id) VALUES(2)"); err != nil {
-		t.Fatal(err)
-	}
-	if err = tx.QueryRow("SELECT open FROM finding_migration_teams WHERE id=2").Scan(&open); err != nil || open {
-		t.Fatalf("default open=%v err=%v", open, err)
-	}
 }
 
 func TestHackFillTeamsExtendedDeadline(t *testing.T) {

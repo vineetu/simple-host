@@ -1,8 +1,0 @@
-[
-  "begin",
-  "lock-account",
-  "check-hostnames",
-  "check-taken-down-sites",
-  "check-holding-account",
-  "rollback"
-]

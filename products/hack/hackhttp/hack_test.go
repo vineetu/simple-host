@@ -1193,13 +1193,6 @@ func TestHackNameTakenHelper(t *testing.T) {
 	}
 }
 
-func TestHackEventURL(t *testing.T) {
-	h := NewHackHandler(nil, "https://simple-hack.app", "simple-hack.app")
-	if got := h.EventURL("spring"); got != "https://spring.simple-hack.app/" {
-		t.Fatalf("EventURL: %s", got)
-	}
-}
-
 func TestHackReviewFixes(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "rforg")

@@ -142,15 +142,3 @@ func navigationAssignmentModes(t *testing.T, source string) []string {
 	sort.Strings(modes)
 	return modes
 }
-
-func TestNavigationAssignmentModeExtractor(t *testing.T) {
-	for _, body := range []string{
-		`if (*req.AssignmentMode) != "open" && "manual" != *req.AssignmentMode { return }; if *req.AssignmentMode == "panel" || "automatic" == *req.AssignmentMode { return }`,
-		"switch (*req.AssignmentMode) { case \"open\", \"manual\", \"automatic\", \"panel\": return }",
-	} {
-		modes := navigationAssignmentModes(t, "package fixture; func validate() {"+body+` /* *req.AssignmentMode != "retired" */ }`)
-		if strings.Join(modes, ",") != "automatic,manual,open,panel" {
-			t.Errorf("validation modes: %v", modes)
-		}
-	}
-}

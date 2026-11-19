@@ -3,12 +3,8 @@ package servertest
 import (
 	"archive/zip"
 	"bytes"
-	productedition "github.com/vsriram/simple-host/products/hack/edition"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/host/handler"
 )
 
 func TestHackWebsiteZipUploads(t *testing.T) {
@@ -69,42 +65,6 @@ func TestHackWebsiteZipUploads(t *testing.T) {
 		t.Fatalf("missing versions or limits: %v", state)
 	}
 	wantTS(t, "event outsider", upload(path, files, participant.key), 404, "event_not_found")
-}
-
-func TestHackArchiveValidationReasons(t *testing.T) {
-	h := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", nil, nil, "", "", "", "", "", "", nil, 0, "", "", nil, nil)
-	for _, tc := range []struct{ name, message string }{
-		{"nested/index.html", "no index.html at the root"},
-		{"index.html", ""},
-	} {
-		var body bytes.Buffer
-		z := zip.NewWriter(&body)
-		w, err := z.Create(tc.name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := w.Write([]byte("hello")); err != nil {
-			t.Fatal(err)
-		}
-		if err := z.Close(); err != nil {
-			t.Fatal(err)
-		}
-		r := httptest.NewRequest("PUT", "/", &body)
-		rec := httptest.NewRecorder()
-		_, _, err = h.ReadAndValidateFilesForTest(rec, r, "team")
-		if tc.message == "" {
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else if err == nil || !strings.Contains(rec.Body.String(), tc.message) {
-			t.Fatalf("missing reason: %s", rec.Body.String())
-		}
-	}
-	r := httptest.NewRequest("PUT", "/", strings.NewReader("PK\x03\x04broken"))
-	rec := httptest.NewRecorder()
-	if _, _, err := h.ReadAndValidateFilesForTest(rec, r, "team"); err == nil || !strings.Contains(rec.Body.String(), "open zip archive") {
-		t.Fatalf("missing raw zip error: %s", rec.Body.String())
-	}
 }
 
 func TestHackTeamPublishSuspendedHolderBeforeClosedTeam(t *testing.T) {

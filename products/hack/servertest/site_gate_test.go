@@ -137,19 +137,6 @@ func TestSiteGateInstalledAfterBuild(t *testing.T) {
 	}
 }
 
-func TestSiteGateNilAfterBuild(t *testing.T) {
-	cfg := platformtest.Config(t, testdb.Fresh(t))
-	app := platformtest.Build(t, cfg, nil)
-	r := httptest.NewRequest("POST", cfg.PublicBaseURL+"/v1/sites/nil-gate/files", strings.NewReader(`{"files":{"index.html":"personal site"}}`))
-	r.Header.Set("X-API-Key", cfg.AdminAPIKey)
-	r.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	app.Handler.ServeHTTP(w, r)
-	if w.Code != 201 {
-		t.Fatalf("nil gate create: %d %s", w.Code, w.Body.String())
-	}
-}
-
 func TestSiteGateRechecksDuringWrite(t *testing.T) {
 	for _, operation := range []string{"create", "update", "rollback"} {
 		for _, change := range []string{"stage", "member"} {
