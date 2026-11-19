@@ -15,8 +15,8 @@ func TestStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {
 	roots := []string{
 		"simple-host-website/skills/website-deploy",
 		"simple-host-website/skills/website-deploy-builder",
-		"../../openai-plugin/skills/website-deploy",
-		"../../openai-plugin/skills/website-deploy-builder",
+		"../../plugins/openai/skills/website-deploy",
+		"../../plugins/openai/skills/website-deploy-builder",
 		"../../plugins/simple-host/skills/website-deploy",
 		"../../plugins/simple-host/skills/website-deploy-builder",
 	}
@@ -32,7 +32,7 @@ func TestStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {
 		}
 	}
 	paths = append(paths,
-		"../../openai-plugin/skills/website-deploy/references/storage.md",
+		"../../plugins/openai/skills/website-deploy/references/storage.md",
 	)
 	choice := regexp.MustCompile("(?i)(?:presets?\\s+`(?:public|inbox|wall|comments|records|personal|board|private|custom)`|`(?:public|inbox|wall|comments|records|personal|board|private|custom)`\\s+preset|\"preset\"\\s*:)")
 	legacyChoice := regexp.MustCompile("(?i)(?:\\bread[\"`]?\\s*[:=]\\s*[\"`\\\\]*(?:own|owner|anyone|signed-in)\\b|whole.resource.{0,40}polic(?:y|ies)|(?:independent|separate|resource.wide).{0,40}read.{0,10}write.{0,10}polic(?:y|ies)|`read`/`write` policy)")
@@ -57,7 +57,7 @@ func TestStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {
 	}
 	for _, path := range []string{
 		"simple-host-website/skills/website-deploy/references/storage.md",
-		"../../openai-plugin/skills/website-deploy/references/storage.md",
+		"../../plugins/openai/skills/website-deploy/references/storage.md",
 	} {
 		data, err := os.ReadFile(path)
 		if err != nil {

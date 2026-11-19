@@ -39,7 +39,7 @@ func fixtureRepos(t *testing.T) (string, string) {
 		"- **2026-10-14. Visitors may post without signing in where the owner opts in, spam-checked by\n  Cloudflare Turnstile.** A comments preset. Reason: anonymous posting, never home-built.\n"+
 		"- **2026-10-16. Simple Hack for companies is the Docker package, not Kubernetes.** Because one small server is enough.\n"+
 		"- an undated item ends the one before\n")
-	write(host, "FEATURES.md", "# FEATURES\n\n## 1. Sites and deploy\n\nDeploy a tarball.\n\n### Archive upload\n\nUpload a static site archive through a one-time link.\n")
+	write(host, "docs/FEATURES.md", "# FEATURES\n\n## 1. Sites and deploy\n\nDeploy a tarball.\n\n### Archive upload\n\nUpload a static site archive through a one-time link.\n")
 	write(host, "PARITY.md", parity)
 	write(host, "CHANGELOG.md", "# Changelog\n\n## 2026-10-16: Simple Hack for companies\n\n- Company sign-in.\n- A /companies page\n  with a film.\n\n## 2026-09-01: Old\n\n- Old thing.\n")
 	write(host, "products/hack/webassets/static/hack-llms.txt", "Simple Hack (https://simple-hack.app): hackathons for everyone.\n\nSimple Hack for companies: the self-hosted package.\n")
@@ -409,14 +409,14 @@ func TestParseDocFeatureAnchors(t *testing.T) {
 		"### Import\n", "### Import <a id=\"import\"></a>\n",
 		"**Multiline\n", "**Multiline <a id=\"multiline\"></a>\n",
 	).Replace(plain)
-	want := parseDoc("simple-host/FEATURES.md", RepoHost, plain)
-	got := parseDoc("simple-host/FEATURES.md", RepoHost, anchored)
+	want := parseDoc("simple-host/docs/FEATURES.md", RepoHost, plain)
+	got := parseDoc("simple-host/docs/FEATURES.md", RepoHost, anchored)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("feature anchors changed parsed content: got %+v, want %+v", got, want)
 	}
 	for _, fence := range []string{"```", "~~~"} {
 		example := fence + "html\n## Literal heading\nexample <a id=\"literal\"></a>\n" + fence
-		doc := parseDoc("simple-host/FEATURES.md", RepoHost, example)
+		doc := parseDoc("simple-host/docs/FEATURES.md", RepoHost, example)
 		var text []string
 		for _, s := range doc.Sections {
 			text = append(text, s.Text)

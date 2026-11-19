@@ -20,14 +20,14 @@
 #       The skills-only "Website Deploy Toolkit" listing (package
 #       website-deploy-toolkit): plugin.json, assets/ and the connector-only OpenAI skills. Each skill declares the existing Simple
 #       Host MCP connection as a dependency; there is no bundled MCP manifest. Its
-#       plugin.json is openai-plugin/plugin.json renamed, with copy that does
+#       plugin.json is plugins/openai/plugin.json renamed, with copy that does
 #       not promise a connector.
 #
 # Every check the portal documents for the package is run here first, so a
 # failure shows up on this box rather than as a portal error code.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-SRC=openai-plugin
+SRC=plugins/openai
 OUT=dist
 mkdir -p "$OUT"
 

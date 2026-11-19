@@ -241,7 +241,7 @@ and `apps/bundlegen/bundle.go:esbuildVersion`; it is not a floating CLI.
 | Hack screens, `hack/kit.css`, MCP entries/adapters | `products/hack/mcp/apps/hack-{judge,organiser}-bundle.js`, `hack-{judge,organiser}-kit.css` | `go run ./products/hack/mcp/apps/gentool` | `products/hack/mcp`: `TestHackJudgeBundleFresh`, `TestHackOrganiserBundleFresh` |
 | `static/openapi.yaml`, product `openapi.part.yaml` | Platform JSON, product JSON/YAML and internal contract | `make inventory` | `scripts/check-docs-sync.sh`, parsed YAML/JSON equality |
 | `static/features.json`, `scripts/features-page.tmpl.html` | `static/features.html` | `python3 scripts/build-features-page.py` | `scripts/check-features-page.py` |
-| `web/analytics-parse.js` | Marked script blocks in `index.html`, `showcase.html`, `analytics.html` | `bash scripts/inline-analytics-parser.sh` | `--check` plus Node parser fixtures in docs-sync |
+| `host/webassets/analytics-parse.js` | Marked script blocks in `index.html`, `showcase.html`, `analytics.html` | `bash scripts/inline-analytics-parser.sh` | `--check` plus Node parser fixtures in docs-sync |
 | `host/webassets/simple-host-website/skills`, plugin manifest | `plugins/simple-host/skills` and synced manifest version | `bash scripts/sync-claude-plugin.sh` | `scripts/check-claude-plugin.sh` |
 | HTTP registrations, MCP registry, FEATURES placement | `docs/generated/{routes.md,mcp-tools.md,inventory.json}` | `make inventory` | `go run ./scripts/inventory check` |
 

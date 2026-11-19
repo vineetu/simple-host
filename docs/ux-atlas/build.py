@@ -58,7 +58,7 @@ def main():
     unknown = sorted(placed - {x["id"] for x in feats})
     noproto = [s["id"] for s in screens if s["id"] + ".html" not in files]
     print(f"{len(screens)} screens, {len(files)} prototype views, {len(feats)} features")
-    with open(os.path.join(HERE, "../../FEATURES.md")) as f:
+    with open(os.path.join(HERE, "../FEATURES.md")) as f:
         anchors = set(re.findall(r'<a id="([a-z0-9]+(?:-[a-z0-9]+)*)"></a>', f.read()))
     badrefs = [x["id"] for x in feats if x.get("feature") not in anchors]
     failed = False

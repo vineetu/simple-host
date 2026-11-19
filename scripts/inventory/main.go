@@ -106,7 +106,7 @@ func run(args []string) error {
 		}
 		return nil
 	}
-	features, err := os.ReadFile("FEATURES.md")
+	features, err := os.ReadFile("docs/FEATURES.md")
 	if err != nil {
 		return err
 	}

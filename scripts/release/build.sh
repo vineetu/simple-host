@@ -234,13 +234,13 @@ case $command in
     verify_native_binaries
     build_install_assets
 
-    mkdir -p "$stage/scripts" "$stage/host-claude" "$stage/hack-toolkit"
+    mkdir -p "$stage/scripts" "$stage/host-claude" "$stage/hack-toolkit" "$stage/plugins"
     cp scripts/build-openai-plugin.sh "$stage/scripts/"
-    cp -a openai-plugin "$stage/"
+    cp -a plugins/openai "$stage/plugins/"
     git archive --format=tar HEAD:plugins/simple-host | tar -x -C "$stage/host-claude"
     kit=products/hack/webassets/hack-toolkit
     cp -a "$kit"/{build.py,metadata,skills,CLAUDE-README.md,SUBMISSION.md} "$stage/hack-toolkit/"
-    python3 - "$version" "$stage/openai-plugin/plugin.json" "$stage/host-claude/.claude-plugin/plugin.json" \
+    python3 - "$version" "$stage/plugins/openai/plugin.json" "$stage/host-claude/.claude-plugin/plugin.json" \
       "$stage/hack-toolkit/metadata/"{listing,claude-plugin}.json <<'PY'
 import json
 from pathlib import Path

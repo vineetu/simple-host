@@ -10,7 +10,7 @@ import (
 
 // A site passcode (handler/passcode.go): one tool per operation, so each
 // carries its own annotations (the OpenAI scan asks for this). The
-// justifications are in openai-plugin/SUBMISSION.md.
+// justifications are in plugins/openai/SUBMISSION.md.
 
 const passcodeNotLogin = "It is a shared passcode, not a login: anyone given it can open the site and pass it on, and it does not make saved data private per person."
 

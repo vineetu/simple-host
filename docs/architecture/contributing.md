@@ -1,7 +1,7 @@
 # Contributor tests and deployment
 
 Read [CLAUDE.md](../../CLAUDE.md), [INTENT.md](../../INTENT.md),
-[FEATURES.md](../../FEATURES.md) and [ARCHITECTURE.md](../../ARCHITECTURE.md)
+[FEATURES.md](../FEATURES.md) and [ARCHITECTURE.md](../../ARCHITECTURE.md)
 before changing code. CLAUDE.md remains the working rules; this guide maps
 them to the current checks and deployment layouts. It does not authorize a
 deployment. Use the [deployment profiles](../operations/deployment-profiles.md)

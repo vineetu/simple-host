@@ -15,7 +15,7 @@ func TestSubmissionToolsMatchChatGPTListing(t *testing.T) {
 		t.Fatalf("ChatGPT lists %d tools, want 57", len(listed))
 	}
 
-	data, err := os.ReadFile("../../openai-plugin/chatgpt-app-submission.json")
+	data, err := os.ReadFile("../../plugins/openai/chatgpt-app-submission.json")
 	if err != nil {
 		t.Fatal(err)
 	}

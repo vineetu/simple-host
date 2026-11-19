@@ -33,7 +33,7 @@ ALLOWED_PREFIXES = (
     "/install.html", "/docs/", "/pricing", "/photos", "/hackathons", "/enterprise",
     "/costs", "/setup", "/terms", "/privacy.html", "/support", "/report", "/recipes/",
     "/llms.txt", "/auth.md", "/architecture.html", "/skills/",
-    "https://simple-hack.app/", "https://github.com/vineetu/simple-host/blob/main/FEATURES.md",
+    "https://simple-hack.app/", "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md",
 )
 EDITION_VALUES = {"yes", "no", "partial", "planned"}
 STATUS_VALUES = {"live", "flag", "planned", "deprecated"}
@@ -41,7 +41,7 @@ REQUIRED = ("id", "name", "line", "how", "editions", "status", "covers")
 TEXT_FIELDS = ("name", "line", "who", "how", "example", "where", "limits", "editions_note", "status_note")
 
 
-def parse_features_md(path="FEATURES.md"):
+def parse_features_md(path="docs/FEATURES.md"):
     """Numbered sections and bold leads, keyed by their stable anchor IDs."""
     sections, leads = {}, {}
     cur = None

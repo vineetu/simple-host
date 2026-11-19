@@ -295,7 +295,7 @@ func TestCreateAndUpdateSite(t *testing.T) {
 }
 
 // Every tool states all three hints the plugin directory reviews, and the
-// values are the ones justified in openai-plugin/SUBMISSION.md.
+// values are the ones justified in plugins/openai/SUBMISSION.md.
 func TestAnnotationsMatchBehaviour(t *testing.T) {
 	type hints struct{ readOnly, destructive, openWorld bool }
 	want := map[string]hints{

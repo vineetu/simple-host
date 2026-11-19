@@ -166,12 +166,12 @@ echo
 # divergence breaks something, which is this.
 echo "== inlined analytics parser =="
 if bash scripts/inline-analytics-parser.sh --check; then
-  echo "  ok — both pages carry web/analytics-parse.js verbatim"
+  echo "  ok — both pages carry host/webassets/analytics-parse.js verbatim"
 else
   fail=1
 fi
 if command -v node >/dev/null 2>&1; then
-  if out=$(node web/analytics-parse.test.js 2>&1); then
+  if out=$(node host/webassets/analytics-parse.test.js 2>&1); then
     echo "  ok — $(tail -n1 <<<"$out") parser fixture tests"
   else
     echo "$out" | sed 's/^/  /'
@@ -188,7 +188,7 @@ fi
 # TestAuthJSBases in host/handler).
 echo "== auth.js picks the API address =="
 if command -v node >/dev/null 2>&1; then
-  if out=$(node web/auth-base.test.js 2>&1); then
+  if out=$(node host/webassets/auth-base.test.js 2>&1); then
     echo "  ok — $(tail -n1 <<<"$out" | sed 's/^# //')"
   else
     echo "$out" | sed 's/^/  /'
@@ -260,7 +260,7 @@ fi
 # "until" or "pending". run-hackathon is exempt — event instances keep the path
 # model on sites.<their-domain>/<handle>/<project>/.
 echo "== docs use the site address =="
-canon_docs=(host/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" host/webassets/static/*.html openai-plugin/skills host/mcp/instructions.go host/mcp/outputs.go host/mcp/tools.go )
+canon_docs=(host/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" host/webassets/static/*.html plugins/openai/skills host/mcp/instructions.go host/mcp/outputs.go host/mcp/tools.go )
 old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
 offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
   | grep -v '^host/webassets/simple-host-website/skills/run-hackathon/' \
@@ -330,7 +330,7 @@ required += ['/v1/skills/' + name + '/SKILL.md' for name in ['run-hackathon', 'j
 for url in required:
     assert (url, True) in parsed.links, f'{url} missing from collapsed other installs'
 assert all(other for url, other in parsed.links if url.startswith('/v1/skills/')), 'Skill reading belongs under other installs'
-for doc in ['README.md', 'FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'host/webassets/static/llms.txt']:
+for doc in ['README.md', 'docs/FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'host/webassets/static/llms.txt']:
     if doc != 'host/webassets/static/llms.txt':
         assert '/get-started' in Path(doc).read_text(), f'{doc} must describe hosted onboarding'
 print('  ok — five-skill install command, onboarding docs and tucked-away downloads agree')

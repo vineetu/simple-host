@@ -161,7 +161,7 @@ Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contra
 
 - [CLAUDE.md](CLAUDE.md): working rules, build, test and deploy.
 - [INTENT.md](INTENT.md): what it is for, and decisions with dates.
-- [FEATURES.md](FEATURES.md): every feature and every surface it touches.
+- [FEATURES.md](docs/FEATURES.md): every feature and every surface it touches.
 - [ARCHITECTURE.md](ARCHITECTURE.md): components, request flow, data model.
 - [CHANGELOG.md](CHANGELOG.md): what changed, newest first.
 - `make check`: format, build, vet, tests (including the DB-backed fixtures, against a

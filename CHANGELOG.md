@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-19: Tidied the top of the repository. `FEATURES.md` is now `docs/FEATURES.md`, the ChatGPT plugin source is `plugins/openai/`, the plugin download site is `docs/brand/host-toolkit/` and the MCPJam eval suites are under `scripts/mcpjam/evals/`. Nothing changes for people using the service (C1-S1).
+
 2026-11-19: Simple Host retired the WordPress and Squarespace export importer. You can still publish a site from a ZIP file or an archive upload link.
 
 2026-11-18: Version 0.9.0. One release version now covers both programs, both charts and the Simple Hack install download; the separate platform (`v0.7.22`) and Hack (`hack-v0.8.20`) release families end. `simple-host` is the platform alone and `simple-hack` is the platform plus Simple Hack, both built from one `v0.9.0` tag. Install fresh: there is no upgrade path from an earlier release. Storage uses row rules, and presets end on hosted Simple Host on 17 December 2026. Key-value data lives in one file per site. A backup and restore script ships. The static file server ships switched off and is not for production use yet. The Railway, Render, Fly and Coolify recipes still install the earlier platform release. Release notes: `docs/releases/v0.9.0.md` (D4-S11v).

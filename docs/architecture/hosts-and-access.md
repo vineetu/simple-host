@@ -126,7 +126,7 @@ Hack team uses a separately scoped credential; legacy and chat-facing credential
 Reviewer password sign-in is off unless configured (`handler/reviewer.go`);
 `cmd/server/reviewaccount.go` manages its account/hash commands. The OpenAI domain challenge is also
 configured-only (`handler/openaichallenge.go:RegisterOpenAIAppsChallenge`). Instance asset hostname
-rewriting is `handler/instancehost.go`; `openai-plugin/` contains the ChatGPT package.
+rewriting is `handler/instancehost.go`; `plugins/openai/` contains the ChatGPT package.
 
 ### Apex SSO and site sessions
 

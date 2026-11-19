@@ -26,7 +26,7 @@ const (
 // each repo's root. Nothing else is read: no .env, no config, no code.
 var allowlist = map[string][]string{
 	RepoHost: {
-		"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md",
+		"INTENT.md", "docs/FEATURES.md", "PARITY.md", "CHANGELOG.md",
 		"host/webassets/static/llms.txt", "products/hack/webassets/static/hack-llms.txt",
 		"docs/designs/*.md", "docs/platforms/*.md", "docs/advanced/README.md",
 		"docs/history/*release*.md",
@@ -45,7 +45,7 @@ var sourceLabel = map[string]string{
 }
 
 var mustHave = map[string][]string{
-	RepoHost:       {"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md"},
+	RepoHost:       {"INTENT.md", "docs/FEATURES.md", "PARITY.md", "CHANGELOG.md"},
 	RepoEnterprise: {"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md"},
 	RepoConsole:    {"INTENT.md", "FEATURES.md"},
 	RepoTravel:     {"INTENT.md", "REQUIREMENTS.md", "CHANGELOG.md"},

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Simple Host plugin 1.0.1: create a new ChatGPT plugin</title>
+<style>
+:root{--bg:#f6f7f9;--surface:#fff;--text:#15181d;--muted:#5a6270;--line:#e1e5eb;--accent:#0b7ea3;--accent-ink:#fff;--code:#eef1f5;--warn:#fff6e0;--warn-line:#e8cf8a;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--surface:#161a21;--text:#eef1f5;--muted:#9aa3b0;--line:#272d37;--accent:#4fc3e8;--accent-ink:#06222c;--code:#1d222b;--warn:#2a2414;--warn-line:#5c4b1e;color-scheme:dark}}
+*{box-sizing:border-box}html,body{overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px 64px}
+main{max-width:760px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+h1{font-size:clamp(28px,5vw,38px);line-height:1.15;margin:0}
+h2{font-size:22px;margin:24px 0 0;padding-top:20px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:8px 0 0}h4{font-size:16px;margin:0 0 8px}
+p{margin:0}.muted{color:var(--muted)}
+a{color:var(--accent)}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font:14px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.status{background:var(--warn);border:1px solid var(--warn-line);border-radius:10px;padding:12px 16px}
+a.btn{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;padding:18px 20px;border-radius:12px;text-decoration:none;font-weight:700;font-size:19px;background:var(--accent);color:var(--accent-ink)}
+a.btn small{font-weight:400;font-size:14px;opacity:.9}
+a.sbtn{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--text)}
+a.sbtn small{font-weight:400;color:var(--muted)}
+.dl{display:grid;gap:10px}
+ol,ul{margin:0;padding-left:22px;display:grid;gap:6px}
+.field{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:grid;gap:6px}
+.fh{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.val{margin:0;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;background:none;padding:0}
+.note{font-size:13px;color:var(--muted)}
+button.copy{font:600 13px/1 inherit;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer;text-transform:none;letter-spacing:0}
+button.copy.done{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.fields,.case{display:grid;gap:10px}.case{padding-top:6px}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.shots figure{margin:0;display:grid;gap:4px}.shots img{width:100%;height:auto;border:1px solid var(--line);border-radius:8px}
+.shots figcaption{font-size:13px;color:var(--muted)}
+.icons{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+video{width:100%;border-radius:10px;border:1px solid var(--line)}
+</style></head><body><main>
+<h1>Simple Host plugin 1.0.1</h1>
+<p class="status"><b>Status:</b> this is a <b>new</b> ChatGPT plugin, package <code>simple-host</code>. The old draft, package <code>app-6ab570c7e41c81918c88f0026f2e1895</code>, cannot gain an MCP server through a package upload; the portal says so directly ("create a new plugin"). The old draft is left alone; it does not block this one. Everything else carries over unchanged: the connector, the three skills, the reviewer account, and the test cases below.</p>
+
+<a class="btn" href="downloads/simple-host-openai-plugin-new.zip" download>Download Simple Host plugin 1.0.1 <small>ZIP, built 2026-10-29, for the new plugin</small></a>
+<p class="muted">plugin.json, the MCP connection (https://simple-host.app/mcp), three skills (website-deploy, website-deploy-builder, connect-domain), and the icons. The package name is <code>simple-host</code>, version <code>1.0.1</code>.</p>
+
+<h2>Create a new plugin</h2>
+<ol>
+<li>Open <a href="https://platform.openai.com/plugins">platform.openai.com/plugins</a> and choose <b>Create plugin</b>, then <b>With MCP</b>. Package name <code>simple-host</code> (must match the ZIP's plugin.json).</li>
+<li>Upload the ZIP above as the plugin package. If its Skills tab asks for skills only, upload the <a href="downloads/simple-host-openai-skills.zip" download>skills ZIP</a> there instead.</li>
+<li>Connect the MCP server, <code>https://simple-host.app/mcp</code>. When it asks you to sign in, choose "Reviewer sign-in" and use the account <b>openai-review@simple-host.app</b> (password: on the server, <code>sudo cat /root/simple-host-reviewer-password</code>, never on this page), then Allow. Verify the domain if the portal shows a new challenge token.</li>
+<li>Choose Scan Tools. Expect 58 tools, each with an output schema, and no UI templates.</li>
+<li>Fill in the listing fields below (copy buttons alongside each).</li>
+<li>In the Testing tab, either paste the cases below or upload <a href="downloads/chatgpt-app-submission.json" download>chatgpt-app-submission.json</a> in the "Use Codex" box. It holds the app info, all 58 tools with their three justifications, and the test cases.</li>
+<li>Paste the release notes, confirm the attestations, and choose Submit for Review. After approval, choose Publish.</li>
+</ol>
+<p class="muted">The old draft, <code>app-6ab570c7e41c81918c88f0026f2e1895</code>, needs nothing further. It stays as is; abandoning it does not affect this new plugin.</p>
+
+<h2>Info tab</h2>
+<div class="fields">
+<div class="field"><div class="fh"><span>Package name</span><button type="button" class="copy">Copy</button></div><p class="val">simple-host</p><p class="note">The portal assigns the package name when you create the plugin; it must match plugin.json.</p></div>
+<div class="field"><div class="fh"><span>Version</span><button type="button" class="copy">Copy</button></div><p class="val">1.0.1</p></div>
+<div class="field"><div class="fh"><span>Display name</span><button type="button" class="copy">Copy</button></div><p class="val">Simple Host</p><p class="note">30 characters at most.</p></div>
+<div class="field"><div class="fh"><span>Subtitle (short description)</span><button type="button" class="copy">Copy</button></div><p class="val">Host and manage your websites</p><p class="note">30 characters at most.</p></div>
+<div class="field"><div class="fh"><span>Description (long)</span><button type="button" class="copy">Copy</button></div><pre class="val">Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.
+
+Each site can save key-value data (KV), SQLite tables, and files. Access presets control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.
+
+Update site files, preview a saved version, or restore an earlier version. The four latest site versions are kept by default, and deleted sites can be restored for 7 days. Current storage stays until you delete it or its site; it does not have automatic 30-day change history.
+
+Connect your own domain with HTTPS or choose a short name.simple-host.app address. Manage who can open a site, read visitor counts and top pages, and download a copy of your site.
+
+Connect your Simple Host account through the app's sign-in flow. You can revoke the connection from the Simple Host dashboard. Simple Host is open source, made and run by Vineet Sriram.</pre><p class="note">Under 4,000 characters.</p></div>
+<div class="field"><div class="fh"><span>Capabilities</span><button type="button" class="copy">Copy</button></div><pre class="val">Publish websites, each at its own public address
+Edit, rename, preview, roll back, and delete your sites
+Save bookings, quote requests, waitlists, and orders
+Choose who can read and add saved data, with simple presets
+Let visitors sign in so each person sees only their own records
+Lock a site with a passcode or open it only to named people
+Connect your own domain or a short name.simple-host.app address
+See visitors, top pages, and where they came from
+Download a copy of any site</pre><p class="note">One per line in the portal.</p></div>
+<div class="field"><div class="fh"><span>Developer name</span><button type="button" class="copy">Copy</button></div><p class="val">Vineet Sriram</p><p class="note">Must match the verified individual and the OpenAI organization name.</p></div>
+<div class="field"><div class="fh"><span>Category</span><button type="button" class="copy">Copy</button></div><p class="val">Productivity</p></div>
+<div class="field"><div class="fh"><span>Website URL</span><button type="button" class="copy">Copy</button></div><p class="val">https://simple-host.app/</p></div>
+<div class="field"><div class="fh"><span>Privacy policy URL</span><button type="button" class="copy">Copy</button></div><p class="val">https://simple-host.app/privacy.html</p></div>
+<div class="field"><div class="fh"><span>Terms of service URL</span><button type="button" class="copy">Copy</button></div><p class="val">https://simple-host.app/terms</p></div>
+<div class="field"><div class="fh"><span>Support URL</span><button type="button" class="copy">Copy</button></div><p class="val">https://simple-host.app/support</p><p class="note">The page lists support@simple-host.app. If the portal asks for an email, use support@simple-host.app.</p></div>
+<div class="field"><div class="fh"><span>Support email</span><button type="button" class="copy">Copy</button></div><p class="val">support@simple-host.app</p></div>
+<div class="field"><div class="fh"><span>Logo and composer icon</span></div><div class="icons"><img src="downloads/simple-host-icon-48.png" width="48" height="48" alt="Simple Host icon"><a href="downloads/simple-host-icon-512.png" download>Logo, 512 by 512 PNG</a><a href="downloads/simple-host-icon-48.png" download>Icon, 48 by 48 PNG</a></div><p class="note">Both are also inside the plugin ZIP under assets/.</p></div>
+</div>
+
+<h2>MCP tab</h2>
+<div class="fields">
+<div class="field"><div class="fh"><span>MCP server URL</span><button type="button" class="copy">Copy</button></div><p class="val">https://simple-host.app/mcp</p></div>
+<div class="field"><div class="fh"><span>Authentication</span></div><p class="val">OAuth. ChatGPT registers itself (dynamic client registration with PKCE), so there is nothing to paste. Domain verification is per plugin: the new plugin shows its own challenge token even though the domain was already verified for the old draft.</p></div>
+<div class="field"><div class="fh"><span>Demo account email</span><button type="button" class="copy">Copy</button></div><p class="val">openai-review@simple-host.app</p></div>
+<div class="field"><div class="fh"><span>Demo account password</span></div><p class="val">Not on this page. On the server: <code>sudo cat /root/simple-host-reviewer-password</code></p></div>
+<div class="field"><div class="fh"><span>Sign-in instructions for the reviewer</span><button type="button" class="copy">Copy</button></div><pre class="val">Connect the Simple Host app. In the sign-in window that opens, choose &quot;Reviewer sign-in&quot;, enter the demo email and password, choose Sign in, then Allow. There is no email code, SMS, or MFA. The account holds sample sites with sample data: pickle-shop (an online pickle shop with 4 orders) and feedback-survey (a customer survey with 8 responses), at https://&lt;site&gt;.openai-review.simple-host.app/.</pre></div>
+</div>
+
+<h2>Prompts tab</h2>
+<div class="fields">
+<div class="field"><div class="fh"><span>Starter prompt 1</span><button type="button" class="copy">Copy</button></div><p class="val">Put the page we made online on Simple Host.</p></div>
+<div class="field"><div class="fh"><span>Starter prompt 2</span><button type="button" class="copy">Copy</button></div><p class="val">Update the opening hours on my existing site.</p></div>
+<div class="field"><div class="fh"><span>Starter prompt 3</span><button type="button" class="copy">Copy</button></div><p class="val">Show the saved entries from my garden party RSVP site.</p></div>
+</div>
+
+<h2>Testing tab</h2>
+<p class="muted">Five positive and three negative cases. The demo account sites are at <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>.</p>
+<div class="fields">
+<div class="case"><h4>Positive 1. Put a one-page site online as a new site.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Put a one-page website online for my bakery, Rise and Shine, as a new site named rise-and-shine. It should list our opening hours: Monday to Friday 7 to 3, Saturday 8 to 1.</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">create_site</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Says the site name and address and that anyone with the link can open it, waits for a yes, then calls create_site once and returns the live https://rise-and-shine.&lt;handle&gt;.simple-host.app/ address. The page shows the bakery name and hours. No photo, notification, or identity calls, and no emails in the result.</p></div>
+</div>
+<div class="case"><h4>Positive 2. Update the seeded feedback survey and undo the requested change.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">On feedback-survey, change the heading to &quot;Tell us how we did&quot;. Then, in the same chat: Undo that change.</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">get_site, read_site_file, update_site, list_versions, rollback_site</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">The survey shows the requested heading. After confirmation of the rollback, the previous version restores the original heading. No account or visitor emails are returned.</p></div>
+</div>
+<div class="case"><h4>Positive 3. Read only the requested order details from the seeded pickle shop.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Show the orders saved by pickle-shop, including items, totals, and status.</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">storage_sql_query</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Queries only items, total_cents, and status in the orders resource and returns the four seeded orders. No customer names, contacts, emails, or unrelated records are returned, and nothing is changed.</p></div>
+</div>
+<div class="case"><h4>Positive 4. Count RSVPs without identifying visitors.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">How many RSVPs do I have on garden-party-rsvp?</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">storage_sql_query</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Returns COUNT(*) from the rsvps table in the rsvps resource, matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i or storage_visitor_emails.</p></div>
+</div>
+<div class="case"><h4>Positive 5. Visitor numbers without per-visitor detail.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">How many people visited feedback-survey this week, and which pages did they read?</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">site_analytics</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Returns visit totals, daily counts, and top pages for feedback-survey. The result has no IP addresses, locations of individuals, emails, or visitor identifiers. Nothing is changed.</p></div>
+</div>
+<div class="case"><h4>Negative 1. Brainstorming does not authorize hosting or account access.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Help me brainstorm names for my new hair salon.</p></div>
+<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Answers in chat with name ideas. Does not call any Simple Host tool or publish anything.</p></div>
+</div>
+<div class="case"><h4>Negative 2. An uploaded server application is outside the hosting service.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Deploy my Node.js API with a Postgres database to production.</p></div>
+<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Explains that Simple Host serves static files and its built-in storage; it does not run your own server code. No deployment occurs. Offers to discuss a static frontend if useful.</p></div>
+</div>
+<div class="case"><h4>Negative 3. Summarizing an unrelated external website is outside the connector.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Summarize what is on https://example.com for me.</p></div>
+<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Explains that Simple Host does not retrieve arbitrary external pages. Makes no Simple Host call and does not direct another connector to run.</p></div>
+</div>
+</div>
+
+<h2>Release notes</h2>
+<div class="fields">
+<div class="field"><div class="fh"><span>Release notes</span><button type="button" class="copy">Copy</button></div><pre class="val">First release of Simple Host as a new plugin, replacing the app-6ab570c7e41c81918c88f0026f2e1895 listing that the portal will not let gain an MCP server. Same connector, skills, and reviewer tests: publish and manage websites, with saved data, visitor sign-in, custom domains, and visitor counts.</pre></div>
+</div>
+
+<h2>Screenshots</h2>
+<p class="muted">The ChatGPT portal accepts screenshots only from apps whose MCP server returns UI, and Simple Host returns none, so upload none there. These are current shots of the live product for any other form that asks.</p>
+<div class="shots">
+<figure><a href="shots/shop-1280.png"><img src="shots/shop-1280.png" width="1280" height="800" alt="Brine and Barrel pickle shop with an order panel" loading="lazy"></a><figcaption>Pickle shop with orders (demo account)</figcaption></figure>
+<figure><a href="shots/restaurant-1280.png"><img src="shots/restaurant-1280.png" width="1280" height="800" alt="Sri Meenakshi Idly Corner restaurant home page" loading="lazy"></a><figcaption>Restaurant with menu and group orders</figcaption></figure>
+<figure><a href="shots/home-1280.png"><img src="shots/home-1280.png" width="1280" height="800" alt="simple-host.app home page" loading="lazy"></a><figcaption>simple-host.app home page</figcaption></figure>
+<figure><a href="shots/get-started-1280.png"><img src="shots/get-started-1280.png" width="1280" height="800" alt="Get started page listing ChatGPT, Claude, Grok, GitHub Copilot, and coding agents" loading="lazy"></a><figcaption>Get started</figcaption></figure>
+</div>
+
+<h2>Demo recording</h2>
+<p class="muted">Recorded 2026-10-03 in ChatGPT: a pottery shop built and published from one request, then its orders read back (2:26). Use its link if the portal asks for a demo video.</p>
+<video src="downloads/simple-host-demo.mp4" controls playsinline preload="metadata"></video>
+<p><a href="downloads/simple-host-demo.mp4">downloads/simple-host-demo.mp4</a></p>
+
+<h2>What changed since September</h2>
+<ul>
+<li>The connector works on the free plans of ChatGPT, Claude, and Grok.</li>
+<li>In ChatGPT, people add Simple Host from the <a href="https://chatgpt.com/plugins">Plugins page</a>: Add, then Add custom MCP server, name it Simple Host, paste https://simple-host.app/mcp, save, sign in, and choose Allow.</li>
+<li>Saved data uses KV, SQLite, and file storage with access presets. Each preset sets who may read, add, edit, and delete: public, inbox, wall, comments, records, personal, board, and private. With comments, anyone posts to a guestbook, comment thread, or reviews without signing in, after a Cloudflare Turnstile spam check, and the owner can approve each post first. The get_page_recipe tool returns working page code for bookings, waitlists, client portals, menus, orders, guestbooks, and other everyday jobs.</li>
+<li>The older saved-data routes (state, collections, and declared data) closed to new sites on 2026-10-12. Sites created before then keep working.</li>
+<li>Sites can have a passcode or open only to the people the owner names, and every person can pick a site as their home page.</li>
+<li>simple-host.app names its owner, Vineet Sriram, in the footer and on the Privacy and Support pages.</li>
+</ul>
+
+<h2>Earlier packages</h2>
+<div class="dl">
+<a class="sbtn" href="downloads/website-deploy-toolkit-0.9.17.zip" download>Website Deploy Toolkit 0.9.17 <small>2026-10-09, skills only, no MCP</small></a>
+</div>
+</main>
+<script>
+document.querySelectorAll("button.copy").forEach(function(b){b.addEventListener("click",function(){var v=b.closest(".field").querySelector(".val").textContent;navigator.clipboard.writeText(v).then(function(){b.textContent="Copied";b.classList.add("done");setTimeout(function(){b.textContent="Copy";b.classList.remove("done")},1500)})})});
+</script>
+</body></html>

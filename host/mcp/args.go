@@ -39,7 +39,7 @@ func str(description string) map[string]any {
 //   - destructiveHint: true when the tool can delete or overwrite something,
 //     in any mode or through its defaults, even if a copy can be restored.
 //
-// The justification for each tool's values is in openai-plugin/SUBMISSION.md;
+// The justification for each tool's values is in plugins/openai/SUBMISSION.md;
 // keep the two in step.
 
 // readOnly is a lookup in the person's own account.

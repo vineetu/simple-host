@@ -90,7 +90,7 @@ jobs:
             2. Read .docs-sync/check.log: it lists what the docs check found. Fix what lives in docs/site
                (task guides under docs/site/src/content/docs, areas.json, old-anchors.json). The API, MCP tool,
                self-hosting and changelog pages are generated at build time; do not hand-write them.
-            3. See what changed recently: `git log -n 20 --stat -- FEATURES.md CHANGELOG.md host/webassets/static host/mcp docs`.
+            3. See what changed recently: `git log -n 20 --stat -- docs/FEATURES.md CHANGELOG.md host/webassets/static host/mcp docs`.
                Update the task guide for each changed feature: plain words, the same structure as the existing
                pages, no sections about what is missing. Simple Host pages must never mention Simple Hack; keep
                Hack-only text inside brand:hack blocks or hack-only pages.

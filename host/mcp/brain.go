@@ -212,7 +212,7 @@ func BrainTools(q BrainQuery) []Tool {
 		brainTool("get_doc", "Read a source document",
 			"Read one source document, or one section of it, by the path the other tools return (for example simple-host/INTENT.md, or simple-host/PARITY.md#feature-table). Only the documents this server was built from can be read. A long document comes back shortened with its outline; then ask for a section.",
 			object(map[string]any{
-				"path":    str("Document path such as simple-host/FEATURES.md; a #section suffix is accepted."),
+				"path":    str("Document path such as simple-host/docs/FEATURES.md; a #section suffix is accepted."),
 				"section": str("Section id or heading, optional."),
 			}, "path"),
 			outObject(map[string]any{

@@ -3,7 +3,7 @@
 
 The OpenAI directory asks for "a fully featured demo account that includes
 sample data". This signs in as the reviewer account (the same email+password
-the reviewer will use), publishes every site under openai-plugin/demo-sites/,
+the reviewer will use), publishes every site under plugins/openai/demo-sites/,
 and saves the sample RSVPs, survey responses and orders from seed.json into
 them, so list_sites, site_analytics and storage_sql_query have something
 real to show.
@@ -36,7 +36,7 @@ import json, os, pathlib, sys, urllib.error, urllib.parse, urllib.request
 
 BASE = os.environ.get("BASE", "https://simple-host.app").rstrip("/")
 EMAIL, PASSWORD = os.environ["REVIEW_EMAIL"], os.environ["REVIEW_PASSWORD"]
-ROOT = pathlib.Path(__file__).resolve().parent.parent / "openai-plugin" / "demo-sites"
+ROOT = pathlib.Path(__file__).resolve().parent.parent / "plugins" / "openai" / "demo-sites"
 
 
 def _pickle_shop_orders(row):

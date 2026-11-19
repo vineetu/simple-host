@@ -1,6 +1,6 @@
 # Architecture
 
-A current map of the binary, request paths and package boundaries. Read [FEATURES.md](FEATURES.md)
+A current map of the binary, request paths and package boundaries. Read [FEATURES.md](docs/FEATURES.md)
 for behavior and [INTENT.md](INTENT.md) for product decisions. The focused guides under
 [docs/architecture/](docs/architecture/) explain domain state, persistence, frontend and contribution.
 [Target architecture](docs/architecture/target.md) gives the implemented dependency contract and where to add a feature.
@@ -229,7 +229,7 @@ single allowlisted platform product-table query. See [persistence](docs/architec
 
 `cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools; `host/server/reviewaccount.go`
 manages reviewer accounts. `handler/instancehost.go` rewrites instance hostnames in assets.
-`openai-plugin/` is the Host ChatGPT package; Hack owns its bundles under
+`plugins/openai/` is the Host ChatGPT package; Hack owns its bundles under
 `products/hack/webassets/hack-toolkit/`. `deploy/` holds proxy,
 issuer and deployment templates; `scripts/` holds checks/generators/ops. Website skills live in
 `host/webassets/simple-host-website/`, with generated plugin copies; frontend sources, embeds and generated
@@ -268,7 +268,7 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
 | Hosted/systemd, Compose and Kubernetes layouts | [Deployment profiles](docs/operations/deployment-profiles.md) |
 | Settings and full generated reference | [Configuration](docs/configuration.md), [advanced settings](docs/advanced/) |
 | Exact endpoint/tool registrations | [Routes](docs/generated/routes.md), [MCP tools](docs/generated/mcp-tools.md) |
-| Behavior and product constraints | [FEATURES](FEATURES.md), [INTENT](INTENT.md) |
+| Behavior and product constraints | [FEATURES](docs/FEATURES.md), [INTENT](INTENT.md) |
 
 ## Invariants and traps
 

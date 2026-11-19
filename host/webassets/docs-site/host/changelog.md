@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** Tidied the top of the repository. `FEATURES.md` is now `docs/FEATURES.md`, the ChatGPT plugin source is `plugins/openai/`, the plugin download site is `docs/brand/host-toolkit/` and the MCPJam eval suites are under `scripts/mcpjam/evals/`. Nothing changes for people using the service (C1-S1).
+
 - **Nov 19:** Simple Host retired the WordPress and Squarespace export importer. You can still publish a site from a ZIP file or an archive upload link.
 
 - **Nov 17:** Fix interrupted Compose upgrade recovery, nonroot maintenance-lock ownership and private atomic configuration publication. Preserve environment substitutions and the original service set across retries; resume incomplete first installations and their release recording (D4-S10a review).

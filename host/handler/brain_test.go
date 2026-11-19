@@ -29,10 +29,10 @@ func brainFixture(t *testing.T) string {
 		"| Archive upload (2026-10-14) | `create_upload_link` | Not built | `gap → enterprise` |\n"
 	files := map[string]map[string]string{
 		"host": {
-			"INTENT.md":    "# INTENT\n\n## What this is, and why it exists\n\nSimple Host hosts sites.\n\n## Non-goals\n\n- Server code.\n\n## Decisions already made\n\n- **2026-10-14. Comments use Cloudflare Turnstile.** Never home-built.\n",
-			"FEATURES.md":  "# FEATURES\n\n## 1. Sites\n\n### Archive upload\n\nPublishes a site archive.\n",
-			"PARITY.md":    parity,
-			"CHANGELOG.md": "# Changelog\n\n## 2026-10-16: Brain\n\n- Owner knowledge.\n",
+			"INTENT.md":        "# INTENT\n\n## What this is, and why it exists\n\nSimple Host hosts sites.\n\n## Non-goals\n\n- Server code.\n\n## Decisions already made\n\n- **2026-10-14. Comments use Cloudflare Turnstile.** Never home-built.\n",
+			"docs/FEATURES.md": "# FEATURES\n\n## 1. Sites\n\n### Archive upload\n\nPublishes a site archive.\n",
+			"PARITY.md":        parity,
+			"CHANGELOG.md":     "# Changelog\n\n## 2026-10-16: Brain\n\n- Owner knowledge.\n",
 		},
 		"ent": {
 			"INTENT.md":    "# INTENT\n\n## What this is, and why it exists\n\nEnterprise.\n\n## Decisions already made\n\n- **2026-10-15. Muse.** Because.\n",
@@ -44,7 +44,7 @@ func brainFixture(t *testing.T) string {
 	for repo, fs := range files {
 		dir := filepath.Join(root, repo)
 		for name, body := range fs {
-			if err := os.MkdirAll(dir, 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
 				t.Fatal(err)
 			}
 			if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {

@@ -137,7 +137,7 @@ func TestAuthJSBases(t *testing.T) {
 		{"https://recipes.brand.com/", "https://recipes.brand.com/v1/sites/recipes/me"},
 	})
 	run := func(file string) (string, error) {
-		out, err := exec.Command("node", filepath.Join("..", "..", "web", "auth-base.test.js"), file, string(cases)).CombinedOutput()
+		out, err := exec.Command("node", filepath.Join("..", "webassets", "auth-base.test.js"), file, string(cases)).CombinedOutput()
 		return string(out), err
 	}
 	if out, err := run(write("patched.js", patched)); err != nil {
@@ -149,7 +149,7 @@ func TestAuthJSBases(t *testing.T) {
 		t.Fatalf("unpatched auth.js passed the moving-base cases:\n%s", out)
 	}
 	// Today's cases, as written.
-	if out, err := exec.Command("node", filepath.Join("..", "..", "web", "auth-base.test.js")).CombinedOutput(); err != nil {
+	if out, err := exec.Command("node", filepath.Join("..", "webassets", "auth-base.test.js")).CombinedOutput(); err != nil {
 		t.Fatalf("auth.js as written:\n%s", out)
 	}
 }
@@ -197,7 +197,7 @@ func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
 		// A two-level host (no "--") is unaffected.
 		{"https://alpha.weekend.simple-host.app/", "https://alpha.weekend.simple-host.app/v1/sites/alpha/me"},
 	})
-	out, err := exec.Command("node", filepath.Join("..", "..", "web", "auth-base.test.js"), p, string(cases)).CombinedOutput()
+	out, err := exec.Command("node", filepath.Join("..", "webassets", "auth-base.test.js"), p, string(cases)).CombinedOutput()
 	if err != nil {
 		t.Fatalf("patched auth.js:\n%s", out)
 	}
@@ -208,7 +208,7 @@ func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
 	rawCases, _ := json.Marshal([][2]string{
 		{"https://alpha--weekend.simple-host.app/", "https://alpha--weekend.simple-host.app/v1/sites/alpha/me"},
 	})
-	if out, err := exec.Command("node", filepath.Join("..", "..", "web", "auth-base.test.js"), rawPath, string(rawCases)).CombinedOutput(); err == nil || !strings.Contains(string(out), "not ok 1 ") {
+	if out, err := exec.Command("node", filepath.Join("..", "webassets", "auth-base.test.js"), rawPath, string(rawCases)).CombinedOutput(); err == nil || !strings.Contains(string(out), "not ok 1 ") {
 		t.Fatalf("unpatched auth.js passed the flat-host case (the bug this patch fixes):\n%s", out)
 	}
 }
