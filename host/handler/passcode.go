@@ -725,9 +725,12 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 	// next, /robots.txt) sees the path the visitor asked for, not the
 	// rewrite.
 	r = withVisitorPath(r)
+	// A binding still waiting for its proof is served too: nginx serves the
+	// same domain straight from disk when the site has no marker, and the
+	// proof itself fetches this page.
 	info, err := h.siteFacts().GetSiteByCustomDomain(r.Context(), host)
-	if err != nil || !info.VerifiedAt.Valid {
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("passcode: domain %s: %v", host, err)
 		}
 		// A family address (familyhost.go): the host names the site too.
@@ -815,9 +818,6 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 	}
 	if err != nil {
 		return "", "", false, err
-	}
-	if !info.VerifiedAt.Valid {
-		return "", "", false, nil
 	}
 	return info.UserID, info.Name, true, nil
 }

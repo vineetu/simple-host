@@ -665,6 +665,38 @@ func TestPasscodeCanarySweep(t *testing.T) {
 	}
 }
 
+// A custom domain still waiting for its proof serves its site through the
+// hand-off, redirect rules and passcode gate included: the proof fetches the
+// domain's home page and needs a 2xx, so a closed page would block it forever.
+func TestPasscodeUnverifiedBoundDomain(t *testing.T) {
+	p := newPasscodeApp(t)
+	const domain = "waiting.example.org"
+	if _, err := p.database.ExecContext(context.Background(), `UPDATE sites SET custom_domain = $2, domain_status = 'pending', domain_verified_at = NULL WHERE id = $1`, p.siteID, domain); err != nil {
+		t.Fatal(err)
+	}
+	if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/files?keep=1", map[string]any{"files": map[string]string{"_redirects": "/old /app.js 301"}}, p.okey); r.status != 200 {
+		t.Fatalf("redirect rules: %d %s", r.status, r.body)
+	}
+	if r := p.at(t, "GET", domain, "/internal/passcode/", nil, nil); r.status != 200 || !strings.Contains(string(r.body), passcodeCanary) {
+		t.Fatalf("unverified domain home: %d %s", r.status, r.body)
+	}
+	if r := p.at(t, "GET", domain, "/internal/passcode/old", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/app.js" {
+		t.Fatalf("unverified domain redirect: %d %v", r.status, r.header)
+	}
+	const code = "waiting-pass-1"
+	p.lock(t, code)
+	r := p.at(t, "GET", domain, "/internal/passcode/app.js", nil, nil)
+	if r.status != http.StatusUnauthorized || !strings.Contains(string(r.body), `name="passcode"`) || strings.Contains(string(r.body), passcodeCanary) {
+		t.Fatalf("unverified domain gate: %d %s", r.status, r.body)
+	}
+	if r := p.unlock(t, domain, code, "/app.js", nil); r.status != http.StatusSeeOther {
+		t.Fatalf("unlock on the unverified domain: %d %s", r.status, r.body)
+	}
+	if r := p.at(t, "GET", "unknown.example.net", "/internal/passcode/app.js", nil, nil); r.status != http.StatusUnauthorized || strings.Contains(string(r.body), "<form") {
+		t.Fatalf("unknown host: %d %s", r.status, r.body)
+	}
+}
+
 // Claimed names, custom domains (through nginx's marker rewrite), and the
 // person path while a certificate is pending.
 func TestPasscodeOtherAddresses(t *testing.T) {
