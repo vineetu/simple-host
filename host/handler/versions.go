@@ -32,20 +32,6 @@ func init() {
 // kept, or 0 for all of them.
 func KeepVersions() int { return keepVersions }
 
-// versionCopiesPerSite is what one site costs on disk, as a multiple of its
-// size: every retained version, plus the live `current` tree, which is a full
-// copy rather than a link. Capacity planning needs this number and getting it
-// wrong is what made the first version of the sizing arithmetic wrong by an
-// order of magnitude.
-func versionCopiesPerSite() int {
-	if keepVersions <= 0 {
-		// Unbounded history. Assume a working ten for planning purposes —
-		// there is no true answer, and pretending there is one would be worse.
-		return 11
-	}
-	return keepVersions + 1
-}
-
 // pruneThreshold returns the lowest version number to keep, and whether there
 // is anything to remove at all.
 //

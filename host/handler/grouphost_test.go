@@ -7,7 +7,6 @@ import (
 	"github.com/vsriram/simple-host/host/config"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -109,26 +108,6 @@ func TestGroupNotificationAddresses(t *testing.T) {
 		if err != nil || name != tc.name || url != tc.url {
 			t.Fatalf("%s: %s %s %v", tc.site, name, url, err)
 		}
-	}
-}
-
-func TestGroupSweepOrder(t *testing.T) {
-	for _, n := range []int{0, 8, 9, 10, 19} {
-		var calls []string
-		step := func(name string) func(context.Context) { return func(context.Context) { calls = append(calls, name) } }
-		groupSweepPass(context.Background(), n, GroupSweep{Sweep: step("sweep"), After: step("after")}, step("markers"))
-		want := []string{"sweep", "after"}
-		if n%10 == 9 {
-			want = []string{"sweep", "markers", "after"}
-		}
-		if !reflect.DeepEqual(calls, want) {
-			t.Fatalf("pass %d: %v want %v", n, calls, want)
-		}
-	}
-	var calls []string
-	groupSweepPass(context.Background(), 9, GroupSweep{Sweep: func(context.Context) { calls = append(calls, "sweep") }}, func(context.Context) { calls = append(calls, "markers") })
-	if strings.Join(calls, ",") != "sweep,markers" {
-		t.Fatal(calls)
 	}
 }
 

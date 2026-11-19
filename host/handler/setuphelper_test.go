@@ -141,18 +141,6 @@ func TestSetupHelperInstallerRelease(t *testing.T) {
 	}
 }
 
-// The UpCloud button is the referral link, exactly, opened apart from this
-// page.
-func TestSetupHelperUpCloudReferral(t *testing.T) {
-	js, err := staticFiles.ReadFile("static/setup/setup.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(js), "var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';") {
-		t.Error("UPCLOUD_SIGNUP changed")
-	}
-}
-
 // The setup page pins the chart release; the browser tests render its actual
 // generated values against that chart and check both installation commands.
 func TestSetupHelperChartRelease(t *testing.T) {

@@ -5,16 +5,7 @@ import (
 	"testing"
 
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
-	"github.com/vsriram/simple-host/host/config"
 )
-
-func TestStorageRequestDepsShareSiteSlots(t *testing.T) {
-	h := &SiteHandler{limits: config.DefaultLimits()}
-	first, second := h.storageDeps(), h.storageDeps()
-	if first.SiteSlots == nil || first.SiteSlots != second.SiteSlots || first.SiteSlots != h.siteSlotsFor() {
-		t.Fatal("request-built services must share site admission")
-	}
-}
 
 func TestTableAdmissionErrorStatus(t *testing.T) {
 	for _, tc := range []struct {

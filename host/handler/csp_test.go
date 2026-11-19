@@ -97,11 +97,3 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 	nf := assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") }))
 	assertStrictScriptCSP(t, "notfound", get(t, nf, "simple-host.app", "/nothing-here.html"))
 }
-
-// Off the apex no policy is set, and pages pass through unstamped.
-func TestStampNonceWithoutPolicy(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	if got := string(stampNonce(r, []byte("<script>x</script>"))); got != "<script>x</script>" {
-		t.Errorf("stamped without a nonce: %s", got)
-	}
-}

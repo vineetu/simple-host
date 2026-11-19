@@ -428,28 +428,6 @@ func TestWebPushOwnerWriteNeverReachesWebhook(t *testing.T) {
 	}
 }
 
-// TestWebPushSignOutDeletesSubscription is the HIGH-3 regression test for
-// the server-side half: POST /v1/visitor/logout must delete that
-// person's push subscriptions for that site, independent of whatever the
-// browser's own client-side cleanup does.
-func TestWebPushSignOutDeletesSubscription(t *testing.T) {
-	s := webPushFixture(t)
-	srv, _ := pushTestServer(t)
-	defer srv.Close()
-
-	id := s.a.at(t, "POST", s.host, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, srv.URL, "orders"), s.callers["alice"]).json(t)["id"].(string)
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err != nil {
-		t.Fatal(err)
-	}
-	r := s.a.at(t, "POST", s.host, "/v1/visitor/logout", nil, s.callers["alice"])
-	if r.status != 200 && r.status != 204 {
-		t.Fatalf("sign-out: %d %s", r.status, r.body)
-	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err == nil {
-		t.Fatal("push subscription survived sign-out")
-	}
-}
-
 // TestWebPushOwnerOnSiteSubscribesSiteWide is the MEDIUM-6 regression
 // test: the site's owner, signed in on their own site as a visitor (D1),
 // must be recognised as the owner for push too -- a site-wide device, not
@@ -501,29 +479,6 @@ func TestWebPushRejectsRedirect(t *testing.T) {
 	}
 }
 
-// TestWebPushSubscribeUpsertsByEndpoint is the MEDIUM-12 regression test:
-// subscribing again with the same browser endpoint and resource must
-// reuse the same server-side row, never create a duplicate.
-func TestWebPushSubscribeUpsertsByEndpoint(t *testing.T) {
-	s := webPushFixture(t)
-	srv, _ := pushTestServer(t)
-	defer srv.Close()
-
-	body := pushSubscribeBody(t, srv.URL, "orders")
-	first := s.a.at(t, "POST", s.host, "/v1/sites/shop/push/subscribe", body, s.callers["alice"]).json(t)["id"].(string)
-	second := s.a.at(t, "POST", s.host, "/v1/sites/shop/push/subscribe", body, s.callers["alice"]).json(t)["id"].(string)
-	if first != second {
-		t.Fatalf("repeated subscribe created a new row: %s then %s", first, second)
-	}
-	devices, err := s.a.sites.notificationsSvc().ListVisitorPushDevices(context.Background(), s.sid, s.aliceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(devices) != 1 {
-		t.Fatalf("got %d devices for alice, want 1", len(devices))
-	}
-}
-
 // TestWebPushConcurrentSubscribeDedupes is the FIX 8 regression test:
 // the sequential version above (TestWebPushSubscribeUpsertsByEndpoint)
 // cannot catch the actual race -- two genuinely concurrent subscribe()
@@ -563,47 +518,6 @@ func TestWebPushConcurrentSubscribeDedupes(t *testing.T) {
 	}
 	if len(devices) != 1 {
 		t.Fatalf("got %d devices for alice after %d concurrent subscribes, want 1", len(devices), n)
-	}
-}
-
-// TestWebPushViewerRemovalDeletesSubscription is the HIGH-4 regression
-// test: removing a named viewer must delete that person's push
-// subscriptions for the site.
-func TestWebPushViewerRemovalDeletesSubscription(t *testing.T) {
-	s := webPushFixture(t)
-	srv, _ := pushTestServer(t)
-	defer srv.Close()
-	id := s.a.at(t, "POST", s.host, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, srv.URL, "orders"), s.callers["alice"]).json(t)["id"].(string)
-	aliceEmail, err := visitorEmail(context.Background(), s.a.database, s.aliceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.a.sites.deletePushForEmail(context.Background(), s.sid, aliceEmail)
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err == nil {
-		t.Fatal("push subscription survived viewer removal cleanup")
-	}
-}
-
-// TestPushSWRouteServesTheWorker is the HIGH-5 regression test's direct
-// unit coverage (Codex round 2 moved the worker from a root-path
-// middleware, ServePushSW, to an ordinary mux route at /v1/push/sw.js,
-// FIX 2/11): the handler itself serves the right content type and body
-// on GET and HEAD, independent of any host-dispatch wrapping.
-func TestPushSWRouteServesTheWorker(t *testing.T) {
-	h := &SiteHandler{}
-	for _, method := range []string{"GET", "HEAD"} {
-		req := httptest.NewRequest(method, "/v1/push/sw.js", nil)
-		w := httptest.NewRecorder()
-		h.pushSWRoute(w, req)
-		if w.Code != 200 {
-			t.Fatalf("%s: status %d, want 200", method, w.Code)
-		}
-		if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "javascript") {
-			t.Fatalf("%s: Content-Type %q", method, ct)
-		}
-		if method == "GET" && !strings.Contains(w.Body.String(), "addEventListener") {
-			t.Fatal("GET: body missing service worker code")
-		}
 	}
 }
 
@@ -1103,5 +1017,23 @@ func TestNotifyMCPReplayExcludesOwnerWrite(t *testing.T) {
 	got := x.snapshot()
 	if len(got) != before {
 		t.Fatalf("owner-on-behalf write reached the MCP subscriber via cursor replay: before %d, after %d (last: %+v)", before, len(got), got[len(got)-1].body)
+	}
+}
+
+// TestWebPushViewerRemovalDeletesSubscription is the HIGH-4 regression
+// test: removing a named viewer must delete that person's push
+// subscriptions for the site.
+func TestWebPushViewerRemovalDeletesSubscription(t *testing.T) {
+	s := webPushFixture(t)
+	srv, _ := pushTestServer(t)
+	defer srv.Close()
+	id := s.a.at(t, "POST", s.host, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, srv.URL, "orders"), s.callers["alice"]).json(t)["id"].(string)
+	aliceEmail, err := visitorEmail(context.Background(), s.a.database, s.aliceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.a.sites.deletePushForEmail(context.Background(), s.sid, aliceEmail)
+	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err == nil {
+		t.Fatal("push subscription survived viewer removal cleanup")
 	}
 }

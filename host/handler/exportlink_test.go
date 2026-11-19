@@ -42,15 +42,6 @@ func TestExportTokenRefusesWhatItShould(t *testing.T) {
 	}
 }
 
-func mustDecode(t *testing.T, s string) string {
-	t.Helper()
-	b, err := base64.RawURLEncoding.DecodeString(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
-}
-
 // The owner mints a link; anyone holding it downloads that one site's export
 // with no key, until it expires or the site goes. Needs DB_DSN.
 func TestExportLinkEndToEnd(t *testing.T) {

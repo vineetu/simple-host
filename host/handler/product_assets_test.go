@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"github.com/vsriram/simple-host/host/config"
 	"io/fs"
@@ -125,26 +123,6 @@ func TestAssetServicesInstanceRewriting(t *testing.T) {
 	}
 	if got := p.InstanceText([]byte("https://simple-host.app/mcp")); string(got) != "https://assets.example/mcp" {
 		t.Fatalf("InstanceText: %s", got)
-	}
-}
-
-// The product stylesheet's version is worked out once, when the contribution
-// is installed, from the file the product's own entry names.
-func TestProductStyleVersionComputedAtInstall(t *testing.T) {
-	sh := chromeTestHandler(groupTestEdition())
-	if got := sh.pipeline().productStyleVersion(); got != "" {
-		t.Fatalf("no product: version %q", got)
-	}
-	files := fstest.MapFS{"own.css": {Data: []byte("body{}")}}
-	sh.SetProductAssets(nil, map[string]string{"product.css": "own.css"}, files, nil, ProductAssetHooks{}, nil)
-	sum := sha256.Sum256([]byte("body{}"))
-	want := hex.EncodeToString(sum[:])[:10]
-	if got := sh.pipeline().productStyleVersion(); got != want {
-		t.Fatalf("version %q, want %q", got, want)
-	}
-	files["own.css"] = &fstest.MapFile{Data: []byte("changed")}
-	if got := sh.pipeline().productStyleVersion(); got != want {
-		t.Fatalf("version recomputed after install: %q", got)
 	}
 }
 

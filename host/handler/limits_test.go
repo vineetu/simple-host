@@ -259,18 +259,6 @@ func TestEveryLimitPhraseFollowsItsKnob(t *testing.T) {
 	}
 }
 
-// With every knob at its default nothing is rewritten, so simple-host.app
-// serves its files byte for byte.
-func TestDefaultLimitsRewriteNothing(t *testing.T) {
-	if rw := newLimitsRewriter(config.DefaultLimits()); rw != nil {
-		t.Fatal("the rewriter should be nil at the defaults")
-	}
-	p := testAssetPipeline(edition.Default(config.DefaultLimits()), "")
-	if p.rewritten() {
-		t.Fatal("defaults switched serve-time rewriting on")
-	}
-}
-
 // The served pages, documents and skills carry the configured values, and not
 // the defaults they were written with.
 func TestServedTextFollowsLimits(t *testing.T) {

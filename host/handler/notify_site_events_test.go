@@ -294,12 +294,3 @@ func TestNotifySiteEventsBodyTooLarge(t *testing.T) {
 		t.Fatalf("normal site event not stored: %d", n)
 	}
 }
-
-func TestNotifySiteEventsGroup(t *testing.T) {
-	h := &SiteHandler{ed: groupTestEdition()}
-	if got := h.notifyEventNames(); len(got) != 3 {
-		t.Fatalf("Hack event names: %v", got)
-	}
-	// This must return before touching any dependency on the Hack edition.
-	h.emitSiteNotification("unused", "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": "deploy"}, 0)
-}

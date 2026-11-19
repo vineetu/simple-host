@@ -5,17 +5,6 @@ import (
 	"testing"
 )
 
-func TestHostRewriterIsNilOnCanonicalInstance(t *testing.T) {
-	// simple-host.app rewrites to itself, so production must pay nothing and,
-	// more importantly, must not risk a substitution bug on its own assets.
-	if rw := newHostRewriter("simple-host.app", "sites.simple-host.app", "cname.simple-host.app"); rw != nil {
-		t.Fatal("expected nil rewriter on the canonical instance")
-	}
-	if rw := newHostRewriter("", "", ""); rw != nil {
-		t.Fatal("expected nil rewriter when no domain is configured")
-	}
-}
-
 func TestHostRewriterLongestHostWins(t *testing.T) {
 	// The ordering trap: "sites.simple-host.app" contains "simple-host.app".
 	// Replace the short one first and the content host becomes

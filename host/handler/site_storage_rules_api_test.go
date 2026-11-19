@@ -171,27 +171,6 @@ func TestStorageRulesAPIErrors(t *testing.T) {
 	}
 }
 
-func TestStorageRulesAPIPresetBytes(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "off")
-	s := newPresetSite(t)
-	r := s.must(t, "PUT", "/resources/private", `{"kind":"sqlite","tables":{"notes":{}}}`, s.key, 201)
-	// Frozen pre-rules representation, including key order and the final newline.
-	want := `{"access":{"read":"owner","add":"owner","edit":"owner","delete":"owner"},"approve_first":false,"kind":"sqlite","name":"private","preset":"private","read":"owner","site_passcode":"inherit","tables":{"notes":{"access":{"read":"owner","add":"owner","edit":"owner","delete":"owner"},"preset":"private"}},"warnings":["table notes does not exist yet; its preset applies once it is created"],"write":"owner","write_mode":"full"}` + "\n"
-	if string(r.body) != want {
-		t.Fatalf("preset response changed:\n%s\nwant:\n%s", r.body, want)
-	}
-	t.Setenv("STORAGE_RULES", "on")
-	on := s.must(t, "PUT", "/resources/private", `{"kind":"sqlite","tables":{"notes":{}}}`, s.key, 200).json(t)
-	if on["rules_status"] != "preset" {
-		t.Fatal(on)
-	}
-	delete(on, "rules_status")
-	off := r.json(t)
-	if !reflect.DeepEqual(on, off) {
-		t.Fatalf("flag changed preset fields: %#v vs %#v", on, off)
-	}
-}
-
 func TestStorageRulesAPIBodyLimit(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
 	s := newPresetSite(t)

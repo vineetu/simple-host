@@ -1469,5 +1469,3 @@ func TestImageScanWakeCancelledContext(t *testing.T) {
 		t.Fatal("a cancelled request context stopped the wake")
 	}
 }
-
-const holdingAccountSuffix = "@events.invalid"

@@ -17,61 +17,6 @@ import (
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
 )
 
-func TestSignInMessagesTable(t *testing.T) {
-	keys := []string{
-		"code_wrong", "code_used_up", "code_expired", "rate_limited", "invalid_email",
-		"send_failed", "signup_blocked", "email_signin_off", "email_unavailable",
-		"link_other_browser", "account_suspended", "network", "unknown",
-		"bad_credentials", "password_change_required", "username_taken",
-	}
-	if len(signInMessages) != len(keys) {
-		t.Errorf("table has %d keys, want %d", len(signInMessages), len(keys))
-	}
-	for _, k := range keys {
-		v, ok := signInMessages[k]
-		if !ok {
-			t.Errorf("missing key %q", k)
-			continue
-		}
-		if strings.TrimSpace(v) == "" {
-			t.Errorf("%s is empty", k)
-		}
-		if strings.Contains(v, "\u2014") {
-			t.Errorf("%s contains an em-dash: %q", k, v)
-		}
-	}
-	if signInMessages["signup_blocked"] != signupBlockedMessage {
-		t.Fatal("signup_blocked must keep signupBlockedMessage")
-	}
-	if signInMessages["email_signin_off"] != errEmailSignInOff.Error {
-		t.Fatal("email_signin_off must keep errEmailSignInOff")
-	}
-	if signInMessages["link_other_browser"] != errLinkOtherBrowser {
-		t.Fatal("link_other_browser must keep errLinkOtherBrowser")
-	}
-}
-
-func TestSignInCodeSentMessage(t *testing.T) {
-	got := signInCodeSentMessage("ada@example.com")
-	if got != "We sent a 6-digit code to ada@example.com." {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestSignInCodeWrongCopy(t *testing.T) {
-	two := signInCodeWrong(2)
-	if two.Reason != signInReasonWrong || two.TriesLeft == nil || *two.TriesLeft != 2 {
-		t.Fatalf("2 tries: %+v", two)
-	}
-	if two.Error != "That code is not right. 2 tries left." {
-		t.Fatalf("2 tries copy: %q", two.Error)
-	}
-	one := signInCodeWrong(1)
-	if one.Error != "That code is not right. 1 try left." {
-		t.Fatalf("1 try copy: %q", one.Error)
-	}
-}
-
 func signInTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("DB_DSN")

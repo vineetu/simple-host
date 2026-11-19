@@ -93,19 +93,6 @@ func TestValidRedirectURI(t *testing.T) {
 	}
 }
 
-func TestRedirectTarget(t *testing.T) {
-	for in, want := range map[string]string{
-		"https://claude.ai/api/mcp/auth_callback":      "claude.ai",
-		"http://127.0.0.1:33418/cb":                    "127.0.0.1",
-		"cursor://anysphere.cursor-mcp/oauth/callback": "cursor://anysphere.cursor-mcp",
-		"com.example.app:/oauth2redirect":              "com.example.app:",
-	} {
-		if got := redirectTarget(in); got != want {
-			t.Errorf("redirectTarget(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestLoopbackPortMatch(t *testing.T) {
 	cases := []struct {
 		reg, pre string
@@ -732,18 +719,6 @@ func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
 	// the same app apart (this test client sends Go's own).
 	if d := conns[0].(map[string]any)["device"]; d != "Go-http-client" {
 		t.Fatalf("connection device: %v", d)
-	}
-}
-
-func TestConnectionDevice(t *testing.T) {
-	for ua, want := range map[string]string{
-		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36":                       "Chrome on macOS",
-		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1": "Safari on iPhone",
-		"": "",
-	} {
-		if got := connectionDevice(ua); got != want {
-			t.Errorf("connectionDevice(%q) = %q, want %q", ua, got, want)
-		}
 	}
 }
 

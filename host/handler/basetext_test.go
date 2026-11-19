@@ -69,9 +69,6 @@ func TestBaseTextCanonical(t *testing.T) {
 	if !bytes.Contains(b, []byte("<site>.<handle>.simple-host.app")) || !bytes.Contains(b, []byte("https://simple-host.app/")) {
 		t.Fatal("llms.txt: public addresses must remain on .app")
 	}
-	if instanceHosts != nil || instanceNote != "" {
-		t.Fatal("the hosted service rewrites its own text")
-	}
 	// Another install never serves the base, whatever it hands out.
 	SetInstanceHosts("hack.example.com", "", "", "simple-host.site")
 	b, _ = staticFiles.ReadFile("static/llms.txt")

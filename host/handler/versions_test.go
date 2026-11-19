@@ -28,22 +28,3 @@ func TestPruneThreshold(t *testing.T) {
 		}
 	}
 }
-
-func TestVersionCopiesPerSite(t *testing.T) {
-	before := keepVersions
-	t.Cleanup(func() { keepVersions = before })
-
-	// `current` is a full copy of the active version, not a link, so a site
-	// always costs one more than its retained history. Capacity sizing divides
-	// by this number; an off-by-one here is an off-by-one on every event.
-	for keep, want := range map[int]int{1: 2, 3: 4, 10: 11} {
-		keepVersions = keep
-		if got := versionCopiesPerSite(); got != want {
-			t.Errorf("keepVersions %d: copies = %d, want %d", keep, got, want)
-		}
-	}
-	keepVersions = 0
-	if got := versionCopiesPerSite(); got != 11 {
-		t.Errorf("unbounded history: copies = %d, want the 11 planning estimate", got)
-	}
-}

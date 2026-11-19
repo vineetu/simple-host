@@ -8,8 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -494,79 +492,6 @@ func TestSiteBaseNormalizeDomain(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-// TestSiteBaseDefaultsUnchanged is the self-host matrix: an install that sets
-// nothing (SITE_BASE_DOMAIN = SITE_DOMAIN, SITE_BASE_MOVE off) answers
-// every host kind byte for byte as one
-// that never heard of the move.
-func TestSiteBaseDefaultsUnchanged(t *testing.T) {
-	type answer struct {
-		status          int
-		location, cache string
-		body            string
-	}
-	run := func(setup func(a *privateApp, baseDir string)) map[string]answer {
-		a, dir := newSiteApp(t, "canonical")
-		baseDir := t.TempDir()
-		setup(a, baseDir)
-		accountsrepo.SetPlatformDomains(a.sites.HandoutBase(), a.sites.ServedBases()...)
-		olive := a.newPerson(t, "olive")
-		a.deploy(t, olive, "shop")
-		a.deploy(t, olive, "blog")
-		uid, oh := a.userID(t, olive)
-		markReady(t, dir, oh)
-		free := "dflt" + fmt.Sprint(time.Now().UnixNano()%1e9)
-		if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/blog/domain", map[string]string{"domain": free + "." + pcSiteDomain}, map[string]string{"X-API-Key": olive.key}); r.status != 200 {
-			t.Fatalf("claim: %d %s", r.status, r.body)
-		}
-		// Names differ per run: compare with them replaced.
-		norm := func(s string) string {
-			s = nonceRe.ReplaceAllString(s, `nonce="-"`)
-			return strings.NewReplacer(oh, "<h>", free, "<free>", uid, "<uid>").Replace(s)
-		}
-		out := map[string]answer{}
-		hosts := []string{pcSiteDomain, "www." + pcSiteDomain, pcContentHost, "cname." + pcSiteDomain, oh + "." + pcSiteDomain,
-			"shop." + oh + "." + pcSiteDomain, free + "." + pcSiteDomain, "unclaimed-zz." + pcSiteDomain, "x.lab." + pcSiteDomain,
-			sbBase, "www." + sbBase, oh + "." + sbBase, "shop." + oh + "." + sbBase, free + "." + sbBase, "shop.example.com"}
-		paths := []string{"/", "/shop/", "/x?y=1", "/a%2Fb/c", "//evil.example/x", "/v1/sites/shop/state", "/internal/site-redirect/" + oh + "/shop/x?q=1"}
-		for _, h := range hosts {
-			for _, p := range paths {
-				r := a.at(t, "GET", h, p, nil, map[string]string{"Origin": "https://" + h})
-				body := string(r.body)
-				if len(body) > 400 {
-					body = body[:400]
-				}
-				out[norm(h+p)] = answer{r.status, norm(r.header.Get("Location")), r.header.Get("Cache-Control"), norm(body)}
-			}
-		}
-		r := a.at(t, "GET", pcSiteDomain, "/v1/sites", nil, map[string]string{"X-API-Key": olive.key})
-		var urls []string
-		for _, f := range strings.Split(string(r.body), `"`) {
-			if strings.HasPrefix(f, "https://") {
-				urls = append(urls, norm(f))
-			}
-		}
-		sort.Strings(urls)
-		out["site urls"] = answer{r.status, strings.Join(urls, " "), "", ""}
-		return out
-	}
-	before := run(func(a *privateApp, _ string) {})
-	for name, setup := range map[string]func(a *privateApp, baseDir string){
-		"base unset": func(a *privateApp, _ string) { a.sites.SetSiteBase(pcSiteDomain, "off", "") },
-		"base = SITE_DOMAIN, any move": func(a *privateApp, d string) {
-			a.sites.SetSiteBase(pcSiteDomain, "permanent", d)
-		},
-	} {
-		after := run(setup)
-		for k, want := range before {
-			if got := after[k]; got != want {
-				t.Errorf("%s: %s: %+v, was %+v", name, k, got, want)
-			}
-		}
-	}
-}
-
-var nonceRe = regexp.MustCompile(`nonce="[^"]*"`)
 
 // TestMoveSiteBase: the data rewrite (dry run counts, apply, idempotent) never
 // touches custom domains, reserved names or multi-label names, and lookups

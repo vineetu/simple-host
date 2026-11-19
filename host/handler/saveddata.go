@@ -123,14 +123,6 @@ func (h *SiteHandler) boundHistoryContext(ctx context.Context, siteID string) {
 	h.historySvc().BoundHistory(ctx, legacy.HistoryThinInput{SiteID: siteID, CapBytes: capBytes})
 }
 
-// thinMargin is the growth needed before an ineffective thin is retried.
-func thinMargin(capBytes int64) int64 { return model.LegacyHistoryThinMargin(capBytes) }
-
-// thinPointless reports whether the last over-cap thin is still current.
-func (h *SiteHandler) thinPointless(siteID string, size, capBytes int64) bool {
-	return h.historySvc().HistoryThinPointless(legacy.HistoryThinCheckInput{SiteID: siteID, Size: size, CapBytes: capBytes})
-}
-
 // siteMaxBytes is SAVED_DATA_SITE_MAX_MB in bytes.
 func (h *SiteHandler) siteMaxBytes() int64 { return int64(h.savedData.SiteMaxMB) << 20 }
 
