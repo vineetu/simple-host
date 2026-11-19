@@ -9,7 +9,7 @@
 
       **In chat**
 “Add a private notes table where each visitor can read and edit only their own notes.”   **API**
-Send `PUT /v1/sites/{sitename}/storage/resources/notes` with the body below. Use `kv` for key-value data; file buckets keep presets such as `wall` for visitor photos.   
+Send `PUT /v1/sites/{sitename}/storage/resources/notes` with the body below. Use `kv` for key-value data or `files` for visitor photos; file rules see `path` and `visitor_id`, the uploader.   
 3. For SQLite, send owner DDL to `POST /v1/sites/{sitename}/storage/sqlite/notes/schema`: `{"sql":"CREATE TABLE notes (id INTEGER PRIMARY KEY, visitor_id TEXT, text TEXT)"}`.
 4. Review who can read and change data before saving. Permissive policies combine with OR; restrictive policies narrow them with AND. No applicable permissive policy means no access. A table's own set replaces the default.
 

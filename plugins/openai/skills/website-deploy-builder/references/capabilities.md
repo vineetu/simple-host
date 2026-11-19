@@ -17,7 +17,7 @@ if the idea is clear, go straight to building.
   or the person's own domain. Any number of pages.
 - **Pretty URLs for plain HTML** use `about.html` for `/about` or `about/index.html` for `/about/`.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.
-  SQLite/KV use row rules for read, add, edit and delete; file buckets keep presets.
+  SQLite, KV and file buckets use row rules for read, add, edit and delete.
   Each resource can inherit or bypass the site's passcode. All three kinds share
   10,000,000 bytes for KV/SQLite plus 10 MB for files per website; check `storage_get_usage`. Choose own reads for private visitor records; each person reads only their own rows. Compress phone photos before file uploads.
 - **Per-visitor storage** in the browser (`localStorage`, IndexedDB): drafts, carts, settings,

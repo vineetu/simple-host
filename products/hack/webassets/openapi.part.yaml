@@ -11061,9 +11061,9 @@ overrides:
     with SQL to a preset that uses own needs empty tables (visitor_id_required). Owner here means the owner''s tools
     and the owner signed in on the site''s own address through visitor sign-in; nobody means the owner''s tools
     only. Simple Hack accepts only read and write (anyone, signed-in, owner) with full mode, as before presets.
-    With STORAGE_RULES=on, SQLite and SQLite-stored KV resources also accept rules (StoragePolicySet), without preset
-    fields. A rules save on a Postgres KV namespace returns 400 rules_unavailable. Rules are unavailable on file
-    buckets (400 invalid_rules). A body or table rules field with the flag off returns 400 rules_unavailable. Bodies
+    With STORAGE_RULES=on, SQLite, SQLite-stored KV and files resources also accept rules (StoragePolicySet), without
+    preset fields. File rules compile against files(path, visitor_id), visitor_id being the uploader; auth.checked
+    is refused on files (400 invalid_rules). A rules save on a Postgres KV namespace returns 400 rules_unavailable. A body or table rules field with the flag off returns 400 rules_unavailable. Bodies
     over 256 KiB return 400 invalid_rules with clause size. Null rules are treated as absent; an empty policies
     array denies visitors. For SQLite, table rules override the default set; omit tables to keep overrides, or send
     tables {} to clear them. When moving from per-table presets, send rules for every override or tables {}. Preset

@@ -77,8 +77,8 @@ func decodeRules(raw json.RawMessage, table string, schema ruleengine.BindingSch
 }
 
 func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rules.Resource, exists bool, x *rules.Resource) error {
-	if x.Kind == "files" || in.hasPresetFields() {
-		return invalidRules("shape", "", "rules cannot be combined with preset fields or used on files")
+	if in.hasPresetFields() {
+		return invalidRules("shape", "", "rules cannot be combined with preset fields")
 	}
 	// Bound the serialized rules supplied to the service, including table names
 	// and wrappers. Raw bytes count before decoding/canonicalization.
@@ -153,10 +153,13 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 			x.Tables[table] = rules.TableRule{Rules: ruleengine.EncodeSet(set), Matrix: deny, PresetBase: "rules"}
 		}
 	}
-	if x.Kind == "kv" {
-		_, errs := ruleengine.Compile(def, ruleengine.Table{Name: "kv", RowKey: `"key"`, Columns: []ruleengine.Column{{Name: "key"}, {Name: "value"}, {Name: "visitor_id"}}}, schema, ruleengine.DefaultLimits())
+	if x.Kind != "sqlite" {
+		plan, errs := ruleengine.Compile(def, plainRulesTable(x.Kind), schema, ruleengine.DefaultLimits())
 		if len(errs) != 0 {
 			return rulesFailure(errs)
+		}
+		if x.Kind == "files" && plan.ReferencesBinding(ruleengine.OpAdd, "auth.checked") {
+			return invalidRules("binding", "", "uploads are never spam-checked: file rules cannot use auth.checked")
 		}
 		return nil
 	}
@@ -213,6 +216,14 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 		return &Error{Code: "internal_error", Message: "prepared rules did not compile"}
 	}
 	return nil
+}
+
+// plainRulesTable is the fixed table key-value or file rules compile against.
+func plainRulesTable(kind string) ruleengine.Table {
+	if kind == "files" {
+		return fileRulesTable
+	}
+	return ruleengine.Table{Name: "kv", RowKey: `"key"`, Columns: []ruleengine.Column{{Name: "key"}, {Name: "value"}, {Name: "visitor_id"}}}
 }
 
 func policySets(sets map[string]ruleengine.PolicySet) []ruleengine.PolicySet {
@@ -319,8 +330,8 @@ func (s *Service) retainedRulesErrors(ctx context.Context, call Call, x rules.Re
 		return nil, err
 	}
 	def, _ := ruleengine.DecodeSet(x.Rules)
-	if x.Kind == "kv" {
-		_, errs := ruleengine.Compile(def, ruleengine.Table{Name: "kv", RowKey: `"key"`, Columns: []ruleengine.Column{{Name: "key"}, {Name: "value"}, {Name: "visitor_id"}}}, schema, ruleengine.DefaultLimits())
+	if x.Kind != "sqlite" {
+		_, errs := ruleengine.Compile(def, plainRulesTable(x.Kind), schema, ruleengine.DefaultLimits())
 		return errs, nil
 	}
 	sets := map[string]ruleengine.PolicySet{}

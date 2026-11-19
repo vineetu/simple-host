@@ -20,7 +20,7 @@ create_site takes no email: grant_site_viewer is the call that opens the site to
 
 Documents, in a files resource you add to from chat:
 
-storage_set_resource {"site": "client-patel-dental", "name": "documents", "body": {"kind": "files", "preset": "public"}}
+storage_set_resource {"site": "client-patel-dental", "name": "documents", "body": {"kind": "files", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_put_file {"site": "client-patel-dental", "name": "documents", "path": "2026-10/invoice-1042.pdf", "content_base64": "...", "content_type": "application/pdf"}
 
@@ -30,7 +30,7 @@ storage_set_resource {"site": "client-patel-dental", "name": "messages", "body":
 
 storage_sql_schema {"site": "client-patel-dental", "name": "messages", "sql": "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, author TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT)"}
 
-On a site opened only to named viewers, "anyone" means the client and the owner, so the files preset public and the message rules above work here; never allow public reads of client data on a site that is not locked. Tell the person to send the client the site's address and to sign in with the email named here.
+On a site opened only to named viewers, "anyone" means the client and the owner, so the document and message rules above work here; never allow public reads of client data on a site that is not locked. Tell the person to send the client the site's address and to sign in with the email named here.
 
 ## 3. The page (index.html; adapt the name, the updates, and the look)
 

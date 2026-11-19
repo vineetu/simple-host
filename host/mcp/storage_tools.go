@@ -516,6 +516,6 @@ func storageRulesSchema() map[string]any {
 		"policies": map[string]any{"type": "array", "items": policy, "description": "At most 32 policies."},
 	}, "policies")
 	set["type"] = []string{"object", "null"}
-	set["description"] = "Optional row rules for SQLite or a SQLite-stored KV namespace; requires STORAGE_RULES=on. Do not combine with preset fields. An empty policies array denies visitors; null is treated as absent."
+	set["description"] = "Optional row rules for SQLite, a SQLite-stored KV namespace or files; requires STORAGE_RULES=on. Do not combine with preset fields. An empty policies array denies visitors; null is treated as absent."
 	return set
 }

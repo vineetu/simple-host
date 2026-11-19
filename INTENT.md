@@ -189,7 +189,7 @@ Implementation decisions for 19–23 (rules-track review, 2026-11-14):
 - **Limits and recovery.** Saves are bounded to 256 KiB; expressions, lists, policies and composed predicates have the documented engine bounds. One SQLite slot per site is the default. Connection memory follows `ceil_MiB(3 MiB + clamp(D/4, 256 KiB, 2 MiB) + max(2D, 1 MiB))`, capped at the driver's 4096 MiB ceiling. D is database plus WAL for reads, and database plus remaining pooled write budget (capped at the site limit) for writes. This bounds SQLite allocation per connection, not the Go heap or the whole install. These are engineering guards, not the owner's whole-install performance targets.
 - **Move and maintenance.** Key-value data has one file per namespace; the cutover deletes its Postgres rows with the marker change. Postgres stays the JSON normalizer. The server holds a shared data-directory maintenance lock; data-changing commands need an exclusive lock and that install stopped, one install at a time at a quiet hour. `migrate-rules` is an operator command, documented for self-hosters and never offered as a site-owner tool.
 - **Older programs.** Deny-visitor fill columns deny all page callers, including owner-on-site, on an older program. An older program's subsequent resource save overwrites that fill and serves the supplied preset, leaving rules present; a rules-aware program then reports invalid state. The fill is only a safety net; the shared oldest-safe-program floor protects converted resources.
-- **Spam check and recipes.** `auth.checked` is not declared without a configured spam check and is usable only in add checks. Recipe topic names stay unchanged. File buckets keep their presets.
+- **Spam check and recipes.** `auth.checked` is not declared without a configured spam check and is usable only in add checks. Recipe topic names stay unchanged. File buckets take rules too (FR-S1).
 
 Open-point dispositions (section 7 of the rules brief; defaults remain defaults until approved):
 
@@ -1638,6 +1638,8 @@ Not doing: separate modules per product, a plugin framework, renamed tables, a q
   nobody else has installed the product.
 
 - **2026-11-19: the brain connector and its bundle are removed.**
+
+- **2026-11-19. File storage takes rules (FR-S1).** Files accept the key-value rule shape over `files(path, visitor_id)`, with `visitor_id` the uploader, decided by the same rules decision as key-value and SQLite; `auth.checked` is refused on files. Existing upload areas move once, by SQL at deploy, to rules that allow what their preset allowed. Reason: the owner ruled "the rules is supposed to work for every type of backend feature: k/v, sqlite database, files."
 
 ## Open, deliberately parked
 

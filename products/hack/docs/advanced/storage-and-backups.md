@@ -115,8 +115,8 @@ server's user), or the other way round.
 `migrate-rules` is a command for the person who runs the install. It turns the
 preset on a SQLite database or key-value namespace into row rules that decide
 the same, and can put the preset back. It is not offered to site owners: there
-is no API route, AI tool or recipe for it. File buckets keep presets and are
-never read or changed by it.
+is no API route, AI tool or recipe for it. File buckets are never read or
+changed by it.
 
 Run it with the installed program and that install's environment (`DB_DSN`,
 `DATA_DIR` and the spam-check settings), as the user the server runs as.

@@ -200,7 +200,7 @@ the site itself. GitHub Actions recipe:
 SQLite and KV use row rules for read, add, edit and delete. For personal data,
 read `visitor_id == auth.id || auth.role == "owner"`; `auth.signed_in` alone
 shares access among signed-in visitors. Pages use fixed row routes. File buckets
-keep their access presets. A resource may inherit the site's passcode gate.
+take the same rules, over `path` and `visitor_id` (the uploader). A resource may inherit the site's passcode gate.
 Follow the description of `storage_set_resource` that this server gives; if it
 does not accept `rules`, the server is older and its description says what to
 send. Read `references/storage.md` for

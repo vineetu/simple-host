@@ -309,11 +309,11 @@ func codeHint(code string) string {
 }
 
 func resourceCodeHint(code, kind string) string {
-	if kind != "files" && storageRulesEnabled() {
-		// Shared codes also occur on files and non-storage requests. Only
-		// replace their existing hints when the request is known to use data rules.
+	if storageRulesEnabled() {
+		// Shared codes also occur on non-storage requests. Only replace their
+		// existing hints when the request is known to use data rules.
 		_, shared := codeHints[code]
-		if hint, ok := storageRulesCodeHints[code]; ok && (!shared || kind == "sqlite" || kind == "kv") {
+		if hint, ok := storageRulesCodeHints[code]; ok && (!shared || kind == "sqlite" || kind == "kv" || kind == "files") {
 			return hint
 		}
 	}
@@ -321,10 +321,10 @@ func resourceCodeHint(code, kind string) string {
 }
 
 var storageRulesCodeHints = map[string]string{
-	"invalid_resource":      "The resource settings were refused. For SQLite and key-value access supply rules, without file-bucket access fields; file buckets keep their existing preset fields. Read storage_list_resources before changing settings.",
+	"invalid_resource":      "The resource settings were refused. Supply rules for SQLite, key-value and file access, without preset access fields. Read storage_list_resources before changing settings.",
 	"invalid_rules":         "The rules save was refused. Correct the rules using the error message above, then save again. Do not combine rules with preset, read, add, edit, delete, write, write_mode or approve_first.",
 	"rules_unavailable":     "Rules are unavailable on this install or this namespace's store. Tell the owner; do not silently replace them with different access settings.",
-	"rules_required":        "This SQLite or key-value resource needs rules before visitors can use it. Ask the owner who should read and write which data, then save rules with storage_set_resource.",
+	"rules_required":        "This resource needs rules before visitors can use it. Ask the owner who should read and write which data, then save rules with storage_set_resource.",
 	"rules_invalid":         "The stored rules no longer compile. The owner can inspect rules_errors with storage_list_resources and repair the named column, binding or clause; owner tools still work.",
 	"visitor_id_required":   "Existing rows lack visitor identity. Keep the current rules or use a new resource for rows belonging to signed-in visitors; do not guess authors.",
 	"invalid_reference":     "The referenced parent row is missing or hidden by its read rules. Read the visible parent rows before choosing a reference.",

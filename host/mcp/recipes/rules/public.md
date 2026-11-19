@@ -2,7 +2,7 @@ Ask who should read, add, edit and delete which data before running setup. Write
 
 # Public content: a menu, prices, opening hours, a catalogue the owner keeps
 
-Use this for anything the owner writes and everyone reads, and that changes without republishing the site: today's menu, prices, opening hours, an event schedule, FAQs, a product catalogue, a gallery the owner fills (files keep their own presets).
+Use this for anything the owner writes and everyone reads, and that changes without republishing the site: today's menu, prices, opening hours, an event schedule, FAQs, a product catalogue, a gallery the owner fills (a files resource with these same rules).
 
 Who signs in where:
 - Readers need no sign-in.

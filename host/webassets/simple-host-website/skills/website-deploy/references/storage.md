@@ -10,8 +10,8 @@ site-scoped visitor sign-in; they never contain an owner key.
 
 Follow the description of `storage_set_resource` that this server gives. If it
 does not accept `rules`, the server is older and its description says what to
-send. A KV namespace still in Postgres cannot accept rules. File buckets keep
-presets; their choices are listed separately below.
+send. A KV namespace still in Postgres cannot accept rules. File buckets take
+the same rules, over `path` and `visitor_id`; see the file section below.
 
 Rules have `version: 1` and `policies`. A policy has a `command`, optional
 `name`, optional `restrictive: true` (default false), and these clauses:
@@ -387,14 +387,18 @@ table's content taken on trust. `storage_visitor_emails` also takes `emails`
 now, resolving each to the reference `for` takes, the same direction REST's
 `?email=` does. Worked example: `get_page_recipe` topic `people`.
 
-## File buckets keep presets
+## File buckets take the same rules
 
-Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
-view (authors can remove their own), or `records` for photos only the sender and
-the shop owner see:
+Create a `photos` file bucket. File rules use the same words as key-value rules,
+over one row per file: `path` and `visitor_id` (the signed-in uploader). Read
+lists and opens files, add uploads a new path, edit replaces a file, delete
+removes one. These rules let visitors view the photos, signed-in visitors upload
+and authors remove their own; for photos only the sender and the shop owner see,
+make the read rule `visitor_id == auth.id || auth.role == "owner"`. File rules
+cannot use `auth.checked`: uploads are never spam-checked.
 
 ```json
-{"kind":"files","preset":"wall","site_passcode":"inherit"}
+{"kind":"files","site_passcode":"inherit","rules":{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"delete","command":"delete","using":"visitor_id == auth.id"},{"name":"owner","command":"all","using":"auth.role == \"owner\""}]}}
 ```
 
 ```js

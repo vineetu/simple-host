@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** File storage accepts rules in the same words as key-value rules: each file is a row with its `path` and `visitor_id` (who uploaded it). Upload areas without rules keep working as before, and existing ones are moved onto matching rules once at deploy; visitors see no change (FR-S1).
+
 - **Nov 19:** Activity records of the writes a visitor's AI app makes on a site are deleted after 30 days again, every 6 hours and at startup, as the privacy page now says; the old saved-data sweep that did this was removed with the older features. Nothing changes for pages or tools.
 
 - **Nov 19:** The Coolify, Railway, Render and Fly.io install options are removed: their recipes, guides, setup-helper note and release checks. Docker Compose, Kubernetes with Helm and DigitalOcean installs are unchanged (F50-S1).

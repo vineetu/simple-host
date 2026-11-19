@@ -2618,7 +2618,7 @@ internal certificate checks.
 ## 23. Site storage primitives <a id="site-storage-primitives"></a>
 
 SQLite and key-value resources use owner-written row rules for reads, adds,
-edits and deletes; file buckets keep presets. The API accepts resource and
+edits and deletes, and so do file buckets. The API accepts resource and
 per-table `rules`, with `rules_status`, `rules_errors` and structured `rule_error`
 diagnostics. Saves are limited to 256 KiB. Follow this server's
 `storage_set_resource` description on an older install without rules enabled.
@@ -2698,12 +2698,15 @@ row; a KV write permitted to attempt an add can reveal an existing key through
 `key_exists`. KV edits keep the original author. The owner's push rule still
 grants its chosen column to that author regardless of row-read rules.
 
-File buckets keep the access matrix and presets: `public`, `inbox`, `wall`,
-`records`, `personal`, `board`, `private`, with single-action overrides. Each
-of read/add/edit/delete is `nobody`, `owner`, `own`, `signed-in` or `anyone`.
-File rules are not accepted; `comments`/checked posting is not a file choice.
-Unconverted SQLite/KV resources retain their presets until the hard switch,
-labelled not converted in the Storage panel. File presets remain afterwards.
+File buckets take rules in the same words, over a fixed table
+`files(path, visitor_id)` where `visitor_id` is the uploader: read covers
+listing, opening and downloading, add a new path, edit replacing a file, delete
+removing one; `auth.checked` is refused, uploads are never spam-checked. The
+indexed "own files" listing stays. A file bucket without rules keeps its preset
+(`public`, `inbox`, `wall`, `records`, `personal`, `board`, `private`, with
+single-action overrides) for now; existing ones are moved onto equivalent rules
+once, at deploy. Unconverted SQLite/KV resources retain their presets until the
+hard switch, labelled not converted in the Storage panel.
 Historical preset design: `docs/designs/storage-access-presets.md`.
 
 On Simple Hack these rules sit under the existing team scope, membership,

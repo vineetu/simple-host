@@ -615,7 +615,7 @@
 			</li>
 		</ul>
 	</div>
-	<div id="tab-panel-0-0" aria-labelledby="tab-0-0" role="tabpanel" tabindex="0">“Add a private notes table where each visitor can read and edit only their own notes.”</div><div id="tab-panel-0-1" aria-labelledby="tab-0-1" role="tabpanel" tabindex="0" hidden>Send <code>PUT /v1/sites/{sitename}/storage/resources/notes</code> with the body below. Use <code>kv</code> for key-value data; file buckets keep presets such as <code>wall</code> for visitor photos.</div>
+	<div id="tab-panel-0-0" aria-labelledby="tab-0-0" role="tabpanel" tabindex="0">“Add a private notes table where each visitor can read and edit only their own notes.”</div><div id="tab-panel-0-1" aria-labelledby="tab-0-1" role="tabpanel" tabindex="0" hidden>Send <code>PUT /v1/sites/{sitename}/storage/resources/notes</code> with the body below. Use <code>kv</code> for key-value data or <code>files</code> for visitor photos; file rules see <code>path</code> and <code>visitor_id</code>, the uploader.</div>
 	<starlight-tabs-restore class="astro-scn3uvmv"></starlight-tabs-restore>
 </starlight-tabs>
 

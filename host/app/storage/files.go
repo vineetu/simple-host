@@ -16,7 +16,63 @@ import (
 	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	repository "github.com/vsriram/simple-host/host/repository/storage"
 	mechanics "github.com/vsriram/simple-host/host/storage"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
+
+// fileRulesTable is what file rules are written against, in the same words as
+// key-value rules: one row per file, its path and its uploader (visitor_id,
+// site_storage_files.writer_id, "" for the owner). It never becomes SQL.
+var fileRulesTable = ruleengine.Table{Name: "files", RowKey: "rowid", Columns: []ruleengine.Column{{Name: "path"}, {Name: "visitor_id"}}}
+
+// fileRule decides op on a files resource for a caller its rules govern
+// (kvHasRules): the site gate, then the decision key-value and SQLite use. The
+// returned check answers for one stored file, or for the new file on an add.
+func (s *Service) fileRule(c *Call, op ruleengine.Op) (fileCheck, *Error) {
+	if err := s.Gate(*c, op != ruleengine.OpRead); err != nil {
+		return nil, err.(*Error)
+	}
+	err := s.authorizeRuleOperation(c.Context, c, "files", op)
+	if err == nil {
+		if e := s.compileCallRules(c, fileRulesTable); e != nil {
+			err = e.(*Error)
+		}
+	}
+	if err != nil {
+		// As refusals, so the routes answer exactly as for the preset decision.
+		return nil, &Error{Code: err.Code, Message: err.Message, Refusals: []*Error{err}}
+	}
+	plan, values, ai, visitor := c.rulePlan, c.ruleValues, c.VisitorAI, c.VisitorID
+	return func(path, writer string) bool {
+		row := ruleengine.Row{"path": ruleengine.Text(path), "visitor_id": ruleengine.Text(writer)}
+		if op == ruleengine.OpAdd {
+			ok, err := plan.EvalCheck(op, values, row)
+			return err == nil && ok
+		}
+		// Edit and delete need read visibility too, and a visitor's AI changes
+		// only its author's files (ruleAIConstraint).
+		ok, err := plan.EvalUsing(ruleengine.OpRead, values, row)
+		if op != ruleengine.OpRead && ok && err == nil {
+			ok, err = plan.EvalUsing(op, values, row)
+			ok = ok && (!ai || writer == visitor)
+		}
+		if op == ruleengine.OpEdit && ok && err == nil {
+			ok, err = plan.EvalCheck(op, values, row)
+		}
+		return err == nil && ok
+	}, nil
+}
+
+// fileCheck answers a file rule for one file and its uploader.
+type fileCheck func(path, writer string) bool
+
+// stored answers the check for a file in the bucket, reading its uploader.
+func (check fileCheck) stored(ctx context.Context, s *Service, c Call, p string) (bool, error) {
+	writer, err := repository.FileWriter(ctx, s.db, c.SiteID, c.ResourceName, p)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	return check(p, writer), nil
+}
 
 // FilePutInput identifies a file and its caller.
 type FilePutInput struct {
@@ -57,21 +113,43 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return FilePutResult{}, nil, e
 	}
-	call.CurrentMatrix = call.Resource.Matrix()
-	action := "add"
-	if existed {
-		action = "edit"
-		if kvTaken(call) {
-			return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
-		}
-	}
 	call.Context = ctx
-	filter, err := s.Allow(&call, action, call.CurrentMatrix.Value(action))
 	var auth *Error
-	if err != nil {
-		auth = err.(*Error)
-		if !auth.Allowed {
+	var filter string
+	var rule fileCheck
+	if op := ruleengine.OpAdd; kvHasRules(call) {
+		if existed {
+			op = ruleengine.OpEdit
+		}
+		if rule, auth = s.fileRule(&call, op); auth != nil {
+			// Someone who may add but not change gets file_exists, as on kv.
+			add := in.Call
+			add.Context = ctx
+			if existed {
+				if _, e := s.fileRule(&add, ruleengine.OpAdd); e == nil {
+					return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
+				}
+			}
 			return FilePutResult{}, auth, nil
+		}
+		if !existed && !rule(in.Path, StampID(call.Owner, call.VisitorID)) {
+			return FilePutResult{}, &Error{Code: "forbidden", Message: "add is not open to this visitor here"}, nil
+		}
+	} else {
+		call.CurrentMatrix = call.Resource.Matrix()
+		action := "add"
+		if existed {
+			action = "edit"
+			if kvTaken(call) {
+				return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
+			}
+		}
+		filter, err = s.Allow(&call, action, call.CurrentMatrix.Value(action))
+		if err != nil {
+			auth = err.(*Error)
+			if !auth.Allowed {
+				return FilePutResult{}, auth, nil
+			}
 		}
 	}
 	// rowVisitorID is this write's SIM-360 push-fan-out target: the
@@ -86,7 +164,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return FilePutResult{}, auth, e
 		}
-		if filter != "" && writer != filter {
+		if filter != "" && writer != filter || rule != nil && !rule(in.Path, writer) {
 			return FilePutResult{}, auth, &Error{Code: "file_exists", Message: "this path already exists"}
 		}
 		rowVisitorID = writer
@@ -174,9 +252,15 @@ type FileDeleteInput struct {
 func (s *Service) DeleteFile(ctx context.Context, in FileDeleteInput) (*Error, error) {
 	call := in.Call
 	call.Context = ctx
-	filter, err := s.Access(&call, "delete")
 	var auth *Error
-	if err != nil {
+	var filter string
+	var rule fileCheck
+	var err error
+	if kvHasRules(call) {
+		if rule, auth = s.fileRule(&call, ruleengine.OpDelete); auth != nil {
+			return auth, nil
+		}
+	} else if filter, err = s.Access(&call, "delete"); err != nil {
 		auth = err.(*Error)
 		if !auth.Allowed {
 			return auth, nil
@@ -193,6 +277,13 @@ func (s *Service) DeleteFile(ctx context.Context, in FileDeleteInput) (*Error, e
 			return auth, err
 		}
 		if !mine {
+			return auth, &Error{Code: "file_not_found", Message: "file not found"}
+		}
+	}
+	if rule != nil {
+		if ok, err := rule.stored(ctx, s, call, in.Path); err != nil {
+			return auth, err
+		} else if !ok {
 			return auth, &Error{Code: "file_not_found", Message: "file not found"}
 		}
 	}
@@ -221,7 +312,17 @@ func (s *Service) OpenFile(ctx context.Context, in FileReadInput) (*os.File, os.
 	call.Context = ctx
 	var auth *Error
 	filter := call.Filter
-	if !in.LinkAuthorized {
+	var rule fileCheck
+	if !in.LinkAuthorized && kvHasRules(call) {
+		if rule, auth = s.fileRule(&call, ruleengine.OpRead); auth != nil {
+			return nil, nil, auth, nil
+		}
+		if ok, err := rule.stored(ctx, s, call, in.Path); err != nil {
+			return nil, nil, nil, err
+		} else if !ok {
+			return nil, nil, nil, &Error{Code: "file_not_found", Message: "file not found"}
+		}
+	} else if !in.LinkAuthorized {
 		var err error
 		filter, err = s.Access(&call, "read")
 		if err != nil {
@@ -274,9 +375,20 @@ type FileItem struct {
 func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, string, *Error, error) {
 	call := in.Call
 	call.Context = ctx
-	filter, err := s.Access(&call, "read")
 	var auth *Error
-	if err != nil {
+	var filter string
+	var rule fileCheck
+	var err error
+	if kvHasRules(call) {
+		if rule, auth = s.fileRule(&call, ruleengine.OpRead); auth != nil {
+			return nil, "", auth, nil
+		}
+		if call.rulePlan.ReadIsOwnOrOwner() && !call.OwnerOnSite {
+			filter = call.VisitorID // the indexed lookup by uploader
+		} else if call.rulePlan.Partial(ruleengine.OpRead, call.ruleValues) == ruleengine.True {
+			rule = nil // every file is readable
+		}
+	} else if filter, err = s.Access(&call, "read"); err != nil {
 		auth = err.(*Error)
 		if !auth.Allowed {
 			return nil, "", auth, nil
@@ -297,7 +409,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 				return false, nil
 			}
 			next = p
-			if !mechanics.ValidObjectPath(p) {
+			if !mechanics.ValidObjectPath(p) || rule != nil && !rule(p, filter) {
 				return true, nil
 			}
 			f, e := os.Open(s.deps.FilePath(call, p))
@@ -350,6 +462,11 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 		p := filepath.ToSlash(rel)
 		if !mechanics.ValidObjectPath(p) || !strings.HasPrefix(p, in.Prefix) || p <= in.After {
 			return nil
+		}
+		if rule != nil {
+			if ok, e := rule.stored(ctx, s, call, p); e != nil || !ok {
+				return e
+			}
 		}
 		fi, e := d.Info()
 		if e != nil {

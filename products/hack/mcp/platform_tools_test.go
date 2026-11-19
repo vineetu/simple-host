@@ -309,11 +309,7 @@ func TestHackStorageRulesRefusedResourceHints(t *testing.T) {
 				}
 				off, on := render("off", true), render("on", true)
 				siteHint := added(render("off", false), render("on", false))
-				if kind == "files" {
-					if on != off {
-						t.Fatalf("file refusal changed under flag:\noff: %s\non: %s", off, on)
-					}
-				} else if hint := added(off, on); hint == "" || hint != siteHint {
+				if hint := added(off, on); hint == "" || hint != siteHint {
 					t.Fatalf("missing data rule hint: %s\nsite tool adds: %s", on, siteHint)
 				}
 			})
@@ -667,7 +663,7 @@ func TestRulesHackRecipeAdaptations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(text, "files resource with preset public") || strings.Contains(text, "same preset") {
+		if !strings.Contains(text, "files resource with the same rules") || strings.Contains(text, "same preset") {
 			t.Errorf("%s has ambiguous file access advice", topic)
 		}
 	}

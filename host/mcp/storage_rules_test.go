@@ -53,7 +53,7 @@ func TestStorageRulesTextAtRequestTime(t *testing.T) {
 				if name == "storage_sql_schema" && !strings.Contains(tool.Description, "Do not declare visitor_id: the server ensures the indexed author column when rules reference visitor_id or allow ordinary visitors to add.") {
 					t.Errorf("%s lacks conditional author-column guidance", tool.Name)
 				}
-				// File presets are the only access menu the rules wording may teach.
+				// The rules wording teaches no preset menu.
 				dataText := strings.Split(tool.Description, "For kind: \"files\"")[0]
 				for _, choice := range []string{"preset public", "preset private", "preset records", "preset personal", "preset inbox", "preset wall", "preset board", "The presets (", "whatever the preset", "whose preset"} {
 					if strings.Contains(dataText, choice) {
@@ -61,14 +61,14 @@ func TestStorageRulesTextAtRequestTime(t *testing.T) {
 					}
 				}
 				if name == "storage_list_resources" {
-					for _, phrase := range []string{"rules_status", "Resources with rules return rules", "per-table rules only for overrides", `Unconverted resources (rules_status: "preset") retain their existing preset and access fields`, "File buckets keep preset and access"} {
+					for _, phrase := range []string{"rules_status", "Resources with rules return rules", "per-table rules only for overrides", `Unconverted resources (rules_status: "preset") retain their existing preset and access fields`, "Uploads in a files resource are listed by"} {
 						if !strings.Contains(tool.Description, phrase) {
 							t.Errorf("%s lacks %q", tool.Name, phrase)
 						}
 					}
 				}
 				if name == "storage_set_resource" {
-					for _, phrase := range []string{"Deny by default", "Clause table", "read | required | refused", "add | refused | required", "edit | required | optional, defaults to using", "delete | required | refused", "all | required", `For kind: "files"`, `preset, read, add, edit, delete, site_passcode`, "Do not combine rules with preset, read, add, edit, delete, write, write_mode or approve_first.", "For every resource kind, site_passcode applies alongside rules or presets", "Omission defaults to inherit"} {
+					for _, phrase := range []string{"Deny by default", "Clause table", "read | required | refused", "add | refused | required", "edit | required | optional, defaults to using", "delete | required | refused", "all | required", `For kind: "files"`, `File rules use path and visitor_id`, `File rules cannot use auth.checked`, "Do not combine rules with preset, read, add, edit, delete, write, write_mode or approve_first.", "For every resource kind, site_passcode applies alongside rules or presets", "Omission defaults to inherit"} {
 						if !strings.Contains(tool.Description, phrase) {
 							t.Errorf("%s lacks %q", tool.Name, phrase)
 						}
@@ -164,11 +164,7 @@ func TestStorageRulesRefusedResourceHints(t *testing.T) {
 						return text
 					}
 					off, on := render("off"), render("on")
-					if kind == "files" {
-						if on != off {
-							t.Fatalf("file refusal changed under flag:\noff: %s\non: %s", off, on)
-						}
-					} else if on == off || !strings.Contains(on, storageRulesCodeHints[code]) {
+					if on == off || !strings.Contains(on, storageRulesCodeHints[code]) {
 						t.Fatalf("missing data rule hint: %s", on)
 					}
 				})

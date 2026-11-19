@@ -35,7 +35,7 @@ its files first). `create_site` never overwrites an existing site.
 For new saved data, first choose the site's own schema and whether a KV, SQLite or files
 resource fits. Save SQLite/KV row rules with `storage_set_resource`: for personal
 reads use `visitor_id == auth.id || auth.role == "owner"`, signed-in adds use
-`auth.signed_in`, and edit/delete may be owner-only. File buckets keep presets. KV/SQLite share **10,000,000 bytes per website** and files have a separate **10 MB** allowance;
+`auth.signed_in`, and edit/delete may be owner-only. File buckets take the same rules, over `path` and `visitor_id` (the uploader). KV/SQLite share **10,000,000 bytes per website** and files have a separate **10 MB** allowance;
 check `storage_get_usage` before large writes. A resource can inherit the site's passcode
 or deliberately bypass it. `auth.signed_in` alone shares rows among signed-in visitors.
 Follow the description of `storage_set_resource` that this server gives; if it does not

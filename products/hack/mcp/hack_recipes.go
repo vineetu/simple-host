@@ -72,7 +72,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 	}
 	photoAdvice := "For photos, a files resource with the same preset and storage_put_file (under 1,000,000 bytes each; resize first)."
 	if mcp.StorageRulesEnabled() {
-		photoAdvice = "For photos, use a files resource with preset public and storage_put_file (under 1,000,000 bytes each; resize first). Files keep presets; do not copy the key-value rules onto a files resource."
+		photoAdvice = "For photos, use a files resource with the same rules (read true; add, edit and delete auth.role == \"owner\") and storage_put_file (under 1,000,000 bytes each; resize first)."
 	}
 	text = strings.NewReplacer(
 		"Pass returned visitor_id values directly in storage_sql_query or storage_sql_execute params for the same site.\n\n", "",

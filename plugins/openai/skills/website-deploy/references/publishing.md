@@ -96,7 +96,7 @@ Never put secrets, keys or passwords in pages or data.
 
 SQLite/KV read rules decide who sees saved data: `auth.role == "owner"` is
 owner-only, `visitor_id == auth.id || auth.role == "owner"` is author-or-owner,
-and `true` is public. File buckets keep presets. Follow this server's
+and `true` is public. File buckets take the same rules, over `path` and `visitor_id` (the uploader). Follow this server's
 `storage_set_resource` description; if it does not accept `rules`, the server is
 older and its description says what to send. The page that shows an owner-only resource is still a public page; the data behind
 it is what is private.

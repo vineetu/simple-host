@@ -421,7 +421,7 @@ site, offer named viewers (each person signs in with their own email) or the
 site passcode (one shared code), say plainly what each does, and do not suggest
 a workaround. Sign-in
 gates saving, not reading pages. SQLite/KV author-or-owner or owner-only read
-rules keep saved data private; file buckets keep their access presets.
+rules keep saved data private; file buckets take the same rules.
 
 Hosted retention (2026-10-05): normally 4 latest versions, plus any older live one. Only accounts enabled by `KEEP_VERSIONS_SELF_SET` may use the per-site route or `set_keep_versions`; others receive 403 `keep_versions_fixed`, “Simple Host keeps your 4 latest versions”. `0` uses the account default (`KEEP_VERSIONS_OVERRIDES`), else the instance setting.
 

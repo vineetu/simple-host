@@ -13,7 +13,7 @@ Moved here from SKILL.md unchanged.
 
 ## Connecting and scope
 
-Sites use KV, SQLite and files. For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets keep presets.
+Sites use KV, SQLite and files. For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets take the same rules, over `path` and `visitor_id` (the uploader).
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
@@ -29,7 +29,7 @@ For a **new Simple Host** site's backend, plan with three flexible resources:
 JSON KV for named values, SQLite for related records and queries, and files for
 durable binary objects. The agent chooses the schema, keys and paths for the
 actual app. SQLite and KV rules define who may read, add, edit and delete.
-File buckets keep access presets. Public adds require a public add check;
+File buckets take the same rules. Public adds require a public add check;
 spam-checked posting uses `auth.checked` only where configured. A signed-in
 condition alone shares rows; an author-or-owner read keeps them private.
 Read `website-deploy/references/storage.md` before implementation. Simple Hack team and custom event websites use only these resources; follow their separate skill for site scope and event rules.
@@ -52,7 +52,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Capability | How |
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip`. With the connector: `create_site` / `update_site` (`deploy_site` on older connections) |
-| **New Simple Host backend** | Declare KV, SQLite or files resources with `storage_set_resource` or `PUT /v1/sites/<site>/storage/resources/<name>`; write row rules per SQLite/KV resource and per table; keep presets for file buckets; use the matching `storage_*` connector tools or same-origin REST. KV/SQLite share 10,000,000 bytes; files get 10 MB; plan client-side phone-photo compression for upload pages. See `website-deploy/references/storage.md` |
+| **New Simple Host backend** | Declare KV, SQLite or files resources with `storage_set_resource` or `PUT /v1/sites/<site>/storage/resources/<name>`; write row rules per SQLite/KV resource and per table; the same rules for file buckets; use the matching `storage_*` connector tools or same-origin REST. KV/SQLite share 10,000,000 bytes; files get 10 MB; plan client-side phone-photo compression for upload pages. See `website-deploy/references/storage.md` |
 | Collections (signups, RSVPs, submissions — anything visitors add to) | A SQLite resource (`storage_set_resource`) with rules for public posts, a signed-in shared board, or an owner-only inbox; pages call `table().add()`, `.list()`, `.edit()`, `.delete()` as the rules allow |
 | Private collections (orders, RSVPs, anything personal) | A SQLite resource with author-or-owner read rules, or owner-only reads — see [Each person's records](handoff-and-examples.md#each-persons-records) in `references/handoff-and-examples.md` |
 | A nicer address (optional) | Free `<name>.simple-host.app`: one call (`connect_domain`), active at once, no DNS. Or a custom domain via the `connect-domain` skill (two DNS records: the address and a TXT ownership record). The site moves there and its old address redirects |
@@ -65,7 +65,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 
 If the idea needs server-side application code, custom user accounts, platform-enforced per-row roles or long-running jobs, explain that those parts need another service. A site can use its own SQLite resource for SQL tables and queries; do not describe shared SQL as unsupported.
 
-**State who may read and change data before designing the page.** For SQLite/KV, write row rules: `true` allows public reads, `auth.signed_in` requires site-scoped visitor sign-in, and `visitor_id == auth.id || auth.role == "owner"` keeps reads private to the author and owner. File buckets keep presets. Pages never use account sign-in or an API key. Agents acting for the owner use the connector or owner API key.
+**State who may read and change data before designing the page.** For SQLite/KV, write row rules: `true` allows public reads, `auth.signed_in` requires site-scoped visitor sign-in, and `visitor_id == auth.id || auth.role == "owner"` keeps reads private to the author and owner. File buckets take the same rules, over `path` and `visitor_id` (the uploader). Pages never use account sign-in or an API key. Agents acting for the owner use the connector or owner API key.
 
 **Preserve per-person privacy.** For a design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; use author-or-owner reads, or owner-only reads for an inbox. Visitor edits require a separate design (a linked change table, as in Each person's records). SQL joins and search within a resource are supported; trusted roles come from declared server bindings, never a row supplied by the page.
 

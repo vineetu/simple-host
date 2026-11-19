@@ -1,5 +1,6 @@
 # Changelog
 
+2026-11-19: File storage accepts rules in the same words as key-value rules: each file is a row with its `path` and `visitor_id` (who uploaded it). Upload areas without rules keep working as before, and existing ones are moved onto matching rules once at deploy; visitors see no change (FR-S1).
 2026-11-19: Activity records of the writes a visitor's AI app makes on a site are deleted after 30 days again, every 6 hours and at startup, as the privacy page now says; the old saved-data sweep that did this was removed with the older features. Nothing changes for pages or tools.
 2026-11-19: The Coolify, Railway, Render and Fly.io install options are removed: their recipes, guides, setup-helper note and release checks. Docker Compose, Kubernetes with Helm and DigitalOcean installs are unchanged (F50-S1).
 2026-11-19: The older saved-data features are removed: shared state, collections, the declared kinds (Page info, Submissions, Personal, Shared board), `SH.data`, `SH.state` and `SH.collection`, their routes, AI tools, dashboard views, the new-entries email, their settings (`SAVED_DATA_*`, `WRITE_AUTH_MODE`, `RATE_LIMIT_STATE`, `LEGACY_STORAGE_CUTOFF`, `STORAGE_SWITCH_AT`) and the retirement-notice machinery. A page calling an old route gets the ordinary 404. The saved rows stay in the database.

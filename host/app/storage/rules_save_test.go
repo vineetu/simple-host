@@ -267,13 +267,17 @@ func TestRulesSaveShapes(t *testing.T) {
 		ruleRefusal(t, s, in, "shape")
 	}
 	in.Tables = nil
-	in.Kind = "files"
-	ruleRefusal(t, s, in, "shape")
-	in.Kind = "sqlite"
+	files := in
+	files.Kind, files.Name, files.Rules = "files", "uploads", readSet("value == 1")
+	ruleRefusal(t, s, files, "column") // files(path, visitor_id) has no value
 	in.Rules = saveSet(ruleengine.Policy{Name: "checked", Command: ruleengine.CmdAdd, Check: "auth.checked"})
 	ruleRefusal(t, s, in, "binding")
 	s.deps.SpamCheckAvailable = true
 	putRules(t, s, in)
+	files.Rules = in.Rules
+	ruleRefusal(t, s, files, "binding") // uploads are never spam-checked
+	files.Rules = readSet("visitor_id == auth.id && path != ''")
+	putRules(t, s, files)
 }
 
 func TestRulesSaveKVAndBindings(t *testing.T) {

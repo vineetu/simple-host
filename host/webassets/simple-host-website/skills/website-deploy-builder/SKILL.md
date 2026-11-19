@@ -16,10 +16,10 @@ A static-file host: every site lives at `https://<sitename>.<handle>.simple-host
 HTML, CSS, JS, images and fonts. Nothing runs on the server. Each site can still save data in
 three kinds of resource the owner creates: KV (named JSON values), SQLite (tables and queries) and
 files (photos, PDFs). SQLite and key-value resources use row rules for who may read, add, edit and
-delete; each SQLite table may have its own set. File buckets keep access presets. Visitors sign in on the site itself with an emailed code or Google, never
+delete; each SQLite table may have its own set. File buckets take the same rules, over `path` and `visitor_id` (the uploader). Visitors sign in on the site itself with an emailed code or Google, never
 with an account or a password.
 
-For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets keep presets.
+For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets take the same rules, over `path` and `visitor_id` (the uploader).
 
 ## Map the request
 

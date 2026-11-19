@@ -9,7 +9,7 @@ Use the signed-in Simple Hack connector. For a team site, call `hack_get_my_team
 | SQLite schema, read query, mutation | `storage_sql_schema`, `storage_sql_query`, `storage_sql_execute` |
 | Raw files | `storage_list_file_objects`, `storage_file_download_link`, `storage_put_file`, `storage_delete_file` |
 
-For the custom event website, use the corresponding `hack_event_storage_*` tools from the connector's current schema. Resource names are site-scoped; do not assume the same name grants access to another team or event. Owner tools manage resource configuration. SQLite and KV use row rules; file buckets keep presets. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged website-deploy storage reference explains the language. For per-person reads use `visitor_id == auth.id || auth.role == "owner"`; sign-in alone shares rows. Products supply `auth.team`, `auth.teams`, `auth.organiser`, `event.team`, `event.stage` and `event.before_deadline` from trusted data. Team scope, membership, stage, deadlines and take-down gates still apply even to rules of `true`. Recipe topic names stay unchanged.
+For the custom event website, use the corresponding `hack_event_storage_*` tools from the connector's current schema. Resource names are site-scoped; do not assume the same name grants access to another team or event. Owner tools manage resource configuration. SQLite, KV and file buckets use row rules; file rules see `path` and `visitor_id`, the uploader. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged website-deploy storage reference explains the language. For per-person reads use `visitor_id == auth.id || auth.role == "owner"`; sign-in alone shares rows. Products supply `auth.team`, `auth.teams`, `auth.organiser`, `event.team`, `event.stage` and `event.before_deadline` from trusted data. Team scope, membership, stage, deadlines and take-down gates still apply even to rules of `true`. Recipe topic names stay unchanged.
 
 Rules have `version: 1` and `policies`. A policy has a `command`, optional
 `name`, optional `restrictive: true` (default false), and these clauses:
@@ -55,11 +55,14 @@ permissive policies; a public read of `true` still reads what anyone reads.
 ```
 
 SQLite table sets replace the resource default. Omit `tables` to keep them;
-`{}` clears them. File buckets still use presets such as `wall` for public
-visitor photos or `records` for photos visible only to their author and owner:
+`{}` clears them. File buckets take rules in the same words, over `path` and
+`visitor_id` (the uploader). These let visitors view photos, signed-in visitors
+upload and authors remove their own; a read rule of
+`visitor_id == auth.id || auth.role == "owner"` keeps photos to their author and
+the owner. File rules cannot use `auth.checked`:
 
 ```json
-{"kind":"files","preset":"wall","site_passcode":"inherit"}
+{"kind":"files","site_passcode":"inherit","rules":{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"delete","command":"delete","using":"visitor_id == auth.id"},{"name":"owner","command":"all","using":"auth.role == \"owner\""}]}}
 ```
 
 A UNIQUE conflict can reveal a hidden row. KV add attempts can reveal an existing

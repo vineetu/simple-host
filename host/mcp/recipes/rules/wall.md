@@ -2,7 +2,7 @@ Ask who should read, add, edit and delete which data before running setup. Write
 
 # Wall: a guestbook, comments, reviews, or a public "who's coming" list
 
-Use this when signed-in people post and everyone can read, and each author can take back their own post: a guestbook, comments, reviews, wedding wishes, a public RSVP list, community recommendations. For photos, use topic gallery (files use the wall preset).
+Use this when signed-in people post and everyone can read, and each author can take back their own post: a guestbook, comments, reviews, wedding wishes, a public RSVP list, community recommendations. For photos, use topic gallery (a files resource with these same rules).
 
 Who signs in where:
 - Readers need no sign-in. Posting needs visitor sign-in on the site's own address (an emailed code or Google, the SH.mount box), so every post has a known author.

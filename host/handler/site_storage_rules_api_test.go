@@ -142,7 +142,7 @@ func TestStorageRulesAPIErrors(t *testing.T) {
 	for _, tc := range []struct{ name, body, code, clause, table string }{
 		{"syntax", `{"kind":"sqlite","rules":{"policies":[{"name":"broken","command":"read","using":"("}]}}`, "invalid_rules", "using", ""},
 		{"shape", `{"kind":"sqlite","preset":"","rules":{"policies":[]}}`, "invalid_rules", "shape", ""},
-		{"files", `{"kind":"files","rules":{"policies":[]}}`, "invalid_rules", "shape", ""},
+		{"files", `{"kind":"files","rules":{"policies":[{"name":"read","command":"read","using":"key == 'a'"}]}}`, "invalid_rules", "column", "files"},
 		{"table", `{"kind":"sqlite","rules":{"policies":[]},"tables":{"notes":{"preset":"private","rules":{"policies":[]}}}}`, "invalid_rules", "shape", "notes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

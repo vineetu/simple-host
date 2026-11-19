@@ -16,7 +16,7 @@ ChatGPT and Codex list each tool separately. Call the named tool directly, using
 Call tools only for the work the person requested; a planning question alone does not authorize publication or storage changes.
 When the person asks to add their photos to a site, call `create_upload_link`. It shows a photo picker in the chat, or returns `photos_url` to give them; never ask them to convert, resize, or host photos elsewhere.
 
-Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. Read the website-deploy `references/storage.md` for row-rule syntax; file buckets keep presets.
+Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. Read the website-deploy `references/storage.md` for row-rule syntax, which file buckets use too.
 
 ## 1. Decide what to build
 

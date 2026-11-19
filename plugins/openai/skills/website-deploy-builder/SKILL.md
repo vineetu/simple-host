@@ -12,7 +12,7 @@ Use this skill to decide what to build. When the person has chosen, hand the bui
 missing, ask the person to connect Simple Host (https://simple-host.app/install.html). Never ask
 for sign-in codes, API keys or passwords in chat.
 
-Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. Read the website-deploy `references/storage.md` for row-rule syntax; file buckets keep presets.
+Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. Read the website-deploy `references/storage.md` for row-rule syntax, which file buckets use too.
 
 ## What Simple Host is
 
@@ -20,7 +20,7 @@ A static-file host: every site lives at `https://<sitename>.<handle>.simple-host
 HTML, CSS, JS, images and fonts. Simple Host serves static files and its built-in storage; it does not run your own server code. Each site can still save data in
 three kinds of resource the owner creates: KV (named JSON values), SQLite (tables and queries) and
 files (photos, PDFs). SQLite and KV use row rules for read, add, edit and delete; SQLite tables may
-replace the resource default. File buckets keep access presets. Visitors sign in with Google or an emailed code; no password or sign-up form.
+replace the resource default. File buckets take the same rules, over `path` and `visitor_id` (the uploader). Visitors sign in with Google or an emailed code; no password or sign-up form.
 
 ## Map the request
 

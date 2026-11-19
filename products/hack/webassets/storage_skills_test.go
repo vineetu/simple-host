@@ -64,8 +64,8 @@ func TestToolkitStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(data)
-		if !strings.Contains(text, `{"kind":"files","preset":"wall"`) {
-			t.Errorf("%s: file-bucket preset example missing", path)
+		if !strings.Contains(text, `{"kind":"files","site_passcode":"inherit","rules"`) {
+			t.Errorf("%s: file-bucket rules example missing", path)
 		}
 		if !strings.Contains(text, "server is older and its description says what to") {
 			t.Errorf("%s: older-server guidance missing", path)

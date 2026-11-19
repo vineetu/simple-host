@@ -61,12 +61,6 @@ func TestRulesRecipeExamples(t *testing.T) {
 				t.Fatal("recipe has no worked setup example")
 			}
 			for _, setup := range setups {
-				if setup.Body.Kind == "files" {
-					if setup.Body.Preset == "" || len(setup.Body.Rules) > 0 {
-						t.Error("files must keep presets")
-					}
-					continue
-				}
 				if setup.Body.Preset != "" {
 					t.Error("SQLite/KV access taught as a preset")
 				}

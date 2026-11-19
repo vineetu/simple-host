@@ -94,7 +94,7 @@ For ChatGPT, OpenAI, and Codex, use notifications if the owner asks to be told w
 
 ## 3. Pages that save or sign visitors in
 
-For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets keep presets.
+For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.role == "owner"` limits reads to each person and the owner; `auth.signed_in` alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. See the website-deploy `references/storage.md` for the language and examples. File buckets take the same rules, over `path` and `visitor_id` (the uploader).
 
 Follow the recipe's page code rather than inventing your own. Create each resource
 (`storage_set_resource` with its rules) and its tables (`storage_sql_schema`) before publishing

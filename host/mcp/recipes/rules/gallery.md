@@ -1,4 +1,4 @@
-Ask who should read and upload photos first. This worked example lets everyone read, signed-in visitors upload, and each author remove their own photos. Files keep presets; do not send row rules for a files resource.
+Ask who should read and upload photos first. This worked example lets everyone read, signed-in visitors upload, and each author remove their own photos. File rules use the same words as key-value rules, with path and visitor_id (the uploader).
 
 # A gallery visitors add to: upload a photo, everyone sees the wall
 
@@ -13,9 +13,9 @@ Who signs in where:
 
 ## 1. Owner setup (run this tool before publishing the page)
 
-One files resource with preset wall (read anyone, add signed-in, edit owner, delete own): everyone sees the photos, a signed-in visitor can add photos, and each person can take back their own; nobody but you replaces or removes someone else's.
+One files resource whose rules let anyone read, signed-in visitors add, each uploader delete their own, and only you change anything else: everyone sees the photos, a signed-in visitor can add photos, and each person can take back their own; nobody but you replaces or removes someone else's.
 
-storage_set_resource {"site": "{site}", "name": "photos", "body": {"kind": "files", "preset": "wall", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "photos", "body": {"kind": "files", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "delete", "command": "delete", "using": "visitor_id == auth.id"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 What the server guarantees: each file is stored under the path the page chose (the page below uses a random name, so uploads never collide); a visitor can never replace a file, and can delete only one they uploaded (list() marks those mine: true); the site's files allowance is 10 MB in all and 1,000,000 bytes per file, which is why the page resizes before uploading; files that are not real images are refused (invalid_file).
 
@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", function () {
           var img = document.createElement("img");
           img.src = url; img.alt = "Photo"; img.loading = "lazy";
           wall.appendChild(img);
-          // mine: this visitor uploaded it, so the wall preset lets them take it back.
+          // mine: this visitor uploaded it, so the delete rule lets them take it back.
           if (items[i].mine) {
             var b = document.createElement("button");
             b.textContent = "Remove my photo";
