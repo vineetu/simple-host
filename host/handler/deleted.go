@@ -139,10 +139,6 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 
 var errRestoreFiles = sites.ErrRestoreFiles
 
-func (h *SiteHandler) wakeImageScans(ctx context.Context, siteID string) {
-	h.lifecycleSvc().WakeImageScans(ctx, siteID)
-}
-
 func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d model.DeletedSite, handle string, also func(tx *sql.Tx) error) (model.Site, error) {
 	return h.lifecycleSvcWithTransaction(also).RestoreTrashed(ctx, sites.RestoreTrashedInput{Site: d, Handle: handle})
 }

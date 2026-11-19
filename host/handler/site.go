@@ -87,13 +87,10 @@ type SiteHandler struct {
 	notifications      *notificationEngine
 	notificationGroups notifications.GroupSites
 
-	mailer       signInMailer
-	emailLimiter *rateLimiter
-	database     *sql.DB
-	disk         SiteDisk
-	// imageScan checks uploaded images against known abuse hash sets
-	// (imagescan.go); nil until PHOTODNA_API_KEY is set.
-	imageScan      *ImageScan
+	mailer         signInMailer
+	emailLimiter   *rateLimiter
+	database       *sql.DB
+	disk           SiteDisk
 	siteDomain     string
 	contentHost    string // shared v3 content host, e.g. sites.simple-host.app
 	cnameTarget    string // CNAME target for custom domains, e.g. cname.simple-host.app
@@ -613,10 +610,6 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/sites/{sitename}/viewers/{email}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.removeSiteViewer)))))
 	mux.Handle("POST /v1/site-signin", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignIn)))
 	mux.Handle("POST /v1/site-signout", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignOut)))
-
-	// Image matching (imagescan.go): the matches, the queue, and filing a report.
-	mux.Handle("GET /v1/admin/image-scan", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminImageScan))))
-	mux.Handle("POST /v1/admin/image-scan/{id}/report", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminImageScanReport))))
 
 	mux.Handle("GET /v1/sites/{sitename}/me", h.signInGate(http.HandlerFunc(h.getVisitorMe)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/me", h.optionsVisitorMe)

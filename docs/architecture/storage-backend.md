@@ -61,7 +61,6 @@ redirect markers beside trees that cannot be listed.
 | `app/sites/export.go`; `handler/export.go`, `account_data.go`, `heldsites_export.go` | Live, trash and held-project exports select contents logically and walk files; runtime export still uses its separate local root. |
 | `handler/versionfiles.go` | Retained-file read/list through the backend, keeping metadata retention checks, invalid-path errors and safe internal-symlink behavior. |
 | `handler/visitor_tools.go`, `showcase.go`, `seo.go` | Page text, metadata and crawler preferences read deploy contents through the backend. |
-| `app/operations/imagescan.go` | Deploy-image reads/removals use the backend; evidence and runtime buckets remain local. |
 | `server/sitesummary.go` | Summary backfill reads the selected version through the backend. |
 | `handler/heldsites_export.go` | Account deploy footprint plus local auxiliary bytes preserves the existing all-regular-file total, including runtime resources and markers. |
 
@@ -80,7 +79,6 @@ serving/link/marker/runtime assertions), never a production content reader.
 | Production caller outside `storage` | Classification / reason |
 |---|---|
 | `app/sites/service.go`: `DataDir()` | Local operational `.deploy-queue` hand-off. |
-| `app/operations/imagescan.go`: `DataDir()` | Local evidence default and refusal of evidence under served paths. |
 | `handler/adminsites.go`, `handler/usage.go`: `DataDir()` | Local physical installation usage, not deploy-content reads. |
 | `handler/preview.go`: `VersionDir()` | Local web-serving root for a retained-version preview. |
 | `papermetrics/product.go`: `DataDir()`; `products/hack/papermetrics/hack_counter.go`: `DataDir()` | Local physical research measurements; not deploy-content reads. |

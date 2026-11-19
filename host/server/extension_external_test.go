@@ -21,7 +21,6 @@ import (
 
 func TestExtensionConstructionOrderAndWireError(t *testing.T) {
 	cfg := servertest.Config(t, testdb.Fresh(t))
-	cfg.PhotoDNAKey = "test-only-no-provider-requests"
 	var order []string
 	var db *sql.DB
 	wantErr := errors.New("test wiring failure")
@@ -45,7 +44,7 @@ func TestExtensionConstructionOrderAndWireError(t *testing.T) {
 		},
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			order = append(order, "wire")
-			if d.DB != db || d.Disk == nil || d.Mail == nil || d.Accounts == nil || d.Site == nil || d.Connector == nil || d.ImageScan == nil || d.AuthMW == nil || d.Mux == nil || d.Edition == nil {
+			if d.DB != db || d.Disk == nil || d.Mail == nil || d.Accounts == nil || d.Site == nil || d.Connector == nil || d.AuthMW == nil || d.Mux == nil || d.Edition == nil {
 				t.Fatal("wire dependencies missing")
 			}
 			_, pattern := d.Mux.Handler(httptest.NewRequest(http.MethodPost, "/mcp", nil))

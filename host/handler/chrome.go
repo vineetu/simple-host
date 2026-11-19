@@ -594,10 +594,6 @@ func (p *assetPipeline) chromePageRaw(name string, d ChromeData) ([]byte, error)
 	if name == "setup.html" && !d.Product {
 		page = addHostInk(page, d.Base)
 	}
-	if name == "privacy.html" {
-		// Stripped once here; SetImageScanOn drops these cached copies.
-		page = stripImageScanItem(page)
-	}
 	chromeCache.Store(key, page)
 	return page, nil
 }

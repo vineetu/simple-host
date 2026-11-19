@@ -20,8 +20,7 @@ func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sit
 			return h.captureSiteResponseState(site, version, preview, footprint)
 		},
 		LockSite: h.lockSite, DeletedRetention: h.limits.DeletedRetention,
-		ImageScanEnabled: h.imageScan != nil,
-		HasLiveFamilies:  h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect,
+		HasLiveFamilies: h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect,
 		RequestCert: h.RequestSiteCert, CancelDomainCert: h.cancelDomainCert,
 		AdmitSQLite: func(ctx context.Context, siteID string, fn func(context.Context) error) error {
 			return h.siteSlotsFor().Admit(ctx, siteID, func(ctx context.Context, _ *appstorage.Admission) error { return fn(ctx) })

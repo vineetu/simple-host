@@ -90,7 +90,6 @@ type Deps struct {
 	EventMaxClaims          int
 	CertRequests            CertRequestDeps
 	DeletedRetention        time.Duration
-	ImageScanEnabled        bool
 	CancelDomainCert        func(string)
 	ExportResources         func(context.Context, string) ([]map[string]any, error)
 	AdmitSQLite             func(context.Context, string, func(context.Context) error) error

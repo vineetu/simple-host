@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/vsriram/simple-host/host/repository/accounts"
 	repo "github.com/vsriram/simple-host/host/repository/sites"
@@ -58,20 +57,6 @@ func (s *Service) Trash(ctx context.Context, in TrashInput) error {
 		return err
 	}
 	return nil
-}
-
-// WakeImageScans makes image checks waiting on a restored site's delete
-// run now, not at their next hourly look. A failure only delays them. The
-// restore has committed by then, so a client that hangs up does not stop it.
-func (s *Service) WakeImageScans(ctx context.Context, siteID string) {
-	if !s.deps.ImageScanEnabled {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-	if err := repo.WakeImageScans(ctx, s.database, siteID); err != nil {
-		log.Printf("restore site %s: image checks: %v", siteID, err)
-	}
 }
 
 // RestoreTrashed brings a site in Recently deleted back exactly as it
@@ -138,7 +123,6 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (r
 		}
 		return repo.Site{}, err
 	}
-	s.WakeImageScans(ctx, d.ID)
 	// The handle may have changed while the site was deleted.
 	if handle != "" {
 		if err := s.disk.EnsureHandleLink(handle, d.UserID); err != nil {

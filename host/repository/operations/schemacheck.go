@@ -92,7 +92,7 @@ var requiredColumns = map[string][]string{
 	// w3-network-usage.sql
 	"traffic_daily":      {"day", "kind", "bytes", "requests"},
 	"site_traffic_daily": {"site_id", "day", "kind", "bytes", "requests"},
-	// zz-sim-200-image-scan.sql: image matching (imagescan.go).
+	// zz-sim-200-image-scan.sql: the removed image check; tables kept, unused.
 	"image_scan_hashes":  {"sha256", "verdict", "provider", "tracking_id", "detail", "checked_at"},
 	"image_scan_queue":   {"id", "kind", "site_id", "event_id", "team_id", "version", "resource_name", "path", "writer_id", "sha256", "bytes", "attempts", "next_attempt_at", "last_error", "created_at"},
 	"image_scan_matches": {"id", "kind", "site_id", "site_name", "owner_id", "owner_handle", "owner_email", "event_id", "event_slug", "team_id", "version", "resource_name", "path", "writer_id", "sha256", "bytes", "content_type", "provider", "tracking_id", "source", "violations", "raw", "evidence_path", "uploaded_at", "detected_at", "taken_down", "alerted_at", "report_status", "report_id", "reported_at", "report_error", "uploader", "address"},

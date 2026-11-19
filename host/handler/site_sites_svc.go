@@ -60,7 +60,6 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 					paperRecorder(ctx).Deploy(ctx)
 				}
 			}
-			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, n, files)
 		},
 		NotifyRollback: func(siteID string, version, prev int) {
 			h.emitSiteNotification(siteID, "site.deployed", map[string]any{"version": version, "previous_version": prev, "via": "active_version"}, 0)
@@ -72,7 +71,6 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 			if h.ed.Identity().PaperMetrics && user.Team != nil {
 				paperRecorder(ctx).Deploy(ctx)
 			}
-			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, 1, files)
 		},
 		FileCaps: h.fileCapsEnabled(), CapCutoff: h.limits.SiteTotalCapFrom,
 		CapLimits: func(ctx context.Context, user *model.User) (int, int) {

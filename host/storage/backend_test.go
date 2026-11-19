@@ -2,8 +2,6 @@ package storage
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"os"
@@ -174,12 +172,6 @@ func TestSiteFilesContract(t *testing.T) {
 			if _, err := files.ReadFile(ctx, FileVersion{UserID: "owner", SiteName: "site", Version: 2}, "old"); !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
 			}
-			// Hash removal spans retained versions and live bytes, and preserves
-			// different bytes stored at the same name in another version.
-			sum := sha256.Sum256([]byte("one"))
-			must(files.RemoveFileEverywhere("owner", "site", "index.html", hex.EncodeToString(sum[:])))
-			missing(one)
-			missing(FileVersion{UserID: "owner", SiteName: "site"})
 			read(FileVersion{UserID: "owner", SiteName: "site", Version: 2}, "index.html", "two!")
 			must(files.TrashSite("owner", "site", "site-id"))
 			missing(one)
@@ -189,7 +181,7 @@ func TestSiteFilesContract(t *testing.T) {
 			read(trashed, "index.html", "two!")
 			n, err = files.AccountFileBytes("owner")
 			must(err)
-			if n != 14 {
+			if n != 20 {
 				t.Fatal(n)
 			}
 			must(files.RestoreSite("owner", "restored", "site-id"))

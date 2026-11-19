@@ -35,7 +35,7 @@ app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rul
 @/products/hack/app/members -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries repository/{accounts,sites} @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
 @/products/hack/app/entries -> app/{accounts,sites,storage,notifications} repository/sites @/products/hack/repository/hackentries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/rules/hackentries @/products/hack/rules/hackevents storage
 app/notifications -> app/accounts repository/{notifications,accounts,legacy} email
-app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,legacy} storage analytics netusage papermetrics geoip imagescan email capacity buildinfo
+app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,legacy} storage analytics netusage papermetrics geoip email capacity buildinfo
 repository/{accounts,sites,storage,legacy,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage}
 @/products/hack/repository/hackevents -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
 @/products/hack/repository/hackteams -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
@@ -53,7 +53,7 @@ storage -> @/host/storage/rules
 {analytics,netusage,papermetrics} -> model workers
 geoip -> workers
 {app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
-{buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,testdb,geoip/geoiptest} -> -
+{buildinfo,capacity,email,eventdns,oauth,tarball,testdb,geoip/geoiptest} -> -
 {llm,redirects,pagepath} -> -
 # Permanent module-specific packages and command rows.
 @/scripts/split/sqlcheck -> @/host/db/migrations @/products/hack/db/migrations

@@ -192,7 +192,6 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 		return FilePutResult{}, nil, err
 	}
 	s.deps.Committed(ctx)
-	s.deps.ScanFile(call, in.Path, body)
 	s.deps.MarkChanged()
 	unlock()
 	result := FilePutResult{Bytes: len(body), ContentType: mechanics.DetectContentType(body)}

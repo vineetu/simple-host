@@ -15,7 +15,6 @@ type workerDependencies struct {
 	oauth          *handler.OAuthHandler
 	connector      *handler.ConnectorHandler
 	productWorkers []workers.Owner
-	image          *operations.ImageScan
 	paper          *operations.PaperMetrics
 	metrics        *operations.APIMetrics
 	geo            *geoip.DB
@@ -58,11 +57,6 @@ func registerWorkers(d workerDependencies) *workers.Set {
 		s.Add(w)
 	} else {
 		s.AddDisabled("operations.network_usage")
-	}
-	if d.image != nil {
-		s.Add(d.image)
-	} else {
-		s.AddDisabled("operations.image_scan")
 	}
 	if d.paper != nil {
 		s.Add(d.paper)

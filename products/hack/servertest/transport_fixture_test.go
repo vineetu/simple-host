@@ -413,8 +413,7 @@ func jsonArr(t *testing.T, r resp) []map[string]any {
 }
 
 // createEvent creates a draft event without opening it (hackApp's own
-// semantics, duplicated here: TestImageScanEventIcon needs a draft, not an
-// opened, event).
+// semantics, duplicated here).
 func (a *teamSiteApp) createEvent(t *testing.T, p person, slug string, extra map[string]any) resp {
 	t.Helper()
 	body := map[string]any{

@@ -41,7 +41,7 @@ types and receive the caller's transaction where the workflow requires one.
 | `Early` | `server.Build` calls it after edition construction and installs `EarlyHooks.Accounts` with `accounts.SetGroupHooks` before the first accounts service. Services read those hooks at call time. |
 | `Assets` | `server.Build` installs files and presentation hooks on the site handler before registering shared pages, then invokes `Assets.Routes` on the mux. See the asset hooks below. |
 | `Gate` | `server.Build` constructs product middleware before the connector; requests pass through it inside `LegacyStorageCutoffGate` and outside `ScopeGate`. Hack rejects retired legacy storage routes here. |
-| `Wire` | `server.Build` calls it after connector registration and image-scan construction. It registers product routes and returns `Parts`; an error aborts construction. |
+| `Wire` | `server.Build` calls it after connector registration. It registers product routes and returns `Parts`; an error aborts construction. |
 | `Parts.Tools` | `server.Build` calls `ConnectorHandler.SetTools`; `host/handler/connector.go` passes the contribution to each `host/mcp` server. |
 | `Parts.Workers` | `host/server/workers.go:registerWorkers` retains product `workers.Owner` values alongside platform owners for startup, status and shutdown. |
 | `Parts.SiteSweep` | `SiteHandler.SiteWorkers` starts the named `handler.GroupSweep`: `groupSweepPass` calls `Sweep`, platform suspension-marker sync every tenth pass, then `After`. Hack's after-pass work requests certificates and settles entries. |
@@ -52,8 +52,8 @@ types and receive the caller's transaction where the workflow requires one.
 
 ### Hooks and their callers
 
-`EarlyHooks.Accounts` has three hooks; `Parts.Hooks` has six. `server.Build` installs
-the latter on the existing site handler and image scanner before serving.
+`EarlyHooks.Accounts` has three hooks; `Parts.Hooks` has five. `server.Build` installs
+the latter on the existing site handler before serving.
 
 | Hook | Caller and behavior | Hack implementation |
 |---|---|---|
@@ -62,7 +62,6 @@ the latter on the existing site handler and image scanner before serving.
 | `accounts.Erasure` (`Accounts.Erasure`) | `host/app/accounts/account_lifecycle.go` and `ops_account_delete.go`: holding-account checks and wording; deletion `Block`, `Before`, `Rows`, `After` in the same transaction, then `Sweep` after commit. | `products/hack/app/members.AccountErasure` |
 | `sites.GroupGate` (`Hooks.GroupGate`) | `host/app/sites` deploy/create/update and lifecycle paths call `Check`; `deleted.go` calls `Suspension` under the restore transaction. These preserve membership/deadline write checks and product take-downs on restore. | `products/hack/app/teams.SiteGate` |
 | `notifications.GroupSites` (`Hooks.Notifications`) | `host/app/notifications` resolves held sites, checks membership, locks the member before the site when creating a subscription, and enriches notification labels on the same database/transaction handle. `host/handler` also uses it for group notification addresses. | `products/hack.NotificationGroups` |
-| `operations.ProductImages` (`Hooks.Images`) | `host/app/operations/imagescan.go`: `Owns`, `Load`, `Describe`, `Clear`, `TakeDown` for product-owned images. Evidence failure skips clearing bytes but still takes the group down, preserving existing behavior. | `products/hack/app/imagescan.New` |
 | `sites.SitemapFilter` (`Hooks.Sitemap`) | `host/app/sites` sitemap reads in `sitemap.go` filter candidates before emitting the platform sitemap. | `products/hack/repository/hackevents.FilterSitemapSites` |
 | `handler.GroupHosts` (`Hooks.GroupHosts`) | `host/handler/grouphost.go` and host dispatch: group lookup by account/slug, site existence for TLS, custom website or product page, pinned-version retention and group wording. Shared routing supports both nested and flat team hosts. | `products/hack/hackhttp.NewGroupHosts` |
 | `storage.BindingProvider` (`Hooks.Storage`) | `host/handler` resolves owner-on-site through the provider; `host/app/storage/bindings.go` validates the binding schema and `rules_decide.go` obtains trusted request-time values. An owner lookup error does not grant ownership. | `products/hack/app/storagebind.Provider` |

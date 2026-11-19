@@ -578,6 +578,9 @@
 								<div class="sl-markdown-content"><h2 id="november-2026">November 2026</h2>
 <ul>
 <li>
+<p><strong>Nov 19:</strong> The PhotoDNA image check is removed. It was never switched on (it needed a PhotoDNA key that was never approved), so nothing changes for uploads, sites or events: images were never checked. The check’s settings (<code>PHOTODNA_*</code>, <code>IMAGE_SCAN_*</code>), its background worker, the admin Image matches section and its <code>/v1/admin/image-scan</code> routes, and its runbook are gone; an environment file that still sets the old settings starts as before. The <code>image_scan_*</code> tables stay unused, with no migration.</p>
+</li>
+<li>
 <p><strong>Nov 19:</strong> Storage uses rules only, for key-value, SQLite and files. Presets, the older read/write fields, <code>write_mode</code> and <code>approve_first</code> are removed and refused on every kind (<code>invalid_resource</code>); a resource with no stored rules, and a new one saved without rules, is owner-only. Pages can no longer send SQL to old databases. The <code>STORAGE_RULES</code> setting, the <code>migrate-rules</code> command and its conversion are removed, and save notifications no longer carry <code>preset</code>. Upload areas already moved onto rules answer as before (RL-D2).</p>
 </li>
 <li>

@@ -25,7 +25,6 @@ import (
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/host/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
-	hackimages "github.com/vsriram/simple-host/products/hack/app/imagescan"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
@@ -165,15 +164,11 @@ func Extension() *extension.Extension {
 			hackhttp.RegisterHackHome(mux, siteHandler.Pages(), productAssets)
 			hackhttp.RegisterHackPublic(mux, d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages)
 			hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
-			if d.ImageScan != nil {
-				hack.SetImageScan(d.ImageScan)
-			}
 			return extension.Parts{
 				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
 				SiteSweep: NewSiteSweep(d.DB, siteHandler, siteSweep),
 				Hooks: extension.Hooks{
 					Storage:       storagebind.Provider{DB: d.DB},
-					Images:        hackimages.New(d.DB, hack.SyncEventMarkers),
 					Sitemap:       hackevents.FilterSitemapSites,
 					Notifications: NotificationGroups{},
 					GroupHosts:    groupHosts,

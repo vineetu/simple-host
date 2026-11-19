@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** The PhotoDNA image check is removed. It was never switched on (it needed a PhotoDNA key that was never approved), so nothing changes for uploads, sites or events: images were never checked. The check's settings (`PHOTODNA_*`, `IMAGE_SCAN_*`), its background worker, the admin Image matches section and its `/v1/admin/image-scan` routes, and its runbook are gone; an environment file that still sets the old settings starts as before. The `image_scan_*` tables stay unused, with no migration.
+
 - **Nov 19:** Storage uses rules only, for key-value, SQLite and files. Presets, the older read/write fields, `write_mode` and `approve_first` are removed and refused on every kind (`invalid_resource`); a resource with no stored rules, and a new one saved without rules, is owner-only. Pages can no longer send SQL to old databases. The `STORAGE_RULES` setting, the `migrate-rules` command and its conversion are removed, and save notifications no longer carry `preset`. Upload areas already moved onto rules answer as before (RL-D2).
 
 - **Nov 19:** File storage accepts rules in the same words as key-value rules: each file is a row with its `path` and `visitor_id` (who uploaded it). Upload areas without rules keep working as before, and existing ones are moved onto matching rules once at deploy; visitors see no change (FR-S1).

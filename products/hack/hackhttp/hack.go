@@ -121,15 +121,6 @@ type HackHandler struct {
 	// noticeTiming overrides the notice email delay and window (tests only;
 	// hack_notices.go).
 	noticeTiming *noticeMailPolicy
-	// imageScan checks event icons and entry screenshots (imagescan.go);
-	// nil (the zero value: SetImageScan was never called) until
-	// PHOTODNA_API_KEY is set. A narrow interface, not *ImageScan directly
-	// (cleanup 3.2 slice 1c), keeping the field limited to scanner operations.
-	// Callers must check h.imageScan != nil
-	// themselves (hack_icons.go, hack_entries.go) — a nil hackImageScanner
-	// is a true nil interface, unlike the old nil-receiver-safe *ImageScan,
-	// so calling a method on it directly would panic.
-	imageScan hackImageScanner
 	// assets is the asset/chrome pipeline for RegisterDemo's pages
 	// (hack_watch.go); read it through pipeline(). HackHandler only exists
 	// when EVENTS=hosted, so its edition is always Hack. Set once, by
@@ -257,16 +248,6 @@ type hackSiteHooks interface {
 	TeamSiteFlatHostsOn() bool
 }
 
-// hackImageScanner is what moving Hack code needs of the image-scan worker
-// (imagescan.go, staying in handler): enqueueing an event icon or entry
-// screenshot for matching. A narrow interface, not *ImageScan directly
-// (cleanup 3.2 slice 1c), satisfied by *ImageScan's existing exported
-// methods, both already nil-receiver-safe.
-type hackImageScanner interface {
-	EnqueueEventIcon(eventID, userID string, raw []byte)
-	EnqueueEntryScreenshot(eventID, teamID, userID string, raw []byte)
-}
-
 // syncEventMarkers puts the event's team sites down or back with the event;
 // false (after logging) when a marker could not be written.
 func (h *HackHandler) syncEventMarkers(ctx context.Context, ev hackmodel.Event) bool {
@@ -300,20 +281,6 @@ func (h *HackHandler) SetSites(s hackSiteHooks) { h.sites = s }
 // *SiteHandler (cleanup 3.2 slice 2a: the only thing this ever did with sh
 // was call sh.pipeline()).
 func (h *HackHandler) ShareAssets(pages hackPages) { h.assets = pages }
-
-// SetImageScan connects the worker to the events side (event icon and entry
-// screenshot enqueueing). Moved from imagescan.go (cleanup 3.2 slice 1c): a
-// method with a *HackHandler receiver must live in that type's package.
-// Only hackImageScanner's two methods, so this takes the interface, not
-// *ImageScan: the extension wires SyncEventMarkers into the product image hook.
-func (h *HackHandler) SetImageScan(s hackImageScanner) { h.imageScan = s }
-
-// SyncEventMarkers is syncEventMarkers, exported so the extension can wire it into
-// the product image hook's take-down path
-// without this package needing to know *ImageScan's type.
-func (h *HackHandler) SyncEventMarkers(ctx context.Context, ev hackmodel.Event) bool {
-	return h.syncEventMarkers(ctx, ev)
-}
 
 // teamSitesReady: the event's team addresses have their certificate.
 func (h *HackHandler) teamSitesReady(eventSlug string) bool {

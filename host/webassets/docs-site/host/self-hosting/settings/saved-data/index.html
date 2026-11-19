@@ -528,9 +528,6 @@
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#notification-delivery-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Notification delivery behavior</span></a>
 		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#image-matching" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Image matching</span></a>
-		
 	</li>
 </ul></div>
 		</details>
@@ -556,9 +553,6 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#notification-delivery-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Notification delivery behavior</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#image-matching" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Image matching</span></a>
 		
 	</li>
 </ul>
@@ -746,66 +740,6 @@ notifications about saved data and for the spam check that rules use (<code>auth
 <td>text</td>
 <td>A file holding the Turnstile secret key (read once at start, used when TURNSTILE_SECRET is empty), for example a systemd credential: LoadCredential=turnstile-secret:/path and TURNSTILE_SECRET_FILE=%d/turnstile-secret. <strong>Security-sensitive.</strong></td>
 </tr>
-<tr>
-<td><code>PHOTODNA_API_KEY</code></td>
-<td>none</td>
-<td>secret</td>
-<td>Subscription key for Microsoft PhotoDNA Cloud Service, which checks uploaded images against known abuse hash sets. Empty: image matching is off and nothing is queued. Prefer PHOTODNA_API_KEY_FILE. <strong>Security-sensitive.</strong></td>
-</tr>
-<tr>
-<td><code>PHOTODNA_API_KEY_FILE</code></td>
-<td>none</td>
-<td>text</td>
-<td>A file holding the PhotoDNA key, read once at start when PHOTODNA_API_KEY is empty, for example a systemd credential: LoadCredential=photodna-key:/etc/simple-host-secrets/photodna-key and Environment=PHOTODNA_API_KEY_FILE=%d/photodna-key. Unreadable: matching is off, with a warning in the log. <strong>Security-sensitive.</strong></td>
-</tr>
-<tr>
-<td><code>PHOTODNA_MATCH_URL</code></td>
-<td><code>https://api.microsoftmoderator.com/photodna/v1.0/Match</code></td>
-<td>text</td>
-<td>The PhotoDNA Match operation.</td>
-</tr>
-<tr>
-<td><code>PHOTODNA_REPORT_URL</code></td>
-<td><code>https://api.microsoftmoderator.com/photodna/v1.0/Report</code></td>
-<td>text</td>
-<td>The PhotoDNA Report operation, which files a CyberTipline report with NCMEC through PhotoDNA.</td>
-</tr>
-<tr>
-<td><code>PHOTODNA_AUTO_REPORT</code></td>
-<td><code>off</code></td>
-<td><code>off</code> / <code>on</code></td>
-<td>on: every match is reported through the Report operation as soon as it is recorded. off: the admin Moderation tab offers a Report button per match.</td>
-</tr>
-<tr>
-<td><code>IMAGE_SCAN_REPORT_ORG</code></td>
-<td>none</td>
-<td>text</td>
-<td>Organisation name on reports. Reports are off until this, IMAGE_SCAN_REPORT_NAME, and the report email are all set.</td>
-</tr>
-<tr>
-<td><code>IMAGE_SCAN_REPORT_NAME</code></td>
-<td>none</td>
-<td>text</td>
-<td>Reporter’s name on reports. Reports are off without it.</td>
-</tr>
-<tr>
-<td><code>IMAGE_SCAN_REPORT_EMAIL</code></td>
-<td><code>the support contact</code></td>
-<td>text</td>
-<td>Reporter’s email on reports.</td>
-</tr>
-<tr>
-<td><code>IMAGE_SCAN_ALERT_EMAIL</code></td>
-<td><code>the support contact</code></td>
-<td>text</td>
-<td>Where each match alert is emailed.</td>
-</tr>
-<tr>
-<td><code>IMAGE_SCAN_EVIDENCE_DIR</code></td>
-<td><code>&lt;DATA_DIR&gt;/.evidence</code></td>
-<td>text</td>
-<td>Folder for the quarantined copy and the record of each match (mode 0700, under no served path). Must be writable by the service (ReadWritePaths on a hardened unit).</td>
-</tr>
 </tbody>
 </table>
 <!-- /settings -->
@@ -843,13 +777,6 @@ Attempts are spread over about 15 minutes; 410 and 413 responses are never retri
 Truncated string fields are listed under <code>truncated</code>. Oversized bodies omit
 fields, then cut visitor-controlled paths and keys to 256 bytes if needed.
 <code>NOTIFY_DEFAULT_TTL_HOURS</code> is also the maximum granted without an OAuth grant.</p>
-<h2 id="image-matching">Image matching</h2>
-<p>See <a href="https://github.com/vineetu/simple-host/blob/main/docs/image-matching.md">Image matching</a> for PhotoDNA. These settings are
-forwarded by server (systemd) installs; Docker Compose does not pass them through
-yet. Without all three report identity fields, matches are recorded with report
-status off; the admin Report button appears once they are set. Evidence paths
-resolve symlinks, must be outside served paths and writable by the service
-(<code>ReadWritePaths</code> on a hardened unit). Exclude evidence from your own backups.</p>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

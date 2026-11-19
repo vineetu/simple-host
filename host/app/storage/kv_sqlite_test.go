@@ -199,7 +199,6 @@ func TestKVAdmissionBesideOtherStorage(t *testing.T) {
 	s.deps.FilePath = func(call Call, path string) string {
 		return filepath.Join(call.RuntimeDir, "files", call.ResourceName, path)
 	}
-	s.deps.ScanFile = func(Call, string, []byte) {}
 	if _, auth, err := s.PutFile(ctx, FilePutInput{Call: upload, Path: "example.txt", Body: strings.NewReader("file")}); err != nil || auth != nil {
 		t.Fatalf("mixed upload: %+v %v", auth, err)
 	}

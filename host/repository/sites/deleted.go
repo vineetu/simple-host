@@ -151,9 +151,3 @@ func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string, rete
 	}
 	return domains, tx.Commit()
 }
-
-// WakeImageScans makes a restored site's waiting image checks due now.
-func WakeImageScans(ctx context.Context, q Querier, siteID string) error {
-	_, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() WHERE site_id = $1 AND next_attempt_at <> 'infinity'`, siteID)
-	return err
-}

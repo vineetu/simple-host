@@ -314,9 +314,6 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if h.imageScan != nil {
-		h.imageScan.EnqueueEntryScreenshot(a.event.ID, teamID, a.user.ID, data)
-	}
 	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 

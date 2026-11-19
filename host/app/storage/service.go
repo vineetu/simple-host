@@ -36,7 +36,6 @@ type Deps struct {
 	FilePath                                 func(Call, string) string
 	MarkChanged                              func()
 	FileToken                                func(Call, string, time.Time) string
-	ScanFile                                 func(Call, string, []byte)
 	FileObjectsLimit                         int
 	OpenFileToken                            func(string) ([]byte, error)
 	FileResourceExists                       func(context.Context, string, string) bool

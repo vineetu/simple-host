@@ -99,9 +99,6 @@ func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstor
 	}
 	deps.MarkChanged = h.disk.MarkChanged
 	deps.FileObjectsLimit = h.limits.StorageFileObjects
-	deps.ScanFile = func(_ appstorage.Call, path string, body []byte) {
-		h.imageScan.EnqueueStorageFile(c.siteID, c.resourceName, path, storageUploader(c), body)
-	}
 	deps.Notify = func(_ appstorage.Call, name string, data map[string]any) { h.emitNotification(c, name, data) }
 	return deps
 }
@@ -114,7 +111,7 @@ func (h *SiteHandler) storageServiceCall(c storageCall) appstorage.Call {
 		VisitorID: c.visitorID, LinkScope: c.linkScope, Resource: c.resource,
 		ActiveChecked: c.activeChecked,
 		SpamCheck:     c.spamCheck, CheckedPost: c.checkedPost,
-		UploaderID: c.uploaderID, RuntimeDir: h.storageRuntimeDir(c),
+		RuntimeDir:       h.storageRuntimeDir(c),
 		VisitorSessionID: c.visitorSession.ID, VisitorSessionUserID: c.visitorSession.UserID,
 	}
 }

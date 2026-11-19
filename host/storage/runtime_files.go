@@ -32,11 +32,6 @@ func RuntimeFilesDir(disk interface{ SiteDir(string, string) string }, ownerID, 
 	return filepath.Join(RuntimeDir(disk, ownerID, siteName), "files", resourceName)
 }
 
-// RuntimeFilePath returns the path of a runtime file.
-func RuntimeFilePath(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, p string) string {
-	return filepath.Join(RuntimeFilesDir(disk, ownerID, siteName, resourceName), filepath.FromSlash(p))
-}
-
 // RuntimeDir returns a site's runtime directory.
 func RuntimeDir(disk interface{ SiteDir(string, string) string }, ownerID, siteName string) string {
 	return filepath.Join(disk.SiteDir(ownerID, siteName), "runtime")

@@ -19,7 +19,7 @@ type Call struct {
 	ActiveChecked                           bool
 	SpamCheck                               string
 	CheckedPost                             bool
-	UploaderID, RuntimeDir                  string
+	RuntimeDir                              string
 	VisitorSessionID                        []byte
 	VisitorSessionUserID                    string
 	CSRFOK                                  bool

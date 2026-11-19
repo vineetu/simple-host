@@ -42,7 +42,7 @@ Source: `host/edition/{routes,presentation,identity,storage,notifications}.go`;
 | TLS reverse proxy | Hosted nginx routes hosts and serves some files directly; self-hosted Caddy configurations are in `deploy/` |
 | Certificate issuers | External root-owned request/ready-marker services; `deploy/site-certs/`, `domain-certs/`, `family-certs/` |
 | Local Geo DB | DB-IP Lite files in `GEOIP_DIR`; `host/geoip`, `scripts/geoip-refresh.sh`, `simple-host-geoip-refresh.timer` |
-| Email and optional providers | Resend (`host/email`; recipient-free Hack acceptance/failure journal, `scripts/hack-mail-report.py`), optional Vercel event DNS (`host/eventdns/vercel.go`), OAuth (`host/oauth`), PhotoDNA (`host/imagescan`) |
+| Email and optional providers | Resend (`host/email`; recipient-free Hack acceptance/failure journal, `scripts/hack-mail-report.py`), optional Vercel event DNS (`host/eventdns/vercel.go`), OAuth (`host/oauth`) |
 
 There is no external queue or object store in this implementation. Webhook/MCP Events/Web Push
 delivery uses Postgres outboxes and in-process workers (`host/handler/notify*.go`,
@@ -96,7 +96,7 @@ with the proxy configuration.
 
 Main starts certificate requests, Hack reconciliation/entry settling, event retention and mail,
 trash/idle cleanup, notification delivery, address-family
-verification, network sampling, image scans and paper metrics. Enabled providers/settings determine
+verification, network sampling and paper metrics. Enabled providers/settings determine
 which loops do work. Background owners satisfy `workers.Owner` and are registered in
 `host/server/workers.go`; `GET /v1/admin/usage` exposes their `workers` status array.
 HTTP drains before the worker set stops and waits, with a separate worker context.
@@ -104,10 +104,6 @@ Hack supplies `GroupHosts` through `extension.Hooks` for group lookups, product 
 notification addresses and pinned versions. `Parts.SiteSweep` supplies its named sweep
 and after-pass callback; the platform reconciles suspension markers between those steps
 every tenth pass.
-Image scanning hands product-owned images (event icons, entry screenshots) to
-`operations.ProductImages`: `products/hack/app/imagescan` loads, describes, clears and takes
-down; `server.Build` installs it on `ImageScan` from `Parts.Hooks.Images`. With no hook such
-a queued job fails with a logged error and the worker carries on.
 
 Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies required schema;
 without a configured hostname it serves only setup and exits after configuration so the supervisor
@@ -199,7 +195,7 @@ The following packages exist today; Hack-only packages live under `products/hack
 | `edition`, `config` | Injected fixed product policy; environment parsing and settings catalog |
 | `app/operations`, `repository/operations` | Operator reports, API aggregation/retention, measurement and scan lifecycle; report, scan and startup schema-verification SQL |
 | `analytics`, `netusage`, `papermetrics` | Access-log, network-counter and research measurement mechanisms |
-| `email`, `eventdns`, `oauth`, `imagescan` | Provider clients |
+| `email`, `eventdns`, `oauth` | Provider clients |
 | `geoip`, `capacity`, `tarball` | Local country lookup, disk capacity and archives |
 | `buildinfo` | Stamped version/commit/build time |
 | `testdb`, `geoip/geoiptest` | Test fixtures |
@@ -297,7 +293,7 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
 - `openapi.yaml` is the source contract; JSON is generated. Served specs filter `x-audience`
   operations and unused components (`handler/public_openapi.go:publicOpenAPISpec`).
 - Deployment versions and runtime saved files are distinct. `storage/disk.go` is not the only
-  writer under a site directory (`storage/runtime_files.go`, `app/operations/imagescan.go`).
+  writer under a site directory (`storage/runtime_files.go`).
 - `index.html` and `showcase.html` inline the same analytics parser; showcase also runs on the
   content host. Keep both copies generated (`scripts/inline-analytics-parser.sh`).
 - The analytics tail tracks inode/offset: rotate with `create` and `delaycompress`, never

@@ -14,7 +14,7 @@ Hack transitions and transaction boundaries.
 | PostgreSQL | Accounts, sites, versions, policies, resource declarations, legacy data, Hack records, outboxes, metrics | Area packages in `host/repository/*`; application services orchestrate workflows |
 | Per-resource SQLite | A site's tables, indexes, views and triggers | `host/storage/runtime_*.go` implements mechanics; `host/app/storage` owns policy, quotas and mutations |
 | Deploy files | Retained version trees and the live serving copy | `host/storage/disk.go`, called by `host/app/sites.Service` |
-| Runtime files | Uploaded bucket objects and SQLite database files | `host/storage` mechanics and `host/app/storage.Service`; image scanning also removes flagged bytes |
+| Runtime files | Uploaded bucket objects and SQLite database files | `host/storage` mechanics and `host/app/storage.Service` |
 | KV | Namespaced keys and JSON values | One SQLite file per namespace (`runtime/kv/<name>.sqlite`), the only KV store: `host/storage/runtime_kv.go` implements mechanics; `host/app/storage` owns policy, quotas and mutations |
 
 PostgreSQL remains the main database in both editions. SQLite is local runtime
@@ -94,7 +94,7 @@ Analytics and operational records also belong to the database:
 - `traffic_daily`, `site_traffic_daily`, `net_usage_daily`, `net_counter_state`:
   transfer accounting; `owner_visitor_marks`: owner-traffic classification.
 - `paper_*` tables: measurement records; `image_scan_hashes`, `image_scan_queue`,
-  `image_scan_matches`: scan cache, queued work and findings.
+  `image_scan_matches`: unused since the image check was removed (2026-11-19); kept, no migration.
 
 Evidence: `host/db/schema.sql`; `host/app/operations/apimetrics.go` (`pruneOld`);
 `host/analytics/ingest.go`; `host/repository/sites/sites.go`
@@ -169,8 +169,7 @@ live outside deployment versions. A rollback to the current version is a no-op.
 
 The deploy-version writer is `host/storage/disk.go`, used through site
 workflows. It is not the only writer beneath a site directory: runtime resources
-are written by `app/storage` using `host/storage` helpers; the image-scan
-worker can remove flagged deploy/runtime images (`host/app/operations/imagescan.go`).
+are written by `app/storage` using `host/storage` helpers.
 Do not treat an upload mutex as a global filesystem lock across processes.
 
 ## Lock scope and quota accounting

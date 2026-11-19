@@ -10,7 +10,6 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/app/notifications"
-	"github.com/vsriram/simple-host/host/app/operations"
 	"github.com/vsriram/simple-host/host/app/sites"
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	"github.com/vsriram/simple-host/host/config"
@@ -48,7 +47,7 @@ type Extension struct {
 	// combined order of platform and product unnumbered migrations.
 	Migrations     *migrations.Catalog
 	MigrationOrder []string
-	// Wire runs once after connector registration and image-scan construction.
+	// Wire runs once after connector registration.
 	Wire func(Deps) (Parts, error)
 	// Early runs after edition construction, before the first accounts service.
 	Early func(EarlyDeps) EarlyHooks
@@ -71,7 +70,6 @@ type Deps struct {
 	Accounts  *accountapp.Service
 	Site      *handler.SiteHandler
 	Connector *handler.ConnectorHandler
-	ImageScan *operations.ImageScan
 	AuthMW    func(http.Handler) http.Handler
 	Mux       *http.ServeMux
 	Config    config.Config
@@ -90,7 +88,6 @@ type Parts struct {
 
 type Hooks struct {
 	Storage       appstorage.BindingProvider
-	Images        operations.ProductImages
 	Sitemap       sites.SitemapFilter
 	Notifications notifications.GroupSites
 	GroupHosts    handler.GroupHosts

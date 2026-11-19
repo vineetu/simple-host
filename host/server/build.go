@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	_ "time/tzdata" // Container images have no zoneinfo.
@@ -30,7 +29,6 @@ import (
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/geoip"
 	"github.com/vsriram/simple-host/host/handler"
-	"github.com/vsriram/simple-host/host/imagescan"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
@@ -427,69 +425,11 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	}
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
 
-	// Image matching (SIM-200): uploaded images are checked against known
-	// abuse hash sets through PhotoDNA. Nothing is built while the key is
-	// empty, so a box without it is unchanged.
-	var imageScan *operations.ImageScan
-	if cfg.PhotoDNAKey != "" {
-		client := imagescan.NewPhotoDNA(cfg.PhotoDNAKey)
-		if cfg.PhotoDNAMatchURL != "" {
-			client.MatchURL = cfg.PhotoDNAMatchURL
-		}
-		if cfg.PhotoDNAReportURL != "" {
-			client.ReportURL = cfg.PhotoDNAReportURL
-		}
-		// The support contact is the default reporter and alert address; a
-		// server whose contact is not an address gets a log line instead.
-		contact := auth.SupportContact
-		if !strings.Contains(contact, "@") {
-			contact = cfg.Limits.IdleReplyTo
-		}
-		if !strings.Contains(contact, "@") {
-			contact = ""
-		}
-		scanCfg := operations.ImageScanConfig{
-			ProductName: ed.Presentation().ProductName,
-			EvidenceDir: cfg.ImageScanEvidenceDir, AlertEmail: cfg.ImageScanAlertEmail,
-			ReportOrg: cfg.ImageScanReportOrg, ReportName: cfg.ImageScanReportName, ReportEmail: cfg.ImageScanReportEmail,
-			AutoReport: cfg.PhotoDNAAutoReport, PublicBaseURL: cfg.PublicBaseURL,
-		}
-		if scanCfg.EvidenceDir == "" {
-			scanCfg.EvidenceDir = filepath.Join(cfg.DataDir, ".evidence")
-		}
-		if scanCfg.AlertEmail == "" {
-			scanCfg.AlertEmail = contact
-		}
-		if scanCfg.ReportEmail == "" {
-			scanCfg.ReportEmail = contact
-		}
-		// A report needs the organisation, a name, and an email on it.
-		var reporter imagescan.Reporter
-		if scanCfg.ReportOrg != "" && scanCfg.ReportName != "" && scanCfg.ReportEmail != "" {
-			reporter = client
-		}
-		imageScan = operations.NewImageScan(db, diskStorage, client, reporter, mailer, scanCfg)
-		siteHandler.SetImageScan(imageScan)
-
-		handler.SetImageScanOn(true)
-		reports := "reports from the admin page"
-		if reporter == nil {
-			reports = "reports off (set IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and a report email)"
-		} else if cfg.PhotoDNAAutoReport {
-			reports = "reports filed automatically"
-		}
-		alerts := "alerts to " + scanCfg.AlertEmail
-		if scanCfg.AlertEmail == "" {
-			alerts = "no alert address (log only)"
-		}
-		log.Printf("image matching on (photodna); %s; %s; evidence in %s", reports, alerts, scanCfg.EvidenceDir)
-	}
-
 	var parts extension.Parts
 	if ext != nil && ext.Wire != nil {
 		parts, err = ext.Wire(extension.Deps{
 			DB: db, Disk: diskStorage, Mail: mailer, Accounts: accountsService,
-			Site: siteHandler, Connector: connector, ImageScan: imageScan,
+			Site: siteHandler, Connector: connector,
 			AuthMW: authMW, Mux: mux, Config: cfg, Edition: ed,
 		})
 		if err != nil {
@@ -504,7 +444,6 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 		return nil, fmt.Errorf("event-owner edition requires storage bindings")
 	}
 	siteHandler.SetSitemapFilter(parts.Hooks.Sitemap)
-	imageScan.SetProductImages(parts.Hooks.Images)
 
 	siteHandler.SetNotificationGroups(parts.Hooks.Notifications)
 	siteHandler.SetGroupHosts(parts.Hooks.GroupHosts)
@@ -626,7 +565,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	if ingester != nil {
 		analyticsWorker = operations.NewAnalyticsIngest(ingester, 5*time.Minute)
 	}
-	workerSet := registerWorkers(workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, productWorkers: parts.Workers, image: imageScan, paper: paperWorker, metrics: apiMetrics.APIMetrics, geo: geo, analytics: analyticsWorker, eventDomains: eventDomains, siteSweep: parts.SiteSweep})
+	workerSet := registerWorkers(workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, productWorkers: parts.Workers, paper: paperWorker, metrics: apiMetrics.APIMetrics, geo: geo, analytics: analyticsWorker, eventDomains: eventDomains, siteSweep: parts.SiteSweep})
 	siteHandler.SetWorkerStatus(workerSet.Status)
 	return &App{Mux: mux, Handler: served, Workers: workerSet, Close: closeDeps}, nil
 }

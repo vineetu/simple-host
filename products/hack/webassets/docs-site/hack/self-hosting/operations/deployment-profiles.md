@@ -218,8 +218,8 @@ Hack cleanup (`:421`), optional event-domain sweep (`:509`), API metric flushing
 (constructor at `:532`, `host/handler/apimetrics.go:94`), optional access-log
 analytics (`:563`), then certificate requests, Hack settlement, event cleanup
 and content delivery, deleted-site purge, idle cleanup, saved-data sweep,
-submission emails, notification delivery, address-family checks, network usage,
-image scanning and optional paper metrics (`:598`). Conditions/settings can
+submission emails, notification delivery, address-family checks, network usage
+and optional paper metrics (`:598`). Conditions/settings can
 leave workers inactive; setup mode returns before normal worker wiring (`:155`).
 
 Migrations are forward-only: there is no down command. New files must be

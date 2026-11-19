@@ -52,7 +52,6 @@ type SiteFiles interface {
 	TrashSite(string, string, string) error
 	RestoreSite(string, string, string) error
 	PurgeTrashedSite(string, string) error
-	RemoveFileEverywhere(string, string, string, string) error
 }
 
 // LocalServing is the local tree consumed by Go serving, nginx, Caddy and Static,
