@@ -359,17 +359,6 @@
       "small_box": true
     },
     {
-      "name": "BRAIN_DIR",
-      "group": "server",
-      "description": "Folder containing bundle.json for the owner product-knowledge server; empty disables it, and hosted events ignore it.",
-      "type": "string",
-      "default": "",
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
       "name": "OPENAI_APPS_CHALLENGE",
       "group": "server",
       "description": "The OpenAI plugin portal's domain-verification token. Unset: not served.",

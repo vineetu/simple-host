@@ -1,12 +1,12 @@
 package mcp
 
 // showToolsAllowed evaluates each declaration's listing predicate against this
-// connection. Fixed-inventory servers never offer product screens.
+// connection.
 func (s *Server) showToolsAllowed(c Caller, uiCapable bool) map[string]bool {
 	allowed := map[string]bool{}
 	for _, entry := range s.inventory() {
 		if entry.policy.showAllowed != nil {
-			allowed[entry.tool.Name] = s.fixed == nil && entry.policy.showAllowed(c, uiCapable)
+			allowed[entry.tool.Name] = entry.policy.showAllowed(c, uiCapable)
 		}
 	}
 	return allowed

@@ -13,7 +13,6 @@ const (
 	famAccounts      toolFamily = "accounts"      // who am I, profile, connections
 	famImports       toolFamily = "imports"       // archive and photo uploads
 	famNotifications toolFamily = "notifications" // notifications and MCP Events
-	famAdmin         toolFamily = "admin"         // admin and brain
 	famDiscovery     toolFamily = "discovery"     // find_tools, run_tool
 )
 
@@ -64,7 +63,6 @@ const (
 	editionHost toolEdition = iota
 	editionProduct
 	editionScreen
-	editionBrain
 )
 
 type toolEntry struct {

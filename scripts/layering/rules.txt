@@ -9,14 +9,14 @@ server -> extension
 @/host/db -> @/host/db/migrations
 extension -> @/host/db/migrations
 extension -> config edition email handler mcp storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
-@/cmd/simple-host -> server brain
-@/cmd/simple-hack -> server extension brain @/products/hack
+@/cmd/simple-host -> server
+@/cmd/simple-hack -> server extension @/products/hack
 handler -> app/** auth httpx edition model webassets buildinfo workers
 @/products/hack/hackhttp -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp redirects pagepath
 auth -> app/accounts httpx edition model rules/auth rules/sites
 @/products/hack/hackhttp -> rules/sites
-mcp -> app/** edition model httpx buildinfo brain webassets workers
+mcp -> app/** edition model httpx buildinfo webassets workers
 httpx -> app/errors model edition
 httpx -> @/host/storage/rules
 app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
@@ -53,7 +53,7 @@ storage -> @/host/storage/rules
 {analytics,netusage,papermetrics} -> model workers
 geoip -> workers
 {app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
-{brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,testdb,geoip/geoiptest} -> -
+{buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,testdb,geoip/geoiptest} -> -
 {llm,redirects,pagepath} -> -
 # Permanent module-specific packages and command rows.
 @/scripts/split/sqlcheck -> @/host/db/migrations @/products/hack/db/migrations

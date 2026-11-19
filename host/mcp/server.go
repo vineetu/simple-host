@@ -203,9 +203,6 @@ type Server struct {
 	groupSiteBare   []Tool
 	groupSiteByName map[string]Tool
 	apps            AppContribution
-	// fixed is set on a server that is not the site connector (the owner's
-	// knowledge server): one tool set for every caller.
-	fixed *inventory
 }
 
 func newServer(cfg Config) *Server {
@@ -228,7 +225,7 @@ func newServer(cfg Config) *Server {
 	// family of tools is registered with the product's own.
 	s := &Server{cfg: cfg}
 	if factory := cfg.Contribution.Apps; factory != nil {
-		s.apps = factory(AppContext{APIHost: cfg.APIHost, Fixed: s.fixed != nil, Meta: s.appMeta})
+		s.apps = factory(AppContext{APIHost: cfg.APIHost, Meta: s.appMeta})
 	}
 	r := buildRegistry(cfg, s.apps.AppFamily)
 	host := r.view(cfg, editionHost, false, false, false)
@@ -339,13 +336,10 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			full = appToolMetadata(full, productScreens)
 			bare = appToolMetadata(bare, productScreens)
 		}
-		if s.fixed == nil && storageRulesEnabled() {
+		if storageRulesEnabled() {
 			full, bare, byName = s.storageRulesInventory(full, bare, byName, caller)
 		}
 	}()
-	if s.fixed != nil {
-		return s.fixed.tools, s.fixed.bare, s.fixed.byName
-	}
 	if caller.Mode == CallerModeEvents {
 		if caller.GrantID != "" {
 			return s.productPersonalInventory()
@@ -382,9 +376,6 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 }
 
 func (s *Server) instructionsFor(caller Caller) string {
-	if s.fixed != nil {
-		return s.fixed.instructions
-	}
 	if instructions := s.cfg.Contribution.Instructions; instructions != nil {
 		if text := instructions(caller.Mode); text != "" {
 			return s.productInstructions(text)
@@ -673,7 +664,7 @@ func hasClientCapabilities(params json.RawMessage) bool {
 }
 
 func (s *Server) serverInfo() map[string]any {
-	return map[string]any{"name": s.cfg.ServerName, "title": s.title(), "version": s.cfg.Version}
+	return map[string]any{"name": s.cfg.ServerName, "title": "Simple Host", "version": s.cfg.Version}
 }
 
 func (s *Server) dispatch(r *http.Request, req request, caller Caller) response {
@@ -891,7 +882,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			}
 			return toolResult(req.ID, retired.Message, nil, true, modern)
 		}
-		if s.fixed == nil && retiredSavedDataTool(params.Name) {
+		if retiredSavedDataTool(params.Name) {
 			message := params.Name + " is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code)."
 			if wrapped {
 				record(errors.New(message))
@@ -1001,7 +992,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 				rewrite := s.cfg.Contribution.StorageError
 				message = rewrite(message)
 			}
-		} else if s.fixed == nil {
+		} else {
 			var refusal *refusalError
 			if errors.As(err, &refusal) && (refusal.code == "key_expired" || refusal.code == "key_expired_idle" || refusal.code == "invalid_api_key" || refusal.status == http.StatusUnauthorized) {
 				message, _, _ = strings.Cut(message, "\n")

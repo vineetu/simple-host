@@ -1638,6 +1638,8 @@ Not doing: separate modules per product, a plugin framework, renamed tables, a q
   is the default, obviously; delete the old storage". Both installs moved on 2026-11-16 and
   nobody else has installed the product.
 
+- **2026-11-19: the brain connector and its bundle are removed.**
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

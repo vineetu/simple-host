@@ -190,12 +190,6 @@ func TestAnalyticsDisabledAndSkippedCalls(t *testing.T) {
 		t.Fatal("empty project ID created a sender")
 	}
 	analyticsTestCall(t, s, Caller{APIKey: "test-key"})
-	brain := NewBrainServer(BrainConfig{Query: func(string, map[string]any) (string, map[string]any, error) {
-		return "answer", map[string]any{}, nil
-	}})
-	if brain.analytics != nil {
-		t.Fatal("brain has an analytics sender")
-	}
 	enabled := analyticsTestServer(t, "project-test", nil)
 	for _, body := range []string{
 		toolCall("unknown_tool", nil),

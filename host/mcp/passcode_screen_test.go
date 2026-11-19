@@ -407,11 +407,6 @@ func TestPasscodeAppInventory(t *testing.T) {
 	if screenJSON(full) != string(baseline) || screenJSON(bare) != string(bareBaseline) {
 		t.Fatal("flag-off cached inventory changed")
 	}
-	s.fixed = &inventory{tools: off, bare: bareOff, byName: s.byName}
-	t.Setenv("MCP_APP_PASSCODE", "on")
-	if s.passcodeScreenEnabled(caller) || len(s.appResources(caller)) != 0 {
-		t.Fatal("fixed inventory got screen")
-	}
 }
 
 func screenJSON(value any) string { b, _ := json.Marshal(value); return string(b) }

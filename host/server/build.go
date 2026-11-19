@@ -441,12 +441,6 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	siteHandler.SetWebPushAccounts(cfg.WebPushAccounts, cfg.WebPushAccountsAll)
 	connector.SetSignInAlerts(userHandler.SignInAlerts())
 	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
-	// The owner's product knowledge server (/brain/mcp, /v1/brain): hosted
-	// simple-host.app only, on when BRAIN_DIR holds the bundle sh-brain-sync
-	// builds. Never on the hackathon platform.
-	if dir := os.Getenv("BRAIN_DIR"); dir != "" && !hosted {
-		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"), mcp.OpenBrainStore(filepath.Join(dir, "bundle.json"), opts.KnowledgeProducts...))
-	}
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	for pattern, target := range opts.Redirects {
 		mux.Handle(pattern, http.RedirectHandler(target, http.StatusFound))

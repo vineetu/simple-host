@@ -35,7 +35,7 @@ func Config(t *testing.T, dsn string) config.Config {
 	t.Setenv("PUBLIC_BASE_URL", "https://wiring.example")
 	t.Setenv("EVENTS", "")
 	// No provider clients or workers run during a wiring snapshot.
-	for _, key := range []string{"RESEND_API_KEY", "PHOTODNA_API_KEY", "PHOTODNA_API_KEY_FILE", "EVENT_DNS_TOKEN", "EVENT_NAME_PEER", "BRAIN_DIR", "ANALYTICS_LOG", "ASSISTANT_BASE_URL", "ASSISTANT_MODEL", "HACK_DEMO_EVENT_SLUG"} {
+	for _, key := range []string{"RESEND_API_KEY", "PHOTODNA_API_KEY", "PHOTODNA_API_KEY_FILE", "EVENT_DNS_TOKEN", "EVENT_NAME_PEER", "ANALYTICS_LOG", "ASSISTANT_BASE_URL", "ASSISTANT_MODEL", "HACK_DEMO_EVENT_SLUG"} {
 		t.Setenv(key, "")
 	}
 	t.Setenv("PAPER_METRICS", "on")

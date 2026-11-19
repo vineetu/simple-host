@@ -104,7 +104,7 @@ var hackAppScreens = []mcp.AppScreen{
 // on for this account. Unlike enabledScreens, there is no my-sites/
 // dashboard exception to protect, since this list has nothing else in it.
 func (s *hackScreens) hackEnabledScreens(c mcp.Caller) []mcp.AppScreen {
-	if s.ctx.Fixed || c.Mode != mcp.CallerModeEvents {
+	if c.Mode != mcp.CallerModeEvents {
 		return nil
 	}
 	var screens []mcp.AppScreen
@@ -225,7 +225,7 @@ func (s *hackScreens) readHackApp(req mcp.Request, caller mcp.Caller, allowed bo
 // parameter (readHackApp, hackAppResources) can stay a single bool that
 // hackEnabledScreens then narrows per screen.
 func (s *hackScreens) hackAppsGate(c mcp.Caller, uiCapable bool) bool {
-	return !s.ctx.Fixed && c.Mode == mcp.CallerModeEvents && !mcp.FlatListApp(c.AppName) && uiCapable
+	return c.Mode == mcp.CallerModeEvents && !mcp.FlatListApp(c.AppName) && uiCapable
 }
 
 // hackShowJudgeAppAllowed is hackAppsGate plus the judge screen's own flag.

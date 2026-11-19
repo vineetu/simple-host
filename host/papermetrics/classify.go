@@ -32,7 +32,7 @@ func (c *Collector) Classify(r *http.Request) int {
 	}
 	read := r.Method == http.MethodGet || r.Method == http.MethodHead
 	switch {
-	case p == "/mcp" || strings.HasPrefix(p, "/mcp/") || p == "/brain/mcp":
+	case p == "/mcp" || strings.HasPrefix(p, "/mcp/"):
 		if r.Method == http.MethodGet && p == "/mcp" {
 			return ClassMCPStream
 		}

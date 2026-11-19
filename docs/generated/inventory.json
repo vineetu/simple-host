@@ -18,17 +18,9 @@
     },
     {
       "method": "DELETE",
-      "path": "/brain/mcp",
-      "feature_id": "owner-product-knowledge",
-      "source": "host/handler/brain.go:67",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "DELETE",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/handler/connector.go:361",
+      "source": "host/handler/connector.go:358",
       "package": "host/handler",
       "dynamic": true
     },
@@ -260,7 +252,7 @@
       "method": "DELETE",
       "path": "/v1/me/connections/{client_id}",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:371",
+      "source": "host/handler/connector.go:368",
       "package": "host/handler",
       "dynamic": false
     },
@@ -548,7 +540,7 @@
       "method": "GET",
       "path": "/.well-known/muse-client.json",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:346",
+      "source": "host/handler/connector.go:343",
       "package": "host/handler",
       "dynamic": true
     },
@@ -556,15 +548,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:343",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "GET",
-      "path": "/.well-known/oauth-authorization-server/brain/mcp",
-      "feature_id": "owner-product-knowledge",
-      "source": "host/handler/brain.go:63",
+      "source": "host/handler/connector.go:340",
       "package": "host/handler",
       "dynamic": false
     },
@@ -572,7 +556,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/mcp",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:345",
+      "source": "host/handler/connector.go:342",
       "package": "host/handler",
       "dynamic": false
     },
@@ -580,15 +564,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:341",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "GET",
-      "path": "/.well-known/oauth-protected-resource/brain/mcp",
-      "feature_id": "owner-product-knowledge",
-      "source": "host/handler/brain.go:62",
+      "source": "host/handler/connector.go:338",
       "package": "host/handler",
       "dynamic": false
     },
@@ -596,7 +572,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/mcp",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:342",
+      "source": "host/handler/connector.go:339",
       "package": "host/handler",
       "dynamic": false
     },
@@ -685,14 +661,6 @@
       "path": "/auth.md",
       "feature_id": "access-email-signin-off",
       "source": "host/handler/ui.go:69",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "GET",
-      "path": "/brain/mcp",
-      "feature_id": "owner-product-knowledge",
-      "source": "host/handler/brain.go:66",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1740,7 +1708,7 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/server/build.go:452",
+      "source": "host/server/build.go:446",
       "package": "host/server",
       "dynamic": true
     },
@@ -1756,7 +1724,7 @@
       "method": "GET",
       "path": "/hackathons.html",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/server/build.go:452",
+      "source": "host/server/build.go:446",
       "package": "host/server",
       "dynamic": true
     },
@@ -2084,7 +2052,7 @@
       "method": "GET",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/handler/connector.go:361",
+      "source": "host/handler/connector.go:358",
       "package": "host/handler",
       "dynamic": true
     },
@@ -2100,7 +2068,7 @@
       "method": "GET",
       "path": "/oauth/authorize",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:349",
+      "source": "host/handler/connector.go:346",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2652,7 +2620,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "host/server/build.go:582",
+      "source": "host/server/build.go:576",
       "package": "host/server",
       "dynamic": false
     },
@@ -2676,7 +2644,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "host/server/build.go:583",
+      "source": "host/server/build.go:577",
       "package": "host/server",
       "dynamic": false
     },
@@ -2708,7 +2676,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "host/server/build.go:601",
+      "source": "host/server/build.go:595",
       "package": "host/server",
       "dynamic": false
     },
@@ -2813,14 +2781,6 @@
       "path": "/v1/auth/oauth/{provider}/callback",
       "feature_id": "access-signin-card",
       "source": "host/handler/oauth.go:178",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "GET",
-      "path": "/v1/brain",
-      "feature_id": "owner-product-knowledge",
-      "source": "host/handler/brain.go:68",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3436,7 +3396,7 @@
       "method": "GET",
       "path": "/v1/me/connections",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:370",
+      "source": "host/handler/connector.go:367",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3508,7 +3468,7 @@
       "method": "GET",
       "path": "/v1/photo-links",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:365",
+      "source": "host/handler/connector.go:362",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4498,17 +4458,9 @@
     },
     {
       "method": "POST",
-      "path": "/brain/mcp",
-      "feature_id": "owner-product-knowledge",
-      "source": "host/handler/brain.go:65",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "POST",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/handler/connector.go:361",
+      "source": "host/handler/connector.go:358",
       "package": "host/handler",
       "dynamic": true
     },
@@ -4516,7 +4468,7 @@
       "method": "POST",
       "path": "/oauth/authorize/decision",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:350",
+      "source": "host/handler/connector.go:347",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4524,7 +4476,7 @@
       "method": "POST",
       "path": "/oauth/register",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:348",
+      "source": "host/handler/connector.go:345",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4532,7 +4484,7 @@
       "method": "POST",
       "path": "/oauth/reviewer-signin",
       "feature_id": "visitor-signin",
-      "source": "host/handler/connector.go:353",
+      "source": "host/handler/connector.go:350",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4540,7 +4492,7 @@
       "method": "POST",
       "path": "/oauth/revoke",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:355",
+      "source": "host/handler/connector.go:352",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4548,7 +4500,7 @@
       "method": "POST",
       "path": "/oauth/token",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:354",
+      "source": "host/handler/connector.go:351",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4717,14 +4669,6 @@
       "path": "/v1/auth/verify",
       "feature_id": "access-email-signin-off",
       "source": "host/handler/user.go:178",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "POST",
-      "path": "/v1/brain/{tool}",
-      "feature_id": "owner-product-knowledge",
-      "source": "host/handler/brain.go:69",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5204,7 +5148,7 @@
       "method": "POST",
       "path": "/v1/photo-links",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:366",
+      "source": "host/handler/connector.go:363",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5628,7 +5572,7 @@
       "method": "POST",
       "path": "/v1/uploads/{token}",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:368",
+      "source": "host/handler/connector.go:365",
       "package": "host/handler",
       "dynamic": false
     },
@@ -6076,7 +6020,7 @@
       "method": "PUT",
       "path": "/v1/uploads/{token}",
       "feature_id": "agents-data-minimisation",
-      "source": "host/handler/connector.go:367",
+      "source": "host/handler/connector.go:364",
       "package": "host/handler",
       "dynamic": false
     }

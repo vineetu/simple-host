@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vsriram/simple-host/host/brain"
 	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/extension"
@@ -19,7 +18,6 @@ import (
 
 // Options supplies program-specific registration data from the composition root.
 type Options struct {
-	KnowledgeProducts []brain.ProductFilter
 	// Redirects maps mux patterns to targets for legacy 302 responses.
 	Redirects map[string]string
 }

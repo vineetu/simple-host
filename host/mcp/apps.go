@@ -52,7 +52,7 @@ var appScreens = []appScreen{
 }
 
 func (s *Server) mySitesEnabled(c Caller) bool {
-	return s.fixed == nil && (c.Mode == "" || c.Mode == CallerModeGroupSite || (c.Mode == CallerModeEvents && c.GrantID != "")) && appFlag(os.Getenv("MCP_APP_MY_SITES"), c.Handle)
+	return (c.Mode == "" || c.Mode == CallerModeGroupSite || (c.Mode == CallerModeEvents && c.GrantID != "")) && appFlag(os.Getenv("MCP_APP_MY_SITES"), c.Handle)
 }
 
 func (s *Server) dashboardEnabled(c Caller) bool {
@@ -76,9 +76,6 @@ func appFlag(value, handle string) bool {
 
 // Read flags on each request. Never mutate the cached tool inventories.
 func (s *Server) enabledScreens(c Caller) []appScreen {
-	if s.fixed != nil {
-		return nil
-	}
 	var screens []appScreen
 	for _, screen := range appScreens {
 		if c.Mode != "" && ((screen.ID != "my-sites" && screen.ID != "dashboard") || !s.mySitesEnabled(c)) {

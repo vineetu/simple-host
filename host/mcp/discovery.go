@@ -327,7 +327,7 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	if caller.DeployOnly {
 		search = s.deploySearch
 	}
-	flat := s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeGroupSite && flatListApp(caller.AppName)
+	flat := caller.Mode != CallerModeEvents && caller.Mode != CallerModeGroupSite && flatListApp(caller.AppName)
 	context := s.offersAnalyticsContext(caller)
 	screen := s.passcodeScreenEnabled(caller)
 	if !flat && !context && !screen && !storageRulesEnabled() {
@@ -337,7 +337,7 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	copy.flat = flat
 	copy.tools = append([]searchableTool(nil), search.tools...)
 	for i := range copy.tools {
-		if s.fixed == nil && storageRulesEnabled() {
+		if storageRulesEnabled() {
 			copy.tools[i].tool = s.storageRulesTool(copy.tools[i].tool, caller)
 		}
 		if screen && copy.tools[i].tool.policy.listWithPasscode {
@@ -351,7 +351,7 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 			copy.tools[i].tool = withAnalyticsContext(copy.tools[i].tool)
 		}
 	}
-	if s.fixed == nil && storageRulesEnabled() {
+	if storageRulesEnabled() {
 		tools := make([]Tool, len(copy.tools))
 		for i, entry := range copy.tools {
 			tools[i] = entry.tool

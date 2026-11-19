@@ -93,7 +93,7 @@ func TestContributionAppsPerServer(t *testing.T) {
 	calls := 0
 	contribution := Contribution{Apps: func(ctx AppContext) AppContribution {
 		calls++
-		if ctx.APIHost != "connector.example.test" || ctx.Fixed || ctx.Meta == nil {
+		if ctx.APIHost != "connector.example.test" || ctx.Meta == nil {
 			t.Fatalf("context = %+v", ctx)
 		}
 		if ctx.Meta(AppScreen{URI: "ui://example/screen", ID: "screen"})["ui"] == nil {
@@ -235,11 +235,10 @@ func TestContributionMutationNames(t *testing.T) {
 	if string(wrapped) != string(want) {
 		t.Fatalf("through run_tool: %s", wrapped)
 	}
-	// Nil map, nil contribution and the fixed-inventory server: an unknown tool.
+	// Nil map and nil contribution: an unknown tool.
 	for name, server := range map[string]*Server{
-		"zero":  NewServer(Config{Contribution: &Contribution{}, Upstream: up}),
-		"nil":   NewServer(Config{Upstream: up}),
-		"brain": NewBrainServer(BrainConfig{Query: func(string, map[string]any) (string, map[string]any, error) { return "", nil, nil }}),
+		"zero": NewServer(Config{Contribution: &Contribution{}, Upstream: up}),
+		"nil":  NewServer(Config{Upstream: up}),
 	} {
 		reply := call(server, Caller{}, "fixture_retired")
 		if reply.Error == nil || reply.Error.Code != codeInvalidParams || !strings.Contains(reply.Error.Message, "unknown tool: fixture_retired") {

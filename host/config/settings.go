@@ -352,8 +352,6 @@ func otherSettings() []Setting {
 			Description: "Concurrent photo saves across the process. Positive integer; invalid values use the default."},
 		{Name: "PHOTO_BODY_TIMEOUT_SECONDS", Group: "sites", Type: "int", Default: "60", Min: i64(1), Unit: "seconds", SmallBox: true,
 			Description: "Read deadline for a photo-link upload body. Positive integer; invalid values use the default."},
-		{Name: "BRAIN_DIR", Group: "server", Type: "string",
-			Description: "Folder containing bundle.json for the owner product-knowledge server; empty disables it, and hosted events ignore it."},
 		{Name: "OPENAI_APPS_CHALLENGE", Group: "server", Type: "string",
 			Description: "The OpenAI plugin portal's domain-verification token. Unset: not served."},
 

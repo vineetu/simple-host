@@ -202,7 +202,7 @@ The following packages exist today; Hack-only packages live under `products/hack
 | `analytics`, `netusage`, `papermetrics` | Access-log, network-counter and research measurement mechanisms |
 | `email`, `eventdns`, `oauth`, `imagescan` | Provider clients |
 | `geoip`, `capacity`, `tarball` | Local country lookup, disk capacity and archives |
-| `brain`, `buildinfo` | Product-knowledge bundle support; stamped version/commit/build time |
+| `buildinfo` | Stamped version/commit/build time |
 | `testdb`, `geoip/geoiptest` | Test fixtures |
 
 `scripts/check-layering.sh` checks Go imports, including test imports, against both the fine

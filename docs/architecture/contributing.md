@@ -332,8 +332,7 @@ Verify as a client after restart: public `/healthz` (200), `/readyz`, the
 changed page/API, a site host, a person host and the old content-path redirect.
 Check Simple Hack and neighbouring sites named in CLAUDE.md, then startup
 logs for errors. `/healthz` only proves HTTP is responding; `/readyz` also
-pings Postgres (`host/handler/health.go`). Refresh owner product knowledge
-through the documented sh-brain-sync operation after a hosted deploy.
+pings Postgres (`host/handler/health.go`).
 
 Analytics logrotate uses create/delaycompress rather than copytruncate;
 retention is the live day plus 29 archives. Journald's 30-day setting is

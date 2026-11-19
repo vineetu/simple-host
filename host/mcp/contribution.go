@@ -40,7 +40,6 @@ func Inventory(product Contribution) []InventoryTool {
 // AppContext contains server facts and shared metadata, with no request data.
 type AppContext struct {
 	APIHost string
-	Fixed   bool
 	Meta    func(AppScreen) map[string]any
 }
 

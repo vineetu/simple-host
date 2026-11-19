@@ -379,11 +379,6 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 			eventErrorCode(t, sendEvent(t, s, "tools/call", map[string]any{"name": name, "arguments": map[string]any{"name": "list_notifications", "query": "webhook"}}, caller, false), codeInvalidParams)
 		}
 	}
-	brain := NewBrainServer(BrainConfig{Query: func(string, map[string]any) (string, map[string]any, error) { return "", nil, nil }})
-	full, _, byName := brain.forCaller(Caller{AppName: "ChatGPT"})
-	if len(full) != 7 || byName["run_tool"].Name != "" || byName["find_tools"].Name != "" {
-		t.Error("brain inventory changed")
-	}
 }
 
 // productionHostRewrite mirrors handler.newHostRewriter with default content and

@@ -23,7 +23,7 @@ const passcodeScreenExpired = "This passcode screen expired. Close it and ask ag
 const passcodeScreenUnavailable = "The passcode screen cannot open in this chat. Use the dashboard link in the chat."
 
 func (s *Server) passcodeScreenEnabled(c Caller) bool {
-	return s.fixed == nil && c.Mode == "" && appFlag(os.Getenv("MCP_APP_PASSCODE"), c.Handle)
+	return c.Mode == "" && appFlag(os.Getenv("MCP_APP_PASSCODE"), c.Handle)
 }
 
 type passcodeIdentity struct {
