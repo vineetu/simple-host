@@ -217,8 +217,6 @@ type MemberStatus struct {
 type EventStorageUsage struct {
 	Sites           int64 `json:"sites"`
 	Versions        int64 `json:"versions"`
-	SavedDataBytes  int64 `json:"saved_data_bytes"`
-	HistoryBytes    int64 `json:"history_bytes"`
 	ScreenshotBytes int64 `json:"screenshot_bytes"`
 	FileBytes       int64 `json:"file_bytes"`
 }

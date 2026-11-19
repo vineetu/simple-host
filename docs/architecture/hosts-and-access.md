@@ -155,9 +155,9 @@ browser family (`handler/sso.go:ssoCookie`, `setSSOCookie`, `endBrowserSSO`).
   legacy behavior on instances without a hop-capable apex (`cmd/server/main.go`, `handler/sso.go`).
 
 Visitor sessions cover one site and host. Pages include `/auth.js` (`window.SH`) and use
-`SH.signIn()` / `SH.requireSignIn()` before identity-dependent storage. Hosted Hack keeps
-`SH.storage` but strips legacy `SH.state`, `SH.collection`, `SH.data` (`handler/static/auth.js`,
-`handler/basetext.go:hackAuthJS`). `GET /v1/sites/{site}/me` reports the session without extending it
+`SH.signIn()` / `SH.requireSignIn()` before identity-dependent storage. Hosted Hack serves
+the same helper with its own header and wording (`handler/static/auth.js`,
+`products/hack/hackhttp/hack_assets.go:hackAuthJS`). `GET /v1/sites/{site}/me` reports the session without extending it
 (`handler/visitorsession.go:getVisitorMe`).
 
 ### Legacy visitor login
@@ -184,19 +184,7 @@ a suspended account is refused. Owner/admin account API authority is handled sep
 (`handler/viewers.go:viewerAllowed`, `viewersLetIn`, owner access routes in `viewers.go` and `passcode.go`).
 There is no per-page view lock. List on my profile only controls the profile page.
 
-Host grandfathered APIs run through `host/app/legacy`; storage resources have their own
-policy in `host/app/storage/access.go`. Hosted Hack returns 410 for state/collection/declared-data,
-saver/history routes on site and handle aliases, and serves only the narrower storage/visitor
-allowlist on custom event hosts (`products/hack/hackhttp/legacy_storage.go`, `hack_mode.go:hackEventAPIAllowed`).
-
-| Legacy operation | Access contract |
-|---|---|
-| Public state/collection read | Originless reads can succeed; browser reads apply Origin/Referer gates (`handler/kinds.go:readSitePrelude`, `app/legacy/collections.go:ReadCollection`) |
-| Write | Owner/admin key or permitted site-scoped visitor plus `X-SH-CSRF: 1`; anonymous and shared-host behavior depends on WRITE_AUTH_MODE, canonical mode and per-site policy (`app/legacy/kinds.go:VisitorWrite`) |
-| Private submission | Only signed-in visitors on an own site origin submit, not account keys or shared-host callers; server stamps identity (`app/legacy/collections.go:appendPrivate`) |
-| Private list read | Shared content host returns 404 even with owner/admin keys. Elsewhere owner/admin keys read all; owner browser session on own origin can read. Originless non-owner reads and other visitors, including submitters reading their own submissions, get 404 (`collectionReadView`, `handler/privatecollections.go:ownerBrowserRead`) |
-| Personal (`mine`) | Each person reads/writes their own record; owners may obtain limited counts, not other people's records (`app/legacy/personal.go:GetPersonal`, `personalWriter`) |
-| Shared board | Allowed visitors edit one item at a time; supplied If-Match version is checked, stale edits return 409 `version_conflict`; whole-board clear/replacement is owner-only (`handler/board.go`, `handler/entry_operations.go`, `host/app/legacy` write operations) |
+Storage resources have their own policy in `host/app/storage/access.go`.
 
 ## Notification triggers
 

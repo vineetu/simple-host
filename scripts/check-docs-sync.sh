@@ -54,20 +54,10 @@ while read -r p; do
 done <<<"$documented"
 [ "$fail" -eq 0 ] && echo "  ok — every /v1 route is documented and vice versa"
 
-# Owner /v1/sites/{sitename} routes (except public state/collections/me and OPTIONS)
-# must be wrapped with auth.Middleware. A missed wrap is how a site session
-# cookie on a custom domain would escalate (docs/history/UNIFY.md credential boundary).
-# .../collections/{coll}/items/{id} (private-list edit/delete) is excluded on
-# purpose: privateManager authorizes it itself (owner or admin key, or the
-# owner's own visitor session on the site's own address; 404 for anyone else).
-# The page-facing saved-data routes (.../data/{coll}, its /kind, and its
-# /items/{id} and /items/{id}/undo) are the kinds' version of state and
-# collections: pages call them with the visitor cookie, and each handler
-# decides who may do what (kinds.go: owner key or the owner's own visitor
-# session for Page info writes and owner edits, the visitor's own entry for
-# theirs; personal.go: a Personal record and its history, its own visitor
-# only; board.go: a Shared board's items). The owner's /data list and
-# /data/{coll}/kind PUT are wrapped.
+# Owner /v1/sites/{sitename} routes (except the visitor /me and sign-in
+# routes, and OPTIONS) must be wrapped with auth.Middleware. A missed wrap is
+# how a site session cookie on a custom domain would escalate
+# (docs/history/UNIFY.md credential boundary).
 # .../push/* (SIM-360) is excluded the same way /storage/ is: a signed-in
 # visitor subscribes/unsubscribes/mutes their own device too, so these go
 # through h.passcodeGate (TestPasscodeRouteTable enforces that wrap) and
@@ -76,8 +66,7 @@ done <<<"$documented"
 # (push/devices, push/rules) are still wrapped with authMiddleware.
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' host/handler \
-  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"|/storage/|/push/(vapid-key|subscribe|unsubscribe|mute)"' \
-  | grep -vE '"(GET|POST|PUT|PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}"|"(GET|POST) /v1/sites/\{sitename\}/data/\{coll\}/history[^"]*"|"GET /v1/sites/\{sitename\}/data/\{coll\}/kind"|"(PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}"|"POST /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}/undo"|"OPTIONS /v1/sites/\{sitename\}/data/' \
+  | grep -vE '/me"|/visitor/auth|/storage/|/push/(vapid-key|subscribe|unsubscribe|mute)"' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then
   echo "$unwrapped" | sed 's/^/  FAIL: owner route missing authMiddleware: /'
@@ -94,8 +83,7 @@ fi
 # ships bash 3.2, where `declare -A` is a syntax error and `set -u` then aborts
 # the script before it ever reports success.
 echo "== capability coverage (warn-only) =="
-caps='state	state
-collections	collection
+caps='storage	storage|SH\.storage
 visitor-sign-in	visitor.auth|visitor_auth_required|custom_domain_required|auth\.js|X-SH-CSRF
 analytics	analytics'
 

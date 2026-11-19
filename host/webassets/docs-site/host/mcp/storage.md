@@ -230,13 +230,13 @@ Read a site's visitor rights and data. With no address, list sites shared with y
 | --- | --- | --- | --- |
 | address | string |  | The site's browser address, custom domain, or claimed short name. |
 | after | string |  | Pagination cursor from the previous result. |
-| id | integer |  | Optional SQLite row ID. Collections use after and limit. |
+| id | integer |  | Optional SQLite row ID. |
 | key | string |  | KV key. |
-| kind | string, one of `kv`, `sqlite`, `collection` |  | The resource kind. |
+| kind | string, one of `kv`, `sqlite` |  | The resource kind. |
 | limit | integer |  | Maximum entries, default 50. |
 | page | string |  | Optional page path whose static text to read, such as index.html. |
 | passcode | string |  | The site's passcode, if it asks for one. |
-| resource | string |  | Saved-data resource or collection name. Omit on a read to discover resources. |
+| resource | string |  | Saved-data resource name. Omit on a read to discover resources. |
 | table | string |  | SQLite table name. |
 
 ## visitor_add_entry
@@ -251,9 +251,9 @@ Add your entry where this site's visitor rights allow it.
 | --- | --- | --- | --- |
 | address | string | yes | The site's browser address, custom domain, or claimed short name. |
 | key | string |  | KV key. |
-| kind | string, one of `kv`, `sqlite`, `collection` | yes | The resource kind. |
+| kind | string, one of `kv`, `sqlite` | yes | The resource kind. |
 | passcode | string |  | The site's passcode, if it asks for one. |
-| resource | string | yes | Saved-data resource or collection name. Omit on a read to discover resources. |
+| resource | string | yes | Saved-data resource name. Omit on a read to discover resources. |
 | table | string |  | SQLite table name. |
 | value | any | yes | Entry value. For SQLite, an object of column values. |
 
@@ -269,11 +269,11 @@ Edit or delete your own entry where this site's visitor rights allow it.
 | --- | --- | --- | --- |
 | action | string, one of `edit`, `delete` | yes | Change or remove your entry. |
 | address | string | yes | The site's browser address, custom domain, or claimed short name. |
-| id | integer |  | Entry ID for a table or collection. |
+| id | integer |  | Entry ID for a table row. |
 | key | string |  | KV key. |
-| kind | string, one of `kv`, `sqlite`, `collection` | yes | The resource kind. |
+| kind | string, one of `kv`, `sqlite` | yes | The resource kind. |
 | passcode | string |  | The site's passcode, if it asks for one. |
-| resource | string | yes | Saved-data resource or collection name. Omit on a read to discover resources. |
+| resource | string | yes | Saved-data resource name. Omit on a read to discover resources. |
 | table | string |  | SQLite table name. |
 | value | any |  | Entry value. For SQLite, an object of column values. |
 

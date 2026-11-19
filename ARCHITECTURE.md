@@ -27,7 +27,7 @@ and limit policies; event stages and deadlines remain database state.
 |---|---|---|
 | Routes and presentation | Hosting pages, personal sites | Event routes, Hack pages and skills |
 | Identity | Personal handles/sites | Random user handles, event holding accounts, scoped team/event website credentials |
-| Storage | KV/SQLite/files and grandfathered legacy APIs | KV/SQLite/files; legacy APIs return 410 |
+| Storage | KV/SQLite/files | KV/SQLite/files |
 | Site policy | Deployment file caps, photos | Strict archives, event retention and judging previews |
 | Notifications | Site scope | Event membership and website scope |
 
@@ -95,7 +95,7 @@ No CLI-proxy sidecar is needed by the Go request path; deployment-specific integ
 with the proxy configuration.
 
 Main starts certificate requests, Hack reconciliation/entry settling, event retention and mail,
-trash/idle cleanup, legacy retention, submission emails, notification delivery, address-family
+trash/idle cleanup, notification delivery, address-family
 verification, network sampling, image scans and paper metrics. Enabled providers/settings determine
 which loops do work. Background owners satisfy `workers.Owner` and are registered in
 `host/server/workers.go`; `GET /v1/admin/usage` exposes their `workers` status array.
@@ -127,7 +127,7 @@ The dispatch order in `host/server/build.go:Build` is:
 FamilyHosts → SiteBaseHosts → BoundSubdomains → SiteHosts → PersonHosts
             → LegacyHostRedirect → app
 app = SecurityHeaders(CORS(apiMetrics(BearerAuth(gated))))
-gated = APIErrors(LegacyStorageCutoffGate(hackhttp.LegacyStorageGate(ScopeGate(mux))))
+gated = APIErrors(ScopeGate(mux))
 ```
 
 A matched host can serve files directly or send API requests to `app`; this is not one universal
@@ -188,10 +188,9 @@ The following packages exist today; Hack-only packages live under `products/hack
 | `products/hack/app/entries` | Entry writes/settling, judging, assignments, scoring, voting and results |
 | `app/sites` | Deploy/publication, versions, addresses, site/account file lifecycle and exports |
 | `app/storage` | KV, SQLite and runtime-file workflows, quotas and access decisions |
-| `app/legacy` | Host saved-data compatibility adapter, including cutoff/access rules |
 | `rules/{auth,sites,storage}` | Pure grant/name/storage decisions |
 | `products/hack/rules/{hackevents,hackteams,hackentries}` | Pure event codes, team decisions, eligibility, judging and result arithmetic |
-| `repository/{accounts,sites,storage,legacy}` | Extracted account/site/storage/legacy SQL |
+| `repository/{accounts,sites,storage}` | Extracted account/site/storage SQL |
 | `products/hack/repository/{hackevents,hackteams,hackentries}` | Extracted Hack SQL |
 | `repository/sqlkit` | Shared Querier and transaction-opening primitives |
 | `app/notifications`, `repository/notifications` | Subscription and outbox delivery workflows; notification SQL |

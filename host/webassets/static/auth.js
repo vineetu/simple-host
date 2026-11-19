@@ -61,12 +61,6 @@
  * The shared address sites.<domain> offers no sign-in: on simple-host.app it is
  * view-only; event and self-hosted instances keep saves open there.
  *
- * DEPRECATED, EXISTING SITES ONLY: SH.state (the shared document), SH.collection(name)
- * (lists; private lists submit signed in, the owner reads them) and SH.data(name, kind)
- * (declared kinds: content, entries, personal, board) keep working for sites that
- * already use them. Do not use them for anything new. Their writes carry an
- * Idempotency-Key and are retried once after a network error; never re-POST by hand.
- *
  * Auto-derives the API from the first host label (<site>.<handle>.<domain>, a
  * claimed <name>.<domain>), <handle>.<domain>/<site>/ or sites.<domain>/<handle>/<site>/.
  * Custom domain: set window.SH_CONFIG = {site:'my-site'} (same-origin API).
@@ -159,11 +153,11 @@
     e.code = "no_backend";
     return Promise.reject(e);
   }
-  function request(url, options, withETag, anonymous) {
+  function request(url, options, anonymous) {
     if (noBackend) return unavailable();
     if (baseReady && url.indexOf(BASE_TOKEN) === 0) {
       return baseReady.then(function (base) {
-        return request(base + url.slice(BASE_TOKEN.length), options, withETag, anonymous);
+        return request(base + url.slice(BASE_TOKEN.length), options, anonymous);
       });
     }
     options = options || {};
@@ -198,14 +192,14 @@
           }
           throw err;
         }
-        return withETag ? {data: body, etag: r.headers.get("ETag")} : body;
+        return body;
       });
     });
   }
   function loadProviders() {
     if (providers) return Promise.resolve(providers);
     if (!providerPromise) {
-      providerPromise = request(APEX + "/v1/auth/oauth/providers", {}, false, true).then(function (d) {
+      providerPromise = request(APEX + "/v1/auth/oauth/providers", {}, true).then(function (d) {
         providers = (d && d.providers) || [];
         hopEnabled = !!(d && d.sso_enabled);
         if (d && d.email_enabled === false) emailEnabled = false;
@@ -734,19 +728,6 @@
         });
       }
     },
-    state: {
-      get: function () { return request(API_BASE + "/state", {}, true); },
-      patch: function (ops) {
-        // Accept a bare ops array or the wire shape {ops:[...]}.
-        var body = Array.isArray(ops) ? {ops: ops} : ops;
-        return write(API_BASE + "/state", "PATCH", body);
-      },
-      put: function (obj, options) {
-        var headers = {};
-        if (options && options.ifMatch != null) headers["If-Match"] = options.ifMatch;
-        return write(API_BASE + "/state", "PUT", obj, headers);
-      }
-    },
     storage: {
       kv: function (name) {
         var base = storageURL("kv/" + storageSegment(name, "resource name"));
@@ -859,222 +840,6 @@
       // not signed in yet (not a usable table().add for target). Pass an
       // entry's visitor_id or email as for.
       people: function () { return request(storageURL("people")); }
-    },
-    collection: function (name) {
-      var url = API_BASE + "/collections/" + encodeURIComponent(name);
-      // A private list (owner-only reads) answers 404 to everyone but its
-      // owner signed in on the site's own address; say what that means.
-      function explain(e) {
-        if (e && e.status === 404 && e.code === "not_found") {
-          e.message = "Not found. If this is a private list, only the site owner can read or change it, signed in on the site's own address.";
-        }
-        throw e;
-      }
-      function itemURL(id) {
-        if (!/^[0-9]+$/.test(String(id))) return null;
-        return url + "/items/" + String(id);
-      }
-      return {
-        append: function (item) { return write(url, "POST", item); },
-        list: function (query) {
-          var params = Object.keys(query || {}).map(function (key) {
-            return encodeURIComponent(key) + "=" + encodeURIComponent(query[key]);
-          });
-          return request(url + (params.length ? "?" + params.join("&") : "")).catch(explain);
-        },
-        // Private lists only, site owner only: merge fields into one item
-        // (null removes a field; _submitted_by/_submitted_at never change)
-        // and delete one item. Public lists are append-only.
-        update: function (id, fields) {
-          var u = itemURL(id);
-          if (!u) return Promise.reject(new Error("update(id, fields): id is the item's number from list()"));
-          return write(u, "PATCH", fields || {}).catch(explain);
-        },
-        remove: function (id) {
-          var u = itemURL(id);
-          if (!u) return Promise.reject(new Error("remove(id): id is the item's number from list()"));
-          return request(u, {method: "DELETE", headers: {"X-SH-CSRF": "1"}}).catch(explain);
-        }
-      };
-    },
-    data: function (name, kind) {
-      var base = API_BASE + "/data/" + encodeURIComponent(name);
-      var want = {"page info": "content", content: "content", submissions: "entries", entries: "entries", shared: "shared",
-        personal: "mine", mine: "mine", board: "board", "shared board": "board"}[String(kind || "").toLowerCase()] || kind;
-      var checked = null;
-      // With a kind, the first call checks the name was declared as that kind.
-      function check() {
-        if (!want) return Promise.resolve();
-        if (!checked) {
-          checked = request(base + "/kind", {cache: "no-store"}).then(function (k) {
-            var e;
-            if (k.kind && k.kind !== want) {
-              e = new Error('"' + name + '" is ' + k.label + " (kind " + k.kind + "), not " + want);
-              e.code = "wrong_kind";
-              throw e;
-            }
-            // A name nobody declared is Shared (public). A page that asked
-            // for Page info or Submissions never saves there by mistake.
-            if (!k.kind && (want !== "shared" || k.accepts_saves === false)) {
-              e = new Error('"' + name + '" is not declared yet' + (k.accepts_saves === false ? "" : " (until then it is Shared: anyone can read it)") +
-                ": the site owner declares it as " + want + " first");
-              e.code = "declare_first";
-              throw e;
-            }
-          });
-          checked.catch(function () { checked = null; });
-        }
-        return checked;
-      }
-      function explain(e) {
-        if (e && e.status === 404 && e.code === "not_found") {
-          e.message = "Not found. Private entries are read only by the site owner; a visitor reads their own with mine().";
-        }
-        throw e;
-      }
-      function newKey() {
-        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-        return String(Date.now()) + "-" + Math.random().toString(36).slice(2);
-      }
-      // One Idempotency-Key per write; a network error (no answer) is retried
-      // once with the same key, so the server saves it once.
-      function send(url, method, body, extra) {
-        var headers = Object.assign({"Idempotency-Key": newKey()}, extra || {});
-        function go() { return write(url, method, body, Object.assign({}, headers)); }
-        return check().then(function () {
-          return go().catch(function (e) {
-            if (e && e.status === undefined) return go();
-            throw e;
-          });
-        }).catch(explain);
-      }
-      function itemURL(id, rest) {
-        if (!/^[0-9]+$/.test(String(id))) return null;
-        return base + "/items/" + String(id) + (rest || "");
-      }
-      function query(q) {
-        var params = Object.keys(q || {}).map(function (key) {
-          return encodeURIComponent(key) + "=" + encodeURIComponent(q[key]);
-        });
-        return params.length ? "?" + params.join("&") : "";
-      }
-      function byId(id, rest, method, body) {
-        var u = itemURL(id, rest);
-        if (!u) return Promise.reject(new Error("id is the entry's number from add(), mine() or list()"));
-        if (method === "DELETE") {
-          return check().then(function () {
-            return request(u, {method: "DELETE", headers: {"X-SH-CSRF": "1"}});
-          }).catch(explain);
-        }
-        return send(u, method, body);
-      }
-      // A read that sends back the ETag it last got: while nothing changed the
-      // server answers 304 and the last answer is used again (cheap polling).
-      var cache = {};
-      function cachedGet(url) {
-        var c = cache[url], headers = {};
-        if (c && c.etag) headers["If-None-Match"] = c.etag;
-        return request(url, {cache: "no-store", headers: headers}, true).then(function (r) {
-          cache[url] = {etag: r.etag, data: r.data};
-          return r.data;
-        }, function (e) {
-          if (e && e.status === 304 && c) return c.data;
-          throw e;
-        });
-      }
-      // Every page of a list (a Shared board holds more than one page): reads
-      // page after page by `next` until the end, each with its own ETag, and
-      // answers {items, next: null, pages} (pages: each page's answer, the same
-      // object again while it was unchanged).
-      function allPages(q) {
-        var items = [], pages = [];
-        function page(url, n) {
-          return cachedGet(url).then(function (r) {
-            pages.push(r);
-            items = items.concat((r && r.items) || []);
-            if (r && r.next != null && n < 100) {
-              return page(base + query(Object.assign({}, q, {limit: 200, before: r.next})), n + 1);
-            }
-            return {items: items, next: null, pages: pages};
-          });
-        }
-        return page(base + query(Object.assign({}, q, {limit: 200})), 1);
-      }
-      function patch(ops) { return send(base, "PATCH", {ops: ops}).then(function (r) { return r.data; }); }
-      return {
-        // Page info: the document (null until the owner saves one). Personal:
-        // the visitor's own record (null until they save one).
-        get: function () {
-          return check().then(function () { return cachedGet(base); }).then(function (r) {
-            return r && (r.kind === "content" || r.kind === "mine") ? r.data : r;
-          }).catch(explain);
-        },
-        // Page info, the owner only (signed in on the site). Personal: the
-        // visitor's own record, whole (set(obj)) or one field (set(path, value)).
-        set: function (obj, value) {
-          if (typeof obj === "string") return patch([{op: "set", path: obj, value: value}]);
-          return send(base, "PUT", obj).then(function (r) { return r.data; });
-        },
-        // Personal: change the visitor's record with the /state ops.
-        patch: function (ops) { return patch(Array.isArray(ops) ? ops : [ops]); },
-        inc: function (path, by) { return patch([{op: "inc", path: path, by: by == null ? 1 : by}]); },
-        // Personal: delete the visitor's record (restorable from history()).
-        clear: function () {
-          return check().then(function () {
-            return request(base, {method: "DELETE", headers: {"X-SH-CSRF": "1"}});
-          }).catch(explain);
-        },
-        history: function () { return check().then(function () { return request(base + "/history"); }).catch(explain); },
-        restore: function (changeId) {
-          if (!/^[0-9]+$/.test(String(changeId))) return Promise.reject(new Error("restore(id): id is a change's number from history()"));
-          return send(base + "/history/" + String(changeId) + "/restore", "POST", {}).then(function (r) { return r.data; });
-        },
-        // Shared board: calls fn(items) now and whenever the board changes
-        // (every item, however many pages), checking every options.every ms
-        // (at least 2000). Returns stop().
-        watch: function (fn, options) {
-          var every = Math.max(2000, (options && options.every) || 5000), last = null, timer = null, stopped = false;
-          function same(a, b) {
-            if (!a || a.length !== b.length) return false;
-            for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-            return true;
-          }
-          function tick() {
-            allPages().then(function (r) {
-              if (stopped) return;
-              if (!same(last, r.pages)) { last = r.pages; fn(r.items, r); }
-            }, function () {}).then(function () { if (!stopped) timer = setTimeout(tick, every); });
-          }
-          check().then(tick, function (e) { if (options && options.onError) options.onError(e); });
-          return function () { stopped = true; clearTimeout(timer); };
-        },
-        // Submissions.
-        add: function (item) { return send(base, "POST", item); },
-        mine: function (q) {
-          var extra = query(q);
-          return check().then(function () { return request(base + "?mine=1" + (extra ? "&" + extra.slice(1) : "")); }).catch(explain);
-        },
-        // A Shared board with no paging asked for answers every item at once.
-        list: function (q) {
-          return check().then(function () {
-            if (want === "board" && !(q && (q.limit || q.before))) return allPages(q);
-            return cachedGet(base + query(q));
-          }).catch(explain);
-        },
-        count: function () {
-          return check().then(function () { return request(base + "?count=1"); }).then(function (r) { return r.count; }).catch(explain);
-        },
-        // options.version (a Shared board item's version) refuses the change
-        // with 409 version_conflict (e.body.item: the item now) if it moved on.
-        update: function (id, fields, options) {
-          var u = itemURL(id, "");
-          if (!u) return Promise.reject(new Error("id is the entry's number from add(), mine() or list()"));
-          var extra = options && options.version != null ? {"If-Match": '"' + String(options.version) + '"'} : null;
-          return send(u, "PATCH", fields || {}, extra);
-        },
-        remove: function (id) { return byId(id, "", "DELETE"); },
-        undo: function (id) { return byId(id, "/undo", "POST", {}); }
-      };
     },
     mount: function (target) {
       if (noBackend) return unavailable();

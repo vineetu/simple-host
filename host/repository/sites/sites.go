@@ -17,10 +17,8 @@ type ExpiredSite = model.ExpiredSite
 
 // CreateSite inserts a new site. expiresAt is nil for permanent sites, or a
 // timestamp for ephemeral "preview" sites that the background sweep deletes.
-// legacy_data marks the sites made before the kinds (the column's default,
-// true, covers them); a new site is false, so a data name nobody declared on
-// it follows SAVED_DATA_DEFAULT_KIND (Shared unless the install chose
-// declare_first).
+// legacy_data is false for every new site (the column's default, true,
+// marks the sites made before the older saved-data kinds).
 func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, expiresAt *time.Time) (Site, error) {
 	const query = `
 		INSERT INTO sites (user_id, name, site_url, expires_at, legacy_data)

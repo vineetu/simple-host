@@ -7,7 +7,6 @@ package servertest
 import (
 	"bytes"
 	"encoding/json"
-	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +17,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/config"
@@ -205,7 +206,7 @@ func TestSelfHostedHackNamesNoHostedDomain(t *testing.T) {
 	}
 	// The 404 page names the install's own domain, so the handler is built
 	// with it (the shared fixture's site domain is the hosted one).
-	self := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "https://hack.example.test", nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", "", nil, nil)
+	self := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "https://hack.example.test", nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", nil, nil)
 	selfMux := http.NewServeMux()
 	installAssets(self, selfMux)
 	handler.RegisterUIRoutes(selfMux, "https://hack.example.test", self)
@@ -341,23 +342,6 @@ func TestHackDocsRuntimeText(t *testing.T) {
 	if strings.Contains(body, "https://simple-host.app/mcp") || strings.Contains(body, "https://simple-hack.app/mcp") {
 		t.Error("hosted instance URL leaked")
 	}
-	for _, route := range []string{"/docs/self-hosting/settings/storage-migration/", "/docs/self-hosting/settings/storage-migration.md"} {
-		r := get(t, mux, "docs-box.example", route)
-		body := r.Body.String()
-		if r.Code != http.StatusOK || !strings.Contains(body, "/docs/guides/storage") {
-			t.Errorf("%s: missing local storage guide", route)
-		}
-		for _, want := range []string{"private export until a suitable migration is agreed", "owner tools, connector access and site exports bypass row rules", "Removing an owner policy does not prevent owner access", "Do not copy Personal records into storage"} {
-			if !strings.Contains(body, want) {
-				t.Errorf("%s: missing Personal migration warning %q", route, want)
-			}
-		}
-		for _, stale := range []string{"https://simple-host.app/", "17 December 2026", "no removal date", "/docs/guides/moving-saved-data"} {
-			if strings.Contains(body, stale) {
-				t.Errorf("%s: contains %q", route, stale)
-			}
-		}
-	}
 }
 
 // The limits page of a Hack install states the install's own allowances.
@@ -371,7 +355,7 @@ func TestHackDocsLimitsText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sh := handler.NewSiteHandler(productedition.ForKindWithLimits(productedition.Hack, limits), "https://docs-box.example", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	sh := handler.NewSiteHandler(productedition.ForKindWithLimits(productedition.Hack, limits), "https://docs-box.example", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	mux := http.NewServeMux()
 	installAssets(sh, mux)
 	handler.RegisterUIRoutes(mux, "https://docs-box.example", sh)

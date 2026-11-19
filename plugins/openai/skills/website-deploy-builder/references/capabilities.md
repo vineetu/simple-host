@@ -2,7 +2,7 @@
 
 Moved here from SKILL.md unchanged.
 
-For existing sites, keep the older saved-data APIs until an owner-directed migration. New sites use SQLite/KV row rules and file-bucket presets. Author-or-owner reads keep personal data private; sign-in alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged storage reference explains the language and examples.
+Sites use SQLite/KV row rules and file-bucket presets. Author-or-owner reads keep personal data private; sign-in alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged storage reference explains the language and examples.
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
@@ -16,18 +16,10 @@ if the idea is clear, go straight to building.
   `https://<site>.<handle>.simple-host.app/`, or optionally at a short `<name>.simple-host.app`
   or the person's own domain. Any number of pages.
 - **Pretty URLs for plain HTML** use `about.html` for `/about` or `about/index.html` for `/about/`.
-- **Deprecated shared state on existing sites**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
-  vote tallies, settings, a short list.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.
   SQLite/KV use row rules for read, add, edit and delete; file buckets keep presets.
   Each resource can inherit or bypass the site's passcode. All three kinds share
   10,000,000 bytes for KV/SQLite plus 10 MB for files per website; check `storage_get_usage`. Choose own reads for private visitor records; each person reads only their own rows. Compress phone photos before file uploads.
-- **Deprecated collections on existing sites**: lists, one item per submission, newest first. RSVPs, sign-ups,
-  survey responses, orders, guestbook entries. On any site, a collection
-  can be made **private**: signed-in visitors add to it, and only the site owner — and the
-  Simple Host operator, for moderation — can read it. The owner can mark items done or delete
-  them; in a public list the owner can delete (spam) but not edit. In declared Submissions each
-  visitor also changes and withdraws their own.
 - **Per-visitor storage** in the browser (`localStorage`, IndexedDB): drafts, carts, settings,
   game saves, a private journal on one device.
 - **Public APIs** called from the page with `fetch()` (weather, maps, open data), when the API
@@ -36,8 +28,7 @@ if the idea is clear, go straight to building.
 Pages are public: anyone with the link can open them, unless the owner opens the whole site
 only to named viewers (people named by email, each signing in on the site) or puts one passcode
 on it. A passcode is shared, not a login; a site has one or the other, not both. Each new storage
-resource may inherit or bypass it. Existing Submissions are private to the owner by default,
-and existing Personal records remain private per visitor; the “Each person's records” pattern gives new records own reads and add-only writes. Visitors sign in when the chosen policy requires it.
+resource may inherit or bypass it. The “Each person's records” pattern gives new records own reads and add-only writes. Visitors sign in when the chosen policy requires it.
 
 ## Not a fit
 
@@ -45,7 +36,7 @@ Say so plainly, then offer the part that does fit:
 
 - Server code, scheduled jobs, sending email or texts, webhooks.
 - Custom per-user roles, per-field access or confidential medical, financial and ID data in a
-  shared storage resource. For per-person reads use author-or-owner read rules and signed-in add rules; people request changes by adding linked history rows; original records stay add-only. Existing Simple Host sites may keep Personal and private Submissions when they already depend on those semantics.
+  shared storage resource. For per-person reads use author-or-owner read rules and signed-in add rules; people request changes by adding linked history rows; original records stay add-only.
 - Taking card payments on the page. (A shop can take orders and the owner confirms and bills
   separately, or link out to a payment page the owner already has.)
 - Calling APIs that need a secret key. A key in a page is public.
@@ -89,7 +80,7 @@ that needs a server.
   a passcode (anyone given it can pass it on).
   For SQLite/KV, `auth.role == "owner"` is owner-only; `auth.signed_in` alone shares rows
   among signed-in visitors. For private records use `visitor_id == auth.id || auth.role == "owner"`
-  for reads and `auth.signed_in` for adds; people request changes by adding linked history rows; original records stay add-only. Existing sites may retain deprecated Personal or private Submissions.
+  for reads and `auth.signed_in` for adds; people request changes by adding linked history rows; original records stay add-only.
 
 ## Hand off
 

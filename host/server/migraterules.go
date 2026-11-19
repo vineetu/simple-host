@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,9 +41,6 @@ func runMigrateRulesCommandWithExtensions(args []string, exts []*extension.Exten
 // planUser is explicit so tests can exercise a foreign-owned file without root.
 func runMigrateRulesCommandWithPlanUser(args []string, exts []*extension.Extension, planUser int) int {
 	fs := flag.NewFlagSet("migrate-rules", flag.ContinueOnError)
-	list := fs.Bool("list-recipients", false, "write both notice recipient lists; sends nothing")
-	out := fs.String("out", "", "with --list-recipients: private JSON output file")
-	legacyLog := fs.String("legacy-log", "", "with --list-recipients: log lines collected since the notice machinery deployed")
 	dry := fs.Bool("dry-run", false, "compare and write a plan; the server may be running; changes nothing")
 	apply := fs.Bool("apply", false, "convert the plan's resources; the server must be stopped")
 	revert := fs.Bool("revert", false, "put converted resources back; the server must be stopped")
@@ -58,17 +54,15 @@ func runMigrateRulesCommandWithPlanUser(args []string, exts []*extension.Extensi
 		return 2
 	}
 	modes := 0
-	for _, on := range []bool{*dry, *apply, *revert, *list} {
+	for _, on := range []bool{*dry, *apply, *revert} {
 		if on {
 			modes++
 		}
 	}
 	one := *site != "" || *resource != ""
-	ok := modes == 1 && fs.NArg() == 0 && (*list || *out == "" && *legacyLog == "")
+	ok := modes == 1 && fs.NArg() == 0
 	switch {
 	case !ok:
-	case *list:
-		ok = *out != "" && *planPath == "" && !one && !*all && len(accounts) == 0
 	case *dry:
 		ok = *planPath != "" && !one && (*all != (len(accounts) > 0))
 	case *apply:
@@ -77,12 +71,8 @@ func runMigrateRulesCommandWithPlanUser(args []string, exts []*extension.Extensi
 		ok = !*all && len(accounts) == 0 && ((*planPath != "") != one) && (!one || *site != "" && *resource != "")
 	}
 	if !ok {
-		fmt.Fprintln(os.Stderr, "usage: migrate-rules --list-recipients --out FILE [--legacy-log FILE]\n       migrate-rules --dry-run --plan FILE (--account HANDLE... | --all)\n       migrate-rules --apply --plan FILE\n       migrate-rules --revert (--plan FILE | --site ID --resource NAME)")
+		fmt.Fprintln(os.Stderr, "usage: migrate-rules --dry-run --plan FILE (--account HANDLE... | --all)\n       migrate-rules --apply --plan FILE\n       migrate-rules --revert (--plan FILE | --site ID --resource NAME)")
 		return 2
-	}
-	if *list && os.Geteuid() != 0 {
-		fmt.Fprintln(os.Stderr, "recipient reports must be generated as root")
-		return 1
 	}
 	var checkedPlan appstorage.ConvertPlan
 	if (*apply || *revert) && *planPath != "" {
@@ -109,48 +99,6 @@ func runMigrateRulesCommandWithPlanUser(args []string, exts []*extension.Extensi
 		return 1
 	}
 	defer db.Close()
-	if *list {
-		var calls io.Reader
-		if *legacyLog != "" {
-			f, e := os.Open(*legacyLog)
-			if e != nil {
-				fmt.Fprintln(os.Stderr, "could not open legacy log")
-				return 1
-			}
-			defer f.Close()
-			calls = f
-		}
-		templates, e := appstorage.LoadNoticeTemplates(dataDir)
-		if e != nil {
-			fmt.Fprintln(os.Stderr, "could not load notice templates")
-			return 1
-		}
-		at, e := config.ParseStorageSwitchAt(os.Getenv("STORAGE_SWITCH_AT"), os.Getenv("STORAGE_RULES") == "on")
-		if e != nil {
-			fmt.Fprintln(os.Stderr, e)
-			return 2
-		}
-		legacyRoutes := true
-		var group appstorage.NoticeGroup
-		for _, ext := range exts {
-			if ext != nil {
-				if ext.Edition != nil {
-					legacyRoutes = ext.Edition(config.Limits{}).Storage().LegacyRoutes
-				}
-				group = ext.StorageNoticeGroup
-			}
-		}
-		report, e := appstorage.ListNoticeRecipients(context.Background(), db, legacyRoutes, calls, group, templates, at)
-		if e == nil {
-			e = appstorage.WriteNoticeReport(*out, report)
-		}
-		if e != nil {
-			fmt.Fprintln(os.Stderr, "could not write notice recipients")
-			return 1
-		}
-		fmt.Fprintf(os.Stdout, "preset accounts=%d resources=%d; older saved-data accounts=%d; held by an event resources=%d\n", len(report.Presets), report.PresetResources, len(report.Legacy), len(report.Held))
-		return 0
-	}
 	converter := appstorage.RulesConverter{DB: db, DataDir: dataDir, Commit: buildinfo.Commit, SpamCheckAvailable: config.SpamCheckConfigured()}
 	ctx := context.Background()
 	switch {

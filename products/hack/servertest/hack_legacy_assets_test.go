@@ -27,11 +27,6 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	if len(spec.Paths) == 0 {
 		t.Fatal("Hack OpenAPI has no paths")
 	}
-	for path := range spec.Paths {
-		if handler.LegacyStoragePath(path) {
-			t.Errorf("retired Hack path in public OpenAPI: %s", path)
-		}
-	}
 	for _, personal := range []string{"/v1/me/home", "/v1/me/bio", "/v1/me/address-families", "/v1/sites/{sitename}/domain", "/v1/sites/{sitename}/showcase", "/v1/u/{handle}/showcase.json"} {
 		if _, ok := spec.Paths[personal]; ok {
 			t.Errorf("personal presentation route in Hack OpenAPI: %s", personal)

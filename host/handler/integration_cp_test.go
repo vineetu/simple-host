@@ -38,8 +38,8 @@ func TestSoftDeleteMeetsTakeDown(t *testing.T) {
 		t.Fatalf("taken-down site's files moved: %v", err)
 	}
 	// The owner app's own writes are refused too.
-	if r := a.at(t, "DELETE", apex, "/v1/sites/shop/collections/rsvps", map[string]string{"confirm": "rsvps"}, okey); r.status != http.StatusForbidden || r.json(t)["code"] != "site_suspended" {
-		t.Fatalf("clear list on a taken-down site: %d %s", r.status, r.body)
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", map[string]string{"kind": "kv"}, okey); r.status != http.StatusForbidden || r.json(t)["code"] != "site_suspended" {
+		t.Fatalf("storage change on a taken-down site: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain/check", nil, okey); r.status != http.StatusForbidden || r.json(t)["code"] != "site_suspended" {
 		t.Fatalf("check domain on a taken-down site: %d %s", r.status, r.body)

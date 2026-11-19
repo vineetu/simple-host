@@ -108,74 +108,60 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 
 	// ---- API on a person host is bound to that person -----------------------------
 	origin := map[string]string{"Origin": "https://" + host}
-	if r := a.at(t, "GET", host, "/v1/sites/shop/state", nil, origin); r.status != 200 {
-		t.Fatalf("own state: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", host, "/v1/sites/shop/me", nil, origin); r.status != 200 {
+		t.Fatalf("own site: %d %s", r.status, r.body)
 	}
 	// Another person's site by handle: 404/403, never served.
-	if r := a.at(t, "GET", host, "/v1/u/"+sh+"/sites/shop/state", nil, origin); r.status == 200 {
-		t.Fatalf("other person's state on this host: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", host, "/v1/u/"+sh+"/sites/shop/me", nil, origin); r.status == 200 {
+		t.Fatalf("other person's site on this host: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", oscarHost, "/v1/sites/blog/state", nil, map[string]string{"Origin": "https://" + oscarHost}); r.status == 200 {
+	if r := a.at(t, "GET", oscarHost, "/v1/sites/blog/me", nil, map[string]string{"Origin": "https://" + oscarHost}); r.status == 200 {
 		t.Fatalf("olive's blog on oscar's host: %d", r.status)
 	}
 	// A page on olive's host may call the apex API for her sites, not oscar's.
-	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/state", nil, origin); r.status != 200 {
+	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/me", nil, origin); r.status != 200 {
 		t.Fatalf("person origin to apex: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", apex, "/v1/u/"+sh+"/sites/shop/state", nil, origin); r.status != http.StatusForbidden {
+	if r := a.at(t, "GET", apex, "/v1/u/"+sh+"/sites/shop/me", nil, origin); r.status != http.StatusForbidden {
 		t.Fatalf("person origin to someone else's site: %d %s", r.status, r.body)
 	}
 
 	// ---- saves on a person host need a signed-in visitor ------------------------------
-	patch := map[string]any{"ops": []map[string]any{{"op": "set", "path": "n", "value": 1}}}
-	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, browser(host, "")); r.status != http.StatusUnauthorized {
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", map[string]string{"kind": "kv", "preset": "board"}, okey); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
+	}
+	save := "/v1/sites/shop/storage/kv/notes/keys/n"
+	value := map[string]any{"value": 1}
+	if r := a.at(t, "PUT", host, save, value, browser(host, "")); r.status/100 == 2 {
 		t.Fatalf("anonymous save on person host: %d %s", r.status, r.body)
 	}
 	vic := a.newPerson(t, "vic")
 	cookie := a.session(t, vic, a.siteID(t, olive, "blog"), host) // signed in on blog
 	// Sessions are always bound to one site, including the legacy person path.
-	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, browser(host, cookie)); r.status == 200 {
+	if r := a.at(t, "PUT", host, save, value, browser(host, cookie)); r.status/100 == 2 {
 		t.Fatal("blog session accepted on shop")
 	}
 	cookie = a.session(t, vic, a.siteID(t, olive, "shop"), host)
-	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, browser(host, cookie)); r.status != 200 {
+	if r := a.at(t, "PUT", host, save, value, browser(host, cookie)); r.status != 200 {
 		t.Fatalf("signed-in save: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "GET", host, "/v1/sites/shop/me", nil, browser(host, cookie)); r.json(t)["signed_in"] != true {
 		t.Fatalf("me: %s", r.body)
 	}
 	// Cross-origin (a sibling host) gets nothing from the cookie.
-	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, browser(host, cookie, "Origin", "https://"+oscarHost, "Sec-Fetch-Site", "same-site")); r.status == 200 {
+	if r := a.at(t, "PUT", host, save, value, browser(host, cookie, "Origin", "https://"+oscarHost, "Sec-Fetch-Site", "same-site")); r.status/100 == 2 {
 		t.Fatalf("sibling-origin save: %d", r.status)
 	}
 	// The session is bound to its host.
-	if r := a.at(t, "PATCH", oscarHost, "/v1/sites/shop/state", patch, browser(oscarHost, cookie)); r.status == 200 {
+	if r := a.at(t, "PUT", oscarHost, save, value, browser(oscarHost, cookie)); r.status/100 == 2 {
 		t.Fatalf("session on another host: %d", r.status)
 	}
 	// The owner's key saves; another account's key does not.
-	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + host}); r.status != 200 {
+	if r := a.at(t, "PUT", host, save, value, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + host}); r.status != 200 {
 		t.Fatalf("owner key save: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, map[string]string{"X-API-Key": oscar.key, "Origin": "https://" + host}); r.status != http.StatusNotFound {
+	if r := a.at(t, "PUT", host, save, value, map[string]string{"X-API-Key": oscar.key, "Origin": "https://" + host}); r.status/100 == 2 {
 		t.Fatalf("other account's key save: %d %s", r.status, r.body)
-	}
-
-	// ---- private lists work on the person host ------------------------------------------
-	if r := a.at(t, "PUT", apex, "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != 200 || r.json(t)["domain"] != host {
-		t.Fatalf("private on person host: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", host, "/v1/sites/shop/collections/orders", map[string]any{"x": 1}, browser(host, cookie)); r.status != http.StatusCreated {
-		t.Fatalf("private submit: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", host, "/v1/sites/shop/collections/orders", nil, browser(host, cookie)); r.status != 404 {
-		t.Fatalf("visitor read of private list: %d", r.status)
-	}
-	ownerCookie := a.session(t, olive, a.siteID(t, olive, "shop"), host)
-	if r := a.at(t, "GET", host, "/v1/sites/shop/collections/orders", nil, browser(host, ownerCookie)); r.status != 200 || len(itemsOf(t, r)) != 1 {
-		t.Fatalf("owner read on person host: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", pcContentHost, "/v1/u/"+oh+"/sites/shop/collections/orders", map[string]any{"x": 1}, browser(pcContentHost, "")); r.status == http.StatusCreated {
-		t.Fatalf("private submit on content host: %d", r.status)
 	}
 
 	// ---- sign-in return_to on a person host ---------------------------------------------
@@ -200,8 +186,8 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	if r := a.at(t, "GET", host, "/blog/a/b?q=1", nil, nil); r.status != http.StatusFound || r.header.Get("Location") != "https://"+dom+"/a/b?q=1" {
 		t.Fatalf("domain redirect: %d %q", r.status, r.header.Get("Location"))
 	}
-	if r := a.at(t, "PATCH", host, "/v1/sites/blog/state", patch, browser(host, cookie)); r.status != http.StatusUnauthorized || r.json(t)["code"] != "use_custom_domain" {
-		t.Fatalf("save for domain site on person host: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", host, "/v1/sites/blog/me", nil, browser(host, cookie)); r.json(t)["code"] != "use_custom_domain" {
+		t.Fatalf("sign-in for domain site on person host: %d %s", r.status, r.body)
 	}
 
 	// ---- namespace -----------------------------------------------------------------------
@@ -252,72 +238,10 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	if r := a.at(t, "GET", host, "/shop/x?y=1", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "https://"+oh+"-new."+pcSiteDomain+"/shop/x?y=1" {
 		t.Fatalf("alias redirect: %d %q", r.status, r.header.Get("Location"))
 	}
-	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/state", nil, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 200 {
+	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/me", nil, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 200 {
 		t.Fatalf("alias API: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PATCH", apex, "/v1/me", map[string]string{"handle": oh}, map[string]string{"X-API-Key": fresh.key}); r.status != http.StatusConflict {
 		t.Fatalf("taking someone's alias: %d %s", r.status, r.body)
-	}
-}
-
-// INTENT 2026-09-24 "Shared address: anyone can view, only signed-in can
-// save": once person addresses are canonical, the old shared content host
-// takes no anonymous writes (state or collections); a key still writes and
-// reads stay open. Without canonical person addresses (event and self-hosted
-// instances) the shared host is where pages live and stays open.
-func TestSharedHostWriteGate(t *testing.T) {
-	a := newPersonApp(t, "canonical")
-	olive := a.newPerson(t, "olive")
-	a.deploy(t, olive, "shop")
-	_, oh := a.userID(t, olive)
-	stateURL := "/v1/u/" + oh + "/sites/shop/state"
-	collURL := "/v1/u/" + oh + "/sites/shop/collections/notes"
-	patch := map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n", "by": 1}}}
-	anon := browser(pcContentHost, "")
-	type write struct {
-		method, path string
-		body         any
-	}
-	writes := []write{
-		{"PATCH", stateURL, patch},
-		{"PUT", stateURL, map[string]any{"n": 5}},
-		{"POST", collURL, map[string]any{"msg": "hi"}},
-	}
-	for _, w := range writes {
-		r := a.at(t, w.method, pcContentHost, w.path, w.body, anon)
-		if r.status != http.StatusUnauthorized || r.json(t)["code"] != "visitor_auth_required" {
-			t.Fatalf("anonymous %s %s on shared host: %d %s", w.method, w.path, r.status, r.body)
-		}
-	}
-	// A visitor cookie minted for the shared host is never honoured there.
-	cookie := a.session(t, olive, a.siteID(t, olive, "shop"), pcContentHost)
-	if r := a.at(t, "PATCH", pcContentHost, stateURL, patch, browser(pcContentHost, cookie)); r.status != http.StatusUnauthorized {
-		t.Fatalf("cookie write on shared host: %d %s", r.status, r.body)
-	}
-	// The owner's key still writes there.
-	keyed := map[string]string{"X-API-Key": olive.key, "Origin": "https://" + pcContentHost}
-	if r := a.at(t, "PATCH", pcContentHost, stateURL, patch, keyed); r.status != http.StatusOK {
-		t.Fatalf("key state write on shared host: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", pcContentHost, collURL, map[string]any{"msg": "agent"}, keyed); r.status != http.StatusCreated {
-		t.Fatalf("key collection write on shared host: %d %s", r.status, r.body)
-	}
-	// Reads stay open.
-	if r := a.at(t, "GET", pcContentHost, stateURL, nil, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 200 || r.json(t)["n"] == nil {
-		t.Fatalf("shared host state read: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", pcContentHost, collURL, nil, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 200 || len(itemsOf(t, r)) != 1 {
-		t.Fatalf("shared host collection read: %d %s", r.status, r.body)
-	}
-
-	// Event and self-hosted instances: the shared host is where pages live.
-	for _, mode := range []string{"off", "serve"} {
-		a.sites.SetPersonHosts(mode)
-		for _, w := range writes {
-			r := a.at(t, w.method, pcContentHost, w.path, w.body, anon)
-			if r.status != http.StatusOK && r.status != http.StatusCreated {
-				t.Fatalf("%s: anonymous %s %s on shared host: %d %s", mode, w.method, w.path, r.status, r.body)
-			}
-		}
 	}
 }

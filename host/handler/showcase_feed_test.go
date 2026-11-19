@@ -89,7 +89,7 @@ func TestShowcaseFeedReadLimit(t *testing.T) {
 	a := newPersonApp(t, "canonical")
 	owner := a.newPerson(t, "feedlimit")
 	_, handle := a.userID(t, owner)
-	a.sites.readLimiter = newRateLimiter(1, 0)
+	a.sites.showcaseLimiter = newRateLimiter(1, 0)
 	path := "/v1/u/" + handle + "/showcase.json"
 	if r := a.at(t, "GET", pcSiteDomain, path, nil, nil); r.status != 200 {
 		t.Fatalf("first: %d", r.status)

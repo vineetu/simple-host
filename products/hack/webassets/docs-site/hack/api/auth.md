@@ -36,7 +36,7 @@ For Simple Host account owners and their agents, never for a site's visitors. An
 | 202 | Code sent |
 | 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 403 | account_auth_unavailable: account sign-in answers only on the app's own address; a page's visitors use visitor sign-in (auth.js SH.mount). Or email_signin_off (EMAIL_SIGNIN=off): sign in with the company account button instead. |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/auth/oauth/providers
 
@@ -71,7 +71,7 @@ Account sign-in starts only on the app's own address. On any other host (a site'
 | 400 | Invalid or missing return_to |
 | 403 | account_auth_unavailable: on the app's address but from a page's origin. |
 | 404 | Unknown or disabled provider |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 | 503 | oidc_unavailable: company sign-in's identity provider could not be reached yet (lazy discovery); retry shortly. |
 
 ## GET /v1/auth/oauth/{provider}/callback
@@ -97,7 +97,7 @@ Answers only on the app's own address (403 account_auth_unavailable elsewhere). 
 | 400 | Bad, replayed, or expired state, or provider error |
 | 403 | account_auth_unavailable (JSON): not on the app's own address. For oidc only, also a business-rule refusal (unverified email, domain not on ALLOWED_EMAIL_DOMAINS, Google hd not allowed): a themed no-store HTML page naming the reason in plain words, no internals. |
 | 404 | Unknown or disabled provider |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 | 502 | Token or userinfo failure |
 
 ## POST /v1/auth/password

@@ -7,14 +7,12 @@ metadata:
     {{- include "host.labels" . | nindent 4 }}
 data:
   STORAGE_RULES: {{ .Values.storageRules | quote }}
-  STORAGE_SWITCH_AT: {{ .Values.storageSwitchAt | quote }}
   SITE_STORAGE_SITE_INFLIGHT: {{ .Values.storageSiteInflight | quote }}
   # The platform on this hostname.
   SITE_DOMAIN: {{ .Values.host | quote }}
   PUBLIC_BASE_URL: {{ printf "https://%s" .Values.host | quote }}
   PERSON_HOSTS: canonical
   SITE_HOSTS: canonical
-  WRITE_AUTH_MODE: "on"
   # Where it listens and keeps files. /data is the persistent volume.
   PORT: "8090"
   DATA_DIR: /data/sites

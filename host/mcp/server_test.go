@@ -387,15 +387,6 @@ func TestToolResultsCarryNoInternalIdentifiers(t *testing.T) {
 		"GET /v1/sites/blog/versions": func() (int, string) {
 			return 200, `[{"version_number":1,"status":"ready","created_at":"2026-01-01T00:00:00Z","is_active":false,"id":"v-1","site_id":"s-9"},{"version_number":2,"status":"ready","created_at":"2026-01-02T00:00:00Z","is_active":true}]`
 		},
-		"GET /v1/sites/blog/collections": func() (int, string) {
-			return 200, `{"collections":[{"name":"rsvps","count":3,"last_at":"2026-01-03T00:00:00Z"}]}`
-		},
-		"GET /v1/u/ann/sites/blog/collections/rsvps": func() (int, string) {
-			return 200, `{"items":[{"id":4411,"data":{"name":"Ann"},"created_at":"2026-01-03T00:00:00Z"}],"next":4411}`
-		},
-		"POST /v1/u/ann/sites/blog/collections/rsvps": func() (int, string) {
-			return 201, `{"id":4412,"data":{"name":"Bo"},"created_at":"2026-01-04T00:00:00Z"}`
-		},
 		"GET /v1/sites/blog/domain": func() (int, string) {
 			return 200, `{"domain":"rsvp.example.com","status":"pending","bound_at":"2026-01-05T00:00:00Z","expires_at":"2026-01-06T00:00:00Z","took_over_from":"other-site","dns":{"type":"CNAME","host":"rsvp.example.com","value":"sites.simple-host.app"}}`
 		},

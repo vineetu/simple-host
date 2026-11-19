@@ -22,7 +22,7 @@ No authentication required.
 | --- | --- |
 | 200 | A gzipped tar archive |
 | 404 | The link is not valid or has expired |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/sites
 
@@ -85,7 +85,7 @@ Change the website's offline status or name. While offline, visitor storage read
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | The operator has taken the site down (code site_suspended) |
 | 404 | Not found |
-| 409 | Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object) |
+| 409 | Conflict: the code says which (site_exists, domain_taken, custom_domain_required) |
 
 ## DELETE /v1/sites/{sitename}
 
@@ -153,7 +153,7 @@ Download an owner-authorised archive of website files and stored data. It may in
 | --- | --- |
 | 200 | A gzipped tar archive |
 | 404 | Not found |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/sites/{sitename}/lock
 
@@ -209,7 +209,7 @@ Set or generate the owner's website passcode through this trusted REST route. Vi
 | 403 | The operator has taken the site down (site_suspended), or a deploy-only key (deploy_only_key) |
 | 404 | Not found |
 | 409 | passcodes_not_enabled (SITE_PASSCODES is off or PASSCODE_ENC_KEY is unset on this server), or passcode_needs_own_address (every site on this server shares one address, as on a small box or an event box, so an unlock would cover every site) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## DELETE /v1/sites/{sitename}/lock
 
@@ -233,7 +233,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | A deploy-only key (deploy_only_key) |
 | 404 | Not found |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/sites/{sitename}/lock/sign-out-everyone
 
@@ -258,7 +258,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 | 403 | A deploy-only key (deploy_only_key) |
 | 404 | Not found |
 | 409 | The site has no passcode (no_passcode) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/sites/{sitename}/restore
 

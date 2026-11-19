@@ -244,7 +244,7 @@ Download an owner-authorised archive of website files and stored data. It may in
 | 400 | Not one of the account's own API keys (code not_an_account_key) |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | The account is suspended (code account_suspended) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/me/export.zip
 
@@ -262,7 +262,7 @@ Download an owner-authorised archive of website files and stored data. It may in
 | 400 | Not one of the account's own API keys (code not_an_account_key) |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | The account is suspended (code account_suspended); write to support@simple-host.app for a copy of the data |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/me/identities
 
@@ -390,7 +390,7 @@ Available only when PASSWORD_SIGNIN=on, for an account that already has a passwo
 | 401 | Missing or invalid API key |
 | 403 | Wrong current password (code bad_credentials), or a connector access token (code connector_not_allowed): sign in with an account API key instead. |
 | 404 | not found: PASSWORD_SIGNIN is off, or this account has no password |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/me/sign-out
 

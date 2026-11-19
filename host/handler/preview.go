@@ -195,7 +195,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	// Same-origin requests from a preview name it in Referer, which is how
-	// saves from it are told apart and refused (previewReferer).
+	// they are told apart (previewReferer).
 	w.Header().Set("Referrer-Policy", "same-origin")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	nStr, after, _ := strings.Cut(tail, "/")
@@ -268,11 +268,4 @@ func previewReferer(r *http.Request) bool {
 	}
 	_, rest, _ := strings.Cut(p, "/")
 	return strings.HasPrefix(rest, previewPathSegment+"/")
-}
-
-func writePreviewReadOnly(w http.ResponseWriter) {
-	writeJSON(w, http.StatusForbidden, map[string]string{
-		"error": "saving is turned off in a preview; make this version live first",
-		"code":  "preview_read_only",
-	})
 }

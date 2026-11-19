@@ -450,3 +450,18 @@ func HandleAvailable(ctx context.Context, tx *sql.Tx, userID, handle string) (bo
 	taken, err := HandleNameTaken(ctx, tx, userID, handle)
 	return !taken, err
 }
+
+// EnsureAdminUser makes sure a real `admin` row exists (so the admin identity
+// has a genuine UUID and can own sites — the synthetic ID:"admin" used to
+// violate the sites.user_id foreign key). Idempotent; returns the admin UUID.
+// The row holds no API key: the admin authenticates via the env ADMIN_API_KEY.
+func EnsureAdminUser(ctx context.Context, db *sql.DB) (string, error) {
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO users (username, is_admin) VALUES ('admin', true)
+		 ON CONFLICT (username) DO NOTHING`); err != nil {
+		return "", err
+	}
+	var id string
+	err := db.QueryRowContext(ctx, `SELECT id::text FROM users WHERE username = 'admin'`).Scan(&id)
+	return id, err
+}

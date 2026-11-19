@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"log"
 	"net/http"
 	"strings"
+
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	"sync"
 	"time"
@@ -53,9 +54,6 @@ func Extension() *extension.Extension {
 		ValidateProduct:         validateInstallProduct,
 		Migrations:              &catalog,
 		MigrationOrder:          hackmigrations.ProductOrder,
-		StorageNoticeGroup: func(ctx context.Context, db *sql.DB, account string) (string, error) {
-			return (NotificationGroups{}).GroupLabel(ctx, db, account)
-		},
 		Config: extension.ConfigSpec{Settings: productconfig.Settings(), Load: func(getenv func(string) string) ([]string, error) {
 			var warnings []string
 			var err error
@@ -90,9 +88,6 @@ func Extension() *extension.Extension {
 		},
 		Edition: func(limits config.Limits) *edition.Edition {
 			return productedition.ForKindWithLimits(productedition.Hack, limits)
-		},
-		Gate: func(d extension.GateDeps) func(http.Handler) http.Handler {
-			return hackhttp.LegacyStorageGate(d.Edition, handler.LegacyStoragePath)
 		},
 		Early: func(d extension.EarlyDeps) extension.EarlyHooks {
 			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Erasure: members.AccountErasure{}, Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}}}

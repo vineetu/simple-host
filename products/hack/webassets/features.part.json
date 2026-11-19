@@ -569,86 +569,6 @@
     },
     {
       "op": "set",
-      "path": "/areas/2/features/13/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/13/editions_note",
-      "value": "Simple Hack retired these routes; Enterprise keeps one saved document per site on its own engine with last-write-wins or versioned compare-and-set writes."
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/14/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/15/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/16/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/17/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/18/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/19/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/20/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/21/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/22/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/23/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/24/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/25/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/26/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/2/features/27/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
       "path": "/areas/3/features/0/how",
       "value": "Enter your email in the sign-in card and press Continue. A six-digit code arrives; paste or type it and the card signs you in as soon as the sixth digit is in. Your first code creates the account, with no separate sign-up step. The same card is used on the home page, on the connector's consent page, on Simple Hack, and on the shared sign-in page a site sends visitors to."
     },
@@ -1017,7 +937,7 @@
     {
       "op": "set",
       "path": "/areas/4/features/5/editions_note",
-      "value": "Simple Hack sends the sign-in and account emails; idle-site warnings and Submissions digests belong to Simple Host sites. Enterprise sends no sign-in emails, since the company's identity provider signs people in. A small box needs outgoing email set up."
+      "value": "Simple Hack sends the sign-in and account emails; idle-site warnings belong to Simple Host sites. Enterprise sends no sign-in emails, since the company's identity provider signs people in. A small box needs outgoing email set up."
     },
     {
       "op": "set",

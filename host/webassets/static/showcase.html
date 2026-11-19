@@ -411,7 +411,7 @@
       align-items: center;
       justify-content: center;
     }
-    .inv-manage, .plist-more {
+    .inv-manage {
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -520,63 +520,9 @@
     .st-card .st-kind { color: var(--text-secondary); font-size: 0.8em; }
     :root .row-panel .st-card :is(select, input[type="text"]) { width: 100%; max-width: 420px; }
     .st-card .panel-btns { align-items: center; }
-    .undo-window { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
     .dns-rec { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); padding: 6px 10px; background: var(--surface); border-radius: 6px; }
     .dns-rec + .dns-rec { margin-top: 6px; }
     .dns-rec span { overflow-wrap: anywhere; }
-    .state-pre {
-      max-height: 320px; overflow: auto; margin: 0; padding: 8px 10px;
-      font-family: var(--mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
-      border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text);
-    }
-
-    /* Lists and saved data (owner only; filled lazily by loadPrivateLists) */
-    .plists { margin-top: 14px; }
-    .plists-head { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
-    .plists-gap { margin-top: 12px; }
-    .plists-fold > summary {
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-      min-height: 32px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .plists-fold .plists-sum { font-weight: 500; color: var(--text-secondary); }
-    .plists-note { font-size: 13px; color: var(--text-secondary); margin: 8px 0 12px; line-height: 1.45; }
-    @media (pointer: coarse), (max-width: 640px) {
-      .plists-fold > summary { min-height: 44px; }
-    }
-    .plist-row { flex-wrap: wrap; row-gap: 8px; }
-    .plist-row .plist-name { font-family: var(--mono); font-weight: 600; overflow-wrap: anywhere; }
-    .plist-row .plist-meta { color: var(--text-secondary); flex: 1; min-width: 140px; }
-    .plist-row .plist-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-    .plist-view { padding: 4px 0 12px; }
-    .plist-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 6px; }
-    .plist-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .plist-table th, .plist-table td {
-      text-align: left; padding: 6px 10px; vertical-align: top;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
-    }
-    .plist-table tr:last-child td { border-bottom: 0; }
-    .plist-table th { color: var(--text-secondary); font-weight: 500; background: var(--surface); }
-    .plist-table td.plist-acts { width: 1%; }
-    .plist-table td.plist-acts .btn-small { padding-top: 2px; padding-bottom: 2px; }
-    .plist-edit { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
-    .plist-edit label { font-size: 13px; color: var(--text-secondary); overflow-wrap: anywhere; }
-    .plist-edit textarea {
-      width: 100%; min-height: 140px; resize: vertical;
-      padding: 8px 10px; font-family: var(--mono); font-size: 13px; line-height: 1.45;
-      border: 1px solid var(--border-hi); border-radius: 8px;
-      background: var(--bg); color: var(--text); outline: none;
-    }
-    .plist-edit textarea:focus { border-color: var(--accent); }
-    .plist-edit .plist-edit-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-    .plist-edit .plist-err { color: var(--error); font-size: 13px; }
 
     /* Owner sign-in affordance */
     #manage-cta { text-align: center; padding: 8px 20px 56px; }
@@ -977,7 +923,7 @@
         <div class="section" id="owner-data" hidden>
           <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
           <div class="conn-row">
-            <span><b>Download my data</b><small>One .zip file with every site, those in Recently deleted too (files, saved data and lists), your account, your keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
+            <span><b>Download my data</b><small>One .zip file with every site, those in Recently deleted too (files and saved data), your account, your keys' names (never the keys), connected apps, and the changes recorded against you on other people's saved data while signed in. Changes made without signing in aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
             <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data (.zip)</button>
           </div>
           <div id="owner-delete-account">
@@ -1989,811 +1935,18 @@ function parseAnalyticsSummary(data) {
       inv.innerHTML = '<div class="inv-list">' + sortInventory(sitesArr).map(function (s) {
         return renderInvRow(s);
       }).join('') + '</div>';
-      if (pageIsOwn()) observePrivateLists(inv);
       if (sitesArr.length >= 10) applyInvSearch();
     }
 
-    // ------------------------------------------------------- LISTS AND SAVED DATA
-    // OWNER ONLY: reached solely via renderInventory(), i.e. after
-    // hydrateOwner() confirmed this visitor owns the handle. Lazy: a site's
-    // lists and saved data are fetched once, when its row first scrolls into
-    // view, so the page does not fire requests per site on load. A site with
-    // no list and no saved data shows nothing. Everything inside a list or the
-    // saved data is visitor-supplied, so every value goes through
-    // esc()/escAttr() and names travel in data- attributes, never inside
-    // inline JS. The owner deletes entries in any list (public included, so
-    // spam can go) and edits entries in private lists; visitors only append.
+    // ------------------------------------------------------- DOWNLOADS
     function escAttr(v) {
       return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
     var MENU_CHEVRON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
-    var STATE_LIMIT = 1048576; // the server's saved-data cap (1 MB)
-    function fmtBytes(n) {
-      if (n < 1024) return n + ' bytes';
-      if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
-      return (n / 1048576).toFixed(1).replace(/\.0$/, '') + ' MB';
-    }
+
     function sitePathPart(name) { return '/v1/sites/' + encodeURIComponent(name); }
-    var plistObserver = null;
-    function observePrivateLists(inv) {
-      var rows = inv.querySelectorAll('.inv-row[data-site]');
-      if (plistObserver) plistObserver.disconnect();
-      if (!inv.getAttribute('data-plist-wired')) {
-        inv.setAttribute('data-plist-wired', '1');
-        inv.addEventListener('click', onPrivateListClick);
-        inv.addEventListener('input', onPanelInput);
-      }
-      if (!('IntersectionObserver' in window)) {
-        Array.prototype.forEach.call(rows, function (r) { loadPrivateLists(r.getAttribute('data-site')); });
-        return;
-      }
-      plistObserver = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) {
-          if (!e.isIntersecting) return;
-          plistObserver.unobserve(e.target);
-          loadPrivateLists(e.target.getAttribute('data-site'));
-        });
-      }, { rootMargin: '200px 0px' });
-      Array.prototype.forEach.call(rows, function (r) { plistObserver.observe(r); });
-    }
-    // What a site holds: its lists (every one, public and private) and its
-    // saved page data. null when the lists could not be read.
-    async function fetchSiteData(name) {
-      var lists = [], stateText = '', savers = null, legacy = true;
-      try {
-        // Every data name with its kind and settings, and who may save.
-        var res = await api('GET', sitePathPart(name) + '/data');
-        if (res.status === 410) {
-          var gone = {};
-          try { gone = await res.json(); } catch (e) { return null; }
-          if (gone && gone.code === 'legacy_storage_closed') {
-            return { lists: [], entries: 0, stateText: '', stateSize: 0, stateHistory: false, savers: null, legacy: true };
-          }
-          return null;
-        }
-        if (!res.ok) return null;
-        var body = await res.json();
-        lists = (body && Array.isArray(body.names) ? body.names : [])
-          .filter(function (c) { return c && c.name; });
-        savers = body && body.savers;
-        legacy = !(body && body.undeclared_names_take_saves === false);
-      } catch (e) { return null; }
-      try {
-        var sres = await api('GET', sitePathPart(name) + '/state');
-        if (sres.ok) stateText = await sres.text();
-      } catch (e) { /* lists still show */ }
-      var trimmed = stateText.trim();
-      var empty = !trimmed || trimmed === '{}' || trimmed === 'null';
-      // Emptied saved data still has its earlier versions to restore.
-      var stateHistory = false;
-      if (empty) {
-        try {
-          var hres = await api('GET', sitePathPart(name) + '/state/history?limit=1');
-          if (hres.ok) { var hb = await hres.json(); stateHistory = !!(hb && hb.history && hb.history.length); }
-        } catch (e) { /* no history button */ }
-      }
-      var entries = 0;
-      lists.forEach(function (c) { entries += Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0; });
-      return { lists: lists, entries: entries, stateText: empty ? '' : stateText, stateSize: empty ? 0 : new Blob([stateText]).size, stateHistory: stateHistory, savers: savers, legacy: legacy };
-    }
-    async function loadPrivateLists(name, force) {
-      var box = document.querySelector('[data-plists="' + cssEsc(name) + '"]');
-      if (!box || (box.getAttribute('data-loaded') && !force)) return;
-      box.setAttribute('data-loaded', '1');
-      var info = await fetchSiteData(name);
-      if (!info) return;
-      if (!info.lists.length && !info.stateSize && !info.stateHistory) { box.innerHTML = ''; box.hidden = true; return; }
-      var sa = ' data-site="' + escAttr(name) + '"';
-      var sumBits = [];
-      if (info.lists.length) sumBits.push(info.lists.length + (info.lists.length === 1 ? ' list' : ' lists'));
-      if (info.stateSize || info.stateHistory) sumBits.push('page data');
-      var wasOpen = !!box.querySelector('details.plists-fold[open]');
-      var html = '<details class="plists-fold"' + (wasOpen ? ' open' : '') + '><summary>Classic lists and page data <span class="plists-sum">' + esc(sumBits.join(', ')) + '</span></summary>' +
-        '<p class="plists-note">Saved here before Storage existed. Still fully works. New sites can\'t create more of these. Use Storage instead.</p>';
-      if (info.lists.length) {
-        html += '<div class="plists-head">Lists</div>' +
-          '<div class="versions-list">' + info.lists.map(function (c) { return renderListRow(name, c, info.legacy); }).join('') + '</div>';
-        html += '<div class="plists-head plists-gap">Who may save here</div>' +
-          '<div class="versions-list"><div class="plist">' +
-            '<div class="version-row plist-row">' +
-              '<span class="plist-meta">' + esc(saversSummary(info.savers)) + '</span>' +
-              '<span class="plist-btns"><button type="button" class="btn-small btn-secondary" data-savers-open' + ' data-site="' + escAttr(name) + '" aria-expanded="false">Change</button></span>' +
-            '</div>' +
-            '<div class="row-panel plist-savers" hidden></div>' +
-          '</div></div>';
-      }
-      if (info.stateSize || info.stateHistory) {
-        html += '<div class="plists-head plists-gap">Page data</div>' +
-          '<div class="versions-list"><div class="plist">' +
-            '<div class="version-row plist-row">' +
-              '<span class="plist-name">page data</span>' +
-              '<span class="plist-meta">' + (info.stateSize ? esc(fmtBytes(info.stateSize)) + ' of ' + esc(fmtBytes(STATE_LIMIT)) : 'empty now') + '</span>' +
-              '<span class="plist-btns">' +
-                (info.stateSize ? '<button type="button" class="btn-small btn-secondary" data-state-view' + sa + ' aria-expanded="false">View</button>' : '') +
-                (info.stateSize ? '<button type="button" class="btn-small btn-secondary" data-state-dl' + sa + '>Download JSON</button>' : '') +
-                '<button type="button" class="btn-small btn-secondary" data-hist-open' + sa + ' aria-expanded="false">History</button>' +
-              '</span>' +
-            '</div>' +
-            '<div class="plist-view" hidden></div>' +
-            '<div class="plist-view plist-extra" hidden></div>' +
-          '</div></div>';
-      }
-      html += '</details>';
-      box.innerHTML = html;
-      box._savers = info.savers || { mode: 'anyone', allow: [], block: [] };
-      box.hidden = false;
-    }
-    function saversSummary(sv) {
-      sv = sv || {};
-      var allow = Array.isArray(sv.allow) ? sv.allow.length : 0, block = Array.isArray(sv.block) ? sv.block.length : 0;
-      var t = sv.mode === 'listed' ? 'Only the ' + allow + (allow === 1 ? ' email or domain' : ' emails and domains') + ' you listed (and you)' : 'Anyone who signs in';
-      if (block) t += ' · ' + block + ' blocked';
-      return t;
-    }
-    var KIND_LABELS = { content: 'page info', entries: 'submissions', mine: 'personal', board: 'shared board', shared: 'shared' };
-    // shared: a name nobody declared takes saves here (Shared).
-    function renderListRow(name, c, shared) {
-      var coll = String(c.name || '');
-      var count = Number.isFinite(Number(c.count)) ? Math.trunc(Number(c.count)) : 0;
-      var priv = c.private === true;
-      var gone = Number.isFinite(Number(c.deleted)) ? Math.trunc(Number(c.deleted)) : 0;
-      // Personal with one or two records: the server withholds the numbers.
-      var few = c.few === true, goneFew = c.deleted_few === true;
-      var kind = KIND_LABELS[c.kind] && c.kind !== 'shared' ? c.kind : '';
-      var page = kind === 'content';
-      // Personal: each visitor's own record; the owner sees counts and size
-      // only, and from 3 people up.
-      var personal = kind === 'mine';
-      var board = kind === 'board';
-      var badge = kind || (shared && !priv ? 'shared' : '');
-      var bytes = Number.isFinite(Number(c.bytes)) ? Math.trunc(Number(c.bytes)) : 0;
-      var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"' +
-        ' data-kind="' + kind + '" data-one="' + (c.one_per_person ? '1' : '0') + '" data-notify="' + escAttr(c.notify || 'off') + '" data-gone="' + gone + '"' +
-        ' data-few="' + (few ? '1' : '0') + '" data-gone-few="' + (goneFew ? '1' : '0') + '"';
-      var meta = page ? (count ? 'saved' : 'empty now') + (c.last_at ? ' · ' + esc(new Date(c.last_at).toLocaleString()) : '')
-        : personal ? (few ? 'Fewer than 3 people have a record' : count + (count === 1 ? ' person has' : ' people have') + ' a record' + (count ? ' · ' + esc(fmtBytes(bytes)) + ' in all' : ''))
-        : plistMeta(count, c.last_at);
-      return '<div class="plist">' +
-        '<div class="version-row plist-row">' +
-          '<span class="plist-name">' + esc(coll) + '</span>' +
-          (badge ? '<span class="vis-badge unlisted">' + KIND_LABELS[badge] + '</span>' : '') +
-          (page || personal ? '' : '<span class="vis-badge ' + (priv ? 'private' : 'unlisted') + '">' + (priv ? 'private' : 'public') + '</span>') +
-          (c.one_per_person ? '<span class="vis-badge unlisted">one per person</span>' : '') +
-          '<span class="plist-meta" data-count="' + count + '" data-last="' + escAttr(c.last_at || '') + '">' + meta + '</span>' +
-          '<span class="plist-btns">' +
-            (count && !personal ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">' + (page ? 'View' : 'View items') + '</button>' : '') +
-            (count && !page && !personal ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
-            '<button type="button" class="btn-small btn-secondary plist-more" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + escAttr(coll) + '" data-plist-more' + a + '>More ' + MENU_CHEVRON + '</button>' +
-          '</span>' +
-        '</div>' +
-        '<div class="row-panel plist-kind" hidden></div>' +
-        '<div class="plist-view" hidden></div>' +
-        '<div class="plist-view plist-extra" hidden></div>' +
-      '</div>';
-    }
-    function plistMeta(count, lastAt) {
-      return count + (count === 1 ? ' item' : ' items') +
-        (lastAt ? ' · last saved ' + esc(new Date(lastAt).toLocaleString()) : '');
-    }
-    function onPrivateListClick(e) {
-      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-state-view],[data-state-dl],[data-hist-open],[data-del-open],[data-undo],[data-kind-open],[data-kind-save],[data-savers-open],[data-savers-save],[data-panel-cancel]') : null;
-      if (!t) return;
-      if (t.closest('.row-menu')) return;
-      runPrivateListAction(t);
-    }
-    function runPrivateListAction(t) {
-      if (t.hasAttribute('data-panel-cancel')) { closePanel(t); return; }
-      if (t.hasAttribute('data-kind-open')) { openKindPanel(t); return; }
-      if (t.hasAttribute('data-kind-save')) { saveKind(t); return; }
-      if (t.hasAttribute('data-savers-open')) { openSaversPanel(t); return; }
-      if (t.hasAttribute('data-savers-save')) { saveSavers(t); return; }
-      if (t.hasAttribute('data-plist-act')) { onPrivateItemAction(t); return; }
-      if (t.hasAttribute('data-undo')) { onUndoAction(t); return; }
-      if (t.hasAttribute('data-hist-open')) { toggleUndoPanel(t, 'history'); return; }
-      if (t.hasAttribute('data-del-open')) { toggleUndoPanel(t, 'deleted'); return; }
-      var name = t.getAttribute('data-site'), coll = t.getAttribute('data-coll');
-      if (t.hasAttribute('data-plist-csv')) downloadPrivateList(name, coll, t);
-      else if (t.hasAttribute('data-plist-privacy')) toggleListPrivacy(t, name, coll);
-      else if (t.hasAttribute('data-plist-clear')) openClearList(t, name, coll);
-      else if (t.hasAttribute('data-state-view')) toggleStateView(t, name);
-      else if (t.hasAttribute('data-state-dl')) downloadState(t, name);
-      else togglePrivateList(t, name, coll);
-    }
-    // Typed confirmations: a button marked data-confirm-for is enabled only
-    // while its panel's input holds exactly that text.
-    function onPanelInput(e) {
-      var inp = e.target;
-      if (!inp || !inp.hasAttribute || !inp.hasAttribute('data-confirm-input')) return;
-      var panel = inp.closest('.row-panel');
-      var go = panel && panel.querySelector('[data-confirm-for]');
-      if (go) go.disabled = inp.value.trim() !== go.getAttribute('data-confirm-for');
-    }
-    function closePanel(t) {
-      var panel = t.closest('.row-panel');
-      if (panel) { panel.hidden = true; panel.innerHTML = ''; }
-    }
-    // ---- What each name is (kind), and who may save ----
-    function plistWrap(btn) {
-      return (btn && btn.closest('.plist')) || (rowMenuBtn && rowMenuBtn.closest('.plist')) || null;
-    }
-    function panelOf(btn, cls) {
-      var wrap = plistWrap(btn);
-      return wrap && wrap.querySelector('.' + cls);
-    }
-    function openKindPanel(btn) {
-      var panel = panelOf(btn, 'plist-kind');
-      if (!panel) return;
-      if (!panel.hidden) { panel.hidden = true; panel.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
-      var kind = btn.getAttribute('data-kind') || '';
-      var privNow = btn.getAttribute('data-private') === '1';
-      var one = btn.getAttribute('data-one') === '1', notify = btn.getAttribute('data-notify') || 'off';
-      var id = 'kind-' + escAttr(btn.getAttribute('data-site')) + '-' + escAttr(btn.getAttribute('data-coll'));
-      var a = ' data-site="' + escAttr(btn.getAttribute('data-site')) + '" data-coll="' + escAttr(btn.getAttribute('data-coll')) + '" data-private="' + btn.getAttribute('data-private') + '"';
-      panel.innerHTML =
-        '<div class="panel-field"><label for="' + id + '-k">What is this?</label>' +
-          '<select id="' + id + '-k" data-kind-field="kind">' +
-            (kind || privNow ? '' : '<option value="" selected>Shared: anyone reads it; people who sign in add to it</option>') +
-            '<option value="entries"' + (kind === 'entries' || (!kind && privNow) ? ' selected' : '') + '>Submissions: visitors send them; each sees and changes their own</option>' +
-            '<option value="content"' + (kind === 'content' ? ' selected' : '') + '>Page info: only you write it; everyone reads it</option>' +
-            '<option value="mine"' + (kind === 'mine' ? ' selected' : '') + '>Personal: each visitor\'s own record; your tools never show it, your site\'s pages read it for that visitor</option>' +
-            '<option value="board"' + (kind === 'board' ? ' selected' : '') + '>Shared board: everyone reads it; people who sign in add, change and delete items</option>' +
-          '</select></div>' +
-        '<label class="panel-check"><input type="checkbox" data-kind-field="one"' + (one ? ' checked' : '') + '> One entry per person (votes, one RSVP each)</label>' +
-        '<div class="panel-field"><label for="' + id + '-n">Email me about new entries</label>' +
-          '<select id="' + id + '-n" data-kind-field="notify">' +
-            '<option value="off"' + (notify === 'off' ? ' selected' : '') + '>No</option>' +
-            '<option value="each"' + (notify === 'each' ? ' selected' : '') + '>Soon after they arrive (grouped)</option>' +
-            '<option value="daily"' + (notify === 'daily' ? ' selected' : '') + '>Once a day</option>' +
-          '</select></div>' +
-        '<div class="panel-err" hidden></div>' +
-        '<div class="panel-btns">' +
-          '<button type="button" class="btn-small btn-primary" data-kind-save' + a + '>Save</button>' +
-          '<button type="button" class="btn-small btn-ghost" data-panel-cancel>Cancel</button>' +
-        '</div>';
-      panel.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    }
-    async function saveKind(btn) {
-      var panel = btn.closest('.row-panel');
-      var name = btn.getAttribute('data-site'), coll = btn.getAttribute('data-coll');
-      var field = function (f) { return panel.querySelector('[data-kind-field="' + f + '"]'); };
-      var kind = field('kind').value;
-      if (!kind) { closePanel(btn); return; }
-      var body = { kind: kind };
-      if (kind === 'entries') {
-        body.visibility = btn.getAttribute('data-private') === '1' ? 'owner' : 'public';
-        body.one_per_person = field('one').checked;
-        body.notify = field('notify').value;
-      }
-      var err = panel.querySelector('.panel-err');
-      btn.disabled = true;
-      try {
-        var res = await api('PUT', sitePathPart(name) + '/data/' + encodeURIComponent(coll) + '/kind', body);
-        var out = await res.json().catch(function () { return null; });
-        // Private entries that would become public: say what, and go on only if the owner agrees.
-        if (res.status === 409 && out && out.code === 'confirm_public') {
-          if (!(await shConfirm({ title: 'Make them public?', body: out.error.replace(/ To go ahead.*$/, ''), confirmLabel: 'Make them public', danger: true }))) { btn.disabled = false; return; }
-          body.confirm_public = true;
-          res = await api('PUT', sitePathPart(name) + '/data/' + encodeURIComponent(coll) + '/kind', body);
-          out = await res.json().catch(function () { return null; });
-        }
-        if (!res.ok) { err.textContent = (out && out.error) || 'Could not save'; err.hidden = false; btn.disabled = false; return; }
-        toast((out && out.message) || 'Saved', 'success');
-        loadPrivateLists(name, true);
-      } catch (e) {
-        err.textContent = 'Could not save'; err.hidden = false; btn.disabled = false;
-      }
-    }
-    function openSaversPanel(btn) {
-      var panel = panelOf(btn, 'plist-savers');
-      if (!panel) return;
-      if (!panel.hidden) { panel.hidden = true; panel.innerHTML = ''; btn.setAttribute('aria-expanded', 'false'); return; }
-      var name = btn.getAttribute('data-site');
-      var box = btn.closest('[data-plists]');
-      var sv = (box && box._savers) || { mode: 'anyone', allow: [], block: [] };
-      var id = 'savers-' + escAttr(name);
-      panel.innerHTML =
-        '<label class="panel-check"><input type="radio" name="' + id + '" value="anyone" data-savers-field="mode"' + (sv.mode !== 'listed' ? ' checked' : '') + '> Anyone who signs in</label>' +
-        '<label class="panel-check"><input type="radio" name="' + id + '" value="listed" data-savers-field="mode"' + (sv.mode === 'listed' ? ' checked' : '') + '> Only these people (you always can)</label>' +
-        '<div class="panel-field"><label for="' + id + '-a">Emails or whole domains, one per line (e.g. ann@example.com or @company.com)</label>' +
-          '<textarea id="' + id + '-a" spellcheck="false" data-savers-field="allow">' + esc((sv.allow || []).join('\n')) + '</textarea></div>' +
-        '<div class="panel-field"><label for="' + id + '-b">Blocked: never able to save here, in either case</label>' +
-          '<textarea id="' + id + '-b" spellcheck="false" data-savers-field="block">' + esc((sv.block || []).join('\n')) + '</textarea></div>' +
-        '<div class="panel-err" hidden></div>' +
-        '<div class="panel-btns">' +
-          '<button type="button" class="btn-small btn-primary" data-savers-save data-site="' + escAttr(name) + '">Save</button>' +
-          '<button type="button" class="btn-small btn-ghost" data-panel-cancel>Cancel</button>' +
-        '</div>';
-      panel.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    }
-    function linesOf(text) {
-      return String(text || '').split(/[\n,]+/).map(function (x) { return x.trim(); }).filter(Boolean);
-    }
-    async function saveSavers(btn) {
-      var panel = btn.closest('.row-panel');
-      var name = btn.getAttribute('data-site');
-      var mode = panel.querySelector('[data-savers-field="mode"]:checked');
-      var body = {
-        mode: mode ? mode.value : 'anyone',
-        allow: linesOf(panel.querySelector('[data-savers-field="allow"]').value),
-        block: linesOf(panel.querySelector('[data-savers-field="block"]').value)
-      };
-      var err = panel.querySelector('.panel-err');
-      if (body.mode === 'listed' && !body.allow.length && !(await shConfirm({ title: 'Save anyway?', body: 'Nobody is listed, so only you will be able to save on this site.', confirmLabel: 'Save anyway' }))) return;
-      btn.disabled = true;
-      try {
-        var res = await api('PUT', sitePathPart(name) + '/savers', body);
-        var out = await res.json().catch(function () { return null; });
-        if (!res.ok) { err.textContent = (out && out.error) || 'Could not save'; err.hidden = false; btn.disabled = false; return; }
-        toast((out && out.message) || 'Saved', 'success');
-        loadPrivateLists(name, true);
-      } catch (e) {
-        err.textContent = 'Could not save'; err.hidden = false; btn.disabled = false;
-      }
-    }
-    async function toggleListPrivacy(btn, name, coll) {
-      var priv = btn.getAttribute('data-private') === '1';
-      if (priv && !(await shConfirm({ title: 'Make the list "' + coll + '" public?', body: 'Anyone can read this list again, including everything already in it. Who sent each entry (their email) stays private: only you see it.', confirmLabel: 'Make it public', danger: true }))) return;
-      btn.disabled = true;
-      try {
-        var res = await api('PUT', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/privacy', priv ? { private: false, confirm_public: true } : { private: true });
-        var body = await res.json().catch(function () { return null; });
-        if (!res.ok) { toast((body && body.error) || 'Could not change the list', 'error'); btn.disabled = false; return; }
-        toast((body && body.message) || (coll + (priv ? ' is public' : ' is private')), 'success');
-        loadPrivateLists(name, true);
-      } catch (e) {
-        toast('Could not change the list', 'error');
-        btn.disabled = false;
-      }
-    }
-    async function openClearList(btn, name, coll) {
-      var wrap = plistWrap(btn);
-      var meta = wrap && wrap.querySelector('.plist-meta');
-      var n = meta ? (parseInt(meta.getAttribute('data-count'), 10) || 0) : 0;
-      var personal = btn.getAttribute('data-kind') === 'mine';
-      var title;
-      if (personal) {
-        title = n
-          ? 'Clear the records of ' + n + (n === 1 ? ' person' : ' people') + ' in ' + coll + '?'
-          : 'Clear every record in ' + coll + '?';
-      } else {
-        title = n
-          ? 'Clear ' + n + (n === 1 ? ' item' : ' items') + ' from ' + coll + '?'
-          : 'Clear every item from ' + coll + '?';
-      }
-      var body = 'They go to Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back.';
-      if (!personal) body += ' Download the spreadsheet first if you want a copy.';
-      if (!(await shConfirm({ title: title, body: body, confirmLabel: personal ? 'Clear for everyone' : 'Clear list', danger: true }))) return;
-      var more = wrap && wrap.querySelector('.plist-more');
-      await clearList(more || btn, name, coll);
-    }
-    async function clearList(btn, name, coll) {
-      btn.disabled = true;
-      try {
-        var res = await api('DELETE', sitePathPart(name) + '/collections/' + encodeURIComponent(coll), { confirm: coll });
-        var body = await res.json().catch(function () { return null; });
-        if (!res.ok) { toast((body && body.error) || 'Could not clear the list', 'error'); btn.disabled = false; return; }
-        var n = body && Number(body.deleted) || 0;
-        toast('Cleared ' + coll + ': ' + n + (n === 1 ? ' entry' : ' entries') + ' moved to Recently deleted', 'success');
-        loadPrivateLists(name, true);
-      } catch (e) {
-        toast('Could not clear the list', 'error');
-        btn.disabled = false;
-      }
-    }
-    async function toggleStateView(btn, name) {
-      var wrap = btn.closest('.plist');
-      var view = wrap && wrap.querySelector('.plist-view');
-      if (!view) return;
-      if (!view.hidden) { view.hidden = true; btn.textContent = 'View'; btn.setAttribute('aria-expanded', 'false'); return; }
-      view.innerHTML = '<div class="versions-status">Loading…</div>';
-      view.hidden = false;
-      btn.textContent = 'Hide';
-      btn.setAttribute('aria-expanded', 'true');
-      try {
-        var res = await api('GET', sitePathPart(name) + '/state');
-        if (!res.ok) { view.innerHTML = '<div class="versions-status">Could not load the saved data</div>'; return; }
-        var text = await res.text();
-        var pretty = text;
-        try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (e) { /* show as stored */ }
-        view.innerHTML = '<div class="versions-status">What this site\'s pages have saved, read-only. Pages and your AI change it.</div>' +
-          '<pre class="state-pre">' + esc(pretty) + '</pre>';
-      } catch (e) {
-        view.innerHTML = '<div class="versions-status">Could not load the saved data</div>';
-      }
-    }
-    async function downloadState(btn, name) {
-      await downloadFrom(sitePathPart(name) + '/state', name + '-saved-data.json', 'Could not download the saved data', btn);
-    }
-    function plistCell(v) {
-      if (v == null) return '';
-      if (typeof v === 'object') return esc(JSON.stringify(v));
-      return esc(String(v));
-    }
-    var PLIST_STAMPS = ['_submitted_by', '_submitted_at'];
-    // Per open list: {name, coll, priv, items, next}. Kept on the view element
-    // so an edit or delete re-renders from memory without refetching.
-    async function togglePrivateList(btn, name, coll) {
-      var wrap = btn.closest('.plist');
-      var view = wrap && wrap.querySelector('.plist-view');
-      if (!view) return;
-      if (!view.hidden) { view.hidden = true; btn.textContent = 'View items'; btn.setAttribute('aria-expanded', 'false'); return; }
-      view.innerHTML = '<div class="versions-status">Loading…</div>';
-      view.hidden = false;
-      btn.textContent = 'Hide items';
-      btn.setAttribute('aria-expanded', 'true');
-      try {
-        var res = await api('GET', sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '?limit=50');
-        if (!res.ok) { view.innerHTML = '<div class="versions-status">Could not load items</div>'; return; }
-        var body = await res.json();
-        view._plist = { name: name, coll: coll, priv: !!(body && body.private), items: (body && Array.isArray(body.items)) ? body.items : [], next: body && body.next };
-        renderPrivateItems(view);
-      } catch (e) {
-        view.innerHTML = '<div class="versions-status">Could not load items</div>';
-      }
-    }
-    function plistData(it) {
-      return (it && it.data && typeof it.data === 'object' && !Array.isArray(it.data)) ? it.data : {};
-    }
-    function renderPrivateItems(view) {
-      var st = view._plist;
-      var items = st.items;
-      if (!items.length) { view.innerHTML = '<div class="versions-status">No items</div>'; return; }
-      var keySet = {};
-      items.forEach(function (it) { Object.keys(plistData(it)).forEach(function (k) { keySet[k] = true; }); });
-      var keys = Object.keys(keySet).filter(function (k) { return PLIST_STAMPS.indexOf(k) < 0; }).sort()
-        .concat(PLIST_STAMPS.filter(function (k) { return keySet[k]; }));
-      var saved = !keySet._submitted_at; // older items without the stamp: show when they were saved
-      // Who sent each item, as the server stamped it (the owner sees it; the
-      // public list never does). A public list's own _submitted_by field is
-      // whatever the page sent, so it never stands in for it.
-      var sentBy = (!st.priv || !keySet._submitted_by) && items.some(function (it) { return it && it.by; });
-      // An item that is not an object (a page may append a bare string) shows as its value.
-      var plain = items.some(function (it) { return it && (it.data === null || typeof it.data !== 'object' || Array.isArray(it.data)); });
-      var head = '<th></th>' + (plain ? '<th>value</th>' : '') + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + (saved ? '<th>saved</th>' : '') + (sentBy ? '<th>sent by</th>' : '');
-      var rows = items.map(function (it) {
-        var d = plistData(it);
-        var id = escAttr(it.id);
-        var isObj = it && it.data && typeof it.data === 'object' && !Array.isArray(it.data);
-        return '<tr>' +
-          '<td class="plist-acts"><span class="plist-btns">' +
-            (st.priv ? '<button type="button" class="btn-small btn-secondary" data-plist-act="edit" data-id="' + id + '">Edit</button>' : '') +
-            '<button type="button" class="btn-small btn-ghost" data-plist-act="delete" data-id="' + id + '">Delete</button>' +
-            ((it.by || (st.priv && d._submitted_by)) ? '<button type="button" class="btn-small btn-ghost" data-plist-act="block" data-id="' + id + '">Block</button>' : '') +
-          '</span></td>' +
-          (plain ? '<td>' + (isObj ? '' : plistCell(it.data)) + '</td>' : '') +
-          keys.map(function (k) {
-            var raw = d[k] == null ? '' : (typeof d[k] === 'object' ? JSON.stringify(d[k]) : d[k]);
-            return '<td title="' + escAttr(raw) + '">' + plistCell(d[k]) + '</td>';
-          }).join('') +
-          (saved ? '<td>' + (it.created_at ? esc(new Date(it.created_at).toLocaleString()) : '') + '</td>' : '') +
-          (sentBy ? '<td>' + esc(it.by || '') + '</td>' : '') +
-          '</tr>';
-      }).join('');
-      view.innerHTML = '<div class="plist-table-wrap"><table class="plist-table"><thead><tr>' + head +
-        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-        (st.next ? '<div class="versions-status">Latest 50 shown. The spreadsheet has every item.</div>' : '') +
-        '<div class="plist-edit" hidden></div>';
-    }
-    function plistItemPath(st, id) {
-      return sitePathPart(st.name) + '/collections/' + encodeURIComponent(st.coll) + '/items/' + encodeURIComponent(id);
-    }
-    async function plistError(res, fallback) {
-      var err = await res.json().catch(function () { return null; });
-      return (err && err.error) || fallback;
-    }
-    function plistSetCount(view, delta) {
-      var meta = view.closest('.plist') && view.closest('.plist').querySelector('.plist-meta');
-      if (!meta) return;
-      var n = Math.max(0, (parseInt(meta.getAttribute('data-count'), 10) || 0) + delta);
-      meta.setAttribute('data-count', String(n));
-      meta.innerHTML = plistMeta(n, meta.getAttribute('data-last'));
-    }
-    async function onPrivateItemAction(t) {
-      var view = t.closest('.plist-view');
-      var st = view && view._plist;
-      if (!st) return;
-      var act = t.getAttribute('data-plist-act');
-      var editor = view.querySelector('.plist-edit');
-      if (act === 'cancel') { editor.hidden = true; editor.innerHTML = ''; return; }
-      var id = t.getAttribute('data-id');
-      var idx = -1;
-      st.items.forEach(function (it, i) { if (String(it.id) === id) idx = i; });
-      if (idx < 0) return;
-      var item = st.items[idx];
-      if (act === 'edit') {
-        var editable = {};
-        var d = plistData(item);
-        var from = item.by || (st.priv ? d._submitted_by : '');
-        Object.keys(d).forEach(function (k) { if (PLIST_STAMPS.indexOf(k) < 0) editable[k] = d[k]; });
-        editor.innerHTML = '<label for="plist-ta-' + escAttr(id) + '">Edit item ' + esc(id) +
-            (from ? ' from ' + esc(from) : '') + '</label>' +
-          '<textarea id="plist-ta-' + escAttr(id) + '" spellcheck="false">' + esc(JSON.stringify(editable, null, 2)) + '</textarea>' +
-          '<div class="plist-err" hidden></div>' +
-          '<div class="plist-edit-btns">' +
-            '<button type="button" class="btn-small btn-primary" data-plist-act="save" data-id="' + escAttr(id) + '">Save</button>' +
-            '<button type="button" class="btn-small btn-secondary" data-plist-act="cancel">Cancel</button>' +
-          '</div>';
-        editor.hidden = false;
-        var ta = editor.querySelector('textarea');
-        ta.focus();
-        if (editor.scrollIntoView) editor.scrollIntoView({ block: 'nearest' });
-        return;
-      }
-      if (act === 'save') {
-        var errEl = editor.querySelector('.plist-err');
-        var showErr = function (msg) { errEl.textContent = msg; errEl.hidden = false; };
-        var next;
-        try { next = JSON.parse(editor.querySelector('textarea').value); } catch (e) { showErr('That is not valid JSON: ' + e.message); return; }
-        if (!next || typeof next !== 'object' || Array.isArray(next)) { showErr('The item must be one JSON object, like {"name": "…"}.'); return; }
-        // Merge semantics: send every field; a field that was removed goes as null.
-        var patch = {};
-        Object.keys(next).forEach(function (k) { if (PLIST_STAMPS.indexOf(k) < 0) patch[k] = next[k]; });
-        Object.keys(plistData(item)).forEach(function (k) {
-          if (PLIST_STAMPS.indexOf(k) < 0 && !Object.prototype.hasOwnProperty.call(next, k)) patch[k] = null;
-        });
-        t.disabled = true;
-        try {
-          var res = await api('PATCH', plistItemPath(st, id), patch);
-          if (!res.ok) { showErr(await plistError(res, 'Could not save the item')); return; }
-          var saved = await res.json().catch(function () { return null; });
-          if (saved && saved.data) st.items[idx] = saved;
-          renderPrivateItems(view);
-          toast('Saved', 'success');
-        } catch (e) {
-          showErr('Could not save the item');
-        } finally {
-          t.disabled = false;
-        }
-        return;
-      }
-      if (act === 'block') {
-        var person = item.by || (st.priv ? plistData(item)._submitted_by : '');
-        if (!(await shConfirm({ title: 'Block ' + person + ' from saving anything more on this site?', body: 'What they already sent stays until you delete it. You can unblock them under "Who may save here".', confirmLabel: 'Block', danger: true }))) return;
-        t.disabled = true;
-        try {
-          var bres = await api('POST', sitePathPart(st.name) + '/savers/block', { collection: st.coll, id: Number(id) });
-          var bout = await bres.json().catch(function () { return null; });
-          if (!bres.ok) { toast((bout && bout.error) || 'Could not block', 'error'); t.disabled = false; return; }
-          toast((bout && bout.message) || 'Blocked', 'success');
-          var pbox = view.closest('[data-plists]');
-          if (pbox && pbox._savers && bout && bout.blocked && pbox._savers.block.indexOf(bout.blocked) < 0) pbox._savers.block.push(bout.blocked);
-        } catch (e) {
-          toast('Could not block', 'error');
-        } finally {
-          t.disabled = false;
-        }
-        return;
-      }
-      if (act === 'delete') {
-        // Who sent it: the server's stamp (item.by); on a public list the
-        // item's own _submitted_by is whatever the page sent, so never shown.
-        var who = item.by || (st.priv ? plistData(item)._submitted_by : '');
-        if (!(await shConfirm({ title: 'Delete item ' + id + (who ? ' from ' + who : '') + '?', body: (st.priv ? '' : 'It disappears from the public list. ') + 'You can bring it back from Recently deleted for ' + UNDO_DAYS + ' days.', confirmLabel: 'Delete', danger: true }))) return;
-        t.disabled = true;
-        try {
-          var dres = await api('DELETE', plistItemPath(st, id));
-          if (!dres.ok && dres.status !== 204) { toast(await plistError(dres, 'Could not delete the item'), 'error'); t.disabled = false; return; }
-          st.items.splice(idx, 1);
-          renderPrivateItems(view);
-          plistSetCount(view, -1);
-          toast('Deleted. It is in Recently deleted for ' + UNDO_DAYS + ' days.', 'success');
-        } catch (e) {
-          toast('Could not delete the item', 'error');
-          t.disabled = false;
-        }
-      }
-    }
-    // ---- History and Recently deleted (saved data, 30-day undo) ----
-    var UNDO_DAYS = 30; // the server says how long in every answer (undo_days)
-    var UNDO_OPS = { replace: 'Replaced', change: 'Changed', edit: 'Edited', 'delete': 'Deleted', clear: 'Cleared', undelete: 'Brought back', restore: 'Restored' };
-    function undoBase(name, coll) {
-      return sitePathPart(name) + (coll ? '/collections/' + encodeURIComponent(coll) : '/state');
-    }
-    function undoWho(e) {
-      if (e.by) return e.by;
-      return e.by_kind === 'anonymous' ? 'not signed in' : (e.by_kind || '');
-    }
-    async function toggleUndoPanel(btn, mode) {
-      var wrap = plistWrap(btn);
-      var panel = wrap && wrap.querySelector('.plist-extra');
-      if (!panel) return;
-      if (!panel.hidden && panel.getAttribute('data-mode') === mode) {
-        panel.hidden = true; panel.innerHTML = ''; btn.setAttribute('aria-expanded', 'false');
-        return;
-      }
-      Array.prototype.forEach.call(wrap.querySelectorAll('[data-hist-open],[data-del-open]'), function (b) { b.setAttribute('aria-expanded', 'false'); });
-      btn.setAttribute('aria-expanded', 'true');
-      panel.setAttribute('data-mode', mode);
-      panel._undo = { name: btn.getAttribute('data-site'), coll: btn.getAttribute('data-coll') || '', kind: btn.getAttribute('data-kind') || '', gone: Number(btn.getAttribute('data-gone')) || 0 };
-      panel.hidden = false;
-      await renderUndoPanel(panel);
-    }
-    async function renderUndoPanel(panel) {
-      var st = panel._undo, mode = panel.getAttribute('data-mode');
-      // Personal records are their people's own: only how many were cleared,
-      // and bringing back what a clear took.
-      if (st.kind === 'mine' && mode === 'deleted') { panel.innerHTML = personalDeletedHTML(st); return; }
-      panel.innerHTML = '<div class="versions-status">Loading…</div>';
-      try {
-        var res = await api('GET', undoBase(st.name, st.coll) + (mode === 'deleted' ? '/deleted' : '/history') + '?limit=50');
-        if (!res.ok) { panel.innerHTML = '<div class="versions-status">' + esc(await plistError(res, 'Could not load it')) + '</div>'; return; }
-        var body = await res.json();
-        if (body && body.undo_days) UNDO_DAYS = body.undo_days;
-        panel.innerHTML = mode === 'deleted' ? deletedHTML(st, body) : historyHTML(st, body);
-      } catch (e) {
-        panel.innerHTML = '<div class="versions-status">Could not load it</div>';
-      }
-    }
-    function historyHTML(st, body) {
-      var list = (body && Array.isArray(body.history)) ? body.history : [];
-      var intro = '<div class="versions-status">Every change in the last ' + UNDO_DAYS + ' days, newest first. Restore puts back ' +
-        (st.coll ? 'the item' : 'the saved data') + ' as it was just before that change; a restore is itself a change you can undo.</div>';
-      if (!list.length) return intro + '<div class="versions-status">No changes yet.</div>' + clearHistoryHTML();
-      var rows = list.map(function (e) {
-        var id = escAttr(e.id);
-        var what = esc(UNDO_OPS[e.op] || e.op) + (e.item_id ? ' item ' + esc(e.item_id) : '');
-        var canView = !st.coll || e.op === 'edit' || e.op === 'restore';
-        return '<tr>' +
-          '<td class="plist-acts"><span class="plist-btns">' +
-            (canView ? '<button type="button" class="btn-small btn-secondary" data-undo="view" data-id="' + id + '">View before</button>' : '') +
-            (e.op === 'undelete' ? '' : '<button type="button" class="btn-small btn-secondary" data-undo="restore" data-id="' + id + '">Restore</button>') +
-          '</span></td>' +
-          '<td>' + esc(new Date(e.at).toLocaleString()) + '</td>' +
-          '<td>' + what + '</td>' +
-          '<td>' + esc(undoWho(e)) + '</td>' +
-        '</tr>';
-      }).join('');
-      return intro + '<div class="plist-table-wrap"><table class="plist-table"><thead><tr><th></th><th>when</th><th>what</th><th>who</th></tr></thead><tbody>' +
-        rows + '</tbody></table></div>' + (body.next ? '<div class="versions-status">Latest 50 changes shown.</div>' : '') +
-        '<div class="plist-undo-value" hidden></div>' + clearHistoryHTML();
-    }
-    function clearHistoryHTML() {
-      return '<div class="panel-btns" style="margin:8px 0 0;"><button type="button" class="btn-small btn-ghost" data-undo="clear-history">Clear history</button></div>' +
-        '<div class="row-panel undo-confirm" hidden></div>';
-    }
-    // A typed confirmation inside the History or Recently deleted panel.
-    function openUndoConfirm(panel, label, word, act, goLabel, id) {
-      var box = panel.querySelector('.undo-confirm');
-      if (!box) return;
-      var fid = 'undo-confirm-' + Math.random().toString(36).slice(2);
-      box.innerHTML = '<label for="' + fid + '">' + label + ' Type <b>' + esc(word) + '</b> to confirm.</label>' +
-        '<input type="text" id="' + fid + '" autocomplete="off" spellcheck="false" data-confirm-input>' +
-        '<div class="panel-btns">' +
-          '<button type="button" class="btn-small btn-danger" data-undo="' + escAttr(act) + '" data-confirm-for="' + escAttr(word) + '"' +
-            (id ? ' data-id="' + escAttr(id) + '"' : '') + ' disabled>' + esc(goLabel) + '</button>' +
-          '<button type="button" class="btn-small btn-ghost" data-undo="cancel">Cancel</button>' +
-        '</div>';
-      box.hidden = false;
-      if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
-      var inp = box.querySelector('input');
-      if (inp) inp.focus();
-    }
-    function personalDeletedHTML(st) {
-      return '<div class="versions-status">' + (st.gone ? st.gone + (st.gone === 1 ? ' record was' : ' records were') : 'Fewer than 3 records were') + ' cleared or deleted in the last ' + UNDO_DAYS + ' days. What they hold is their people\'s own, so it is not shown. Restore brings back what your clear took; a record its person deleted stays deleted.</div>' +
-        '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore</button>' +
-          '<button type="button" class="btn-small btn-ghost" data-undo="purge-all">Delete all forever</button></div>' +
-        '<div class="row-panel undo-confirm" hidden></div>';
-    }
-    function deletedHTML(st, body) {
-      var items = (body && Array.isArray(body.items)) ? body.items : [];
-      var intro = '<div class="versions-status">Deleted in the last ' + UNDO_DAYS + ' days. After that they are gone for good; Delete forever removes one sooner.</div>';
-      if (!items.length) return intro + '<div class="versions-status">Nothing deleted.</div>';
-      var rows = items.map(function (it) {
-        var id = escAttr(it.id);
-        var text = typeof it.data === 'object' ? JSON.stringify(it.data) : String(it.data);
-        return '<tr>' +
-          '<td class="plist-acts"><span class="plist-btns"><button type="button" class="btn-small btn-secondary" data-undo="undelete" data-id="' + id + '">Restore</button>' +
-            '<button type="button" class="btn-small btn-ghost" data-undo="purge" data-id="' + id + '">Delete forever</button></span></td>' +
-          '<td title="' + escAttr(text) + '">' + esc(text.length > 120 ? text.slice(0, 120) + '…' : text) + '</td>' +
-          '<td>' + esc(it.by || '') + '</td>' +
-          '<td>' + esc(new Date(it.deleted_at).toLocaleString()) + '</td>' +
-        '</tr>';
-      }).join('');
-      // A Shared board brings back only what went within a window the owner
-      // picks: after someone deletes the lot, not what people deleted before.
-      var win = st.kind === 'board'
-        ? '<label class="undo-window">deleted in the last <select data-undo-window>' +
-            '<option value="15">15 minutes</option><option value="60" selected>hour</option><option value="360">6 hours</option>' +
-            '<option value="1440">day</option><option value="' + (UNDO_DAYS * 1440) + '">' + UNDO_DAYS + ' days</option></select></label>'
-        : '';
-      return intro +
-        '<div class="panel-btns" style="margin:6px 0 8px;"><button type="button" class="btn-small btn-secondary" data-undo="undelete-all">Restore all</button>' + win +
-          '<button type="button" class="btn-small btn-ghost" data-undo="purge-all">Delete all forever</button></div>' +
-        '<div class="row-panel undo-confirm" hidden></div>' +
-        '<div class="plist-table-wrap"><table class="plist-table"><thead><tr><th></th><th>item</th><th>sent by</th><th>deleted</th></tr></thead><tbody>' +
-        rows + '</tbody></table></div>' + (body.next ? '<div class="versions-status">Latest 50 shown; Restore all brings back every one.</div>' : '');
-    }
-    async function onUndoAction(t) {
-      var panel = t.closest('.plist-extra');
-      var st = panel && panel._undo;
-      if (!st) return;
-      var act = t.getAttribute('data-undo'), id = t.getAttribute('data-id');
-      var base = undoBase(st.name, st.coll);
-      // Deleting for good: a typed confirmation first, then the call.
-      if (act === 'cancel') {
-        var cb = t.closest('.undo-confirm');
-        if (cb) { cb.hidden = true; cb.innerHTML = ''; }
-        return;
-      }
-      if (act === 'purge') {
-        openUndoConfirm(panel, 'Delete item ' + esc(id) + ' for good? It and its earlier versions cannot be brought back.', 'delete', 'purge-go', 'Delete forever', id);
-        return;
-      }
-      if (act === 'purge-all') {
-        openUndoConfirm(panel, 'Delete everything in Recently deleted of <b>' + esc(st.coll) + '</b> for good? None of it can be brought back. The list itself is not touched.', st.coll, 'purge-all-go', 'Delete all forever');
-        return;
-      }
-      if (act === 'clear-history') {
-        openUndoConfirm(panel, 'Clear every earlier version of <b>' + esc(st.name) + '</b>\'s saved data and lists, for good? The data as it is now stays, and so does Recently deleted. Personal records a clear took can then no longer be brought back, by you or by their people.', st.name, 'clear-history-go', 'Clear history');
-        return;
-      }
-      if (act === 'purge-go' || act === 'purge-all-go' || act === 'clear-history-go') {
-        var dpath, dbody;
-        if (act === 'purge-go') dpath = base + '/deleted/' + encodeURIComponent(id);
-        else if (act === 'purge-all-go') { dpath = base + '/deleted'; dbody = { confirm: st.coll }; }
-        else { dpath = sitePathPart(st.name) + '/history'; dbody = { confirm: st.name }; }
-        t.disabled = true;
-        try {
-          var pres = await api('DELETE', dpath, dbody);
-          if (!pres.ok) { toast(await plistError(pres, 'Could not delete it'), 'error'); t.disabled = false; return; }
-          toast(act === 'clear-history-go' ? 'History cleared' : 'Deleted for good', 'success');
-          if (act === 'clear-history-go') await renderUndoPanel(panel);
-          else loadPrivateLists(st.name, true);
-        } catch (e) {
-          toast('Could not delete it', 'error');
-          t.disabled = false;
-        }
-        return;
-      }
-      if (act === 'view') {
-        var out = panel.querySelector('.plist-undo-value');
-        t.disabled = true;
-        try {
-          var vres = await api('GET', base + '/history/' + encodeURIComponent(id));
-          if (!vres.ok) { toast(await plistError(vres, 'Could not load that version'), 'error'); return; }
-          var v = await vres.json();
-          out.innerHTML = '<div class="versions-status">As it was just before this change:</div><pre class="state-pre">' + esc(JSON.stringify(v.value, null, 2)) + '</pre>';
-          out.hidden = false;
-          if (out.scrollIntoView) out.scrollIntoView({ block: 'nearest' });
-        } catch (e) {
-          toast('Could not load that version', 'error');
-        } finally { t.disabled = false; }
-        return;
-      }
-      var path, body, ask, done;
-      if (act === 'restore') {
-        path = base + '/history/' + encodeURIComponent(id) + '/restore';
-        ask = st.coll ? 'Undo this change to the list "' + st.coll + '"?' : 'Put this site\'s saved data back as it was just before this change? Its pages show it at once. You can undo this too.';
-        done = 'Restored';
-      } else if (act === 'undelete') {
-        path = base + '/items/' + encodeURIComponent(id) + '/restore';
-        done = 'Brought back';
-      } else if (act === 'undelete-all') {
-        path = base + '/deleted/restore';
-        body = { all: true };
-        ask = 'Bring back every deleted item in "' + st.coll + '"?';
-        var winSel = panel.querySelector('[data-undo-window]');
-        if (winSel) {
-          body.within_minutes = Number(winSel.value);
-          ask = 'Bring back every item deleted from "' + st.coll + '" in the last ' + winSel.options[winSel.selectedIndex].text + '?';
-        }
-        done = 'Brought back';
-      } else return;
-      if (ask && !(await shConfirm({ title: ask, confirmLabel: act === 'restore' ? (st.coll ? 'Undo it' : 'Put it back') : 'Bring back' }))) return;
-      t.disabled = true;
-      try {
-        var res = await api('POST', path, body);
-        if (!res.ok) { toast(await plistError(res, 'Could not restore it'), 'error'); t.disabled = false; return; }
-        toast(done, 'success');
-        loadPrivateLists(st.name, true);
-      } catch (e) {
-        toast('Could not restore it', 'error');
-        t.disabled = false;
-      }
-    }
+
     function saveBlob(blob, filename) {
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
@@ -2827,18 +1980,13 @@ function parseAnalyticsSummary(data) {
         if (btn) btn.disabled = false;
       }
     }
-    async function downloadPrivateList(name, coll, btn) {
-      await downloadFrom(sitePathPart(name) + '/collections/' + encodeURIComponent(coll) + '/export.csv',
-        name + '-' + coll + '.csv', 'Could not download the spreadsheet', btn);
-    }
     // Download: the whole site as one archive (every file of the live
-    // version, its saved data and its lists), from the export route.
+    // version and its saved data), from the export route.
     async function downloadSite(name, btn) {
       var ok = await downloadFrom(sitePathPart(name) + '/export.tar.gz', name + '.tar.gz', 'Could not download the site', btn);
       if (ok) toast('Downloading ' + name, 'success');
       return ok;
     }
-
     // ------------------------------------------------------------ SITE ROWS
     function ownerSite(name) {
       for (var i = 0; i < ownerSites.length; i++) if (ownerSites[i].name === name) return ownerSites[i];
@@ -2910,7 +2058,6 @@ function parseAnalyticsSummary(data) {
         '</div>') +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
         '<div class="row-panel" data-panel="' + name + '" hidden></div>' +
-        '<div class="plists" data-plists="' + name + '" hidden></div>' +
       '</div>';
     }
 
@@ -3042,10 +2189,6 @@ function parseAnalyticsSummary(data) {
               '<div class="panel-field"><label for="' + id + '-name">Name</label><input type="text" id="' + id + '-name" name="resource" value="" required pattern="[a-z][a-z0-9_-]{0,63}" autocomplete="off" spellcheck="false" aria-describedby="' + id + '-name-hint"><span class="panel-hint" id="' + id + '-name-hint">Lowercase letters, numbers, - and _</span></div>' +
               '<div class="panel-field"><label for="' + id + '-kind">Storage</label><select id="' + id + '-kind" name="kind">' + options(kinds, resource.kind) + '</select></div>') +
             (hasRules ? '<p class="panel-note">Rules' + (resource.rules_status === 'invalid' ? ' · needs repair' : '') + '</p><div data-rule-editors></div>' :
-            (SHOWCASE.storageSwitchSet && resource.name && resource.kind !== 'files' ? '<p class="panel-note">' +
-              (Date.now() >= Date.parse(SHOWCASE.storageSwitchAt)
-                ? "Visitors can't use this until you set rules. You still have full access."
-                : 'Presets end on ' + fmtDateTime(SHOWCASE.storageSwitchAt) + '. Rules replace them and allow the same things.') + '</p>' : '') +
             '<div class="panel-field"><label for="' + id + '-preset">Who can do what?</label><select id="' + id + '-preset" name="preset">' + options(choices, current) + '</select>' + tableNote + '</div>') +
             (!hasRules && SHOWCASE.spamCheck ? '<label class="panel-check" data-approve><input type="checkbox" name="approve" value="1"' + (resource.approve_first ? ' checked' : '') + '> Hold new posts until you approve them (Tables only; approve from your AI app, e.g. &ldquo;approve post 12&rdquo;)</label>' : '') +
             '<div class="panel-field"><label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the passcode (public resources stay accessible)'}, resource.site_passcode) + '</select></div>' +
@@ -3235,7 +2378,7 @@ function parseAnalyticsSummary(data) {
       var id = 'rename-' + escAttr(name);
       panel.innerHTML = '<label for="' + id + '">New name for <b>' + esc(name) + '</b></label>' +
         '<input type="text" id="' + id + '" value="' + escAttr(name) + '" autocomplete="off" spellcheck="false" maxlength="63">' +
-        '<div class="panel-note">The site moves to its new address. Links to the current address keep working and redirect to the new one, until you create a new site with this name; saved data and lists move with it.</div>' +
+        '<div class="panel-note">The site moves to its new address. Links to the current address keep working and redirect to the new one, until you create a new site with this name; saved data moves with it.</div>' +
         '<div class="panel-err" hidden></div>' +
         '<div class="panel-btns">' +
           '<button type="button" class="btn-small btn-primary" data-act="doRename" data-name="' + escAttr(name) + '">Rename</button>' +
@@ -4293,16 +3436,7 @@ function parseAnalyticsSummary(data) {
 
     // Delete: say what goes with the site, then ask in a dialog.
     async function confirmDelete(name) {
-      var info = await fetchSiteData(name);
-      var what;
-      if (!info) {
-        what = 'every version, and any saved data and list entries it holds';
-      } else {
-        var parts = ['every version'];
-        if (info.entries) parts.push(info.entries + (info.entries === 1 ? ' list entry' : ' list entries') + ' in ' + info.lists.length + (info.lists.length === 1 ? ' list' : ' lists'));
-        if (info.stateSize) parts.push('its saved data (' + fmtBytes(info.stateSize) + ')');
-        what = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
-      }
+      var what = 'every version, and any saved data it holds';
       if (!(await shConfirm({
         title: 'Delete "' + name + '"?',
         body: 'It goes offline now, with ' + what + ', and moves to Recently deleted for 7 days, where you can bring it back. After that it\'s gone for good.',
@@ -4391,7 +3525,7 @@ function parseAnalyticsSummary(data) {
       var parent = host;
       if (!parent || ancestorBreaksFixed(parent)) parent = document.body;
       if (parent !== document.body) {
-        var after = btn.closest('.inv-actions, .plist-row');
+        var after = btn.closest('.inv-actions');
         if (after && after.parentNode === parent) parent.insertBefore(menu, after.nextSibling);
         else parent.appendChild(menu);
       } else {
@@ -4406,18 +3540,12 @@ function parseAnalyticsSummary(data) {
       if (first) first.focus({ preventScroll: true });
       menu.addEventListener('click', function (e) {
         var actEl = e.target.closest('[data-act]');
-        var plistEl = e.target.closest('[data-plist-privacy],[data-kind-open],[data-hist-open],[data-del-open],[data-plist-clear]');
-        if (!actEl && !plistEl) return;
+        if (!actEl) return;
         e.stopPropagation();
         var trigger = rowMenuBtn;
-        if (actEl) {
-          closeRowMenu();
-          var fn = Object.prototype.hasOwnProperty.call(clickActions, actEl.dataset.act) && clickActions[actEl.dataset.act];
-          if (fn) fn(actEl.dataset, trigger || actEl);
-          return;
-        }
-        runPrivateListAction(plistEl);
         closeRowMenu();
+        var fn = Object.prototype.hasOwnProperty.call(clickActions, actEl.dataset.act) && clickActions[actEl.dataset.act];
+        if (fn) fn(actEl.dataset, trigger || actEl);
       });
     }
     function miItem(label, attrs, state, danger) {
@@ -4450,39 +3578,6 @@ function parseAnalyticsSummary(data) {
       items.push(miItem('Delete', ' data-act="confirmDelete"' + n, '', true));
       openRowMenu(btn, items.join(''), btn.closest('.inv-row'), 'Manage ' + s.name);
     }
-    function openPlistMenu(btn) {
-      var wrap = btn.closest('.plist');
-      if (!wrap) return;
-      var coll = btn.getAttribute('data-coll') || '';
-      var priv = btn.getAttribute('data-private') === '1';
-      var kind = btn.getAttribute('data-kind') || '';
-      var gone = Number(btn.getAttribute('data-gone')) || 0;
-      var few = btn.getAttribute('data-few') === '1';
-      var goneFew = btn.getAttribute('data-gone-few') === '1';
-      var page = kind === 'content';
-      var personal = kind === 'mine';
-      var board = kind === 'board';
-      var meta = wrap.querySelector('.plist-meta');
-      var count = meta ? (parseInt(meta.getAttribute('data-count'), 10) || 0) : 0;
-      var a = ' data-site="' + escAttr(btn.getAttribute('data-site')) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"' +
-        ' data-kind="' + escAttr(kind) + '" data-one="' + escAttr(btn.getAttribute('data-one') || '0') + '" data-notify="' + escAttr(btn.getAttribute('data-notify') || 'off') + '" data-gone="' + gone + '"' +
-        ' data-few="' + (few ? '1' : '0') + '" data-gone-few="' + (goneFew ? '1' : '0') + '"';
-      var items = [];
-      if (!(page || personal || board)) {
-        items.push('<button type="button" class="mi" role="menuitem" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>');
-      }
-      items.push('<button type="button" class="mi" role="menuitem" data-kind-open' + a + ' aria-expanded="false">Settings</button>');
-      if (!personal) items.push('<button type="button" class="mi" role="menuitem" data-hist-open' + a + ' aria-expanded="false">History</button>');
-      if (gone || goneFew) {
-        items.push('<button type="button" class="mi" role="menuitem" data-del-open' + a + ' aria-expanded="false">Recently deleted (' + (goneFew ? 'fewer than 3' : gone) + ')</button>');
-      }
-      if ((count || few) && !page) {
-        items.push('<div class="mi-sep" role="separator"></div>');
-        items.push('<button type="button" class="mi danger" role="menuitem" data-plist-clear' + a + '>' + (personal ? 'Clear for everyone' : 'Clear list') + '</button>');
-      }
-      openRowMenu(btn, items.join(''), wrap, 'More for ' + coll);
-    }
-
     // Handlers are wired here, not as on*= attributes: the CSP allows no inline
     // event handlers. Buttons name their action in data-act (a fixed list, so
     // markup cannot reach any other function) and carry arguments in data-*.
@@ -4515,11 +3610,10 @@ function parseAnalyticsSummary(data) {
       closePanel: function (d) { hideRowPanel(d.name); }
     };
     document.addEventListener('click', function (e) {
-      var trigger = e.target.closest('[data-manage], .plist-more');
+      var trigger = e.target.closest('[data-manage]');
       if (trigger) {
         if (rowMenuBtn === trigger) closeRowMenu();
-        else if (trigger.hasAttribute('data-manage')) openSiteMenu(trigger);
-        else openPlistMenu(trigger);
+        else openSiteMenu(trigger);
         return;
       }
       var el = e.target.closest('[data-act]');
@@ -4536,12 +3630,11 @@ function parseAnalyticsSummary(data) {
       if (rowMenuEl && !e.target.closest('.row-menu')) closeRowMenu();
     });
     document.addEventListener('keydown', function (e) {
-      var t = e.target.closest && e.target.closest('[data-manage], .plist-more');
+      var t = e.target.closest && e.target.closest('[data-manage]');
       if (!t) return;
       if (e.key === 'ArrowDown' && rowMenuBtn !== t) {
         e.preventDefault();
-        if (t.hasAttribute('data-manage')) openSiteMenu(t);
-        else openPlistMenu(t);
+        openSiteMenu(t);
       }
     });
     window.addEventListener('resize', function () { closeRowMenu(); });

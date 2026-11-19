@@ -34,12 +34,11 @@ Send `POST /v1/sites/{sitename}/notifications` with `{"url":"https://receiver.ex
 4. Press **Rotate secret**, or POST to `/rotate-secret`. Update your receiver. For an MCP subscription, refresh through its app instead.
 
 
-## Switch off sign-in alerts, or get a Submissions digest
+## Switch off sign-in alerts
 [What this is](/features.html#notify-emails)
 
 
 1. On your sites page, open Settings and switch off **Sign-in alerts**.
-2. For an existing Submissions collection, open its settings and choose an email digest cadence.
 
 
 <details>

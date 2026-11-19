@@ -191,55 +191,59 @@ func TestSiteHostsCanonical(t *testing.T) {
 	}
 
 	// ---- the API on a site host answers for that one site ---------------------------
-	if r := a.at(t, "GET", shop, "/v1/sites/shop/state", nil, map[string]string{"Origin": "https://" + shop}); r.status != 200 {
-		t.Fatalf("own state: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", shop, "/v1/sites/shop/me", nil, map[string]string{"Origin": "https://" + shop}); r.status != 200 {
+		t.Fatalf("own site: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", shop, "/v1/u/"+oh+"/sites/shop/state", nil, map[string]string{"Origin": "https://" + shop}); r.status != 200 {
-		t.Fatalf("own state by handle: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", shop, "/v1/u/"+oh+"/sites/shop/me", nil, map[string]string{"Origin": "https://" + shop}); r.status != 200 {
+		t.Fatalf("own site by handle: %d %s", r.status, r.body)
 	}
-	for _, p := range []string{"/v1/sites/blog/state", "/v1/u/" + oh + "/sites/blog/state", "/v1/u/" + sh + "/sites/shop/state"} {
+	for _, p := range []string{"/v1/sites/blog/me", "/v1/u/" + oh + "/sites/blog/me", "/v1/u/" + sh + "/sites/shop/me"} {
 		if r := a.at(t, "GET", shop, p, nil, map[string]string{"Origin": "https://" + shop}); r.status == 200 {
 			t.Fatalf("GET %s on shop's host: %d %s", p, r.status, r.body)
 		}
 	}
 	// A sibling site's page is not an allowed origin.
-	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/state", nil, map[string]string{"Origin": "https://" + blog}); r.status != http.StatusForbidden {
+	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/me", nil, map[string]string{"Origin": "https://" + blog}); r.status != http.StatusForbidden {
 		t.Fatalf("sibling origin: %d", r.status)
 	}
-	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/state", nil, map[string]string{"Origin": "https://" + shop}); r.status != 200 {
+	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/me", nil, map[string]string{"Origin": "https://" + shop}); r.status != 200 {
 		t.Fatalf("own origin to apex: %d %s", r.status, r.body)
 	}
 
 	// ---- sign-in is per site ------------------------------------------------------
-	patch := map[string]any{"ops": []map[string]any{{"op": "set", "path": "n", "value": 1}}}
-	if r := a.at(t, "PATCH", shop, "/v1/sites/shop/state", patch, browser(shop, "")); r.status != http.StatusUnauthorized {
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", map[string]string{"kind": "kv", "preset": "board"}, okey); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
+	}
+	save := "/v1/sites/shop/storage/kv/notes/keys/n"
+	value := map[string]any{"value": 1}
+	if r := a.at(t, "PUT", shop, save, value, browser(shop, "")); r.status/100 == 2 {
 		t.Fatalf("anonymous save: %d %s", r.status, r.body)
 	}
 	vic := a.newPerson(t, "vic")
 	shopCookie := a.session(t, vic, a.siteID(t, olive, "shop"), shop)
 	blogCookie := a.session(t, vic, a.siteID(t, olive, "blog"), blog)
 	personCookie := a.session(t, vic, a.siteID(t, olive, "blog"), person)
-	if r := a.at(t, "PATCH", shop, "/v1/sites/shop/state", patch, browser(shop, shopCookie)); r.status != 200 {
+	if r := a.at(t, "PUT", shop, save, value, browser(shop, shopCookie)); r.status != 200 {
 		t.Fatalf("signed-in save: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "GET", shop, "/v1/sites/shop/me", nil, browser(shop, shopCookie)); r.json(t)["signed_in"] != true {
 		t.Fatalf("me: %s", r.body)
 	}
 	// Another site's sign-in, on its host or presented here, does not count.
-	if r := a.at(t, "PATCH", shop, "/v1/sites/shop/state", patch, browser(shop, blogCookie)); r.status == 200 {
+	if r := a.at(t, "PUT", shop, save, value, browser(shop, blogCookie)); r.status/100 == 2 {
 		t.Fatalf("blog session on shop host: %d", r.status)
 	}
 	// A person-host sign-in no longer covers a site on its own host.
-	if r := a.at(t, "PATCH", person, "/v1/sites/shop/state", patch, browser(person, personCookie)); r.status == 200 {
+	if r := a.at(t, "PUT", person, save, value, browser(person, personCookie)); r.status/100 == 2 {
 		t.Fatalf("person-host session for a site-host site: %d", r.status)
 	}
 	// Cross-origin, or the plain cookie a sibling can plant: nothing.
-	if r := a.at(t, "PATCH", shop, "/v1/sites/shop/state", patch, browser(shop, shopCookie, "Origin", "https://"+blog, "Sec-Fetch-Site", "same-site")); r.status == 200 {
+	if r := a.at(t, "PUT", shop, save, value, browser(shop, shopCookie, "Origin", "https://"+blog, "Sec-Fetch-Site", "same-site")); r.status/100 == 2 {
 		t.Fatalf("sibling-origin save: %d", r.status)
 	}
 	plain := browser(shop, "")
 	plain["Cookie"] = visitorCookieHTTP + "=" + shopCookie
-	if r := a.at(t, "PATCH", shop, "/v1/sites/shop/state", patch, plain); r.status == 200 {
+	if r := a.at(t, "PUT", shop, save, value, plain); r.status/100 == 2 {
 		t.Fatalf("plain cookie save: %d", r.status)
 	}
 	// Email sign-in only from a page on this very host.
@@ -247,30 +251,8 @@ func TestSiteHostsCanonical(t *testing.T) {
 		t.Fatalf("cross-site email sign-in: %d %s", r.status, r.body)
 	}
 	// The key still saves.
-	if r := a.at(t, "PATCH", shop, "/v1/sites/shop/state", patch, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + shop}); r.status != 200 {
+	if r := a.at(t, "PUT", shop, save, value, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + shop}); r.status != 200 {
 		t.Fatalf("key save: %d %s", r.status, r.body)
-	}
-
-	// ---- private lists live on the site host -----------------------------------------
-	if r := a.at(t, "PUT", apex, "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != 200 || r.json(t)["domain"] != shop {
-		t.Fatalf("private: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/orders", map[string]any{"x": 1}, browser(shop, shopCookie)); r.status != http.StatusCreated {
-		t.Fatalf("private submit: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", person, "/v1/sites/shop/collections/orders", map[string]any{"x": 1}, browser(person, personCookie)); r.status == http.StatusCreated {
-		t.Fatalf("private submit on person host: %d", r.status)
-	}
-	if r := a.at(t, "GET", shop, "/v1/sites/shop/collections/orders", nil, browser(shop, shopCookie)); r.status != 404 {
-		t.Fatalf("visitor read of private list: %d", r.status)
-	}
-	ownerCookie := a.session(t, olive, a.siteID(t, olive, "shop"), shop)
-	if r := a.at(t, "GET", shop, "/v1/sites/shop/collections/orders", nil, browser(shop, ownerCookie)); r.status != 200 || len(itemsOf(t, r)) != 1 {
-		t.Fatalf("owner read: %d %s", r.status, r.body)
-	}
-	ownerOnBlog := a.session(t, olive, a.siteID(t, olive, "blog"), blog)
-	if r := a.at(t, "GET", blog, "/v1/sites/shop/collections/orders", nil, browser(blog, ownerOnBlog)); r.status == 200 {
-		t.Fatalf("owner read from a sibling site: %d", r.status)
 	}
 
 	// ---- sign-in return_to --------------------------------------------------------------
@@ -299,8 +281,8 @@ func TestSiteHostsCanonical(t *testing.T) {
 	if r := a.at(t, "GET", blog, "/a/b?q=1", nil, nil); r.status != http.StatusFound || r.header.Get("Location") != "https://"+dom+"/a/b?q=1" {
 		t.Fatalf("domain redirect: %d %q", r.status, r.header.Get("Location"))
 	}
-	if r := a.at(t, "PATCH", blog, "/v1/sites/blog/state", patch, browser(blog, blogCookie)); r.status != http.StatusUnauthorized || r.json(t)["code"] != "use_custom_domain" {
-		t.Fatalf("save for domain site on its site host: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", blog, "/v1/sites/blog/me", nil, browser(blog, blogCookie)); r.json(t)["code"] != "use_custom_domain" {
+		t.Fatalf("sign-in for domain site on its site host: %d %s", r.status, r.body)
 	}
 	if _, _, _, _, err := oa.sanitizeReturnTo(ctx, "https://"+blog+"/"); err == nil {
 		t.Fatalf("return_to on a domain site's site host accepted")

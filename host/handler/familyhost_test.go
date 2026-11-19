@@ -354,30 +354,28 @@ func TestFamilyAPIAndOrigins(t *testing.T) {
 
 	// auth.js names the site by the first label: meera means voucher-meera here.
 	for _, name := range []string{"meera", "voucher-meera"} {
-		if id, err := a.sites.resolveSiteIDScoped(httptestRequest(host, "/v1/sites/"+name+"/state"), name); err != nil || id != vm {
+		if id, err := a.sites.resolveSiteIDScoped(httptestRequest(host, "/v1/sites/"+name+"/me"), name); err != nil || id != vm {
 			t.Errorf("resolve %s on %s: %q %v", name, host, id, err)
 		}
 	}
-	if _, err := a.sites.resolveSiteIDScoped(httptestRequest(host, "/v1/sites/shop/state"), "shop"); err == nil {
+	if _, err := a.sites.resolveSiteIDScoped(httptestRequest(host, "/v1/sites/shop/me"), "shop"); err == nil {
 		t.Error("another site resolved on a family address")
 	}
 	// A page on the family address may save; a page on a sibling may not.
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/voucher-meera/storage/resources/notes", map[string]string{"kind": "kv", "preset": "board"}, map[string]string{"X-API-Key": olive.key}); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
+	}
+	save := "/v1/sites/meera/storage/kv/notes/keys/n"
 	sess := a.session(t, olive, vm, host)
-	if r := a.at(t, "PUT", host, "/v1/sites/meera/state", map[string]any{"n": 1}, browser(host, sess)); r.status != 200 {
+	if r := a.at(t, "PUT", host, save, map[string]any{"value": 1}, browser(host, sess)); r.status != 200 {
 		t.Fatalf("save on the family address: %d %s", r.status, r.body)
 	}
 	sib := "other.voucher.fam.test"
-	if r := a.at(t, "PUT", host, "/v1/sites/meera/state", map[string]any{"n": 2}, browser(host, sess, "Origin", "https://"+sib, "Sec-Fetch-Site", "same-site")); r.status != http.StatusForbidden {
+	if r := a.at(t, "PUT", host, save, map[string]any{"value": 2}, browser(host, sess, "Origin", "https://"+sib, "Sec-Fetch-Site", "same-site")); r.status != http.StatusForbidden {
 		t.Fatalf("sibling origin saved: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PUT", host, "/v1/sites/meera/state", map[string]any{"n": 2}, browser(host, sess, "Origin", "http://"+host)); r.status != http.StatusForbidden {
+	if r := a.at(t, "PUT", host, save, map[string]any{"value": 2}, browser(host, sess, "Origin", "http://"+host)); r.status != http.StatusForbidden {
 		t.Fatalf("http origin saved: %d %s", r.status, r.body)
-	}
-	// The site host, no longer the address, takes no saves.
-	siteHost := "voucher-meera." + oh + "." + pcSiteDomain
-	sess2 := a.session(t, olive, vm, siteHost)
-	if r := a.at(t, "PUT", siteHost, "/v1/sites/voucher-meera/state", map[string]any{"n": 3}, browser(siteHost, sess2)); r.status == 200 {
-		t.Fatalf("site host saved while the family is the address: %d %s", r.status, r.body)
 	}
 	// Email sign-in: only from a page on this very host.
 	r := a.at(t, "POST", host, "/v1/sites/meera/visitor/auth", map[string]string{"email": "v@example.com"},

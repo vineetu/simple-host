@@ -64,7 +64,6 @@ issuer acme {
 fi
 export PUBLIC_BASE_URL="https://$SITE_DOMAIN"
 export PERSON_HOSTS=canonical SITE_HOSTS=canonical
-export WRITE_AUTH_MODE=on
 export MCP_APP_PHOTO_PICKER="${MCP_APP_PHOTO_PICKER:-off}"
 export MCP_APP_MY_SITES="${MCP_APP_MY_SITES:-off}"
 export MCP_APP_DASHBOARD="${MCP_APP_DASHBOARD:-off}"

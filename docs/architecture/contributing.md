@@ -322,7 +322,7 @@ visitor salt from ADMIN_API_KEY (`host/config/config.go:Config`,
 `host/analytics/ingest.go:visitorSalt`, `WithSalt`).
 
 Keep hosted family settings (`PERSON_HOSTS=canonical`, SITE_HOSTS=canonical),
-certificate paths, WRITE_AUTH_MODE, BIND_ADDR, analytics and GeoIP settings in
+certificate paths, BIND_ADDR, analytics and GeoIP settings in
 the per-instance environment. Their defaults and meaning are in
 [configuration.md](../configuration.md) and [advanced settings](../advanced/README.md).
 Never print `/etc/*.env` contents. nginx edits require a dated backup,

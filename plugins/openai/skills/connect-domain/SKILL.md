@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Give a Simple Host site a shorter or custom address, either a short <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in and private collections work. Gets the two DNS records (the address and a TXT ownership record), relays them with registrar-specific steps, and checks until the domain is live.
+description: Give a Simple Host site a shorter or custom address, either a short <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in works. Gets the two DNS records (the address and a TXT ownership record), relays them with registrar-specific steps, and checks until the domain is live.
 ---
 
 <!-- Derived from simple-host-website/skills/connect-domain/SKILL.md (+ references/registrars.md). Keep in step. -->
@@ -10,7 +10,7 @@ description: Give a Simple Host site a shorter or custom address, either a short
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
 A Simple Host site is already live at its own address, `https://<site>.<handle>.simple-host.app/`,
-where visitor sign-in and private collections already work. This is optional and gives it a
+where visitor sign-in already works. This is optional and gives it a
 nicer or shorter address, served over HTTPS: a short `<name>.simple-host.app`, or the person's
 own domain. You do the Simple Host side with the
 tools; the person adds two DNS records where their domain is managed. The person's own explicit
@@ -49,7 +49,7 @@ domain of their own.
 - Once active, the site lives only at the domain: its `<site>.<handle>.simple-host.app` address
   (and any older link) redirects there, and pages save only on the domain. The tools keep
   working as before.
-- Visitor sign-in and private collections carry over. Pages written with `SH.requireSignIn()`
+- Visitor sign-in carries over. Pages written with `SH.requireSignIn()`
   before each save and `window.SH_CONFIG = { site: "<site>" }` before the script tag (see
   `website-deploy`) work unchanged; on a custom domain `SH_CONFIG` is what tells the helper
   which site it is.

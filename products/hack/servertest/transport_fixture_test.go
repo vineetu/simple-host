@@ -37,7 +37,6 @@ import (
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/model"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/products/hack"
@@ -141,7 +140,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 		t.Skipf("postgres not reachable: %v", err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
+	adminID, err := accountrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,7 +459,7 @@ func chromeTestHandler(kind productedition.Kind) *handler.SiteHandler {
 }
 
 func chromeTestHandlerWithBase(kind productedition.Kind, base string) *handler.SiteHandler {
-	sh := handler.NewSiteHandler(productedition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", "", nil, nil)
+	sh := handler.NewSiteHandler(productedition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	if kind == productedition.Hack {
 		installAssets(sh, nil)
 	}
@@ -651,7 +650,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	t.Cleanup(func() { accountrepo.SetPlatformDomain(oldDomain) })
 
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
+	adminID, err := accountrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -669,7 +668,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.users = users
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	a.disk = disk
-	a.sites = handler.NewSiteHandler(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites = handler.NewSiteHandler(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
 	a.sites.SetNotificationGroups(hack.NotificationGroups{})
 	a.sites.SetGroupGate(teams.SiteGate{TeamSitesReady: a.sites.TeamSitesReady, RequestCert: a.sites.RequestSiteCert, PaperSite: a.sites.RecordGateSite, PaperState: a.sites.RecordGateState})
 	a.sites.SetStorageBindings(storagebind.Provider{DB: database})
@@ -689,7 +688,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
 	a.sites.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))
-	gated := a.sites.LegacyStorageCutoffGate(hackhttp.LegacyStorageGate(ed, handler.LegacyStoragePath)(auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour)))
+	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour)
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetTools(hackmcp.Contribution())

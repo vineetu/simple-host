@@ -212,5 +212,3 @@ storageSiteInflight: 1
 
 storageRules: "off"
 
-# RFC3339 UTC; empty until the notice date is approved. Requires storageRules: on.
-storageSwitchAt: ""

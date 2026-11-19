@@ -97,8 +97,7 @@ value in force.
 | [Server and addresses](/docs/self-hosting/settings/server-and-addresses.md) | The domain, the separate content host, per-person and per-site addresses, setup mode |
 | [Accounts and sign-in](/docs/self-hosting/settings/accounts-and-sign-in.md) | Owner sign-in (email codes, Google), API keys, visitor sign-in, AI app connections |
 | [Sites and versions](/docs/self-hosting/settings/sites-and-versions.md) | Site and upload size, versions kept, preview and download links, sites per account |
-| [Saved data](/docs/self-hosting/settings/saved-data.md) | What pages save, undo and history, size limits, who may write |
-| [Storage migration plan](/docs/self-hosting/settings/storage-migration.md) | Shipped KV, SQLite and files resources; exact legacy behavior that needs redesign before any owner-directed migration |
+| [Saved data](/docs/self-hosting/settings/saved-data.md) | Notifications about saved data and the spam check |
 | [Domains and certificates](/docs/self-hosting/settings/domains-and-certificates.md) | Custom domains, address families, their checks and release, certificates |
 | [Cleanup and retention](/docs/self-hosting/settings/cleanup-and-retention.md) | Recently deleted, idle-site cleanup, how long analytics are kept |
 | [Email](/docs/self-hosting/settings/email.md) | Sending email with Resend, the sender, reply-to |

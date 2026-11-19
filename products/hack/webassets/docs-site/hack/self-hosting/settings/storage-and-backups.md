@@ -24,7 +24,6 @@ knows.
 | `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` | `1000` | 1–5000 milliseconds | Visitor SQLite query timeout. |
 | `RATE_LIMIT_STORAGE_IP` | `120,100ms` | any (warns past 10× looser) | Visitor storage writes per site and client IP; owner credentials are exempt. |
 | `RATE_LIMIT_STORAGE_VISITOR` | `60,200ms` | any (warns past 10× looser) | Storage writes per site and signed-in visitor; limits add-only flooding. |
-| `STORAGE_SWITCH_AT` | none | text | RFC3339 UTC retirement instant for storage presets and older saved-data APIs. Empty means no switch date set. Requires STORAGE_RULES=on. Set the environment (Compose) or values file (Helm) and restart to change it. **Security-sensitive.** |
 | `STORAGE_RULES` | `off` | `off` / `on` | Accept owner-written row rules for SQLite databases and key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it. **Security-sensitive.** |
 | `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
 | `DB_MAX_OPEN_CONNS` | `25` | at least 1 connections | Maximum open Postgres connections per server process; excess requests wait. |
@@ -235,52 +234,3 @@ Without `TRUSTED_PROXY_CIDRS` the client address is the last `X-Forwarded-For` e
 
 Kubernetes sets trusted proxy networks to the cluster pod and node ranges; see
 [Kubernetes](/docs/self-hosting/kubernetes.md). The same client address controls the country gate.
-
-## Retirement notices
-
-The operator can recompute the two notice lists without stopping the server:
-
-```text
-simple-host migrate-rules --list-recipients --out recipients.json --legacy-log legacy-calls.log
-```
-
-Run with that install’s `DB_DSN` and `DATA_DIR`. Run as root for a root-only
-report; the output file is replaced with mode 0600 and the terminal prints
-only counts. The command is read-only and sends nothing. Omit `--legacy-log`
-when no call log has been collected. Supply only the `legacy_storage_call`
-lines collected since R4-S3 was deployed, including rotated logs. Each running
-server logs `legacy_storage_call site=<id>` at most once per site per UTC day.
-This includes sites whose calls store no rows.
-
-`presets` contains each account holding a site with a SQLite or key-value
-resource still using presets, with one description per resource and table
-settings included. Conversion of an account’s earlier resources never excludes
-its later ones. File buckets are excluded. `older_saved_data` contains owners
-with stored state, collections or declared data, or call-log evidence. It is
-empty on Simple Hack, whose older routes already answer 410. Resources held by
-an event go in `held_by_an_event`, with the event label and no mail recipient.
-The startup resource total includes these event-held resources too. Recompute
-both lists immediately before each send and reminder.
-
-Drafts await the owner’s approval in
-[the notice draft](https://github.com/vineetu/simple-host/blob/main/docs/history/storage-rules-notice-draft.md). The site export
-keeps saved state, declared data and every collection except other people’s
-Personal records, which it has never contained. Each person’s own Personal
-records stay in that person’s account export, with every item they submitted
-on someone else’s site and its data. This does not widen owner access.
-
-`STORAGE_SWITCH_AT` is an RFC3339 UTC instant. Empty means no date set; startup
-refuses a date unless `STORAGE_RULES=on`. Change the environment in Compose or
-`storageSwitchAt` in Helm values and restart. Setting the date in this release
-adds a warning to successful preset saves during the notice period, for SQLite
-and key-value resources only. It does not retire routes or change access in
-this slice. The server logs the number still using presets once at startup.
-
-Wording comes from JSON templates. To change it without rebuilding, copy
-`host/app/storage/storage-notice.json` from the source into
-`DATA_DIR/storage-notice.json` (outside all site directories), edit it and
-restart. The fields are `presets`, `legacy`, `save_warning`, `rules_guide` and
-`moving_guide`; `<DATE>`, `<RULES_GUIDE_URL>` and `<MOVING_GUIDE_URL>` are filled
-from the setting and template data. Site/resource lines in the drafts remain
-placeholders for the separately approved send step. Missing override uses the
-bundled draft. Invalid JSON stops startup and the recipient command.

@@ -116,25 +116,30 @@ func ListVisitorSignIns(ctx context.Context, database *sql.DB, userID string) ([
 	return out, rows.Err()
 }
 
-// ListSubmissionsElsewhere returns every list item this person submitted to
-// a site that is not theirs, oldest first.
-func ListSubmissionsElsewhere(ctx context.Context, database *sql.DB, userID string) ([]model.Submission, error) {
+// ListChangesElsewhere returns the changes this person made, signed in, to
+// saved data on sites that are not theirs, oldest first.
+func ListChangesElsewhere(ctx context.Context, database *sql.DB, userID string) ([]model.ChangeElsewhere, error) {
 	rows, err := database.QueryContext(ctx, `
-		SELECT ci.id, ci.site_id::text, ci.collection, ci.data, ci.created_at
-		  FROM collection_items ci JOIN sites s ON s.id = ci.site_id
-		 WHERE ci.submitted_by = $1 AND s.user_id IS DISTINCT FROM $1
-		 ORDER BY ci.created_at, ci.id`, userID)
+		SELECT h.site_id::text, h.kind, h.name, h.item_id, h.op, h.created_at
+		  FROM data_history h JOIN sites s ON s.id = h.site_id
+		 WHERE h.actor_id = $1 AND s.user_id IS DISTINCT FROM $1
+		 ORDER BY h.created_at, h.id`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []model.Submission
+	var out []model.ChangeElsewhere
 	for rows.Next() {
-		var s model.Submission
-		if err := rows.Scan(&s.ID, &s.SiteID, &s.Collection, &s.Data, &s.CreatedAt); err != nil {
+		var c model.ChangeElsewhere
+		var item sql.NullInt64
+		if err := rows.Scan(&c.SiteID, &c.Kind, &c.Name, &item, &c.Op, &c.At); err != nil {
 			return nil, err
 		}
-		out = append(out, s)
+		if item.Valid {
+			v := item.Int64
+			c.ItemID = &v
+		}
+		out = append(out, c)
 	}
 	return out, rows.Err()
 }

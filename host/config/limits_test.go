@@ -36,7 +36,7 @@ func TestLimitsDefaults(t *testing.T) {
 		"idle":             {l.IdleAfter, 90 * 24 * time.Hour},
 		"analytics":        {l.AnalyticsRetention, 400},
 		"register limiter": {l.RateOAuthRegister, Rate{10, 6 * time.Minute}},
-		"state limiter":    {l.RateState, Rate{60, time.Second}},
+		"site ops limiter": {l.RateSiteOps, Rate{30, 2 * time.Second}},
 		"reply-to":         {l.IdleReplyTo, "support@simple-host.app"},
 	} {
 		if c.got != c.want {
@@ -77,8 +77,6 @@ func TestLimitsOverrides(t *testing.T) {
 		"RATE_LIMIT_SIGNIN_IP":      "40,2s",
 		"RATE_LIMIT_OAUTH_REGISTER": "5, 1h",
 		"IDLE_REPLY_TO":             "help@example.org",
-		"SAVED_DATA_UNDO_DAYS":      "14",
-		"SAVED_DATA_SITE_MAX_MB":    "200",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -94,10 +92,7 @@ func TestLimitsOverrides(t *testing.T) {
 		"signin":                  {l.RateSigninIP, Rate{40, 2 * time.Second}},
 		"register":                {l.RateOAuthRegister, Rate{5, time.Hour}},
 		"reply-to":                {l.IdleReplyTo, "help@example.org"},
-		"undo":                    {l.SavedData.UndoDays, 14},
-		"site max":                {l.SavedData.SiteMaxMB, 200},
 		"untouched stays default": {l.ExportLinkTTL, 10 * time.Minute},
-		"saved data untouched":    {l.SavedData.ReadPerSec, 30},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s: got %v, want %v", name, c.got, c.want)
@@ -124,11 +119,11 @@ func TestLimitsInvalid(t *testing.T) {
 		"below min":             {"SIGNIN_CODE_TTL_MINUTES": "4"},
 		"fraction":              {"IDLE_AFTER_DAYS": "90.5"},
 		"unit in value":         {"EXPORT_LINK_TTL_MINUTES": "10m"},
-		"rate no comma":         {"RATE_LIMIT_STATE": "60"},
-		"rate bad burst":        {"RATE_LIMIT_STATE": "0,1s"},
-		"rate bad duration":     {"RATE_LIMIT_STATE": "60,soon"},
-		"rate too slow":         {"RATE_LIMIT_STATE": "60,48h"},
-		"rate too fast":         {"RATE_LIMIT_STATE": "60,1us"},
+		"rate no comma":         {"RATE_LIMIT_SITE_OPS": "60"},
+		"rate bad burst":        {"RATE_LIMIT_SITE_OPS": "0,1s"},
+		"rate bad duration":     {"RATE_LIMIT_SITE_OPS": "60,soon"},
+		"rate too slow":         {"RATE_LIMIT_SITE_OPS": "60,48h"},
+		"rate too fast":         {"RATE_LIMIT_SITE_OPS": "60,1us"},
 		"reply-to not email":    {"IDLE_REPLY_TO": "support"},
 		"reply-to two":          {"IDLE_REPLY_TO": "a@b.com,c@d.com"},
 		"privacy url not a url": {"PRIVACY_URL": "example.com/privacy"},
@@ -144,9 +139,6 @@ func TestLimitsInvalid(t *testing.T) {
 		"no limit on codes":     {"RATE_LIMIT_SIGNIN_EMAIL": "100000,1ms"},
 		"token loose":           {"RATE_LIMIT_OAUTH_TOKEN": "30,100ms"},
 		"visitor auth loose":    {"RATE_LIMIT_VISITOR_AUTH": "1000,5s"},
-		"undo zero":             {"SAVED_DATA_UNDO_DAYS": "0"},
-		"watch item past cap":   {"SAVED_DATA_WATCH_ITEM_KB": "65"},
-		"watch keep too short":  {"SAVED_DATA_WATCH_DAYS": "30", "SAVED_DATA_WATCH_KEEP_DAYS": "10"},
 	}
 	for name, m := range cases {
 		_, err := LoadLimits(env(m))
@@ -234,8 +226,8 @@ func TestSensitiveRateBounds(t *testing.T) {
 			t.Errorf("%s is not marked security-sensitive", env)
 		}
 	}
-	if sensitive["RATE_LIMIT_STATE"] {
-		t.Error("RATE_LIMIT_STATE is marked security-sensitive")
+	if sensitive["RATE_LIMIT_SITE_OPS"] {
+		t.Error("RATE_LIMIT_SITE_OPS is marked security-sensitive")
 	}
 }
 
@@ -243,12 +235,12 @@ func TestSensitiveRateBounds(t *testing.T) {
 // past 10 times looser, and a RATE_LIMIT_* name that is not a setting (a
 // typo) is named too.
 func TestLimitWarnings(t *testing.T) {
-	l, err := LoadLimits(env(map[string]string{"RATE_LIMIT_STATE": "601,1s", "RATE_LIMIT_UPLOAD": "30,1s", "RATE_LIMIT_EXPORT": "100,1s"}))
+	l, err := LoadLimits(env(map[string]string{"RATE_LIMIT_SITE_OPS": "301,2s", "RATE_LIMIT_UPLOAD": "30,1s", "RATE_LIMIT_EXPORT": "100,1s"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := strings.Join(l.Warnings([]string{"RATE_LIMIT_SIGNIN_IP=40,2s", "RATE_LIMIT_SIGNIN_EMAILS=1,1h", "PATH=/bin"}), "\n")
-	for _, want := range []string{"RATE_LIMIT_STATE=601,1s", "RATE_LIMIT_SIGNIN_EMAILS is not a setting"} {
+	for _, want := range []string{"RATE_LIMIT_SITE_OPS=301,2s", "RATE_LIMIT_SIGNIN_EMAILS is not a setting"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("warnings %q miss %q", got, want)
 		}
@@ -360,33 +352,6 @@ func TestEveryKnobIsDocumented(t *testing.T) {
 		if !strings.HasPrefix(k.Env, "RATE_LIMIT_") && !strings.Contains(install, " "+k.Env) {
 			t.Errorf("deploy/install/install.sh does not keep %s on a re-run", k.Env)
 		}
-	}
-}
-
-// SAVED_DATA_DEFAULT_KIND takes shared or declare_first (any case); anything
-// else stops startup.
-func TestSavedDataDefaultKind(t *testing.T) {
-	if got := DefaultLimits().SavedData.DefaultKind; got != DefaultKindShared {
-		t.Fatalf("default %q", got)
-	}
-	for in, want := range map[string]string{"shared": DefaultKindShared, "DECLARE_FIRST": DefaultKindDeclareFirst} {
-		l, err := LoadLimits(func(k string) string {
-			if k == "SAVED_DATA_DEFAULT_KIND" {
-				return in
-			}
-			return ""
-		})
-		if err != nil || l.SavedData.DefaultKind != want {
-			t.Fatalf("%q: %q %v", in, l.SavedData.DefaultKind, err)
-		}
-	}
-	if _, err := LoadLimits(func(k string) string {
-		if k == "SAVED_DATA_DEFAULT_KIND" {
-			return "strict"
-		}
-		return ""
-	}); err == nil {
-		t.Fatal("an unknown value was accepted")
 	}
 }
 

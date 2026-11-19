@@ -10,9 +10,7 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/vsriram/simple-host/host/model"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	sitesrepo "github.com/vsriram/simple-host/host/repository/sites"
 )
 
@@ -35,8 +33,11 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	claimed := "olv" + strings.ToLower(strings.TrimPrefix(oh, "olive-")) + "." + pcSiteDomain
 
 	// Saved data and a claimed free address that must survive the round trip.
-	if _, err := legacyrepo.AppendCollectionItemByID(ctx, a.database, siteID, "rsvps", false, []byte(`{"name":"Ann"}`), model.Actor{Kind: "anonymous"}); err != nil {
-		t.Fatal(err)
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/guests", map[string]string{"kind": "kv"}, okey); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/kv/guests/keys/ann", map[string]any{"value": map[string]string{"name": "Ann"}}, okey); r.status != 200 {
+		t.Fatalf("storage value: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
 		t.Fatalf("claim: %d %s", r.status, r.body)
@@ -65,8 +66,8 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status == 200 || !strings.Contains(string(r.body), "This site was removed") {
 		t.Fatalf("claimed host after delete: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/collections/rsvps", nil, nil); r.status != http.StatusNotFound {
-		t.Fatalf("collection after delete: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", apex, "/v1/sites/shop/storage/kv/guests/keys/ann", nil, okey); r.status != http.StatusNotFound {
+		t.Fatalf("saved data after delete: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "GET", apex, "/v1/sites", nil, okey); strings.Contains(string(r.body), `"name":"shop"`) {
 		t.Fatalf("deleted site still listed: %s", r.body)
@@ -113,7 +114,7 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status != 200 || string(r.body) != "<h1>shop</h1>" {
 		t.Fatalf("claimed host after restore: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", apex, "/v1/u/"+oh+"/sites/shop/collections/rsvps", nil, okey); r.status != 200 || !strings.Contains(string(r.body), "Ann") {
+	if r := a.at(t, "GET", apex, "/v1/sites/shop/storage/kv/guests/keys/ann", nil, okey); r.status != 200 || !strings.Contains(string(r.body), "Ann") {
 		t.Fatalf("data after restore: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "GET", apex, "/v1/sites/shop/versions", nil, okey); r.status != 200 || !strings.Contains(string(r.body), `"version_number":1`) {

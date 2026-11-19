@@ -94,9 +94,6 @@ func TestAccountExport(t *testing.T) {
 		}
 	}
 	// A site in Recently deleted comes along, in its own folder.
-	if _, err := a.database.Exec(`UPDATE sites SET state = '{"kept":true}' WHERE id = $1`, a.siteID(t, olive, "old")); err != nil {
-		t.Fatal(err)
-	}
 	if r := a.at(t, "DELETE", apex, "/v1/sites/old", nil, okey); r.status != http.StatusNoContent {
 		t.Fatalf("delete old: %d %s", r.status, r.body)
 	}
@@ -105,17 +102,6 @@ func TestAccountExport(t *testing.T) {
 	claimed := oh + "-store." + pcSiteDomain
 	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
 		t.Fatalf("claim: %d %s", r.status, r.body)
-	}
-	if _, err := a.database.Exec(`UPDATE sites SET state = '{"votes":3}' WHERE id = $1`, shopID); err != nil {
-		t.Fatal(err)
-	}
-	// A public entry, and one Vic sent while signed in on Olive's site.
-	var pubID, vicItem int64
-	if err := a.database.QueryRow(`INSERT INTO collection_items (site_id, collection, data) VALUES ($1, 'guestbook', '{"msg":"hi"}') RETURNING id`, shopID).Scan(&pubID); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.database.QueryRow(`INSERT INTO collection_items (site_id, collection, data, submitted_by) VALUES ($1, 'orders', '{"dish":"idly","_submitted_by":"vic-google@example.com"}', $2) RETURNING id`, shopID, vid).Scan(&vicItem); err != nil {
-		t.Fatal(err)
 	}
 	a.session(t, vic, shopID, claimed)
 	if _, err := a.database.Exec(`INSERT INTO oauth_identities (user_id, provider, provider_user_id, email, email_verified) VALUES ($1, 'google', $2, $3, true)`, oid, "g-"+oid, olive.email); err != nil {
@@ -130,12 +116,9 @@ func TestAccountExport(t *testing.T) {
 	}
 	files := zipFiles(t, r.body)
 	for _, want := range []string{"/README.txt", "/account.json", "/keys.json", "/connected_apps.json", "/visitor.json",
-		"/sites/shop/state.json", "/sites/shop/collections.json", "/sites/shop/files/index.html", "/sites/shop/files/_redirects", "/recently-deleted/old/files/_redirects",
+		"/sites/shop/files/index.html", "/sites/shop/files/_redirects", "/recently-deleted/old/files/_redirects",
 		"/recently-deleted/old/deleted.json", "/recently-deleted/old/files/index.html"} {
 		fileUnder(t, files, want)
-	}
-	if got := fileUnder(t, files, "/recently-deleted/old/state.json"); got != `{"kept": true}` && got != `{"kept":true}` {
-		t.Errorf("deleted site's saved data: %s", got)
 	}
 	var del map[string]any
 	if err := json.Unmarshal([]byte(fileUnder(t, files, "/recently-deleted/old/deleted.json")), &del); err != nil || del["removed_for_good_at"] == nil || del["deleted_at"] == nil {
@@ -169,22 +152,6 @@ func TestAccountExport(t *testing.T) {
 	if !strings.Contains(fileUnder(t, files, "/account.json"), claimed) || !strings.Contains(fileUnder(t, files, "/account.json"), `"google"`) {
 		t.Errorf("account.json lacks the claimed name or sign-in: %s", fileUnder(t, files, "/account.json"))
 	}
-	var colls map[string][]map[string]any
-	if err := json.Unmarshal([]byte(fileUnder(t, files, "/sites/shop/collections.json")), &colls); err != nil {
-		t.Fatal(err)
-	}
-	if len(colls["guestbook"]) != 1 || colls["guestbook"][0]["id"] != float64(pubID) || colls["guestbook"][0]["created_at"] == nil ||
-		colls["guestbook"][0]["data"].(map[string]any)["msg"] != "hi" {
-		t.Errorf("guestbook export: %v", colls["guestbook"])
-	}
-	// The address Vic signed in with on the site (stamped on the item), never
-	// his account's own email, which he did not give Olive.
-	if len(colls["orders"]) != 1 || colls["orders"][0]["submitted_by"] != "vic-google@example.com" {
-		t.Errorf("orders export submitter: %v", colls["orders"])
-	}
-	if strings.Contains(fileUnder(t, files, "/sites/shop/collections.json"), vic.email) {
-		t.Error("the owner's export holds the visitor's account email")
-	}
 	// A connected app acting for Olive cannot pull the whole account.
 	ik, revoke, ierr := accountsrepo.IssueInternalKey(oid)
 	if ierr != nil {
@@ -211,7 +178,7 @@ func TestAccountExport(t *testing.T) {
 		t.Error("the export holds the API key or its hash")
 	}
 
-	// ---- the visitor: what they sent to someone else's site ----
+	// ---- the visitor: where they are signed in on someone else's site ----
 	r = a.at(t, "GET", apex, "/v1/me/export.zip", nil, vkey)
 	if r.status != 200 {
 		t.Fatalf("visitor export: %d %s", r.status, r.body)
@@ -219,14 +186,9 @@ func TestAccountExport(t *testing.T) {
 	files = zipFiles(t, r.body)
 	var visitor struct {
 		SignedInTo []map[string]any `json:"signed_in_to"`
-		Submitted  []map[string]any `json:"submitted"`
 	}
 	if err := json.Unmarshal([]byte(fileUnder(t, files, "/visitor.json")), &visitor); err != nil {
 		t.Fatal(err)
-	}
-	if len(visitor.Submitted) != 1 || visitor.Submitted[0]["list"] != "orders" || visitor.Submitted[0]["id"] != float64(vicItem) ||
-		visitor.Submitted[0]["site"] != "https://"+claimed+"/" || visitor.Submitted[0]["item"].(map[string]any)["dish"] != "idly" {
-		t.Errorf("visitor submissions: %v", visitor.Submitted)
 	}
 	if len(visitor.SignedInTo) != 1 || visitor.SignedInTo[0]["site"] != "https://"+claimed+"/" || visitor.SignedInTo[0]["first_sign_in"] == nil {
 		t.Errorf("visitor sign-ins: %v", visitor.SignedInTo)

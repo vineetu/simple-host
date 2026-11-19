@@ -79,8 +79,6 @@ func apiRouteGroup(route string) string {
 		return "admin"
 	case "auth", "visitor", "site-unlock":
 		return "auth"
-	case "data-notify":
-		return "data"
 	case "generate", "events", "export":
 		return "deploy"
 	case "me":
@@ -109,7 +107,7 @@ func siteRouteGroup(seg []string) string {
 		return "deploy" // the list of sites, or one site itself
 	}
 	switch seg[1] {
-	case "state", "data", "collections", "me", "savers":
+	case "me":
 		return "data"
 	case "visitor":
 		return "auth"

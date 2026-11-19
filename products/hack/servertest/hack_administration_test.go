@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
@@ -126,22 +125,8 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 	}
 	// Existing member keys keep working after a display-name change.
 	wantTS(t, "publish after rename", a.deployTeam(t, team1, key1, "alpha latest"), 200, "")
-	// Archives preserve saved state and private collections, within the same team.
 	ev, err := hackevents.GetEventBySlug(context.Background(), a.database, slug)
 	if err != nil {
-		t.Fatal(err)
-	}
-	site, err := siterepo.GetSiteByUser(context.Background(), a.database, ev.AccountID, team1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := a.database.Exec(`UPDATE sites SET state='{"team_secret":"alpha only"}' WHERE id=$1`, site.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := a.database.Exec(`INSERT INTO collection_settings(site_id,collection,private) VALUES ($1,'private_entries',true)`, site.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := a.database.Exec(`INSERT INTO collection_items(site_id,collection,data,submitted_by) VALUES ($1,'private_entries','{"private_marker":"alpha private"}',$2)`, site.ID, a.uid(t, p1)); err != nil {
 		t.Fatal(err)
 	}
 	for _, kind := range []string{"participants.csv", "teams.csv", "entries.csv"} {
@@ -199,7 +184,7 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 		}
 	}
 	own := unpack(a.api(t, "GET", base+"/team/export.tar.gz", nil, p1.key))
-	if len(own) != 3 || !strings.Contains(own[team1+"/files/index.html"], "alpha latest") || !strings.Contains(own[team1+"/state.json"], "alpha only") || !strings.Contains(own[team1+"/collections.json"], "alpha private") {
+	if len(own) != 1 || !strings.Contains(own[team1+"/files/index.html"], "alpha latest") {
 		t.Fatalf("own archive wrong: %v", own)
 	}
 	wantTS(t, "all-team archive denied", a.api(t, "GET", base+"/export/projects.tar.gz", nil, p1.key), 404, "event_not_found")
@@ -208,11 +193,7 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 	usage := a.api(t, "GET", base+"/usage", nil, org.key)
 	wantTS(t, "usage", usage, 200, "")
 	u := usage.json(t)
-	wantSavedBytes := float64(len(`{"team_secret": "alpha only"}`) + len(`{"private_marker": "alpha private"}`))
-	if u["saved_data_bytes"] != wantSavedBytes {
-		t.Fatalf("saved data must count state once: got %v, want %v", u["saved_data_bytes"], wantSavedBytes)
-	}
-	if u["sites"] != float64(2) || u["versions"] != float64(3) || u["file_bytes"].(float64) <= 0 || u["saved_data_bytes"].(float64) <= 0 {
+	if u["sites"] != float64(2) || u["versions"] != float64(3) || u["file_bytes"].(float64) <= 0 {
 		t.Fatalf("usage wrong: %v", u)
 	}
 	wantTS(t, "usage denied", a.api(t, "GET", base+"/usage", nil, p1.key), 404, "event_not_found")

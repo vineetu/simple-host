@@ -16,8 +16,6 @@ type Deps struct {
 	BindingSchema                            ruleengine.BindingSchema
 	ProductBindingSchema                     ruleengine.BindingSchema
 	RulesEnabled                             bool
-	StorageSwitchAt                          time.Time
-	PresetNotice                             string
 	VisitorEmail                             func(context.Context, string) (string, error)
 	Disk                                     interface{ SiteDir(string, string) string }
 	SpamCheckAvailable                       bool
@@ -44,8 +42,6 @@ type Deps struct {
 	OpenFileToken                            func(string) ([]byte, error)
 	FileResourceExists                       func(context.Context, string, string) bool
 	EventOwners                              bool
-	LegacyRoutes                             bool
-	ResourceHistory                          func(context.Context, string, string) (any, error)
 }
 
 // Service owns site storage workflows.

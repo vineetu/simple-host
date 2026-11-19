@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/vsriram/simple-host/host/app/accounts"
-	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/app/accounts"
+	appsites "github.com/vsriram/simple-host/host/app/sites"
 
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/model"
@@ -262,11 +262,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 	if err != nil {
 		return nil, err
 	}
-	subs, err := h.storeAccounts().ListSubmissionsElsewhere(ctx, me.ID)
-	if err != nil {
-		return nil, err
-	}
-	changes, err := h.legacySvc().ListChangesElsewhere(ctx, me.ID)
+	changes, err := h.storeAccounts().ListChangesElsewhere(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -388,13 +384,6 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 		FirstSignIn time.Time `json:"first_sign_in"`
 		LastSignIn  time.Time `json:"last_seen"`
 	}
-	type submission struct {
-		Site      string          `json:"site"`
-		List      string          `json:"list"`
-		ID        int64           `json:"id"`
-		CreatedAt time.Time       `json:"created_at"`
-		Item      json.RawMessage `json:"item"`
-	}
 	addrCache := map[string]string{}
 	siteAddr := func(siteID, fallback string) string {
 		if a, ok := addrCache[siteID]; ok {
@@ -411,10 +400,6 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 	for _, v := range signIns {
 		signInList = append(signInList, signIn{Site: siteAddr(v.SiteID, "https://"+v.Host+"/"), FirstSignIn: v.FirstSeen.UTC(), LastSignIn: v.LastSeen.UTC()})
 	}
-	subList := []submission{}
-	for _, s := range subs {
-		subList = append(subList, submission{Site: siteAddr(s.SiteID, "(a site that has since been deleted)"), List: s.Collection, ID: s.ID, CreatedAt: s.CreatedAt.UTC(), Item: json.RawMessage(s.Data)})
-	}
 	// Changes to other people's saved data made while signed in: where,
 	// what and when, never the data (it is the site owner's).
 	type change struct {
@@ -427,14 +412,14 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 	changeList := []change{}
 	for _, c := range changes {
 		what := "page data"
-		if c.Kind == model.HistoryList {
+		if c.Kind == "list" {
 			what = "list " + c.Name
 		}
 		changeList = append(changeList, change{Site: siteAddr(c.SiteID, "(a site that has since been deleted)"), What: what, ItemID: c.ItemID, Change: c.Op, At: c.At.UTC()})
 	}
-	visitor := map[string]any{"signed_in_to": signInList, "submitted": subList, "changed": changeList}
+	visitor := map[string]any{"signed_in_to": signInList, "changed": changeList}
 
-	out := []exportDoc{{name: "README.txt", body: []byte(exportReadme(h.savedData.UndoDays))}}
+	out := []exportDoc{{name: "README.txt", body: []byte(exportReadme())}}
 	for _, d := range []struct {
 		name string
 		v    any
@@ -462,10 +447,9 @@ func supportText(s string) string {
 	return strings.ReplaceAll(s, "support@simple-host.app", auth.SupportContact)
 }
 
-// exportReadme is README.txt at the top of Download my data. undoDays is
-// SAVED_DATA_UNDO_DAYS, how far back visitor.json's changes go.
-func exportReadme(undoDays int) string {
-	return supportText(strings.ReplaceAll(exportReadmeText, "{undo_days}", accountExportDays(undoDays)))
+// exportReadme is README.txt at the top of Download my data.
+func exportReadme() string {
+	return supportText(exportReadmeText)
 }
 
 const exportReadmeText = `Your Simple Host data
@@ -484,18 +468,14 @@ connected_apps.json  Apps connected through the Simple Host connector
                      (ChatGPT, Claude, Grok): name, when connected, last used.
 visitor.json         Sites where you are signed in as a visitor (first sign-in
                      and last seen; a sign-in is kept only until it expires),
-                     every entry you sent to other people's lists while
-                     signed in ("submitted"), and every change you made to
-                     other people's page data or list entries while signed
-                     in, in the last {undo_days} ("changed": which site, what and
-                     when; the site's owner sees your address next to each).
-                     Changes made without signing in, and older public-list
-                     entries, are not linked to you, so they are not here;
-                     for help with those, write to support@simple-host.app.
+                     and the changes recorded against you on other people's
+                     saved data while signed in ("changed": which site, what
+                     and when; the site's owner sees your address next to
+                     each). Changes made without signing in are not linked
+                     to you, so they are not here; for help with those,
+                     write to support@simple-host.app.
 sites/<name>/        One folder per site, the same as that site's download:
-                     files/ (the live version), state.json (saved data) and
-                     collections.json (every list, with each entry's id, time
-                     and who sent it, when they were signed in).
+                     files/ (the live version) and storage/ (its saved data).
 recently-deleted/<name>/
                      Sites in Recently deleted, laid out the same way, plus
                      deleted.json (when it was deleted and when it is removed
@@ -508,10 +488,3 @@ hash, never by address, so there is nothing about you to export.
 To delete your account and all of this, use "Delete my account" on your page,
 or DELETE /v1/me. Anything else: support@simple-host.app.
 `
-
-func accountExportDays(days int) string {
-	if days == 1 {
-		return "one day"
-	}
-	return strconv.Itoa(days) + " days"
-}

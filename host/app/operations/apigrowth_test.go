@@ -26,25 +26,19 @@ func TestAPIRouteGroup(t *testing.T) {
 		"POST /v1/site-unlock":                   "auth",
 		"POST /v1/sites/{sitename}/visitor/auth": "auth",
 		"POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify": "auth",
-		"GET /v1/me/keys":                                             "auth",
-		"POST /v1/me/api-key/rotate":                                  "auth",
-		"GET /v1/me":                                                  "other",
-		"GET /v1/me/deleted-sites":                                    "other",
-		"GET /v1/sites/{sitename}/state":                              "data",
-		"PATCH /v1/u/{handle}/sites/{sitename}/state":                 "data",
-		"POST /v1/sites/{sitename}/data/{coll}":                       "data",
-		"GET /v1/sites/{sitename}/collections":                        "data",
-		"GET /v1/u/{handle}/sites/{sitename}/me":                      "data",
-		"PUT /v1/sites/{sitename}/savers":                             "data",
-		"POST /v1/data-notify/stop":                                   "data",
-		"GET /v1/sites":                                               "deploy",
-		"PUT /v1/sites/{sitename}":                                    "deploy",
-		"PUT /v1/sites/{sitename}/files":                              "deploy",
+		"GET /v1/me/keys":                        "auth",
+		"POST /v1/me/api-key/rotate":             "auth",
+		"GET /v1/me":                             "other",
+		"GET /v1/me/deleted-sites":               "other",
+		"GET /v1/u/{handle}/sites/{sitename}/me": "data",
+		"GET /v1/sites":                          "deploy",
+		"PUT /v1/sites/{sitename}":               "deploy",
+		"PUT /v1/sites/{sitename}/files":         "deploy",
 		"GET /v1/sites/{sitename}/versions/{version}/files/{path...}": "deploy",
 		"GET /v1/sites/{sitename}/analytics":                          "deploy",
 		"GET /v1/skills/{name}":                                       "other",
 		"GET /":                                                       "other",
-		"GET /v1/sites/{x}/state":                                     "data", // normalizeAPIPath fallback
+		"GET /v1/sites/{x}/me":                                        "data", // normalizeAPIPath fallback
 		"GET /v1":                                                     "other",
 	} {
 		if got := apiRouteGroup(route); got != want {
@@ -216,7 +210,7 @@ func TestGrowthBackfillFromTrafficTables(t *testing.T) {
 	exec(`INSERT INTO api_request_daily (day, route, status, calls) VALUES
 		('2026-09-01', 'PUT /v1/sites/{sitename}/files', 200, 5),
 		('2026-09-01', 'PUT /v1/sites/{sitename}/files', 500, 1),
-		('2026-09-01', 'GET /v1/sites/{sitename}/state', 200, 3),
+		('2026-09-01', 'GET /v1/sites/{sitename}/me', 200, 3),
 		('2026-09-01', 'POST /v1/auth', 200, 2)`)
 	exec(`INSERT INTO api_ip_daily (day, ip, calls) VALUES
 		('2026-09-01', '8.8.8.0', 6), ('2026-09-01', '203.0.113.0', 3), ('2026-09-01', '127.0.0.1', 1), ('2026-09-01', '192.0.2.0', 1)`)
@@ -293,7 +287,7 @@ func TestGrowthLiveFlush(t *testing.T) {
 	m.routes, m.ips = map[routeKey]int64{}, map[string]*ipAgg{}
 	m.record("POST /mcp", 200, "8.8.8.0", m.countryOf("8.8.8.0"))
 	m.record("PUT /v1/sites/{sitename}/files", 200, "203.0.113.0", m.countryOf("203.0.113.0"))
-	m.record("GET /v1/sites/{sitename}/state", 200, "127.0.0.1", m.countryOf("127.0.0.1"))
+	m.record("GET /v1/sites/{sitename}/me", 200, "127.0.0.1", m.countryOf("127.0.0.1"))
 	m.flush()
 	var today string
 	database.QueryRow(`SELECT CURRENT_DATE::text`).Scan(&today)
@@ -311,8 +305,8 @@ func TestSelfCallsCountedApart(t *testing.T) {
 	database := growthTestDB(t)
 	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
 	m.record("GET /v1/sites", 200, "8.8.8.0", m.countryOf("8.8.8.0"))
-	m.recordSelf("GET /v1/sites/{sitename}/state", 403)
-	m.recordSelf("GET /v1/sites/{sitename}/state", 200)
+	m.recordSelf("GET /v1/sites/{sitename}/me", 403)
+	m.recordSelf("GET /v1/sites/{sitename}/me", 200)
 	m.flush()
 
 	sum, err := m.Summary(context.Background())

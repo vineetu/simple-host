@@ -32,7 +32,6 @@ const (
 )
 
 type Config struct {
-	StorageSwitchAt   time.Time
 	DBDSN             string
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
@@ -41,7 +40,7 @@ type Config struct {
 	DataDir           string
 	SiteDomain        string
 	// ContentHost is the shared v3 content-serving host (e.g. sites.simple-host.app).
-	// Pages served there call state/collections with this Origin for every site.
+	// Pages served there call the site API with this Origin for every site.
 	// Defaults to "sites."+SiteDomain; override with CONTENT_HOST if needed.
 	ContentHost string
 	// CNAMETarget is the hostname users CNAME their custom domains to (e.g.
@@ -118,10 +117,6 @@ type Config struct {
 	EventDNSToken  string
 	EventDNSTeamID string
 	EventDomains   []string
-
-	// WriteAuthMode gates anonymous state/collections writes: off | log | on.
-	// Unset or any unrecognized value is "log". The source default is never "on".
-	WriteAuthMode string
 
 	// PersonHosts is off | serve | canonical (owner decision 2026-09-25).
 	// off: sites live only at <content host>/<handle>/<site>/ (the default, and
@@ -281,30 +276,9 @@ type Config struct {
 	// host/handler/signupgeo.go.
 	SignupBlockedCountries []string
 
-	// LegacyStorageCutoff is LEGACY_STORAGE_CUTOFF: a YYYY-MM-DD date meaning
-	// 00:00 UTC that day. Sites created at or after this instant get 410
-	// from the old saved-data routes. Zero: the gate is off (empty, "off",
-	// or an unparsable value).
-	LegacyStorageCutoff time.Time
-
 	// Limits is every operational time and limit (limits.go,
 	// docs/advanced/). main installs it with SetActive.
 	Limits Limits
-}
-
-// ParseLegacyStorageCutoff parses LEGACY_STORAGE_CUTOFF. Empty or "off"
-// disables the gate (ok true, zero time). A YYYY-MM-DD date is 00:00 UTC
-// that day. Anything else is ok false.
-func ParseLegacyStorageCutoff(v string) (time.Time, bool) {
-	v = strings.TrimSpace(v)
-	if v == "" || strings.EqualFold(v, "off") {
-		return time.Time{}, true
-	}
-	t, err := time.ParseInLocation("2006-01-02", v, time.UTC)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return t, true
 }
 
 // Load keeps the original warning, file-read and error order. Pure environment
@@ -327,12 +301,10 @@ func Load() (Config, error) {
 		loadStorageStartup,
 		loadServerProxy,
 		validateAccountSignIn,
-		loadDataWriteAuth,
 		loadServerPersonHosts,
 		loadGroupAddresses,
 		loadServerSiteAddresses,
 		loadCleanup,
-		loadDataLegacyCutoff,
 		loadSitesPreview,
 		loadWebPush,
 		loadOperationalLimits,
@@ -480,11 +452,6 @@ func loadAccountProviders(cfg *Config) error {
 }
 
 func loadStorageStartup(cfg *Config) error {
-	var err error
-	cfg.StorageSwitchAt, err = ParseStorageSwitchAt(os.Getenv("STORAGE_SWITCH_AT"), os.Getenv("STORAGE_RULES") == "on")
-	if err != nil {
-		return err
-	}
 	cfg.MigrateOnStart = strings.EqualFold(strings.TrimSpace(os.Getenv("MIGRATE_ON_START")), "true")
 	return nil
 }
@@ -534,19 +501,6 @@ func validateAccountSignIn(cfg *Config) error {
 	}
 	if cfg.EmailSignIn == "off" && !cfg.CompanySignInEnabled() && cfg.PasswordSignIn != "on" {
 		return errors.New("EMAIL_SIGNIN=off needs company sign-in configured (OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET) or PASSWORD_SIGNIN=on: otherwise nobody could sign in")
-	}
-	return nil
-}
-
-func loadDataWriteAuth(cfg *Config) error {
-	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("WRITE_AUTH_MODE"))); mode {
-	case "off", "log", "on":
-		cfg.WriteAuthMode = mode
-	case "":
-		cfg.WriteAuthMode = "log"
-	default:
-		log.Printf("warning: invalid WRITE_AUTH_MODE %q; treating as log", mode)
-		cfg.WriteAuthMode = "log"
 	}
 	return nil
 }
@@ -621,18 +575,6 @@ func loadCleanup(cfg *Config) error {
 	for _, hd := range strings.Split(os.Getenv("IDLE_CLEANUP_EXEMPT_HANDLES"), ",") {
 		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
 			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)
-		}
-	}
-	return nil
-}
-
-func loadDataLegacyCutoff(cfg *Config) error {
-	if raw := strings.TrimSpace(os.Getenv("LEGACY_STORAGE_CUTOFF")); raw != "" {
-		t, ok := ParseLegacyStorageCutoff(raw)
-		if !ok {
-			log.Printf("warning: invalid LEGACY_STORAGE_CUTOFF %q; treating as off", raw)
-		} else {
-			cfg.LegacyStorageCutoff = t
 		}
 	}
 	return nil
@@ -935,23 +877,4 @@ func parseCIDRList(raw string) ([]*net.IPNet, error) {
 func SpamCheckConfigured() bool {
 	key, secret := loadTurnstile()
 	return key != "" && secret != ""
-}
-
-// ParseStorageSwitchAt accepts an RFC3339 UTC instant, or empty for no date.
-func ParseStorageSwitchAt(raw string, rulesEnabled bool) (time.Time, error) {
-	if raw == "" {
-		return time.Time{}, nil
-	}
-	at, err := time.Parse(time.RFC3339, raw)
-	if err != nil {
-		return time.Time{}, errors.New("STORAGE_SWITCH_AT must be RFC3339 UTC")
-	}
-	_, offset := at.Zone()
-	if offset != 0 {
-		return time.Time{}, errors.New("STORAGE_SWITCH_AT must be RFC3339 UTC")
-	}
-	if !rulesEnabled {
-		return time.Time{}, errors.New("STORAGE_SWITCH_AT requires STORAGE_RULES=on")
-	}
-	return at.UTC(), nil
 }

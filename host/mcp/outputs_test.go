@@ -180,43 +180,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"POST /v1/sites/blog/viewers":                   fixed(200, `{"site":"blog","access":"specific","viewers":[{"email":"mom@example.com","added_at":"2026-10-10T00:00:00Z","signed_in_at":"2026-10-11T00:00:00Z"}],"viewer_limit":50,"passcode_protected":false,"added":["mom@example.com"],"already_listed":["x@example.com"],"note":"Only named viewers."}`),
 		"DELETE /v1/sites/blog/viewers/dad@example.com": fixed(200, `{"site":"blog","access":"specific","viewers":[{"email":"mom@example.com","added_at":"2026-10-10T00:00:00Z","signed_in_at":"2026-10-11T00:00:00Z"}],"viewer_limit":50,"passcode_protected":false,"removed":"dad@example.com","note":"dad can no longer open it."}`),
 		"GET /v1/sites/blog/storage/visitors":           fixed(200, `{"visitors":[{"visitor_id":"1b4e28ba-2fa1-11d2-883f-0016d3cca427","email":"mom@example.com","found":true},{"visitor_id":"2b4e28ba-2fa1-11d2-883f-0016d3cca427","found":false}]}`),
-		"GET /v1/u/ann/sites/blog/state":                fixed(200, `{"count":2,"rsvps":["Ann"]}`),
-		"PATCH /v1/u/ann/sites/blog/state":              fixed(200, `{"count":3}`),
-		"PUT /v1/u/ann/sites/blog/state":                fixed(200, `["a replaced document may be any JSON"]`),
-		"GET /v1/sites/blog/collections": fixed(200, `{"collections":[{"name":"rsvps","count":3,"private":false},`+
-			`{"name":"orders","count":1,"private":true,"last_at":"2026-09-01T00:00:00Z"},`+
-			`{"name":"habits","count":0,"private":true,"deleted":0,"kind":"mine","few":true,"deleted_few":true}]}`),
-		"GET /v1/u/ann/sites/blog/collections/rsvps": fixed(200, `{"items":[{"id":12,"data":{"name":"Ann"},"created_at":"2026-09-03T00:00:00Z"},`+
-			`{"id":11,"data":"a page may save a bare string","created_at":"2026-09-02T00:00:00Z"}],"next":11,"private":false}`),
-		"GET /v1/u/ann/sites/blog/collections/orders": fixed(200, `{"items":[{"id":5,"data":{"item":"mug","_submitted_by":"v@example.com",`+
-			`"_submitted_at":"2026-09-03T00:00:00Z"},"created_at":"2026-09-03T00:00:00Z","by":"v@example.com"}],"private":true}`),
-		"POST /v1/u/ann/sites/blog/collections/rsvps":   fixed(201, `{"id":13,"data":{"name":"Bo"},"created_at":"2026-09-04T00:00:00Z"}`),
-		"PUT /v1/sites/blog/collections/orders/privacy": fixed(200, `{"private":true,"domain":"rsvp.example.com","message":"orders is now private."}`),
-		"PUT /v1/sites/blog/collections/rsvps/privacy":  fixed(200, `{"private":false}`),
 		"PUT /v1/sites/blog/keep":                       fixed(200, `{"name":"blog","keep":true}`),
-		"PATCH /v1/u/ann/sites/blog/collections/orders/items/5": fixed(200, `{"id":5,"data":{"item":"mug","status":"done",`+
-			`"_submitted_by":"v@example.com","_submitted_at":"2026-09-03T00:00:00Z"},"created_at":"2026-09-03T00:00:00Z"}`),
-		"DELETE /v1/u/ann/sites/blog/collections/orders/items/5":  fixed(204, ""),
-		"DELETE /v1/u/ann/sites/blog/collections/rsvps":           fixed(200, `{"site":"blog","collection":"rsvps","deleted":3}`),
-		"GET /v1/sites/blog/state/history":                        fixed(200, `{"site":"blog","history":[{"id":9,"op":"replace","by":"a@example.com","by_kind":"owner","at":"2026-09-27T00:00:00Z","size":12},{"id":8,"op":"change","by_kind":"anonymous","at":"2026-09-26T00:00:00Z","size":0}],"next":8,"undo_days":30}`),
-		"GET /v1/sites/blog/state/history/9":                      fixed(200, `{"id":9,"op":"replace","by":"a@example.com","by_kind":"owner","at":"2026-09-27T00:00:00Z","size":12,"value":{"count":2}}`),
-		"GET /v1/sites/blog/collections/rsvps/history":            fixed(200, `{"site":"blog","collection":"rsvps","history":[{"id":4,"item_id":12,"op":"clear","by":"a@example.com","by_kind":"owner","at":"2026-09-27T00:00:00Z","size":0}],"next":null,"undo_days":30}`),
-		"POST /v1/sites/blog/state/history/9/restore":             fixed(200, `{"site":"blog","restored":9,"version":7,"state":{"count":2}}`),
-		"POST /v1/sites/blog/collections/rsvps/history/4/restore": fixed(200, `{"site":"blog","collection":"rsvps","restored":4,"item":{"id":12,"data":{"name":"Ann"},"created_at":"2026-09-03T00:00:00Z"}}`),
-		"GET /v1/sites/blog/collections/rsvps/deleted":            fixed(200, `{"site":"blog","collection":"rsvps","items":[{"id":12,"data":{"name":"Ann"},"created_at":"2026-09-03T00:00:00Z","deleted_at":"2026-09-27T00:00:00Z","by":"v@example.com"}],"next":"1790000000000000_12","undo_days":30}`),
-		"POST /v1/sites/blog/collections/rsvps/items/12/restore":  fixed(200, `{"site":"blog","collection":"rsvps","restored":1}`),
-		"POST /v1/sites/blog/collections/rsvps/deleted/restore":   fixed(200, `{"site":"blog","collection":"rsvps","restored":3}`),
-		"DELETE /v1/sites/blog/collections/rsvps/deleted/12":      fixed(200, `{"site":"blog","collection":"rsvps","deleted_for_good":1}`),
-		"DELETE /v1/sites/blog/collections/rsvps/deleted":         fixed(200, `{"site":"blog","collection":"rsvps","deleted_for_good":3}`),
-		"PUT /v1/sites/blog/data/menu/kind":                       fixed(200, `{"site":"blog","name":"menu","kind":"content","label":"Page info","message":"Page info."}`),
-		"PUT /v1/sites/blog/data/votes/kind":                      fixed(200, `{"site":"blog","name":"votes","kind":"entries","label":"Submissions","visibility":"public","one_per_person":true,"notify":"off","message":"Submissions, public."}`),
-		"PUT /v1/sites/blog/data/menu":                            fixed(200, `{"name":"menu","kind":"content","data":{"soup":4},"saved_at":"2026-09-27T00:00:00Z"}`),
-		"GET /v1/sites/blog/data": fixed(200, `{"site":"blog","names":[{"name":"votes","count":2,"private":false,"deleted":0,"kind":"entries","label":"Submissions","one_per_person":true,"notify":"off"},`+
-			`{"name":"menu","count":1,"private":false,"deleted":0,"kind":"content","label":"Page info","one_per_person":false,"notify":"off"},`+
-			`{"name":"habits","count":0,"private":true,"deleted":0,"bytes":0,"kind":"mine","label":"Personal","one_per_person":false,"notify":"off","few":true,"deleted_few":true}],"savers":{"mode":"listed","allow":["@example.com"],"block":["x@y.org"]},"undeclared_names_take_saves":false}`),
-		"PUT /v1/sites/blog/savers":        fixed(200, `{"site":"blog","mode":"listed","allow":["@example.com"],"block":[],"message":"Only listed."}`),
-		"POST /v1/sites/blog/savers/block": fixed(200, `{"site":"blog","blocked":"x@y.org","block_count":1,"message":"x@y.org can no longer save."}`),
-		"DELETE /v1/sites/blog/history":    fixed(200, `{"site":"blog","cleared":40}`),
 		"POST /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","took_over_from":"x/y","certificate_status":"pending","previous_domain":"pend.simple-host.app",`+
 			`"partner_domain":"www.pend.example.com","partner_status":"pending","dns_partner":{"type":"CNAME","host":"www.pend.example.com","value":"sites.simple-host.app"},`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),

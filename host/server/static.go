@@ -69,7 +69,7 @@ func runStaticCommand(args []string, exts []*extension.Extension) int {
 		if len(exts) == 1 {
 			instanceURL = cfg.PublicBaseURL
 		}
-		h := handler.NewSiteHandler(ed, instanceURL, db, disk, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, "", "", "", nil, 0, "", "", nil, nil)
+		h := handler.NewSiteHandler(ed, instanceURL, db, disk, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, "", "", "", nil, 0, "", nil, nil)
 		if len(exts) == 1 && exts[0].Assets != nil {
 			assets := exts[0].Assets(h)
 			h.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)

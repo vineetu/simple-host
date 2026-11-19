@@ -5,8 +5,7 @@
 Simple Host is where what a person makes, in any AI app or by hand, goes online and stays:
 hosting, its own domain, saved data and control over who can see it. It is one Go binary that
 hosts static websites and gives every site a small backend with owner-defined KV, SQLite and
-file resources. Its older state, collection and declared-data APIs remain available on Simple
-Host for existing sites only. It exists because the sliver of dynamic behaviour most ordinary
+file resources. It exists because the sliver of dynamic behaviour most ordinary
 websites need (save an RSVP, count a vote, keep a guestbook) is absurdly expensive to stand up
 separately. The building happens wherever the person already works; their AI publishes the
 result to Simple Host through the connector and the bundled Website Deploy skill. Humans mostly
@@ -106,9 +105,7 @@ What follows from that, and is not negotiable without changing the line above:
 
 - Per-page locks. A whole site can be locked with one passcode (decision 2026-09-29 "Site
   passcode") or opened only to named viewers who sign in (decision 2026-10-10 "Named viewers");
-  there is no lock on a single page. On Simple Host, legacy private Submissions and Personal records
-  remain available for existing sites (decisions 2026-09-24 "Private collections",
-  2026-09-25 and 2026-09-27 steps 3-4).
+  there is no lock on a single page.
 - A general-purpose backend was a non-goal for the original saved-data API. The
   2026-10-02 storage-primitives decision below supersedes the no-schema/no-query
   part for new per-site SQLite databases; arbitrary server-side code remains a
@@ -130,6 +127,7 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-19 (owner). The older saved data is removed outright.** State, collections, the declared kinds (Page info, Submissions, Personal, Shared board), `SH.data`/`SH.state`/`SH.collection`, their routes, AI tools, dashboard pages, emails, settings and the timed-switch notice machinery are deleted, with no switch date and no upgrade path: an old route answers the ordinary 404. The rows stay in the database (no migration, no table drops); account erasure still removes a person's old rows. Supersedes the phase-out decisions of 2026-10-10 and 2026-10-12. Reason: nobody active depends on them, and two ways to save data cost more than they give.
 - **2026-11-18 (SIM-470). Page addresses.** On program-served pages a file uses `/x` and a folder index uses `/x/`. The other spelling redirects permanently and keeps the query. A1 keeps explicit `/x.html` available. B1 keeps both pages when both exist. C1 is the proposed follow-up for the six hand-managed web servers. Web-server changes are on hold pending the front-door decision. A site's own redirect rules are decided first, exactly as before. The slash redirect happens only where the file lookup would otherwise serve or miss, so it is always the last hop and the publish-time rule check does not model it. A folder without a page still hides a rule that is not forced.
 
 ### 2026-11-12 — Re-architecture: platform, products, add-ons

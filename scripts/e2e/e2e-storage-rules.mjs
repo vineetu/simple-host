@@ -87,34 +87,6 @@ try {
     assert.match(await converted.locator('[data-policies]').first().innerText(), /active: read · restrictive · using true/);
     assert.equal(await converted.getByLabel('Table: kept', { exact: true }).count(), 1);
     assert.equal(await card('kv_rules').locator('select[name="preset"]').count(), 0);
-    assert.equal(await page.evaluate(() => window.__SHOWCASE__.storageSwitchSet), false);
-    const futureLine = 'Presets end on ' + (width === 390 ? '17 Dec 2099, 22:30' : 'Dec 17, 2099, 9:00 AM') + '. Rules replace them and allow the same things.';
-    const pastLine = "Visitors can't use this until you set rules. You still have full access.";
-    // The switch gate still hides both lines when no date is configured.
-    // The two browser locales/timezones prove the instant is shown locally.
-    for (const [switchSet, switchAt, line] of [
-      [false, '', ''],
-      [true, '2099-12-17T17:00:00Z', futureLine],
-      [true, '2000-12-17T17:00:00Z', pastLine],
-      [false, '2000-12-17T17:00:00Z', ''],
-    ]) {
-      await page.evaluate(async ({ site, switchSet, switchAt }) => {
-        window.__SHOWCASE__.storageSwitchSet = switchSet;
-        window.__SHOWCASE__.storageSwitchAt = switchAt;
-        hideRowPanel(site);
-        await openStorage(site, false);
-      }, { site, switchSet, switchAt });
-      for (const name of ['unconverted', 'kv_presets']) {
-        const text = await card(name).innerText();
-        if (line) assert(text.includes(line), text);
-        assert.equal(text.includes('Presets end on '), line === futureLine);
-        assert.equal(text.includes(pastLine), line === pastLine);
-        assert.equal(await card(name).locator('select[name="preset"]').count(), 1);
-      }
-      for (const name of ['converted', 'kv_rules', 'photos']) {
-        assert(!/Presets end on|Visitors can't use this/.test(await card(name).innerText()));
-      }
-    }
     await page.screenshot({ fullPage: true, path: `${shots}/rules-${width}.png` });
     // Valid JSON containing a broken expression must reach server validation.
     const broken = structuredClone(rules);

@@ -68,12 +68,6 @@ func (svc *Service) GetSiteOwner(ctx context.Context, siteID string) (handle, us
 	return repo.GetSiteOwner(ctx, svc.database, siteID)
 }
 
-// GetSiteWriteGate returns the owning user_id and the admin override flag
-// used by visitorWriteOK.
-func (svc *Service) GetSiteWriteGate(ctx context.Context, siteID string) (userID string, allowAnonymous bool, err error) {
-	return repo.GetSiteWriteGate(ctx, svc.database, siteID)
-}
-
 // HomeSite loads the selected site, including offline and taken-down rows.
 func (svc *Service) HomeSite(ctx context.Context, userID string) (model.Site, bool, error) {
 	return repo.HomeSite(ctx, svc.database, userID)

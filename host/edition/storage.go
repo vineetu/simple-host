@@ -1,6 +1,6 @@
 package edition
 
-// StoragePolicy is the site and storage policy (legacy routes, owner interpretation, allowances).
+// StoragePolicy is the site and storage policy (owner interpretation, allowances).
 type StoragePolicy struct {
 	// Sites.
 	// EventSites uses event and team site addressing and access rules.
@@ -15,8 +15,6 @@ type StoragePolicy struct {
 	Photos bool
 
 	// Storage.
-	// LegacyRoutes exposes the older saved-data APIs.
-	LegacyRoutes bool
 	// EventOwners interprets owners through event and team membership.
 	EventOwners bool
 	// CombinedPool combines data and file storage allowances.

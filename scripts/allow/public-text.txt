@@ -7,7 +7,6 @@ host/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md | 3 | 
 host/webassets/simple-host-website/skills/website-deploy-builder/references/capabilities.md | 5 | hosted cross-reference to the sister product
 host/webassets/simple-host-website/skills/website-deploy-builder/references/handoff-and-examples.md | 3 | hosted cross-reference to the sister product
 host/webassets/simple-host-website/skills/website-deploy/SKILL.md | 1 | hosted cross-reference to the sister product
-host/webassets/simple-host-website/skills/website-deploy/references/backend.md | 1 | hosted cross-reference to the sister product
 host/webassets/simple-host-website/skills/website-deploy/references/home-page.md | 1 | hosted cross-reference to the sister product
 host/webassets/simple-host-website/skills/website-deploy/references/notifications.md | 2 | hosted cross-reference to the sister product
 host/webassets/simple-host-website/skills/website-deploy/references/operations.md | 1 | hosted cross-reference to the sister product
@@ -32,20 +31,19 @@ text/host/GET__enterprise.txt | 3 | hosted cross-reference to the sister product
 text/host/GET__host-ink.css.txt | 1 | hosted cross-reference to the sister product
 text/host/GET__install.html.txt | 1 | hosted cross-reference to the sister product
 text/host/GET__oauth_authorize.txt | 4 | hosted cross-reference to the sister product
-text/host/GET__plugin.zip.txt | 27 | hosted cross-reference to the sister product
-text/host/GET__skills.zip.txt | 27 | hosted cross-reference to the sister product
+text/host/GET__plugin.zip.txt | 26 | hosted cross-reference to the sister product
+text/host/GET__skills.zip.txt | 26 | hosted cross-reference to the sister product
 text/host/GET__skills_website-deploy-builder.txt | 3 | hosted cross-reference to the sister product
 text/host/GET__skills_website-deploy-builder.zip.txt | 11 | hosted cross-reference to the sister product
 text/host/GET__skills_website-deploy-builder_SKILL.md.txt | 3 | hosted cross-reference to the sister product
 text/host/GET__skills_website-deploy.txt | 1 | hosted cross-reference to the sister product
-text/host/GET__skills_website-deploy.zip.txt | 16 | hosted cross-reference to the sister product
+text/host/GET__skills_website-deploy.zip.txt | 15 | hosted cross-reference to the sister product
 text/host/GET__skills_website-deploy_SKILL.md.txt | 1 | hosted cross-reference to the sister product
 text/host/GET__terms.txt | 1 | support and legal copy naming both services
 text/host/GET__v1_skills_website-deploy-builder_SKILL.md.txt | 3 | hosted cross-reference to the sister product
 text/host/GET__v1_skills_website-deploy-builder_references_capabilities.md.txt | 5 | hosted cross-reference to the sister product
 text/host/GET__v1_skills_website-deploy-builder_references_handoff-and-examples.md.txt | 3 | hosted cross-reference to the sister product
 text/host/GET__v1_skills_website-deploy_SKILL.md.txt | 1 | hosted cross-reference to the sister product
-text/host/GET__v1_skills_website-deploy_references_backend.md.txt | 1 | hosted cross-reference to the sister product
 text/host/GET__v1_skills_website-deploy_references_home-page.md.txt | 1 | hosted cross-reference to the sister product
 text/host/GET__v1_skills_website-deploy_references_notifications.md.txt | 2 | hosted cross-reference to the sister product
 text/host/GET__v1_skills_website-deploy_references_operations.md.txt | 1 | hosted cross-reference to the sister product

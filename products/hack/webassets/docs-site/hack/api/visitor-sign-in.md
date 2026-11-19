@@ -255,7 +255,7 @@ No authentication required.
 | 302 | Nonce cookie set; navigate to the apex hop |
 | 400 | Invalid site return address or navigation |
 | 403 | Site locked |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/u/{handle}/sites/{sitename}/me
 
@@ -365,7 +365,7 @@ One-time hop on the site's own address (its `<site>.<handle>` host or domain). C
 | --- | --- |
 | 302 | Cookie set; redirect to the stored return_to |
 | 400 | Bad, replayed, expired, host-mismatch, missing or wrong nonce cookie, or apex Host |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/visitor/logout
 
@@ -386,7 +386,7 @@ For a hop session, deletes its parent dashboard key, apex pass, and all linked s
 | 200 | Navigate the top-level window to redirect_url to clear the apex cookie |
 | 204 | Session deleted and cookie cleared |
 | 403 | Missing CSRF header (and not a JSON request) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/visitor/oauth/{provider}
 
@@ -408,4 +408,4 @@ Visitor sign-in start, served on the site's own address (its `<site>.<handle>` h
 | 302 | Nonce cookie set; redirect to the identity provider |
 | 400 | Missing return_to, or one that is not a page of the site on this host |
 | 404 | Unknown or disabled provider |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |

@@ -62,7 +62,7 @@ the handler's first line to its return, so it is server time (including writing 
 nginx over loopback), not network time and not TLS. Class by path, then host: `/mcp` POST is
 `mcp`, `/mcp` GET is `mcp_stream` (a held-open stream; its time is a duration, not latency, and
 must be left out of latency tables); OAuth, sign-in, SSO and a site's `/me` are `auth`; a
-site's `/storage/`, `/collections`, `/state` and `/data` are `data_read` (GET/HEAD) or
+site's `/storage/` routes are `data_read` (GET/HEAD) or
 `data_write`; other `/v1` is `api_read` or `api_write` (deploys are `api_write`); a request on
 the platform's own host is `platform_page`; anything else is `site_file` (every status,
 including 304 and 404). Health probes and CORS preflights are not timed. Histogram upper bounds
@@ -203,7 +203,7 @@ process's `/proc/self/cgroup` location under `/sys/fs/cgroup`, with namespace-ro
 fallback. This does not yet collect per-unit resource samples.
 
 The config hash uses a fixed whitelist of parsed non-secret settings: limits,
-EVENTS, WRITE_AUTH_MODE, PERSON_HOSTS, SITE_HOSTS and PAPER_METRICS. It never
+EVENTS, PERSON_HOSTS, SITE_HOSTS and PAPER_METRICS. It never
 serialises the whole config, credentials, a DSN, arbitrary environment variables,
 or names/addresses. Only the digest is stored. Hack minute, histogram, phase,
 snapshot and daily-companion rows carry `run_id`; the legacy Host tables gain no

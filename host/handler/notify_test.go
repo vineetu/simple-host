@@ -1686,6 +1686,13 @@ func TestNotificationOwnerStopBeforeStart(t *testing.T) {
 	}
 }
 
+type failingNoticeMailer struct{}
+
+func (failingNoticeMailer) SendSignInCode(string, string, string) error { return nil }
+func (failingNoticeMailer) SendNotice(string, string, string) error {
+	return errors.New("smtp down")
+}
+
 type cancellingNoticeMailer struct {
 	failingNoticeMailer
 	cancel context.CancelFunc

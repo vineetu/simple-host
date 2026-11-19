@@ -5,7 +5,7 @@
   `WARNING` for a rate limit set far looser than its default or a `RATE_LIMIT_*` name that is not
   a setting (a typo). On a small box: `cd /opt/simple-host && sudo docker compose logs app`.
 - **Admin page (`/admin`, admin key):** disk use, the running release, every account and site,
-  API traffic by route and caller, and the saved-data watch.
+  and API traffic by route and caller.
 - **Visit analytics** per site come from the web server's access log, not a tracking script.
   Visitor addresses are hashed with a salt; where a caller is comes from a database on the
   server, never a lookup elsewhere.

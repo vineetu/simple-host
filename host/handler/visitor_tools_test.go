@@ -185,10 +185,6 @@ func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	if err := f.a.database.QueryRow(`SELECT actor_app FROM data_history WHERE site_id=$1 ORDER BY id DESC LIMIT 1`, f.sid).Scan(&app); err != nil || app != "ChatGPT" {
 		t.Fatalf("app %q: %v", app, err)
 	}
-	history := f.must(t, "GET", "/resources", nil, f.key, 200)
-	if !strings.Contains(string(history.body), "via ChatGPT") {
-		t.Fatalf("history lacks app: %s", history.body)
-	}
 	// Even a site owner's visitor tools have no owner or owner-on-site powers.
 	client := f.a.registerClient(t, testRedirect)
 	ownerToken := f.a.connect(t, f.owner, client, testRedirect)["access_token"].(string)
@@ -452,30 +448,8 @@ func TestVisitorMCPCommentsOfflineAndVisitorLimits(t *testing.T) {
 	f.call(t, "visitor_add_entry", args, "rate_limited")
 }
 
-func TestVisitorMCPCollectionsAndPageBoundary(t *testing.T) {
+func TestVisitorMCPPageBoundary(t *testing.T) {
 	f := newVisitorFixture(t)
-	// Legacy names must remain existing-site only, as the browser routes do.
-	if _, err := f.a.database.Exec(`UPDATE sites SET legacy_data=true WHERE id=$1`, f.sid); err != nil {
-		t.Fatal(err)
-	}
-	res := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/data/entries/kind", map[string]any{"kind": "entries", "visibility": "private"}, f.key)
-	// Declare through the existing owner handler, using its documented route.
-	if res.status != 200 && res.status != 201 {
-		t.Fatalf("declare entries: %d %s", res.status, res.body)
-	}
-	args := f.args("collection", "entries")
-	args["value"] = map[string]any{"message": "mine"}
-	out := f.call(t, "visitor_add_entry", args, "")
-	id := out["visitor_data"].(map[string]any)["id"]
-	delete(args, "value")
-	f.call(t, "visitor_read_site", args, "")
-	args["id"] = id
-	args["action"] = "edit"
-	args["value"] = map[string]any{"message": "updated"}
-	f.call(t, "visitor_change_entry", args, "")
-	args["action"] = "delete"
-	delete(args, "value")
-	f.call(t, "visitor_change_entry", args, "")
 	f.call(t, "visitor_read_site", map[string]any{"address": "https://" + f.host, "page": "../../../../etc/passwd"}, "page not found")
 	f.call(t, "visitor_read_site", map[string]any{"address": "https://evil.invalid/"}, "site_not_found")
 	// A public resource may not turn an offline or suspended site into a read.

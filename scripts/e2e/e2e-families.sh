@@ -155,14 +155,14 @@ app $DOMAIN /v1/sites -H "X-API-Key: $KEY" | grep -q "\"family_address\":\"https
 echo "main address: ok"
 
 # ---- the site API on the family host ------------------------------------------
-st=$(ngx meera.$SUFFIX /v1/sites/meera/state -o /dev/null -w '%{http_code}')
-[ "$st" = 200 ] || [ "$st" = 404 ] || fail "state read on the family host: $st"
-[ "$(ngx meera.$SUFFIX /v1/sites/voucher-anu/state -o /dev/null -w '%{http_code}')" = 404 ] || fail "another site resolved on the family host"
-st=$(ngx meera.$SUFFIX /v1/sites/meera/state -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{"n":1}' -o /dev/null -w '%{http_code}')
-[ "$st" = 200 ] || fail "owner save through the family host: $st"
-st=$(ngx meera.$SUFFIX /v1/sites/meera/state -H "Origin: https://anu.$SUFFIX" -o /dev/null -w '%{http_code}')
+st=$(ngx meera.$SUFFIX /v1/sites/meera/me -H "Origin: https://meera.$SUFFIX" -o /dev/null -w '%{http_code}')
+[ "$st" = 200 ] || fail "visitor read on the family host: $st"
+[ "$(ngx meera.$SUFFIX /v1/sites/voucher-anu/storage/resources -H "X-API-Key: $KEY" -o /dev/null -w '%{http_code}')" = 404 ] || fail "another site resolved on the family host"
+st=$(ngx meera.$SUFFIX /v1/sites/meera/storage/resources/notes -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{"kind":"kv","preset":"public"}' -o /dev/null -w '%{http_code}')
+[ "$st" = 200 ] || [ "$st" = 201 ] || fail "owner save through the family host: $st"
+st=$(ngx meera.$SUFFIX /v1/sites/meera/me -H "Origin: https://anu.$SUFFIX" -o /dev/null -w '%{http_code}')
 [ "$st" = 403 ] || fail "sibling origin read: $st"
-ngx meera.$SUFFIX /v1/sites/meera/state -H "Origin: https://meera.$SUFFIX" -D - -o /dev/null | tr -d '\r' | grep -qi "^access-control-allow-origin: https://meera.$SUFFIX" || fail "own origin not allowed"
+ngx meera.$SUFFIX /v1/sites/meera/me -H "Origin: https://meera.$SUFFIX" -D - -o /dev/null | tr -d '\r' | grep -qi "^access-control-allow-origin: https://meera.$SUFFIX" || fail "own origin not allowed"
 echo "api: ok"
 
 # ---- rename, offline, a domain of its own -------------------------------------
@@ -191,7 +191,7 @@ for path in / /index.html /app.js /data.json /days/ /days /nope "/app.js?x=1" /v
     n=$((n + 2))
   done
 done
-for path in /v1/sites/lock/state /v1/sites/voucher-lock/state; do
+for path in /v1/sites/lock/storage/resources /v1/sites/voucher-lock/storage/resources; do
   case $(ngx lock.$SUFFIX "$path") in *"$CANARY"*) fail "data $path leaked" ;; esac
   n=$((n + 1))
 done

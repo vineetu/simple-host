@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -198,33 +197,6 @@ func idArg(args map[string]any, key string) (string, error) {
 		return "", fmt.Errorf("%s must be an id from an earlier answer", key)
 	}
 	return id, nil
-}
-
-// itemArgs reads site, collection and a positive whole-number item id.
-func itemArgs(args map[string]any) (site, coll, id string, err error) {
-	if site, err = siteArg(args); err != nil {
-		return
-	}
-	if coll, err = stringArg(args, "collection"); err != nil {
-		return
-	}
-	var raw any = args["id"]
-	switch v := raw.(type) {
-	case float64:
-		if v != math.Trunc(v) || v <= 0 {
-			return "", "", "", errors.New("id must be the item id from read_collection")
-		}
-		id = strconv.FormatInt(int64(v), 10)
-	default:
-		if id, err = stringArg(args, "id"); err != nil {
-			return
-		}
-		id = strings.TrimSpace(id)
-	}
-	if n, perr := strconv.ParseInt(id, 10, 64); perr != nil || n <= 0 {
-		return "", "", "", errors.New("id must be the item id from read_collection")
-	}
-	return site, coll, id, nil
 }
 
 const siteDesc = "The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens."

@@ -236,18 +236,15 @@ func TestExportAdmissionTimeoutAbortsHTTP(t *testing.T) {
 	s := admissionPresetSite(t)
 	h := s.a.sites
 	h.sqliteSites = appstorage.NewSiteSlots(1, h.sqliteGateFor(), 250*time.Millisecond)
-	// ZIP buffers compressed entries. An incompressible state document makes
-	// it emit archive bytes before reaching the blocked SQLite checkpoint.
+	// ZIP buffers compressed entries. An incompressible file in a site the
+	// account export writes first (the most recently updated) makes it emit
+	// archive bytes before reaching the blocked SQLite checkpoint.
 	padding := make([]byte, 16<<10)
 	if _, err := rand.Read(padding); err != nil {
 		t.Fatal(err)
 	}
-	state, err := json.Marshal(map[string]string{"padding": hex.EncodeToString(padding)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.a.database.Exec(`UPDATE sites SET state=$2 WHERE id=$1`, s.sid, string(state)); err != nil {
-		t.Fatal(err)
+	if r := s.a.at(t, "POST", pcSiteDomain, "/v1/sites/pad/files", map[string]any{"files": map[string]string{"index.html": hex.EncodeToString(padding)}}, s.key); r.status != http.StatusCreated {
+		t.Fatalf("padding site: %d %s", r.status, r.body)
 	}
 	// A group reference over the same site exercises the group export consumer.
 	// The export reads only the holding account's sites, so no product row is needed.

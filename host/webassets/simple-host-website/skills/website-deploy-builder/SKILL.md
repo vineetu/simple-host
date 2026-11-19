@@ -63,7 +63,7 @@ If a file is not on disk next to this one, fetch its URL.
 
 | Need | Reference |
 |---|---|
-| Every capability with its REST and connector routes, the capability tree (browser storage, external APIs, exports, routing, addresses), the full request-to-capability table, existing declared-data sites | `references/capabilities.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/capabilities.md |
+| Every capability with its REST and connector routes, the capability tree (browser storage, external APIs, exports, routing, addresses), the full request-to-capability table | `references/capabilities.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/capabilities.md |
 | Example prompts for another agent, the deploy handoff, home page, file sizes, each person's records worked example | `references/handoff-and-examples.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/handoff-and-examples.md |
 | Row rules, file-bucket presets and the page helper in full | the `website-deploy` skill's `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
 | Simple Hack team or event sites | the separate Simple Hack `website-deploy-builder` skill |

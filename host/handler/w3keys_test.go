@@ -17,7 +17,6 @@ import (
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/edition"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 )
 
 // A deploy-only key creates, updates, rolls back and lists sites and makes
@@ -75,9 +74,8 @@ func TestDeployOnlyKey(t *testing.T) {
 		{http.MethodPost, "/v1/me/keys", map[string]string{"name": "escalate"}},
 		{http.MethodPost, "/v1/me/api-key/rotate", nil},
 		{http.MethodGet, "/v1/me/export.zip", nil},
-		{http.MethodGet, "/v1/sites/ci/collections", nil},
-		{http.MethodGet, "/v1/sites/ci/state", nil},
-		{http.MethodPut, "/v1/sites/ci/state", map[string]any{"a": 1}},
+		{http.MethodGet, "/v1/sites/ci/storage/resources", nil},
+		{http.MethodPut, "/v1/sites/ci/storage/kv/notes/keys/a", map[string]any{"value": 1}},
 		{http.MethodGet, "/v1/sites/ci/analytics", nil},
 	} {
 		var body = jsonBody(c.body)
@@ -165,7 +163,7 @@ func TestKeyExpiry(t *testing.T) {
 	}
 	fixed, fixedID := mint("thirty days", map[string]any{"expires_in_days": 30})
 	idle, idleID := mint("forgotten", map[string]any{})
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), a.database)
+	adminID, err := accountsrepo.EnsureAdminUser(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -78,7 +78,8 @@ CUSTOM=trip-$(openssl rand -hex 3).example.org
 files="{\"files\":{\"index.html\":\"<h1>$CANARY</h1>\",\"app.js\":\"var c='$CANARY';\",\"data.json\":\"{\\\"c\\\":\\\"$CANARY\\\"}\",\"img.svg\":\"<svg xmlns='http://www.w3.org/2000/svg'><text>$CANARY</text></svg>\",\"days/index.html\":\"$CANARY\",\"404.html\":\"$CANARY\",\"sitemap.xml\":\"<urlset>$CANARY</urlset>\"}}"
 [ "$(code $DOMAIN /v1/sites/trip/files -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d "$files")" = 201 ] || fail "deploy"
 [ "$(code $DOMAIN /v1/sites/camp/files -H "X-API-Key: $KEY2" -H 'Content-Type: application/json' -d "$files")" = 201 ] || fail "deploy camp"
-req $DOMAIN /v1/sites/trip/state -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d "{\"c\":\"$CANARY\"}" -o /dev/null
+req $DOMAIN /v1/sites/trip/storage/resources/notes -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{"kind":"kv","preset":"public"}' -o /dev/null
+req $DOMAIN /v1/sites/trip/storage/kv/notes/keys/c -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d "{\"value\":\"$CANARY\"}" -o /dev/null
 
 lock() { req $DOMAIN "/v1/sites/$1/lock" -X PUT -H "X-API-Key: $2" -H 'Content-Type: application/json' -d "{\"passcode\":\"$3\"}" -w '%{http_code}' -o "$WORK/lock.json"; }
 [ "$(lock trip "$KEY" "$CODE1")" = 200 ] || { cat "$WORK/lock.json"; fail "lock"; }
@@ -212,7 +213,7 @@ for path in / /index.html /app.js /data.json /img.svg /days/ /days /nope /sitema
     done
   done
 done
-for path in /v1/sites/trip/state "/v1/u/$H/sites/trip/state" /v1/sites/trip/collections/x /v1/sites/trip/data/x; do
+for path in /v1/sites/trip/storage/kv/notes/keys/c /v1/sites/trip/storage/kv/notes/keys; do
   for host in $DOMAIN "$SITE" "$PERSON" "sites.$DOMAIN" ${FAM:+"$FAMILY" "$FAMILY2"}; do
     out=$(req "$host" "$path")
     case $out in *"$CANARY"*) fail "data $host$path leaked" ;; esac
@@ -244,7 +245,7 @@ if [ -n "$NG" ]; then
   CKD=$(echo "$hdr" | tr -d '\r' | sed -n 's/^[Ss]et-[Cc]ookie: \([^;]*\).*/\1/p' | grep sh_pass_ | head -1)
   [ -n "$CKD" ] || fail "no unlock through nginx: $hdr"
   ngx /app.js -H "Cookie: $CKD" | grep -q "$CANARY" || fail "unlocked custom domain"
-  ngx /v1/sites/trip/state -H "Cookie: $CKD" -H "Origin: http://$CUSTOM" | grep -q "$CANARY" || fail "unlocked state read on the custom domain"
+  ngx /v1/sites/trip/storage/kv/notes/keys/c -H "Cookie: $CKD" -H "Origin: http://$CUSTOM" | grep -q "$CANARY" || fail "unlocked storage read on the custom domain"
 fi
 
 # Through nginx's marker rewrite, the gate's form and the unlock send the

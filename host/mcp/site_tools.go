@@ -821,13 +821,13 @@ func siteTools(limits Limits) []Tool {
 			policy: toolPolicy{analytics: analyticsPolicy{secretText: true, secretURL: true}},
 			OutputSchema: outObject(map[string]any{
 				"site":       outString(outSiteName),
-				"url":        outString("The download link: a .tar.gz with the site's files, state.json and collections.json. Give it to the person; it opens without signing in, so do not post it publicly."),
+				"url":        outString("The download link: a .tar.gz with the site's files and saved data. Give it to the person; it opens without signing in, so do not post it publicly."),
 				"expires_at": outString("When the link stops working (RFC 3339), " + span(limits.ExportLinkTTL) + " after it was made."),
 			}, "site", "url", "expires_at"),
 			Name:  "export_site",
 			Title: "Download a copy of a site",
 			Description: "Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files and its saved data " +
-				"(storage resources with their KV values, SQLite databases, and files, plus any older state and collections). The link works for " + span(limits.ExportLinkTTL) + " and only for that site; " +
+				"(storage resources with their KV values, SQLite databases, and files). The link works for " + span(limits.ExportLinkTTL) + " and only for that site; " +
 				"give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			// Computes a signed download URL without creating an export job.
@@ -854,7 +854,7 @@ func siteTools(limits Limits) []Tool {
 					link.Site = name
 				}
 				out := map[string]any{"site": link.Site, "url": link.URL, "expires_at": link.ExpiresAt}
-				text := fmt.Sprintf("Download link for a copy of %s (files, saved state and collections), valid until %s: %s", link.Site, link.ExpiresAt, link.URL)
+				text := fmt.Sprintf("Download link for a copy of %s (files and saved data), valid until %s: %s", link.Site, link.ExpiresAt, link.URL)
 				return output{Text: text, Structured: out}, nil
 			},
 		},

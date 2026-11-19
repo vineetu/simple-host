@@ -2,11 +2,8 @@ package handler
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
-	"github.com/vsriram/simple-host/host/config"
 	"html"
-	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/config"
 
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/webassets"
@@ -111,129 +110,6 @@ func TestDocsMarkdownCopies(t *testing.T) {
 	}
 }
 
-func TestMovingSavedDataDocs(t *testing.T) {
-	mux := chromeTestMux(t, platformTestEdition())
-	for _, route := range []string{"/docs/guides/moving-saved-data/", "/docs/guides/moving-saved-data.md"} {
-		r := get(t, mux, "", route)
-		if r.Code != http.StatusOK {
-			t.Fatalf("%s: %d", route, r.Code)
-		}
-		body := r.Body.String()
-		for _, want := range []string{"Move a site off the older saved data", "A form only you read", "One entry per person", "Other older saved data"} {
-			if !strings.Contains(body, want) {
-				t.Errorf("%s: missing %q", route, want)
-			}
-		}
-		plain := html.UnescapeString(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(body, ""))
-		plain = strings.ReplaceAll(plain, "’", "'")
-		plain = strings.Join(strings.Fields(plain), " ")
-		for _, want := range []string{"CREATE UNIQUE INDEX entries_one_per_person", "row_conflict", "Owner tools bypass row rules", "Keep each person's private export", "preserving signed-in visitors' existing writes"} {
-			if !strings.Contains(plain, want) {
-				t.Errorf("%s: missing migration requirement %q", route, want)
-			}
-		}
-		for _, private := range []string{"Personal paragraphs for Email 2", "finance-ai-prompts", "sports-effect-lab", "Draft for R4-N"} {
-			if strings.Contains(body, private) {
-				t.Errorf("%s: draft-only text %q", route, private)
-			}
-		}
-	}
-	if home := get(t, mux, "", "/docs/").Body.String(); !strings.Contains(home, `href="/docs/guides/moving-saved-data/"`) {
-		t.Fatal("moving guide absent from docs listing")
-	}
-	for _, route := range []string{"/docs/self-hosting/settings/storage-migration/", "/docs/self-hosting/settings/storage-migration.md"} {
-		body := get(t, mux, "", route).Body.String()
-		if strings.Contains(strings.ToLower(body), "no removal date") || strings.Contains(body, "Keep the existing API") {
-			t.Errorf("%s: obsolete migration advice", route)
-		}
-		if !strings.Contains(body, "STORAGE_SWITCH_AT") || !strings.Contains(body, "/docs/guides/moving-saved-data") {
-			t.Errorf("%s: missing switch setting or moving guide", route)
-		}
-	}
-}
-
-func TestMovingSavedDataInstanceText(t *testing.T) {
-	oldHosted, oldCanonical := instanceIsHostedService, instanceIsCanonical
-	oldHosts, oldDomain := instanceHosts, instanceSiteDomain
-	t.Cleanup(func() {
-		instanceIsHostedService, instanceIsCanonical = oldHosted, oldCanonical
-		instanceHosts, instanceSiteDomain = oldHosts, oldDomain
-		clearAssetText()
-		chromeCache.Clear()
-	})
-	for _, tc := range []struct {
-		name, switchAt string
-		hosted         bool
-	}{
-		{name: "hosted", hosted: true, switchAt: "2026-12-17T17:00:00Z"},
-		{name: "self with another date", switchAt: "2027-03-01T12:00:00Z"},
-		{name: "self without a date"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("STORAGE_SWITCH_AT", tc.switchAt)
-			SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
-			instanceIsHostedService = tc.hosted
-			p := testAssetPipeline(edition.Default(config.DefaultLimits()), "https://docs-box.example")
-			for _, route := range []string{"/docs/guides/moving-saved-data/", "/docs/guides/moving-saved-data.md"} {
-				r := httptest.NewRecorder()
-				p.serveDocs(r, httptest.NewRequest("GET", route, nil))
-				body := r.Body.String()
-				if r.Code != http.StatusOK {
-					t.Fatalf("%s: %d", route, r.Code)
-				}
-				if strings.Contains(body, "17 December 2026") != tc.hosted {
-					t.Errorf("%s: hosted date present=%v", route, !tc.hosted)
-				}
-				if !tc.hosted && (!strings.Contains(body, "STORAGE_SWITCH_AT") || !strings.Contains(body, "no switch date is set")) {
-					t.Errorf("%s: missing operator-configured date instructions", route)
-				}
-			}
-		})
-	}
-}
-
-func TestMovingSavedDataSearchText(t *testing.T) {
-	// Inspect the actual Pagefind fragment used for search results, including
-	// excerpts; a runtime-only HTML rewrite cannot remove indexed copy.
-	tree := webassets.DocsTree()
-	names, err := fs.Glob(tree, "pagefind/fragment/*.pf_fragment")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range names {
-		data, err := fs.ReadFile(tree, name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		reader, err := gzip.NewReader(bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
-		data, err = io.ReadAll(reader)
-		reader.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
-		var fragment struct{ URL, Content string }
-		if err := json.Unmarshal(bytes.TrimPrefix(data, []byte("pagefind_dcd")), &fragment); err != nil {
-			t.Fatal(err)
-		}
-		if fragment.URL != "/guides/moving-saved-data/" {
-			continue
-		}
-		for _, private := range []string{"17 December 2026", "STORAGE_SWITCH_AT", "This install's operator"} {
-			if strings.Contains(fragment.Content, private) {
-				t.Errorf("instance-specific text %q indexed by Pagefind", private)
-			}
-		}
-		if !strings.Contains(fragment.Content, "One entry per person") {
-			t.Fatal("shared guide instructions absent from search")
-		}
-		return
-	}
-	t.Fatal("moving guide absent from Pagefind fragments")
-}
-
 func TestDocsMarkdownRuntimeText(t *testing.T) {
 	oldHosted, oldCanonical := instanceIsHostedService, instanceIsCanonical
 	oldHosts, oldDomain := instanceHosts, instanceSiteDomain
@@ -248,16 +124,6 @@ func TestDocsMarkdownRuntimeText(t *testing.T) {
 	host.docs.once.Do(host.buildDocsCache)
 	if !bytes.Contains(host.docs.md["guides/agents.md"], []byte("npx skills add")) {
 		t.Fatal("hosted instructions absent from the .md copy")
-	}
-	for _, body := range [][]byte{host.docs.pages["self-hosting/settings/storage-migration/index.html"], host.docs.md["self-hosting/settings/storage-migration.md"]} {
-		for _, want := range []string{"17 December 2026, 17:00 UTC", "have been converted automatically to rules", "If you were notified", "you must set its rules before the switch", "lose access to it"} {
-			if !bytes.Contains(body, []byte(want)) {
-				t.Errorf("hosted migration docs missing %q", want)
-			}
-		}
-		if bytes.Contains(body, []byte("for every owner")) {
-			t.Error("hosted migration docs still promise conversion for every owner")
-		}
 	}
 	SetInstanceHosts("docs-box.example", "sites.docs-box.example", "")
 	self := testAssetPipeline(edition.Default(config.DefaultLimits()), "https://docs-box.example")
@@ -323,16 +189,6 @@ func TestDocsRuntimeText(t *testing.T) {
 		}
 		if !strings.Contains(limitsBody, "Up to 2,345,678 bytes") || !strings.Contains(limitsBody, "Up to 123,456 bytes per file") {
 			t.Error("storage byte allowances were not rewritten")
-		}
-		for _, body := range [][]byte{p.docs.pages["self-hosting/settings/storage-migration/index.html"], p.docs.md["self-hosting/settings/storage-migration.md"]} {
-			if bytes.Contains(body, []byte("17 December 2026")) {
-				t.Error("hosted switch date shown on a self-hosted install")
-			}
-		}
-		for _, body := range [][]byte{p.docs.pages["guides/moving-saved-data/index.html"], p.docs.md["guides/moving-saved-data.md"]} {
-			if bytes.Contains(body, []byte("https://simple-host.app/docs/")) || !bytes.Contains(body, []byte("https://docs-box.example/docs/guides/storage")) {
-				t.Error("moving guide did not localize its storage guide link")
-			}
 		}
 	}
 }

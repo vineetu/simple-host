@@ -44,7 +44,7 @@ func staticPageFrontWithLookup(t *testing.T, p *passcodeApp, pageDB *sql.DB, tab
 		t.Fatal(err)
 	}
 	newPages := func() *SiteHandler {
-		h := NewSiteHandler(p.sites.ed, "", pageDB, disk, pcSiteDomain, pcContentHost, "", "", "", "", nil, 0, "", "", nil, nil)
+		h := NewSiteHandler(p.sites.ed, "", pageDB, disk, pcSiteDomain, pcContentHost, "", "", "", "", nil, 0, "", nil, nil)
 		h.personHosts, h.siteHosts, h.siteCertDir = p.sites.personHosts, p.sites.siteHosts, p.sites.siteCertDir
 		h.limitSet = p.sites.limitSet
 		h.SetAddressFamilies(p.sites.familyCertDir)
@@ -339,7 +339,7 @@ func TestStaticVisitorSignInAndNamedViewerHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	front := httptest.NewServer(static.NewHandler(copy, static.NewProxy(target, []*net.IPNet{trusted}), func(table model.SiteTable, api http.Handler, retry func(http.ResponseWriter, *http.Request, model.RoutingAddress) bool) http.Handler {
-		h := NewSiteHandler(p.sites.ed, "", p.database, p.sites.disk, pcSiteDomain, pcContentHost, "", "", "", "", nil, 0, "", "", nil, nil)
+		h := NewSiteHandler(p.sites.ed, "", p.database, p.sites.disk, pcSiteDomain, pcContentHost, "", "", "", "", nil, 0, "", nil, nil)
 		h.SetPersonHosts("serve")
 		h.SetSiteHosts("serve", "")
 		return h.StaticPages(table, api, retry)

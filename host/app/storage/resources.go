@@ -16,12 +16,10 @@ import (
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
-// ResourceListing contains a resource and optional legacy visitor history.
+// ResourceListing contains a resource and its rule errors.
 type ResourceListing struct {
-	Resource          rules.Resource
-	RulesErrors       []ruleengine.RuleError
-	VisitorHistory    any
-	HasVisitorHistory bool
+	Resource    rules.Resource
+	RulesErrors []ruleengine.RuleError
 }
 
 // ListStorageResources constructs the owner's resource listing in query order.
@@ -35,16 +33,7 @@ func (s *Service) ListStorageResources(ctx context.Context, call Call) ([]Resour
 	}
 	out := []ResourceListing{}
 	for _, x := range list {
-		entry := ResourceListing{Resource: x, RulesErrors: s.resourceRulesErrors(x)}
-		if s.deps.LegacyRoutes {
-			history, err := s.deps.ResourceHistory(ctx, call.SiteID, x.Name)
-			if err != nil {
-				return nil, err
-			}
-			entry.VisitorHistory = history
-			entry.HasVisitorHistory = true
-		}
-		out = append(out, entry)
+		out = append(out, ResourceListing{Resource: x, RulesErrors: s.resourceRulesErrors(x)})
 	}
 	return out, nil
 }
@@ -351,9 +340,6 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	}
 
 	unlock()
-	if s.deps.RulesEnabled && !s.deps.StorageSwitchAt.IsZero() && x.Rules == nil && (x.Kind == "sqlite" || x.Kind == "kv") {
-		warnings = append(warnings, s.deps.PresetNotice)
-	}
 	if len(warnings) > 0 {
 		sort.Strings(warnings)
 	}

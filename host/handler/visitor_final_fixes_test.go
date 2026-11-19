@@ -64,20 +64,10 @@ func TestVisitorWriteNumbersAndIDsExact(t *testing.T) {
 		if wrapped {
 			mode = "wrapped"
 		}
-		for _, kind := range []string{"kv", "sqlite", "collection"} {
+		for _, kind := range []string{"kv", "sqlite"} {
 			t.Run(mode+"/"+kind, func(t *testing.T) {
 				f := newVisitorFixture(t)
-				if kind == "collection" {
-					if _, err := f.a.database.Exec(`UPDATE sites SET legacy_data=true WHERE id=$1`, f.sid); err != nil {
-						t.Fatal(err)
-					}
-					res := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/data/numbers/kind", map[string]any{"kind": "entries", "visibility": "private"}, f.key)
-					if res.status != 200 {
-						t.Fatalf("declare: %s", res.body)
-					}
-				} else {
-					f.must(t, "PUT", "/resources/numbers", map[string]any{"kind": kind, "preset": "personal"}, f.key, 201)
-				}
+				f.must(t, "PUT", "/resources/numbers", map[string]any{"kind": kind, "preset": "personal"}, f.key, 201)
 				if kind == "sqlite" {
 					f.must(t, "POST", "/sqlite/numbers/schema", map[string]any{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, n INTEGER)"}, f.key, 200)
 					f.must(t, "POST", "/sqlite/numbers/execute", map[string]any{"sql": "INSERT INTO entries(id,n,visitor_id) VALUES(" + adjacent + ",7,?)", "params": []any{f.ids["bob"]}}, f.key, 200)
@@ -104,8 +94,6 @@ func TestVisitorWriteNumbersAndIDsExact(t *testing.T) {
 					switch kind {
 					case "kv":
 						got = strings.TrimSuffix(strings.TrimPrefix(readStorageKVValue(t, f.a.sites, storageKVFixtureCall(t, f.a.sites, f.sid, "numbers"), "big"), `{"n": `), "}")
-					case "collection":
-						err = f.a.database.QueryRow(`SELECT data->>'n' FROM collection_items WHERE site_id=$1 AND collection='numbers'`, f.sid).Scan(&got)
 					case "sqlite":
 						res := f.must(t, "POST", "/sqlite/numbers/query", map[string]any{"sql": "SELECT CAST(n AS TEXT) FROM entries WHERE id=" + exact}, f.key, 200)
 						got = res.json(t)["rows"].([]any)[0].([]any)[0].(string)
@@ -117,11 +105,6 @@ func TestVisitorWriteNumbersAndIDsExact(t *testing.T) {
 				args["value"] = map[string]any{"n": json.Number(exact)}
 				call("visitor_add_entry", "")
 				verify(exact)
-				if kind == "collection" {
-					if _, err := f.a.database.Exec(`UPDATE collection_items SET id=$1 WHERE site_id=$2 AND collection='numbers'`, exact, f.sid); err != nil {
-						t.Fatal(err)
-					}
-				}
 				if kind != "kv" {
 					args["id"] = json.Number(exact)
 				}

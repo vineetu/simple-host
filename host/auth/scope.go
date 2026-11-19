@@ -56,25 +56,11 @@ const DeployOnlyMessage = "this is a deploy-only key: it can create, update, rol
 // teamRoutes is everything a member's team key (scope team, hosted
 // events) may call, and only on the team's own site: every {sitename} route
 // here must name it. Deploys, versions, rollback and preview links; the
-// site's saved data as its owner (declaring kinds so visitors' saves are
-// private, reading what visitors sent, Page info, removing an item, who may
-// save); and its visit counts. Never deleting or renaming the site, domains,
-// passcodes, version retention, visibility, open writes or anything of an
-// account. GET /v1/sites lists the team's site only (site.go).
+// site's storage as its owner; and its visit counts. Never deleting or
+// renaming the site, domains, passcodes, version retention, visibility or
+// anything of an account. GET /v1/sites lists the team's site only (site.go).
 var teamRoutes = map[string]bool{
 	"GET /v1/me":                                                                 true, // answers who the key acts for (user.go)
-	"GET /v1/sites/{sitename}/data":                                              true,
-	"GET /v1/sites/{sitename}/data/{coll}":                                       true,
-	"PUT /v1/sites/{sitename}/data/{coll}":                                       true,
-	"DELETE /v1/sites/{sitename}/data/{coll}/items/{id}":                         true,
-	"GET /v1/sites/{sitename}/data/{coll}/kind":                                  true,
-	"PUT /v1/sites/{sitename}/data/{coll}/kind":                                  true,
-	"GET /v1/sites/{sitename}/collections":                                       true,
-	"GET /v1/sites/{sitename}/collections/{coll}":                                true,
-	"GET /v1/sites/{sitename}/collections/{coll}/export.csv":                     true,
-	"GET /v1/sites/{sitename}/savers":                                            true,
-	"PUT /v1/sites/{sitename}/savers":                                            true,
-	"POST /v1/sites/{sitename}/savers/block":                                     true,
 	"GET /v1/sites/{sitename}/analytics":                                         true,
 	"GET /v1/sites/{sitename}/analytics/top":                                     true,
 	"GET /v1/sites/{sitename}/analytics/geo":                                     true,

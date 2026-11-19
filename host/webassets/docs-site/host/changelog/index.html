@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ic2n7f" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="10s6tq1" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -108,11 +108,6 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage and saved data</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/guides/moving-saved-data/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Move a site off the older saved data</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -417,11 +412,6 @@
 				<span class="astro-rmhv4bp6">Storage and backups</span>
 				
 			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
-				
-			</a>
 	</li>
 </ul>
 			</details>
@@ -602,6 +592,9 @@
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><h2 id="november-2026">November 2026</h2>
 <ul>
+<li>
+<p><strong>Nov 19:</strong> The older saved-data features are removed: shared state, collections, the declared kinds (Page info, Submissions, Personal, Shared board), <code>SH.data</code>, <code>SH.state</code> and <code>SH.collection</code>, their routes, AI tools, dashboard views, the new-entries email, their settings (<code>SAVED_DATA_*</code>, <code>WRITE_AUTH_MODE</code>, <code>RATE_LIMIT_STATE</code>, <code>LEGACY_STORAGE_CUTOFF</code>, <code>STORAGE_SWITCH_AT</code>) and the retirement-notice machinery. A page calling an old route gets the ordinary 404. The saved rows stay in the database.</p>
+</li>
 <li>
 <p><strong>Nov 19:</strong> Key-value storage has one store. Every key-value namespace is a SQLite file in its site’s folder. The older Postgres store, the <code>KV_STORE</code> setting and the <code>kv-move</code> command are gone. Nothing changes for pages or tools.</p>
 </li>

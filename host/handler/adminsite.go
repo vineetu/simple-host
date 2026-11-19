@@ -28,9 +28,6 @@ var siteIDShape = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 func (h *SiteHandler) registerAdminSiteActions(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
 	mux.Handle("GET /v1/admin/sites/{id}/versions", authMiddleware(h.asSiteOwner(h.listVersions)))
 	mux.Handle("PUT /v1/admin/sites/{id}/active-version", authMiddleware(h.asSiteOwner(h.setActiveVersion)))
-	mux.Handle("GET /v1/admin/sites/{id}/collections", authMiddleware(h.asSiteOwner(h.listSiteCollections)))
-	mux.Handle("GET /v1/admin/sites/{id}/collections/{coll}", authMiddleware(h.asSiteOwner(h.listCollection)))
-	mux.Handle("GET /v1/admin/sites/{id}/collections/{coll}/export.csv", authMiddleware(h.asSiteOwner(h.exportCollectionCSV)))
 	mux.Handle("POST /v1/admin/sites/{id}/domain", authMiddleware(h.asSiteOwner(h.bindDomain)))
 	mux.Handle("DELETE /v1/admin/sites/{id}/domain", authMiddleware(h.asSiteOwner(h.deleteDomain)))
 	mux.Handle("DELETE /v1/admin/sites/{id}", authMiddleware(h.asSiteOwner(h.deleteSite)))

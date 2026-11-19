@@ -37,7 +37,6 @@ func mcpLimits(l edition.Limits) mcp.Limits {
 		DomainUnprovenTTL:    l.DomainUnprovenTTL,
 		DomainLapseWarnAfter: l.DomainLapseWarnAfter,
 		DomainLapseAfter:     l.DomainLapseAfter,
-		UndoDays:             time.Duration(l.SavedData.UndoDays) * 24 * time.Hour,
 		SiteViewersMax:       l.SiteViewersMax,
 		FamilyUnprovenTTL:    l.FamilyUnprovenTTL,
 	}

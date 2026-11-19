@@ -182,7 +182,6 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_SPAM_CHECKED_SITE":          {"data", "Posts on comments-preset resources, per site from everyone together.", true, true},
 	"SPAM_CHECKED_POST_MAX_BYTES":           {"data", "Largest post someone not signed in may add to a comments-preset resource (the JSON of its values).", false, true},
 	"SPAM_CHECKED_POST_MAX_LINKS":           {"data", "Links (http://, https://, www.) one such post may contain.", false, true},
-	"RATE_LIMIT_STATE":                      {"data", "Saved-data and list writes per client.", false, true},
 	"RATE_LIMIT_SITE_OPS":                   {"sites", "Deleting, changing and restoring sites, and admin sign-in tries, per address.", false, true},
 	"RATE_LIMIT_EXPORT":                     {"sites", "Site and account downloads per address.", false, true},
 	"RATE_LIMIT_ANALYTICS":                  {"sites", "Top pages and referring domains reads, per address.", false, true},
@@ -195,48 +194,13 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_OAUTH_REGISTER":             {"accounts", "AI app registrations on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_AUTHORIZE":            {"accounts", "AI app sign-in requests on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_TOKEN":                {"accounts", "AI app token requests on the connector, per address.", true, true},
-
-	"SAVED_DATA_UNDO_DAYS":                {"data", "How long every change to saved data, and every deleted list item, can be restored.", false, true},
-	"SAVED_DATA_HISTORY_MAX_MB":           {"data", "A site's saved-data history above this is thinned, oldest first.", false, true},
-	"SAVED_DATA_SITE_MAX_MB":              {"data", "Largest a site's live saved data may grow.", false, true},
-	"SAVED_DATA_SNAPSHOT_EVERY":           {"data", "History keeps a full copy of a site's data at least this often.", false, true},
-	"SAVED_DATA_SWEEP_MINUTES":            {"data", "How often expired history and deleted items are removed.", false, true},
-	"SAVED_DATA_WATCH_DAYS":               {"data", "The window the admin page's saved-data watch reports.", false, true},
-	"SAVED_DATA_WATCH_INC_MAX":            {"data", "A visitor increment larger than this counts as large in the watch.", false, true},
-	"SAVED_DATA_WATCH_ITEM_KB":            {"data", "A list item larger than this counts as large in the watch.", false, true},
-	"SAVED_DATA_WATCH_KEEP_DAYS":          {"data", "Watch counts older than this are removed.", false, true},
-	"SAVED_DATA_IDEMPOTENCY_HOURS":        {"data", "How long a retried write gets its first answer back instead of applying twice.", false, true},
-	"SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE": {"data", "Retry keys remembered per site; the oldest past this are dropped.", false, true},
-	"SAVED_DATA_READ_PER_SEC":             {"data", "Saved-data reads per second per site and address.", false, true},
-	"SAVED_DATA_READ_BURST":               {"data", "Saved-data reads allowed at once above that rate.", false, true},
-	"SAVED_DATA_APPEND_PER_MIN":           {"data", "List items one address may add per minute without the owner's key.", false, true},
-	"SAVED_DATA_APPEND_BURST":             {"data", "List items allowed at once above that rate.", false, true},
-	"SAVED_DATA_CONTENT_MAX_KB":           {"data", "Largest one Page info document may be.", false, true},
-	"SAVED_DATA_CONTENT_NAMES_MAX":        {"data", "Page info names one site may declare.", false, true},
-	"SAVED_DATA_ENTRY_MAX_KB":             {"data", "Largest one new Submissions entry may be.", false, true},
-	"SAVED_DATA_ENTRIES_MAX":              {"data", "Live entries one Submissions name may hold.", false, true},
-	"SAVED_DATA_WITHDRAW_UNDO_MINUTES":    {"data", "How long a visitor can bring back an entry they withdrew.", false, true},
-	"SAVED_DATA_NOTIFY_EACH_MINUTES":      {"data", "\"Email me: each\" sends at most one email per name this often, listing what arrived.", false, true},
-	"SAVED_DATA_NOTIFY_DAILY_HOURS":       {"data", "\"Email me: daily\" sends at most one digest per name this often.", false, true},
-	"SAVED_DATA_SAVERS_MAX":               {"data", "Emails and domains in one site's who-may-save and block lists together.", false, true},
-	"SAVED_DATA_ENTRIES_NAMES_MAX":        {"data", "Submissions names one site may declare.", false, true},
-	"SAVED_DATA_PERSONAL_MAX_KB":          {"data", "Largest one person's record in one Personal name may be.", false, true},
-	"SAVED_DATA_PERSONAL_NAMES_MAX":       {"data", "Personal names one site may declare.", false, true},
-	"SAVED_DATA_PERSONAL_PEOPLE_MAX":      {"data", "People who may hold a record in one Personal name.", false, true},
-	"SAVED_DATA_BOARD_ITEM_MAX_KB":        {"data", "Largest one Shared board item may be.", false, true},
-	"SAVED_DATA_BOARD_MAX":                {"data", "Live items one Shared board may hold.", false, true},
-	"SAVED_DATA_BOARD_NAMES_MAX":          {"data", "Shared board names one site may declare.", false, true},
-	"SAVED_DATA_BOARD_WRITES_PER_MIN":     {"data", "Shared board adds, changes and deletes one signed-in person may make per minute, on top of the per-address rate.", false, true},
-	"SAVED_DATA_DEFAULT_KIND":             {"data", "What a name no one declared is on a site made after the kinds. shared: anyone reads it and signed-in visitors save to it. declare_first: it takes no saves until the owner declares it. Older sites are shared either way.", true, true},
 }
 
 // strictOrder is StrictOrder for the security-sensitive switches and choices
 // (a test fails when one is missing or does not list exactly Allowed).
 var strictOrder = map[string][]string{
-	"STORAGE_RULES":           {"off", "on"},
-	"WRITE_AUTH_MODE":         {"on", "log", "off"},
-	"SAVED_DATA_DEFAULT_KIND": {"declare_first", "shared"},
-	"OIDC_INSECURE_ALLOWED":   {"false", "true"},
+	"STORAGE_RULES":         {"off", "on"},
+	"OIDC_INSECURE_ALLOWED": {"false", "true"},
 }
 
 // zeroIsNever names the security-sensitive lifetimes where 0 means never:
@@ -250,7 +214,6 @@ var zeroIsNever = map[string]bool{
 // that were settings before the knobs existed.
 func otherSettings() []Setting {
 	return []Setting{
-		{Name: "STORAGE_SWITCH_AT", Group: "storage", Type: "string", Default: "", SmallBox: true, Security: true, Description: "RFC3339 UTC retirement instant for storage presets and older saved-data APIs. Empty means no switch date set. Requires STORAGE_RULES=on. Set the environment (Compose) or values file (Helm) and restart to change it."},
 		{Name: "STORAGE_RULES", Group: "storage", Type: "enum", Default: "off", Allowed: []string{"off", "on"}, SmallBox: true, Security: true, Description: "Accept owner-written row rules for SQLite databases and key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it."},
 		{Name: "SITE_DOMAIN", Group: "server", Type: "string", Basic: true, SmallBox: true, InstallFlag: "--host",
 			Description: "The domain this server lives at, like sites.example.com. Unset, the server starts in setup mode and asks for one."},
@@ -426,11 +389,6 @@ func otherSettings() []Setting {
 			Description: "SIM-360: accounts (comma-separated handles) allowed to use Web Push as a notification channel; push routes 404 for everyone else. \"all\" or \"*\" enables it for every account. Empty: off."},
 		{Name: "PREVIEW_TTL_HOURS", Group: "sites", Type: "duration", Default: "48", Min: i64(1), Unit: "hours",
 			Description: "How long those accounts' sites last."},
-
-		{Name: "WRITE_AUTH_MODE", Group: "data", Type: "enum", Default: "log", Allowed: []string{"off", "log", "on"}, Security: true,
-			Description: "on: page saves need a signed-in visitor or the owner's key. log: allowed, and logged."},
-		{Name: "LEGACY_STORAGE_CUTOFF", Group: "data", Type: "string", Default: "off", SmallBox: true,
-			Description: "YYYY-MM-DD (00:00 UTC that day): sites created on or after this date get 410 legacy_storage_closed from the old saved-state, collections and declared-data routes. Empty or off disables the gate (the default, so self-hosted boxes are unchanged). An unparsable value logs a warning at boot and disables the gate. simple-host.app: 2026-10-12."},
 
 		{Name: "EVENT_DNS_TOKEN", Group: "domains", Type: "secret", Security: true,
 			Description: "The DNS token that hands out event hostnames. The public instance only."},

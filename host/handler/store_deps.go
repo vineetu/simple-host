@@ -11,12 +11,10 @@ import (
 func (h *SiteHandler) storeAccounts() *accountapp.Service { return accountapp.New(h.database) }
 
 func (h *SiteHandler) storeMail() *notifications.StoreMail {
-	return &notifications.StoreMail{Database: h.database, Mailer: h.mailer, EachMinutes: h.savedData.NotifyEachMinutes, DailyHours: h.savedData.NotifyDailyHours, ExportBase: h.exportLinkBase(), MainSiteURL: h.mainSiteURL(), StopToken: h.notifyStopToken, MailError: notificationMailError}
+	return &notifications.StoreMail{Mailer: h.mailer}
 }
 
-const legacyDeclareFirst = "declare_first"
-
-// storeSpan formats durations for the legacy HTTP messages.
+// storeSpan formats durations for messages and emails.
 func storeSpan(d time.Duration) string {
 	n, unit := int(d/time.Second), "second"
 	switch {

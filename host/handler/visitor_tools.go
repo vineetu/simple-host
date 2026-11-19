@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/host/app/legacy"
 	"github.com/vsriram/simple-host/host/app/sites"
+	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	"github.com/vsriram/simple-host/host/auth"
 	httpx "github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
@@ -152,7 +152,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	if err != nil {
 		return nil, err
 	}
-	if resource != "" && page == "" && args["kind"] != "collection" {
+	if resource != "" && page == "" {
 		x, err := h.loadStorageResource(req.Context(), id.String, resource)
 		if err != nil && row.Enc == nil {
 			return nil, fmt.Errorf("resource not found")
@@ -465,35 +465,6 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 			}
 		}
 	}
-	summaries, err := h.legacySvc().ListCollectionSummariesByID(r.Context(), siteID)
-	if err != nil {
-		return nil, err
-	}
-	for _, summary := range summaries {
-		if resource != "" && resource != summary.Name {
-			continue
-		}
-		set, err := h.legacySvc().GetDataSettings(r.Context(), siteID, summary.Name)
-		if err != nil {
-			return nil, err
-		}
-		if set.Kind == model.KindPersonal || set.Kind == model.KindContent {
-			continue
-		}
-		entry := map[string]any{"resource": summary.Name, "kind": "collection", "preset": set.Kind, "read_own_only": set.Private, "rights": map[string]any{"read": !set.Private || entriesLike(set), "add": true, "edit_own": entriesLike(set) || set.Kind == model.KindBoard, "delete_own": entriesLike(set) || set.Kind == model.KindBoard}}
-		if resource == "" && (!set.Private || entriesLike(set)) {
-			query := map[string]any{"resource": summary.Name, "kind": "collection"}
-			if limit, ok := args["limit"]; ok {
-				query["limit"] = limit
-			}
-			data, err := h.visitorResourceRequest(r, query, "read")
-			if err != nil {
-				return nil, err
-			}
-			entry["entries"] = data
-		}
-		list = append(list, entry)
-	}
 	out["resources"] = list
 	return out, nil
 }
@@ -508,11 +479,10 @@ func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string
 	if err != nil {
 		return nil, err
 	}
-	if kind == "collection" && !validCollectionName.MatchString(resource) || kind != "collection" && !storageNameRE.MatchString(resource) {
+	if !storageNameRE.MatchString(resource) {
 		return nil, fmt.Errorf("invalid resource name")
 	}
 	r.SetPathValue("name", resource)
-	r.SetPathValue("coll", resource)
 	r.Header.Set("X-SH-Visitor-Action", action)
 	// Set the path as a normal storage request so per-visitor rate limits and
 	// idempotency classify it correctly; path values are set by this adapter.
@@ -618,10 +588,8 @@ func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string
 			}
 		}
 		return result, err
-	case "collection":
-		return h.visitorCollectionRequest(r, args, action, method, value)
 	default:
-		return nil, fmt.Errorf("kind must be kv, sqlite, or collection")
+		return nil, fmt.Errorf("kind must be kv or sqlite")
 	}
 }
 
@@ -639,14 +607,12 @@ func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool st
 	}
 	resource, _ := visitorString(args, "resource")
 	kind, _ := visitorString(args, "kind")
-	adapter := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
-		VisitorResourceWrite: func(action string) (any, error) {
-			return h.visitorResourceRequest(r, args, action)
-		},
-	})
-	return adapter.VisitorToolWrite(r.Context(), legacy.VisitorToolWriteInput{
+	return h.storageSvc().VisitorToolWrite(r.Context(), appstorage.VisitorToolWriteInput{
 		SiteID: siteID, UserID: userID, App: app, Action: action,
 		Resource: resource, Kind: kind, Cap: h.limits.VisitorAIWritesPerDay,
+		Write: func(action string) (any, error) {
+			return h.visitorResourceRequest(r, args, action)
+		},
 	})
 }
 

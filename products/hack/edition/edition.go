@@ -65,7 +65,6 @@ func storageFor(k Kind) StoragePolicy {
 		p.CombinedPool = true
 	} else {
 		p.Photos = true
-		p.LegacyRoutes = true
 		p.FileCaps = true
 	}
 	return p

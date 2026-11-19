@@ -40,8 +40,6 @@ async function answer(route) {
     if (req.method() === 'PUT') return route.fulfill(json({ path: '2026/cover.webp', bytes: 3 }));
     if (req.method() === 'DELETE') return route.fulfill(json({ deleted: true }));
   }
-  if (p.endsWith('/data/legacy/kind')) return route.fulfill(json({ kind: 'content', label: 'Page info' }));
-  if (p.endsWith('/data/legacy')) return route.fulfill(json({ kind: 'content', data: { still: 'works' } }));
   return route.fulfill(json({ error: 'unexpected request', code: 'unexpected' }, 500));
 }
 
@@ -70,8 +68,7 @@ async function answer(route) {
       upload: await files.put('2026/cover.webp', new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' })),
       raw: await files.get('2026/cover.webp'),
       directURL: await files.url('2026/cover.webp'),
-      fileDeleted: await files.delete('2026/cover.webp'),
-      legacy: await SH.data('legacy', 'content').get()
+      fileDeleted: await files.delete('2026/cover.webp')
     };
     out.raw = { bytes: Array.from(new Uint8Array(await out.raw.blob.arrayBuffer())), type: out.raw.contentType };
     try { await kv.get('blocked'); } catch (e) { out.blocked = { status: e.status, code: e.code }; }
@@ -90,13 +87,12 @@ async function answer(route) {
   assert.deepEqual(result.nextFiles.items, result.files.items);
   assert.equal(result.raw.type, 'application/octet-stream');
   assert.equal(result.directURL, 'https://' + host + '/v1/sites/demo/storage/files/gallery/objects/2026/cover.webp');
-  assert.deepEqual(result.legacy, { still: 'works' });
   assert.deepEqual(result.blocked, { status: 401, code: 'sign_in_required' });
   assert.deepEqual(result.locked, { status: 403, code: 'site_locked' });
   assert.equal(result.signinEvents, 1);
   assert.equal(result.invalidPath, 'TypeError');
   for (const req of seen) {
-    assert.equal(req.host, host, 'storage and legacy calls stay on site origin');
+    assert.equal(req.host, host, 'storage calls stay on site origin');
     assert.equal(req.headers['x-api-key'], undefined, 'a hosted page never holds an API key');
     assert.match(req.headers.cookie || '', /__Host-sh_vsess=fixture-session/, 'site-scoped cookie reaches site APIs');
     if (['PUT', 'POST', 'DELETE'].includes(req.method)) assert.equal(req.headers['x-sh-csrf'], '1');
@@ -141,5 +137,5 @@ async function answer(route) {
   assert.equal(fallbackResult.url, 'https://owner.simple-host.app/v1/sites/demo/storage/files/gallery/objects/2026/cover.webp');
   await fallbackContext.close();
   await browser.close();
-  console.log('storage helper browser contract passed: KV, SQLite, binary files, legacy data, errors, and cookie scope');
+  console.log('storage helper browser contract passed: KV, SQLite, binary files, errors, and cookie scope');
 })().catch(e => { console.error(e); process.exit(1); });

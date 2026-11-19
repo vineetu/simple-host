@@ -29,14 +29,18 @@ func TestSuspendSiteEndToEnd(t *testing.T) {
 	const claimed = "olive-susp.simple-host.test"
 	okey := map[string]string{"X-API-Key": olive.key}
 	admin := map[string]string{"X-API-Key": a.admin}
-	// State and list writes are Origin-gated; a page on the site's own address.
+	// Saved-data calls from a page on the site's own address.
 	okeyO := map[string]string{"X-API-Key": olive.key, "Origin": "https://" + claimed}
 	adminO := map[string]string{"X-API-Key": a.admin, "Origin": "https://" + claimed}
+	data := "/v1/sites/shop/storage/kv/notes/keys/n"
 	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
 		t.Fatalf("claim: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PUT", claimed, "/v1/sites/shop/state", map[string]any{"n": 1}, okeyO); r.status != 200 {
-		t.Fatalf("seed state: %d %s", r.status, r.body)
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", map[string]string{"kind": "kv", "preset": "public"}, okey); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", claimed, data, map[string]any{"value": map[string]int{"n": 1}}, okeyO); r.status != 200 {
+		t.Fatalf("seed data: %d %s", r.status, r.body)
 	}
 
 	// Only the admin may take a site down, and a reason is required.
@@ -78,9 +82,8 @@ func TestSuspendSiteEndToEnd(t *testing.T) {
 		headers            map[string]string
 	}{
 		{"PUT", apex, "/v1/sites/shop/files", map[string]any{"files": map[string]string{"index.html": "x"}}, okey},
-		{"PUT", claimed, "/v1/sites/shop/state", map[string]any{"n": 2}, okeyO},
-		{"PUT", claimed, "/v1/sites/shop/state", map[string]any{"n": 2}, adminO},
-		{"POST", claimed, "/v1/sites/shop/collections/guests", map[string]any{"name": "x"}, okeyO},
+		{"PUT", claimed, data, map[string]any{"value": 2}, okeyO},
+		{"PUT", claimed, data, map[string]any{"value": 2}, adminO},
 		{"PUT", apex, "/v1/sites/shop/active-version", map[string]int{"version_number": 1}, okey},
 		{"PATCH", apex, "/v1/sites/shop", map[string]string{"name": "shop2"}, okey},
 		{"DELETE", apex, "/v1/sites/shop", nil, okey},
@@ -93,13 +96,10 @@ func TestSuspendSiteEndToEnd(t *testing.T) {
 			t.Fatalf("%s %s: %d %s", d.method, d.path, r.status, r.body)
 		}
 	}
-	if r := a.at(t, "GET", claimed, "/v1/sites/shop/state", nil, nil); r.status != http.StatusForbidden || r.json(t)["code"] != "site_suspended" {
-		t.Fatalf("public state read: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", claimed, data, nil, nil); r.status != http.StatusForbidden || r.json(t)["code"] != "site_suspended" {
+		t.Fatalf("public data read: %d %s", r.status, r.body)
 	}
-	// The owner still reads (and can export) it, and sees why it is down.
-	if r := a.at(t, "GET", claimed, "/v1/sites/shop/state", nil, okey); r.status != 200 {
-		t.Fatalf("owner state read: %d %s", r.status, r.body)
-	}
+	// The owner can still export it, and sees why it is down.
 	if r := a.at(t, "GET", apex, "/v1/sites/shop/export.tar.gz", nil, okey); r.status != 200 {
 		t.Fatalf("owner export: %d", r.status)
 	}
@@ -132,8 +132,8 @@ func TestSuspendSiteEndToEnd(t *testing.T) {
 	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status != 200 || string(r.body) != "<h1>shop</h1>" {
 		t.Fatalf("after restore: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", claimed, "/v1/sites/shop/state", nil, nil); r.status != 200 || !strings.Contains(strings.ReplaceAll(string(r.body), " ", ""), `"n":1`) {
-		t.Fatalf("state after restore: %d %s", r.status, r.body)
+	if r := a.at(t, "GET", claimed, data, nil, nil); r.status != 200 || !strings.Contains(strings.ReplaceAll(string(r.body), " ", ""), `"n":1`) {
+		t.Fatalf("data after restore: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PUT", apex, "/v1/sites/shop/files", map[string]any{"files": map[string]string{"index.html": "v2"}}, okey); r.status != 200 {
 		t.Fatalf("deploy after restore: %d %s", r.status, r.body)
@@ -173,8 +173,8 @@ func TestSuspendPersonEndToEnd(t *testing.T) {
 	if r := a.at(t, "GET", apex, "/v1/sites", nil, bearer); r.status != http.StatusForbidden || r.json(t)["code"] != "account_suspended" {
 		t.Fatalf("token while suspended: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PUT", host, "/v1/sites/shop/state", map[string]any{"n": 1}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + host}); r.status != http.StatusForbidden {
-		t.Fatalf("state write while suspended: %d %s", r.status, r.body)
+	if r := a.at(t, "PUT", host, "/v1/sites/shop/storage/kv/notes/keys/n", map[string]any{"value": 1}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + host}); r.status != http.StatusForbidden {
+		t.Fatalf("data write while suspended: %d %s", r.status, r.body)
 	}
 	var keys int
 	if err := a.database.QueryRow(`SELECT count(*) FROM api_keys WHERE user_id = $1`, oliveID).Scan(&keys); err != nil || keys == 0 {
@@ -250,7 +250,7 @@ func TestAdminExportAll(t *testing.T) {
 		b, _ := io.ReadAll(tr)
 		seen[hdr.Name] = string(b)
 	}
-	for _, want := range []string{oh + "/shop/files/index.html", sh + "/shop/files/index.html", oh + "/shop/state.json"} {
+	for _, want := range []string{oh + "/shop/files/index.html", sh + "/shop/files/index.html"} {
 		if _, ok := seen[want]; !ok {
 			t.Fatalf("archive lacks %s; has %d entries", want, len(seen))
 		}

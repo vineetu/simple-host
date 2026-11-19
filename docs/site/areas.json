@@ -31,16 +31,6 @@
       "/docs/guides/storage/"
     ]
   },
-  "moving-saved-data": {
-    "title": "Move a site off the older saved data",
-    "guide": true,
-    "brands": [
-      "host"
-    ],
-    "pages": [
-      "/docs/guides/moving-saved-data/"
-    ]
-  },
   "access": {
     "title": "Sign-in and access",
     "guide": true,

@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** The older saved-data features are removed: shared state, collections, the declared kinds (Page info, Submissions, Personal, Shared board), `SH.data`, `SH.state` and `SH.collection`, their routes, AI tools, dashboard views, the new-entries email, their settings (`SAVED_DATA_*`, `WRITE_AUTH_MODE`, `RATE_LIMIT_STATE`, `LEGACY_STORAGE_CUTOFF`, `STORAGE_SWITCH_AT`) and the retirement-notice machinery. A page calling an old route gets the ordinary 404. The saved rows stay in the database.
+
 - **Nov 19:** The owner product knowledge connector (`/brain/mcp`, its `/v1/brain` mirror, the `brain-build` command and the `BRAIN_DIR` setting) is removed. Nothing changes for sites, hackathons or the public connector (B1-S1).
 
 - **Nov 19:** Key-value storage has one store. Every key-value namespace is a SQLite file in its site's folder. The older Postgres store, the `KV_STORE` setting and the `kv-move` command are gone. Nothing changes for pages or tools.

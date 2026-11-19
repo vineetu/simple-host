@@ -21,15 +21,15 @@ analytics-own-visits
 applications-without-a-join-link
 archive-cleanup
 claimed-names-custom-domains
-collections
-collections-existing-sites-only
+collections retired
+collections-existing-sites-only retired
 cost-calculator
 cost-calculator-existing-ingress
 dashboard-add-photos
 dashboard-icon
 dashboard-mcp-apps
 dashboard-remembered-handle
-data-history
+data-history retired
 delete-an-event
 domain-partner
 each-persons-records
@@ -55,7 +55,7 @@ judge-notices
 judging
 judging-choices
 judging-fixes
-kinds-page-info-and-submissions
+kinds-page-info-and-submissions retired
 kubernetes
 leave-this-event
 legal-and-support-pages
@@ -72,7 +72,7 @@ owner-auth
 owner-dashboard-and-owner-app
 panel-untracked-teams
 password-accounts
-personal-and-shared-board
+personal-and-shared-board retired
 prices-and-sources
 publish-file-limits
 publish-idle-cleanup
@@ -80,7 +80,7 @@ redirects-and-plain-addresses
 registration-tracks-and-challenges
 reminder-times
 results-show-what-each-team-built
-saved-state
+saved-state retired
 setup-helper
 showcase-feed
 showcase-person-index
@@ -99,7 +99,7 @@ sites-and-deploy
 skills-and-plugin-distribution
 stage-and-entry-fixes
 standalone-full-platform-package
-state-existing-sites-only
+state-existing-sites-only retired
 storage-comments
 storage-owner-for-visitor
 storage-presets
@@ -112,13 +112,13 @@ team-messages
 team-writes-organisers
 teams-can-see-the-rubric
 the-judges-one-screen
-the-per-site-cap
+the-per-site-cap retired
 unplaced-routes-and-tools
 visitor-sign-in
 visitor-signin
 webmcp-on-add-photos
 webmcp-on-the-owner-app
 weekly-demo-reset
-who-may-save
+who-may-save retired
 whole-space-custom-apex-stopped
 your-home-page

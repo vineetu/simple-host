@@ -34,9 +34,7 @@ type Extension struct {
 	// snapshot, without constructing API services or starting product workers.
 	LoadRoutingFacts        func(context.Context, *sql.Tx) ([]model.RouteGroup, []model.RouteGroupSite, error)
 	LookupGroupRoutingFacts func(context.Context, *sql.DB, string, string) (model.SiteTable, error)
-	// StorageNoticeGroup labels holding accounts for the operator recipient report.
-	StorageNoticeGroup appstorage.NoticeGroup
-	Config             ConfigSpec
+	Config                  ConfigSpec
 
 	Assets func(*handler.SiteHandler) Assets
 	// CheckSchema runs after platform verification, before other database reads.
@@ -50,9 +48,6 @@ type Extension struct {
 	// combined order of platform and product unnumbered migrations.
 	Migrations     *migrations.Catalog
 	MigrationOrder []string
-	// Gate runs once before connector construction. Its middleware sits inside
-	// LegacyStorageCutoffGate and outside ScopeGate.
-	Gate func(GateDeps) func(http.Handler) http.Handler
 	// Wire runs once after connector registration and image-scan construction.
 	Wire func(Deps) (Parts, error)
 	// Early runs after edition construction, before the first accounts service.
@@ -67,11 +62,6 @@ type EarlyDeps struct {
 
 type EarlyHooks struct {
 	Accounts accountapp.GroupHooks
-}
-
-type GateDeps struct {
-	Site    *handler.SiteHandler
-	Edition *edition.Edition
 }
 
 type Deps struct {

@@ -3,6 +3,7 @@ package servertest
 import (
 	"bytes"
 	"encoding/json"
+
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	"net/http"
@@ -13,8 +14,8 @@ import (
 	"github.com/vsriram/simple-host/host/handler"
 )
 
-// Checks the public router and both connector grant shapes, not only the
-// legacy route-name classifier. Hack websites retain resource storage.
+// Checks the public router and both connector grant shapes: the removed
+// saved-data routes are unknown, and Hack websites keep resource storage.
 func TestHackStorageOnlyReview(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org := a.newPerson(t, "storage-only-org")
@@ -48,11 +49,13 @@ func TestHackStorageOnlyReview(t *testing.T) {
 		{"GET", "/v1/admin/data-watch", nil, a.admin},
 		{"GET", "/v1/data-notify/stop", nil, ""},
 	} {
-		wantTS(t, tc.method+" "+tc.path, a.api(t, tc.method, tc.path, tc.body, tc.key), http.StatusGone, "legacy_storage_removed")
+		// Gone: unknown to the router, or outside what the team key may call.
+		if r := a.api(t, tc.method, tc.path, tc.body, tc.key); r.status != http.StatusNotFound && r.status != http.StatusForbidden {
+			t.Fatalf("%s %s: %d %s", tc.method, tc.path, r.status, r.body)
+		}
 	}
 	teamHost := team + "." + slug + "." + tsDomain
-	wantTS(t, "team-host legacy read", a.on(t, "GET", teamHost, base+"/state", nil, ""), http.StatusGone, "legacy_storage_removed")
-	wantTS(t, "team-host legacy preflight", a.on(t, "OPTIONS", teamHost, base+"/data/old", nil, ""), http.StatusGone, "legacy_storage_removed")
+	wantTS(t, "team-host removed read", a.on(t, "GET", teamHost, base+"/state", nil, ""), http.StatusNotFound, "")
 	wantTS(t, "team resource", a.api(t, "PUT", base+"/storage/resources/prefs", map[string]string{"kind": "kv", "read": "anyone"}, key), 201, "")
 	wantTS(t, "team KV write", a.api(t, "PUT", base+"/storage/kv/prefs/keys/color", map[string]any{"value": "blue"}, key), 200, "")
 	if r := a.on(t, "GET", teamHost, base+"/storage/kv/prefs/keys/color", nil, ""); r.status != 200 || !strings.Contains(string(r.body), "blue") {
@@ -93,18 +96,10 @@ func TestHackStorageOnlyReview(t *testing.T) {
 			}
 		}
 	}
-	// get_state and list_data are retired connector-wide, so a direct call
-	// now answers with the retirement notice (a successful tool result,
-	// isError true) rather than a protocol-level "unknown tool" error.
-	for _, name := range []string{"get_state", "list_data"} {
-		text, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": map[string]any{"site": team}}))
-		if !isErr || !strings.Contains(text, "no longer offered") {
-			t.Fatalf("direct %s retirement notice: %v %s", name, isErr, text)
-		}
-	}
-	// The passcode tools and hack_create_team_key are merely not offered to
-	// this caller (not retired), so a direct call is still an unknown tool.
-	for _, name := range []string{"get_site_passcode", "set_site_passcode", "remove_site_passcode", "sign_out_site_visitors", "hack_create_team_key"} {
+	// The removed saved-data tools, the passcode tools and
+	// hack_create_team_key are not offered to this caller, so a direct call
+	// is an unknown tool.
+	for _, name := range []string{"get_state", "list_data", "get_site_passcode", "set_site_passcode", "remove_site_passcode", "sign_out_site_visitors", "hack_create_team_key"} {
 		r := a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": map[string]any{"site": team}})
 		e, _ := r.json(t)["error"].(map[string]any)
 		if e == nil || !strings.Contains(e["message"].(string), "unknown tool") {
@@ -112,14 +107,6 @@ func TestHackStorageOnlyReview(t *testing.T) {
 		}
 	}
 }
-
-// TestHostRetainsLegacyStorageReview moved to host/handler/
-// kinds_review_test.go (cleanup 3.2 slice 3): it is 100% Host-only (no
-// hackhttp.HackHandler, no team site), just filed here alongside the Hack storage
-// review it shipped with; its fixture (kindsSite/savedDataSite, and the
-// whole private_collections_test.go/sitehost_test.go tree beneath them)
-// runs hundreds of lines deep into Host-only internals that have no reason
-// to cross the package boundary for one two-assertion test.
 
 // Exercises the registered public routes: the Hack spec must be the same
 // complete JSON document at both extensions, with no dangling component refs.
@@ -166,11 +153,6 @@ func TestHackRegisteredDocsReview(t *testing.T) {
 	paths, ok := spec["paths"].(map[string]any)
 	if !ok || len(paths) == 0 {
 		t.Fatal("Hack OpenAPI has no paths")
-	}
-	for path := range paths {
-		if handler.LegacyStoragePath(path) {
-			t.Errorf("retired path in Hack OpenAPI: %s", path)
-		}
 	}
 	if _, ok := paths["/v1/sites/{sitename}/storage/resources"]; !ok {
 		t.Fatal("Hack OpenAPI lacks current storage routes")

@@ -9,7 +9,6 @@ const (
 	famSites         toolFamily = "sites"         // sites, deploys, versions
 	famAccess        toolFamily = "access"        // passcodes, viewers, domains
 	famStorage       toolFamily = "storage"       // current storage (KV, SQLite, files) and visitor tools
-	famLegacy        toolFamily = "legacy"        // legacy Host storage
 	famAccounts      toolFamily = "accounts"      // who am I, profile, connections
 	famImports       toolFamily = "imports"       // archive and photo uploads
 	famNotifications toolFamily = "notifications" // notifications and MCP Events

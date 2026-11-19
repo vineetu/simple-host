@@ -43,13 +43,6 @@ func TestExtensionConstructionOrderAndWireError(t *testing.T) {
 			}
 			return extension.EarlyHooks{}
 		},
-		Gate: func(d extension.GateDeps) func(http.Handler) http.Handler {
-			order = append(order, "gate")
-			if d.Site == nil || d.Edition == nil {
-				t.Fatal("gate dependencies missing")
-			}
-			return func(next http.Handler) http.Handler { return next }
-		},
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			order = append(order, "wire")
 			if d.DB != db || d.Disk == nil || d.Mail == nil || d.Accounts == nil || d.Site == nil || d.Connector == nil || d.ImageScan == nil || d.AuthMW == nil || d.Mux == nil || d.Edition == nil {
@@ -67,7 +60,7 @@ func TestExtensionConstructionOrderAndWireError(t *testing.T) {
 	if app != nil || !errors.Is(err, wantErr) {
 		t.Fatalf("Build = %v, %v; want wiring failure", app, err)
 	}
-	if !reflect.DeepEqual(order, []string{"schema", "edition", "early", "gate", "wire"}) {
+	if !reflect.DeepEqual(order, []string{"schema", "edition", "early", "wire"}) {
 		t.Fatalf("construction order = %v", order)
 	}
 	if err := db.Ping(); !errors.Is(err, sql.ErrConnDone) && (err == nil || err.Error() != "sql: database is closed") {

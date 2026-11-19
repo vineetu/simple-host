@@ -114,7 +114,6 @@ table.t td.wrap{white-space:normal;min-width:180px;max-width:280px;overflow-wrap
 details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);margin:10px 0 0;min-height:32px;display:flex;align-items:center}
 .panel-inner{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)}
 .vrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:4px 0;font-size:14px}
-.data-rows{max-height:360px;overflow:auto;margin-top:8px}
 /* Address families of one account (Users, account details). */
 .fam-adm{margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
 .fam-one{padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;overflow-wrap:anywhere}
@@ -361,12 +360,6 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <details class="box" id="idle-remove-d"><summary id="idle-remove-s">Sites that would be removed</summary>
         <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th>Warned</th></tr></thead><tbody id="idle-remove"></tbody></table></div>
       </details>
-    </div>
-    <!-- Saved-data watch (GET /v1/admin/data-watch): counts only, never content. -->
-    <div class="sec" id="dwatch" hidden>
-      <h2>Saved-data watch</h2>
-      <p class="ph" id="dwatch-note"></p>
-      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th class="num">Visitor replaces</th><th class="num">Not an object</th><th>Visitor ops</th><th class="num">Large incs</th><th class="num">New list names</th><th class="num">Large items</th><th>Last</th></tr></thead><tbody id="dwatch-rows"></tbody></table></div>
     </div>
   </section>
 
@@ -1039,7 +1032,6 @@ function openMenu(btn){
   if(s.site_url) items.push('<a class="mi" role="menuitem" href="'+esc(s.site_url)+'" target="_blank" rel="noopener">Open site</a>');
   if(o.handle) items.push('<a class="mi" role="menuitem" href="/analytics/'+encodeURIComponent(s.name)+'?owner='+encodeURIComponent(o.handle)+'" target="_blank" rel="noopener">Analytics</a>');
   items.push('<button type="button" class="mi" role="menuitem" data-act="versions">Versions</button>');
-  items.push('<button type="button" class="mi" role="menuitem" data-act="data">Data</button>');
   items.push(s.custom_domain?'<button type="button" class="mi" role="menuitem" data-act="disconnect">Disconnect '+esc(s.custom_domain)+'</button>'
                             :'<button type="button" class="mi" role="menuitem" data-act="connect">Connect domain</button>');
   items.push('<div class="mi-sep" role="separator"></div>');
@@ -1103,7 +1095,6 @@ function setPanel(s, html){
 async function siteAction(act, s){
   if(!s) return;
   if(act==='versions') return showVersions(s);
-  if(act==='data') return showData(s);
   if(act==='connect') return connectDomain(s);
   if(act==='disconnect') return disconnectDomain(s);
   if(act==='takedown') return suspendSite(s.id, s.name);
@@ -1132,53 +1123,6 @@ async function rollback(s, n){
     status('v'+n+' of '+s.name+' is live.');
     await reloadUsers(); showVersions(siteById(s.id)||s);
   }catch(e){ status('Cannot reach the server', true); }
-}
-async function showData(s){
-  SS.panel[s.id]={html:'Loading data…'}; renderSites();
-  try{
-    var res=await api('GET', sitePath(s,'/collections'));
-    if(res.status===410){
-      var gone={}; try{ gone=await res.json(); }catch(e){}
-      if(gone && gone.code==='legacy_storage_closed'){ setPanel(s, 'Nothing saved yet. '+closeBtn); return; }
-    }
-    if(!res.ok){ setPanel(s, 'Could not load data: '+esc(await errOf(res))+' '+closeBtn); return; }
-    var b=await res.json(), cols=(b&&b.collections)||[];
-    if(!cols.length){ setPanel(s, 'Nothing saved yet. '+closeBtn); return; }
-    setPanel(s, '<strong>Saved data of '+esc(s.name)+'</strong>'+cols.map(function(c){
-      var n=Math.trunc(Number(c.count)||0);
-      return '<div class="vrow"><span class="mono">'+esc(c.name)+'</span><span class="muted">'+n+' row'+(n===1?'':'s')+(c.last_at?' · last '+esc(new Date(c.last_at).toLocaleString()):'')+'</span>'+
-        '<button type="button" class="btn ghost sm" data-coll-view="'+esc(c.name)+'" data-site-id="'+esc(s.id)+'">View</button>'+
-        '<button type="button" class="btn ghost sm" data-coll-csv="'+esc(c.name)+'" data-site-id="'+esc(s.id)+'">Download CSV</button></div>'+
-        '<div class="data-rows" data-rows-for="'+esc(c.name)+'" hidden></div>';
-    }).join('')+'<div class="actions">'+closeBtn+'</div>');
-  }catch(e){ setPanel(s, 'Cannot reach the server. '+closeBtn); }
-}
-function fmtCell(v){ if(v==null) return ''; if(typeof v==='object') return esc(JSON.stringify(v)); return esc(String(v)); }
-async function viewRows(s, coll, btn){
-  var box=btn.closest('.panel-inner').querySelector('[data-rows-for="'+CSS.escape(coll)+'"]');
-  if(!box) return;
-  if(!box.hidden){ box.hidden=true; return; }
-  box.hidden=false; box.textContent='Loading…';
-  try{
-    var res=await api('GET', sitePath(s,'/collections/'+encodeURIComponent(coll)+'?limit=50'));
-    if(!res.ok){ box.textContent='Could not load rows: '+(await errOf(res)); return; }
-    var b=await res.json(), items=(b&&b.items)||[];
-    if(!items.length){ box.textContent='No rows.'; return; }
-    var ks={}; items.forEach(function(it){ var d=it&&it.data; if(d&&typeof d==='object'&&!Array.isArray(d)) Object.keys(d).forEach(function(k){ ks[k]=1; }); });
-    var keys=Object.keys(ks).sort();
-    box.innerHTML='<table class="t nowrap"><thead><tr>'+['id','created_at'].concat(keys).map(function(k){ return '<th>'+esc(k)+'</th>'; }).join('')+'</tr></thead><tbody>'+
-      items.map(function(it){ var d=(it&&it.data&&typeof it.data==='object'&&!Array.isArray(it.data))?it.data:{};
-        return '<tr><td>'+esc(it.id)+'</td><td>'+(it.created_at?esc(new Date(it.created_at).toLocaleString()):'')+'</td>'+keys.map(function(k){ return '<td>'+fmtCell(d[k])+'</td>'; }).join('')+'</tr>'; }).join('')+
-      '</tbody></table>'+(items.length>=50?'<p class="ph">First 50 rows. Download CSV has them all.</p>':'');
-  }catch(e){ box.textContent='Cannot reach the server.'; }
-}
-async function downloadCollection(s, coll){
-  try{
-    var res=await api('GET', sitePath(s,'/collections/'+encodeURIComponent(coll)+'/export.csv'));
-    if(!res.ok){ status(await errOf(res), true); return; }
-    var blob=await res.blob(), m=/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition')||'');
-    saveBlob(blob, m?m[1]:s.name+'-'+coll+'.csv');
-  }catch(e){ status('Could not download CSV', true); }
 }
 function saveBlob(blob, name){
   var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
@@ -1219,8 +1163,6 @@ $('s-rows').addEventListener('click', function(e){
   var s=b.dataset.siteId?siteById(b.dataset.siteId):null;
   if(b.hasAttribute('data-panel-close')){ var tr=b.closest('tr.detail'), prev=tr&&tr.previousElementSibling; if(prev&&prev.dataset.site){ delete SS.panel[prev.dataset.site]; renderSites(); } return; }
   if(b.dataset.rollback&&s) rollback(s, b.dataset.rollback);
-  else if(b.dataset.collView&&s) viewRows(s, b.dataset.collView, b);
-  else if(b.dataset.collCsv&&s) downloadCollection(s, b.dataset.collCsv);
 });
 
 // ---------------------------------------------------------------- moderation
@@ -1237,7 +1179,7 @@ function renderModeration(){
   });
   $('m-count').textContent='('+rows.length+')';
   $('m-rows').innerHTML=rows.join('')||'<tr><td colspan="4" class="empty">Nothing is taken down.</td></tr>';
-  if(!D.loaded.moderation){ D.loaded.moderation=true; loadImageScan(); loadIdle(); loadDataWatch(); }
+  if(!D.loaded.moderation){ D.loaded.moderation=true; loadImageScan(); loadIdle(); }
 }
 async function loadImageScan(){
   try{
@@ -1314,26 +1256,6 @@ async function loadIdle(){
     $('idle').hidden=false;
   }catch(e){}
 }
-async function loadDataWatch(){
-  try{
-    var res=await api('GET','/v1/admin/data-watch');
-    if(!res.ok) return;
-    var d=await res.json(), sites=d.sites||[];
-    var since=d.since?('Counting since '+d.since+' ('+d.days_counted+' of '+d.watch_days+' days). '):'Nothing counted yet. ';
-    $('dwatch-note').textContent=since+'Last '+d.days+' days, per site: whole-document replaces by visitors, documents that are not a JSON object, visitor state ops by type, visitor increments larger than '+
-      d.thresholds.inc_max+', list names a visitor started, and list items over '+d.thresholds.item_kb+' KB. These are the pages to check before the owner-only replace, object-only documents and bounded increments are switched on.';
-    $('dwatch-rows').innerHTML=sites.map(function(x){
-      var m=x.metrics||{}, ops=[];
-      Object.keys(m).sort().forEach(function(k){ if(k.indexOf('visitor_op_')===0) ops.push(k.slice(11)+' '+m[k]); });
-      var n=function(k){ return m[k]?String(m[k]):''; };
-      return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.handle)+'</td><td class="num">'+n('put_by_visitor')+'</td><td class="num">'+n('put_not_object')+
-        '</td><td>'+esc(ops.join(', '))+'</td><td class="num">'+n('visitor_inc_large')+'</td><td class="num">'+n('new_list_name')+
-        '</td><td class="num">'+n('item_large')+'</td><td>'+esc(fmtWhen(x.last_at))+'</td></tr>';
-    }).join('')||'<tr><td colspan="10" class="empty">Nothing yet.</td></tr>';
-    $('dwatch').hidden=false;
-  }catch(e){}
-}
-
 // ---------------------------------------------------------------- tools
 var ES={page:0};
 function entries(){
@@ -1374,7 +1296,7 @@ function copyEntries(){
   var list=entries().list, text=list.map(function(e){ return e.name+': '+e.url; }).join('\n');
   navigator.clipboard.writeText(text).then(function(){ status('Copied '+list.length+' links.'); }, function(){ status('Could not copy. Use Download CSV.', true); });
 }
-// Every site, its saved data and its lists, as one archive.
+// Every site and its saved data, as one archive.
 async function downloadAll(){
   var btn=$('entries-all-btn'); btn.disabled=true;
   status('Preparing the archive…');

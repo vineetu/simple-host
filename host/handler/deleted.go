@@ -16,7 +16,7 @@ import (
 // Recently deleted (completeness plan, 2026-09-27).
 //
 // DELETE /v1/sites/{site} takes a site offline at once and keeps it — files,
-// every version, saved state, collections, private-list settings, claimed
+// every version, saved data, claimed
 // names, custom domain — for db.DeletedSiteRetention() with its name held.
 // GET /v1/me/deleted-sites lists them, POST /v1/sites/{site}/restore brings one
 // back exactly as it was, and an in-process sweep removes them for good after

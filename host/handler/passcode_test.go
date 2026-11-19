@@ -252,7 +252,7 @@ func TestPasscodeRouteTable(t *testing.T) {
 			}
 		}
 	}
-	if n < 100 {
+	if n < 70 {
 		t.Fatalf("found only %d routes; the pattern no longer matches Register", n)
 	}
 }
@@ -270,6 +270,10 @@ type passcodeApp struct {
 }
 
 const passcodeCanary = "CANARY-7f3a91-do-not-leak"
+
+// passcodeData is a saved-data read on the fixture's site (a public KV value
+// holding the canary).
+const passcodeData = "/v1/sites/trip/storage/kv/notes/keys/c"
 
 func newPasscodeApp(t *testing.T) *passcodeApp {
 	t.Helper()
@@ -293,6 +297,12 @@ func newPasscodeApp(t *testing.T) *passcodeApp {
 	}}, p.okey)
 	if r.status != http.StatusCreated {
 		t.Fatalf("deploy: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/notes", map[string]string{"kind": "kv", "preset": "public"}, p.okey); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", pcSiteDomain, passcodeData, map[string]any{"value": passcodeCanary}, p.okey); r.status != 200 {
+		t.Fatalf("storage value: %d %s", r.status, r.body)
 	}
 	p.siteID = a.siteID(t, p.olive, "trip")
 	p.person = p.handle + "." + pcSiteDomain
@@ -506,21 +516,21 @@ func TestPasscodeCanarySweep(t *testing.T) {
 	}
 	// Data: no reading without the unlock, on any host, with or without Origin.
 	for _, host := range []string{pcSiteDomain, p.host, p.person, pcContentHost} {
-		for _, path := range []string{"/v1/sites/trip/state", "/v1/u/" + p.handle + "/sites/trip/state", "/v1/u/" + p.handle + "/sites/trip/collections/x", "/v1/sites/trip/me"} {
+		for _, path := range []string{passcodeData, "/v1/sites/trip/me"} {
 			r := p.at(t, "GET", host, path, nil, nil)
 			if r.status == 200 {
 				t.Fatalf("data %s%s without unlock: %d %s", host, path, r.status, r.body)
 			}
 		}
 	}
-	if r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/state", nil, nil); r.status != http.StatusForbidden || r.json(t)["code"] != "site_locked" {
-		t.Fatalf("apex state read: %d %s", r.status, r.body)
+	if r := p.at(t, "GET", p.host, passcodeData, nil, nil); r.status != http.StatusForbidden || r.json(t)["code"] != "site_locked" {
+		t.Fatalf("apex data read: %d %s", r.status, r.body)
 	}
-	if r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/state", nil, p.okey); r.status != 200 {
-		t.Fatalf("owner key state read: %d %s", r.status, r.body)
+	if r := p.at(t, "GET", pcSiteDomain, passcodeData, nil, p.okey); r.status != 200 {
+		t.Fatalf("owner key data read: %d %s", r.status, r.body)
 	}
-	if r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/state", nil, map[string]string{"X-API-Key": p.admin}); r.status != 200 {
-		t.Fatalf("admin key state read: %d %s", r.status, r.body)
+	if r := p.at(t, "GET", pcSiteDomain, passcodeData, nil, map[string]string{"X-API-Key": p.admin}); r.status != 200 {
+		t.Fatalf("admin key data read: %d %s", r.status, r.body)
 	}
 	// Another account with its own site of the same name, and its own key:
 	// the bare name still means olive's (older) site for some routes, so
@@ -529,18 +539,18 @@ func TestPasscodeCanarySweep(t *testing.T) {
 	if r := p.at(t, "POST", pcSiteDomain, "/v1/sites/trip/files", map[string]any{"files": map[string]string{"index.html": "m"}}, map[string]string{"X-API-Key": mallory.key}); r.status != http.StatusCreated {
 		t.Fatalf("mallory deploy: %d", r.status)
 	}
-	p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/state", map[string]any{"c": passcodeCanary}, p.okey)
-	p.at(t, "POST", pcSiteDomain, "/v1/sites/trip/collections/notes", map[string]any{"c": passcodeCanary}, p.okey)
-	for _, path := range []string{"/v1/sites/trip/state", "/v1/sites/trip/collections/notes", "/v1/sites/trip/data/notes"} {
+	for _, path := range []string{passcodeData} {
 		r := p.at(t, "GET", pcSiteDomain, path, nil, map[string]string{"X-API-Key": mallory.key})
 		if strings.Contains(string(r.body), passcodeCanary) {
 			t.Fatalf("another account's key read %s: %d %s", path, r.status, r.body)
 		}
 	}
+	// The admin's key through the passcode gate is logged.
+	p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/push/vapid-key", nil, map[string]string{"X-API-Key": p.admin})
 	if !strings.Contains(logs.String(), "passcode_admin_bypass") {
 		t.Fatal("admin bypass not logged")
 	}
-	if r := p.at(t, "OPTIONS", p.host, "/v1/sites/trip/state", nil, map[string]string{"Origin": "https://" + p.host, "Access-Control-Request-Method": "PUT"}); r.status == http.StatusForbidden && strings.Contains(string(r.body), "site_locked") {
+	if r := p.at(t, "OPTIONS", p.host, passcodeData, nil, map[string]string{"Origin": "https://" + p.host, "Access-Control-Request-Method": "PUT"}); r.status == http.StatusForbidden && strings.Contains(string(r.body), "site_locked") {
 		t.Fatal("preflight gated")
 	}
 
@@ -592,8 +602,8 @@ func TestPasscodeCanarySweep(t *testing.T) {
 	}
 	// Data with the cookie, from the site's own page.
 	page := map[string]string{"Cookie": cookie, "Origin": "https://" + p.host}
-	if r := p.at(t, "GET", p.host, "/v1/sites/trip/state", nil, page); r.status != 200 {
-		t.Fatalf("state with cookie: %d %s", r.status, r.body)
+	if r := p.at(t, "GET", p.host, passcodeData, nil, page); r.status != 200 {
+		t.Fatalf("data with cookie: %d %s", r.status, r.body)
 	}
 
 	// Change the passcode: everyone is out again.
@@ -619,11 +629,11 @@ func TestPasscodeCanarySweep(t *testing.T) {
 	if r := p.at(t, "GET", link.Host, link.Path+"app.js", nil, nil); r.status != 200 || !strings.Contains(string(r.body), passcodeCanary) {
 		t.Fatalf("preview: %d %s", r.status, r.body)
 	}
-	if r := p.at(t, "GET", p.host, "/v1/sites/trip/state", nil, map[string]string{"Referer": link.String(), "Origin": "https://" + p.host}); r.status != 200 {
+	if r := p.at(t, "GET", p.host, passcodeData, nil, map[string]string{"Referer": link.String(), "Origin": "https://" + p.host}); r.status != 200 {
 		t.Fatalf("preview read: %d %s", r.status, r.body)
 	}
 	bad := strings.Replace(link.String(), "/__preview/1/", "/__preview/1/x", 1)
-	if r := p.at(t, "GET", p.host, "/v1/sites/trip/state", nil, map[string]string{"Referer": bad, "Origin": "https://" + p.host}); r.status != http.StatusForbidden {
+	if r := p.at(t, "GET", p.host, passcodeData, nil, map[string]string{"Referer": bad, "Origin": "https://" + p.host}); r.status != http.StatusForbidden {
 		t.Fatalf("forged preview read: %d %s", r.status, r.body)
 	}
 
@@ -707,8 +717,8 @@ func TestPasscodeOtherAddresses(t *testing.T) {
 		if r := get("/days", ck); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/days/" || r.header.Get("Cache-Control") != "private, no-cache" {
 			t.Fatalf("%s directory redirect: %d %s", domain, r.status, r.header.Get("Location"))
 		}
-		if r := p.at(t, "GET", domain, "/v1/sites/trip/state", nil, map[string]string{"Cookie": ck["Cookie"], "Origin": "https://" + domain}); r.status != 200 {
-			t.Fatalf("%s state: %d %s", domain, r.status, r.body)
+		if r := p.at(t, "GET", domain, passcodeData, nil, map[string]string{"Cookie": ck["Cookie"], "Origin": "https://" + domain}); r.status != 200 {
+			t.Fatalf("%s data: %d %s", domain, r.status, r.body)
 		}
 	}
 	if _, err := p.database.ExecContext(ctx, `UPDATE sites SET custom_domain = NULL, domain_status = NULL, domain_verified_at = NULL WHERE id = $1`, p.siteID); err != nil {

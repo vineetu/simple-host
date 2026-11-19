@@ -55,7 +55,7 @@ func TestExportRedirectsWithUnlistableTree(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := map[string]string{"blog/state.json": "null", "blog/files/_redirects": rules}
+			want := map[string]string{"blog/files/_redirects": rules}
 			if !reflect.DeepEqual(contents, want) {
 				t.Fatalf("archive contents = %v, want %v", contents, want)
 			}
@@ -111,7 +111,7 @@ func TestExportSkipsUnreadableRegularFile(t *testing.T) {
 					if err := finish(); err != nil {
 						t.Fatal(err)
 					}
-					if len(names) != 3 || names[0] != "blog/state.json" || names[1] != "blog/files/index.html" || names[2] != "blog/files/sub/index.html" {
+					if len(names) != 2 || names[0] != "blog/files/index.html" || names[1] != "blog/files/sub/index.html" {
 						t.Fatalf("archive entries = %v", names)
 					}
 				})

@@ -107,7 +107,6 @@ EVENT_NAME_PEER=http://127.0.0.1:8090
 ANALYTICS_LOG=/var/log/simple-hack/analytics.log
 CUSTOM_DOMAIN_IP=163.192.62.226
 CUSTOM_DOMAIN_IP_ALSO=147.224.49.228
-WRITE_AUTH_MODE=on
 MAIL_FROM=Simple Hack <noreply@simple-host.app>
 DB_DSN=postgres://${PG_ROLE}:${dbpw}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=disable
 ADMIN_API_KEY=${admin_key}

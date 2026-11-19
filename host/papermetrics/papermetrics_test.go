@@ -30,8 +30,6 @@ func TestClassify(t *testing.T) {
 		{"GET", "x.vineetu.simple-host.app", "/v1/sites/x/storage/kv/a/keys/b", "data_read"},
 		{"PUT", "simple-host.app", "/v1/sites/x/storage/kv/a/keys/b", "data_write"},
 		{"POST", "simple-host.app", "/v1/sites/x/storage/sqlite/db/tables/t/rows", "data_write"},
-		{"GET", "simple-host.app", "/v1/sites/x/state", "data_read"},
-		{"GET", "simple-host.app", "/v1/sites/x/data", "data_read"},
 		{"PUT", "simple-host.app", "/v1/sites/data/files", "api_write"}, // a site named "data"
 		{"GET", "simple-host.app", "/v1/sites/x/me", "auth"},
 		{"POST", "simple-host.app", "/v1/auth/email/code", "auth"},

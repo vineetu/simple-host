@@ -39,9 +39,7 @@ reads use `visitor_id == auth.id || auth.role == "owner"`, signed-in adds use
 check `storage_get_usage` before large writes. A resource can inherit the site's passcode
 or deliberately bypass it. `auth.signed_in` alone shares rows among signed-in visitors.
 Follow the description of `storage_set_resource` that this server gives; if it does not
-accept `rules`, the server is older and its description says what to send. Existing sites may
-still hold data from the older state, collection and declared-data APIs; those routes keep
-working but the connector no longer offers tools for them (see "Existing sites only" below).
+accept `rules`, the server is older and its description says what to send.
 Read `references/storage.md` before wiring storage into a page. Compress phone photos in the
 browser before file uploads.
 

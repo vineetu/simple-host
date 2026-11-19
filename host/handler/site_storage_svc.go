@@ -48,8 +48,6 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		BindingSchema:        h.storageBindingSchema,
 		ProductBindingSchema: h.storageProductBindingSchema,
 		RulesEnabled:         os.Getenv("STORAGE_RULES") == "on",
-		StorageSwitchAt:      h.storageSwitchAt,
-		PresetNotice:         h.storagePresetNotice,
 		SpamCheckAvailable:   h.turnstile != nil,
 		SiteSlots:            h.siteSlotsFor(),
 		Locks:                &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
@@ -64,10 +62,6 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		return err == nil && resource.Kind == "files"
 	}
 	deps.EventOwners = h.ed.Storage().EventOwners
-	deps.LegacyRoutes = h.ed.Storage().LegacyRoutes
-	deps.ResourceHistory = func(ctx context.Context, siteID, name string) (any, error) {
-		return h.legacySvc().ListHistory(ctx, siteID, model.HistoryStorage, name, 20, 0)
-	}
 	deps.FilePath = func(call appstorage.Call, path string) string {
 		return storageFileOnDisk(h.disk, call.OwnerID, call.SiteName, call.ResourceName, path)
 	}
@@ -166,10 +160,4 @@ func (h *SiteHandler) KVFileStats(ctx context.Context, siteID string) (int64, in
 		dir = h.disk.TrashDir(site.UserID, site.ID)
 	}
 	return h.storageSvc().KVFileStats(ctx, siteID, filepath.Join(dir, "runtime"))
-}
-
-// SetStorageNotice configures the operator's editable preset-save notice.
-func (h *SiteHandler) SetStorageNotice(at time.Time, text string) {
-	h.storageSwitchAt = at
-	h.storagePresetNotice = text
 }

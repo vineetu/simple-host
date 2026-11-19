@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,9 +11,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
-	model "github.com/vsriram/simple-host/host/model"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 )
 
 func visitorJSON(t *testing.T, v any) string {
@@ -76,16 +73,16 @@ func TestVisitorStorageHistorySeparated(t *testing.T) {
 	owner := f
 	owner.token = f.a.connect(t, f.owner, f.a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
 	text, _, bad := toolResultOf(t, f.a.rpc(t, owner.token, "tools/call", map[string]any{"name": "storage_list_resources", "arguments": map[string]any{"site": "shop"}}))
-	if bad || strings.Contains(text, email) || !strings.Contains(text, "via ChatGPT") {
-		t.Fatalf("storage history: %s", text)
+	if bad || strings.Contains(text, email) {
+		t.Fatalf("storage list: %s", text)
 	}
-	list, err := legacyrepo.ListHistory(context.Background(), f.a.database, f.sid, model.HistoryList, "notes", 20, 0)
-	if err != nil || len(list) != 1 || list[0].By != email {
-		t.Fatalf("collection history changed: %+v %v", list, err)
+	var listRows int
+	if err := f.a.database.QueryRow(`SELECT count(*) FROM data_history WHERE site_id=$1 AND kind='list' AND actor_email=$2`, f.sid, email).Scan(&listRows); err != nil || listRows != 1 {
+		t.Fatalf("collection history changed: %d %v", listRows, err)
 	}
-	storage, err := legacyrepo.ListHistory(context.Background(), f.a.database, f.sid, model.HistoryStorage, "notes", 20, 0)
-	if err != nil || len(storage) != 1 || storage[0].Op != "add kv" {
-		t.Fatalf("storage history: %+v %v", storage, err)
+	var op, app string
+	if err := f.a.database.QueryRow(`SELECT op, actor_app FROM data_history WHERE site_id=$1 AND kind='storage' AND name='notes'`, f.sid).Scan(&op, &app); err != nil || op != "add kv" || app != "ChatGPT" {
+		t.Fatalf("storage history: %q %q %v", op, app, err)
 	}
 }
 
@@ -186,33 +183,6 @@ func TestVisitorSchemaKeepsIdentityColumnNames(t *testing.T) {
 	if strings.Contains(visitorJSON(t, out), "private-") || strings.Contains(visitorJSON(t, out), "private@example.com") {
 		t.Fatal("identity value leaked")
 	}
-}
-
-func TestVisitorOwnerLegacyLimitsAndSavers(t *testing.T) {
-	f := newVisitorFixture(t)
-	if _, err := f.a.database.Exec(`UPDATE sites SET legacy_data=true WHERE id=$1`, f.sid); err != nil {
-		t.Fatal(err)
-	}
-	for _, visibility := range []string{"private", "public"} {
-		res := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/data/"+visibility+"/kind", map[string]any{"kind": "entries", "visibility": visibility}, f.key)
-		if res.status != 200 {
-			t.Fatalf("declare: %s", res.body)
-		}
-	}
-	owner := f
-	owner.token = f.a.connect(t, f.owner, f.a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
-	f.a.sites.appendLimiter = newRateLimiter(1, 0)
-	args := f.args("collection", "private")
-	args["value"] = map[string]any{"message": "first"}
-	owner.call(t, "visitor_add_entry", args, "")
-	owner.call(t, "visitor_add_entry", args, "rate_limited")
-	f.a.sites.appendLimiter = newRateLimiter(100, 0)
-	if _, err := f.a.database.Exec(`UPDATE sites SET savers_mode='listed' WHERE id=$1`, f.sid); err != nil {
-		t.Fatal(err)
-	}
-	owner.call(t, "visitor_add_entry", args, "not_allowed")
-	args["resource"] = "public"
-	owner.call(t, "visitor_add_entry", args, "not_allowed")
 }
 
 func TestVisitorPasscodeExemptResources(t *testing.T) {

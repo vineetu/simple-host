@@ -57,7 +57,7 @@ func TestRenameKeepsOldLinks(t *testing.T) {
 		t.Fatalf("new address: %d %s", r.status, r.body)
 	}
 	// The API on the old host is not redirected.
-	if r := a.at(t, "GET", host("rsvp"), "/v1/sites/rsvp/state", nil, nil); r.status == http.StatusFound {
+	if r := a.at(t, "GET", host("rsvp"), "/v1/sites/rsvp/me", nil, nil); r.status == http.StatusFound {
 		t.Fatalf("old host API redirected")
 	}
 	// A plain miss on the content host is still the branded 404.
@@ -133,10 +133,14 @@ func TestSiteOffline(t *testing.T) {
 	okey := map[string]string{"X-API-Key": olive.key}
 	shopID := a.siteID(t, olive, "shop")
 	cookie := a.session(t, vic, shopID, shop)
-	save := func() resp {
-		return a.at(t, "POST", shop, "/v1/sites/shop/collections/rsvps", map[string]string{"name": "Ann"}, browser(shop, cookie))
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/rsvps", map[string]string{"kind": "kv", "preset": "board"}, okey); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
 	}
-	if r := save(); r.status != http.StatusCreated {
+	data := "/v1/sites/shop/storage/kv/rsvps/keys/ann"
+	save := func() resp {
+		return a.at(t, "PUT", shop, data, map[string]any{"value": "Ann"}, browser(shop, cookie))
+	}
+	if r := save(); r.status != http.StatusOK {
 		t.Fatalf("visitor save while online: %d %s", r.status, r.body)
 	}
 	isOffline := func(host, path string) {
@@ -178,27 +182,19 @@ func TestSiteOffline(t *testing.T) {
 	if r := save(); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
 		t.Fatalf("visitor save while offline: %d %s", r.status, r.body)
 	}
-	// Offline means offline: private-list entries, visitors' reads of saved
-	// data and lists, and visitor sign-in stop too.
-	if r := a.at(t, "PUT", apex, "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != 200 {
-		t.Fatalf("make private: %d %s", r.status, r.body)
+	// Offline means offline: visitors' reads of saved data and visitor
+	// sign-in stop too.
+	if r := a.at(t, "GET", shop, data, nil, browser(shop, cookie)); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
+		t.Fatalf("visitor read while offline: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/orders", map[string]string{"item": "tea"}, browser(shop, cookie)); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
-		t.Fatalf("private entry while offline: %d %s", r.status, r.body)
-	}
-	for _, p := range []string{"/v1/sites/shop/state", "/v1/sites/shop/collections/rsvps"} {
-		if r := a.at(t, "GET", shop, p, nil, browser(shop, "")); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
-			t.Fatalf("visitor read %s while offline: %d %s", p, r.status, r.body)
-		}
-		if r := a.at(t, "GET", apex, p, nil, okey); r.status != 200 {
-			t.Fatalf("owner read %s while offline: %d %s", p, r.status, r.body)
-		}
+	if r := a.at(t, "GET", apex, data, nil, okey); r.status != 200 {
+		t.Fatalf("owner read while offline: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "POST", shop, "/v1/sites/shop/visitor/auth", map[string]string{"email": "ann@example.com"}, browser(shop, "")); r.status != http.StatusForbidden || r.json(t)["code"] != "site_offline" {
 		t.Fatalf("visitor sign-in while offline: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PUT", shop, "/v1/sites/shop/state", map[string]any{"n": 1}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + shop}); r.status != 200 {
-		t.Fatalf("owner state write: %d %s", r.status, r.body)
+	if r := a.at(t, "PUT", shop, data, map[string]any{"value": "Bo"}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + shop}); r.status != 200 {
+		t.Fatalf("owner data write: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PUT", apex, "/v1/sites/shop/files", map[string]any{"files": map[string]string{"index.html": "v2"}}, okey); r.status != 200 {
 		t.Fatalf("owner deploy: %d %s", r.status, r.body)
@@ -271,7 +267,7 @@ func TestSiteOffline(t *testing.T) {
 // host (noindex, no saves), and "make live" is the rollback. Needs DB_DSN.
 func TestPreviewBeforeLive(t *testing.T) {
 	a, dir := newSiteApp(t, "canonical")
-	olive, oscar, vic := a.newPerson(t, "olive"), a.newPerson(t, "oscar"), a.newPerson(t, "vic")
+	olive, oscar := a.newPerson(t, "olive"), a.newPerson(t, "oscar")
 	a.deploy(t, olive, "shop")
 	a.deploy(t, oscar, "blog")
 	_, oh := a.userID(t, olive)
@@ -334,26 +330,6 @@ func TestPreviewBeforeLive(t *testing.T) {
 		if r := a.at(t, "GET", shop, p, nil, nil); r.status != 404 {
 			t.Errorf("GET %s: %d %s", p, r.status, r.body)
 		}
-	}
-
-	// Saves from a preview page are refused; from the live page they work.
-	cookie := a.session(t, vic, shopID, shop)
-	item := map[string]string{"name": "Ann"}
-	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/rsvps", item, browser(shop, cookie, "Referer", "https://"+shop+path)); r.status != http.StatusForbidden || r.json(t)["code"] != "preview_read_only" {
-		t.Fatalf("save from preview: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/rsvps", item, browser(shop, cookie, "Referer", "https://"+shop+"/")); r.status != http.StatusCreated {
-		t.Fatalf("save from live page: %d %s", r.status, r.body)
-	}
-	// Private lists too.
-	if r := a.at(t, "PUT", apex, "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != 200 {
-		t.Fatalf("make private: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/orders", item, browser(shop, cookie, "Referer", "https://"+shop+path)); r.status != http.StatusForbidden || r.json(t)["code"] != "preview_read_only" {
-		t.Fatalf("private entry from preview: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", shop, "/v1/sites/shop/collections/orders", item, browser(shop, cookie, "Referer", "https://"+shop+"/")); r.status != http.StatusCreated {
-		t.Fatalf("private entry from live page: %d %s", r.status, r.body)
 	}
 
 	// Preview links for any kept version, owner only.

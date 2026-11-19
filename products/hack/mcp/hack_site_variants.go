@@ -72,12 +72,12 @@ func hackSiteSetSiteOffline(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 }
 
 func hackSiteExportSite(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
-	tool.Description = "Make a private, expiring download link for a team's website archive. It contains site files and may include data saved before Simple Hack retired the old storage model. Current websites use KV, SQLite and files. Share the link only with the site owner."
+	tool.Description = "Make a private, expiring download link for a team's website archive. It contains the site files and its KV, SQLite and file storage. Share the link only with the site owner."
 	base := tool
 	return mcp.WithRun(tool, func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 		out, err := mcp.CallTool(base, c, args)
 		if err == nil {
-			out.Text = "Private site archive link: " + fmt.Sprint(out.Structured["url"]) + ". It may include previously stored data; keep the link private."
+			out.Text = "Private site archive link: " + fmt.Sprint(out.Structured["url"]) + ". It includes the site's saved data; keep the link private."
 		}
 		return out, err
 	})

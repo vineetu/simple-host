@@ -20,7 +20,6 @@ type Limits struct {
 	DomainUnprovenTTL    time.Duration // DOMAIN_UNPROVEN_HOURS
 	DomainLapseWarnAfter time.Duration // DOMAIN_LAPSE_WARN_HOURS
 	DomainLapseAfter     time.Duration // DOMAIN_LAPSE_HOURS
-	UndoDays             time.Duration // SAVED_DATA_UNDO_DAYS
 	FamilyUnprovenTTL    time.Duration // ADDRESS_FAMILY_UNPROVEN_HOURS
 }
 
@@ -38,7 +37,6 @@ func DefaultLimits() Limits {
 		DomainUnprovenTTL:    24 * time.Hour,
 		DomainLapseWarnAfter: 24 * time.Hour,
 		DomainLapseAfter:     72 * time.Hour,
-		UndoDays:             30 * day,
 		FamilyUnprovenTTL:    24 * time.Hour,
 	}
 }

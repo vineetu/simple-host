@@ -46,10 +46,6 @@ func TestPublicAPIAudiences(t *testing.T) {
 					tags, _ := operation["tags"].([]any)
 					if len(tags) != 1 {
 						t.Errorf("%s %s: tags %v", method, path, tags)
-						continue
-					}
-					if tags[0] == "Deprecated: saved data" {
-						t.Errorf("legacy operation in public reference: %s %s", method, path)
 					}
 				}
 			}
@@ -57,18 +53,6 @@ func TestPublicAPIAudiences(t *testing.T) {
 				for _, path := range []string{"/v1/me/home", "/v1/me/bio", "/v1/u/{handle}/showcase.json", "/v1/sites/{sitename}/showcase", "/v1/skills", "/v1/sites/{sitename}/storage/resources", "/v1/me/address-families"} {
 					if spec.Paths[path] == nil {
 						t.Errorf("missing current path: %s", path)
-					}
-				}
-				// Older saved-data routes still serve existing sites but are
-				// not offered to new ones, so the reference leaves them out.
-				for _, path := range []string{"/v1/sites/{sitename}/state", "/v1/sites/{sitename}/collections/{coll}", "/v1/sites/{sitename}/data/{coll}", "/v1/u/{handle}/sites/{sitename}/state"} {
-					if spec.Paths[path] != nil {
-						t.Errorf("legacy path in public reference: %s", path)
-					}
-				}
-				for _, tag := range spec.Tags {
-					if tag.Name == "Deprecated: saved data" {
-						t.Error("legacy section in public reference")
 					}
 				}
 

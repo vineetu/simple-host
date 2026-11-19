@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ic2n7f" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="10s6tq1" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -108,11 +108,6 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage and saved data</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/guides/moving-saved-data/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Move a site off the older saved data</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -417,11 +412,6 @@
 				<span class="astro-rmhv4bp6">Storage and backups</span>
 				
 			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
-				
-			</a>
 	</li>
 </ul>
 			</details>
@@ -556,9 +546,6 @@
 		<a href="#spam-check-credentials" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Spam-check credentials</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#legacy-saved-data-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Legacy saved-data behavior</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#notification-delivery-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Notification delivery behavior</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -588,9 +575,6 @@
 		<a href="#spam-check-credentials" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Spam-check credentials</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#legacy-saved-data-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Legacy saved-data behavior</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#notification-delivery-behavior" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Notification delivery behavior</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -618,35 +602,9 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><p><strong>Deprecated, existing sites only.</strong> New sites use storage resources (KV, SQLite, files) — see <a href="/docs/self-hosting/settings/storage-migration/">storage-migration.md</a> and <a href="/docs/self-hosting/settings/storage-and-backups/">storage-and-backups.md</a>.</p>
-<p>This page describes the existing state, collection and declared-kind API,
-which remains supported. New Simple Host sites may instead use owner-declared
-KV, SQLite and files resources with independent whole-resource read/write
-policies. See <a href="/docs/self-hosting/settings/storage-migration/">the storage migration plan</a> before moving
-an existing site’s data; its private Submissions, Personal records, atomic
-operations and undo do not automatically map to a shared resource.</p>
-<p>Every site gets a small backend in the same upload: one shared JSON document (page data) with
-atomic operations, and lists visitors add to (RSVPs, votes, sign-ups). A list can be private: only
-signed-in visitors add; the owner reads all, and each visitor reads their own.</p>
-<p><strong>Kinds.</strong> Each data name is one kind, and the kind decides who reads and who changes what:
-<strong>Page info</strong> (the owner writes, everyone reads), <strong>Submissions</strong> (visitors send entries; private
-to the owner by default; each visitor sees, changes and withdraws their own; an optional email
-digest to the owner), <strong>Personal</strong> (one private record per signed-in visitor) and <strong>Shared
-board</strong> (a list a group edits item by item). A name nobody declared is <strong>Shared</strong>, as before the
-kinds; <code>SAVED_DATA_DEFAULT_KIND=declare_first</code> makes new sites take no saves under an undeclared
-name. The owner can limit who may save on a site to listed emails and <code>@domains</code>, and block
-people. The <code>SAVED_DATA_*</code> settings below set each kind’s sizes and counts.</p>
-<p><strong>Undo.</strong> Every change to page data, and every deleted or edited list item, is kept for
-<code>SAVED_DATA_UNDO_DAYS</code> and can be restored by the site’s owner. History past its size cap is
-thinned oldest first, always keeping each item’s first change of every day. Unlike the dates in
-Cleanup and retention, shortening the undo window applies to what is already kept at the next
-sweep.</p>
-<p><strong>Limits.</strong> A site’s live saved data may not grow past <code>SAVED_DATA_SITE_MAX_MB</code>; writes that do
-not grow it always go through. Reads and list additions are rate limited per address.</p>
-<p><strong>The watch.</strong> The admin page counts, per site and day, the visitor writes a later step may
-tighten (still counted; not enforced yet), so an operator can see who would be affected first.</p>
-<p><strong>Who may write.</strong> <code>WRITE_AUTH_MODE=on</code> makes every page save need a signed-in visitor or the
-owner’s key.</p>
+								<div class="sl-markdown-content"><p>Pages save to storage resources (KV, SQLite, files) — see
+<a href="/docs/self-hosting/settings/storage-and-backups/">storage-and-backups.md</a>. This group holds the settings for
+notifications about saved data and for the spam check on comments-preset resources.</p>
 <!-- settings:group=data -->
 <table>
 <thead>
@@ -791,204 +749,6 @@ owner’s key.</p>
 <td>Links (http://, https://, <a href="http://www">www</a>.) one such post may contain.</td>
 </tr>
 <tr>
-<td><code>RATE_LIMIT_STATE</code></td>
-<td><code>60,1s</code></td>
-<td>any (warns past 10× looser)</td>
-<td>Saved-data and list writes per client.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_UNDO_DAYS</code></td>
-<td><code>30</code></td>
-<td>1–365 days</td>
-<td>How long every change to saved data, and every deleted list item, can be restored.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_HISTORY_MAX_MB</code></td>
-<td><code>20</code></td>
-<td>1–10240 MB</td>
-<td>A site’s saved-data history above this is thinned, oldest first.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_SITE_MAX_MB</code></td>
-<td><code>50</code></td>
-<td>1–10240 MB</td>
-<td>Largest a site’s live saved data may grow.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_SNAPSHOT_EVERY</code></td>
-<td><code>50</code></td>
-<td>1–10000 changes</td>
-<td>History keeps a full copy of a site’s data at least this often.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_SWEEP_MINUTES</code></td>
-<td><code>15</code></td>
-<td>1–1440 minutes</td>
-<td>How often expired history and deleted items are removed.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_WATCH_DAYS</code></td>
-<td><code>7</code></td>
-<td>1–365 days</td>
-<td>The window the admin page’s saved-data watch reports.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_WATCH_INC_MAX</code></td>
-<td><code>10</code></td>
-<td>1–1000000000 count</td>
-<td>A visitor increment larger than this counts as large in the watch.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_WATCH_ITEM_KB</code></td>
-<td><code>16</code></td>
-<td>1–64 KB</td>
-<td>A list item larger than this counts as large in the watch.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_WATCH_KEEP_DAYS</code></td>
-<td><code>90</code></td>
-<td>1–3650 days</td>
-<td>Watch counts older than this are removed.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_IDEMPOTENCY_HOURS</code></td>
-<td><code>24</code></td>
-<td>1–720 hours</td>
-<td>How long a retried write gets its first answer back instead of applying twice.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE</code></td>
-<td><code>10000</code></td>
-<td>100–1000000 keys</td>
-<td>Retry keys remembered per site; the oldest past this are dropped.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_READ_PER_SEC</code></td>
-<td><code>30</code></td>
-<td>1–10000 reads</td>
-<td>Saved-data reads per second per site and address.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_READ_BURST</code></td>
-<td><code>60</code></td>
-<td>1–100000 reads</td>
-<td>Saved-data reads allowed at once above that rate.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_APPEND_PER_MIN</code></td>
-<td><code>30</code></td>
-<td>1–10000 items</td>
-<td>List items one address may add per minute without the owner’s key.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_APPEND_BURST</code></td>
-<td><code>30</code></td>
-<td>1–100000 items</td>
-<td>List items allowed at once above that rate.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_CONTENT_MAX_KB</code></td>
-<td><code>1024</code></td>
-<td>1–10240 KB</td>
-<td>Largest one Page info document may be.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_CONTENT_NAMES_MAX</code></td>
-<td><code>20</code></td>
-<td>1–1000 names</td>
-<td>Page info names one site may declare.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_ENTRY_MAX_KB</code></td>
-<td><code>16</code></td>
-<td>1–64 KB</td>
-<td>Largest one new Submissions entry may be.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_ENTRIES_MAX</code></td>
-<td><code>10000</code></td>
-<td>1–1000000 entries</td>
-<td>Live entries one Submissions name may hold.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_WITHDRAW_UNDO_MINUTES</code></td>
-<td><code>10</code></td>
-<td>1–1440 minutes</td>
-<td>How long a visitor can bring back an entry they withdrew.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_NOTIFY_EACH_MINUTES</code></td>
-<td><code>10</code></td>
-<td>1–1440 minutes</td>
-<td>“Email me: each” sends at most one email per name this often, listing what arrived.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_NOTIFY_DAILY_HOURS</code></td>
-<td><code>24</code></td>
-<td>1–720 hours</td>
-<td>“Email me: daily” sends at most one digest per name this often.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_SAVERS_MAX</code></td>
-<td><code>500</code></td>
-<td>1–100000 entries</td>
-<td>Emails and domains in one site’s who-may-save and block lists together.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_ENTRIES_NAMES_MAX</code></td>
-<td><code>50</code></td>
-<td>1–1000 names</td>
-<td>Submissions names one site may declare.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_PERSONAL_MAX_KB</code></td>
-<td><code>64</code></td>
-<td>1–1024 KB</td>
-<td>Largest one person’s record in one Personal name may be.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_PERSONAL_NAMES_MAX</code></td>
-<td><code>20</code></td>
-<td>1–1000 names</td>
-<td>Personal names one site may declare.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_BOARD_ITEM_MAX_KB</code></td>
-<td><code>16</code></td>
-<td>1–64 KB</td>
-<td>Largest one Shared board item may be.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_BOARD_MAX</code></td>
-<td><code>2000</code></td>
-<td>1–1000000 items</td>
-<td>Live items one Shared board may hold.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_BOARD_NAMES_MAX</code></td>
-<td><code>20</code></td>
-<td>1–1000 names</td>
-<td>Shared board names one site may declare.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_PERSONAL_PEOPLE_MAX</code></td>
-<td><code>1000</code></td>
-<td>1–1000000 people</td>
-<td>People who may hold a record in one Personal name.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_BOARD_WRITES_PER_MIN</code></td>
-<td><code>30</code></td>
-<td>1–10000 writes</td>
-<td>Shared board adds, changes and deletes one signed-in person may make per minute, on top of the per-address rate.</td>
-</tr>
-<tr>
-<td><code>SAVED_DATA_DEFAULT_KIND</code></td>
-<td><code>shared</code></td>
-<td><code>shared</code> / <code>declare_first</code></td>
-<td>What a name no one declared is on a site made after the kinds. shared: anyone reads it and signed-in visitors save to it. declare_first: it takes no saves until the owner declares it. Older sites are shared either way. <strong>Security-sensitive.</strong></td>
-</tr>
-<tr>
 <td><code>TURNSTILE_SITE_KEY</code></td>
 <td>none</td>
 <td>text</td>
@@ -1066,27 +826,10 @@ owner’s key.</p>
 <td>text</td>
 <td>Folder for the quarantined copy and the record of each match (mode 0700, under no served path). Must be writable by the service (ReadWritePaths on a hardened unit).</td>
 </tr>
-<tr>
-<td><code>WRITE_AUTH_MODE</code></td>
-<td><code>log</code></td>
-<td><code>off</code> / <code>log</code> / <code>on</code></td>
-<td>on: page saves need a signed-in visitor or the owner’s key. log: allowed, and logged. <strong>Security-sensitive.</strong></td>
-</tr>
-<tr>
-<td><code>LEGACY_STORAGE_CUTOFF</code></td>
-<td><code>off</code></td>
-<td>text</td>
-<td>YYYY-MM-DD (00:00 UTC that day): sites created on or after this date get 410 legacy_storage_closed from the old saved-state, collections and declared-data routes. Empty or off disables the gate (the default, so self-hosted boxes are unchanged). An unparsable value logs a warning at boot and disables the gate. simple-host.app: 2026-10-12.</td>
-</tr>
 </tbody>
 </table>
 <!-- /settings -->
 <h2 id="recipes">Recipes</h2>
-<p><strong>Shorter retention of saved-data history.</strong></p>
-<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>SAVED_DATA_UNDO_DAYS=7</span></span>
-<span class="line"><span>SAVED_DATA_HISTORY_MAX_MB=5</span></span></code></pre>
-<p><strong>Smaller per-site data on a small disk.</strong></p>
-<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>SAVED_DATA_SITE_MAX_MB=10</span></span></code></pre>
 <p><strong>Turn on the comments preset (anyone posts after a spam check).</strong> The preset needs a
 Cloudflare Turnstile widget, which is free. Without both keys the server refuses the preset
 (400 <code>spam_check_unavailable</code>), the dashboard and the connector leave it out, and
@@ -1111,34 +854,6 @@ Under systemd, prefer <code>TURNSTILE_SECRET_FILE</code> with a credential over 
 <code>TURNSTILE_SECRET_FILE</code> turns the check off. A systemd credential can supply it:
 <code>LoadCredential=turnstile-secret:/etc/simple-host-secrets/turnstile-secret</code> and
 <code>Environment=TURNSTILE_SECRET_FILE=%d/turnstile-secret</code>.</p>
-<h2 id="legacy-saved-data-behavior">Legacy saved-data behavior</h2>
-<p><code>SAVED_DATA_UNDO_DAYS</code> applies to data already kept: shortening it removes older
-history and Recently deleted items at the next sweep, unlike the stored promises
-for site deletion and domain release.</p>
-<p>The site owner restores history and deleted items. History thinning keeps each
-item’s first change of every day; it runs when a write crosses the cap (at most
-once a second per site) and in the sweep. The live-data cap excludes history and
-Recently deleted. Writes that grow it beyond the cap return 507 <code>site_full</code>;
-writes that do not grow it still succeed. Changes made with ops store only the
-change, with a full snapshot on the first change each day as well as at
-<code>SAVED_DATA_SNAPSHOT_EVERY</code>.</p>
-<p><code>GET /v1/admin/data-watch</code> reports the watch window. <code>SAVED_DATA_WATCH_KEEP_DAYS</code>
-must not be shorter than <code>SAVED_DATA_WATCH_DAYS</code>. Retries use <code>Idempotency-Key</code>.
-Owner-key and connector reads are limited per account rather than per address.</p>
-<p>Page info (<code>content</code>), Personal (<code>mine</code>) and Shared board (<code>board</code>) oversized
-items return 413 <code>item_too_large</code>. The corresponding name caps, including
-Submissions (<code>entries</code>), return 409 <code>too_many_names</code>. Submissions and Shared
-board live-item caps return 409 <code>list_full</code>. Older Submissions entries up to
-64 KB are kept. The Personal people cap counts Recently deleted records;
-a new person’s first save beyond it returns 409 <code>people_full</code>, while existing
-people keep saving. The per-person board write cap returns 429 and adds to
-<code>SAVED_DATA_APPEND_PER_MIN</code>, so one account on many addresses goes no faster.</p>
-<p>Undeclared names in <code>declare_first</code> mode return 409 <code>declare_first</code> until the
-owner declares Page info or Submissions. Sites predating
-<code>sd2-saved-data-kinds.sql</code> stay Shared; every later site follows the current
-setting, so switching it changes all those sites. Shared keeps older skills and
-uploaded pages working. The “Email me: each” interval also sets how often due
-emails are checked.</p>
 <h2 id="notification-delivery-behavior">Notification delivery behavior</h2>
 <p>The subscription cap counts agents and the dashboard together. Visitor events
 over the per-minute cap are not sent. Per-URL delivery limiting uses an in-memory

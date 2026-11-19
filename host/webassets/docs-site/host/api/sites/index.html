@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ic2n7f" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="10s6tq1" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -108,11 +108,6 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage and saved data</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/guides/moving-saved-data/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Move a site off the older saved data</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -415,11 +410,6 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/settings/storage-and-backups/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage and backups</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
 				
 			</a>
 	</li>
@@ -765,7 +755,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -817,7 +807,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -849,7 +839,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -901,7 +891,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -933,7 +923,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -1047,7 +1037,7 @@
 </table>
 <h2 id="patch-v1sitessitename">PATCH /v1/sites/{sitename}</h2>
 <div data-operation="PATCH /v1/sites/{sitename}"></div>
-<p>One change per request. With {“offline”: true} the site is taken offline: every address answers a plain “This site is offline” page (503), and visitor saves (state and collection writes from a page, private lists included), visitors’ reads of its state and lists, and visitor sign-in are refused with 403 site_offline; files, versions and saved data are kept, and the owner’s key or connector still deploys, reads and writes. {“offline”: false} puts it back online. An operator take-down wins over it, and a taken-down site cannot be switched (403 site_suspended). The answer is the site object with <code>offline</code> and a <code>note</code>. With {“name”: “new-name”} it renames the database row and on-disk site directory. The new name uses the same validation and per-owner uniqueness rule as creation. A bound custom domain remains attached. Links to the old name keep working: its site host, person-path and sites.* addresses 302 to the new address (path and query kept), through any chain of renames, until a site with the old name is created again (the new site wins); the response says so with old_url_status “redirects”. Deleting the site stops the redirects (restoring brings them back); purging it removes them.</p>
+<p>One change per request. With {“offline”: true} the site is taken offline: every address answers a plain “This site is offline” page (503), and visitor saves, visitors’ reads of its saved data, and visitor sign-in are refused with 403 site_offline; files, versions and saved data are kept, and the owner’s key or connector still deploys, reads and writes. {“offline”: false} puts it back online. An operator take-down wins over it, and a taken-down site cannot be switched (403 site_suspended). The answer is the site object with <code>offline</code> and a <code>note</code>. With {“name”: “new-name”} it renames the database row and on-disk site directory. The new name uses the same validation and per-owner uniqueness rule as creation. A bound custom domain remains attached. Links to the old name keep working: its site host, person-path and sites.* addresses 302 to the new address (path and query kept), through any chain of renames, until a site with the old name is created again (the new site wins); the response says so with old_url_status “redirects”. Deleting the site stops the redirects (restoring brings them back); purging it removes them.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1126,7 +1116,7 @@
 </tr>
 <tr>
 <td>409</td>
-<td>Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)</td>
+<td>Conflict: the code says which (site_exists, domain_taken, custom_domain_required)</td>
 </tr>
 </tbody>
 </table>
@@ -1309,7 +1299,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -1374,7 +1364,7 @@
 </table>
 <h2 id="get-v1sitessitenameexporttargz">GET /v1/sites/{sitename}/export.tar.gz</h2>
 <div data-operation="GET /v1/sites/{sitename}/export.tar.gz"></div>
-<p>Streams the site’s published files (<code>files/</code>), its saved JSON state (<code>state.json</code>) and its collections (<code>collections.json</code>: every list, private ones included, each entry as <code>{id, created_at, submitted_by, data}</code>; <code>submitted_by</code> only on private lists) as one archive. Exists because an event instance is destroyed when the event ends and nothing is backed up, so the person who built something can take it with them. The saved data comes first: the files usually exist somewhere else, the JSON only lives here.</p>
+<p>Streams the site’s published files (<code>files/</code>) and its saved data (<code>storage/</code>: KV values, SQLite databases and files) as one archive. Exists because an event instance is destroyed when the event ends and nothing is backed up, so the person who built something can take it with them.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1416,7 +1406,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -1715,7 +1705,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -1771,7 +1761,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -1831,7 +1821,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -1977,7 +1967,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -2040,7 +2030,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>

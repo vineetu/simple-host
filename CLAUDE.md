@@ -126,7 +126,7 @@ Never report branch work as fixed; only what a client can see is shipped.
   is injected into hosted pages.
 - **Hosted pages never hold an API key.** Middleware reads only `X-API-Key` or a connector
   token; never teach it to accept the visitor cookie.
-- **Any change to auth, sessions, OAuth, the connector, permissions or private collections
+- **Any change to auth, sessions, OAuth, the connector, permissions or storage rules
   gets a security review before it ships.**
 - Public contact is `support@simple-host.app`, never a personal address.
 

@@ -8,9 +8,8 @@ and saves the sample RSVPs, survey responses and orders from seed.json into
 them, so list_sites, site_analytics and storage_sql_query have something
 real to show.
 
-All three demo sites now use KV/SQLite/files storage resources instead of
-the deprecated state/collections APIs ("storage" in seed.json, one entry per
-resource): the seeder creates each resource (owner-authenticated; X-API-Key
+All three demo sites use KV/SQLite/files storage resources ("storage" in
+seed.json, one entry per resource): the seeder creates each resource (owner-authenticated; X-API-Key
 alone authenticates as the owner for the storage routes, no Origin needed),
 its schema, and seeds rows with owner storage_sql_execute, since a visitor
 identity is needed to seed per-person "own"/"owner" rows and the seeder has
@@ -20,10 +19,6 @@ policy. Each resource's row shape is different (pickle-shop/orders,
 garden-party-rsvp/rsvps, feedback-survey/responses), so ROW_BUILDERS below
 has one small function per (site, resource) turning a seed.json row into the
 INSERT statement and params for that resource's schema.
-
-The older "collections"/"state" seeding path is kept for any future
-existing-site demo that still depends on those deprecated APIs, but nothing
-in seed.json uses it right now.
 
 Usage (after REVIEW_ACCOUNT_EMAIL / REVIEW_ACCOUNT_PASSWORD_HASH are set and
 the server restarted):
@@ -91,26 +86,7 @@ for site_dir in sorted(p for p in ROOT.iterdir() if p.is_dir()):
         sys.exit(f"{site}: publish failed {st} {out}")
     print(f"published {site} v{out['active_version']}: {out['site_url']}")
 
-st, me = req("GET", "/v1/me", headers=auth)
-handle = me["handle"]
-# Site data routes are Origin-gated; the shared content host is the origin
-# every site accepts (as the connector's own tools do).
-content_origin = "https://sites." + urllib.parse.urlparse(BASE).hostname
-if os.environ.get("CONTENT_ORIGIN"):
-    content_origin = os.environ["CONTENT_ORIGIN"]
-data_headers = {**auth, "Origin": content_origin}
 for site, parts in seed.items():
-    for coll, items in parts.get("collections", {}).items():
-        for item in items:
-            st, out = req("POST", f"/v1/u/{handle}/sites/{site}/collections/{coll}", item, data_headers)
-            if st not in (200, 201):
-                sys.exit(f"{site}/{coll}: append failed {st} {out}")
-        print(f"{site}: {len(items)} items in {coll}")
-    if "state" in parts:
-        st, out = req("PUT", f"/v1/u/{handle}/sites/{site}/state", parts["state"], data_headers)
-        if st not in (200, 201):
-            sys.exit(f"{site}: state failed {st} {out}")
-        print(f"{site}: state set")
     # New-style KV/SQLite/files storage resources (owner-authenticated, no
     # Origin needed: X-API-Key alone authenticates as the owner for the
     # storage routes). Rows are seeded with raw owner SQL, so they carry no

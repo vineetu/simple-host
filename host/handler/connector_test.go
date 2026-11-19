@@ -28,7 +28,6 @@ import (
 	httpx "github.com/vsriram/simple-host/host/httpx"
 	model "github.com/vsriram/simple-host/host/model"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	operationsrepo "github.com/vsriram/simple-host/host/repository/operations"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/host/storage"
@@ -286,7 +285,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 		t.Fatal(err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
+	adminID, err := accountsrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +304,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	users := NewUserHandler(database, accountapp.New(database), mailer, app.srv.URL, ed)
 	users.Register(mux, authMW, noticeMW)
 	app.users = users
-	sites := NewSiteHandler(ed, "", database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	sites := NewSiteHandler(ed, "", database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
 	sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
 	sites.SetOperationsReporting(operations.NewReporting(database))
 	app.sites = sites

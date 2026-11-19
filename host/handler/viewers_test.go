@@ -243,8 +243,7 @@ func TestViewersGateEveryPath(t *testing.T) {
 
 	// Data API: same-origin from mom or the owner, the owner's key; never dad
 	// or nobody. Sign-in routes stay open so a viewer can sign in.
-	p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/state", map[string]any{"c": passcodeCanary}, p.okey)
-	for _, path := range []string{"/v1/sites/trip/state", "/v1/u/" + p.handle + "/sites/trip/state", "/v1/u/" + p.handle + "/sites/trip/collections/x"} {
+	for _, path := range []string{passcodeData} {
 		for _, ck := range []string{"", dadHost} {
 			r := p.at(t, "GET", p.host, path, nil, browser(p.host, ck))
 			noLeak("data "+path, r)
@@ -253,8 +252,8 @@ func TestViewersGateEveryPath(t *testing.T) {
 			}
 		}
 	}
-	if r := p.at(t, "GET", p.host, "/v1/sites/trip/state", nil, browser(p.host, momHost)); r.status != 200 || !strings.Contains(string(r.body), passcodeCanary) || r.header.Get("Cache-Control") != "private, no-store" {
-		t.Fatalf("mom state: %d %v %s", r.status, r.header, r.body)
+	if r := p.at(t, "GET", p.host, passcodeData, nil, browser(p.host, momHost)); r.status != 200 || !strings.Contains(string(r.body), passcodeCanary) || !strings.Contains(r.header.Get("Cache-Control"), "no-store") {
+		t.Fatalf("mom data: %d %v %s", r.status, r.header, r.body)
 	}
 	// Another site's page framing this one never gets it, cookie or not.
 	for _, dest := range []string{"iframe", "frame", "embed", "object"} {
@@ -267,7 +266,7 @@ func TestViewersGateEveryPath(t *testing.T) {
 	if r := p.at(t, "GET", p.host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + momHost, "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "iframe"}); r.status != 200 || !strings.Contains(strings.Join(r.header.Values("Content-Security-Policy"), ";"), "frame-ancestors 'self'") {
 		t.Fatalf("framed by the site itself: %d", r.status)
 	}
-	if r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/state", nil, p.okey); r.status != 200 {
+	if r := p.at(t, "GET", pcSiteDomain, passcodeData, nil, p.okey); r.status != 200 {
 		t.Fatalf("owner key: %d %s", r.status, r.body)
 	}
 	if r := p.at(t, "GET", p.host, "/v1/sites/trip/me", nil, browser(p.host, dadHost)); r.status != 200 || !strings.Contains(string(r.body), v.dad.email) {
@@ -381,7 +380,7 @@ func TestViewersListChangesAtOnce(t *testing.T) {
 	if status(mom) != 403 {
 		t.Fatal("mom not locked out at once")
 	}
-	if r := p.at(t, "GET", p.host, "/v1/sites/trip/state", nil, browser(p.host, mom)); r.status != 403 {
+	if r := p.at(t, "GET", p.host, passcodeData, nil, browser(p.host, mom)); r.status != 403 {
 		t.Fatalf("mom data after removal: %d", r.status)
 	}
 	// A suspended account is out too.

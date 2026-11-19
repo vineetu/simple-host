@@ -28,7 +28,6 @@ import (
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
@@ -142,7 +141,7 @@ func newHackAppDatabase(t *testing.T, database *sql.DB, eds ...*edition.Edition)
 		t.Skipf("postgres not reachable: %v", err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
+	adminID, err := accountrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}

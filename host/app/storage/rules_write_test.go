@@ -126,9 +126,9 @@ func TestRulesWriteConflictAbort(t *testing.T) {
 	}
 }
 
-func TestMovingSavedDataOneEntryPerPerson(t *testing.T) {
-	// The moving guide's rules and unique index must enforce the old
-	// one_per_person guarantee even when two tabs both saw an empty list.
+func TestRulesOneEntryPerPerson(t *testing.T) {
+	// Rules and a unique index enforce one entry per person even when two
+	// tabs both saw an empty list.
 	s, c, _ := readFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT);`, saveSet(
 		ruleengine.Policy{Name: "own", Command: ruleengine.CmdAll, Using: "visitor_id == auth.id"},
 		ruleengine.Policy{Name: "add", Command: ruleengine.CmdAdd, Check: "auth.signed_in"},

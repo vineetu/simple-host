@@ -266,11 +266,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	}
 	entries := make([]map[string]any, 0, len(out))
 	for _, item := range out {
-		entry := storageResourceRulesJSON(fromRulesResource(item.Resource), item.RulesErrors)
-		if item.HasVisitorHistory {
-			entry["visitor_history"] = item.VisitorHistory
-		}
-		entries = append(entries, entry)
+		entries = append(entries, storageResourceRulesJSON(fromRulesResource(item.Resource), item.RulesErrors))
 	}
 	writeJSON(w, 200, map[string]any{"resources": entries})
 }

@@ -53,6 +53,35 @@ The form on the "This site is protected" page posts here, on the site's own host
 | 403 | Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page. |
 | 429 | Too many wrong tries: the gate page saying when to try again (text/html) |
 
+## PUT /v1/sites/{sitename}/allowed-origins
+
+<div data-operation="PUT /v1/sites/{sitename}/allowed-origins"></div>
+
+Whitelist extra origins (scheme://host, no path) that may call this site's API cross-origin — so a page hosted anywhere (external hosting, Netlify, …) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.
+
+**Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| sitename | path | string | yes |  |
+
+**Request body:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| origins | array of string | yes |  |
+
+**Responses:**
+
+| Status | Description |
+| --- | --- |
+| 200 | Allowlist replaced |
+| 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
+| 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
+| 404 | Not found |
+
 ## GET /v1/sites/{sitename}/me
 
 <div data-operation="GET /v1/sites/{sitename}/me"></div>
@@ -288,7 +317,7 @@ No authentication required.
 | 302 | Nonce cookie set; navigate to the apex hop |
 | 400 | Invalid site return address or navigation |
 | 403 | Site locked |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/turnstile/frame
 
@@ -411,7 +440,7 @@ One-time hop on the site's own address (its `<site>.<handle>` host or domain). C
 | --- | --- |
 | 302 | Cookie set; redirect to the stored return_to |
 | 400 | Bad, replayed, expired, host-mismatch, missing or wrong nonce cookie, or apex Host |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/visitor/logout
 
@@ -432,7 +461,7 @@ For a hop session, deletes its parent dashboard key, apex pass, and all linked s
 | 200 | Navigate the top-level window to redirect_url to clear the apex cookie |
 | 204 | Session deleted and cookie cleared |
 | 403 | Missing CSRF header (and not a JSON request) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/visitor/oauth/{provider}
 
@@ -454,4 +483,4 @@ Visitor sign-in start, served on the site's own address (its `<site>.<handle>` h
 | 302 | Nonce cookie set; redirect to the identity provider |
 | 400 | Missing return_to, or one that is not a page of the site on this host |
 | 404 | Unknown or disabled provider |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |

@@ -110,10 +110,7 @@ func withDescription(schema map[string]any, description string) map[string]any {
 	return schema
 }
 
-const (
-	outSiteName   = "The site's name, as used in its address and in other tools' `site` argument."
-	outCollection = "The collection's name."
-)
+const outSiteName = "The site's name, as used in its address and in other tools' `site` argument."
 
 // siteSummaryProperties are the fields restSite.summary sets.
 func siteSummaryProperties() map[string]any {

@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1882yjb" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1ngqqee" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -395,11 +395,6 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/settings/storage-and-backups/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage and backups</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
 				
 			</a>
 	</li>
@@ -815,7 +810,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -946,7 +941,7 @@
 </table>
 <h2 id="post-v1sitessitenameversionsversionpreview-link">POST /v1/sites/{sitename}/versions/{version}/preview-link</h2>
 <div data-operation="POST /v1/sites/{sitename}/versions/{version}/preview-link"></div>
-<p>Owner only. Mints a link, working for anyone who has it for one hour, that shows one kept version (live, earlier, or stored with publish=false) exactly as visitors would see it, on the site’s own host: https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/__preview/&lt;n&gt;/&lt;token&gt;/ (or briefly, as a fallback while the person’s certificate is not ready, &lt;handle&gt;.simple-host.app/&lt;site&gt;/__preview/…). The token is an HMAC over site, version and expiry; it stops working after an hour or a server restart. Preview pages are noindex and never cached, and saves made from them are refused (403 preview_read_only; told apart by the Referer, so a page that suppresses its Referer is not stopped: this guards against accidents, and the pages are the owner’s own). Make the version live with PUT …/active-version.</p>
+<p>Owner only. Mints a link, working for anyone who has it for one hour, that shows one kept version (live, earlier, or stored with publish=false) exactly as visitors would see it, on the site’s own host: https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/__preview/&lt;n&gt;/&lt;token&gt;/ (or briefly, as a fallback while the person’s certificate is not ready, &lt;handle&gt;.simple-host.app/&lt;site&gt;/__preview/…). The token is an HMAC over site, version and expiry; it stops working after an hour or a server restart. Preview pages are noindex and never cached. Make the version live with PUT …/active-version.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>

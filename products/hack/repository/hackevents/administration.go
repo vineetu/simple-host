@@ -60,9 +60,9 @@ func RenameEventTeam(ctx context.Context, q sqlkit.Querier, eventID, slug, name 
 // site records. File bytes are measured separately by the storage handler.
 func EventStorage(ctx context.Context, q sqlkit.Querier, ev Event) (EventStorageUsage, error) {
 	var u EventStorageUsage
-	err := q.QueryRowContext(ctx, `SELECT count(*),COALESCE(sum(data_bytes),0),COALESCE(sum(history_bytes),0),
+	err := q.QueryRowContext(ctx, `SELECT count(*),
  (SELECT count(*) FROM versions v JOIN sites s ON s.id=v.site_id WHERE s.user_id=$1 AND v.status <> 'discarded'),
  (SELECT COALESCE(sum(octet_length(screenshot)),0) FROM event_entries WHERE event_id=$2)
- FROM sites WHERE user_id=$1`, ev.AccountID, ev.ID).Scan(&u.Sites, &u.SavedDataBytes, &u.HistoryBytes, &u.Versions, &u.ScreenshotBytes)
+ FROM sites WHERE user_id=$1`, ev.AccountID, ev.ID).Scan(&u.Sites, &u.Versions, &u.ScreenshotBytes)
 	return u, err
 }

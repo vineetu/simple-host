@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	repository "github.com/vsriram/simple-host/host/repository/storage"
@@ -139,4 +140,36 @@ func (s *Service) ResolveOwnerFor(ctx context.Context, c Call, ref string) (stri
 		return "", &Error{Code: "visitor_unknown", Message: "this person has not signed in on this site yet"}
 	}
 	return ref, nil
+}
+
+// VisitorToolWriteInput contains the actor, target and validated write action.
+type VisitorToolWriteInput struct {
+	SiteID, UserID, App, Action, Resource, Kind string
+	Cap                                         int
+	Write                                       func(action string) (any, error)
+}
+
+// VisitorToolWrite counts the attempt, writes the resource and records its app label.
+func (s *Service) VisitorToolWrite(ctx context.Context, in VisitorToolWriteInput) (any, error) {
+	err := repository.CountVisitorAIWrite(ctx, s.db, in.UserID, in.SiteID, in.Cap)
+	if err == sql.ErrNoRows {
+		return nil, &Error{Code: "visitor_write_limit", Message: fmt.Sprintf("visitor_write_limit: daily limit of %d writes on this site reached; try again tomorrow (UTC)", in.Cap)}
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Attempts count too, so failures and concurrent retries cannot evade the cap.
+	result, err := in.Write(in.Action)
+	if err != nil {
+		return nil, err
+	}
+	if entry, ok := result.(map[string]any); ok {
+		entry["mine"] = true
+	}
+	// A history marker has no earlier value and therefore cannot be restored.
+	err = repository.RecordVisitorAIWrite(ctx, s.db, in.SiteID, in.Resource, in.Action+" "+in.Kind, in.UserID, in.App)
+	if err != nil {
+		return map[string]any{"entry": result, "note": "Saved, but the app label could not be recorded in data history."}, nil
+	}
+	return result, nil
 }

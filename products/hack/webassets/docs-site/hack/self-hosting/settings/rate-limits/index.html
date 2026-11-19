@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1882yjb" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1ngqqee" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -397,11 +397,6 @@
 				<span class="astro-rmhv4bp6">Storage and backups</span>
 				
 			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
-				
-			</a>
 	</li>
 </ul>
 			</details>
@@ -730,12 +725,6 @@ limits trigger the <a href="/docs/self-hosting/settings/sites-and-versions/">sit
 <td>Posts on comments-preset resources, per site from everyone together. <strong>Security-sensitive.</strong></td>
 </tr>
 <tr>
-<td><code>RATE_LIMIT_STATE</code></td>
-<td><code>60,1s</code></td>
-<td>any (warns past 10× looser)</td>
-<td>Saved-data and list writes per client.</td>
-</tr>
-<tr>
 <td><code>RATE_LIMIT_TLS_ASK</code></td>
 <td><code>60,100ms</code></td>
 <td>any (warns past 10× looser)</td>
@@ -813,8 +802,7 @@ limits trigger the <a href="/docs/self-hosting/settings/sites-and-versions/">sit
 <h2 id="recipes">Recipes</h2>
 <p><strong>A busy event on one box</strong> (many people behind one venue address):</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>RATE_LIMIT_SIGNIN_IP=80,1250ms</span></span>
-<span class="line"><span>RATE_LIMIT_UPLOAD=120,2s</span></span>
-<span class="line"><span>RATE_LIMIT_STATE=240,250ms</span></span></code></pre>
+<span class="line"><span>RATE_LIMIT_UPLOAD=120,2s</span></span></code></pre>
 </div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">

@@ -42,12 +42,6 @@ func GetAllowedOriginsByID(ctx context.Context, db *sql.DB, siteID string) ([]st
 	return out, nil
 }
 
-func GetSiteStateVersionByID(ctx context.Context, db *sql.DB, siteID string) (int, error) {
-	var version int
-	err := db.QueryRowContext(ctx, `SELECT state_version FROM sites WHERE id = $1`, siteID).Scan(&version)
-	return version, err
-}
-
 func SetHomeSite(ctx context.Context, q Querier, userID string, name *string) error {
 	var res sql.Result
 	var err error
@@ -111,13 +105,6 @@ func ListHandlesWithSites(ctx context.Context, q *sql.DB) ([]string, error) {
 
 func SetAllowedOrigins(ctx context.Context, db *sql.DB, siteID, origins string) error {
 	_, err := db.ExecContext(ctx, `UPDATE sites SET allowed_origins = $1 WHERE id = $2`, origins, siteID)
-	return err
-}
-
-func SetAllowAnonymousWrites(ctx context.Context, q Querier, siteID string, allow bool) error {
-	_, err := q.ExecContext(ctx,
-		`UPDATE sites SET allow_anonymous_writes = $1 WHERE id = $2`,
-		allow, siteID)
 	return err
 }
 

@@ -71,12 +71,9 @@ npx -y skills add https://github.com/vineetu/simple-host/tree/main/products/hack
 - Your own domain, subdomain or bare domain. Ownership is proved with one TXT record; the certificate is issued automatically.
 - `www` and the bare domain are set up together, one redirecting to the other.
 
-### Saved data and lists
-- Per-site saved data: one JSON document with atomic operations (set, increment, append, remove).
-- Lists that visitors add to: comments, RSVPs, votes, sign-ups.
-- Every piece of saved data has a kind: Shared (default, public), Page info (owner writes, everyone reads), Submissions (visitors send; private to the owner by default; each visitor sees, changes and withdraws their own; optional email digest), Personal (one private record per visitor) and Shared board (a list a group edits item by item).
-- Private Submissions: only signed-in visitors add; the owner reads all, each visitor only their own.
-- The owner can delete entries in any list, edit entries in a private list, empty a list, and download it as CSV. Every change to saved data can be undone for 30 days (History, Recently deleted).
+### Saved data
+- Per-site storage: key-value (KV), SQLite and file resources that the site's own pages read and write.
+- Rules on each KV and SQLite resource decide who may read, add, edit and delete; file resources use access presets.
 
 ### Visitor sign-in
 - Visitors sign in with Google or an emailed code on the site's own address.
@@ -151,9 +148,6 @@ Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contra
 | `/v1/sites` | GET | List your sites |
 | `/v1/sites/{name}/files` | POST / PUT | Publish from JSON: `{"files": {"index.html": "<h1>hi</h1>"}}` |
 | `/v1/sites/{name}` | POST / PUT / PATCH / DELETE | Publish an archive / new version / rename or offline / delete |
-| `/v1/sites/{name}/state` | GET / PUT / PATCH | Saved data with atomic operations |
-| `/v1/sites/{name}/collections/{coll}` | GET / POST | Lists |
-| `/v1/sites/{name}/data/{name}` | GET / POST / PUT / PATCH | Saved data by kind (Page info, Submissions, Personal, Shared board); `.../kind` declares one |
 | `/v1/me/keys` | GET / POST / DELETE | Named API keys, deploy-only keys for CI |
 | `/v1/sites/{name}/domain` | POST / GET / DELETE | Your own domain |
 

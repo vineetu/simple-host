@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1882yjb" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1ngqqee" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -397,11 +397,6 @@
 				<span class="astro-rmhv4bp6">Storage and backups</span>
 				
 			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
-				
-			</a>
 	</li>
 </ul>
 			</details>
@@ -569,9 +564,6 @@
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#run-your-own-copy" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Run your own copy</span></a>
 		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#prepare-storage-retirement-notices" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prepare storage retirement notices</span></a>
-		
 	</li>
 </ul></div>
 		</details>
@@ -603,9 +595,6 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#run-your-own-copy" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Run your own copy</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#prepare-storage-retirement-notices" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Prepare storage retirement notices</span></a>
 		
 	</li>
 </ul>
@@ -664,19 +653,7 @@
 <li>Follow the <a href="https://github.com/vineetu/simple-host#self-hosting">installation instructions</a> for your server.</li>
 <li>Set this install’s address and apply its database schema or migrations before starting it.</li>
 <li>Open <code>/healthz</code>, sign in, and publish a test site. Use the <a href="https://github.com/vineetu/simple-host/tree/main/docs/advanced">settings reference</a> when changing limits or providers.</li>
-</ol>
-<h2 id="prepare-storage-retirement-notices">Prepare storage retirement notices</h2>
-<p>The operator’s <code>migrate-rules --list-recipients --out recipients.json</code>
-command writes private recipient lists and sends nothing. Add <code>--legacy-log</code>
-with collected <code>legacy_storage_call</code> lines to include sites that call older
-saved-data routes without storing rows. Recompute before each approved send.
-File buckets are excluded; event-held resources are listed separately.</p>
-<p>Leave <code>STORAGE_SWITCH_AT</code> empty until the notice date is approved. It accepts
-an RFC3339 UTC instant and requires <code>STORAGE_RULES=on</code>. Set it in the Compose
-environment or Helm <code>storageSwitchAt</code> value, then restart. During the notice
-period successful SQLite/KV preset saves return a warning. Wording may be
-changed without rebuilding through <code>DATA_DIR/storage-notice.json</code>.
-See <a href="/docs/self-hosting/settings/storage-and-backups/">Storage and backups</a>.</p></div>
+</ol></div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">
 		

@@ -71,7 +71,7 @@ func TestExportLinkEndToEnd(t *testing.T) {
 		t.Fatalf("download: %d %v %s", r.status, r.header, r.body)
 	}
 	names := tarNames(t, r.body)
-	if !names["blog/state.json"] || !names["blog/files/index.html"] || !names["blog/files/_redirects"] {
+	if !names["blog/files/index.html"] || !names["blog/files/_redirects"] {
 		t.Errorf("archive holds %v", names)
 	}
 	annID, _ := a.userID(t, ann)

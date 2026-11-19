@@ -45,8 +45,6 @@ import (
 // would bound compressed bytes and nothing else.
 var uploadLimits = sites.UploadLimits{Body: 100 << 20}
 
-const maxSiteStateSize = 1 << 20
-
 func init() {
 	if v := os.Getenv("MAX_ARCHIVE_MB"); v != "" {
 		if mb, err := strconv.Atoi(v); err == nil && mb > 0 {
@@ -60,8 +58,6 @@ type SiteHandler struct {
 	routingFacts    SiteFacts
 	sitemaps        sitemapCache
 	sitemapFilter   sites.SitemapFilter
-	savedWorkerOnce sync.Once
-	savedWorker     *savedDataWorker
 	httpCaches      HTTPCaches
 	workerStatus    func() []workers.Status
 	ed              *edition.Edition
@@ -123,9 +119,8 @@ type SiteHandler struct {
 	// nil when the analytics log is off.
 	ownerMarks *operations.OwnerMarks
 
-	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
-	// throttles per-site state writes (Origin-gated reads; writes also go
-	// through visitorWriteOK). See ratelimit.go.
+	// uploadLimiter throttles create/update uploads per client IP. See
+	// ratelimit.go.
 	uploadLimiter         *rateLimiter
 	storageIPLimiter      *rateLimiter
 	storageVisitorLimiter *rateLimiter
@@ -133,7 +128,6 @@ type SiteHandler struct {
 	turnstile          *turnstileVerifier
 	spamIPLimiter      *rateLimiter
 	spamSiteLimiter    *rateLimiter
-	stateLimiter       *rateLimiter
 	visitorAuthLimiter *rateLimiter
 	domainCheckLimiter *rateLimiter
 	// domainCheckUserLimiter: "Check again" per account.
@@ -160,11 +154,9 @@ type SiteHandler struct {
 	webPushVapidPub   string
 	webPushVapidPriv  string
 
-	// writeAuthMode is off | log | on (config default is log, never on).
-	writeAuthMode string
 	// adminAPIKey / adminUserID recognize owner/admin X-API-Key callers on
-	// routes that are not wrapped with auth.Middleware: state/collections
-	// writers, and the public collection GET (which also accepts an owner key).
+	// routes that are not wrapped with auth.Middleware (the site storage
+	// routes).
 	adminAPIKey string
 	adminUserID string
 
@@ -210,72 +202,20 @@ type SiteHandler struct {
 	ssoStart      http.Handler
 	ssoBaseURL    string
 
-	// savedData is the SAVED_DATA_* knobs, and readLimiter and appendLimiter
-	// the saved-data read and list-append limits built from them (saveddata.go).
-	savedData struct {
-		UndoDays              int
-		HistoryMaxMB          int
-		SiteMaxMB             int
-		SweepMinutes          int
-		WatchDays             int
-		WatchIncMax           int
-		WatchItemKB           int
-		IdempotencyHours      int
-		ReadPerSec            int
-		ReadBurst             int
-		AppendPerMin          int
-		AppendBurst           int
-		IdempotencyMaxPerSite int
-		SnapshotEvery         int
-		WatchKeepDays         int
-		ContentMaxKB          int
-		ContentNamesMax       int
-		EntryMaxKB            int
-		EntriesMax            int
-		WithdrawUndoMinutes   int
-		NotifyEachMinutes     int
-		NotifyDailyHours      int
-		SaversMax             int
-		EntriesNamesMax       int
-		PersonalMaxKB         int
-		PersonalNamesMax      int
-		BoardItemMaxKB        int
-		BoardMax              int
-		BoardNamesMax         int
-		PersonalPeopleMax     int
-		BoardWritesPerMin     int
-		DefaultKind           string
-	}
-	readLimiter   *rateLimiter
-	appendLimiter *rateLimiter
-	// boardLimiter is SAVED_DATA_BOARD_WRITES_PER_MIN per signed-in person,
-	// so one account on many addresses writes a board no faster (board.go).
-	boardLimiter *rateLimiter
-	// thinLimiter spaces out boundHistory's thinning: once a second per site.
-	thinLimiter *rateLimiter
+	// showcaseLimiter bounds public showcase reads per account and address
+	// (60 burst, 30 a second).
+	showcaseLimiter *rateLimiter
 	// noVisitorSignIn: this install has no way for a visitor to sign in (no
-	// email codes, no Google/GitHub), so kinds that take saves only from
-	// signed-in visitors are refused. noEmail: it sends no email, so
-	// Submissions emails are off. Both false unless SetVisitorSignIn says.
+	// email codes, no Google/GitHub). noEmail: it sends no email. Both false
+	// unless SetVisitorSignIn says.
 	noVisitorSignIn, noEmail bool
-	// thinStuck: sites whose history stayed over the cap after a thin (what
-	// is left is the per-day copies thinning keeps), with its size then.
-	// Thinning is skipped for them until the history grows by thinMargin.
-	thinStuck  sync.Map // site id -> int64
-	groupHosts GroupHosts
-	groupGate  sites.GroupGate
+	groupHosts               GroupHosts
+	groupGate                sites.GroupGate
 
 	// geoBlock gates a visitor's email-code sign-in on a site by the
 	// request's country (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See
 	// signupgeo.go.
 	geoBlock signupGeoBlock
-
-	// legacyStorageCutoff is LEGACY_STORAGE_CUTOFF (legacy_cutoff.go). Zero: off.
-	legacyStorageCutoff time.Time
-	// REST and visitor-tool wrappers share the daily legacy call log.
-	legacyStorageCalls  legacyStorageCallLog
-	storageSwitchAt     time.Time
-	storagePresetNotice string
 }
 
 // SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
@@ -287,11 +227,6 @@ func (h *SiteHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
 	h.geoBlock = guard
 }
 
-// SetLegacyStorageCutoff sets LEGACY_STORAGE_CUTOFF. Zero disables the gate.
-func (h *SiteHandler) SetLegacyStorageCutoff(t time.Time) {
-	h.legacyStorageCutoff = t
-}
-
 // SetVisitorSignIn records how visitors can sign in on this install: email
 // codes (email) and the OAuth providers configured (providers).
 func (h *SiteHandler) SetVisitorSignIn(email bool, providers []string) {
@@ -301,22 +236,6 @@ func (h *SiteHandler) SetVisitorSignIn(email bool, providers []string) {
 	for _, p := range providers {
 		viewerGoogle = viewerGoogle || p == "google"
 	}
-}
-
-// signInNeededOK refuses what needs a signed-in visitor (Submissions,
-// Personal, a Shared board, a private list: what) on an install where no
-// visitor can sign in. Writes the 409; false then.
-func (h *SiteHandler) signInNeededOK(w http.ResponseWriter, what string) bool {
-	if !h.noVisitorSignIn {
-		return true
-	}
-	writeJSON(w, http.StatusConflict, errorResponse{
-		Error: what + " take saves only from visitors who sign in, and visitors cannot sign in on this server: it has no sign-in method set up " +
-			"(email codes need RESEND_API_KEY; Google sign-in needs GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET). " +
-			"Use a Shared name (no kind) instead, or ask whoever runs this server to set one up",
-		Code: "visitor_sign_in_unavailable",
-	})
-	return false
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and
@@ -427,7 +346,7 @@ type versionResponse struct {
 
 // hackInstanceURL is this instance's own public address, used only when ed is
 // the Hack edition (the pipeline's inkBaseURL; "" takes canonicalHackBaseURL).
-func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sql.DB, disk SiteDisk, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer signInMailer, emailLimiter *rateLimiter) *SiteHandler {
+func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sql.DB, disk SiteDisk, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, adminUserID string, mailer signInMailer, emailLimiter *rateLimiter) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	lim := ed.Limits()
@@ -435,7 +354,6 @@ func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sq
 	storageIPLimiter := newRateLimiterFor(lim.RateStorageIP)
 	storageVisitorLimiter := newRateLimiterFor(lim.RateStorageVisitor)
 
-	stateLimiter := newRateLimiterFor(lim.RateState)
 	visitorAuthLimiter := newRateLimiterFor(lim.RateVisitorAuth)
 	domainCheckLimiter := newRateLimiterFor(lim.RateDomainCheck)
 	domainCheckUserLimiter := newRateLimiterFor(lim.RateDomainCheckUser)
@@ -457,13 +375,11 @@ func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sq
 		storageVisitorLimiter:  storageVisitorLimiter,
 		spamIPLimiter:          newRateLimiterFor(lim.RateSpamCheckedIP),
 		spamSiteLimiter:        newRateLimiterFor(lim.RateSpamCheckedSite),
-		stateLimiter:           stateLimiter,
 		visitorAuthLimiter:     visitorAuthLimiter,
 		domainCheckLimiter:     domainCheckLimiter,
 		domainCheckUserLimiter: domainCheckUserLimiter,
 		previewAccounts:        previewAccounts,
 		previewTTL:             previewTTL,
-		writeAuthMode:          writeAuthMode,
 		adminAPIKey:            adminAPIKey,
 		adminUserID:            adminUserID,
 		exportKey:              newExportKey(),
@@ -473,7 +389,8 @@ func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sq
 	h.passcode.limitSet = newLimitSet(lim)
 	h.createIdempotency = newCreateIdempotencyStore(lim)
 	h.httpCaches.add("http.site.idempotency", time.Hour, h.createIdempotency.evictExpired)
-	h.SetSavedData((*edition.Edition)(nil).Limits().SavedData)
+	h.showcaseLimiter = newRateLimiter(60, 30)
+	h.httpCaches.rate("http.site.showcaseLimiter", h.showcaseLimiter, 10*time.Minute, 30*time.Minute)
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
 		for u := range previewAccounts {
@@ -494,7 +411,6 @@ func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sq
 	h.httpCaches.rate("http.site.domainCheckUserLimiter", domainCheckUserLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.rate("http.site.visitorAuthLimiter", visitorAuthLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.rate("http.site.uploadLimiter", uploadLimiter, 10*time.Minute, 30*time.Minute)
-	h.httpCaches.rate("http.site.stateLimiter", stateLimiter, 10*time.Minute, 30*time.Minute)
 	return h
 }
 
@@ -636,25 +552,17 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
 	// rate-limit chain as the archive upload; CORS preflight is handled by the
-	// CORS middleware (these paths do not end in /state).
+	// CORS middleware.
 	mux.Handle("POST /v1/sites/{sitename}/files", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSiteFiles))))))
 	mux.Handle("PUT /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSiteFiles)))))
 	photos := h.ed.Storage().Photos
 	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(photos, authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(http.HandlerFunc(h.addPhotos))))))
 
-	// State routes are deliberately NOT wrapped — they serve browser pages
-	// that parse the JSON state object directly. Adding _notice would
-	// corrupt that contract.
-	//
-	// TRUST MODEL: site state is PUBLIC per-site scratch storage for reads.
-	// A GET with no Origin and no Referer (curl, an agent) is served as is; any
-	// request that names a page is Origin-checked (authorizeStateOrigin), on
-	// every method. Writes additionally go through visitorWriteOK: a visitor
-	// session, the owner's (or admin's) X-API-Key, WRITE_AUTH_MODE=log (measure, allow),
-	// or the admin allow_anonymous_writes hatch. Do not store secrets in it.
-	// Abuse is bounded by stateLimiter (rate) and maxSiteStateSize (1 MB cap).
-	mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
-	mux.Handle("PUT /v1/sites/{sitename}/allow-anonymous-writes", noticeMiddleware(authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.setAllowAnonymousWrites)))))
+	// The page origins allowed to call this site's API (visitor sign-in reads
+	// them). Event and team sites never take extra origins.
+	if !h.ed.Storage().EventSites {
+		mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
+	}
 
 	// Custom domain (one per site): owner binds a hostname, gets a CNAME record
 	// to create; Caddy on-demand TLS asks /internal/tls-ask before issuing a cert.
@@ -706,112 +614,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/site-signin", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignIn)))
 	mux.Handle("POST /v1/site-signout", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignOut)))
 
-	// Append-only collections (second backend type): cheap O(1) appends +
-	// paginated reads for large/high-volume lists. Origin-gated like state.
-	// Owner-authenticated list + CSV export sit next to
-	// them so a site owner can see (and download) what the site saved.
-	mux.Handle("GET /v1/sites/{sitename}/collections", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteCollections))))
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/export.csv", authMiddleware(http.HandlerFunc(h.exportCollectionCSV)))
-	// Owner-only: make one list private (owner-only reads, signed-in
-	// submissions on the site's own domain) or public again.
-	mux.Handle("PUT /v1/sites/{sitename}/collections/{coll}/privacy", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setCollectionPrivacy))))
-	// The owner or the platform admin (key, connector token, or the owner's
-	// session on the site's own domain) deletes one item in any list, edits
-	// one in a private list, or empties a whole list. Visitors only append.
-	mux.Handle("PATCH /v1/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem))))
-	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem))))
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updatePrivateItem))))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deletePrivateItem))))
-	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection))))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearCollection))))
-	// History, Recently deleted, restore and delete for good (saveddata.go):
-	// owner or admin only, key or connector token; the {handle} forms name
-	// the site exactly.
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreListHistory)))))
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedItems))))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/deleted/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}/items/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
-	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
-	mux.Handle("DELETE /v1/sites/{sitename}/collections/{coll}/deleted/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
-	mux.Handle("GET /v1/sites/{sitename}/state/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
-	mux.Handle("GET /v1/sites/{sitename}/state/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
-	mux.Handle("POST /v1/sites/{sitename}/state/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreStateHistory)))))
-	mux.Handle("DELETE /v1/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreListHistory)))))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedItems))))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreDeletedItem)))))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.purgeDeletedItems)))))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state/history", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDataHistory))))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state/history/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDataHistory))))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/state/history/{id}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restoreStateHistory)))))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
-	// The saved-data watch: what the later tightening would affect.
-	mux.Handle("GET /v1/admin/data-watch", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminDataWatch))))
 	// Image matching (imagescan.go): the matches, the queue, and filing a report.
 	mux.Handle("GET /v1/admin/image-scan", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminImageScan))))
 	mux.Handle("POST /v1/admin/image-scan/{id}/report", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminImageScanReport))))
-	// Kinds (kinds.go): the owner declares what each data name is and who may
-	// save; pages read Page info and add, list, change and withdraw their own
-	// Submissions. The page-facing routes run the same Origin policy as the
-	// collections; the owner's use the key or connector token.
-	mux.Handle("GET /v1/sites/{sitename}/data", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listData))))
-	mux.Handle("PUT /v1/sites/{sitename}/data/{coll}/kind", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.declareData)))))
-	mux.Handle("GET /v1/sites/{sitename}/savers", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSavers))))
-	mux.Handle("PUT /v1/sites/{sitename}/savers", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSavers)))))
-	mux.Handle("POST /v1/sites/{sitename}/savers/block", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.blockSaver)))))
-	stopLimiter := newRateLimiter(10, 0.1)
-	h.httpCaches.rate("http.site.stopLimiter", stopLimiter, 10*time.Minute, 30*time.Minute)
-	mux.Handle("GET /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
-	mux.Handle("POST /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}", h.passcodeGate(http.HandlerFunc(h.getData)))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/kind", h.passcodeGate(http.HandlerFunc(h.getDataKind)))
-	mux.Handle("POST /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
-	mux.Handle("PUT /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putContent))))
-	mux.Handle("PATCH /v1/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updateEntry))))
-	mux.Handle("DELETE /v1/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.withdrawEntry))))
-	mux.Handle("POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.undoWithdraw))))
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/kind", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/items/{id}", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/items/{id}/undo", h.optionsData)
-	// Personal (personal.go): a signed-in visitor's own record, its changes and
-	// their restore. Shared boards use the item routes above (board.go).
-	mux.Handle("PATCH /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData))))
-	mux.Handle("DELETE /v1/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData))))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history", h.passcodeGate(http.HandlerFunc(h.personalHistory)))
-	mux.Handle("GET /v1/sites/{sitename}/data/{coll}/history/{id}", h.passcodeGate(http.HandlerFunc(h.personalHistoryEntry)))
-	mux.Handle("POST /v1/sites/{sitename}/data/{coll}/history/{id}/restore", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal))))
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history/{id}", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/data/{coll}/history/{id}/restore", h.optionsData)
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(http.HandlerFunc(h.getData)))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/kind", h.passcodeGate(http.HandlerFunc(h.getDataKind)))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
-	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putContent))))
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.updateEntry))))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.withdrawEntry))))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.undoWithdraw))))
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/kind", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo", h.optionsData)
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchData))))
-	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/data/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.deleteData))))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history", h.passcodeGate(http.HandlerFunc(h.personalHistory)))
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}", h.passcodeGate(http.HandlerFunc(h.personalHistoryEntry)))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.restorePersonal))))
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}", h.optionsData)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore", h.optionsData)
-	mux.Handle("GET /v1/sites/{sitename}/collections/{coll}", h.passcodeGate(http.HandlerFunc(h.listCollection)))
-	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
 	mux.Handle("GET /v1/sites/{sitename}/me", h.signInGate(http.HandlerFunc(h.getVisitorMe)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/me", h.optionsVisitorMe)
@@ -819,27 +624,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
 	mux.Handle("POST /v1/sites/{sitename}/visitor/auth/verify", h.signInGate(http.HandlerFunc(h.verifyVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.Handle("GET /v1/sites/{sitename}/state", h.passcodeGate(http.HandlerFunc(h.getSiteState)))
-	mux.Handle("PUT /v1/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState))))
-	mux.Handle("PATCH /v1/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState))))
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/state", h.optionsSiteState)
 
-	// v3 user-scoped state/collections: unambiguous after UNIQUE(name) drops.
-	// Same handlers as above; resolveSiteID reads {handle} when present.
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.passcodeGate(http.HandlerFunc(h.listCollection)))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
-
+	// The same sign-in routes under the person's address: {handle} names the site exactly.
 	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/me", h.signInGate(http.HandlerFunc(h.getVisitorMe)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/me", h.optionsVisitorMe)
 	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth", h.signInGate(http.HandlerFunc(h.requestVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
 	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.signInGate(http.HandlerFunc(h.verifyVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(http.HandlerFunc(h.getSiteState)))
-	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState))))
-	mux.Handle("PATCH /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.patchSiteState))))
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/state", h.optionsSiteState)
 
 	// Visitor session cookie is issued here (content host / custom domain),
 	// never on the apex OAuth callback.
@@ -894,7 +686,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 }
 
 // setAllowedOrigins lets a site owner list extra origins (scheme://host) that may
-// call the site's state/collections API cross-origin — so a page hosted anywhere
+// call the site's API cross-origin — so a page hosted anywhere
 // (external hosting, Netlify, …) can use this site as its backend. Owner-only.
 func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
@@ -908,7 +700,6 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 		writeSiteNotFound(w, siteName)
 		return
 	}
-	recordLegacyCallSite(r, site.ID)
 	if refuseSuspendedSite(w, site) {
 		return
 	}
@@ -944,52 +735,6 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "allowed_origins": clean})
 }
 
-// setAllowAnonymousWrites is the admin-only hatch so one site can keep
-// accepting unsigned writes while WRITE_AUTH_MODE=on.
-func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Request) {
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-	var req struct {
-		Allow *bool `json:"allow"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.Allow == nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
-		return
-	}
-	// ?owner=<handle> names the exact site; without it, the oldest site of
-	// that name (the legacy bare-name lookup).
-	var siteID string
-	var err error
-	if owner := strings.TrimSpace(r.URL.Query().Get("owner")); owner != "" {
-		var u model.User
-		if u, err = h.storeAccounts().GetUserByHandleOrAlias(r.Context(), owner); err == nil {
-			var s model.Site
-			if s, err = h.sitesSvc().GetSiteByUser(r.Context(), u.ID, siteName); err == nil {
-				siteID = s.ID
-			}
-		}
-	} else {
-		siteID, err = h.sitesSvc().GetSiteIDByName(r.Context(), siteName)
-	}
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	recordLegacyCallSite(r, siteID)
-	if err := h.sitesSvc().SetAllowAnonymousWrites(r.Context(), siteID, *req.Allow); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "allow_anonymous_writes": *req.Allow})
-}
-
 // resolveSiteID resolves the target site's id. When the route carries a {handle} path
 // value (the v3 user-scoped routes), it resolves handle->user_id then (user_id,name)->site
 // so the lookup is unambiguous even after UNIQUE(name) is dropped; an old handle kept as
@@ -999,23 +744,16 @@ func (h *SiteHandler) setAllowAnonymousWrites(w http.ResponseWriter, r *http.Req
 // legacy global lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
 func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, error) {
 	id, _, err := h.resolveSiteIDBare(r, siteName)
-	if err == nil {
-		recordLegacyCallSite(r, id)
-	}
 	return id, err
 }
 
-// resolveWriteSiteID is resolveSiteID for the page-data write routes (state
-// PUT/PATCH, collection append). A bare name on the API or shared host
+// resolveWriteSiteID is resolveSiteID for the page-facing storage routes. A
+// bare name on the API or shared host
 // otherwise means the oldest same-named site; when the caller's key owns a
 // site of that name, it means theirs. Everything else is unchanged, and the
-// write gate (visitorWriteOK) still decides whether the caller may write.
+// storage gate still decides whether the caller may write.
 func (h *SiteHandler) resolveWriteSiteID(r *http.Request, siteName string) (string, error) {
-	id, err := h.resolveWriteSiteIDBare(r, siteName)
-	if err == nil {
-		recordLegacyCallSite(r, id)
-	}
-	return id, err
+	return h.resolveWriteSiteIDBare(r, siteName)
 }
 
 // resolveWriteSiteIDBare also serves speculative access-gate lookups, which
@@ -1182,7 +920,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 }
 
 // originAllowedForSiteID reports whether the owner has whitelisted this exact
-// origin (scheme://host) for the given site_id's state/collections API.
+// origin (scheme://host) for the given site_id's API.
 func (h *SiteHandler) originAllowedForSiteID(ctx context.Context, siteID, origin string) bool {
 	origins, err := h.sitesSvc().GetAllowedOriginsByID(ctx, siteID)
 	if err != nil || len(origins) == 0 {
@@ -1350,246 +1088,6 @@ func writeOriginRefused(w http.ResponseWriter) {
 			"A page saves from the site itself; an agent or script sends the site owner's X-API-Key and no Origin header",
 		Code: "origin_not_allowed",
 	})
-}
-
-// keyWithoutPage: the request carries an API key and names no page (no
-// Origin, no Referer): an agent or a script. The key is the authorization
-// (the write path checks it is the site owner's, or the admin's); a browser
-// never sends one on its own, and a page cannot add it cross-origin without a
-// preflight the Origin gate refuses.
-func keyWithoutPage(r *http.Request) bool {
-	return r.Header.Get("X-API-Key") != "" && noBrowserOrigin(r)
-}
-
-// noBrowserOrigin reports whether r carries neither Origin nor Referer: a
-// script, curl or an agent rather than a page. Saved state and public lists
-// are public to read, so such a read needs no Origin check; there is no
-// calling page to hand CORS headers to, and nothing it could not already see.
-func noBrowserOrigin(r *http.Request) bool {
-	return r.Header.Get("Origin") == "" && r.Header.Get("Referer") == ""
-}
-
-// authorizePublicRead gates a public read (GET state, GET a public list): with
-// no Origin or Referer it is allowed outright; a browser read from a page still
-// needs that page to be one of the site's own origins, exactly like a write.
-func (h *SiteHandler) authorizePublicRead(w http.ResponseWriter, r *http.Request, siteName string) bool {
-	if noBrowserOrigin(r) {
-		return true
-	}
-	return h.authorizeStateOrigin(w, r, siteName)
-}
-
-func (h *SiteHandler) optionsSiteState(w http.ResponseWriter, r *http.Request) {
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if !h.authorizeStateOrigin(w, r, siteName) {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, PATCH, OPTIONS")
-	// If-Match / If-None-Match carry the state version for optimistic-concurrency
-	// PUTs and conditional GETs; PATCH sends ops as JSON. X-SH-CSRF is required
-	// on cookie-authenticated writes.
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, X-SH-CSRF, Idempotency-Key")
-	w.Header().Set("Access-Control-Max-Age", "600")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *SiteHandler) getSiteState(w http.ResponseWriter, r *http.Request) {
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-
-	// The owner's (or admin's) key reads its own site's state from any page,
-	// as it reads a list: that is how the owner app shows saved data. It also
-	// pins the site to the key's owner rather than the oldest same name.
-	siteID, ownerKey := h.ownerSiteIDFromKey(r, siteName)
-	if !ownerKey && !h.authorizePublicRead(w, r, siteName) {
-		writeOriginRefused(w)
-		return
-	}
-
-	// Resolve name -> site_id once; all subsequent state ops key by id.
-	var err error
-	if !ownerKey {
-		siteID, err = h.resolveSiteID(r, siteName)
-	}
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if !h.allowRead(w, r, siteID) {
-		return
-	}
-	// A taken-down site serves nothing to the public; the owner's (or the
-	// admin's) key still reads it.
-	if _, owner := h.ownerSiteIDFromKey(r, siteName); !owner && (h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID)) {
-		return
-	}
-
-	// Conditional GET: if the caller already has the current version, do a cheap
-	// version-only check and return 304 — no fetch/serialize of the document.
-	// Makes pollers (e.g. the feedback overlay) nearly free on CPU.
-	if inm := strings.TrimSpace(r.Header.Get("If-None-Match")); inm != "" {
-		if expected, ok := parseIfMatch(inm); ok {
-			ver, err := h.sitesSvc().GetSiteStateVersionByID(r.Context(), siteID)
-			if errors.Is(err, sql.ErrNoRows) {
-				writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-				return
-			}
-			if err == nil && ver == expected {
-				w.Header().Set("ETag", stateETag(ver))
-				w.WriteHeader(http.StatusNotModified)
-				return
-			}
-		}
-	}
-
-	state, version, err := h.sitesSvc().GetSiteStateByID(r.Context(), siteID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("ETag", stateETag(version))
-	w.WriteHeader(http.StatusOK)
-	w.Write(state)
-}
-
-// stateETag formats a state version as a (strong) ETag value.
-func stateETag(version int) string {
-	return `"` + strconv.Itoa(version) + `"`
-}
-
-// parseIfMatch parses an If-Match header value (e.g. `"7"` or `W/"7"`) into the
-// expected version. Returns ok=false if it isn't a simple version token.
-func parseIfMatch(v string) (int, bool) {
-	v = strings.TrimSpace(v)
-	v = strings.TrimPrefix(v, "W/")
-	v = strings.Trim(v, `"`)
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return 0, false
-	}
-	return n, true
-}
-
-func (h *SiteHandler) putSiteState(w http.ResponseWriter, r *http.Request) {
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-
-	// The site's own pages (Origin), or an agent with the owner's key.
-	if !keyWithoutPage(r) && !h.authorizeStateOrigin(w, r, siteName) {
-		writeOriginRefused(w)
-		return
-	}
-
-	// Resolve name -> site_id once; all subsequent state ops key by id.
-	siteID, err := h.resolveWriteSiteID(r, siteName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteStatePut, "")
-	if !ok {
-		return
-	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, maxSiteStateSize)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "item_too_large"})
-			return
-		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
-		return
-	}
-
-	if !json.Valid(body) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid json"})
-		return
-	}
-	if !storableJSON(w, body) {
-		return
-	}
-
-	state := json.RawMessage(body)
-
-	// Optimistic concurrency is OPT-IN: if the caller sends If-Match, we only
-	// write when the stored version matches (compare-and-swap). Without it,
-	// behavior is the historical last-write-wins. Either way the document
-	// from before goes to the site's history (undo).
-	expected := -1
-	if ifMatch := r.Header.Get("If-Match"); strings.TrimSpace(ifMatch) != "" {
-		v, ok := parseIfMatch(ifMatch)
-		if !ok {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid If-Match header"})
-			return
-		}
-		expected = v
-	}
-	// A replace that grows the site past SAVED_DATA_SITE_MAX_MB is refused
-	// (site_full); one that does not grow it always goes through.
-	newVersion, err := h.legacySvc().ReplaceSiteState(r.Context(), siteID, state, expected, h.withAuthorEmail(r.Context(), actor), h.siteMaxBytes())
-	h.boundHistory(r, siteID)
-	if errors.Is(err, model.ErrSiteFull) {
-		h.writeSiteFull(w)
-		return
-	}
-	if errors.Is(err, model.ErrStateVersionConflict) {
-		// Hand back the current version so the client can re-read and retry.
-		if _, cur, gerr := h.sitesSvc().GetSiteStateByID(r.Context(), siteID); gerr == nil {
-			w.Header().Set("ETag", stateETag(cur))
-		}
-		writeJSON(w, http.StatusPreconditionFailed, errorResponse{Error: "state version conflict — re-read and retry"})
-		return
-	}
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// The watch: whole-document replaces not made by the owner, and
-	// documents that are not an object, before either is refused.
-	if isVisitorActor(actor) {
-		h.watch(r.Context(), siteID, watchPutByVisitor, 1)
-	}
-	if t := bytes.TrimSpace(body); len(t) == 0 || t[0] != '{' {
-		h.watch(r.Context(), siteID, watchPutNotObject, 1)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("ETag", stateETag(newVersion))
-	w.WriteHeader(http.StatusOK)
-	w.Write(state)
 }
 
 func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {

@@ -198,7 +198,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data, h.storageSwitchAt)
+	page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
@@ -305,8 +305,8 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	// Same limiter/settings as other public reads; every spelling/host uses the user ID.
-	if h.readLimiter != nil && !h.readLimiter.allow("showcase:"+user.ID+":"+clientIP(r)) {
+	// Every spelling/host uses the user ID.
+	if h.showcaseLimiter != nil && !h.showcaseLimiter.allow("showcase:"+user.ID+":"+clientIP(r)) {
 		tooManyRequests(w)
 		return
 	}
@@ -322,24 +322,14 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 // showcasePage assembles the showcase template: the shared chrome, then the
 // handle and the page data. Kept apart from the database work so the served
 // markup can be tested on its own.
-func (p *assetPipeline) showcasePage(d ChromeData, data showcaseData, storageSwitchAt time.Time) ([]byte, error) {
+func (p *assetPipeline) showcasePage(d ChromeData, data showcaseData) ([]byte, error) {
 	tmpl, err := p.chromePage("showcase.html", d)
 	if err != nil {
 		return nil, err
 	}
 	// json.Marshal HTML-escapes <, >, & by default, so the injected blob cannot
 	// break out of the <script> even if a value somehow contained markup.
-	// The configured switch date controls the retirement line (X3-S1/R4-S3).
-	// Keep it page-only so the public showcase feed is unchanged.
-	switchAt := ""
-	if !storageSwitchAt.IsZero() {
-		switchAt = storageSwitchAt.UTC().Format(time.RFC3339)
-	}
-	blob, err := json.Marshal(struct {
-		showcaseData
-		StorageSwitchSet bool   `json:"storageSwitchSet"`
-		StorageSwitchAt  string `json:"storageSwitchAt,omitempty"`
-	}{showcaseData: data, StorageSwitchSet: !storageSwitchAt.IsZero(), StorageSwitchAt: switchAt})
+	blob, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}

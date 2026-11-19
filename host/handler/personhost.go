@@ -143,45 +143,6 @@ func (h *SiteHandler) isPersonHost(ctx context.Context, host string) bool {
 	return ok
 }
 
-// siteHome is the host that is a site's own origin: its proven own domain
-// (custom or a claimed <name>.<SITE_DOMAIN>), else its site host when that is
-// its address (SITE_HOSTS=canonical and the owner's certificate is ready),
-// else its owner's person address.
-type siteHome struct {
-	Host     string
-	OwnerID  string
-	IsDomain bool
-}
-
-// siteHomeFor returns the site's own origin, or ok=false when it has none (no
-// domain, and person hosts are off or the owner cannot have one).
-func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome, bool, error) {
-	info, ok, err := h.siteOwnAddress(ctx, siteID)
-	if err != nil {
-		return siteHome{}, false, err
-	}
-	if ok {
-		return siteHome{Host: strings.ToLower(info.Domain), OwnerID: info.UserID, IsDomain: true}, true, nil
-	}
-	if !h.personHostsOn() {
-		return siteHome{}, false, nil
-	}
-	handle, ownerID, name, err := h.siteFacts().GetSiteOwner(ctx, siteID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return siteHome{}, false, nil
-		}
-		return siteHome{}, false, err
-	}
-	if !h.personAddressFor(handle, name) {
-		return siteHome{}, false, nil
-	}
-	if h.siteHostCanonical(handle, name) {
-		return siteHome{Host: h.siteHostFor(handle, name), OwnerID: ownerID}, true, nil
-	}
-	return siteHome{Host: h.personHostFor(handle), OwnerID: ownerID}, true, nil
-}
-
 // livesOnDomainElsewhere reports whether a request on a shared or person host
 // is for a site whose home is its own domain: such a site takes no saves and
 // no sign-in here (owner decision 2026-09-06). Returns the domain.

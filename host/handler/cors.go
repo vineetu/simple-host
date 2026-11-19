@@ -24,15 +24,15 @@ const corsExposeHeaders = "RateLimit, RateLimit-Policy, RateLimit-Limit, RateLim
 // (which only happens if the user gave it one). No Access-Control-Allow-
 // Credentials is sent, so "*" is permitted by the CORS spec.
 //
-// The per-site /state endpoints are deliberately EXCLUDED: they run their own
-// stricter per-site Origin policy (authorizeStateOrigin / optionsSiteState) and
-// set their own Access-Control-Allow-Origin, so we must not double-handle them.
+// The per-site storage and visitor sign-in endpoints are deliberately
+// EXCLUDED: they run their own stricter per-site Origin policy and set their
+// own Access-Control-Allow-Origin, so we must not double-handle them.
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The per-site state + collections + visitor /me endpoints run their own
-		// stricter, credentialed Origin policy (authorizeStateOrigin), so the
-		// permissive "*" policy must not touch them.
-		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/collections/") || strings.Contains(r.URL.Path, "/data/") || strings.Contains(r.URL.Path, "/storage/") || r.URL.Path == "/v1/storage-download" ||
+		// The per-site storage + visitor /me endpoints run their own stricter,
+		// credentialed Origin policy (authorizeStateOrigin), so the permissive
+		// "*" policy must not touch them. GET /v1/setup/state keeps no "*" grant.
+		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/storage/") || r.URL.Path == "/v1/storage-download" ||
 			(strings.Contains(r.URL.Path, "/sites/") && (strings.HasSuffix(r.URL.Path, "/me") || strings.Contains(r.URL.Path, "/visitor/auth"))) {
 			next.ServeHTTP(w, r)
 			return

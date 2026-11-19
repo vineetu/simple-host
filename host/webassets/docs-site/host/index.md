@@ -16,7 +16,6 @@ Steps for each job, from your chat, the API, the dashboard, or your own pages.
 - [Sites and deploy](/docs/guides/publish.md)
 - [Domains and addresses](/docs/guides/addresses.md)
 - [Storage and saved data](/docs/guides/storage.md)
-- [Move a site off the older saved data](/docs/guides/moving-saved-data.md)
 - [Sign-in and access](/docs/guides/access.md)
 - [Notifications](/docs/guides/notifications.md)
 - [Agents and MCP](/docs/guides/agents.md)

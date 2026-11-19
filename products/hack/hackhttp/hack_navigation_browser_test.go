@@ -11,7 +11,7 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/auth"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
@@ -74,7 +74,7 @@ func TestServeHackNavigationBrowser(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET stage='archived',closed_at=now() WHERE slug=$1`, extra[2]); err != nil {
 		t.Fatal(err)
 	}
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), a.database)
+	adminID, err := accountrepo.EnsureAdminUser(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}

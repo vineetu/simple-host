@@ -122,7 +122,7 @@ type Config struct {
 	// where agents talk to the API.
 	APIHost string
 	// ContentOrigin is the shared content host's origin, e.g.
-	// https://sites.simple-host.app. Per-site state and collection routes are
+	// https://sites.simple-host.app. Per-site storage routes are
 	// Origin-gated, and this is the origin every site accepts.
 	ContentOrigin string
 	// SiteBases are the configured bases serving person, site, and claimed hosts.
@@ -882,13 +882,6 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			}
 			return toolResult(req.ID, retired.Message, nil, true, modern)
 		}
-		if retiredSavedDataTool(params.Name) {
-			message := params.Name + " is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code)."
-			if wrapped {
-				record(errors.New(message))
-			}
-			return toolResult(req.ID, message, nil, true, modern)
-		}
 		if wrapped {
 			message := "Unknown tool: " + params.Name + ". Call find_tools with the job."
 			if flatListApp(caller.AppName) {
@@ -1020,21 +1013,6 @@ func argumentMessage(err error, tool Tool) string {
 	}
 	schema, _ := json.Marshal(tool.InputSchema)
 	return err.Error() + "\nInput schema for " + tool.Name + ": " + string(schema)
-}
-
-// retiredSavedDataTool names the state, collection and declared-data tools the
-// connector offered until 2026-10-10. Their HTTP routes still serve existing
-// sites; the connector no longer lists them.
-func retiredSavedDataTool(name string) bool {
-	switch name {
-	case "get_state", "update_state", "list_collections", "read_collection",
-		"add_to_collection", "set_collection_privacy", "update_collection_item",
-		"delete_collection_item", "clear_collection", "data_history", "restore_data",
-		"list_deleted", "restore_item", "delete_forever", "declare_data",
-		"list_data", "update_data", "set_who_can_save", "block_person":
-		return true
-	}
-	return false
 }
 
 // unexpectedArgument refuses an argument the tool's schema does not declare.

@@ -53,8 +53,6 @@ func registerWorkers(d workerDependencies) *workers.Set {
 		s.AddDisabled("operations.analytics_ingest")
 	}
 	s.Add(d.site.SiteWorkers(d.siteSweep))
-	s.Add(d.site.SavedDataWorker())
-	s.Add(d.site.SubmissionEmailOwner())
 	s.Add(d.site.NotificationOwner())
 	if w := d.site.NetworkUsageWorker(); w != nil {
 		s.Add(w)

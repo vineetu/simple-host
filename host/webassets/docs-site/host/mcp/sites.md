@@ -259,7 +259,7 @@ Visits to a site over the last N days, split into people (not counting the owner
 
 <div data-tool="export_site"></div>
 
-Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files and its saved data (storage resources with their KV values, SQLite databases, and files, plus any older state and collections). The link works for 10 minutes and only for that site; give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.
+Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files and its saved data (storage resources with their KV values, SQLite databases, and files). The link works for 10 minutes and only for that site; give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.
 
 **Parameters:**
 

@@ -14,10 +14,6 @@ Example prompt for a guestbook on a **new** resource (anyone reads and posts wit
 
 > Add a guestbook to this site (custom domain `guests.example.com`, site `guestbook`). Use recipe topic `comments` and the current server’s `storage_set_resource` description. Configure public read and checked add rules; for held posts add the restrictive approval read described in the website-deploy storage reference. If the spam check is unavailable, use signed-in add and recipe `wall`. Create the table through `storage_sql_schema`. Load auth.js with `window.SH_CONFIG = {site: "guestbook"}` before the tag. Use `table().add()` and `.list()`, render with `textContent`, and preserve the form on failure. Follow the server description on an older server without rules.
 
-Example prompt for **maintaining an existing** declared-data guestbook (existing sites only — this site already has entries saved as `SH.data('entries', 'entries')`):
-
-> This guestbook (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`) already uses the deprecated declared-data API; keep it, do not migrate it. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, and call `await SH.requireSignIn()` before `SH.data('entries', 'entries').add({name, message})`. On a non-2xx keep the form and show "Not saved". Relative asset links only.
-
 Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 
 ## Handoff: deploy

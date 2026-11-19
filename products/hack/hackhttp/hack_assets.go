@@ -391,17 +391,9 @@ func hackPersonalPresentationHTML(name string, body []byte) []byte {
 	return body
 }
 
-// Hack serves the same visitor sign-in and new storage helper as Host, without
-// the retired state, collection and declared-data browser methods.
+// Hack serves the same visitor sign-in and storage helper as Host, with its
+// own header and product wording.
 func hackAuthJS(b []byte) []byte {
-
-	cut := func(src []byte, start, end string) []byte {
-		i, j := bytes.Index(src, []byte(start)), bytes.Index(src, []byte(end))
-		if i < 0 || j < i {
-			panic("auth.js legacy-storage boundary changed")
-		}
-		return append(append([]byte(nil), src[:i]...), src[j:]...)
-	}
 	end := bytes.Index(b, []byte("*/\n"))
 	if end < 0 {
 		panic("auth.js header changed")
@@ -414,8 +406,6 @@ func hackAuthJS(b []byte) []byte {
  * Owner-only resource setup happens through the Simple Hack connector.
  */
 `), b[end+3:]...)
-	b = cut(b, "    state: {\n", "    storage: {\n")
-	b = cut(b, "    collection: function (name) {\n", "    mount: function (target) {\n")
 	// Visitor wording on Hack. The two lines stay exact in the embedded file.
 	oldBy := []byte(`var signInBy = "Sign-in by Simple Host";`)
 	oldProduct := []byte(`var signInProduct = "Simple Host";`)

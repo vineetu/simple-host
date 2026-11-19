@@ -30,7 +30,6 @@ FAMILY_LABELS = {
     'hack-events': 'Events, teams and members',
     'hack-entries': 'Entries, judging and results',
     'hack-app-only': 'App screens',
-    'legacy': 'Older storage',
     'admin': 'Admin',
 }
 

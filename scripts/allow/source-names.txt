@@ -1,4 +1,3 @@
 # Exact repository path | count of filename/identifier matches | reason
 # Reserved site-name literals simple-hack and simplehack in host/rules/sites/sites.go
 # prevent impersonation; literals are not identifiers and need no count exception.
-host/app/storage/notice_test.go | 3 | Existing notice-recipient test for a product without legacy routes (R4-S1); local hackReport variable.

@@ -22,4 +22,4 @@ No authentication required.
 | --- | --- |
 | 200 | Public showcase |
 | 404 | Handle not found or hosted event mode |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |

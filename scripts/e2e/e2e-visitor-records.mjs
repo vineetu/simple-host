@@ -182,10 +182,6 @@ async function recipeMode(browser) {
   for (const gone of ['declare_data', 'read_collection', 'get_state', 'add_to_collection']) assert(!names.includes(gone), gone + ' still listed');
   step('connector instructions and tool list', { tools: names.length });
 
-  const retired = await rpc('tools/call', { name: 'read_collection', arguments: { site, collection: 'orders' } });
-  assert(retired.isError && /no longer offered/.test(retired.content[0].text), 'retired tool answer');
-  step('retired tool answers plainly');
-
   const recipe = (await tool('get_page_recipe', { topic: 'records', site })).structuredContent.recipe;
   assert(recipe.includes('SH.mount') && recipe.includes('"preset": "records"') && /Never call \/v1\/auth/.test(recipe), 'recipe content');
   const pub = await fetch(info.url + '/recipes/records.md');

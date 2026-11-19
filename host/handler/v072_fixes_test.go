@@ -1,412 +1,20 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	legacyapp "github.com/vsriram/simple-host/host/app/legacy"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
-	model "github.com/vsriram/simple-host/host/model"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 )
 
 // v0.7.2 correctness fixes (final/hosted-correctness.md). Needs DB_DSN.
-
-// M1: a private list never becomes public through its Recently deleted: the
-// kind and privacy changes count what a restore would bring back, and run
-// under the declaration lock.
-func TestPrivateToPublicCountsRecentlyDeleted(t *testing.T) {
-	s := newKindsSite(t, false)
-	s.declare(t, "orders", map[string]any{"kind": "entries"})
-	base := "/v1/sites/shop/data/orders"
-	if r := s.as(t, s.vicCooky, "POST", base, map[string]any{"name": "Vic", "address": "1 Main St"}); r.status != 201 {
-		t.Fatalf("order: %d %s", r.status, r.body)
-	}
-	if r := s.owner(t, "DELETE", "/v1/sites/shop/collections/orders", map[string]string{"confirm": "orders"}); r.status != 200 {
-		t.Fatalf("clear: %d %s", r.status, r.body)
-	}
-	kind := "/v1/sites/shop/data/orders/kind"
-	r := s.owner(t, "PUT", kind, map[string]any{"kind": "content"})
-	wantCode(t, "cleared private list to page info", r, 409, "has_entries")
-	if !strings.Contains(string(r.body), "Recently deleted") {
-		t.Fatalf("says where the entries are: %s", r.body)
-	}
-	wantCode(t, "cleared private list to page info, confirmed", s.owner(t, "PUT", kind, map[string]any{"kind": "content", "confirm_public": true}), 409, "has_entries")
-	wantCode(t, "cleared private list to board", s.owner(t, "PUT", kind, map[string]any{"kind": "board"}), 409, "confirm_public")
-	wantCode(t, "cleared private list to public", s.owner(t, "PUT", kind, map[string]any{"kind": "entries", "visibility": "public"}), 409, "confirm_public")
-	wantCode(t, "cleared private list, privacy off", s.owner(t, "PUT", "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": false}), 409, "confirm_public")
-
-	// Under the lock, not only in the handler.
-	var pe *model.PrivateItemsError
-	err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).DeclareDataLocked(context.Background(), s.shopID, "orders", model.KindContent, false, false, model.NotifyOff, true)
-	if !errors.As(err, &pe) || pe.Live != 0 || pe.Deleted != 1 || !pe.Content {
-		t.Fatalf("locked check: %v %+v", err, pe)
-	}
-
-	// Emptied for good, the name may become page info; nothing comes back.
-	if r := s.owner(t, "DELETE", "/v1/sites/shop/collections/orders/deleted", map[string]string{"confirm": "orders"}); r.status != 200 {
-		t.Fatalf("empty Recently deleted: %d %s", r.status, r.body)
-	}
-	s.declare(t, "orders", map[string]any{"kind": "content"})
-	if r := s.owner(t, "POST", "/v1/sites/shop/collections/orders/deleted/restore", map[string]bool{"all": true}); r.status != 200 || r.json(t)["restored"] != float64(0) {
-		t.Fatalf("restore after: %d %s", r.status, r.body)
-	}
-	if items := itemsOf(t, s.a.at(t, "GET", s.dom, "/v1/sites/shop/collections/orders", nil, nil)); len(items) != 0 {
-		t.Fatalf("public read shows old orders: %v", items)
-	}
-}
-
-// M1: a save that was checked against the old kind never lands under the new
-// one (the append re-checks the kind under the declaration lock).
-func TestAppendRechecksKindUnderLock(t *testing.T) {
-	s := newKindsSite(t, true)
-	ctx := context.Background()
-	s.declare(t, "menu", map[string]any{"kind": "content"})
-	if _, _, err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).SaveEntry(ctx, legacyapp.SaveEntryInput{SiteID: s.shopID, Settings: model.DataSettings{Name: "menu", Kind: model.KindEntries, Private: false}, Body: []byte(`{"a":1}`), Actor: model.Actor{}, MaxEntries: 100}); !errors.Is(err, model.ErrKindChanged) {
-		t.Fatalf("entry into page info: %v", err)
-	}
-	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "menu", false, []byte(`{"a":1}`), model.Actor{}); !errors.Is(err, model.ErrKindChanged) {
-		t.Fatalf("legacy append into page info: %v", err)
-	}
-	// An undeclared name still takes legacy appends.
-	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "guestbook", false, []byte(`{"a":1}`), model.Actor{}); err != nil {
-		t.Fatalf("legacy append: %v", err)
-	}
-}
-
-// Review F1: an append checked against a private list never lands after the
-// list was made public (or the reverse): privacy is re-read under the lock.
-func TestAppendRechecksPrivacyUnderLock(t *testing.T) {
-	s := newKindsSite(t, true)
-	ctx := context.Background()
-	if _, err := s.a.database.ExecContext(ctx, `
-		INSERT INTO collection_settings (site_id, collection, private) VALUES ($1, 'rsvps', true)
-		ON CONFLICT (site_id, collection) DO UPDATE SET private = true`, s.shopID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", false, []byte(`{"a":1}`), model.Actor{}); !errors.Is(err, model.ErrKindChanged) {
-		t.Fatalf("legacy append read as public into a private list: %v", err)
-	}
-	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", true, []byte(`{"a":1}`), model.Actor{}); err != nil {
-		t.Fatalf("legacy append into the private list it read: %v", err)
-	}
-	s.declare(t, "orders", map[string]any{"kind": "entries"})
-	if _, _, err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).SaveEntry(ctx, legacyapp.SaveEntryInput{SiteID: s.shopID, Settings: model.DataSettings{Name: "orders", Kind: model.KindEntries, Private: false}, Body: []byte(`{"a":1}`), Actor: model.Actor{}, MaxEntries: 100}); !errors.Is(err, model.ErrKindChanged) {
-		t.Fatalf("entry read as public into private submissions: %v", err)
-	}
-	if _, _, err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).SaveEntry(ctx, legacyapp.SaveEntryInput{SiteID: s.shopID, Settings: model.DataSettings{Name: "orders", Kind: model.KindEntries, Private: true}, Body: []byte(`{"a":1}`), Actor: model.Actor{}, MaxEntries: 100}); err != nil {
-		t.Fatalf("entry into the private submissions it read: %v", err)
-	}
-}
-
-// Review F2: a first declaration of a name nobody declared yet and an append
-// to it serialise: the append waits for the declaration's lock and then sees
-// the new kind, instead of slipping in beside it.
-func TestAppendWaitsForFirstDeclaration(t *testing.T) {
-	s := newKindsSite(t, true)
-	ctx := context.Background()
-	tx, err := s.a.database.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO collection_settings (site_id, collection) VALUES ($1, 'fresh') ON CONFLICT DO NOTHING`, s.shopID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE collection_settings SET kind = 'content' WHERE site_id = $1 AND collection = 'fresh'`, s.shopID); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() {
-		_, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "fresh", false, []byte(`{"a":1}`), model.Actor{})
-		done <- err
-	}()
-	select {
-	case err := <-done:
-		t.Fatalf("append finished while the first declaration held its lock: %v", err)
-	case <-time.After(300 * time.Millisecond):
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case err := <-done:
-		if !errors.Is(err, model.ErrKindChanged) {
-			t.Fatalf("append after the declaration: %v, want ErrKindChanged", err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("append never finished")
-	}
-	var n int
-	if err := s.a.database.QueryRowContext(ctx, `SELECT count(*) FROM collection_items WHERE site_id = $1 AND collection = 'fresh'`, s.shopID).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("items under the new page info: %d %v", n, err)
-	}
-}
-
-// M1: page info is one document; a restore never makes a second live one.
-func TestPageInfoRestoreKeepsOneDocument(t *testing.T) {
-	s := newKindsSite(t, false)
-	s.declare(t, "menu", map[string]any{"kind": "content"})
-	data := "/v1/sites/shop/data/menu"
-	coll := "/v1/sites/shop/collections/menu"
-	if r := s.owner(t, "PUT", data, map[string]any{"v": 1}); r.status != 200 {
-		t.Fatalf("put: %d %s", r.status, r.body)
-	}
-	if r := s.owner(t, "DELETE", coll, map[string]string{"confirm": "menu"}); r.status != 200 {
-		t.Fatalf("clear: %d %s", r.status, r.body)
-	}
-	if r := s.owner(t, "PUT", data, map[string]any{"v": 2}); r.status != 200 {
-		t.Fatalf("put 2: %d %s", r.status, r.body)
-	}
-	wantCode(t, "restore all beside a document", s.owner(t, "POST", coll+"/deleted/restore", map[string]bool{"all": true}), 409, "one_document")
-	var oldID int64
-	if err := s.a.database.QueryRow(`SELECT id FROM collection_items WHERE site_id = $1 AND collection = 'menu' AND deleted_at IS NOT NULL`, s.shopID).Scan(&oldID); err != nil {
-		t.Fatal(err)
-	}
-	wantCode(t, "restore one beside a document", s.owner(t, "POST", coll+"/items/"+strconv.FormatInt(oldID, 10)+"/restore", nil), 409, "one_document")
-	var clearID int64
-	if err := s.a.database.QueryRow(`SELECT id FROM data_history WHERE site_id = $1 AND name = 'menu' AND op = 'clear'`, s.shopID).Scan(&clearID); err != nil {
-		t.Fatal(err)
-	}
-	wantCode(t, "undo the clear beside a document", s.owner(t, "POST", coll+"/history/"+strconv.FormatInt(clearID, 10)+"/restore", nil), 409, "one_document")
-	var live int
-	_ = s.a.database.QueryRow(`SELECT count(*) FROM collection_items WHERE site_id = $1 AND collection = 'menu' AND deleted_at IS NULL`, s.shopID).Scan(&live)
-	if live != 1 {
-		t.Fatalf("live page info rows: %d", live)
-	}
-	// With the current one cleared, two old documents come back one at a time.
-	if r := s.owner(t, "DELETE", coll, map[string]string{"confirm": "menu"}); r.status != 200 {
-		t.Fatalf("clear 2: %d %s", r.status, r.body)
-	}
-	wantCode(t, "restore two at once", s.owner(t, "POST", coll+"/deleted/restore", map[string]bool{"all": true}), 409, "one_document")
-	if r := s.owner(t, "POST", coll+"/items/"+strconv.FormatInt(oldID, 10)+"/restore", nil); r.status != 200 {
-		t.Fatalf("restore one: %d %s", r.status, r.body)
-	}
-	got := s.a.at(t, "GET", s.dom, data, nil, nil).json(t)
-	if d, _ := got["data"].(map[string]any); d["v"] != float64(1) {
-		t.Fatalf("restored document: %v", got)
-	}
-}
-
-// L1: ids and cursors past 2^31 are ordinary numbers, not a 500.
-func TestBigIDsAndCursors(t *testing.T) {
-	s := newKindsSite(t, true)
-	ctx := context.Background()
-	const big = int64(3000000000)
-	d := s.a.database
-	if _, err := legacyrepo.ListCollectionItemsByID(ctx, d, s.shopID, "guestbook", 10, big, false); err != nil {
-		t.Fatalf("list before: %v", err)
-	}
-	if _, err := legacyrepo.ListHistory(ctx, d, s.shopID, model.HistoryList, "guestbook", 10, big); err != nil {
-		t.Fatalf("history before: %v", err)
-	}
-	if n, err := legacyapp.New(d, time.Time{}, legacyapp.Deps{}).UndeleteItems(ctx, s.shopID, "guestbook", big, model.Actor{}, 0, false, 0, 0); err != nil || n != 0 {
-		t.Fatalf("undelete: %d %v", n, err)
-	}
-	if _, err := legacyrepo.ListDeletedItems(ctx, d, s.shopID, "guestbook", 10, model.LegacyDeletedCursor{At: time.Now(), ID: big}); err != nil {
-		t.Fatalf("deleted cursor: %v", err)
-	}
-	if n, err := legacyrepo.PurgeDeletedItems(ctx, d, s.shopID, "guestbook", big); err != nil || n != 0 {
-		t.Fatalf("purge: %d %v", n, err)
-	}
-	vicID, _ := s.a.userID(t, s.vic)
-	if _, err := legacyrepo.ListOwnEntries(ctx, d, s.shopID, "guestbook", vicID, 10, big); err != nil {
-		t.Fatalf("own entries before: %v", err)
-	}
-	if _, err := legacyrepo.ListItemHistory(ctx, d, s.shopID, "guestbook", big, 10, big); err != nil {
-		t.Fatalf("item history before: %v", err)
-	}
-	// Over HTTP: the public list, and a restore or purge of an id nobody has.
-	if r := s.a.at(t, "GET", s.dom, "/v1/sites/shop/collections/guestbook?before=3000000000", nil, nil); r.status != 200 {
-		t.Fatalf("public list before: %d %s", r.status, r.body)
-	}
-	wantCode(t, "restore big id", s.owner(t, "POST", "/v1/sites/shop/collections/guestbook/items/3000000000/restore", nil), 404, "not_found")
-	wantCode(t, "purge big id", s.owner(t, "DELETE", "/v1/sites/shop/collections/guestbook/deleted/3000000000", nil), 404, "")
-}
-
-func TestJSONStorable(t *testing.T) {
-	for body, want := range map[string]bool{
-		`{"a":"x"}`:                 true,
-		`{"a":"x\u0000y"}`:          false,
-		`{"a\u0000":1}`:             false,
-		`{"a":"\\u0000"}`:           true, // an escaped backslash, then text
-		`{"a":"\\\u0000"}`:          false,
-		`{"a":"\ud83d\ude00"}`:      true,
-		`{"a":"\ud800"}`:            false,
-		`{"a":"\ud800x"}`:           false,
-		`{"a":"\udc00"}`:            false,
-		`{"a":"\u00e9 \u20ac"}`:     true,
-		"{\"a\":\"\xff\"}":          false,
-		`["\ud800\ud800\udc00"]`:    false,
-		`{"a":"\"\\","b":"\u0001"}`: true,
-	} {
-		if got := jsonStorable([]byte(body)); got != want {
-			t.Errorf("%s: %v, want %v", body, got, want)
-		}
-	}
-}
-
-// L2: text Postgres cannot store is refused with 400 invalid_json on every
-// saved-data write, never a 500.
-func TestSavedDataRefusesUnstorableText(t *testing.T) {
-	s := newKindsSite(t, true)
-	nul := `{"msg":"a\u0000b"}`
-	bad := "{\"msg\":\"\xff\"}"
-	half := `{"msg":"\ud800"}`
-	check := func(what string, r resp) {
-		t.Helper()
-		wantCode(t, what, r, 400, "invalid_json")
-	}
-	for _, body := range []string{nul, bad, half} {
-		check("state put", s.visitor(t, "PUT", "/v1/sites/shop/state", body))
-		check("list add", s.visitor(t, "POST", "/v1/sites/shop/collections/guestbook", body))
-	}
-	check("state patch", s.visitor(t, "PATCH", "/v1/sites/shop/state", `{"ops":[{"op":"set","path":"a","value":"x\u0000"}]}`))
-	check("state patch key", s.visitor(t, "PATCH", "/v1/sites/shop/state", `{"ops":[{"op":"set","path":"a\u0000","value":1}]}`))
-
-	s.declare(t, "menu", map[string]any{"kind": "content"})
-	check("page info", s.owner(t, "PUT", "/v1/sites/shop/data/menu", nul))
-
-	s.declare(t, "rsvps", map[string]any{"kind": "entries"})
-	check("private entry", s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/rsvps", nul))
-	id := idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/rsvps", map[string]any{"name": "Vic"}))
-	check("entry edit", s.as(t, s.vicCooky, "PATCH", "/v1/sites/shop/data/rsvps/items/"+id, nul))
-	check("owner edit", s.ownerWrite(t, "PATCH", "/v1/sites/shop/collections/rsvps/items/"+id, nul))
-
-	s.declare(t, "todo", map[string]any{"kind": "board"})
-	check("board add", s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/todo", nul))
-	bid := idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/todo", map[string]any{"text": "milk"}))
-	check("board edit", s.as(t, s.vicCooky, "PATCH", "/v1/sites/shop/data/todo/items/"+bid, nul))
-
-	s.declare(t, "prefs", map[string]any{"kind": "mine"})
-	check("personal put", s.as(t, s.vicCooky, "PUT", "/v1/sites/shop/data/prefs", nul))
-	check("personal patch", s.as(t, s.vicCooky, "PATCH", "/v1/sites/shop/data/prefs", `{"ops":[{"op":"set","path":"a","value":"\u0000"}]}`))
-
-	// Ordinary text, escapes included, still saves.
-	if r := s.visitor(t, "POST", "/v1/sites/shop/collections/guestbook", `{"msg":"caf\u00e9 \ud83d\ude00 \\u0000"}`); r.status != 201 {
-		t.Fatalf("ordinary text: %d %s", r.status, r.body)
-	}
-}
-
-// L3: an entry that committed just after a digest read (its created_at is
-// before that digest's time) is counted by the next one.
-func TestDigestCountsByID(t *testing.T) {
-	s := newKindsSite(t, true)
-	ctx := context.Background()
-	s.declare(t, "orders", map[string]any{"kind": "entries", "notify": "each"})
-	idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/orders", map[string]any{"item": "tea"}))
-	back := func(q string) {
-		t.Helper()
-		if _, err := s.a.database.Exec(q, s.shopID); err != nil {
-			t.Fatal(err)
-		}
-	}
-	back(`UPDATE collection_settings SET declared_at = now() - interval '3 hours', updated_at = now() - interval '3 hours' WHERE site_id = $1`)
-	back(`UPDATE collection_items SET created_at = now() - interval '2 hours' WHERE site_id = $1`)
-	dueHere := func() []model.NotifyDue {
-		t.Helper()
-		due, err := legacyrepo.DueNotifications(ctx, s.a.database, 10*time.Minute, 24*time.Hour)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var mine []model.NotifyDue
-		for _, d := range due {
-			if d.SiteID == s.shopID {
-				mine = append(mine, d)
-			}
-		}
-		return mine
-	}
-	first := dueHere()
-	if len(first) != 1 || first[0].Count != 1 {
-		t.Fatalf("first digest: %+v", first)
-	}
-	if ok, err := legacyrepo.ClaimNotification(ctx, s.a.database, first[0]); !ok || err != nil {
-		t.Fatalf("claim: %v %v", ok, err)
-	}
-	// The late entry: its transaction began before that digest ran.
-	late := idOf(t, s.as(t, s.wesCooky, "POST", "/v1/sites/shop/data/orders", map[string]any{"item": "cake"}))
-	back(`UPDATE collection_settings SET notify_sent_at = notify_sent_at - interval '1 hour' WHERE site_id = $1`)
-	if _, err := s.a.database.Exec(`UPDATE collection_items SET created_at = (SELECT notify_sent_at - interval '1 minute' FROM collection_settings WHERE site_id = $1 AND collection = 'orders') WHERE id = $2`, s.shopID, late); err != nil {
-		t.Fatal(err)
-	}
-	next := dueHere()
-	if len(next) != 1 || next[0].Count != 1 || strconv.FormatInt(next[0].LastID, 10) != late {
-		t.Fatalf("next digest misses the late entry: %+v", next)
-	}
-	if ok, err := legacyrepo.ClaimNotification(ctx, s.a.database, next[0]); !ok || err != nil {
-		t.Fatalf("claim 2: %v %v", ok, err)
-	}
-	back(`UPDATE collection_settings SET notify_sent_at = notify_sent_at - interval '1 hour' WHERE site_id = $1`)
-	if again := dueHere(); len(again) != 0 {
-		t.Fatalf("counted twice: %+v", again)
-	}
-}
-
-// L4: erasing an account while a visitor's save on its site is under way
-// never deadlocks: the erase takes the save's locks in the save's order.
-func TestEraseAccountWaitsForVisitorSave(t *testing.T) {
-	s := newKindsSite(t, true)
-	ctx := context.Background()
-	s.declare(t, "menu", map[string]any{"kind": "content"})
-	if r := s.owner(t, "PUT", "/v1/sites/shop/data/menu", map[string]any{"soup": 1}); r.status != 200 {
-		t.Fatalf("owner page info: %d %s", r.status, r.body)
-	}
-	s.declare(t, "todo", map[string]any{"kind": "board"})
-	item := idOf(t, s.as(t, s.vicCooky, "POST", "/v1/sites/shop/data/todo", map[string]any{"text": "milk"}))
-
-	// The visitor's save: the declaration row, then its item, as SavePersonal
-	// and the board do; its size trigger then needs the site row.
-	v, err := s.a.database.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer v.Rollback()
-	var one int
-	if err := v.QueryRow(`SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = 'todo' FOR UPDATE`, s.shopID).Scan(&one); err != nil {
-		t.Fatal(err)
-	}
-	if err := v.QueryRow(`SELECT 1 FROM collection_items WHERE id = $1 FOR UPDATE`, item).Scan(&one); err != nil {
-		t.Fatal(err)
-	}
-
-	oliveID, _ := s.a.userID(t, s.olive)
-	erased := make(chan error, 1)
-	go func() {
-		err := eraseFixtureAccount(ctx, s.a.sites, oliveID)
-		erased <- err
-	}()
-	time.Sleep(500 * time.Millisecond) // the erase is now waiting on the save
-	if _, err := v.Exec(`UPDATE collection_items SET data = '{"text":"oat milk"}'::jsonb WHERE id = $1`, item); err != nil {
-		t.Fatalf("the visitor's save: %v", err)
-	}
-	if err := v.Commit(); err != nil {
-		t.Fatalf("the visitor's commit: %v", err)
-	}
-	select {
-	case err := <-erased:
-		if err != nil {
-			t.Fatalf("erase: %v", err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("erase did not finish")
-	}
-	var n int
-	_ = s.a.database.QueryRow(`SELECT count(*) FROM sites WHERE id = $1`, s.shopID).Scan(&n)
-	if n != 0 {
-		t.Fatal("site still there after the erase")
-	}
-}
 
 // L5: a rollback whose commit fails leaves the served files as they were.
 func TestRollbackServesOnlyWhatCommitted(t *testing.T) {
@@ -466,34 +74,6 @@ func TestRollbackServesOnlyWhatCommitted(t *testing.T) {
 	}
 }
 
-// Small-box trial B4: the owner's agent saves with its key and no page
-// Origin, as llms.txt says, on the state and list routes too; anything else
-// without one of the site's origins is 403 origin_not_allowed.
-func TestOwnerKeyWritesWithoutOrigin(t *testing.T) {
-	s := newKindsSite(t, true)
-	a := s.a
-	if r := s.owner(t, "PUT", "/v1/sites/shop/state", map[string]any{"n": 1}); r.status != 200 {
-		t.Fatalf("owner key state put: %d %s", r.status, r.body)
-	}
-	if r := s.owner(t, "PATCH", "/v1/sites/shop/state", `{"ops":[{"op":"inc","path":"n"}]}`); r.status != 200 {
-		t.Fatalf("owner key state patch: %d %s", r.status, r.body)
-	}
-	if r := s.owner(t, "POST", "/v1/sites/shop/collections/guestbook", map[string]any{"msg": "hi"}); r.status != 201 {
-		t.Fatalf("owner key list add: %d %s", r.status, r.body)
-	}
-	var who string
-	_ = a.database.QueryRow(`SELECT actor_kind FROM data_history WHERE site_id = $1 AND kind = 'state' ORDER BY id DESC LIMIT 1`, s.shopID).Scan(&who)
-	if who != actorOwner {
-		t.Fatalf("recorded as %q", who)
-	}
-	stranger := a.newPerson(t, "stranger")
-	wantCode(t, "another account's key", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, map[string]string{"X-API-Key": stranger.key}), 404, "")
-	wantCode(t, "a bad key", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, map[string]string{"X-API-Key": "sh_nope"}), 401, "invalid_api_key")
-	wantCode(t, "no key, no page", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, nil), 403, "origin_not_allowed")
-	wantCode(t, "a foreign page with the key", a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/state", map[string]any{"x": 1}, map[string]string{"X-API-Key": s.olive.key, "Origin": "https://evil.example"}), 403, "origin_not_allowed")
-	wantCode(t, "a foreign page, list", a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/collections/guestbook", map[string]any{"x": 1}, map[string]string{"Origin": "https://evil.example"}), 403, "origin_not_allowed")
-}
-
 // Small-box trial B6: a response has the same shape whether or not the
 // caller sends X-Skill-Version: arrays stay bare (the notice is a header),
 // and an object keeps its fields byte for byte, big numbers included.
@@ -541,32 +121,6 @@ func TestNoticeKeepsResponseShape(t *testing.T) {
 	}
 }
 
-// Small-box trial B7: where no visitor can sign in, the kinds that take saves
-// only from signed-in visitors are refused with a clear code, and where no
-// email is sent, Submissions emails are off.
-func TestNoVisitorSignInRefusesSignInKinds(t *testing.T) {
-	s := newKindsSite(t, true)
-	t.Cleanup(func() { s.a.sites.SetVisitorSignIn(true, []string{"google"}) })
-	s.a.sites.SetVisitorSignIn(false, nil)
-	for _, k := range []string{"entries", "mine", "board"} {
-		r := s.owner(t, "PUT", "/v1/sites/shop/data/x"+k+"/kind", map[string]any{"kind": k})
-		wantCode(t, "declare "+k, r, 409, "visitor_sign_in_unavailable")
-		if !strings.Contains(string(r.body), "RESEND_API_KEY") {
-			t.Fatalf("says what to set up: %s", r.body)
-		}
-	}
-	wantCode(t, "a private list", s.owner(t, "PUT", "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}), 409, "visitor_sign_in_unavailable")
-	s.declare(t, "menu", map[string]any{"kind": "content"}) // page info needs nobody to sign in
-
-	// Google sign-in, no email: Submissions work, with no emails.
-	s.a.sites.SetVisitorSignIn(false, []string{"google"})
-	out := s.declare(t, "rsvps", map[string]any{"kind": "entries"})
-	if out["notify"] != "off" {
-		t.Fatalf("no email, yet notify %v", out["notify"])
-	}
-	wantCode(t, "asking for emails", s.owner(t, "PUT", "/v1/sites/shop/data/rsvps/kind", map[string]any{"kind": "entries", "notify": "daily"}), 409, "email_unavailable")
-}
-
 // Small-box trial B5: a server that gives sites no address of their own says
 // plainly that it makes no preview links.
 func TestNoPreviewOnSharedOrigin(t *testing.T) {
@@ -603,7 +157,7 @@ func TestInstanceNoteAndContact(t *testing.T) {
 	testAssetPipeline(edition.Default(config.DefaultLimits()), "").serveRewrittenAsset("llms.txt", instanceHosts, time.Now()).ServeHTTP(rec, httptest.NewRequest("GET", "/llms.txt", nil))
 	body := rec.Body.String()
 	for _, want := range []string{"THIS SERVER (ev.test)", "shares that one browser origin", "Never call SH.requireSignIn()",
-		"visitor_sign_in_unavailable", "preview_unavailable", "sends no email", "ask whoever runs this server",
+		"preview_unavailable", "sends no email", "ask whoever runs this server",
 		"(one browser origin, shared by every site on this server)"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("llms.txt lacks %q", want)
@@ -612,7 +166,7 @@ func TestInstanceNoteAndContact(t *testing.T) {
 	if !strings.HasPrefix(body, "THIS SERVER") {
 		t.Errorf("the note is not first: %.80s", body)
 	}
-	if got := exportReadme(30); strings.Contains(got, "support@simple-host.app") || !strings.Contains(got, "whoever runs this server") {
+	if got := exportReadme(); strings.Contains(got, "support@simple-host.app") || !strings.Contains(got, "whoever runs this server") {
 		t.Errorf("export README names the hosted mailbox")
 	}
 	if msg := auth.InvalidKeyMessage(); strings.Contains(msg, "/v1/auth") {
@@ -623,5 +177,21 @@ func TestInstanceNoteAndContact(t *testing.T) {
 	SetInstanceNote(InstanceFacts{SiteDomain: "simple-host.app"})
 	if instanceNote != "" {
 		t.Errorf("a note on the hosted service")
+	}
+}
+
+func wantCode(t *testing.T, what string, r resp, status int, code string) {
+	t.Helper()
+	if r.status != status {
+		t.Fatalf("%s: %d %s, want %d %s", what, r.status, r.body, status, code)
+	}
+	if code != "" {
+		var body struct {
+			Code string `json:"code"`
+		}
+		_ = json.Unmarshal(r.body, &body)
+		if body.Code != code {
+			t.Fatalf("%s: code %q (%s), want %q", what, body.Code, r.body, code)
+		}
 	}
 }

@@ -85,8 +85,8 @@
     <h2 id="public">What is public</h2>
     <ul>
       <li><strong>Every page is public unless you put a passcode on the whole site or open it only to people you name.</strong> Anyone with the link can see it. A site open only to named people asks each visitor to sign in with an email you named, and Simple Host can still read the site. A passcode keeps out people who don’t have it, such as search engines, link previews and anyone who finds or is forwarded the link without it. Anyone you give it to can open the site and pass it on. It is not a login, it doesn’t tell you who visited, and it doesn’t make saved data private per person. Pages people already opened may stay in their browser, and Simple Host can still read the site.</li>
-      <li><strong>New storage resources are private by default.</strong> Access presets determine who can read, add, edit, and delete KV, SQLite, and file data. Public presets allow visitors who can open the site to read saved data. Legacy state and public lists may also be readable by those visitors.</li>
-      <li><strong>Private data has defined access rules.</strong> Owner tools can read visitor rows in owner-readable resources, including the records and personal presets; each visitor reads only their own rows. Legacy private lists let the owner read all entries and each visitor read their own. Legacy Personal records restrict owner-tool reads, unlike current storage's personal preset. The Simple Host operator may access stored data for moderation, security, support, or legal requirements.</li>
+      <li><strong>New storage resources are private by default.</strong> Access presets determine who can read, add, edit, and delete KV, SQLite, and file data. Public presets allow visitors who can open the site to read saved data.</li>
+      <li><strong>Private data has defined access rules.</strong> Owner tools can read visitor rows in owner-readable resources, including the records and personal presets; each visitor reads only their own rows. The Simple Host operator may access stored data for moderation, security, support, or legal requirements.</li>
     </ul>
     <p>Do not put passwords, secrets or sensitive personal information in a page or in public data.</p>
 
@@ -163,8 +163,8 @@
       <li>Follow the privacy and consumer laws that apply to you and your visitors. Depending on where they are, this may include laws such as the GDPR in Europe or state privacy laws in the US.</li>
       <li>Tell visitors what you collect, why, who can see it, and how to ask you to delete it. If what they submit will be public, say so plainly.</li>
       <li>Collect only what you need. Do not collect the sensitive data listed above.</li>
-      <li>Handle visitors' requests to see or delete their data. You can edit or delete items in private lists yourself.</li>
-      <li>Private lists record the verified email of each visitor who submits. You see that email. Use it only for the reason you collected it.</li>
+      <li>Handle visitors' requests to see or delete their data. You can edit or delete their rows yourself.</li>
+      <li>What a signed-in visitor saves carries the email they signed in with. You see that email. Use it only for the reason you collected it.</li>
       <li><strong>Children.</strong> Do not make a site aimed at children under 13 (or the higher age where you are) that collects personal information from them. If you learn your site has a child's details, delete them.</li>
       <li><strong>Things people keep to themselves.</strong> Collect a person's religion, sexual orientation, ethnicity, immigration status, precise location or biometrics only if you truly need them, the law allows it, and you say so where you ask.</li>
     </ul>
@@ -236,7 +236,7 @@
       <li>remove, hide or disable any content or data;</li>
       <li>suspend or close any account or site;</li>
       <li>take back a handle, site name or free <code>&lt;name&gt;.simple-host.app</code> address, for example if it is misleading, infringes a trademark, or is needed by the platform;</li>
-      <li>read any content or data on the service, including private lists, when we need to for moderation, security, support or the law;</li>
+      <li>read any content or data on the service, including private data, when we need to for moderation, security, support or the law;</li>
       <li>keep and share information with police, courts or authorities when we believe the law requires it, or to protect people or the service;</li>
       <li>keep a copy of removed content and the account's records as evidence, for as long as the law requires or a claim could still be made.</li>
     </ul>
@@ -246,7 +246,7 @@
     <p>We email the address on the account with what we did and why, unless the law forbids it or the content sexually exploited children. You can ask us to look again by replying within 30 days with why you think we got it wrong. A person reads every appeal. We answer once, and that answer is final.</p>
 
     <h2 id="data-loss">Keep your own copies</h2>
-    <p>Sites and saved data can be lost through outages, bugs, mistakes, or the service closing. Keep your own copies of anything you care about. You can download a whole site, with its saved data, through the API, any list as a CSV, and everything you have with <strong>Download my data</strong> on your page.</p>
+    <p>Sites and saved data can be lost through outages, bugs, mistakes, or the service closing. Keep your own copies of anything you care about. You can download a whole site, with its saved data, through the API, and everything you have with <strong>Download my data</strong> on your page.</p>
 
     <h2 id="warranty">No warranty</h2>
     <p>Simple Host is provided “as is” and “as available”, without warranties of any kind, express or implied. That includes any warranty that it is fit for a particular purpose, secure, error-free, always available, or that data will be kept. Some places do not allow these exclusions. There, they apply as far as the law allows.</p>

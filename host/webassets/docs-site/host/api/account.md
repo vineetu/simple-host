@@ -285,13 +285,13 @@ The address Download my data had before it became a .zip. Serves exactly what GE
 | 400 | Not one of the account's own API keys (code not_an_account_key) |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | The account is suspended (code account_suspended) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/me/export.zip
 
 <div data-operation="GET /v1/me/export.zip"></div>
 
-Streams one .zip of everything held about the account: README.txt; account.json (email, handle, display name, created, earlier handles, claimed names including retired ones, custom domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json (sites signed in to as a visitor with first sign-in and last seen, every entry sent to other people's lists while signed in, and `changed`: every change made to other people's page data or list entries while signed in, as site, what, change and when); sites/&lt;name&gt;/ for every live site in the same layout as GET /v1/sites/{sitename}/export.tar.gz (files/, state.json, collections.json); and recently-deleted/&lt;name&gt;/ for every site in Recently deleted, in the same layout plus deleted.json (deleted_at, removed_for_good_at). Visitor analytics hold no personal data (salted hashes) and are not included. Needs one of the account's own API keys: a connected app or the admin key gets 400 not_an_account_key. A suspended account gets 403 account_suspended and writes to support@simple-host.app for a copy of its data.
+Streams one .zip of everything held about the account: README.txt; account.json (email, handle, display name, created, earlier handles, claimed names including retired ones, custom domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json (sites signed in to as a visitor with first sign-in and last seen, and `changed`: the changes recorded against the person on other people's saved data while signed in, as site, what, change and when); sites/&lt;name&gt;/ for every live site in the same layout as GET /v1/sites/{sitename}/export.tar.gz (files/, storage/); and recently-deleted/&lt;name&gt;/ for every site in Recently deleted, in the same layout plus deleted.json (deleted_at, removed_for_good_at). Visitor analytics hold no personal data (salted hashes) and are not included. Needs one of the account's own API keys: a connected app or the admin key gets 400 not_an_account_key. A suspended account gets 403 account_suspended and writes to support@simple-host.app for a copy of its data.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -303,7 +303,7 @@ Streams one .zip of everything held about the account: README.txt; account.json 
 | 400 | Not one of the account's own API keys (code not_an_account_key) |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | The account is suspended (code account_suspended); write to support@simple-host.app for a copy of the data |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/me/home
 
@@ -473,7 +473,7 @@ Available only when PASSWORD_SIGNIN=on, for an account that already has a passwo
 | 401 | Missing or invalid API key |
 | 403 | Wrong current password (code bad_credentials), or a connector access token (code connector_not_allowed): sign in with an account API key instead. |
 | 404 | not found: PASSWORD_SIGNIN is off, or this account has no password |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/me/sign-out
 

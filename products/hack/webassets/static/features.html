@@ -134,7 +134,7 @@
         <ol class="branches">
           <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">25</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
           <li><a class="node" href="#addresses"><b>Domains and addresses</b><span class="n">13</span><span class="l">Where a site answers: its own address from the first minute, a short free name, your own domain, or one wildcard for every site you own.</span></a></li>
-          <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">28</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
+          <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">13</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
           <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">21</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
           <li><a class="node" href="#notifications"><b>Notifications</b><span class="n">8</span><span class="l">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</span></a></li>
           <li><a class="node" href="#agents"><b>Agents and MCP</b><span class="n">18</span><span class="l">How an AI app or coding agent connects to Simple Host, what it may call, and what it is told while it works.</span></a></li>
@@ -528,7 +528,7 @@
       <details class="feat" id="site-url">
         <summary><span class="fname">Every site gets a public address</span><span class="fline">The moment a site exists it has a working web address you can send to anyone, with HTTPS already on.</span></summary>
         <div class="fbody">
-          <p class="how">Every site gets its own address, <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>. Files are served at the root, and visitor sign-in, per-person saves, and private collections are bound to that host, so a sign-in covers that one site. On a brand-new account the address can be <code>https://&lt;handle&gt;.simple-host.app/&lt;site&gt;/</code> for the first few minutes, until its certificate is ready; the address shown is always the one that works. For a nicer address, take a free <code>&lt;name&gt;.simple-host.app</code> or connect your own domain.</p>
+          <p class="how">Every site gets its own address, <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>. Files are served at the root, and visitor sign-in and per-person saves are bound to that host, so a sign-in covers that one site. On a brand-new account the address can be <code>https://&lt;handle&gt;.simple-host.app/&lt;site&gt;/</code> for the first few minutes, until its certificate is ready; the address shown is always the one that works. For a nicer address, take a free <code>&lt;name&gt;.simple-host.app</code> or connect your own domain.</p>
           <p class="ex"><b>Example.</b> A consultancy publishes a client proposal and sends the link the same hour; the client opens it over HTTPS with nothing to set up.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Everyone. This is the point of the service.</dd>
@@ -708,7 +708,7 @@
       <details class="feat" id="addresses-families">
         <summary><span class="fname">One wildcard for every site you own</span><span class="fline">Connect *.&lt;suffix&gt; once and every site of your account answers at &lt;label&gt;.&lt;suffix&gt;, including sites you make later.</span></summary>
         <div class="fbody">
-          <p class="how">Connect <code>*.trips.example.com</code> once, with a wildcard DNS record and a TXT record at <code>_simple-host.&lt;suffix&gt;</code>. Every site named <code>&lt;label&gt;</code> then answers at <code>&lt;label&gt;.trips.example.com</code>, with no per-site step. An optional site prefix maps <code>voucher-meera</code> to <code>meera.voucher.example.com</code>. By default the family address becomes each site&#x27;s main address: the site&#x27;s own address and old links redirect there, and sign-in, saved data, private lists, analytics, the report form, passcodes, offline, rename, delete, and restore all work there as on a custom domain. A site with its own custom domain or free name keeps that as its main address; the same account may put a custom domain under its own family.</p>
+          <p class="how">Connect <code>*.trips.example.com</code> once, with a wildcard DNS record and a TXT record at <code>_simple-host.&lt;suffix&gt;</code>. Every site named <code>&lt;label&gt;</code> then answers at <code>&lt;label&gt;.trips.example.com</code>, with no per-site step. An optional site prefix maps <code>voucher-meera</code> to <code>meera.voucher.example.com</code>. By default the family address becomes each site&#x27;s main address: the site&#x27;s own address and old links redirect there, and sign-in, saved data, analytics, the report form, passcodes, offline, rename, delete, and restore all work there as on a custom domain. A site with its own custom domain or free name keeps that as its main address; the same account may put a custom domain under its own family.</p>
           <p class="ex"><b>Example.</b> A travel agency connects <code>*.quotes.chhotabreak.com</code> once; every new quote site it publishes is live at <code>&lt;client&gt;.quotes.chhotabreak.com</code> the moment it exists.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Agencies and businesses that make many sites under one brand: a quote per client, a page per property, a portal per customer.</dd>
@@ -722,8 +722,6 @@
       </details>
       </div>
     </section>
-    <span class="alias" id="state"></span>
-    <span class="alias" id="collections"></span>
     <section class="area" id="storage">
       <div class="areahead"><h2>Storage and saved data</h2><a class="up" href="#map-title">Back to the map</a></div>
       <p class="lede">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</p>
@@ -916,227 +914,11 @@
           <dl class="fm">
             <dt>Who</dt><dd>Anyone planning how much a site will hold, and anyone whose site is filling up.</dd>
             <dt>Where</dt><dd>Ask your AI app how much a site uses, or open the Storage panel beneath the site on your sites page.</dd>
-            <dt>Limits</dt><dd class="lim">10,000,000 bytes of key-value and SQLite per site, 10,000,000 bytes of files per site, 1,000,000 bytes per upload. The allowance started at 1,000,000 bytes pooled per site and was raised for Simple Host on 10 October 2026. Deployed website files, SQLite&#x27;s write-ahead log, and the older saved data are counted separately. A write that would pass the allowance is refused.</dd>
+            <dt>Limits</dt><dd class="lim">10,000,000 bytes of key-value and SQLite per site, 10,000,000 bytes of files per site, 1,000,000 bytes per upload. The allowance started at 1,000,000 bytes pooled per site and was raised for Simple Host on 10 October 2026. Deployed website files and SQLite&#x27;s write-ahead log are counted separately. A write that would pass the allowance is refused.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Simple Hack keeps one 1,000,000-byte pool per team or event website across all three kinds, with its own per-upload cap; Enterprise sets the same values as settings per installation.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/pricing">Cost and limits</a> <a href="/docs/guides/storage/#write-to-storage-from-your-own-code">Storage and saved data guide</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="state-shared-store">
-        <summary><span class="fname">One shared box per site</span> <span class="st deprecated">Existing sites only</span><span class="fline">A single JSON document every visitor&#x27;s page reads and writes, so a count or a setting on the page is the same for everyone.</span></summary>
-        <div class="fbody">
-          <p class="how">A page reads the document and writes it back, whole or by small moves. It is the same document for everyone, which is what makes a number on the page real for every visitor. Sites that already use it keep it, with its privacy rules, until the routes are removed in a separate, announced step. Sites made on simple-host.app from 12 October 2026 get a closed answer from these routes and use site storage instead; the connector no longer offers tools for the box and no documentation teaches it for new sites.</p>
-          <p class="ex"><b>Example.</b> A community choir&#x27;s older site keeps its rehearsal schedule and a seat count in the box, and the owner&#x27;s AI app still updates it.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone whose page needs to remember something across visitors: a count, a tally, a list, a setting.</dd>
-            <dt>Where</dt><dd>Used by your page&#x27;s own code. Nothing to switch on. You can look at it read-only, with its size against the limit and Download JSON, under Saved data beneath the site on your sites page.</dd>
-            <dt>Limits</dt><dd class="lim">Up to 1 MB in total. It is one document with no queries, no indexes, and no per-visitor privacy. To change it, ask your agent. A site&#x27;s live saved data, the document plus every live list entry, is capped at 50 MB. Only a write that grows it is refused, a shrinking write always goes through, and deleting entries or clearing a list makes room at once. History and Recently deleted are not counted.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">Simple Hack retired these routes; Enterprise keeps one saved document per site on its own engine with last-write-wins or versioned compare-and-set writes.</p>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only">FEATURES.md: saved state</a> <a href="/skills/website-deploy/SKILL.md">Deploy skill</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="state-atomic-ops">
-        <summary><span class="fname">Safe simultaneous updates</span> <span class="st deprecated">Existing sites only</span><span class="fline">A page adds one to a number, adds an item to a list, or removes one without reading the whole box first, so two people at once both count.</span></summary>
-        <div class="fbody">
-          <p class="how">Instead of replacing the document, a page sends a short list of moves and the server applies them in order. Two visitors doing it at the same instant both count. Numbers stay exact: adding a whole number adds exactly, and whole numbers of any size match in remove-where. A whole-document write can carry the version it read, and is refused if someone wrote first. A retried write with the same key is saved once for a signed-in writer.</p>
-          <p class="ex"><b>Example.</b> A sports club&#x27;s older sign-up page adds one to the attendance count as each member confirms, and the count is right even when a dozen confirm in the same minute.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone with a headcount, a vote, a comment thread, or anything else several people touch at once.</dd>
-            <dt>Where</dt><dd>Used by your page&#x27;s own code.</dd>
-            <dt>Limits</dt><dd class="lim">Five moves are supported (set, add-to-a-number, add-to-a-list, remove, and remove-where) up to 100 in one request. Anything cleverer has to be worked out in the page.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">Enterprise writes the document whole, last-write-wins or with a version check, and has no move list.</p>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only">FEATURES.md: saved state</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="state-live-updates">
-        <summary><span class="fname">Live numbers without a refresh</span> <span class="st deprecated">Existing sites only</span><span class="fline">A page keeps checking the box cheaply, so a count or a comment thread updates itself while people are looking at it.</span></summary>
-        <div class="fbody">
-          <p class="how">The page asks again every few seconds with the version it already has. When nothing changed, the answer is empty and costs almost nothing; when something changed, the page gets the new document and redraws.</p>
-          <p class="ex"><b>Example.</b> An older fundraising page shows the running total of pledges and ticks up while donors watch.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anything with a live figure on it: an RSVP headcount, a signup counter, a discussion.</dd>
-            <dt>Where</dt><dd>Your page&#x27;s own code: a conditional request returns nothing when the box has not changed.</dd>
-            <dt>Limits</dt><dd class="lim">It is polling, with a few seconds of lag, and there is no push. Reads are rate limited per site and address.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only">FEATURES.md: saved state</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="state-public">
-        <summary><span class="fname">The store is public, on purpose</span> <span class="st deprecated">Existing sites only</span><span class="fline">Pages and shared data are public; Each person&#x27;s records, private Submissions, and Personal records have their own read rules.</span></summary>
-        <div class="fbody">
-          <p class="how">Anyone who can open the site can read the shared document and every public list. Personal details belong in a private collection, a Submissions name, a Personal record, or, on a current site, a storage resource with a read rule.</p>
-          <p class="ex"><b>Example.</b> A neighbourhood association&#x27;s older notice board keeps the meeting dates public and the members&#x27; contact details in a private collection.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Everyone using the store. It shapes what you should and should not collect.</dd>
-            <dt>Where</dt><dd>Not a setting: it is how the store works.</dd>
-            <dt>Limits</dt><dd class="lim">Anything a page can read, a visitor can read. Reading it takes a page in a browser: pasting the address into a terminal is refused, which slows casual copying and gives no privacy.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">Enterprise sites are opened by signed-in colleagues only, so the document is read by them and not by the public.</p>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only">FEATURES.md: saved state</a> <a href="/privacy.html">Privacy</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="state-write-gate">
-        <summary><span class="fname">Who is allowed to write</span> <span class="st deprecated">Existing sites only</span><span class="fline">Every save from a page needs a signed-in visitor, so a passer-by cannot fill the store with junk; your agent saves with your key.</span></summary>
-        <div class="fbody">
-          <p class="how">On a site&#x27;s own address a write needs a signed-in visitor or the owner&#x27;s API key; connector tokens act as the owner. Reading never requires either. Another account&#x27;s key gets a site not found answer and writes nothing. On the old shared content address <code>sites.simple-host.app</code> reads stay open and writes need the key or the connector, because sign-in is never offered there, and a site with its own domain takes no writes on its shared address at all.</p>
-          <p class="ex"><b>Example.</b> A yoga studio&#x27;s older class list takes a save only from a member who signed in, while the teacher&#x27;s AI app updates the timetable with her key.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone collecting entries in public.</dd>
-            <dt>Where</dt><dd>Not a screen: it is applied when a page tries to save. Visitors sign in on the site&#x27;s own address; your agent sends your API key.</dd>
-            <dt>Limits</dt><dd class="lim">Signing in stops strangers writing anonymously, but any signed-in visitor can still save. Anything that must stay private goes in a private collection.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">On Enterprise every viewer is signed in with the company and may write, keys included.</p>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only">FEATURES.md: saved state</a> <a href="/auth.md">Visitor sign-in</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="state-cross-origin">
-        <summary><span class="fname">Use the store from a site hosted elsewhere</span> <span class="st deprecated">Existing sites only</span><span class="fline">A page hosted on another service can use one of your sites here as its backend once you have allowed that page&#x27;s address.</span></summary>
-        <div class="fbody">
-          <p class="how">The owner&#x27;s agent adds the other page&#x27;s exact address to the site&#x27;s allowed list. From then on that page&#x27;s saves and reads are accepted as if they came from the site itself. There is no button for it; your AI agent does it for you.</p>
-          <p class="ex"><b>Example.</b> A consultancy&#x27;s brochure site on another host keeps its enquiry counter on an older Simple Host site after allowing the brochure&#x27;s address.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>People whose site already lives on another host but who want a form or a counter without running a server.</dd>
-            <dt>Where</dt><dd>No screen. Ask your agent to allow the address.</dd>
-            <dt>Limits</dt><dd class="lim">Up to 20 addresses per site, and you have to name each one exactly.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only">FEATURES.md: saved state</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="collection-append">
-        <summary><span class="fname">Save what a form collects</span> <span class="st deprecated">Existing sites only</span><span class="fline">Each submission is added to a named list, one row per entry, separate from the shared box so it can grow well past it.</span></summary>
-        <div class="fbody">
-          <p class="how">A collection is where form entries go: RSVPs, signups, orders, messages. Adding stays fast no matter how long the list gets. Visitors append; in Submissions each visitor can see, change, and withdraw their own, and on a Shared board anyone signed in edits items. You can delete any entry, or empty the whole list, from your page or through your agent. A retried save with the same key is stored once for a signed-in writer.</p>
-          <p class="ex"><b>Example.</b> A language school&#x27;s older enrolment form adds each application to an <code>applications</code> list that the office reviews every morning.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone with a form: an event page, a waitlist, a contact form, a survey.</dd>
-            <dt>Where</dt><dd>Your page&#x27;s own code saves to it.</dd>
-            <dt>Limits</dt><dd class="lim">Up to 64 KB per entry (each new entry is at most 16 KB in declared Submissions, and a declared Submissions name holds at most 10,000 live entries). Entries in a public list cannot be edited. Entries added without the owner&#x27;s key are limited to 30 a minute per address.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">Enterprise keeps per-site saved state as its only older data store; collections were never built there.</p>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="collection-read">
-        <summary><span class="fname">Read the entries back on the page</span> <span class="st deprecated">Existing sites only</span><span class="fline">A page reads its own entries, newest first, so a sign-up list or a public wall can show what has come in.</span></summary>
-        <div class="fbody">
-          <p class="how">The page asks for the list and gets the newest entries first, a page at a time, with a cursor for the next page. Who sent each entry is left out of every read but the owner&#x27;s.</p>
-          <p class="ex"><b>Example.</b> A running club&#x27;s older results page lists the finishers members entered, newest first.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone who wants the results visible rather than hidden behind a login.</dd>
-            <dt>Where</dt><dd>Your page&#x27;s own code. AI-built sites are told to include a second page for exactly this.</dd>
-            <dt>Limits</dt><dd class="lim">200 entries at a time maximum, 50 by default. Anything a page can read, a visitor can read.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="collection-inventory">
-        <summary><span class="fname">See what a site has collected</span> <span class="st deprecated">Existing sites only</span><span class="fline">Every list on a site, public or private, with its entry count, when the last one arrived, and a table of the entries themselves.</span></summary>
-        <div class="fbody">
-          <p class="how">Each list shows a public or private badge, View items, a spreadsheet, and a More menu with the privacy switch, Settings, History, and Recently deleted. You can delete any entry (spam in a comment list, a test entry), correct an entry in a private list, or clear a whole list after typing its name. The owner&#x27;s view adds a sent by column. Your agent can do the same.</p>
-          <p class="ex"><b>Example.</b> A dentist checks the older appointment-request list on Monday, deletes two spam entries, and corrects a typo in a patient&#x27;s phone number.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>You, checking whether anyone actually filled the form in, or cleaning up after spam.</dd>
-            <dt>Where</dt><dd>Lists beneath the site on your sites page. Your agent can do the same.</dd>
-            <dt>Limits</dt><dd class="lim">Shows the 50 most recent entries in the table view. A deleted entry stays in Recently deleted for <b>30 days</b>, then is gone for good. Entries in a public list can be deleted but not edited.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="collection-csv">
-        <summary><span class="fname">Download everything as a spreadsheet</span> <span class="st deprecated">Existing sites only</span><span class="fline">One button gives you the whole collection as a CSV file you can open in any spreadsheet.</span></summary>
-        <div class="fbody">
-          <p class="how">Press Download spreadsheet next to the list and a CSV of every live entry arrives. The owner&#x27;s export adds a last column with who sent each entry. Cells that look like formulas are made safe for spreadsheet programs.</p>
-          <p class="ex"><b>Example.</b> A conference organiser downloads the older speaker-application list and sorts it by track in a spreadsheet.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone who has to actually use the entries: a sign-up list to check off, a mailing list to import.</dd>
-            <dt>Where</dt><dd>Download spreadsheet next to the list on your sites page.</dd>
-            <dt>Limits</dt><dd class="lim">A snapshot at the moment you press it. No filtering or date range; you get the whole list.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="collection-private">
-        <summary><span class="fname">Private collections</span> <span class="st deprecated">Existing sites only</span><span class="fline">A collection can be made private: only signed-in visitors submit, you read them all, and each visitor sees and changes only their own.</span></summary>
-        <div class="fbody">
-          <p class="how">Only signed-in visitors can submit, from the site&#x27;s own address, never by API key. Each entry is stamped with the visitor&#x27;s verified email and the time. You read them all and may edit them; each visitor sees, changes, and withdraws only their own. A list made public again keeps its submitters&#x27; emails private: who sent what is shown to the owner alone.</p>
-          <p class="ex"><b>Example.</b> A physiotherapist&#x27;s older intake form stores each patient&#x27;s details in a private collection that only she reads.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone collecting personal details: orders, RSVPs, sign-ups.</dd>
-            <dt>Where</dt><dd>Make private next to the list on your sites page, or choose Submissions under the list&#x27;s Settings, or ask your agent. Visitors submit on the site&#x27;s own address; you read the entries on your sites page, on an owner page on the site, or as a CSV.</dd>
-            <dt>Limits</dt><dd class="lim">Making a private collection public again shows everything already in it, so the page and your agent ask first. The site needs an address of its own.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/auth.md">Visitor sign-in</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="data-kinds">
-        <summary><span class="fname">Four kinds of saved data</span> <span class="st deprecated">Existing sites only</span><span class="fline">Each data name is one kind, and the kind decides who reads and who changes what: Page info, Submissions, Personal, or Shared board.</span></summary>
-        <div class="fbody">
-          <p class="how">Page info: you write, everyone reads. Submissions: visitors send; private to you by default, and public only without who sent them; each visitor lists, changes, and withdraws their own, and brings back what they withdrew for 10 minutes; a name can take one entry per person. Personal: one private record per signed-in visitor that follows them to any device; only that visitor reads or writes it, and you see how many people have a record and the total size from 3 people up. Shared board: a list a group edits item by item with a version check, and only you empty it. A name nobody declared is Shared, as before: anyone reads it and signed-in visitors save to it.</p>
-          <p class="ex"><b>Example.</b> A music teacher&#x27;s older site keeps the term dates as Page info, lesson requests as Submissions, and each student&#x27;s practice log as a Personal record.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone building a form, a menu, a habit tracker, or a group list without writing access rules.</dd>
-            <dt>Where</dt><dd>Your AI app declares each name when it builds the site; you see and change the kind under Settings next to each name on your sites page.</dd>
-            <dt>Limits</dt><dd class="lim">A Page info document is at most 1 MB, and a site declares at most 20 Page info names. Each new entry is at most 16 KB, a name holds at most 10,000 live entries, and a site declares at most 50 Submissions names. A personal record is at most 64 KB, and a name holds records for at most 1,000 people. A board item is at most 16 KB, and a board holds at most 2,000 live items. A site declares at most 20 Personal names, and declares at most 20 Shared board names. All but Page info need the site on an address of its own. A site&#x27;s own pages can read a visitor&#x27;s Personal record, so it is as private as the site&#x27;s pages are trustworthy.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/skills/website-deploy/SKILL.md">Deploy skill</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="who-may-save">
-        <summary><span class="fname">Who may save here, and Block</span> <span class="st deprecated">Existing sites only</span><span class="fline">Choose whether anyone who signs in may save on a site, or only listed emails and whole domains, and block one person with a click.</span></summary>
-        <div class="fbody">
-          <p class="how">A site setting that covers every visitor write on the site: page data, lists, and Submissions. Anyone who signs in may save (the default), or only listed emails and whole <code>@domains</code>. Either way a block list applies, filled from Block next to any entry. A block and the one-per-person rule match the person&#x27;s address with a <code>+tag</code> dropped, and Block by entry uses only the address the server stamped.</p>
-          <p class="ex"><b>Example.</b> A company&#x27;s older internal survey site lists <code>@acme.example</code> so only staff can save, and the owner blocks a leaver&#x27;s address.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone whose form is for a club, a class, or a company, and anyone dealing with a troublemaker.</dd>
-            <dt>Where</dt><dd>Who may save here under the site&#x27;s data on your sites page, and Block next to an entry. Your AI app can do both.</dd>
-            <dt>Limits</dt><dd class="lim">There are at most 500 emails and domains in total. You always may save. A blocked person can still withdraw what they already sent.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/docs/guides/storage/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="submission-emails">
-        <summary><span class="fname">Email me when something arrives</span> <span class="st deprecated">Existing sites only</span><span class="fline">New Submissions can email you once a day, soon after each arrives, or not at all, and every email has a link that stops them.</span></summary>
-        <div class="fbody">
-          <p class="how">Once a day is the default for private Submissions and off is the default for public ones. The email goes to the site owner&#x27;s address with a stop link that opens a confirmation page. Each email is sent once even across servers, and an entry saved while a digest was being sent goes into the next one.</p>
-          <p class="ex"><b>Example.</b> A florist with an older order form gets one email each morning saying how many orders came in overnight.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone taking orders, RSVPs, or sign-ups who will not check the page every day.</dd>
-            <dt>Where</dt><dd>Email me under the name&#x27;s Settings on your sites page, or ask your AI app.</dd>
-            <dt>Limits</dt><dd class="lim">Soon after they arrive means at most one email per name every 10 minutes, counting what came in. The email carries counts and the list&#x27;s name, not the entries. A failed send is not retried.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/docs/guides/notifications/">Notifications</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="data-history">
-        <summary><span class="fname">History, Restore, and Delete for good</span> <span class="st deprecated">Existing sites only</span><span class="fline">Every change to saved data is kept for 30 days with who made it, so you can undo one change, put a document back, or restore entries.</span></summary>
-        <div class="fbody">
-          <p class="how">Every write to the shared document and every edit, delete, clear, and restore in a list is recorded with who made it (their account and the address they signed in with) and when. Open History to see the document before any change, undo one change, or restore a version; a restore is itself a change. Open Recently deleted to bring back entries one by one or all at once. On a Shared board, Restore all names a window from 15 minutes to 30 days so it brings back what went since then, never what people deleted on purpose before. Delete forever removes an entry and its history at once, for a person who asks to be erased or a flood of spam, and Clear history removes every earlier version of a site&#x27;s data after you type the site&#x27;s name. Each visitor also has a 30-day history of their own Personal record.</p>
-          <p class="ex"><b>Example.</b> A bakery&#x27;s older menu document is overwritten by mistake; the owner opens History, views Friday&#x27;s version, and restores it.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Anyone whose page data was overwritten, or who deleted the wrong entry.</dd>
-            <dt>Where</dt><dd>History and Recently deleted under the site&#x27;s data on your sites page, or ask your AI app.</dd>
-            <dt>Limits</dt><dd class="lim">Every change is kept for 30 days: the owner restores any of it. A deleted entry stays in Recently deleted for <b>30 days</b>, then is gone for good. Past 20 MB of history per site, the oldest versions are thinned, always keeping each day&#x27;s first full copy and the record of who deleted what. Live entries are never touched by Delete forever, and Recently deleted does not count toward the site&#x27;s cap.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">Enterprise keeps the last 20 writes of a site&#x27;s saved document and the owner or team restores one; there is no Recently deleted for lists.</p>
-          <p class="meta"><span class="status"><b>Status:</b> existing sites only. kept for sites that already use it; sites made from 12 October 2026 use site storage.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only">FEATURES.md: saved state</a> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only">FEATURES.md: collections</a> <a href="/docs/guides/storage/">Docs</a></span></p>
         </div>
       </details>
       </div>
@@ -1393,7 +1175,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Operators of a company install who want one identity for everyone.</dd>
             <dt>Where</dt><dd>A setting on a self-hosted install; nothing to do on the screen.</dd>
-            <dt>Limits</dt><dd class="lim">Refused unless company sign-in is configured, since nothing else could sign anyone in. It only turns off the sign-in codes; the install can still send other email, such as Submissions digests, when outgoing email is set up.</dd>
+            <dt>Limits</dt><dd class="lim">Refused unless company sign-in is configured, since nothing else could sign anyone in. It only turns off the sign-in codes; the install can still send other email when outgoing email is set up.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="no"><b>Simple Host</b>no</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Enterprise has company sign-in only, so there is nothing to turn off; the standalone Simple Hack package has the same switch as a small box.</p>
@@ -1542,17 +1324,17 @@
         </div>
       </details>
       <details class="feat" id="notify-emails">
-        <summary><span class="fname">The emails Simple Host sends you</span><span class="fline">Sign-in codes and alerts, email-change notices, a failing domain, idle-site warnings, Submissions digests, and one suspension notice.</span></summary>
+        <summary><span class="fname">The emails Simple Host sends you</span><span class="fline">Sign-in codes and alerts, email-change notices, a failing domain, idle-site warnings, and one suspension notice.</span></summary>
         <div class="fbody">
-          <p class="how">Simple Host emails you for a fixed set of reasons: the six-digit code when you sign in; the code to a new sign-in address and the notice to the old one when you change it; one short alert after each sign-in or app connection (switchable); a confirmation when you delete your account; a notice when a custom domain has been failing for a day; a warning before an idle site is removed and a notice when it is; a digest of new Submissions when you have asked for one (daily, or soon after each arrives, at most one email per name every 10 minutes); and one email if a notification receiver is suspended after sustained failure.</p>
+          <p class="how">Simple Host emails you for a fixed set of reasons: the six-digit code when you sign in; the code to a new sign-in address and the notice to the old one when you change it; one short alert after each sign-in or app connection (switchable); a confirmation when you delete your account; a notice when a custom domain has been failing for a day; a warning before an idle site is removed and a notice when it is; and one email if a notification receiver is suspended after sustained failure.</p>
           <p class="ex"><b>Example.</b> A bakery owner gets a daily digest of the day&#x27;s order-form entries and a one-off notice when their domain&#x27;s DNS record was removed by mistake.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Every account owner; this is the full list of what arrives in your inbox from Simple Host.</dd>
-            <dt>Where</dt><dd>Your inbox. Sign-in alerts are switched under Sign-in on your sites page; Submissions digests under Email me on the list; idle-site notices can be answered by reply.</dd>
+            <dt>Where</dt><dd>Your inbox. Sign-in alerts are switched under Sign-in on your sites page; idle-site notices can be answered by reply.</dd>
             <dt>Limits</dt><dd class="lim">One-time links in these emails carry their token after a <code>#</code>, so it never reaches a server log. Sign-in alerts arrive at most once per browser or app a day and never for API key calls. Idle-site notices reply to support@simple-host.app. There are no marketing emails on this list.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="partial"><b>Simple Hack</b>partly</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">Simple Hack sends the sign-in and account emails; idle-site warnings and Submissions digests belong to Simple Host sites. Enterprise sends no sign-in emails, since the company&#x27;s identity provider signs people in. A small box needs outgoing email set up.</p>
+          <p class="ednote">Simple Hack sends the sign-in and account emails; idle-site warnings belong to Simple Host sites. Enterprise sends no sign-in emails, since the company&#x27;s identity provider signs people in. A small box needs outgoing email set up.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/privacy.html">Privacy</a> <a href="https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#19-signals-and-notifications">FEATURES.md §19 Signals and notifications</a> <a href="/docs/guides/notifications/">Docs</a></span></p>
         </div>
       </details>
@@ -1735,7 +1517,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Anyone whose chat app or agent works through the connector.</dd>
             <dt>Where</dt><dd>Ask your AI app; the full list is on the API page.</dd>
-            <dt>Limits</dt><dd class="lim">A call with an argument the tool does not take gets the current schema back and asks you to refresh Simple Host in your app (ChatGPT keeps a connector&#x27;s tool list from the day it was added). The 19 older saved-data tools removed on 10 October 2026 answer &quot;no longer offered&quot;; their pages keep working. There is no tool for changing your email, rotating your key, signing out everywhere, or deleting your account, by design; <code>who_am_i</code> is the only account tool and it reads only.</dd>
+            <dt>Limits</dt><dd class="lim">A call with an argument the tool does not take gets the current schema back and asks you to refresh Simple Host in your app (ChatGPT keeps a connector&#x27;s tool list from the day it was added). There is no tool for changing your email, rotating your key, signing out everywhere, or deleting your account, by design; <code>who_am_i</code> is the only account tool and it reads only.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Simple Hack lists its full tool set on purpose, since one person is organiser, judge, and participant per event; Enterprise has its own 54 tools with the same core-of-20 finder.</p>
@@ -1853,7 +1635,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Developers, and agents that prefer a specification to prose.</dd>
             <dt>Where</dt><dd>/docs/ on this install; /docs/api/ for the API reference.</dd>
-            <dt>Limits</dt><dd class="lim">A few internal and download addresses are not listed there. Older saved-data endpoints that existing sites still use keep working but are no longer listed.</dd>
+            <dt>Limits</dt><dd class="lim">A few internal and download addresses are not listed there.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/docs/">Documentation</a> <a href="/docs/api/">API reference</a></span></p>
@@ -2419,7 +2201,7 @@
       <details class="feat" id="admin-size-caps">
         <summary><span class="fname">Size caps, blocked files, and reserved names</span><span class="fline">Plain limits on what a site, a file, or an account can hold, with a stable error code when one is hit.</span></summary>
         <div class="fbody">
-          <p class="how">A site archive is capped at 100 MB; a few accounts have a higher cap by arrangement. A site&#x27;s live saved data may grow to 50 MB; past that, only growth is refused, with the code <code>site_full</code>. Shared state is 1 MB, a list item 64 KB, and one update may carry at most 100 operations. An account may hold <b>100 sites</b>. Uploads of blocked file types are refused. Handles and subdomain names that would collide with the service&#x27;s own addresses are reserved, <code>report</code> among them. Every page carries the standard security headers, and the service&#x27;s own pages run under a strict content security policy.</p>
+          <p class="how">A site archive is capped at 100 MB; a few accounts have a higher cap by arrangement. An account may hold <b>100 sites</b>. Uploads of blocked file types are refused. Handles and subdomain names that would collide with the service&#x27;s own addresses are reserved, <code>report</code> among them. Every page carries the standard security headers, and the service&#x27;s own pages run under a strict content security policy.</p>
           <p class="ex"><b>Example.</b> A photographer&#x27;s portfolio comes in at 160 MB; the error names the 100 MB cap, so they resize the images or use the photo flow, which stores small copies.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Anyone publishing a large site or storing data, and anyone picking a name.</dd>

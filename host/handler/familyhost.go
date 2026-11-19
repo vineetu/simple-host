@@ -405,20 +405,6 @@ func (h *SiteHandler) siteOwnAddress(ctx context.Context, siteID string) (model.
 		VerifiedAt: sql.NullTime{Time: time.Now(), Valid: true}, CertStatus: "live"}, true, nil
 }
 
-// isSiteFamilyHost: host is one of the site's family addresses and the site
-// does not live on a domain of its own (its family addresses then only
-// redirect there).
-func (h *SiteHandler) isSiteFamilyHost(ctx context.Context, siteID, host string) bool {
-	m, ok, err := h.familySiteForHost(ctx, host)
-	if err != nil || !ok || m.Site.ID != siteID {
-		return false
-	}
-	if _, has, err := h.siteOwnDomain(ctx, siteID); err != nil || has {
-		return false
-	}
-	return true
-}
-
 // familyRenamedTarget: label under f names an old name of a renamed site
 // of f's owner. The site's current address with escapedPath: under the same
 // family when its new name still has the prefix, else its main address.

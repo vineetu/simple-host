@@ -64,8 +64,8 @@ func writeSiteOffline(w http.ResponseWriter) {
 }
 
 // refuseOffline answers site_offline (and reports true) when the site is
-// offline: offline means offline, so visitors' reads of its saved data and
-// lists, list submissions (private ones too) and visitor sign-in all stop.
+// offline: offline means offline, so visitors' reads and writes of its saved
+// data and visitor sign-in all stop.
 // The owner's key is let through by the callers, not here.
 func (h *SiteHandler) refuseOffline(w http.ResponseWriter, r *http.Request, siteID string) bool {
 	off, err := h.sitesSvc().SiteOffline(r.Context(), siteID)
@@ -83,16 +83,6 @@ func (h *SiteHandler) refuseOffline(w http.ResponseWriter, r *http.Request, site
 // syncOfflineMarker makes the disk marker match the site's offline flag.
 func (h *SiteHandler) syncOfflineMarker(site model.Site) error {
 	return h.disk.SetOffline(site.UserID, site.Name, site.Offline)
-}
-
-// ownerKeyWrite: the request carries the site owner's (or the admin's) key.
-func (h *SiteHandler) ownerKeyWrite(r *http.Request, ownerID string) bool {
-	key := r.Header.Get("X-API-Key")
-	if key == "" {
-		return false
-	}
-	u, ok, err := h.resolveWriterKey(r.Context(), key)
-	return err == nil && ok && (u.IsAdmin || u.ID == ownerID)
 }
 
 // setSiteOffline is PATCH /v1/sites/{sitename} with {"offline": true|false}.

@@ -58,9 +58,9 @@ are extended by later `ALTER TABLE` statements in that same file; read those too
 | `site_storage_tables` | SQLite table-specific matrices; absent overrides use the resource default |
 | `site_storage_kv` | Unused since 2026-11-19 (key-value entries live in per-namespace SQLite files); the empty table and the `site_storage_resources.kv_store` column stay until a later schema step |
 | `site_storage_files` | Resource/path identifies file authorship metadata; bytes live on disk |
-| `collection_items`, `collection_settings` | Legacy lists, boards, Personal records and private submissions; kind, version, private flag and submitter metadata |
-| `data_history`, `idempotency_keys` | Saved-data history for 30-day undo, and legacy mutation replay protection |
-| `data_watch`, `site_savers` | Legacy visitor-write counters, permitted savers and blocks |
+| `collection_items`, `collection_settings` | Rows of the older saved data (lists, boards, Personal records, private submissions), kept after its removal on 2026-11-19; only account erasure still deletes from them |
+| `data_history`, `idempotency_keys` | Older saved-data history and replay keys, kept; `data_history` still receives one row per visitor-connector storage write |
+| `data_watch`, `site_savers` | Older saved-data counters and saver lists, kept; nothing reads them |
 | `email_changes`, `email_change_undos`, `signin_alerts_sent` | Sign-in email changes, undo and alert records |
 | `auth_tokens` | Expiring email codes, purpose-bound and site-bound for visitor flows; expired rows are purged |
 | `oauth_identities`, `oauth_states` | Google/external sign-in identity links and pending OAuth state |
@@ -326,36 +326,19 @@ instance database backup or all retained deployment versions. Evidence:
 `host/app/sites/export.go:writeSiteArchive`, `writeStorageArchive`,
 `host/storage/export_sqlite.go`; see [deployment profiles](../operations/deployment-profiles.md).
 
-## Legacy adapter and design references
+## Design references
 
-`host/app/legacy.Adapter` is the shared compatibility workflow layer for
-state, collections/private submissions, declared kinds/data, Personal `mine`,
-shared `board`, savers, history/undo, watch and notification behavior. Its SQL is
-in `host/repository/legacy`. HTTP and
-MCP reuse this adapter; there is no separate MCP legacy persistence engine.
-
-Host keeps these APIs because live sites can depend on their versions, origin
-checks, privacy and undo behavior. Cutoff eligibility is centralized in
-`app/legacy/cutoff.go`. Hack rejects the classified old site/handle/admin paths
-with `410 legacy_storage_removed` through `products/hack/hackhttp/legacy_storage.go`,
-including connector REST replay, while preserving historical records in owner
-recovery exports. The rejection gate does not delete data.
-
+The older saved data (state, collections, declared kinds) was removed on
+2026-11-19: its routes answer 404 and its rows stay in the database untouched.
 Grandfathered visitor raw SQL is a separate compatibility path in the current
 SQLite API, including Hack: an existing qualifying full-mode resource without a
 matrix can retain it until its policy changes. New matrices use fixed row routes.
 See `host/rules/storage` and `app/storage/legacy_sql.go`.
 
-Retirement requires an inventory of dependent sites, proven export/restore,
-owner-controlled migration and recovery support, parity/client compatibility
-evidence, and a separately recorded owner decision. Low traffic or completion
-of cleanup is not sufficient. There is no removal date or automatic data rewrite.
-
 Existing designs remain useful with these boundaries:
 
-- [State storage](../designs/state-storage.md): inline `sites.state` JSONB and its
-  optimistic version are current; segmentation/blob tiers are proposals, not
-  implemented stores. Dated production sizes are historical observations.
+- [State storage](../designs/state-storage.md): historical; `sites.state` is no
+  longer served.
 - [Site storage primitives](../designs/site-storage-primitives.md): resource
   isolation, runtime layout, export and size evidence remain useful. The early
   resource-wide policy/API sketches and shared Host pool are superseded by current

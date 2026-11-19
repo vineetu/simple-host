@@ -97,13 +97,13 @@ func siteSub(p string) string {
 	return sub
 }
 
-// isDataPath: a site's saved data (storage presets, legacy collections, state, data).
+// isDataPath: a site's saved data (storage).
 func isDataPath(p string) bool {
 	if strings.HasPrefix(p, "/v1/storage-download") {
 		return true
 	}
 	switch siteSub(p) {
-	case "storage", "collections", "state", "data":
+	case "storage":
 		return true
 	}
 	return false

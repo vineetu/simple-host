@@ -2,7 +2,7 @@ package sites
 
 import (
 	"context"
-	"encoding/json"
+
 	rules "github.com/vsriram/simple-host/host/rules/sites"
 
 	"github.com/vsriram/simple-host/host/model"
@@ -25,20 +25,12 @@ func (s *Service) GetSiteIDByName(ctx context.Context, name string) (string, err
 	return repo.GetSiteIDByName(ctx, s.database, name)
 }
 
-func (s *Service) GetSiteStateByID(ctx context.Context, siteID string) (json.RawMessage, int, error) {
-	return repo.GetSiteStateByID(ctx, s.database, siteID)
-}
-
 func (s *Service) BackfillPreviewExpiry(ctx context.Context, username string, ttlHours int) (int64, error) {
 	return repo.BackfillPreviewExpiry(ctx, s.database, username, ttlHours)
 }
 
 func (s *Service) GetAllowedOriginsByID(ctx context.Context, siteID string) ([]string, error) {
 	return repo.GetAllowedOriginsByID(ctx, s.database, siteID)
-}
-
-func (s *Service) GetSiteStateVersionByID(ctx context.Context, siteID string) (int, error) {
-	return repo.GetSiteStateVersionByID(ctx, s.database, siteID)
 }
 
 func (s *Service) SetHomeSite(ctx context.Context, userID string, name *string) error {
@@ -66,10 +58,6 @@ func (s *Service) ListHandlesWithSites(ctx context.Context) ([]string, error) {
 
 func (s *Service) SetAllowedOrigins(ctx context.Context, siteID, origins string) error {
 	return repo.SetAllowedOrigins(ctx, s.database, siteID, origins)
-}
-
-func (s *Service) SetAllowAnonymousWrites(ctx context.Context, siteID string, allow bool) error {
-	return repo.SetAllowAnonymousWrites(ctx, s.database, siteID, allow)
 }
 
 func (s *Service) SiteOffline(ctx context.Context, siteID string) (bool, error) {

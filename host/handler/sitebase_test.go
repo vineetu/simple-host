@@ -30,7 +30,7 @@ func TestPausedSiteBaseRedirect(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	for _, host := range []string{"vineetu.simple-host.site", "madurai-idly.vineetu.simple-host.site", "clay.simple-host.site", "sites.simple-host.site"} {
-		for _, path := range []string{"/", "/menu/a%2Fb?from=shared&label=%20x", "/v1/sites/shop/state?q=1", "//other.example/path?q=1"} {
+		for _, path := range []string{"/", "/menu/a%2Fb?from=shared&label=%20x", "/v1/sites/shop/me?q=1", "//other.example/path?q=1"} {
 			for _, method := range []string{"GET", "HEAD", "POST"} {
 				r := httptest.NewRequest(method, "https://"+host+path, nil)
 				w := httptest.NewRecorder()
@@ -249,7 +249,7 @@ func TestSiteBaseMatrix(t *testing.T) {
 				t.Fatalf("old person host: %d", r.status)
 			}
 			// /v1/ is never redirected: old pages keep calling it.
-			if r := a.at(t, "GET", oldSite, "/v1/sites/shop/state", nil, map[string]string{"Origin": "https://" + oldSite}); r.status != 200 {
+			if r := a.at(t, "GET", oldSite, "/v1/sites/shop/me", nil, map[string]string{"Origin": "https://" + oldSite}); r.status != 200 {
 				t.Fatalf("old /v1/: %d %s", r.status, r.body)
 			}
 			// The content host and the app itself never move.
@@ -292,7 +292,7 @@ func TestSiteBaseMatrix(t *testing.T) {
 					t.Fatalf("not-ready new site host: %d %q", r.status, r.header.Get("Location"))
 				}
 				// The API on the new site host, same-origin.
-				if r := a.at(t, "GET", newSite, "/v1/sites/shop/state", nil, map[string]string{"Origin": "https://" + newSite}); r.status != 200 {
+				if r := a.at(t, "GET", newSite, "/v1/sites/shop/me", nil, map[string]string{"Origin": "https://" + newSite}); r.status != 200 {
 					t.Fatalf("new /v1/: %d %s", r.status, r.body)
 				}
 				// Its apex, www and reserved names are the app's.

@@ -19,15 +19,14 @@ for spec in (platform, internal, *(yaml.safe_load(Path(name).read_text()) for na
     compose.validate_refs(spec)
 
 operations = {}
-for spec, audiences in ((platform, {'public-host', 'internal', 'legacy'}),
-                        (internal, {'public-host', 'public-hack', 'internal', 'legacy'})):
+for spec, audiences in ((platform, {'public-host', 'internal'}),
+                        (internal, {'public-host', 'public-hack', 'internal'})):
     for path, method, operation in compose.operations(spec):
         key = (method.upper(), path)
         operations[key] = operation
         marked = set(operation.get('x-audience', []))
         assert marked and marked <= audiences, f'{key}: missing/invalid audience'
         assert 'internal' not in marked or marked == {'internal'}, f'{key}: internal API advertised'
-        assert 'legacy' not in marked or marked == {'legacy'}, f'{key}: legacy API advertised'
         assert operation.get('tags'), f'{key}: untagged operation'
         if path.startswith(('/v1/admin/', '/internal/', '/v1/setup/')):
             assert marked == {'internal'}, f'{key}: operator API must stay internal'
@@ -35,10 +34,6 @@ for spec, audiences in ((platform, {'public-host', 'internal', 'legacy'}),
             assert 'public-host' not in marked, f'{key}: product API in Host reference'
         if 'public-host' in marked and operation['tags'] == ['Storage resources']:
             assert path.startswith('/v1/sites/') and '/storage/' in path, f'{key}: Host storage must be site-scoped'
-        assert (operation['tags'] == ['Deprecated: saved data']) == (marked == {'legacy'}), f'{key}: legacy API classification'
-        if marked == {'legacy'}:
-            assert operation.get('deprecated'), f'{key}: legacy API must be marked deprecated'
-    assert spec['tags'][-1]['name'] == 'Deprecated: saved data' or spec is internal
 
 registered = set()
 for root in ('host', 'cmd', 'products'):

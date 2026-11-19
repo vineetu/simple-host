@@ -16,13 +16,8 @@ import (
 	"strings"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/model"
-)
-
-const (
-	writeRouteStatePut       = "state_put"
-	writeRouteStatePatch     = "state_patch"
-	writeRouteCollectionPost = "collection_post"
 )
 
 const (
@@ -89,7 +84,7 @@ func visitorCookieValue(r *http.Request) string {
 	return ""
 }
 
-// sessionCookieFor is the visitor cookie a state/collections/me request may
+// sessionCookieFor is the visitor cookie a storage or /me request may
 // use. On a claimed <name>.<SITE_DOMAIN> host it is stricter: every such host
 // and the shared host are the same "site" to a browser, so SameSite=Lax would
 // let a page on any of them send this host's cookie along. There only the
@@ -350,228 +345,6 @@ func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func writeVisitorAuthRequired(w http.ResponseWriter) {
-	writeJSON(w, http.StatusUnauthorized, map[string]any{
-		"error":   "sign-in required to write",
-		"code":    "visitor_auth_required",
-		"sign_in": "/v1/auth/oauth/providers",
-		"retry":   true,
-	})
-}
-
-// visitorWriteGate is the write gate for PUT/PATCH state and POST collections
-// (visitorWriteOK adds who-may-save on top).
-// See docs/history/SPEC.md §4.4. Returns false after writing the error response.
-// On success it also says who is writing (model.Actor, without the email; see
-// actorWithEmail): the site's owner or the platform admin (their key, or the
-// owner signed in on the site), another signed-in visitor, or nobody known.
-func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (model.Actor, bool) {
-	anon := model.Actor{Kind: actorAnonymous}
-	ownerID, allowAnon, err := h.sitesSvc().GetSiteWriteGate(r.Context(), siteID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return anon, false
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return anon, false
-	}
-	// A taken-down site (or one whose owner is suspended) takes no writes
-	// from anyone, the admin included; restore it first.
-	if h.refuseSuspendedSiteID(w, r, siteID) {
-		return anon, false
-	}
-	// A site its owner took offline takes no saves from visitors; the
-	// owner's (or admin's) key and connector keep writing (offline.go).
-	if off, err := h.sitesSvc().SiteOffline(r.Context(), siteID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return anon, false
-	} else if off && !h.ownerKeyWrite(r, ownerID) {
-		writeSiteOffline(w)
-		return anon, false
-	}
-	// A page opened as a preview of a version (preview.go) never saves into
-	// the live site's data.
-	if previewReferer(r) && r.Header.Get("X-API-Key") == "" {
-		writePreviewReadOnly(w)
-		return anon, false
-	}
-
-	mode := h.writeAuthMode
-	if mode == "" {
-		mode = "log"
-	}
-
-	// A site that has its own domain lives there: its shared-host URL takes no
-	// writes at all, key or not (agents use the apex or the domain). Reads stay
-	// public. In log mode this is measured, not enforced.
-	if domain, elsewhere := h.livesOnDomainElsewhere(r, siteID); elsewhere {
-		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
-		if mode == "on" && !allowAnon {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error":  "this site saves on its own domain",
-				"code":   "use_custom_domain",
-				"domain": domain,
-			})
-			return anon, false
-		}
-		return h.keyActor(r, ownerID), true
-	}
-	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		if info, ok, _ := h.sitesSvc().GetSiteDomainInfo(r.Context(), siteID); ok && info.Domain != "" {
-			// Name the address that works: the earlier one while a new
-			// domain is still pending.
-			if own, has, _ := h.siteOwnAddress(r.Context(), siteID); has {
-				info.Domain = own.Domain
-			}
-			h.logAnonWrite(r, siteID, siteName, route, collection, mode, "use_custom_domain")
-			if mode == "on" && !allowAnon {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{
-					"error":  "this site saves on its own domain",
-					"code":   "use_custom_domain",
-					"domain": info.Domain,
-				})
-				return anon, false
-			}
-			return h.keyActor(r, ownerID), true
-		}
-	}
-
-	if r.Header.Get(visitorPassHeader) != "" {
-		sess, ok := h.internalVisitorSession(r, siteID)
-		if !ok {
-			storageError(w, 403, "forbidden", "visitor pass does not cover this site")
-			return anon, false
-		}
-		if r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
-			storageError(w, 403, "csrf_required", "missing CSRF header")
-			return anon, false
-		}
-		return model.Actor{ID: sess.UserID, Kind: actorVisitor}, true
-	}
-
-	if key := r.Header.Get("X-API-Key"); key != "" {
-		u, ok, resolveErr := h.resolveWriterKey(r.Context(), key)
-		if resolveErr != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return anon, false
-		}
-		// A key writes only to its own account's sites (the platform admin
-		// to any). Any other account's key gets the same 404 as a missing
-		// site, so it learns nothing. Connector tokens and the MCP server
-		// arrive here as an internal key for their person, so the same rule
-		// holds for them.
-		if ok && !u.IsAdmin && u.ID != ownerID {
-			log.Printf("key_write_refused user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return anon, false
-		}
-		if ok {
-			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
-			if u.IsAdmin && u.ID != ownerID {
-				return model.Actor{ID: u.ID, Kind: actorAdmin}, true
-			}
-			return model.Actor{ID: u.ID, Kind: actorOwner}, true
-		}
-		writeJSON(w, http.StatusUnauthorized, struct {
-			Error string `json:"error"`
-			Code  string `json:"code"`
-		}{Error: "invalid API key", Code: "invalid_api_key"})
-		return anon, false
-	}
-
-	if mode == "off" {
-		return anon, true
-	}
-
-	// Shared content host. With PERSON_HOSTS=canonical every page lives on its
-	// person address and the old shared URLs redirect there, so the shared
-	// host is no longer an open scratchpad (INTENT 2026-09-24: anyone can view,
-	// only signed-in can save). Visitor sign-in is never offered there (every
-	// site shares that origin), so a cookie is not even looked at: a write
-	// there needs an API key (above) and anything else gets the same
-	// visitor_auth_required as everywhere else.
-	//
-	// Without canonical person addresses (event and self-hosted instances,
-	// PERSON_HOSTS=off/serve) the shared host is still where pages live and it
-	// stays open (owner decision 2026-09-06; run-hackathon "Saved data is
-	// open"); rate limits and size caps are the only guards there.
-	onContentHost := strings.EqualFold(requestHostName(r), h.contentHost)
-	if onContentHost && !h.personHostsCanonical() {
-		h.logAnonWrite(r, siteID, siteName, route, collection, mode, "public_host")
-		return anon, true
-	}
-
-	if raw := h.sessionCookieFor(r); raw != "" && !onContentHost {
-		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
-			sess, sessErr := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
-			if sessErr == nil {
-				if h.sessionValidFor(r, sess, siteID) {
-					// A suspended person's sign-ins stop working too.
-					// A failed lookup is a server error, not a suspension.
-					if susp, serr := h.storeAccounts().UserSuspended(r.Context(), sess.UserID); serr != nil {
-						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-						return anon, false
-					} else if susp {
-						writeAccountSuspended(w)
-						return anon, false
-					}
-					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
-						_ = h.storeAccounts().TouchVisitorSession(r.Context(), id, h.limits.VisitorSessionIdle)
-						if sess.UserID == ownerID {
-							return model.Actor{ID: sess.UserID, Kind: actorOwner}, true
-						}
-						return model.Actor{ID: sess.UserID, Kind: actorVisitor}, true
-					}
-					if mode == "on" {
-						writeJSON(w, http.StatusForbidden, struct {
-							Error string `json:"error"`
-							Code  string `json:"code"`
-						}{Error: "missing CSRF header", Code: "csrf_required"})
-						return anon, false
-					}
-					// log: treat missing CSRF as anonymous so existing pages still write.
-				}
-			}
-		}
-	}
-
-	outcome := "allowed"
-	if mode == "on" {
-		if allowAnon {
-			outcome = "overridden"
-		} else {
-			outcome = "rejected"
-		}
-	}
-	h.logAnonWrite(r, siteID, siteName, route, collection, mode, outcome)
-	if outcome == "rejected" {
-		writeVisitorAuthRequired(w)
-		return anon, false
-	}
-	return anon, true
-}
-
-// keyActor is who a write that passed without the key check was made by, for
-// the record (history, authors, the watch): the site's owner or the admin
-// when the request carries their valid key, otherwise nobody signed in.
-func (h *SiteHandler) keyActor(r *http.Request, ownerID string) model.Actor {
-	key := r.Header.Get("X-API-Key")
-	if key == "" {
-		return model.Actor{Kind: actorAnonymous}
-	}
-	u, ok, err := h.resolveWriterKey(r.Context(), key)
-	switch {
-	case err != nil || !ok:
-		return model.Actor{Kind: actorAnonymous}
-	case u.ID == ownerID:
-		return model.Actor{ID: u.ID, Kind: actorOwner}
-	case u.IsAdmin:
-		return model.Actor{ID: u.ID, Kind: actorAdmin}
-	}
-	return model.Actor{Kind: actorAnonymous}
-}
-
 func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (model.User, bool, error) {
 	if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) == 1 {
 		return model.User{ID: h.adminUserID, Username: "admin", IsAdmin: true}, true, nil
@@ -585,26 +358,6 @@ func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (model.U
 		return model.User{}, false, err
 	}
 	return u, true, nil
-}
-
-func (h *SiteHandler) logAnonWrite(r *http.Request, siteID, name, route, collection, mode, outcome string) {
-	// Never log a cookie value or a request body.
-	log.Printf("anon_write site_id=%s name=%s route=%s collection=%s mode=%s outcome=%s origin_class=%s has_cookie=%t",
-		siteID, name, route, collection, mode, outcome, h.originClass(r, siteID), visitorCookieValue(r) != "")
-}
-
-func (h *SiteHandler) originClass(r *http.Request, siteID string) string {
-	u, err := url.Parse(requestOrigin(r))
-	if err != nil || u.Host == "" {
-		return "allowed_origin"
-	}
-	if strings.EqualFold(u.Host, h.contentHost) {
-		return "content_host"
-	}
-	if h.originIsBoundDomainID(r.Context(), siteID, u.Host) {
-		return "custom_domain"
-	}
-	return "allowed_origin"
 }
 
 // getVisitorMe reports the current site session without extending its lifetime.
@@ -731,3 +484,137 @@ func (h *SiteHandler) visitorSignedInResponse(r *http.Request, expires time.Time
 	}
 	return resp
 }
+
+// requestOrigin is the scheme://host the browser says the request came from:
+// Origin, else the Referer's origin, else this request's own origin when the
+// browser marks it Sec-Fetch-Site: same-origin. A page with
+// <meta name="referrer" content="no-referrer"> sends no Referer and no Origin
+// on its own GETs, and Origin: null on its writes; Fetch Metadata still names
+// it, and a page script cannot set a Sec- header. Empty when none is usable.
+func requestOrigin(r *http.Request) string {
+	if o := r.Header.Get("Origin"); o != "" && o != "null" {
+		return o
+	}
+	if ref := r.Header.Get("Referer"); ref != "" {
+		if u, err := url.Parse(ref); err == nil && u.Scheme != "" && u.Host != "" {
+			return u.Scheme + "://" + u.Host
+		}
+	}
+	if r.Header.Get("Sec-Fetch-Site") == "same-origin" && r.Host != "" {
+		scheme := "http"
+		if requestIsHTTPS(r) {
+			scheme = "https"
+		}
+		return scheme + "://" + r.Host
+	}
+	return ""
+}
+
+// sameOriginRequest: the request was made by a page on this very origin. A
+// browser cannot forge Origin/Referer or Sec-Fetch-Site; a script outside a
+// browser can, but then it has no visitor cookie to go with them.
+func sameOriginRequest(r *http.Request) bool {
+	if sfs := r.Header.Get("Sec-Fetch-Site"); sfs != "" && sfs != "same-origin" {
+		return false
+	}
+	o := requestOrigin(r)
+	if o == "" {
+		return false
+	}
+	u, err := url.Parse(o)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	want := "http"
+	if requestIsHTTPS(r) {
+		want = "https"
+	}
+	return strings.EqualFold(u.Scheme, want) && strings.EqualFold(u.Host, r.Host)
+}
+
+// strictVisitorCookie is the visitor session cookie without the fallback
+// visitorCookieValue allows: over HTTPS only the __Host- cookie counts, since
+// a sibling host under the same parent domain can plant a plain sh_vsess
+// cookie (Domain=parent) but can never set a __Host- one.
+func strictVisitorCookie(r *http.Request) string {
+	name := visitorCookieHTTP
+	if requestIsHTTPS(r) {
+		name = visitorCookieHost
+	}
+	if c, err := r.Cookie(name); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+// strictVisitorSession returns the visitor signed in to siteID on this host,
+// for a same-origin request carrying the __Host- cookie. ok=false otherwise.
+func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
+	if r.Header.Get(visitorPassHeader) != "" {
+		return h.internalVisitorSession(r, siteID)
+	}
+	if !sameOriginRequest(r) {
+		return model.VisitorSession{}, false
+	}
+	id, err := hex.DecodeString(strictVisitorCookie(r))
+	if err != nil || len(id) != 32 {
+		return model.VisitorSession{}, false
+	}
+	sess, err := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
+	if err != nil || !h.sessionValidFor(r, sess, siteID) {
+		return model.VisitorSession{}, false
+	}
+	paperRecorder(r.Context()).Member(r.Context(), sess.UserID)
+	return sess, true
+}
+
+// visitorEmail is the address an account presents to other people's sites
+// (who may save, blocks, one per person, the _submitted_by stamp, GET /me):
+// its current sign-in email, which it proved by code when it signed up or
+// moved there. A linked Google address is only used for an account whose
+// name is not an address (an organiser-made event account), because an
+// account can move off an address it no longer owns while the identity
+// linked under it stays.
+//
+// A self-signup password account's username is never treated as a verified
+// address here, even one shaped like an email: the person who typed it never
+// proved they control it, which is exactly how a password signup could
+// squat someone else's email ahead of them (see the password-accounts
+// pre-account-hijacking fix). An admin-created password account keeps the
+// old behaviour -- the admin vouched for that address. If a self-signup
+// account separately proved an address through Google/OIDC, that linked
+// address is used instead; with neither, it has no verified email at all.
+func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string, error) {
+	u, err := accountapp.New(database).GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	looksLikeEmail := strings.Contains(u.Username, "@")
+	selfSignupPassword := false
+	if looksLikeEmail {
+		selfSignupPassword, err = accountapp.New(database).SelfSignupPasswordAccount(ctx, userID)
+		if err != nil {
+			return "", err
+		}
+	}
+	if looksLikeEmail && !selfSignupPassword {
+		return u.Username, nil
+	}
+	identity, err := accountapp.New(database).GetLatestOAuthIdentity(ctx, userID)
+	if err == nil && identity.Email.Valid && identity.Email.String != "" {
+		return identity.Email.String, nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if looksLikeEmail {
+		// A self-signup password account's email-shaped username never
+		// proved it controls that address (pre-account hijacking) and there
+		// is no linked OAuth identity either: no verified email to fall
+		// back to, unlike an ordinary non-email username below.
+		return "", nil
+	}
+	return u.Username, nil
+}
+
+// onOwnDomain: this request arrived on the site's own origin — its proven own

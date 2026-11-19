@@ -205,9 +205,7 @@ existing credential. Treat `sign_in_required` (401), `forbidden` or
 `site_full` (507) as server decisions. Do not retry a write with a broader
 policy merely to make it succeed.
 
-Older state, collections and declared-data APIs are deprecated for new work.
-Maintain existing sites deliberately; their history and withdrawal behavior do
-not transfer automatically. For privacy use the author condition above.
+For privacy use the author condition above.
 
 Visitors use fixed table routes with `where` equality filters (at most three),
 order, direction, limit and an opaque `after` cursor. Keep order and direction

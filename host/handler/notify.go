@@ -8,17 +8,16 @@ import (
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/host/app/notifications"
 	"log"
-	"net"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
+
+	"github.com/vsriram/simple-host/host/app/notifications"
 
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/model"
@@ -57,7 +56,6 @@ type notificationEngine struct {
 	runner                     *workers.Runner
 	delivery, retention, emits *workers.Tracker
 	emitRunner                 *workers.Runner
-	submissions                *submissionEmailOwner
 }
 
 // WaitNotifications blocks until every notification goroutine has
@@ -102,8 +100,6 @@ func (h *SiteHandler) notifyEngine() *notificationEngine {
 		e.emits = workers.NewTracker("notifications.emit")
 		e.runner = workers.NewRunner(e.delivery, e.retention)
 		e.emitRunner = workers.NewRunner(e.emits)
-		e.submissions = &submissionEmailOwner{h: h, tracker: workers.NewTracker("mail.submissions")}
-		e.submissions.runner = workers.NewRunner(e.submissions.tracker)
 	})
 	return h.notifications
 }
@@ -629,28 +625,6 @@ func (h *SiteHandler) notificationPending(ctx context.Context) {
 		return
 	}
 	t.SetPending(n)
-}
-
-// Mail errors may echo recipients or provider credentials; expose only known causes.
-func notificationMailError(err error) error {
-	if errors.Is(err, context.Canceled) {
-		return context.Canceled
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return context.DeadlineExceeded
-	}
-	var network net.Error
-	if errors.As(err, &network) && network.Timeout() {
-		return errors.New("mail provider timeout")
-	}
-	if err.Error() == "RESEND_API_KEY not configured" {
-		return errors.New("mail provider is not configured")
-	}
-	var status int
-	if n, _ := fmt.Sscanf(err.Error(), "resend returned status %d", &status); n == 1 {
-		return fmt.Errorf("mail provider returned HTTP %d", status)
-	}
-	return errors.New("mail provider delivery failed")
 }
 
 func (h *SiteHandler) notificationDeliveryDeps() notifications.DeliveryDeps {

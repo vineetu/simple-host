@@ -22,7 +22,7 @@ No authentication required.
 | --- | --- |
 | 200 | A gzipped tar archive |
 | 404 | The link is not valid or has expired |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/idle/keep
 
@@ -45,7 +45,7 @@ No authentication required.
 | 200 | HTML confirmation page with the button |
 | 403 | HTML page; the site is taken down |
 | 404 | HTML page; the link was used or has expired |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/idle/keep
 
@@ -64,7 +64,7 @@ No authentication required.
 | 200 | HTML page confirming the site stays up |
 | 403 | HTML page; the site is taken down |
 | 404 | HTML page; the link was used or has expired |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/idle/restore
 
@@ -87,7 +87,7 @@ No authentication required.
 | 200 | HTML confirmation page with the button |
 | 403 | HTML page; the site is taken down |
 | 404 | HTML page; the link was used or has expired |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/idle/restore
 
@@ -106,7 +106,7 @@ No authentication required.
 | 200 | HTML page confirming the site is back |
 | 403 | HTML page; the site is taken down |
 | 404 | HTML page; the link was used or has expired |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/sites
 
@@ -143,7 +143,7 @@ Returns the authenticated account's own sites, newest edited first (updated_at d
 
 <div data-operation="PATCH /v1/sites/{sitename}"></div>
 
-One change per request. With {"offline": true} the site is taken offline: every address answers a plain "This site is offline" page (503), and visitor saves (state and collection writes from a page, private lists included), visitors' reads of its state and lists, and visitor sign-in are refused with 403 site_offline; files, versions and saved data are kept, and the owner's key or connector still deploys, reads and writes. {"offline": false} puts it back online. An operator take-down wins over it, and a taken-down site cannot be switched (403 site_suspended). The answer is the site object with `offline` and a `note`. With {"name": "new-name"} it renames the database row and on-disk site directory. The new name uses the same validation and per-owner uniqueness rule as creation. A bound custom domain remains attached. Links to the old name keep working: its site host, person-path and sites.* addresses 302 to the new address (path and query kept), through any chain of renames, until a site with the old name is created again (the new site wins); the response says so with old_url_status "redirects". Deleting the site stops the redirects (restoring brings them back); purging it removes them.
+One change per request. With {"offline": true} the site is taken offline: every address answers a plain "This site is offline" page (503), and visitor saves, visitors' reads of its saved data, and visitor sign-in are refused with 403 site_offline; files, versions and saved data are kept, and the owner's key or connector still deploys, reads and writes. {"offline": false} puts it back online. An operator take-down wins over it, and a taken-down site cannot be switched (403 site_suspended). The answer is the site object with `offline` and a `note`. With {"name": "new-name"} it renames the database row and on-disk site directory. The new name uses the same validation and per-owner uniqueness rule as creation. A bound custom domain remains attached. Links to the old name keep working: its site host, person-path and sites.* addresses 302 to the new address (path and query kept), through any chain of renames, until a site with the old name is created again (the new site wins); the response says so with old_url_status "redirects". Deleting the site stops the redirects (restoring brings them back); purging it removes them.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -169,7 +169,7 @@ One change per request. With {"offline": true} the site is taken offline: every 
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | The operator has taken the site down (code site_suspended) |
 | 404 | Not found |
-| 409 | Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object) |
+| 409 | Conflict: the code says which (site_exists, domain_taken, custom_domain_required) |
 
 ## DELETE /v1/sites/{sitename}
 
@@ -246,7 +246,7 @@ Owner only. `{"access": "specific"}`: every address of the site (its own address
 | 403 | The operator has taken the site down (site_suspended), or a deploy-only key (deploy_only_key) |
 | 404 | Not found |
 | 409 | passcode_set (remove the passcode first), named_viewers_need_own_address (every site on this server shares one address), sign_in_unavailable (this server has no email codes or Google), or named_viewers_unavailable |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/sites/{sitename}/export-link
 
@@ -276,7 +276,7 @@ Returns a link that downloads the same archive as `export.tar.gz` without an API
 
 <div data-operation="GET /v1/sites/{sitename}/export.tar.gz"></div>
 
-Streams the site's published files (`files/`), its saved JSON state (`state.json`) and its collections (`collections.json`: every list, private ones included, each entry as `{id, created_at, submitted_by, data}`; `submitted_by` only on private lists) as one archive. Exists because an event instance is destroyed when the event ends and nothing is backed up, so the person who built something can take it with them. The saved data comes first: the files usually exist somewhere else, the JSON only lives here.
+Streams the site's published files (`files/`) and its saved data (`storage/`: KV values, SQLite databases and files) as one archive. Exists because an event instance is destroyed when the event ends and nothing is backed up, so the person who built something can take it with them.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -292,7 +292,7 @@ Streams the site's published files (`files/`), its saved JSON state (`state.json
 | --- | --- |
 | 200 | A gzipped tar archive |
 | 404 | Not found |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## PUT /v1/sites/{sitename}/keep
 
@@ -410,7 +410,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 | 403 | The operator has taken the site down (site_suspended), or a deploy-only key (deploy_only_key) |
 | 404 | Not found |
 | 409 | passcodes_not_enabled (SITE_PASSCODES is off or PASSCODE_ENC_KEY is unset on this server), or passcode_needs_own_address (every site on this server shares one address, as on a small box or an event box, so an unlock would cover every site) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## DELETE /v1/sites/{sitename}/lock
 
@@ -434,7 +434,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | A deploy-only key (deploy_only_key) |
 | 404 | Not found |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/sites/{sitename}/lock/sign-out-everyone
 
@@ -459,7 +459,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 | 403 | A deploy-only key (deploy_only_key) |
 | 404 | Not found |
 | 409 | The site has no passcode (no_passcode) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/sites/{sitename}/restore
 
@@ -516,7 +516,7 @@ Owner only. Adds each email (trimmed and lower-cased; letters, digits and `._%+-
 | 403 | site_suspended or deploy_only_key |
 | 404 | Not found |
 | 409 | too_many_viewers (the list would pass SITE_VIEWERS_MAX), passcode_set, named_viewers_need_own_address, sign_in_unavailable or named_viewers_unavailable |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## DELETE /v1/sites/{sitename}/viewers/{email}
 
@@ -541,7 +541,7 @@ Owner only. The person's next request is refused. Access does not change: removi
 | 400 | invalid_email |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 404 | No such site, or the email is not a named viewer (viewer_not_found) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## PUT /v1/sites/{sitename}/visibility
 

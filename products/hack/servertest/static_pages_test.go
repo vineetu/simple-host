@@ -84,7 +84,7 @@ func staticHackFront(t *testing.T, a *teamSiteApp, table model.SiteTable, flat b
 		t.Fatal(err)
 	}
 	// The Static process deliberately does not run Hack's general wiring.
-	h := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", a.database, disk, tsDomain, "sites."+tsDomain, "", "", "", "", nil, 0, "", "", nil, nil)
+	h := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", a.database, disk, tsDomain, "sites."+tsDomain, "", "", "", "", nil, 0, "", nil, nil)
 	installAssets(h, nil)
 	h.SetTeamSiteFlatHosts(flat)
 	h.SetPersonHosts("canonical")

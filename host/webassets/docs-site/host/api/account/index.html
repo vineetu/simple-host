@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ic2n7f" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="10s6tq1" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -108,11 +108,6 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/guides/storage/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage and saved data</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/guides/moving-saved-data/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Move a site off the older saved data</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -415,11 +410,6 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/settings/storage-and-backups/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage and backups</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/settings/storage-migration/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Moving a site to storage resources</span>
 				
 			</a>
 	</li>
@@ -1324,13 +1314,13 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
 <h2 id="get-v1meexportzip">GET /v1/me/export.zip</h2>
 <div data-operation="GET /v1/me/export.zip"></div>
-<p>Streams one .zip of everything held about the account: README.txt; account.json (email, handle, display name, created, earlier handles, claimed names including retired ones, custom domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json (sites signed in to as a visitor with first sign-in and last seen, every entry sent to other people’s lists while signed in, and <code>changed</code>: every change made to other people’s page data or list entries while signed in, as site, what, change and when); sites/&lt;name&gt;/ for every live site in the same layout as GET /v1/sites/{sitename}/export.tar.gz (files/, state.json, collections.json); and recently-deleted/&lt;name&gt;/ for every site in Recently deleted, in the same layout plus deleted.json (deleted_at, removed_for_good_at). Visitor analytics hold no personal data (salted hashes) and are not included. Needs one of the account’s own API keys: a connected app or the admin key gets 400 not_an_account_key. A suspended account gets 403 account_suspended and writes to <a href="mailto:support@simple-host.app">support@simple-host.app</a> for a copy of its data.</p>
+<p>Streams one .zip of everything held about the account: README.txt; account.json (email, handle, display name, created, earlier handles, claimed names including retired ones, custom domains, linked Google/GitHub sign-ins); keys.json (name, last 4 characters, created, last used; never keys or hashes); connected_apps.json (name, connected, last used); visitor.json (sites signed in to as a visitor with first sign-in and last seen, and <code>changed</code>: the changes recorded against the person on other people’s saved data while signed in, as site, what, change and when); sites/&lt;name&gt;/ for every live site in the same layout as GET /v1/sites/{sitename}/export.tar.gz (files/, storage/); and recently-deleted/&lt;name&gt;/ for every site in Recently deleted, in the same layout plus deleted.json (deleted_at, removed_for_good_at). Visitor analytics hold no personal data (salted hashes) and are not included. Needs one of the account’s own API keys: a connected app or the admin key gets 400 not_an_account_key. A suspended account gets 403 account_suspended and writes to <a href="mailto:support@simple-host.app">support@simple-host.app</a> for a copy of its data.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Responses:</strong></p>
 <table>
@@ -1359,7 +1349,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>
@@ -1728,7 +1718,7 @@
 </tr>
 <tr>
 <td>429</td>
-<td>Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).</td>
+<td>Rate limited (code rate_limited).</td>
 </tr>
 </tbody>
 </table>

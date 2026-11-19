@@ -22,13 +22,4 @@ func TestHackAuthJSHasOnlyCurrentStorage(t *testing.T) {
 			t.Errorf("Hack auth.js still offers %q", removed)
 		}
 	}
-	if !strings.Contains(string(raw), "    state: {") || !strings.Contains(string(raw), "    data: function") {
-		t.Fatal("Host auth.js lost its legacy API")
-	}
-	rawStr := string(raw)
-	for _, m := range []string{"    state: {\n", "    storage: {\n", "    collection: function (name) {\n", "    mount: function (target) {\n"} {
-		if strings.Count(rawStr, m) != 1 {
-			t.Errorf("auth.js marker %q appears %d times, want 1", m, strings.Count(rawStr, m))
-		}
-	}
 }

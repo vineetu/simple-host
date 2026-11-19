@@ -13,9 +13,6 @@ func Narrower(a, b string) string                 { return model.Narrower(a, b) 
 func TranslateOld(read, write, mode string) (AccessMatrix, string, string) {
 	return model.TranslateOld(read, write, mode)
 }
-func LegacyMatrix(read, write, mode string) AccessMatrix {
-	return model.LegacyMatrix(read, write, mode)
-}
 func OldFields(m AccessMatrix) (read, write, mode string, ok bool) { return model.OldFields(m) }
 
 type TableRule = model.TableRule

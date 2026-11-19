@@ -71,8 +71,6 @@ func otherValue(t *testing.T, env string) string {
 			return "help@example.org"
 		case env == "PRIVACY_URL":
 			return "https://example.org/privacy"
-		case env == "SAVED_DATA_DEFAULT_KIND":
-			return "declare_first"
 		case env == "MAX_SITES_OVERRIDES":
 			return "someone:7"
 		case env == "SITE_TOTAL_CAP_FROM":
@@ -149,7 +147,6 @@ func TestLeafLimitDefaultsMatchConfig(t *testing.T) {
 		DomainUnprovenTTL:    def.DomainUnprovenTTL,
 		DomainLapseWarnAfter: def.DomainLapseWarnAfter,
 		DomainLapseAfter:     def.DomainLapseAfter,
-		UndoDays:             time.Duration(def.SavedData.UndoDays) * 24 * time.Hour,
 		SiteViewersMax:       def.SiteViewersMax,
 		FamilyUnprovenTTL:    def.FamilyUnprovenTTL,
 	}); got != want {

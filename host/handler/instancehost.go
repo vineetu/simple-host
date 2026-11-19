@@ -269,8 +269,8 @@ type InstanceFacts struct {
 	// is in SignInProviders.
 	OIDCLabel string
 	// EmailCapable: this install can send email at all (RESEND_API_KEY is
-	// set), regardless of EMAIL_SIGNIN. Submissions emails and sign-in
-	// codes both need it; EMAIL_SIGNIN=off turns off only the latter.
+	// set), regardless of EMAIL_SIGNIN. Sign-in codes need it; EMAIL_SIGNIN=off
+	// turns them off on a server that has it.
 	EmailCapable bool
 	// Contact: who to ask for help (auth.SupportContact).
 	Contact string
@@ -318,18 +318,18 @@ func SetInstanceNote(f InstanceFacts) {
 		}
 	}
 	if len(ways) == 0 {
-		b.WriteString("- Visitor sign-in: visitors cannot sign in on this server (no email or Google sign-in is set up). Never call SH.requireSignIn() or offer sign-in. Submissions, Personal, Shared boards and private lists are refused (409 visitor_sign_in_unavailable): save to Shared names instead (SH.data(name) with no kind, SH.state, SH.collection).")
+		b.WriteString("- Visitor sign-in: visitors cannot sign in on this server (no email or Google sign-in is set up). Never call SH.requireSignIn() or offer sign-in, and give storage only rules that need no signed-in visitor.")
 	} else {
 		b.WriteString("- Visitor sign-in: visitors sign in with " + strings.Join(ways, " or ") + " on a site's own address (a free <name>." + base + " address or a custom domain); a sign-in covers that site only.")
 	}
 	if f.SharedOrigin {
-		b.WriteString(" On the shared address https://" + f.ContentHost + "/ pages save to Shared names without anyone signing in, so anyone who can open a page can change what it saved: never save personal details there.")
+		b.WriteString(" On the shared address https://" + f.ContentHost + "/ nobody signs in, so a save there is open to anyone the storage rules let in: never save personal details there.")
 	}
 	b.WriteString("\n")
 	if !f.EmailCapable {
-		b.WriteString("- Email: this server sends no email. Nobody signs in with an emailed code (accounts use keys the organiser issues), and Submissions emails are off (notify must be \"off\", 409 email_unavailable).\n")
+		b.WriteString("- Email: this server sends no email. Nobody signs in with an emailed code (accounts use keys the organiser issues).\n")
 	} else if !f.SignInEmail {
-		b.WriteString("- Email: email sign-in is off on this server (EMAIL_SIGNIN=off). Visitors sign in with their company account instead; Submissions emails still work.\n")
+		b.WriteString("- Email: email sign-in is off on this server (EMAIL_SIGNIN=off). Visitors sign in with their company account instead.\n")
 	}
 	contact := f.Contact
 	if contact == "" {

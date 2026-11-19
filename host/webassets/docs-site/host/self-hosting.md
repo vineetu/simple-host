@@ -15,7 +15,6 @@
 - [Server and addresses](/docs/self-hosting/settings/server-and-addresses.md)
 - [Sites and versions](/docs/self-hosting/settings/sites-and-versions.md)
 - [Storage and backups](/docs/self-hosting/settings/storage-and-backups.md)
-- [Moving a site to storage resources](/docs/self-hosting/settings/storage-migration.md)
 - [Where it runs](/docs/self-hosting/platforms.md)
 - [Install Simple Host on Coolify](/docs/self-hosting/platforms/coolify.md)
 - [Install Simple Host on DigitalOcean](/docs/self-hosting/platforms/digitalocean.md)

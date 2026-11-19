@@ -34,7 +34,6 @@ import (
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
 	storagerepo "github.com/vsriram/simple-host/host/repository/storage"
 	"github.com/vsriram/simple-host/host/storage"
@@ -152,13 +151,6 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	if err := checkProductSchema(context.Background(), db, exts); err != nil {
 		return nil, err
 	}
-	noticeTemplates, err := storageapp.LoadNoticeTemplates(cfg.DataDir)
-	if err != nil {
-		return nil, fmt.Errorf("load storage notice templates: %w", err)
-	}
-	if err = logStoragePresetNotice(context.Background(), db); err != nil {
-		return nil, fmt.Errorf("count storage presets: %w", err)
-	}
 	// The install lock (shared): migrate-rules --apply and --revert take it
 	// exclusive, so they cannot rewrite this database while any server uses it,
 	// from this data directory or another. Every request/worker pool connection
@@ -230,7 +222,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	log.Printf("per-site limit: %d MB", handler.SiteLimit()>>20)
 
 	// Ensure a real admin user row exists so the admin key can own sites.
-	adminUserID, err := legacyrepo.EnsureAdminUser(context.Background(), db)
+	adminUserID, err := accountrepo.EnsureAdminUser(context.Background(), db)
 	if err != nil {
 		return nil, fmt.Errorf("ensure admin user: %v", err)
 	}
@@ -290,7 +282,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 		mailer.SetProductName(ed.Presentation().ProductName)
 	}
 	if cfg.ResendAPIKey == "" {
-		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) and Submissions emails are off; accounts use keys the admin issues")
+		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) are off; accounts use keys the admin issues")
 	}
 	handler.SetEmailSignIn(cfg.EmailSignInEnabled())
 	handler.SetTrustedProxies(cfg.TrustedProxyCIDRs)
@@ -309,19 +301,12 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	if cfg.CompanySignInEnabled() {
 		log.Printf("company sign-in: oidc issuer %s (label %q)", cfg.OIDCIssuer, cfg.OIDCLabel)
 	}
-	log.Printf("write auth mode: %s", cfg.WriteAuthMode)
-	if cfg.LegacyStorageCutoff.IsZero() {
-		log.Printf("legacy storage cutoff: off")
-	} else {
-		log.Printf("legacy storage cutoff: %s", cfg.LegacyStorageCutoff.UTC().Format("2006-01-02"))
-	}
 
 	handler.RegisterHealthRoutes(mux, db)
 	userHandler := handler.NewUserHandler(db, accountsService, mailer, cfg.PublicBaseURL, ed)
 	userHandler.SetPasswordSignIn(cfg.PasswordSignIn == "on", cfg.PasswordSelfSignup != "off")
 	userHandler.Register(mux, authMW, noticeMW)
-	siteHandler := handler.NewSiteHandler(ed, productInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
-	siteHandler.SetStorageNotice(cfg.StorageSwitchAt, noticeTemplates.Render(noticeTemplates.SaveWarning, cfg.StorageSwitchAt))
+	siteHandler := handler.NewSiteHandler(ed, productInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, adminUserID, mailer, userHandler.EmailLimiter())
 	if ext != nil && ext.Assets != nil {
 		assets := ext.Assets(siteHandler)
 		siteHandler.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
@@ -358,8 +343,6 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 		siteHandler.SetPlatformZones(cfg.EventDomains...)
 	}
 	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
-	siteHandler.SetSavedData(cfg.Limits.SavedData)
-	siteHandler.SetLegacyStorageCutoff(cfg.LegacyStorageCutoff)
 	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	siteHandler.SetTurnstile(cfg.TurnstileSiteKey, cfg.TurnstileSecret, cfg.PublicBaseURL)
@@ -415,10 +398,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	// one gate (host/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
 	scoped := auth.ScopeGate(accountsService, mux, ed.Limits().KeyIdleExpiry)
-	if ext != nil && ext.Gate != nil {
-		scoped = ext.Gate(extension.GateDeps{Site: siteHandler, Edition: ed})(scoped)
-	}
-	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(scoped), cfg.PublicBaseURL)
+	gated := handler.APIErrors(mux, scoped, cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents, ed)
@@ -581,7 +561,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	// only. PAPER_METRICS=off turns it off. docs/paper-metrics.md.
 	var paper *papermetrics.Collector
 	paperOn := papermetrics.Enabled()
-	paperConfig := map[string]any{"limits": cfg.Limits, "events": map[bool]string{false: "off", true: "hosted"}[hosted], "write_auth_mode": cfg.WriteAuthMode, "person_hosts": cfg.PersonHosts, "site_hosts": cfg.SiteHosts, "paper_metrics": paperOn}
+	paperConfig := map[string]any{"limits": cfg.Limits, "events": map[bool]string{false: "off", true: "hosted"}[hosted], "person_hosts": cfg.PersonHosts, "site_hosts": cfg.SiteHosts, "paper_metrics": paperOn}
 	if paperOn {
 		apex := []string{cfg.SiteDomain}
 		if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {

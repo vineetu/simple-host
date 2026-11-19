@@ -11,7 +11,7 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/auth"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
+	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
@@ -26,7 +26,7 @@ func TestServeHackFormsBrowser(t *testing.T) {
 	if r := a.at(t, "PUT", w.entryPath(), buildCompleteFields(), a.key(w.teams[0].person)); r.status != 200 {
 		t.Fatalf("entry: %d %s", r.status, r.body)
 	}
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), a.database)
+	adminID, err := accountrepo.EnsureAdminUser(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}

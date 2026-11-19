@@ -853,7 +853,7 @@
      "name": "Every site gets a public address",
      "line": "The moment a site exists it has a working web address you can send to anyone, with HTTPS already on.",
      "who": "Everyone. This is the point of the service.",
-     "how": "Every site gets its own address, `https://<site>.<handle>.simple-host.app/`. Files are served at the root, and visitor sign-in, per-person saves, and private collections are bound to that host, so a sign-in covers that one site. On a brand-new account the address can be `https://<handle>.simple-host.app/<site>/` for the first few minutes, until its certificate is ready; the address shown is always the one that works. For a nicer address, take a free `<name>.simple-host.app` or connect your own domain.",
+     "how": "Every site gets its own address, `https://<site>.<handle>.simple-host.app/`. Files are served at the root, and visitor sign-in and per-person saves are bound to that host, so a sign-in covers that one site. On a brand-new account the address can be `https://<handle>.simple-host.app/<site>/` for the first few minutes, until its certificate is ready; the address shown is always the one that works. For a nicer address, take a free `<name>.simple-host.app` or connect your own domain.",
      "example": "A consultancy publishes a client proposal and sends the link the same hour; the client opens it over HTTPS with nothing to set up.",
      "where": "Under each site's name on your sites page, with its live version and when it was last deployed. A site with its own live domain shows that domain.",
      "limits": "simple-host.app is the only address served and handed out by the hosted service; pages, API examples, connector text, and skills all use `.app`. Old links on another base redirect to the matching `.app` address with path and query kept. A site's `/v1/` path is reserved for the API of that one site.",
@@ -1235,7 +1235,7 @@
      "name": "One wildcard for every site you own",
      "line": "Connect *.<suffix> once and every site of your account answers at <label>.<suffix>, including sites you make later.",
      "who": "Agencies and businesses that make many sites under one brand: a quote per client, a page per property, a portal per customer.",
-     "how": "Connect `*.trips.example.com` once, with a wildcard DNS record and a TXT record at `_simple-host.<suffix>`. Every site named `<label>` then answers at `<label>.trips.example.com`, with no per-site step. An optional site prefix maps `voucher-meera` to `meera.voucher.example.com`. By default the family address becomes each site's main address: the site's own address and old links redirect there, and sign-in, saved data, private lists, analytics, the report form, passcodes, offline, rename, delete, and restore all work there as on a custom domain. A site with its own custom domain or free name keeps that as its main address; the same account may put a custom domain under its own family.",
+     "how": "Connect `*.trips.example.com` once, with a wildcard DNS record and a TXT record at `_simple-host.<suffix>`. Every site named `<label>` then answers at `<label>.trips.example.com`, with no per-site step. An optional site prefix maps `voucher-meera` to `meera.voucher.example.com`. By default the family address becomes each site's main address: the site's own address and old links redirect there, and sign-in, saved data, analytics, the report form, passcodes, offline, rename, delete, and restore all work there as on a custom domain. A site with its own custom domain or free name keeps that as its main address; the same account may put a custom domain under its own family.",
      "example": "A travel agency connects `*.quotes.chhotabreak.com` once; every new quote site it publishes is live at `<client>.quotes.chhotabreak.com` the moment it exists.",
      "where": "Ask your AI app to connect `*.<suffix>` (the connect-a-domain skill covers it), or your sites page.",
      "limits": "The family answers site labels only; the bare suffix itself is not routed to your home page or showcase, and the wildcard certificate does not cover the apex. Nothing is served until both records are seen; a pending family is dropped after 24 hours. Several accounts may wait on one name; the first to prove it wins and the others are emailed. A verified family is exclusive: no other account can connect it, an overlapping family, or a custom domain under it. The label `www` never names a site. The wildcard certificate is set up by the operator; until then the status says waiting for the operator. If it fails every check for a day, the account is emailed. After three days the domain is disconnected and must be connected again with the TXT record. [[hosted]]The service's own zones are refused as suffixes.[[/hosted]]",
@@ -1274,13 +1274,8 @@
    "id": "storage",
    "title": "Storage and saved data",
    "line": "Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.",
-   "aliases": [
-    "state",
-    "collections"
-   ],
+   "aliases": [],
    "sections": [
-    4,
-    5,
     23
    ],
    "features": [
@@ -1700,7 +1695,7 @@
      "how": "Key-value and SQLite data share one allowance per site and files have their own. Usage shows used, limit, and remaining bytes for each, with a breakdown by kind. Key-value usage counts the key and the stored value. Visitor writes are rate limited per site and address and per signed-in person; reads are not, so a public gallery of 150 photos loads without using write allowance. Owner tools are exempt from the visitor limits. Writes during a deploy wait up to 2 seconds and then answer busy with a retry time.",
      "example": "A small shop with a few hundred orders a month uses well under a tenth of its table allowance; product photos count against the separate file allowance.",
      "where": "Ask your AI app how much a site uses, or open the Storage panel beneath the site on your sites page.",
-     "limits": "10,000,000 bytes of key-value and SQLite per site, 10,000,000 bytes of files per site, 1,000,000 bytes per upload. The allowance started at 1,000,000 bytes pooled per site and was raised for Simple Host on 10 October 2026. Deployed website files, SQLite's write-ahead log, and the older saved data are counted separately. A write that would pass the allowance is refused.",
+     "limits": "10,000,000 bytes of key-value and SQLite per site, 10,000,000 bytes of files per site, 1,000,000 bytes per upload. The allowance started at 1,000,000 bytes pooled per site and was raised for Simple Host on 10 October 2026. Deployed website files and SQLite's write-ahead log are counted separately. A write that would pass the allowance is refused.",
      "editions": {
       "host": "yes",
       "enterprise": "yes",
@@ -1721,489 +1716,6 @@
      ],
      "covers": [],
      "evidence": "FEATURES.md \u00a723 allowance paragraph, rate-limit and lock-wait paragraphs; PARITY row 'Site storage primitives' (Enterprise env settings with hosted's values)."
-    },
-    {
-     "id": "state-shared-store",
-     "name": "One shared box per site",
-     "line": "A single JSON document every visitor's page reads and writes, so a count or a setting on the page is the same for everyone.",
-     "who": "Anyone whose page needs to remember something across visitors: a count, a tally, a list, a setting.",
-     "how": "A page reads the document and writes it back, whole or by small moves. It is the same document for everyone, which is what makes a number on the page real for every visitor. Sites that already use it keep it, with its privacy rules, until the routes are removed in a separate, announced step. Sites made on simple-host.app from 12 October 2026 get a closed answer from these routes and use site storage instead; the connector no longer offers tools for the box and no documentation teaches it for new sites.",
-     "example": "A community choir's older site keeps its rehearsal schedule and a seat count in the box, and the owner's AI app still updates it.",
-     "where": "Used by your page's own code. Nothing to switch on. You can look at it read-only, with its size against the limit and Download JSON, under Saved data beneath the site on your sites page.",
-     "limits": "Up to 1 MB in total. It is one document with no queries, no indexes, and no per-visitor privacy. To change it, ask your agent. A site's live saved data, the document plus every live list entry, is capped at 50 MB. Only a write that grows it is refused, a shrinking write always goes through, and deleting entries or clearing a list makes room at once. History and Recently deleted are not counted.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "partial",
-      "smallbox": "yes"
-     },
-     "editions_note": "Enterprise keeps one saved document per site on its own engine with last-write-wins or versioned compare-and-set writes.",
-     "docs": [
-      {
-       "label": "FEATURES.md: saved state",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Deploy skill",
-       "href": "/skills/website-deploy/SKILL.md"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [
-      "state-existing-sites-only",
-      "the-per-site-cap"
-     ],
-     "evidence": "FEATURES.md \u00a74 L383-439 (deprecation, LEGACY_STORAGE_CUTOFF 2026-10-12, 1 MB doc, per-site cap 50 MB, site_full); current page state-shared-store; PARITY rows 'Saved state' and 'Old saved-data cutoff gate'. \u00a75's duplicate deprecation lead is covered here as the same fact.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "state-atomic-ops",
-     "name": "Safe simultaneous updates",
-     "line": "A page adds one to a number, adds an item to a list, or removes one without reading the whole box first, so two people at once both count.",
-     "who": "Anyone with a headcount, a vote, a comment thread, or anything else several people touch at once.",
-     "how": "Instead of replacing the document, a page sends a short list of moves and the server applies them in order. Two visitors doing it at the same instant both count. Numbers stay exact: adding a whole number adds exactly, and whole numbers of any size match in remove-where. A whole-document write can carry the version it read, and is refused if someone wrote first. A retried write with the same key is saved once for a signed-in writer.",
-     "example": "A sports club's older sign-up page adds one to the attendance count as each member confirms, and the count is right even when a dozen confirm in the same minute.",
-     "where": "Used by your page's own code.",
-     "limits": "Five moves are supported (set, add-to-a-number, add-to-a-list, remove, and remove-where) up to 100 in one request. Anything cleverer has to be worked out in the page.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "partial",
-      "smallbox": "yes"
-     },
-     "editions_note": "Enterprise writes the document whole, last-write-wins or with a version check, and has no move list.",
-     "docs": [
-      {
-       "label": "FEATURES.md: saved state",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a74 (ops set/inc/append/remove/removeWhere, max 100 ops, exact numbers, If-Match, Idempotency-Key); current page state-atomic-ops; PARITY row 'Saved state'.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "state-live-updates",
-     "name": "Live numbers without a refresh",
-     "line": "A page keeps checking the box cheaply, so a count or a comment thread updates itself while people are looking at it.",
-     "who": "Anything with a live figure on it: an RSVP headcount, a signup counter, a discussion.",
-     "how": "The page asks again every few seconds with the version it already has. When nothing changed, the answer is empty and costs almost nothing; when something changed, the page gets the new document and redraws.",
-     "example": "An older fundraising page shows the running total of pledges and ticks up while donors watch.",
-     "where": "Your page's own code: a conditional request returns nothing when the box has not changed.",
-     "limits": "It is polling, with a few seconds of lag, and there is no push. Reads are rate limited per site and address.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: saved state",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a74 Limits row (reads 30/s, burst 60) and ETag/If-Match; current page state-live-updates. Not stated for Enterprise in PARITY; marked no.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "state-public",
-     "name": "The store is public, on purpose",
-     "line": "Pages and shared data are public; Each person's records, private Submissions, and Personal records have their own read rules.",
-     "who": "Everyone using the store. It shapes what you should and should not collect.",
-     "how": "Anyone who can open the site can read the shared document and every public list. Personal details belong in a private collection, a Submissions name, a Personal record, or, on a current site, a storage resource with a read rule.",
-     "example": "A neighbourhood association's older notice board keeps the meeting dates public and the members' contact details in a private collection.",
-     "where": "Not a setting: it is how the store works.",
-     "limits": "Anything a page can read, a visitor can read. Reading it takes a page in a browser: pasting the address into a terminal is refused, which slows casual copying and gives no privacy.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "partial",
-      "smallbox": "yes"
-     },
-     "editions_note": "Enterprise sites are opened by signed-in colleagues only, so the document is read by them and not by the public.",
-     "docs": [
-      {
-       "label": "FEATURES.md: saved state",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Privacy",
-       "href": "/privacy.html"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a74 'read by anyone'; current page state-public; PARITY row 'Saved state' (Enterprise every viewer signed in).",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "state-write-gate",
-     "name": "Who is allowed to write",
-     "line": "Every save from a page needs a signed-in visitor, so a passer-by cannot fill the store with junk; your agent saves with your key.",
-     "who": "Anyone collecting entries in public.",
-     "how": "On a site's own address a write needs a signed-in visitor or the owner's API key; connector tokens act as the owner. Reading never requires either. Another account's key gets a site not found answer and writes nothing. On the old shared content address `sites.simple-host.app` reads stay open and writes need the key or the connector, because sign-in is never offered there, and a site with its own domain takes no writes on its shared address at all.",
-     "example": "A yoga studio's older class list takes a save only from a member who signed in, while the teacher's AI app updates the timetable with her key.",
-     "where": "Not a screen: it is applied when a page tries to save. Visitors sign in on the site's own address; your agent sends your API key.",
-     "limits": "Signing in stops strangers writing anonymously, but any signed-in visitor can still save. Anything that must stay private goes in a private collection.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "partial",
-      "smallbox": "yes"
-     },
-     "editions_note": "On Enterprise every viewer is signed in with the company and may write, keys included.",
-     "docs": [
-      {
-       "label": "FEATURES.md: saved state",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Visitor sign-in",
-       "href": "/auth.md"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a74 paragraph on origins, API keys, sites.simple-host.app, 404 for another account's key; current page state-write-gate; PARITY row 'Saved state' (different on purpose).",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "state-cross-origin",
-     "name": "Use the store from a site hosted elsewhere",
-     "line": "A page hosted on another service can use one of your sites here as its backend once you have allowed that page's address.",
-     "who": "People whose site already lives on another host but who want a form or a counter without running a server.",
-     "how": "The owner's agent adds the other page's exact address to the site's allowed list. From then on that page's saves and reads are accepted as if they came from the site itself. There is no button for it; your AI agent does it for you.",
-     "example": "A consultancy's brochure site on another host keeps its enquiry counter on an older Simple Host site after allowing the brochure's address.",
-     "where": "No screen. Ask your agent to allow the address.",
-     "limits": "Up to 20 addresses per site, and you have to name each one exactly.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: saved state",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a74 Routes row (allowed-origins, owner); cap of 20 confirmed in host/handler/site.go ('too many origins (max 20)'); current page state-cross-origin (Agent only). Not stated for Enterprise; marked no.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "collection-append",
-     "name": "Save what a form collects",
-     "line": "Each submission is added to a named list, one row per entry, separate from the shared box so it can grow well past it.",
-     "who": "Anyone with a form: an event page, a waitlist, a contact form, a survey.",
-     "how": "A collection is where form entries go: RSVPs, signups, orders, messages. Adding stays fast no matter how long the list gets. Visitors append; in Submissions each visitor can see, change, and withdraw their own, and on a Shared board anyone signed in edits items. You can delete any entry, or empty the whole list, from your page or through your agent. A retried save with the same key is stored once for a signed-in writer.",
-     "example": "A language school's older enrolment form adds each application to an `applications` list that the office reviews every morning.",
-     "where": "Your page's own code saves to it.",
-     "limits": "Up to 64 KB per entry (each new entry is at most 16 KB in declared Submissions, and a declared Submissions name holds at most 10,000 live entries). Entries in a public list cannot be edited. Entries added without the owner's key are limited to 30 a minute per address.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "Enterprise keeps per-site saved state as its only older data store; collections were never built there.",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [
-      "collections-existing-sites-only"
-     ],
-     "evidence": "FEATURES.md \u00a75 (64 KB per item, append rate SAVED_DATA_APPEND_PER_MIN 30, Idempotency-Key) and Kinds (16 KB, 10,000 live); current page collection-append and the 'Site data: collections' lede; PARITY row 'Collections and private collections'.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "collection-read",
-     "name": "Read the entries back on the page",
-     "line": "A page reads its own entries, newest first, so a sign-up list or a public wall can show what has come in.",
-     "who": "Anyone who wants the results visible rather than hidden behind a login.",
-     "how": "The page asks for the list and gets the newest entries first, a page at a time, with a cursor for the next page. Who sent each entry is left out of every read but the owner's.",
-     "example": "A running club's older results page lists the finishers members entered, newest first.",
-     "where": "Your page's own code. AI-built sites are told to include a second page for exactly this.",
-     "limits": "200 entries at a time maximum, 50 by default. Anything a page can read, a visitor can read.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a75 Limits row (page size 50 default / 200 max), withoutSubmitter; current page collection-read.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "collection-inventory",
-     "name": "See what a site has collected",
-     "line": "Every list on a site, public or private, with its entry count, when the last one arrived, and a table of the entries themselves.",
-     "who": "You, checking whether anyone actually filled the form in, or cleaning up after spam.",
-     "how": "Each list shows a public or private badge, View items, a spreadsheet, and a More menu with the privacy switch, Settings, History, and Recently deleted. You can delete any entry (spam in a comment list, a test entry), correct an entry in a private list, or clear a whole list after typing its name. The owner's view adds a sent by column. Your agent can do the same.",
-     "example": "A dentist checks the older appointment-request list on Monday, deletes two spam entries, and corrects a typo in a patient's phone number.",
-     "where": "Lists beneath the site on your sites page. Your agent can do the same.",
-     "limits": "Shows the 50 most recent entries in the table view. A deleted entry stays in Recently deleted for **30 days**, then is gone for good. Entries in a public list can be deleted but not edited.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a75 Pages row (owner app list view, badges, More menu, sent by column) and deletion rules; current page collection-inventory.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "collection-csv",
-     "name": "Download everything as a spreadsheet",
-     "line": "One button gives you the whole collection as a CSV file you can open in any spreadsheet.",
-     "who": "Anyone who has to actually use the entries: a sign-up list to check off, a mailing list to import.",
-     "how": "Press Download spreadsheet next to the list and a CSV of every live entry arrives. The owner's export adds a last column with who sent each entry. Cells that look like formulas are made safe for spreadsheet programs.",
-     "example": "A conference organiser downloads the older speaker-application list and sorts it by track in a spreadsheet.",
-     "where": "Download spreadsheet next to the list on your sites page.",
-     "limits": "A snapshot at the moment you press it. No filtering or date range; you get the whole list.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a75 (export.csv owner route, CSV sent_by column, formula-safe); current page collection-csv.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "collection-private",
-     "name": "Private collections",
-     "line": "A collection can be made private: only signed-in visitors submit, you read them all, and each visitor sees and changes only their own.",
-     "who": "Anyone collecting personal details: orders, RSVPs, sign-ups.",
-     "how": "Only signed-in visitors can submit, from the site's own address, never by API key. Each entry is stamped with the visitor's verified email and the time. You read them all and may edit them; each visitor sees, changes, and withdraws only their own. A list made public again keeps its submitters' emails private: who sent what is shown to the owner alone.",
-     "example": "A physiotherapist's older intake form stores each patient's details in a private collection that only she reads.",
-     "where": "Make private next to the list on your sites page, or choose Submissions under the list's Settings, or ask your agent. Visitors submit on the site's own address; you read the entries on your sites page, on an owner page on the site, or as a CSV.",
-     "limits": "Making a private collection public again shows everything already in it, so the page and your agent ask first. The site needs an address of its own.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Visitor sign-in",
-       "href": "/auth.md"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a75 (private: signed-in, same-origin, never by API key, _submitted_by/_submitted_at, owner edits, withoutSubmitter, custom_domain_required, confirm_public); current page collection-private; PARITY row 'Collections and private collections'.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "data-kinds",
-     "name": "Four kinds of saved data",
-     "line": "Each data name is one kind, and the kind decides who reads and who changes what: Page info, Submissions, Personal, or Shared board.",
-     "who": "Anyone building a form, a menu, a habit tracker, or a group list without writing access rules.",
-     "how": "Page info: you write, everyone reads. Submissions: visitors send; private to you by default, and public only without who sent them; each visitor lists, changes, and withdraws their own, and brings back what they withdrew for 10 minutes; a name can take one entry per person. Personal: one private record per signed-in visitor that follows them to any device; only that visitor reads or writes it, and you see how many people have a record and the total size from 3 people up. Shared board: a list a group edits item by item with a version check, and only you empty it. A name nobody declared is Shared, as before: anyone reads it and signed-in visitors save to it.",
-     "example": "A music teacher's older site keeps the term dates as Page info, lesson requests as Submissions, and each student's practice log as a Personal record.",
-     "where": "Your AI app declares each name when it builds the site; you see and change the kind under Settings next to each name on your sites page.",
-     "limits": "A Page info document is at most 1 MB, and a site declares at most 20 Page info names. Each new entry is at most 16 KB, a name holds at most 10,000 live entries, and a site declares at most 50 Submissions names. A personal record is at most 64 KB, and a name holds records for at most 1,000 people. A board item is at most 16 KB, and a board holds at most 2,000 live items. A site declares at most 20 Personal names, and declares at most 20 Shared board names. All but Page info need the site on an address of its own. A site's own pages can read a visitor's Personal record, so it is as private as the site's pages are trustworthy.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Deploy skill",
-       "href": "/skills/website-deploy/SKILL.md"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a75 Kinds and Personal/Shared board subsections (limits: 1 MB, 20 names, 16 KB, 10,000, 50 names, 64 KB, 1,000 people, 2,000 items, 20 names each, 10-minute undo, few under 3 people); current page data-kinds; PARITY row 'Saved-data kinds and who may save'.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "who-may-save",
-     "name": "Who may save here, and Block",
-     "line": "Choose whether anyone who signs in may save on a site, or only listed emails and whole domains, and block one person with a click.",
-     "who": "Anyone whose form is for a club, a class, or a company, and anyone dealing with a troublemaker.",
-     "how": "A site setting that covers every visitor write on the site: page data, lists, and Submissions. Anyone who signs in may save (the default), or only listed emails and whole `@domains`. Either way a block list applies, filled from Block next to any entry. A block and the one-per-person rule match the person's address with a `+tag` dropped, and Block by entry uses only the address the server stamped.",
-     "example": "A company's older internal survey site lists `@acme.example` so only staff can save, and the owner blocks a leaver's address.",
-     "where": "Who may save here under the site's data on your sites page, and Block next to an entry. Your AI app can do both.",
-     "limits": "There are at most 500 emails and domains in total. You always may save. A blocked person can still withdraw what they already sent.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [
-      "who-may-save"
-     ],
-     "evidence": "FEATURES.md \u00a75 Kinds subsection ('Who may save here', not_allowed_to_save, +tag); 500 from host/handler/limitstext.go (SAVED_DATA_SAVERS_MAX); current page who-may-save; PARITY row 'Saved-data kinds and who may save'.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "submission-emails",
-     "name": "Email me when something arrives",
-     "line": "New Submissions can email you once a day, soon after each arrives, or not at all, and every email has a link that stops them.",
-     "who": "Anyone taking orders, RSVPs, or sign-ups who will not check the page every day.",
-     "how": "Once a day is the default for private Submissions and off is the default for public ones. The email goes to the site owner's address with a stop link that opens a confirmation page. Each email is sent once even across servers, and an entry saved while a digest was being sent goes into the next one.",
-     "example": "A florist with an older order form gets one email each morning saying how many orders came in overnight.",
-     "where": "Email me under the name's Settings on your sites page, or ask your AI app.",
-     "limits": "Soon after they arrive means at most one email per name every 10 minutes, counting what came in. The email carries counts and the list's name, not the entries. A failed send is not retried.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "docs": [
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Notifications",
-       "href": "/docs/guides/notifications/"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a75 Kinds subsection ('Email on new submissions', notify daily/off/each, SAVED_DATA_NOTIFY_EACH_MINUTES 10, Resend, stop link, claimed once); current page submission-emails.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
-    },
-    {
-     "id": "data-history",
-     "name": "History, Restore, and Delete for good",
-     "line": "Every change to saved data is kept for 30 days with who made it, so you can undo one change, put a document back, or restore entries.",
-     "who": "Anyone whose page data was overwritten, or who deleted the wrong entry.",
-     "how": "Every write to the shared document and every edit, delete, clear, and restore in a list is recorded with who made it (their account and the address they signed in with) and when. Open History to see the document before any change, undo one change, or restore a version; a restore is itself a change. Open Recently deleted to bring back entries one by one or all at once. On a Shared board, Restore all names a window from 15 minutes to 30 days so it brings back what went since then, never what people deleted on purpose before. Delete forever removes an entry and its history at once, for a person who asks to be erased or a flood of spam, and Clear history removes every earlier version of a site's data after you type the site's name. Each visitor also has a 30-day history of their own Personal record.",
-     "example": "A bakery's older menu document is overwritten by mistake; the owner opens History, views Friday's version, and restores it.",
-     "where": "History and Recently deleted under the site's data on your sites page, or ask your AI app.",
-     "limits": "Every change is kept for 30 days: the owner restores any of it. A deleted entry stays in Recently deleted for **30 days**, then is gone for good. Past 20 MB of history per site, the oldest versions are thinned, always keeping each day's first full copy and the record of who deleted what. Live entries are never touched by Delete forever, and Recently deleted does not count toward the site's cap.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "partial",
-      "smallbox": "yes"
-     },
-     "editions_note": "Enterprise keeps the last 20 writes of a site's saved document and the owner or team restores one; there is no Recently deleted for lists.",
-     "docs": [
-      {
-       "label": "FEATURES.md: saved state",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#4-saved-state-shared-json-per-site-deprecated-existing-sites-only"
-      },
-      {
-       "label": "FEATURES.md: collections",
-       "href": "https://github.com/vineetu/simple-host/blob/main/docs/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/storage/"
-      }
-     ],
-     "covers": [
-      "data-history"
-     ],
-     "evidence": "FEATURES.md \u00a74 'History and undo' paragraph (30 days, who, diff with daily full copy, 20 MB thinning, clear history typed confirm) and \u00a75 Recently deleted/delete forever and board Restore all window; current page data-history; PARITY rows 'Saved-state history and restore' and 'Who wrote saved data'.",
-     "status": "deprecated",
-     "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
     }
    ]
   },
@@ -2777,7 +2289,7 @@
      "how": "With company sign-in set up, the operator turns emailed codes off. The email box and its \"or\" divider disappear from every sign-in card: the dashboard, the connector, team-site visitors, and changing a sign-in email. Anyone who tries the old way is told that email sign-in is off on this server and to sign in with their company account.",
      "example": "A company's internal Simple Host keeps every sign-in on its own identity provider, so leavers lose access the moment IT disables their account.",
      "where": "A setting on a self-hosted install; nothing to do on the screen.",
-     "limits": "Refused unless company sign-in is configured, since nothing else could sign anyone in. It only turns off the sign-in codes; the install can still send other email, such as Submissions digests, when outgoing email is set up.",
+     "limits": "Refused unless company sign-in is configured, since nothing else could sign anyone in. It only turns off the sign-in codes; the install can still send other email when outgoing email is set up.",
      "editions": {
       "host": "no",
       "enterprise": "no",
@@ -3116,18 +2628,18 @@
     {
      "id": "notify-emails",
      "name": "The emails Simple Host sends you",
-     "line": "Sign-in codes and alerts, email-change notices, a failing domain, idle-site warnings, Submissions digests, and one suspension notice.",
+     "line": "Sign-in codes and alerts, email-change notices, a failing domain, idle-site warnings, and one suspension notice.",
      "who": "Every account owner; this is the full list of what arrives in your inbox from Simple Host.",
-     "how": "Simple Host emails you for a fixed set of reasons: the six-digit code when you sign in; the code to a new sign-in address and the notice to the old one when you change it; one short alert after each sign-in or app connection (switchable); a confirmation when you delete your account; a notice when a custom domain has been failing for a day; a warning before an idle site is removed and a notice when it is; a digest of new Submissions when you have asked for one (daily, or soon after each arrives, at most one email per name every 10 minutes); and one email if a notification receiver is suspended after sustained failure.",
+     "how": "Simple Host emails you for a fixed set of reasons: the six-digit code when you sign in; the code to a new sign-in address and the notice to the old one when you change it; one short alert after each sign-in or app connection (switchable); a confirmation when you delete your account; a notice when a custom domain has been failing for a day; a warning before an idle site is removed and a notice when it is; and one email if a notification receiver is suspended after sustained failure.",
      "example": "A bakery owner gets a daily digest of the day's order-form entries and a one-off notice when their domain's DNS record was removed by mistake.",
-     "where": "Your inbox. Sign-in alerts are switched under Sign-in on your sites page; Submissions digests under Email me on the list; idle-site notices can be answered by reply.",
+     "where": "Your inbox. Sign-in alerts are switched under Sign-in on your sites page; idle-site notices can be answered by reply.",
      "limits": "One-time links in these emails carry their token after a `#`, so it never reaches a server log. Sign-in alerts arrive at most once per browser or app a day and never for API key calls. Idle-site notices reply to support@simple-host.app. There are no marketing emails on this list.",
      "editions": {
       "host": "yes",
       "enterprise": "partial",
       "smallbox": "yes"
      },
-     "editions_note": "Idle-site warnings and Submissions digests belong to Simple Host sites. Enterprise sends no sign-in emails, since the company's identity provider signs people in. A small box needs outgoing email set up.",
+     "editions_note": "Idle-site warnings belong to Simple Host sites. Enterprise sends no sign-in emails, since the company's identity provider signs people in. A small box needs outgoing email set up.",
      "status": "live",
      "status_note": "",
      "docs": [
@@ -3534,7 +3046,7 @@
      "how": "The connector has 58 website tools. Apps other than ChatGPT, OpenAI, and Codex are shown a core of 21 (19 building tools plus `find_tools` and `run_tool`); the agent asks `find_tools` for a job and calls what it returns through `run_tool`, and every tool still answers when called by name. ChatGPT, OpenAI, and Codex list every operation individually. `read_site_file` reads up to 10 files in one call and `update_site` can make a small find-and-replace edit without resending the whole file. The server's standing instructions stay under 2,000 characters in every edition.",
      "example": "A clinic's agent asks for \"who visited last week\", finds `site_analytics` in one step, and runs it without the person naming the tool.",
      "where": "Ask your AI app; the full list is on the API page.",
-     "limits": "A call with an argument the tool does not take gets the current schema back and asks you to refresh Simple Host in your app (ChatGPT keeps a connector's tool list from the day it was added). The 19 older saved-data tools removed on 10 October 2026 answer \"no longer offered\"; their pages keep working. There is no tool for changing your email, rotating your key, signing out everywhere, or deleting your account, by design; `who_am_i` is the only account tool and it reads only.",
+     "limits": "A call with an argument the tool does not take gets the current schema back and asks you to refresh Simple Host in your app (ChatGPT keeps a connector's tool list from the day it was added). There is no tool for changing your email, rotating your key, signing out everywhere, or deleting your account, by design; `who_am_i` is the only account tool and it reads only.",
      "editions": {
       "host": "yes",
       "enterprise": "yes",
@@ -3790,7 +3302,7 @@
      "how": "Open Docs, choose a task guide, or search. Open API reference for the routes and schemas.",
      "example": "A startup wires its own build pipeline to publish a release notes site from CI using the reference and a deploy-only key.",
      "where": "/docs/ on this install; /docs/api/ for the API reference.",
-     "limits": "A few internal and download addresses are not listed there. Older saved-data endpoints that existing sites still use keep working but are no longer listed.",
+     "limits": "A few internal and download addresses are not listed there.",
      "editions": {
       "host": "yes",
       "enterprise": "yes",
@@ -4972,7 +4484,7 @@
      "name": "Size caps, blocked files, and reserved names",
      "line": "Plain limits on what a site, a file, or an account can hold, with a stable error code when one is hit.",
      "who": "Anyone publishing a large site or storing data, and anyone picking a name.",
-     "how": "A site archive is capped at 100 MB; a few accounts have a higher cap by arrangement. A site's live saved data may grow to 50 MB; past that, only growth is refused, with the code `site_full`. Shared state is 1 MB, a list item 64 KB, and one update may carry at most 100 operations. An account may hold **100 sites**. Uploads of blocked file types are refused. Handles and subdomain names that would collide with the service's own addresses are reserved, `report` among them. Every page carries the standard security headers, and the service's own pages run under a strict content security policy.",
+     "how": "A site archive is capped at 100 MB; a few accounts have a higher cap by arrangement. An account may hold **100 sites**. Uploads of blocked file types are refused. Handles and subdomain names that would collide with the service's own addresses are reserved, `report` among them. Every page carries the standard security headers, and the service's own pages run under a strict content security policy.",
      "example": "A photographer's portfolio comes in at 160 MB; the error names the 100 MB cap, so they resize the images or use the photo flow, which stores small copies.",
      "where": "The error message names the cap in force; the API reference lists them.",
      "limits": "Caps are stated where they apply, and the served text follows the value in force on that server. The owner of a copy can raise or lower each one.",

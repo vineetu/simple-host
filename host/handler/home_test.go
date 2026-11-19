@@ -85,16 +85,20 @@ func TestHomeSettingServingAndIsolation(t *testing.T) {
 	}
 	vic := a.newPerson(t, "homevisitor")
 	cookie := a.session(t, vic, id, host)
-	patch := map[string]any{"ops": []map[string]any{{"op": "set", "path": "hello", "value": 1}}}
-	if r := a.at(t, "PATCH", host, "/v1/sites/home/state", patch, browser(host, cookie)); r.status != 200 {
-		t.Fatalf("save: %d %s", r.status, r.body)
+	// Storage resources save on the home origin with the visitor cookie.
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/storage/resources/form", map[string]any{"kind": "kv", "read": "anyone", "write": "signed-in"}, headers); r.status != 201 {
+		t.Fatalf("resource: %d %s", r.status, r.body)
 	}
-	for _, p := range []string{"/v1/sites/blog/state", "/v1/u/" + oh + "/sites/foreign/state"} {
+	save := "/v1/sites/home/storage/kv/form/keys/message"
+	if r := a.at(t, "PUT", host, save, map[string]any{"value": "saved on home"}, browser(host, cookie)); r.status != 200 {
+		t.Fatalf("storage save: %d %s", r.status, r.body)
+	}
+	for _, p := range []string{"/v1/sites/blog/me", "/v1/u/" + oh + "/sites/foreign/me"} {
 		if r := a.at(t, "GET", host, p, nil, browser(host, cookie)); r.status == 200 {
 			t.Fatalf("unscoped: %s", p)
 		}
 	}
-	if r := a.at(t, "GET", pcSiteDomain, "/v1/u/"+handle+"/sites/blog/state", nil, map[string]string{"Origin": "https://" + host}); r.status == 200 {
+	if r := a.at(t, "GET", pcSiteDomain, "/v1/u/"+handle+"/sites/blog/me", nil, map[string]string{"Origin": "https://" + host}); r.status == 200 {
 		t.Fatal("home origin reads blog on apex")
 	}
 	if r := a.at(t, "GET", host, "/v1/me", nil, browser(host, cookie)); r.status != 401 {
@@ -108,15 +112,8 @@ func TestHomeSettingServingAndIsolation(t *testing.T) {
 		}
 	}
 	otherCookie := a.session(t, vic, id, "home."+host)
-	if r := a.at(t, "PATCH", host, "/v1/sites/home/state", patch, browser(host, otherCookie)); r.status == 200 {
+	if r := a.at(t, "PUT", host, save, map[string]any{"value": "other"}, browser(host, otherCookie)); r.status/100 == 2 {
 		t.Fatal("site session accepted on home")
-	}
-	// Current storage resources save on the home origin with the same visitor cookie.
-	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/storage/resources/form", map[string]any{"kind": "kv", "read": "anyone", "write": "signed-in"}, headers); r.status != 201 {
-		t.Fatalf("resource: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PUT", host, "/v1/sites/home/storage/kv/form/keys/message", map[string]any{"value": "saved on home"}, browser(host, cookie)); r.status != 200 {
-		t.Fatalf("storage save: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "GET", host, "/v1/sites/home/storage/kv/form/keys/message", nil, browser(host, cookie)); r.status != 200 || r.json(t)["value"] != "saved on home" {
 		t.Fatalf("storage read: %d %s", r.status, r.body)
@@ -216,6 +213,9 @@ func TestHomeBaseAndPasscode(t *testing.T) {
 		t.Fatal(err)
 	}
 	headers := map[string]string{"X-API-Key": owner.key}
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/storage/resources/notes", map[string]string{"kind": "kv", "preset": "public"}, headers); r.status/100 != 2 {
+		t.Fatalf("storage resource: %d %s", r.status, r.body)
+	}
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/lock", map[string]any{"passcode": "123456"}, headers); r.status != 200 {
 		t.Fatalf("lock: %d %s", r.status, r.body)
 	}
@@ -225,7 +225,7 @@ func TestHomeBaseAndPasscode(t *testing.T) {
 		if r := a.at(t, "GET", host, "/", nil, nil); r.status != 401 {
 			t.Fatalf("gate on %s: %d", host, r.status)
 		}
-		if r := a.at(t, "GET", host, "/v1/sites/home/state", nil, browser(host, "")); r.status != 403 {
+		if r := a.at(t, "GET", host, "/v1/sites/home/storage/kv/notes/keys", nil, browser(host, "")); r.status != 403 {
 			t.Fatalf("data gate: %d", r.status)
 		}
 		if firstCookie != "" {

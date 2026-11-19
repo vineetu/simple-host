@@ -21,7 +21,7 @@ func FromPolicies(routes RoutePolicy, presentation PresentationPolicy, identity 
 
 // Default constructs the platform's policy with the supplied operational limits.
 func Default(limits config.Limits) *Edition {
-	return FromPolicies(RoutePolicy{}, PresentationPolicy{ProductName: "Simple Host"}, IdentityPolicy{PersonalSites: true}, StoragePolicy{Photos: true, LegacyRoutes: true, FileCaps: true}, NotificationPolicy{}, limits)
+	return FromPolicies(RoutePolicy{}, PresentationPolicy{ProductName: "Simple Host"}, IdentityPolicy{PersonalSites: true}, StoragePolicy{Photos: true, FileCaps: true}, NotificationPolicy{}, limits)
 }
 
 // Limits returns the instance's operational limits as a value copy.

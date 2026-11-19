@@ -74,7 +74,6 @@ metadata:
     helm.sh/chart: simple-hack-0.9.0
 data:
   STORAGE_RULES: "off"
-  STORAGE_SWITCH_AT: ""
   SITE_STORAGE_SITE_INFLIGHT: "1"
   # The platform: the hackathon product on this hostname.
   SITE_DOMAIN: "hack.example.com"
@@ -83,7 +82,6 @@ data:
   PERSON_HOSTS: canonical
   SITE_HOSTS: canonical
   TEAM_SITE_FLAT_HOSTS: "false"
-  WRITE_AUTH_MODE: "on"
   # Where it listens and keeps files. /data is the persistent volume.
   PORT: "8090"
   DATA_DIR: /data/sites

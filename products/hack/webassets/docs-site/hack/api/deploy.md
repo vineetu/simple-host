@@ -165,9 +165,9 @@ No authentication required.
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | Sign-in ended, or deploy scope or team rules refused the upload |
 | 404 | Unknown, used or expired link |
-| 409 | Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object) |
+| 409 | Conflict: the code says which (site_exists, domain_taken, custom_domain_required) |
 | 413 | The request or deployment exceeds its applicable size limit. |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## PUT /v1/uploads/{token}
 
@@ -195,6 +195,6 @@ No authentication required.
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 403 | Sign-in ended, or deploy scope or team rules refused the upload |
 | 404 | Unknown, used or expired link |
-| 409 | Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object) |
+| 409 | Conflict: the code says which (site_exists, domain_taken, custom_domain_required) |
 | 413 | The request or deployment exceeds its applicable size limit. |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |

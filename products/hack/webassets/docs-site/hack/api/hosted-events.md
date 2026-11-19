@@ -436,7 +436,7 @@ Includes account_name (string), the signed-in account name or an empty string wh
 | --- | --- |
 | 200 | Apply page fields: slug, title, tagline, icon_url, color, organiser_name, organisation, stage, starts_at, ends_at, time_zone, event_url, applications_open, closed_reason, fields |
 | 404 | event_not_found |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/hack/events/{slug}/apply
 
@@ -473,7 +473,7 @@ D1: every application is pending until an organiser decides it, whatever approva
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 404 | event_not_found |
 | 409 | joining_closed, applications_closed, already_member, too_many_pending or event_applications_full |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/hack/events/{slug}/assignments
 
@@ -1279,7 +1279,7 @@ Organiser member only. The link downloads the complete archive without an API ke
 
 <div data-operation="GET /v1/hack/events/{slug}/export/projects.tar.gz"></div>
 
-Organiser only. Current published files and saved data, including private collections, for this event's teams only; one team-slug directory per project. Does not include deleted sites or other events.
+Organiser only. Current published files and saved data, for this event's teams only; one team-slug directory per project. Does not include deleted sites or other events.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -1786,7 +1786,7 @@ Makes this participant's key for their team's site and shows the plaintext once.
 | 403 | event_taken_down |
 | 404 | event_not_found |
 | 409 | no_team (join or start a team first) or event_closed (the event has ended) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## DELETE /v1/hack/events/{slug}/key
 
@@ -1866,7 +1866,7 @@ One route, self only; the server decides the case under a lock on the event row,
 | 403 | event_taken_down |
 | 404 | event_not_found |
 | 409 | leave_needs_confirm, event_closed, successor_required, invalid_successor, last_organiser, archive_needs_participants or leave_state_changed |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## PUT /v1/hack/events/{slug}/me/looking
 
@@ -2627,7 +2627,7 @@ Sends one message to each of 1 to 25 distinct team_ids of this event, in app and
 
 <div data-operation="GET /v1/hack/events/{slug}/team/export.tar.gz"></div>
 
-Participant personal account only. Exports only their current team's current published files and saved data, including private collections. Does not accept another team selector. Returns 404 no_project if no live project exists.
+Participant personal account only. Exports only their current team's current published files and saved data. Does not accept another team selector. Returns 404 no_project if no live project exists.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -3026,7 +3026,7 @@ code accepts either the bare team code or the whole team link (https://&lt;hack 
 | 403 | event_taken_down |
 | 404 | team_not_found or event_not_found |
 | 409 | team_full, already_in_team, team_locked, teams_locked or submissions_closed |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/hack/events/{slug}/teams/leave
 
@@ -3793,7 +3793,7 @@ Includes account_name (string): the signed-in account name, or an empty string w
 | 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 404 | invalid_code |
 | 410 | event_taken_down |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/hack/join/{code}
 
@@ -3827,7 +3827,7 @@ A new participant supplies answers keyed by question id. An event requiring appr
 | 403 | event_taken_down |
 | 404 | invalid_code |
 | 409 | already_member or joining_closed |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/hack/judge/{code}
 
@@ -3849,7 +3849,7 @@ Includes account_name (string): the signed-in account name, or an empty string w
 | 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 404 | invalid_code |
 | 410 | event_taken_down |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/hack/judge/{code}
 
@@ -3882,7 +3882,7 @@ Join as a judge (EVENTS=hosted only)
 | 403 | event_taken_down |
 | 404 | invalid_code |
 | 409 | already_member or judging_closed |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/hack/my-teams
 
@@ -3921,7 +3921,7 @@ Is this event name available (EVENTS=hosted only)
 | 200 | {available, code?, error?, address} |
 | 400 | Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json. |
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 | 503 | name_check_unavailable |
 
 ## GET /v1/hack/navigation
@@ -3959,7 +3959,7 @@ Includes account_name (string), the signed-in account name or an empty string wh
 | 401 | Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel). |
 | 404 | event_not_found or invalid_code |
 | 410 | event_taken_down |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## POST /v1/hack/organiser/{code}
 
@@ -3992,7 +3992,7 @@ Signed-in personal account and code of conduct required. Joins with the existing
 | 403 | event_taken_down |
 | 404 | event_not_found or invalid_code |
 | 409 | already_member or event_closed |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/hack/preferences
 
@@ -4050,7 +4050,7 @@ Teams redesign, 2026-10-31. Public, signed in or out; same rate limiter as GET .
 | --- | --- |
 | 200 | {event: {slug, title, url, stage, applications_open}, team: {name, member_count, team_size_max, track}, joinable, reason, you} |
 | 404 | team_link_not_found |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/hack/todos
 

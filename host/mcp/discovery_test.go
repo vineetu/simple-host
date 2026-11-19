@@ -302,7 +302,6 @@ func TestRunToolDispatch(t *testing.T) {
 		{map[string]any{"name": "list_versions", "arguments": map[string]any{"site": "blog", "extra": true}}, "unexpected argument", true},
 		{map[string]any{"name": "list_versions"}, "site is required", true},
 		{map[string]any{"name": "list_versions", "arguments": map[string]any{"site": 12}}, "must be a string", true},
-		{map[string]any{"name": "get_state"}, "no longer offered", false},
 	} {
 		text, _, isErr := resultOf(t, send(t, s, toolCall("run_tool", tc.args), nil, true))
 		if !isErr || !strings.Contains(text, tc.want) {

@@ -1,12 +1,8 @@
 package httpx
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
@@ -37,8 +33,6 @@ type ErrorResponse struct {
 	// concrete next step (e.g. a site that does not exist: how to create it,
 	// or where to list the sites there are).
 	Hint string `json:"hint,omitempty"`
-	// Storage is the storage-resources path on code legacy_storage_closed.
-	Storage string `json:"storage,omitempty"`
 }
 
 // WriteJSON encodes v as status.
@@ -70,27 +64,4 @@ func WriteError(w http.ResponseWriter, status int, code, msg string) {
 // WriteInternal answers 500 with the generic internal-error body.
 func WriteInternal(w http.ResponseWriter) {
 	WriteJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
-}
-
-// WriteJSONETag answers v with a weak ETag of its bytes, and 304 when the
-// request's If-None-Match already names it (pages poll a board or a record
-// cheaply with it).
-func WriteJSONETag(w http.ResponseWriter, r *http.Request, v any) {
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(v); err != nil {
-		WriteInternal(w)
-		return
-	}
-	sum := sha256.Sum256(buf.Bytes())
-	etag := `W/"` + hex.EncodeToString(sum[:12]) + `"`
-	w.Header().Set("ETag", etag)
-	for _, t := range strings.Split(r.Header.Get("If-None-Match"), ",") {
-		if t = strings.TrimSpace(t); t == etag || t == "*" || "W/"+t == etag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(buf.Bytes())
 }

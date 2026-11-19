@@ -3,7 +3,6 @@ package sites
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -54,10 +53,9 @@ func putBytes(put archivePut, name string, b []byte) error {
 	return put(name, time.Now(), int64(len(b)), bytes.NewReader(b))
 }
 
-// writeSiteArchive writes one site under prefix: state.json (saved data),
-// collections.json (every list, private ones included, each entry with its
-// id, time and submitter), and files/ (the version in current, the site's
-// live folder or, for a site in Recently deleted, the one waiting in trash).
+// writeSiteArchive writes one site under prefix: storage/ (the site's saved
+// data) and files/ (the version in current, the site's live folder or, for a
+// site in Recently deleted, the one waiting in trash).
 func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID string, files storage.FileVersion) error {
 	ownerID, siteName, err := repo.ExportOwner(ctx, s.database, siteID)
 	if err != nil {
@@ -65,23 +63,6 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 	}
 	unlock := s.deps.LockSite(ownerID, siteName)
 	defer unlock()
-	// The saved data first, because it is the part nothing else preserves: the
-	// files exist in whatever the person built from, the JSON only lives here.
-	state := "null"
-	if raw, _, err := repo.GetSiteStateByID(ctx, s.database, siteID); err == nil && len(raw) > 0 {
-		state = string(raw)
-	}
-	if err := putBytes(put, prefix+"/state.json", []byte(state)); err != nil {
-		return err
-	}
-	if items, err := exportCollections(ctx, s.database, siteID); err == nil && len(items) > 0 {
-		if b, err := json.MarshalIndent(items, "", "  "); err == nil {
-			if err := putBytes(put, prefix+"/collections.json", b); err != nil {
-				return err
-			}
-		}
-	}
-
 	// Runtime resources remain local; deploy contents never use this path.
 	runtimeDir := s.disk.SiteDir(files.UserID, files.SiteName)
 	if files.TrashID != "" {
@@ -234,29 +215,6 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 		defer f.Close()
 		return put(prefix+"/storage/runtime/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)
 	})
-}
-
-// exportItem is one list entry in collections.json: its id, when it was
-// saved, who sent it (when they were signed in) and what the page saved.
-type exportItem struct {
-	ID          int64           `json:"id"`
-	CreatedAt   time.Time       `json:"created_at"`
-	SubmittedBy string          `json:"submitted_by,omitempty"`
-	Data        json.RawMessage `json:"data"`
-}
-
-func exportCollections(ctx context.Context, database *sql.DB, siteID string) (map[string][]exportItem, error) {
-	items, err := repo.ListExportItems(ctx, database, siteID)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string][]exportItem{}
-	for _, it := range items {
-		out[it.Collection] = append(out[it.Collection], exportItem{
-			ID: it.ID, CreatedAt: it.CreatedAt.UTC(), SubmittedBy: it.SubmittedBy, Data: json.RawMessage(it.Data),
-		})
-	}
-	return out, nil
 }
 
 // PreviewSiteInput selects a complete version for a team preview.

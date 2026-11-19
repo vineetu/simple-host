@@ -77,7 +77,7 @@ Removes a version stored with publish=false that nobody has made live since: its
 | 403 | A deploy-only key (deploy_only_key), a team key (team_key_scope), or a site that is taken down (site_suspended) |
 | 404 | Site not found, or no such kept version (version_not_found, including an upload that never finished) |
 | 409 | The version is live (version_live: only a version that was never live can be discarded), or has been live before (version_published) |
-| 429 | Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST). |
+| 429 | Rate limited (code rate_limited). |
 
 ## GET /v1/sites/{sitename}/versions/{version}/files
 
@@ -132,7 +132,7 @@ Owner only. Streams raw bytes with a Content-Type based on the file extension (a
 
 <div data-operation="POST /v1/sites/{sitename}/versions/{version}/preview-link"></div>
 
-Owner only. Mints a link, working for anyone who has it for one hour, that shows one kept version (live, earlier, or stored with publish=false) exactly as visitors would see it, on the site's own host: https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/__preview/&lt;n&gt;/&lt;token&gt;/ (or briefly, as a fallback while the person's certificate is not ready, &lt;handle&gt;.simple-host.app/&lt;site&gt;/__preview/...). The token is an HMAC over site, version and expiry; it stops working after an hour or a server restart. Preview pages are noindex and never cached, and saves made from them are refused (403 preview_read_only; told apart by the Referer, so a page that suppresses its Referer is not stopped: this guards against accidents, and the pages are the owner's own). Make the version live with PUT .../active-version.
+Owner only. Mints a link, working for anyone who has it for one hour, that shows one kept version (live, earlier, or stored with publish=false) exactly as visitors would see it, on the site's own host: https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/__preview/&lt;n&gt;/&lt;token&gt;/ (or briefly, as a fallback while the person's certificate is not ready, &lt;handle&gt;.simple-host.app/&lt;site&gt;/__preview/...). The token is an HMAC over site, version and expiry; it stops working after an hour or a server restart. Preview pages are noindex and never cached. Make the version live with PUT .../active-version.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 

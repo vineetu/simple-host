@@ -307,19 +307,6 @@ func TestAdminSiteActionsActAsOwner(t *testing.T) {
 	if active != 1 {
 		t.Fatalf("active version %d", active)
 	}
-	if r := a.at(t, "GET", signupApex, "/v1/admin/sites/"+shop+"/collections", nil, admin); r.status != 200 || !strings.Contains(string(r.body), `"collections"`) {
-		t.Fatalf("collections: %d %s", r.status, r.body)
-	}
-	// A list's rows, by site id; oscar has a same-named list elsewhere.
-	if r := a.at(t, "POST", signupApex, "/v1/sites/shop/collections/signups", map[string]string{"who": "olive-row"}, map[string]string{"X-API-Key": olive.key}); r.status != 201 && r.status != 200 {
-		t.Fatalf("append: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", signupApex, "/v1/admin/sites/"+shop+"/collections/signups?limit=50", nil, admin); r.status != 200 || !strings.Contains(string(r.body), "olive-row") {
-		t.Fatalf("rows: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", signupApex, "/v1/admin/sites/"+shop+"/collections/signups", nil, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
-		t.Fatalf("rows as non-admin: %d", r.status)
-	}
 	// The id rides along: a lookup by owner and name that lands on another
 	// site (a rename or a new site under the old name meanwhile) is refused.
 	oliveID, _ := a.userID(t, olive)

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/vsriram/simple-host/host/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,18 +14,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/host/config"
+
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/app/operations"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	legacyrepo "github.com/vsriram/simple-host/host/repository/legacy"
 	operationsrepo "github.com/vsriram/simple-host/host/repository/operations"
 	"github.com/vsriram/simple-host/host/storage"
 )
 
-// Private collections and claimed <name>.<SITE_DOMAIN> addresses, end to end
+// Claimed <name>.<SITE_DOMAIN> addresses and visitor sessions, end to end
 // over HTTP against the real router (BoundSubdomains + LegacyHostRedirect in
 // front, as cmd/server/main.go wires it). Needs DB_DSN (host/db/schema.sql applied).
 
@@ -83,7 +83,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 		t.Fatal(err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
+	adminID, err := accountsrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	users := NewUserHandler(database, accountapp.New(database), mailer, base, ed)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.users = users
-	a.sites = NewSiteHandler(ed, "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites = NewSiteHandler(ed, "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
 	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
 	a.sites.SetOperationsReporting(operations.NewReporting(database))
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
@@ -107,7 +107,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	users.SetFileUsage(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
-	gated := a.sites.LegacyStorageCutoffGate(mux)
+	gated := http.Handler(mux)
 	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated, false, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
@@ -220,423 +220,6 @@ func browser(host, cookie string, extra ...string) map[string]string {
 	return h
 }
 
-func itemsOf(t *testing.T, r resp) []map[string]any {
-	t.Helper()
-	var body struct {
-		Items []map[string]any `json:"items"`
-	}
-	if err := json.Unmarshal(r.body, &body); err != nil {
-		t.Fatalf("not a list (%d): %s", r.status, r.body)
-	}
-	return body.Items
-}
-
-func TestPrivateCollectionsEndToEnd(t *testing.T) {
-	a := newPrivateApp(t)
-	olive, vic, oscar := a.newPerson(t, "olive"), a.newPerson(t, "vic"), a.newPerson(t, "oscar")
-	// Oscar's "shop" is older: the legacy name lookup would pick it.
-	a.deploy(t, oscar, "shop")
-	a.deploy(t, olive, "shop")
-	a.deploy(t, olive, "plain")
-	_, oliveHandle := a.userID(t, olive)
-	_, oscarHandle := a.userID(t, oscar)
-	shopID := a.siteID(t, olive, "shop")
-	const dom = "olive-shop.simple-host.test"
-	const apex = "simple-host.test"
-	okey := map[string]string{"X-API-Key": olive.key}
-
-	// ---- setting private needs an own domain ---------------------------------
-	r := a.at(t, "PUT", apex, "/v1/sites/plain/collections/orders/privacy", map[string]bool{"private": true}, okey)
-	if r.status != http.StatusConflict || r.json(t)["code"] != "custom_domain_required" || !strings.Contains(r.json(t)["error"].(string), "private lists need the site on its own domain") {
-		t.Fatalf("private without domain: %d %s", r.status, r.body)
-	}
-	// A custom domain still pending DNS does not count.
-	if r := a.at(t, "POST", apex, "/v1/sites/plain/domain", map[string]string{"domain": "plain.example.test"}, okey); r.status != 200 {
-		t.Fatalf("bind pending: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PUT", apex, "/v1/sites/plain/collections/orders/privacy", map[string]bool{"private": true}, okey); r.status != http.StatusConflict {
-		t.Fatalf("private with pending domain: %d %s", r.status, r.body)
-	}
-	// The site list carries what the owner app shows for a pending domain
-	// (its DNS record and expiry) and when the site was last deployed.
-	var listed []map[string]any
-	if r := a.at(t, "GET", apex, "/v1/sites", nil, okey); r.status != 200 || json.Unmarshal([]byte(r.body), &listed) != nil || len(listed) != 2 {
-		t.Fatalf("list sites: %d %s", r.status, r.body)
-	}
-	for _, st := range listed {
-		switch st["name"] {
-		case "plain":
-			dns, _ := st["domain_dns"].(map[string]any)
-			if st["domain_status"] != "pending" || dns == nil || dns["type"] != "CNAME" || st["domain_expires_at"] == nil || st["deployed_at"] == nil {
-				t.Errorf("pending domain in list: %v", st)
-			}
-		case "shop":
-			if st["domain_dns"] != nil || st["deployed_at"] == nil {
-				t.Errorf("site without domain in list: %v", st)
-			}
-		}
-	}
-	// "Check again" re-proves it now: still pending, with the reason.
-	if r := a.at(t, "POST", apex, "/v1/sites/plain/domain/check", nil, okey); r.status != 200 || r.json(t)["status"] != "pending" || r.json(t)["last_error"] == nil {
-		t.Fatalf("check again: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain/check", nil, okey); r.status != 404 || r.json(t)["code"] != "no_domain" {
-		t.Fatalf("check with no domain: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", apex, "/v1/sites/plain/domain/check", nil, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
-		t.Fatalf("check someone else's site: %d %s", r.status, r.body)
-	}
-
-	// ---- claiming a free address ----------------------------------------------
-	for _, tc := range []struct{ domain, code string }{
-		{"www.simple-host.test", "name_reserved"},
-		{"sites.simple-host.test", "name_reserved"},
-		{"sf-fog.simple-host.test", "name_reserved"},
-		{"a.b.simple-host.test", "invalid_name"},
-		{"-bad.simple-host.test", "invalid_name"},
-	} {
-		if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": tc.domain}, okey); r.status != 400 || r.json(t)["code"] != tc.code {
-			t.Errorf("claim %s: %d %s", tc.domain, r.status, r.body)
-		}
-	}
-	r = a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": "https://Olive-Shop.simple-host.test/"}, okey)
-	if r.status != 200 || r.json(t)["status"] != "active" || r.json(t)["domain"] != dom || r.json(t)["dns"] != nil {
-		t.Fatalf("claim: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": dom}, map[string]string{"X-API-Key": oscar.key}); r.status != http.StatusConflict || r.json(t)["code"] != "domain_taken" {
-		t.Fatalf("second claim: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", apex, "/v1/sites/shop/domain", nil, okey); r.json(t)["status"] != "active" || r.json(t)["dns"] != nil {
-		t.Fatalf("domain status: %s", r.body)
-	}
-	// Oscar claims his own address for his "shop" (a different site, same name).
-	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": "oscar.simple-host.test"}, map[string]string{"X-API-Key": oscar.key}); r.status != 200 {
-		t.Fatalf("oscar claim: %d %s", r.status, r.body)
-	}
-
-	// ---- the claimed host serves the site like a custom domain -----------------
-	if r := a.at(t, "GET", dom, "/", nil, nil); r.status != 200 || string(r.body) != "<h1>shop</h1>" {
-		t.Fatalf("serve root: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", dom, "/sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Cache-Control") != publicPageCache {
-		t.Fatalf("dir without slash: %d", r.status)
-	}
-	if r := a.at(t, "GET", dom, "/sub/", nil, nil); r.status != 200 || string(r.body) != "sub" {
-		t.Fatalf("dir index: %d %s", r.status, r.body)
-	}
-	for _, p := range []string{"/../../etc/passwd", "/internal/tls-ask?domain=x.com", "/mcp", "/nope.html"} {
-		if r := a.at(t, "GET", dom, p, nil, nil); r.status != 404 {
-			t.Errorf("GET %s on claimed host: %d %s", p, r.status, r.body)
-		}
-	}
-	if r := a.at(t, "POST", dom, "/", nil, nil); r.status != http.StatusMethodNotAllowed {
-		t.Errorf("POST page: %d", r.status)
-	}
-	if r := a.at(t, "GET", "nobody-here.simple-host.test", "/x", nil, nil); r.status != http.StatusMovedPermanently {
-		t.Fatalf("unclaimed name keeps legacy redirect: %d", r.status)
-	}
-	// The shared-host URL now points at the address (marker written on claim).
-	if _, err := os.Stat(a.sites.disk.SiteDir(a.siteIDOwner(t, olive), "shop") + "/domain-redirect"); err != nil {
-		t.Errorf("domain-redirect marker: %v", err)
-	}
-
-	// ---- owner makes "orders" private ------------------------------------------
-	r = a.at(t, "PUT", apex, "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": true}, okey)
-	if r.status != 200 || r.json(t)["private"] != true || r.json(t)["domain"] != dom {
-		t.Fatalf("set private: %d %s", r.status, r.body)
-	}
-	// Other people cannot change it.
-	if r := a.at(t, "PUT", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/orders/privacy", map[string]bool{"private": false}, map[string]string{"X-API-Key": vic.key}); r.status == 200 {
-		t.Fatalf("stranger flipped privacy: %s", r.body)
-	}
-	if p, _ := legacyrepo.IsCollectionPrivate(context.Background(), a.database, shopID, "orders"); !p {
-		t.Fatal("privacy changed by a stranger")
-	}
-
-	orders := "/v1/sites/shop/collections/orders"
-	vicCookie := a.session(t, vic, shopID, dom)
-	ownerCookie := a.session(t, olive, shopID, dom)
-
-	// ---- submitting ---------------------------------------------------------------
-	if r := a.at(t, "POST", dom, orders, map[string]string{"name": "anon"}, browser(dom, "")); r.status != 401 || r.json(t)["code"] != "visitor_auth_required" {
-		t.Fatalf("anonymous submit: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", dom, orders, map[string]string{"name": "x"}, browser(dom, vicCookie, "X-SH-CSRF", "")); r.status != 403 || string(r.body) != "{\"code\":\"csrf_required\",\"error\":\"missing CSRF header\"}\n" {
-		t.Fatalf("no csrf: %d %s", r.status, r.body)
-	}
-	// A page on a sibling host (same-site to the browser) cannot ride the cookie.
-	for name, h := range map[string]map[string]string{
-		"shared-host page":    browser(dom, vicCookie, "Origin", "https://"+pcContentHost, "Sec-Fetch-Site", "same-site"),
-		"other subdomain":     browser(dom, vicCookie, "Origin", "https://oscar.simple-host.test", "Sec-Fetch-Site", "same-site"),
-		"no origin/referer":   browser(dom, vicCookie, "Origin", "", "Sec-Fetch-Site", ""),
-		"tossed plain cookie": {"Origin": "https://" + dom, "X-SH-CSRF": "1", "Cookie": visitorCookieHTTP + "=" + vicCookie},
-	} {
-		// 403 = the Origin gate refused first; 401 = no usable session.
-		if r := a.at(t, "POST", dom, orders, map[string]string{"name": "x"}, h); r.status != 401 && r.status != 403 {
-			t.Errorf("submit via %s: %d %s", name, r.status, r.body)
-		}
-	}
-	if r := a.at(t, "POST", dom, orders, map[string]string{"name": "k"}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + dom}); r.status != 403 || r.json(t)["code"] != "private_visitor_only" {
-		t.Fatalf("key submit on domain: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/orders", map[string]string{"name": "k"}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + pcContentHost}); r.status != 403 || r.json(t)["code"] != "private_visitor_only" {
-		t.Fatalf("key submit on apex: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", pcContentHost, "/v1/u/"+oliveHandle+"/sites/shop/collections/orders", map[string]string{"name": "s"}, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 401 || r.json(t)["code"] != "use_custom_domain" {
-		t.Fatalf("shared-host submit: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", dom, orders, `[1,2]`, browser(dom, vicCookie)); r.status != 400 {
-		t.Fatalf("array item: %d %s", r.status, r.body)
-	}
-	// The stamps cannot be forged.
-	r = a.at(t, "POST", dom, orders, map[string]string{"name": "Vic", "phone": "555", "_submitted_by": "ceo@example.com", "_submitted_at": "1999-01-01T00:00:00Z"}, browser(dom, vicCookie))
-	if r.status != 201 {
-		t.Fatalf("visitor submit: %d %s", r.status, r.body)
-	}
-	data := r.json(t)["data"].(map[string]any)
-	if data["_submitted_by"] != vic.email || data["_submitted_at"] == "1999-01-01T00:00:00Z" || data["name"] != "Vic" {
-		t.Fatalf("stamps: %v", data)
-	}
-	vicItem := int64(r.json(t)["id"].(float64))
-	var submitter string
-	_ = a.database.QueryRow(`SELECT submitted_by FROM collection_items WHERE id = $1`, vicItem).Scan(&submitter)
-	if vid, _ := a.userID(t, vic); submitter != vid {
-		t.Fatalf("submitted_by column: %q", submitter)
-	}
-	// Referer alone (a same-origin GET-style page) also counts as same origin.
-	if r := a.at(t, "POST", dom, orders, map[string]string{"name": "Spam"}, browser(dom, vicCookie, "Origin", "", "Referer", "https://"+dom+"/order.html")); r.status != 201 {
-		t.Fatalf("referer submit: %d %s", r.status, r.body)
-	}
-
-	// ---- reading: everyone but the owner gets 404 -----------------------------
-	for name, tc := range map[string]struct {
-		host, path string
-		h          map[string]string
-	}{
-		"anonymous on domain":       {dom, orders, browser(dom, "")},
-		"submitter on domain":       {dom, orders, browser(dom, vicCookie)},
-		"forged origin script":      {dom, orders, map[string]string{"Origin": "https://" + dom, "Referer": "https://" + dom + "/admin.html"}},
-		"owner cookie cross-origin": {dom, orders, browser(dom, ownerCookie, "Origin", "https://"+pcContentHost, "Sec-Fetch-Site", "same-site")},
-		"owner cookie plain name":   {dom, orders, map[string]string{"Origin": "https://" + dom, "Cookie": visitorCookieHTTP + "=" + ownerCookie}},
-		"shared host anonymous":     {pcContentHost, "/v1/u/" + oliveHandle + "/sites/shop/collections/orders", map[string]string{"Origin": "https://" + pcContentHost}},
-		"shared host owner key":     {pcContentHost, "/v1/u/" + oliveHandle + "/sites/shop/collections/orders", map[string]string{"X-API-Key": olive.key}},
-		"other site's host":         {"oscar.simple-host.test", "/v1/u/" + oliveHandle + "/sites/shop/collections/orders", browser("oscar.simple-host.test", a.session(t, oscar, a.siteID(t, oscar, "shop"), "oscar.simple-host.test"))},
-		"other user's session here": {dom, orders, browser(dom, a.session(t, oscar, shopID, dom))},
-		"apex with owner cookie":    {apex, "/v1/u/" + oliveHandle + "/sites/shop/collections/orders", browser(apex, ownerCookie)},
-		"invalid key":               {apex, "/v1/u/" + oliveHandle + "/sites/shop/collections/orders", map[string]string{"X-API-Key": "nope", "Origin": "https://" + dom}},
-	} {
-		r := a.at(t, "GET", tc.host, tc.path, nil, tc.h)
-		if r.status != 404 && r.status != 403 {
-			t.Errorf("%s: %d %s", name, r.status, r.body)
-		}
-		if strings.Contains(string(r.body), "555") || strings.Contains(string(r.body), vic.email) {
-			t.Errorf("%s leaked data: %s", name, r.body)
-		}
-	}
-	// Another account's key reads its OWN same-named site, never Olive's.
-	for _, p := range []string{orders, "/v1/u/" + oliveHandle + "/sites/shop/collections/orders"} {
-		r := a.at(t, "GET", apex, p, nil, map[string]string{"X-API-Key": oscar.key})
-		if strings.Contains(string(r.body), "555") {
-			t.Errorf("other user's key via %s leaked: %s", p, r.body)
-		}
-	}
-	// The owner: key, admin key, whole-server connector token, CSV, own-domain session.
-	whole := a.connectResource(t, olive, a.srv.URL)
-	for name, tc := range map[string]struct {
-		host string
-		h    map[string]string
-	}{
-		"owner key":            {apex, okey},
-		"admin key":            {apex, map[string]string{"X-API-Key": a.admin}},
-		"connector bearer":     {apex, map[string]string{"Authorization": "Bearer " + whole}},
-		"owner session domain": {dom, browser(dom, ownerCookie)},
-	} {
-		path := orders
-		if name == "admin key" {
-			path = "/v1/u/" + oliveHandle + "/sites/shop/collections/orders"
-		}
-		r := a.at(t, "GET", tc.host, path, nil, tc.h)
-		items := itemsOf(t, r)
-		if r.status != 200 || len(items) != 2 || r.json(t)["private"] != true || r.header.Get("Cache-Control") != "private, no-store" {
-			t.Errorf("%s: %d %s", name, r.status, r.body)
-		}
-	}
-	r = a.at(t, "GET", apex, orders+"/export.csv", nil, okey)
-	if r.status != 200 || !strings.Contains(string(r.body), "_submitted_by") || !strings.Contains(string(r.body), vic.email) {
-		t.Fatalf("csv: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", pcContentHost, orders+"/export.csv", nil, okey); r.status != 404 {
-		t.Fatalf("csv via shared host: %d", r.status)
-	}
-	r = a.at(t, "GET", apex, "/v1/sites/shop/collections", nil, okey)
-	if !strings.Contains(string(r.body), `"name":"orders"`) || !strings.Contains(string(r.body), `"private":true`) {
-		t.Fatalf("summaries: %s", r.body)
-	}
-
-	// ---- edit and delete (private only; owner and admin only) -----------------
-	item := orders + "/items/" + itoa(vicItem)
-	for name, tc := range map[string]struct {
-		host string
-		h    map[string]string
-	}{
-		"submitter session": {dom, browser(dom, vicCookie)},
-		"anonymous":         {dom, browser(dom, "")},
-		"forged origin":     {dom, map[string]string{"Origin": "https://" + dom, "X-SH-CSRF": "1"}},
-		"other user key":    {apex, map[string]string{"X-API-Key": oscar.key}},
-		"visitor key":       {apex, map[string]string{"X-API-Key": vic.key}},
-		"shared host owner": {pcContentHost, okey},
-	} {
-		path := item
-		if name == "visitor key" {
-			path = "/v1/u/" + oliveHandle + item[len("/v1"):]
-		}
-		for _, m := range []string{"PATCH", "DELETE"} {
-			r := a.at(t, m, tc.host, path, map[string]string{"status": "hacked"}, tc.h)
-			if r.status != 404 && !(name == "other user key" && r.status == 409) {
-				t.Errorf("%s %s: %d %s", name, m, r.status, r.body)
-			}
-		}
-	}
-	// Oscar through Olive's handle route: 404.
-	if r := a.at(t, "PATCH", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/orders/items/"+itoa(vicItem), map[string]string{"status": "x"}, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
-		t.Errorf("other user via handle route: %d %s", r.status, r.body)
-	}
-	r = a.at(t, "PATCH", apex, item, map[string]any{"status": "done", "phone": nil, "_submitted_by": "x@y", "_submitted_at": "2000"}, okey)
-	if r.status != 200 {
-		t.Fatalf("owner patch: %d %s", r.status, r.body)
-	}
-	data = r.json(t)["data"].(map[string]any)
-	if data["status"] != "done" || data["_submitted_by"] != vic.email || data["_submitted_at"] == "2000" || data["phone"] != nil {
-		t.Fatalf("patched: %v", data)
-	}
-	if r := a.at(t, "PATCH", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/orders/items/"+itoa(vicItem), map[string]string{"note": "admin"}, map[string]string{"X-API-Key": a.admin}); r.status != 200 {
-		t.Fatalf("admin patch: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PATCH", dom, item, map[string]string{"note": "from my admin page"}, browser(dom, ownerCookie)); r.status != 200 {
-		t.Fatalf("owner session patch: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PATCH", dom, item, map[string]string{"note": "x"}, browser(dom, ownerCookie, "X-SH-CSRF", "")); r.status != 403 {
-		t.Fatalf("owner session patch without csrf: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PATCH", apex, item, `"str"`, okey); r.status != 400 {
-		t.Fatalf("non-object patch: %d", r.status)
-	}
-	if r := a.at(t, "PATCH", apex, orders+"/items/999999999", map[string]string{"a": "b"}, okey); r.status != 404 {
-		t.Fatalf("missing item: %d", r.status)
-	}
-	// Delete the spam item as the owner (via the connector token); gone for everyone.
-	spam := itemsOf(t, a.at(t, "GET", apex, orders, nil, okey))[0]
-	spamID := int64(spam["id"].(float64))
-	if r := a.at(t, "DELETE", apex, orders+"/items/"+itoa(spamID), nil, map[string]string{"Authorization": "Bearer " + whole}); r.status != 204 {
-		t.Fatalf("delete: %d %s", r.status, r.body)
-	}
-	if n := len(itemsOf(t, a.at(t, "GET", apex, orders, nil, okey))); n != 1 {
-		t.Fatalf("after delete: %d items", n)
-	}
-	// Kept in Recently deleted (restorable) until the undo window passes.
-	var left int
-	_ = a.database.QueryRow(`SELECT count(*) FROM collection_items WHERE id = $1 AND deleted_at IS NOT NULL`, spamID).Scan(&left)
-	if left != 1 {
-		t.Fatal("deleted row not kept as recently deleted")
-	}
-
-	// ---- public collections are unchanged ---------------------------------------
-	gb := "/v1/sites/shop/collections/guestbook"
-	r = a.at(t, "POST", dom, gb, map[string]string{"msg": "hi", "_submitted_by": "whoever"}, browser(dom, vicCookie))
-	if r.status != 201 || r.json(t)["data"].(map[string]any)["_submitted_by"] != "whoever" {
-		t.Fatalf("public submit: %d %s", r.status, r.body)
-	}
-	gbID := int64(r.json(t)["id"].(float64))
-	if r := a.at(t, "GET", dom, gb, nil, map[string]string{"Origin": "https://" + dom}); r.status != 200 || len(itemsOf(t, r)) != 1 || r.json(t)["private"] != nil {
-		t.Fatalf("public read: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "POST", dom, gb, map[string]string{"msg": "anon"}, browser(dom, "")); r.status != 401 {
-		t.Fatalf("public anonymous write on domain (unchanged rule): %d", r.status)
-	}
-	if r := a.at(t, "POST", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/guestbook", map[string]string{"msg": "agent"}, map[string]string{"X-API-Key": olive.key, "Origin": "https://" + dom}); r.status != 201 {
-		t.Fatalf("public key write (unchanged): %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PATCH", apex, gb+"/items/"+itoa(gbID), map[string]string{"msg": "edited"}, okey); r.status != 409 || r.json(t)["code"] != "append_only" {
-		t.Fatalf("public edit: %d %s", r.status, r.body)
-	}
-	// The owner deletes entries in a public list too (spam); visitors and
-	// other accounts cannot (decision 2026-09-27).
-	if r := a.at(t, "DELETE", dom, gb+"/items/"+itoa(gbID), nil, browser(dom, vicCookie)); r.status != 404 {
-		t.Fatalf("public delete by a visitor: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "DELETE", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/guestbook/items/"+itoa(gbID), nil, map[string]string{"X-API-Key": oscar.key}); r.status != 404 {
-		t.Fatalf("public delete by another account: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "DELETE", apex, gb+"/items/"+itoa(gbID), nil, okey); r.status != 204 {
-		t.Fatalf("public delete by owner: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "DELETE", apex, gb+"/items/"+itoa(gbID), nil, okey); r.status != 404 {
-		t.Fatalf("public delete twice: %d %s", r.status, r.body)
-	}
-	// Clear list: owner only, and only with the list's name repeated.
-	for i := 0; i < 3; i++ {
-		if r := a.at(t, "POST", dom, gb, map[string]string{"msg": "spam"}, browser(dom, vicCookie)); r.status != 201 {
-			t.Fatalf("refill: %d %s", r.status, r.body)
-		}
-	}
-	if r := a.at(t, "DELETE", dom, gb, map[string]string{"confirm": "guestbook"}, browser(dom, vicCookie)); r.status != 404 {
-		t.Fatalf("clear by a visitor: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "DELETE", apex, gb, map[string]string{"confirm": "guestbooks"}, okey); r.status != 400 || r.json(t)["code"] != "confirm_required" {
-		t.Fatalf("clear with wrong confirm: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "DELETE", apex, gb, map[string]string{"confirm": "guestbook"}, okey); r.status != 200 || r.json(t)["deleted"] != float64(4) {
-		t.Fatalf("clear: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", apex, gb, nil, okey); r.status != 200 || len(itemsOf(t, r)) != 0 {
-		t.Fatalf("after clear: %d %s", r.status, r.body)
-	}
-	// Saved data: the owner's key reads it from any page (the owner app sends
-	// a Referer that is not the site's).
-	if r := a.at(t, "GET", apex, "/v1/sites/shop/state", nil, map[string]string{"X-API-Key": olive.key, "Referer": "https://" + apex + "/" + oliveHandle}); r.status != 200 {
-		t.Fatalf("owner state read from the owner app: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", apex, "/v1/sites/shop/state", nil, map[string]string{"Referer": "https://" + apex + "/" + oliveHandle}); r.status != 403 {
-		t.Fatalf("keyless state read from a foreign page: %d %s", r.status, r.body)
-	}
-	// A site with no domain on the shared host: open writes, open reads (unchanged).
-	sharedPlain := "/v1/u/" + oliveHandle + "/sites/plain/collections/notes"
-	if r := a.at(t, "DELETE", apex, "/v1/sites/plain/domain", nil, okey); r.status != 204 {
-		t.Fatalf("unbind: %d", r.status)
-	}
-	if r := a.at(t, "POST", pcContentHost, sharedPlain, map[string]string{"n": "1"}, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 201 {
-		t.Fatalf("shared host public write: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "GET", pcContentHost, sharedPlain, nil, map[string]string{"Origin": "https://" + pcContentHost}); r.status != 200 || len(itemsOf(t, r)) != 1 {
-		t.Fatalf("shared host public read: %d %s", r.status, r.body)
-	}
-
-	// ---- the connector (MCP tools/call) ----------------------------------------
-	// Private-collection read/write/edit/delete/clear/privacy behaviour is all
-	// exercised above via REST; the MCP tools that used to carry it
-	// (list_collections, read_collection, add_to_collection,
-	// set_collection_privacy, update_collection_item, delete_collection_item,
-	// clear_collection) are retired. What's left to check here is that a
-	// retired tool answers with the retirement notice, and that the
-	// replacement (get_page_recipe) and a still-offered tool (connect_domain)
-	// keep working.
-	clientID := a.registerClient(t, testRedirect)
-	mcpTok := a.connect(t, olive, clientID, testRedirect)["access_token"].(string)
-	call := func(name string, args map[string]any) (string, map[string]any, bool) {
-		return toolResultOf(t, a.rpc(t, mcpTok, "tools/call", map[string]any{"name": name, "arguments": args}))
-	}
-	if text, _, isErr := call("list_collections", map[string]any{"site": "shop"}); !isErr || !strings.Contains(text, "no longer offered") || !strings.Contains(text, "storage_*") {
-		t.Fatalf("list_collections retirement notice: %s", text)
-	}
-	if text, _, isErr := call("get_page_recipe", map[string]any{"topic": "records", "site": "shop"}); isErr || !strings.Contains(text, "SH.mount") || !strings.Contains(text, `"preset": "records"`) {
-		t.Fatalf("get_page_recipe records: %s", text)
-	}
-	if text, s, isErr := call("connect_domain", map[string]any{"site": "plain", "domain": "olive-plain.simple-host.test"}); isErr || s["status"] != "active" || s["url"] != "https://olive-plain.simple-host.test/" {
-		t.Fatalf("connect_domain free address: %s", text)
-	}
-	_ = oscarHandle
-}
-
 // Sessions and cookies on a claimed address: host-only __Host- cookie, never a
 // Domain= attribute; /me from a sibling host reports signed out; sign-in by
 // emailed code must come from the host itself.
@@ -678,13 +261,6 @@ func TestClaimedSubdomainSessionIsolation(t *testing.T) {
 			t.Errorf("/me from %s: %s", o, r.body)
 		}
 	}
-	// Public state writes with the cookie from a sibling page are not the visitor.
-	if r := a.at(t, "PATCH", dom, "/v1/sites/clay/state", map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n", "by": 1}}}, browser(dom, cookie, "Origin", "https://"+pcContentHost, "Sec-Fetch-Site", "same-site")); r.status != 401 && r.status != 403 {
-		t.Errorf("sibling state write: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PATCH", dom, "/v1/sites/clay/state", map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n", "by": 1}}}, browser(dom, cookie)); r.status != 200 {
-		t.Errorf("same-origin state write: %d %s", r.status, r.body)
-	}
 	// Email sign-in on the claimed host must be same-origin.
 	if r := a.at(t, "POST", dom, "/v1/sites/clay/visitor/auth/verify", map[string]string{"email": vic.email, "code": "123456"}, map[string]string{"Origin": "https://" + pcContentHost, "X-SH-CSRF": "1"}); r.status != 403 {
 		t.Errorf("sibling sign-in: %d %s", r.status, r.body)
@@ -692,7 +268,7 @@ func TestClaimedSubdomainSessionIsolation(t *testing.T) {
 	// CORS: the claimed host's Origin is its own; another site's API does not trust it.
 	a.deploy(t, vic, "other")
 	_, vicHandle := a.userID(t, vic)
-	if r := a.at(t, "GET", pcContentHost, "/v1/u/"+vicHandle+"/sites/other/state", nil, map[string]string{"Origin": "https://" + dom}); r.status != 403 {
+	if r := a.at(t, "GET", pcContentHost, "/v1/u/"+vicHandle+"/sites/other/me", nil, map[string]string{"Origin": "https://" + dom}); r.status != 403 {
 		t.Errorf("claimed origin trusted by another site: %d", r.status)
 	}
 	// Apex auth is unaffected: the dashboard API takes keys, never this cookie.
@@ -751,18 +327,17 @@ func itoa(n int64) string {
 // formula: text starting with = + - @ tab or CR is neutralised, numbers are not.
 func TestCSVSafeNeutralisesFormulas(t *testing.T) {
 	cases := map[string]string{
-		`"=cmd|'/C calc'!A1"`:        `'=cmd|'/C calc'!A1`,
-		`"+HYPERLINK(\"http://x\")"`: `'+HYPERLINK("http://x")`,
-		`"-2+3"`:                     `'-2+3`,
-		`"@SUM(A1)"`:                 `'@SUM(A1)`,
-		`"\t=1+1"`:                   "'\t=1+1",
-		`"hello"`:                    `hello`,
-		`-5`:                         `-5`,
-		`""`:                         ``,
+		"=cmd|'/C calc'!A1":        "'=cmd|'/C calc'!A1",
+		"+HYPERLINK(\"http://x\")": "'+HYPERLINK(\"http://x\")",
+		"-2+3":                     "'-2+3",
+		"@SUM(A1)":                 "'@SUM(A1)",
+		"\t=1+1":                   "'\t=1+1",
+		"hello":                    "hello",
+		"":                         "",
 	}
 	for in, want := range cases {
-		if got := jsonCSVCell([]byte(in)); got != want {
-			t.Errorf("jsonCSVCell(%s) = %q, want %q", in, got, want)
+		if got := csvSafe(in); got != want {
+			t.Errorf("csvSafe(%q) = %q, want %q", in, got, want)
 		}
 	}
 	if got := csvSafe("=bad-header"); got != "'=bad-header" {

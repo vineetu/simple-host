@@ -66,11 +66,13 @@ type VisitorSignIn struct {
 	LastSeen  time.Time
 }
 
-// Submission is one list item this person submitted to someone else's site.
-type Submission struct {
-	ID         int64
-	SiteID     string
-	Collection string
-	Data       []byte
-	CreatedAt  time.Time
+// ChangeElsewhere is one change this person made, signed in, to saved data
+// on another owner's site.
+type ChangeElsewhere struct {
+	SiteID string
+	Kind   string
+	Name   string
+	ItemID *int64
+	Op     string
+	At     time.Time
 }

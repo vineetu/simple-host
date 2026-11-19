@@ -15,7 +15,7 @@ Read the whole contract as [OpenAPI JSON](/openapi.json) or [OpenAPI YAML](/open
 | [Address families](/docs/api/address-families.md) | Connect a wildcard address family for your sites. | 6 |
 | [Storage resources](/docs/api/storage-resources.md) | Owner-declared KV, SQLite and durable file resources. | 23 |
 | [Notifications](/docs/api/notifications.md) | Signed HTTPS notifications for visitor storage writes on Simple Host. | 18 |
-| [Visitor sign-in](/docs/api/visitor-sign-in.md) | Site-scoped browser sessions for website visitors (customers, guests, members), on the site's own address, through https://simple-host.app/auth.js (SH.mount, SH.requireSignIn, SH.me, SH.signOut). The only sign-in a page ever uses. Never returns an API key. | 20 |
+| [Visitor sign-in](/docs/api/visitor-sign-in.md) | Site-scoped browser sessions for website visitors (customers, guests, members), on the site's own address, through https://simple-host.app/auth.js (SH.mount, SH.requireSignIn, SH.me, SH.signOut). The only sign-in a page ever uses. Never returns an API key. | 21 |
 | [Skills](/docs/api/skills.md) | Discover and fetch this server’s agent skills and references. | 4 |
 | [Showcase](/docs/api/showcase.md) | Public feed of a person’s showcased sites. | 1 |
 | [Health](/docs/api/health.md) | Service health and readiness. | 2 |

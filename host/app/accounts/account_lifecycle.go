@@ -21,8 +21,8 @@ func (s *Service) ListRetiredNames(ctx context.Context, userID string) ([]model.
 func (s *Service) ListVisitorSignIns(ctx context.Context, userID string) ([]model.VisitorSignIn, error) {
 	return repo.ListVisitorSignIns(ctx, s.database, userID)
 }
-func (s *Service) ListSubmissionsElsewhere(ctx context.Context, userID string) ([]model.Submission, error) {
-	return repo.ListSubmissionsElsewhere(ctx, s.database, userID)
+func (s *Service) ListChangesElsewhere(ctx context.Context, userID string) ([]model.ChangeElsewhere, error) {
+	return repo.ListChangesElsewhere(ctx, s.database, userID)
 }
 
 type LifecycleError struct {

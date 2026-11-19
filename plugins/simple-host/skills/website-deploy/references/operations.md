@@ -27,9 +27,7 @@ a new site is created with the old name. Use `site_url` from the response.
 
 `PATCH /v1/sites/<sitename>` with `{"offline":true}` takes the site offline:
 every address of it shows a plain "This site is offline" page, and visitor
-saves (an existing site's private lists too — existing sites only, see
-`references/backend.md`), visitors' reads of its storage resources and saved
-data, and visitor sign-in are refused (403 `site_offline`). Use it when an event is over or a form must
+saves, visitors' reads of its storage resources, and visitor sign-in are refused (403 `site_offline`). Use it when an event is over or a form must
 stop taking entries. Nothing is deleted, and the owner's key still deploys,
 reads and writes. `{"offline":false}` puts it back online; `GET /v1/sites`
 marks an offline site `"offline": true`. Confirm with the person first.
@@ -234,9 +232,7 @@ it (403 `deploy_only_key`); use a full key.
 DELETE /v1/sites/<sitename>
 ```
 
-Takes the site offline at once, with every version, its storage resources and,
-on an existing site, its state and collections (existing sites only — see
-`references/backend.md`).
+Takes the site offline at once, with every version and its storage resources.
 It stays in Recently deleted for 7 days, then it is removed for good. Confirm
 with the user in plain language before calling it, and say what goes offline.
 Until it is removed its name stays taken: creating a site with that name answers
@@ -313,16 +309,10 @@ POST /v1/sites/<sitename>/export-link           (X-API-Key) → {"url", "expires
 
 The archive holds the live files (`<site>/files/…`), the storage resources
 (`<site>/storage/resources.json`, `kv.json`, `file-writers.json`, and the SQLite
-databases under `<site>/storage/runtime/`) and, on an existing site, the saved
-state (`<site>/state.json`) and every collection's items
-(`<site>/collections.json`, private lists included — existing sites only). The
+databases under `<site>/storage/runtime/`). The
 link form (connector: `export_site`) opens the same archive without a key for
 10 minutes: give it to the person to click, never post it publicly, and make a
 new one if it has expired.
-
-Each entry in `collections.json` is `{id, created_at, submitted_by, data}`
-(`submitted_by` only on private lists; existing sites only, see
-`references/backend.md`).
 
 ## The person's whole account: download or delete
 
@@ -419,39 +409,9 @@ site already lives at its own `https://<sitename>.<handle>.simple-host.app/`. In
   registrar: the address record (`dns`) and a TXT ownership record (`dns_txt`,
   kept in place); poll `GET /v1/sites/<sitename>/domain` until `active`.
 
-The site moves there and its old address redirects. Sign-in and private
-collections work either way: visitors sign in with Google or an emailed code on
-the site's own address, and every save from a page needs a signed-in visitor
-(see `backend.md`). Agents write with the site owner's API key.
-
-## Private collections (existing sites only)
-
-The connector no longer offers tools for any of this (no `declare_data`,
-`list_data`, `set_collection_privacy`); use the REST routes below with the
-owner's API key, only to maintain an existing site that already has one. For a
-new site, use a SQLite resource with author-or-owner or owner-only read rules —
-see `references/storage.md` and the `website-deploy` skill's "Each person's
-records".
-
-Private Submissions: declare the name with `PUT /v1/sites/<sitename>/data/<name>/kind`
-and `{"kind": "entries"}` (private is the default), and
-`GET /v1/sites/<sitename>/data` lists every name with its kind, its
-settings and who may save. A name nobody declared is Shared (public).
-`PUT /v1/sites/<sitename>/collections/<name>/privacy` with `{"private": true}`
-makes one collection owner-only: visitors
-signed in on the site's own address add to it; only the site owner — and the
-Simple Host operator, for moderation — can read it. Any site can make a list
-private.
-`{"private": false}` makes it public again, including everything already in it
-(the submitters' emails, `_submitted_by`, stay visible only to the owner),
-so confirm with the user first. The owner reads it with
-`GET /v1/sites/<sitename>/collections/<name>`, lists all with
-`GET /v1/sites/<sitename>/collections` (each entry has `private`), and downloads
-`GET /v1/sites/<sitename>/collections/<name>/export.csv`. The owner edits or
-deletes one item with `PATCH` / `DELETE /v1/sites/<sitename>/collections/<name>/items/<id>`
-(in a public list the owner can delete an item but not edit it: 409 `append_only`),
-and empties a whole list with `DELETE /v1/sites/<sitename>/collections/<name>` and
-`{"confirm": "<name>"}`. Full flow: `backend.md`.
+The site moves there and its old address redirects. Sign-in works either way:
+visitors sign in with Google or an emailed code on the site's own address.
+Agents write with the site owner's API key.
 
 **Choose who can open it.** By default every deployed page is open to anyone with its
 address, on a custom domain or not, unless the owner opens the whole site only
@@ -461,8 +421,7 @@ site, offer named viewers (each person signs in with their own email) or the
 site passcode (one shared code), say plainly what each does, and do not suggest
 a workaround. Sign-in
 gates saving, not reading pages. SQLite/KV author-or-owner or owner-only read
-rules keep saved data private; file buckets keep their access presets. On an
-existing site, a private collection also restricts data reads.
+rules keep saved data private; file buckets keep their access presets.
 
 Hosted retention (2026-10-05): normally 4 latest versions, plus any older live one. Only accounts enabled by `KEEP_VERSIONS_SELF_SET` may use the per-site route or `set_keep_versions`; others receive 403 `keep_versions_fixed`, “Simple Host keeps your 4 latest versions”. `0` uses the account default (`KEEP_VERSIONS_OVERRIDES`), else the instance setting.
 

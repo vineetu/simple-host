@@ -152,7 +152,6 @@ type Limits struct {
 	StorageOwnerTimeout        time.Duration // SITE_STORAGE_OWNER_TIMEOUT_MS
 	StorageVisitorWriteTimeout time.Duration // SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS
 	StorageVisitorQueryTimeout time.Duration // SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS
-	RateState                  Rate          // RATE_LIMIT_STATE
 	RateSiteOps                Rate          // RATE_LIMIT_SITE_OPS
 	RateExport                 Rate          // RATE_LIMIT_EXPORT
 	RateAnalytics              Rate          // RATE_LIMIT_ANALYTICS
@@ -167,105 +166,6 @@ type Limits struct {
 	RateOAuthToken             Rate          // RATE_LIMIT_OAUTH_TOKEN
 	RatePasscodeIP             Rate          // RATE_LIMIT_PASSCODE_IP
 	RatePasscodeSite           Rate          // RATE_LIMIT_PASSCODE_SITE
-
-	// Saved data (SAVED_DATA_*): history, undo, the watch and the limits.
-	SavedData SavedData
-}
-
-// SavedData is every number behind saved-data history, undo, the watch and
-// the limits (saved-data redesign step 1, 2026-09-27). Each is a knob in
-// Knobs(); the defaults are the approved plan's values.
-type SavedData struct {
-	UndoDays         int // SAVED_DATA_UNDO_DAYS: history and deleted items are kept this long (30)
-	HistoryMaxMB     int // SAVED_DATA_HISTORY_MAX_MB: per-site history cap before thinning (20)
-	SiteMaxMB        int // SAVED_DATA_SITE_MAX_MB: per-site live saved data (page data + list items; not history or Recently deleted) (50)
-	SweepMinutes     int // SAVED_DATA_SWEEP_MINUTES: how often expired history is removed (15)
-	WatchDays        int // SAVED_DATA_WATCH_DAYS: the watch window before tightening (7)
-	WatchIncMax      int // SAVED_DATA_WATCH_INC_MAX: a visitor inc larger than this is counted as large (10)
-	WatchItemKB      int // SAVED_DATA_WATCH_ITEM_KB: a list item larger than this is counted as large (16)
-	IdempotencyHours int // SAVED_DATA_IDEMPOTENCY_HOURS: how long a write's first answer is replayed (24)
-	ReadPerSec       int // SAVED_DATA_READ_PER_SEC: saved-data reads per second per site and address, or per key (30)
-	ReadBurst        int // SAVED_DATA_READ_BURST: burst above that rate (60)
-	// SAVED_DATA_APPEND_PER_MIN / _BURST: list items one address may add per
-	// minute when not writing with the owner's key (30 / 30).
-	AppendPerMin int
-	AppendBurst  int
-	// SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE: remembered Idempotency-Keys kept
-	// per site; the sweep drops the oldest past it (10000).
-	IdempotencyMaxPerSite int
-	// SAVED_DATA_SNAPSHOT_EVERY: a PATCH's history keeps only what it
-	// changed, with a full copy of the document at least every this many
-	// changes and on the first change of each day (50).
-	SnapshotEvery int
-	// SAVED_DATA_WATCH_KEEP_DAYS: watch counts older than this are removed (90).
-	WatchKeepDays int
-
-	// Step 2, kinds (Page info and Submissions).
-	// SAVED_DATA_CONTENT_MAX_KB: one Page info document (1024).
-	ContentMaxKB int
-	// SAVED_DATA_CONTENT_NAMES_MAX: Page info names per site (20).
-	ContentNamesMax int
-	// SAVED_DATA_ENTRY_MAX_KB: one new Submissions entry; older items up to
-	// the 64 KB list limit are kept (16).
-	EntryMaxKB int
-	// SAVED_DATA_ENTRIES_MAX: live entries in one Submissions name (10000).
-	EntriesMax int
-	// SAVED_DATA_WITHDRAW_UNDO_MINUTES: a visitor can bring back an entry
-	// they withdrew for this long (10).
-	WithdrawUndoMinutes int
-	// SAVED_DATA_NOTIFY_EACH_MINUTES: "email me: each" sends at most one
-	// email per name this often, listing what arrived (10).
-	NotifyEachMinutes int
-	// SAVED_DATA_NOTIFY_DAILY_HOURS: "email me: daily" sends at most one
-	// digest per name this often (24).
-	NotifyDailyHours int
-	// SAVED_DATA_SAVERS_MAX: emails and domains in one site's who-may-save
-	// and block lists together (500).
-	SaversMax int
-	// SAVED_DATA_ENTRIES_NAMES_MAX: Submissions names per site (50).
-	EntriesNamesMax int
-
-	// Steps 3 and 4: Personal (mine) and Shared board (board).
-	// SAVED_DATA_PERSONAL_MAX_KB: one person's record in one Personal name (64).
-	PersonalMaxKB int
-	// SAVED_DATA_PERSONAL_NAMES_MAX: Personal names per site (20).
-	PersonalNamesMax int
-	// SAVED_DATA_BOARD_ITEM_MAX_KB: one Shared board item (16).
-	BoardItemMaxKB int
-	// SAVED_DATA_BOARD_MAX: live items in one Shared board (2000).
-	BoardMax int
-	// SAVED_DATA_BOARD_NAMES_MAX: Shared board names per site (20).
-	BoardNamesMax int
-	// SAVED_DATA_PERSONAL_PEOPLE_MAX: people with a record in one Personal
-	// name (1000).
-	PersonalPeopleMax int
-	// SAVED_DATA_BOARD_WRITES_PER_MIN: board adds, changes and deletes per
-	// signed-in person per minute, on top of the per-address rate (30).
-	BoardWritesPerMin int
-	// SAVED_DATA_DEFAULT_KIND: what a name nobody declared is on a site made
-	// after the kinds. "shared" (default): Shared, anyone reads it and
-	// signed-in visitors save to it, as before the kinds. "declare_first":
-	// it takes no saves until the owner declares it. Sites that existed
-	// before the kinds are Shared either way.
-	DefaultKind string
-}
-
-// The SAVED_DATA_DEFAULT_KIND values.
-const (
-	DefaultKindShared       = "shared"
-	DefaultKindDeclareFirst = "declare_first"
-)
-
-// DefaultSavedData is the approved plan's values.
-func DefaultSavedData() SavedData {
-	return SavedData{UndoDays: 30, HistoryMaxMB: 20, SiteMaxMB: 50, SweepMinutes: 15, WatchDays: 7,
-		WatchIncMax: 10, WatchItemKB: 16, IdempotencyHours: 24, ReadPerSec: 30, ReadBurst: 60,
-		AppendPerMin: 30, AppendBurst: 30, IdempotencyMaxPerSite: 10000, SnapshotEvery: 50, WatchKeepDays: 90,
-		ContentMaxKB: 1024, ContentNamesMax: 20, EntryMaxKB: 16, EntriesMax: 10000, WithdrawUndoMinutes: 10,
-		NotifyEachMinutes: 10, NotifyDailyHours: 24, SaversMax: 500, EntriesNamesMax: 50,
-		PersonalMaxKB: 64, PersonalNamesMax: 20, BoardItemMaxKB: 16, BoardMax: 2000, BoardNamesMax: 20,
-		PersonalPeopleMax: 1000, BoardWritesPerMin: 30,
-		DefaultKind: DefaultKindShared}
 }
 
 // Rate is a token bucket: Burst requests at once, then one more every Every.
@@ -401,7 +301,6 @@ func DefaultLimits() Limits {
 		StorageOwnerTimeout:        5 * time.Second,
 		StorageVisitorWriteTimeout: 2 * time.Second,
 		StorageVisitorQueryTimeout: time.Second,
-		RateState:                  Rate{60, time.Second},
 		RateSiteOps:                Rate{30, 2 * time.Second},
 		RateExport:                 Rate{10, 10 * time.Second},
 		RateAnalytics:              Rate{30, 2 * time.Second},
@@ -416,8 +315,6 @@ func DefaultLimits() Limits {
 		RateOAuthToken:             Rate{30, 2 * time.Second},
 		RatePasscodeIP:             Rate{5, 3 * time.Minute},
 		RatePasscodeSite:           Rate{60, time.Minute},
-
-		SavedData: DefaultSavedData(),
 	}
 }
 
@@ -877,7 +774,6 @@ func Knobs() []Knob {
 		secRateKnob("RATE_LIMIT_SPAM_CHECKED_SITE", func(l *Limits) *Rate { return &l.RateSpamCheckedSite }),
 		intKnob("SPAM_CHECKED_POST_MAX_BYTES", "bytes", 100, 65536, func(l *Limits) *int { return &l.SpamCheckedMaxBytes }),
 		intKnob("SPAM_CHECKED_POST_MAX_LINKS", "links", 0, 50, func(l *Limits) *int { return &l.SpamCheckedMaxLinks }),
-		rateKnob("RATE_LIMIT_STATE", func(l *Limits) *Rate { return &l.RateState }),
 		rateKnob("RATE_LIMIT_SITE_OPS", func(l *Limits) *Rate { return &l.RateSiteOps }),
 		rateKnob("RATE_LIMIT_EXPORT", func(l *Limits) *Rate { return &l.RateExport }),
 		rateKnob("RATE_LIMIT_ANALYTICS", func(l *Limits) *Rate { return &l.RateAnalytics }),
@@ -892,48 +788,6 @@ func Knobs() []Knob {
 		secRateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),
 		secRateKnob("RATE_LIMIT_PASSCODE_IP", func(l *Limits) *Rate { return &l.RatePasscodeIP }),
 		secRateKnob("RATE_LIMIT_PASSCODE_SITE", func(l *Limits) *Rate { return &l.RatePasscodeSite }),
-
-		intKnob("SAVED_DATA_UNDO_DAYS", "days", 1, 365, func(l *Limits) *int { return &l.SavedData.UndoDays }),
-		intKnob("SAVED_DATA_HISTORY_MAX_MB", "MB", 1, 10_240, func(l *Limits) *int { return &l.SavedData.HistoryMaxMB }),
-		intKnob("SAVED_DATA_SITE_MAX_MB", "MB", 1, 10_240, func(l *Limits) *int { return &l.SavedData.SiteMaxMB }),
-		intKnob("SAVED_DATA_SNAPSHOT_EVERY", "changes", 1, 10_000, func(l *Limits) *int { return &l.SavedData.SnapshotEvery }),
-		intKnob("SAVED_DATA_SWEEP_MINUTES", "minutes", 1, 1440, func(l *Limits) *int { return &l.SavedData.SweepMinutes }),
-		intKnob("SAVED_DATA_WATCH_DAYS", "days", 1, 365, func(l *Limits) *int { return &l.SavedData.WatchDays }),
-		intKnob("SAVED_DATA_WATCH_INC_MAX", "count", 1, 1_000_000_000, func(l *Limits) *int { return &l.SavedData.WatchIncMax }),
-		intKnob("SAVED_DATA_WATCH_ITEM_KB", "KB", 1, 64, func(l *Limits) *int { return &l.SavedData.WatchItemKB }),
-		intKnob("SAVED_DATA_WATCH_KEEP_DAYS", "days", 1, 3650, func(l *Limits) *int { return &l.SavedData.WatchKeepDays }),
-		intKnob("SAVED_DATA_IDEMPOTENCY_HOURS", "hours", 1, 720, func(l *Limits) *int { return &l.SavedData.IdempotencyHours }),
-		intKnob("SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE", "keys", 100, 1_000_000, func(l *Limits) *int { return &l.SavedData.IdempotencyMaxPerSite }),
-		intKnob("SAVED_DATA_READ_PER_SEC", "reads", 1, 10_000, func(l *Limits) *int { return &l.SavedData.ReadPerSec }),
-		intKnob("SAVED_DATA_READ_BURST", "reads", 1, 100_000, func(l *Limits) *int { return &l.SavedData.ReadBurst }),
-		intKnob("SAVED_DATA_APPEND_PER_MIN", "items", 1, 10_000, func(l *Limits) *int { return &l.SavedData.AppendPerMin }),
-		intKnob("SAVED_DATA_APPEND_BURST", "items", 1, 100_000, func(l *Limits) *int { return &l.SavedData.AppendBurst }),
-		intKnob("SAVED_DATA_CONTENT_MAX_KB", "KB", 1, 10_240, func(l *Limits) *int { return &l.SavedData.ContentMaxKB }),
-		intKnob("SAVED_DATA_CONTENT_NAMES_MAX", "names", 1, 1_000, func(l *Limits) *int { return &l.SavedData.ContentNamesMax }),
-		intKnob("SAVED_DATA_ENTRY_MAX_KB", "KB", 1, 64, func(l *Limits) *int { return &l.SavedData.EntryMaxKB }),
-		intKnob("SAVED_DATA_ENTRIES_MAX", "entries", 1, 1_000_000, func(l *Limits) *int { return &l.SavedData.EntriesMax }),
-		intKnob("SAVED_DATA_WITHDRAW_UNDO_MINUTES", "minutes", 1, 1440, func(l *Limits) *int { return &l.SavedData.WithdrawUndoMinutes }),
-		intKnob("SAVED_DATA_NOTIFY_EACH_MINUTES", "minutes", 1, 1440, func(l *Limits) *int { return &l.SavedData.NotifyEachMinutes }),
-		intKnob("SAVED_DATA_NOTIFY_DAILY_HOURS", "hours", 1, 720, func(l *Limits) *int { return &l.SavedData.NotifyDailyHours }),
-		intKnob("SAVED_DATA_SAVERS_MAX", "entries", 1, 100_000, func(l *Limits) *int { return &l.SavedData.SaversMax }),
-		intKnob("SAVED_DATA_ENTRIES_NAMES_MAX", "names", 1, 1_000, func(l *Limits) *int { return &l.SavedData.EntriesNamesMax }),
-		intKnob("SAVED_DATA_PERSONAL_MAX_KB", "KB", 1, 1024, func(l *Limits) *int { return &l.SavedData.PersonalMaxKB }),
-		intKnob("SAVED_DATA_PERSONAL_NAMES_MAX", "names", 1, 1_000, func(l *Limits) *int { return &l.SavedData.PersonalNamesMax }),
-		intKnob("SAVED_DATA_BOARD_ITEM_MAX_KB", "KB", 1, 64, func(l *Limits) *int { return &l.SavedData.BoardItemMaxKB }),
-		intKnob("SAVED_DATA_BOARD_MAX", "items", 1, 1_000_000, func(l *Limits) *int { return &l.SavedData.BoardMax }),
-		intKnob("SAVED_DATA_BOARD_NAMES_MAX", "names", 1, 1_000, func(l *Limits) *int { return &l.SavedData.BoardNamesMax }),
-		intKnob("SAVED_DATA_PERSONAL_PEOPLE_MAX", "people", 1, 1_000_000, func(l *Limits) *int { return &l.SavedData.PersonalPeopleMax }),
-		intKnob("SAVED_DATA_BOARD_WRITES_PER_MIN", "writes", 1, 10_000, func(l *Limits) *int { return &l.SavedData.BoardWritesPerMin }),
-		{Env: "SAVED_DATA_DEFAULT_KIND", Unit: "shared/declare_first",
-			Value: func(l *Limits) string { return l.SavedData.DefaultKind },
-			set: func(l *Limits, v string) error {
-				switch strings.ToLower(v) {
-				case DefaultKindShared, DefaultKindDeclareFirst:
-					l.SavedData.DefaultKind = strings.ToLower(v)
-					return nil
-				}
-				return fmt.Errorf("SAVED_DATA_DEFAULT_KIND=%q: want shared or declare_first", v)
-			}},
 	}
 }
 
@@ -965,9 +819,6 @@ func LoadLimits(getenv func(string) string) (Limits, error) {
 	case l.DomainUnprovenMaxAge < l.DomainUnprovenTTL:
 		return DefaultLimits(), fmt.Errorf("DOMAIN_UNPROVEN_MAX_DAYS (%d days) must not be shorter than DOMAIN_UNPROVEN_HOURS (%d hours)",
 			l.DomainUnprovenMaxAge/day, l.DomainUnprovenTTL/time.Hour)
-	case l.SavedData.WatchKeepDays < l.SavedData.WatchDays:
-		return DefaultLimits(), fmt.Errorf("SAVED_DATA_WATCH_KEEP_DAYS (%d) must not be shorter than SAVED_DATA_WATCH_DAYS (%d): the watch reads that many days of counts",
-			l.SavedData.WatchKeepDays, l.SavedData.WatchDays)
 	}
 	return l, nil
 }

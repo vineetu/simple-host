@@ -198,16 +198,17 @@ indexes for the actual site; never concatenate visitor text into SQL.
 
 For browser calls, use relative `/v1/sites/{site}/storage/...` URLs on the
 site's own address. Use `SH.requireSignIn()` when the chosen policy requires
-sign-in and the existing hosted auth helper for the site's session. Visitor
+sign-in and the existing hosted auth helper for the site's session. The helper
+also offers `SH.signIn({provider, returnTo})`, `SH.email.request(email)`,
+`SH.email.verify(email, code)` (15-minute code, 3 attempts; the account is
+created on first verify) and `SH.signOut()`. Visitor
 writes send the same-site `Origin` and `X-SH-CSRF: 1`; owner tool calls use their
 existing credential. Treat `sign_in_required` (401), `forbidden` or
 `site_locked` (403), `resource_not_found` (404), validation errors (400), and
 `site_full` (507) as server decisions. Do not retry a write with a broader
 policy merely to make it succeed.
 
-Older state, collections and declared-data APIs are deprecated for new work.
-Maintain existing sites deliberately; their history and withdrawal behavior do
-not transfer automatically. For privacy use the author condition above.
+For privacy use the author condition above.
 
 Visitors use fixed table routes with `where` equality filters (at most three),
 order, direction, limit and an opaque `after` cursor. Keep order and direction
