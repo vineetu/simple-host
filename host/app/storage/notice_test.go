@@ -162,13 +162,6 @@ func TestPresetSaveNotice(t *testing.T) {
 			}
 			if kind != "files" {
 				s.deps.RulesEnabled = true
-				s.deps.KVStore = "sqlite"
-				if kind == "kv" {
-					_, err = s.db.Exec(`UPDATE site_storage_resources SET kv_store='sqlite' WHERE site_id=$1 AND name=$2`, call.SiteID, in.Name)
-					if err != nil {
-						t.Fatal(err)
-					}
-				}
 				set := json.RawMessage(`{"policies":[]}`)
 				in.Rules = &set
 				in.Preset = ""

@@ -103,7 +103,7 @@ func TestVisitorWriteNumbersAndIDsExact(t *testing.T) {
 					var err error
 					switch kind {
 					case "kv":
-						err = f.a.database.QueryRow(`SELECT value->>'n' FROM site_storage_kv WHERE site_id=$1 AND resource_name='numbers' AND key='big'`, f.sid).Scan(&got)
+						got = strings.TrimSuffix(strings.TrimPrefix(readStorageKVValue(t, f.a.sites, storageKVFixtureCall(t, f.a.sites, f.sid, "numbers"), "big"), `{"n": `), "}")
 					case "collection":
 						err = f.a.database.QueryRow(`SELECT data->>'n' FROM collection_items WHERE site_id=$1 AND collection='numbers'`, f.sid).Scan(&got)
 					case "sqlite":

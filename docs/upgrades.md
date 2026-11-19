@@ -51,8 +51,8 @@ The selected image supplies the target release; an explicit `--to` must match
 its version. The Host installer applies explicit `--host`, `--content`, `--email`,
 `--max-site-mb` and `--keep-versions` settings after securing the original backup,
 preserving unspecified settings. It also refreshes the Caddyfile from the selected
-release. `--with kv-move` opts into the named data step when that
-release offers it; the script passes it to the upgrade command.
+release. `--with <step>` opts into a named data step when a release
+offers one; the script passes it to the upgrade command.
 The installed Compose configuration retains environment references, so later
 `.env` changes still apply when services are recreated. Configuration is
 published by a synced atomic rename into a new private file.

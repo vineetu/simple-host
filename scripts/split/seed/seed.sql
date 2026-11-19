@@ -53,7 +53,7 @@ INSERT INTO oauth_tokens (token_hash, grant_id, kind, expires_at, created_at) VA
   ('FAKE-NOT-A-HASH-ACCESS-31', '00000000-0000-4000-8000-000000000031', 'access', now() + interval '1 hour', '2026-01-15 12:00:00+00'),
   ('FAKE-NOT-A-HASH-REFRESH-32', '00000000-0000-4000-8000-000000000032', 'refresh', now() + interval '30 days', '2026-01-15 12:00:00+00');
 
--- Postgres KV values, resource declarations and SQLite table policy metadata (no SQLite bytes).
+-- Resource declarations and SQLite table policy metadata (no KV or SQLite files).
 INSERT INTO site_storage_resources (site_id, name, kind, acc_read, acc_add, acc_edit, acc_delete) VALUES
   ('00000000-0000-4000-8000-000000000021', 'settings', 'kv', 'anyone', 'owner', 'owner', 'owner'),
   ('00000000-0000-4000-8000-000000000021', 'records', 'sqlite', 'anyone', 'owner', 'owner', 'owner'),
@@ -61,10 +61,6 @@ INSERT INTO site_storage_resources (site_id, name, kind, acc_read, acc_add, acc_
 INSERT INTO site_storage_tables (site_id, resource_name, table_name, acc_read, acc_add, acc_edit, acc_delete) VALUES
   ('00000000-0000-4000-8000-000000000021', 'records', 'notes', 'owner', 'owner', 'owner', 'owner'),
   ('00000000-0000-4000-8000-000000000021', 'records', 'tasks', 'owner', 'owner', 'owner', 'owner');
-INSERT INTO site_storage_kv (site_id, resource_name, key, value, writer_id, updated_at, created_at) VALUES
-  ('00000000-0000-4000-8000-000000000021', 'settings', 'theme', '"teal"', '00000000-0000-4000-8000-000000000001', '2026-01-15 12:00:00+00', '2026-01-15 12:00:00+00'),
-  ('00000000-0000-4000-8000-000000000021', 'settings', 'counter', '2', '00000000-0000-4000-8000-000000000001', '2026-01-15 12:00:00+00', '2026-01-15 12:00:00+00'),
-  ('00000000-0000-4000-8000-000000000021', 'settings', 'draft', '{"saved":true}', '00000000-0000-4000-8000-000000000001', '2026-01-15 12:00:00+00', '2026-01-15 12:00:00+00');
 
 -- Legacy Postgres collections/settings in addition to sites.state; byte counters are maintained by dump triggers.
 INSERT INTO collection_settings (site_id, collection, private, kind, declared_at, updated_at) VALUES
@@ -91,8 +87,6 @@ INSERT INTO site_push_rules (site_id, resource, recipients, title, updated_at) V
   ('00000000-0000-4000-8000-000000000025', '', 'both', 'Seed site update', '2026-01-15 12:00:00+00');
 INSERT INTO site_storage_resources (site_id, name, kind) VALUES
   ('00000000-0000-4000-8000-000000000025', 'settings', 'kv');
-INSERT INTO site_storage_kv (site_id, resource_name, key, value, writer_id, updated_at, created_at) VALUES
-  ('00000000-0000-4000-8000-000000000025', 'settings', 'enabled', 'true', '00000000-0000-4000-8000-000000000001', '2026-01-15 12:00:00+00', '2026-01-15 12:00:00+00');
 INSERT INTO site_events (seq, event_id, site_id, name, storage, data, created_at) VALUES
   (1, 'seed-event-1', '00000000-0000-4000-8000-000000000021', 'record.changed', 'settings', '{"key":"counter","fields":2,"change":"edited"}', '2026-01-15 12:00:00+00'),
   (2, 'seed-event-2', '00000000-0000-4000-8000-000000000025', 'record.changed', 'settings', '{"key":"enabled","fields":true,"change":"edited"}', '2026-01-15 12:00:00+00'),
@@ -131,7 +125,6 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM oauth_tokens WHERE grant_id='00000000-0000-4000-8000-000000000032') <> 1 THEN RAISE EXCEPTION 'Seed: surviving token'; END IF;
   IF (SELECT count(*) FROM site_storage_resources) <> 4 THEN RAISE EXCEPTION 'Seed: resources'; END IF;
   IF (SELECT count(*) FROM site_storage_tables) <> 2 THEN RAISE EXCEPTION 'Seed: table policies'; END IF;
-  IF (SELECT count(*) FROM site_storage_kv) <> 4 THEN RAISE EXCEPTION 'Seed: KV'; END IF;
   IF (SELECT count(*) FROM sites WHERE state IS NOT NULL) <> 5 THEN RAISE EXCEPTION 'Seed: legacy state'; END IF;
   IF (SELECT count(*) FROM collection_settings) <> 2 THEN RAISE EXCEPTION 'Seed: collection settings'; END IF;
   IF (SELECT count(*) FROM collection_items) <> 3 THEN RAISE EXCEPTION 'Seed: collection items'; END IF;

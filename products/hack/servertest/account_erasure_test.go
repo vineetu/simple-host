@@ -40,8 +40,8 @@ func TestAccountErasureSeededRehearsal(t *testing.T) {
 	if err := db.QueryRow(`SELECT count(*) FROM users WHERE id IN ($1,$2,$3)`, keyHolder, keyOrganiser, "00000000-0000-4000-8000-000000000002").Scan(&others); err != nil || others != 3 {
 		t.Fatalf("other accounts=%d err=%v", others, err)
 	}
-	var value string
-	if err := db.QueryRow(`SELECT value::text FROM site_storage_kv WHERE site_id=$1 AND resource_name='settings' AND key='theme'`, keySite).Scan(&value); err != nil || value != `"teal"` {
-		t.Fatalf("holding-account data=%q err=%v", value, err)
+	var kind string
+	if err := db.QueryRow(`SELECT kind FROM site_storage_resources WHERE site_id=$1 AND name='settings'`, keySite).Scan(&kind); err != nil || kind != "kv" {
+		t.Fatalf("holding-account data=%q err=%v", kind, err)
 	}
 }

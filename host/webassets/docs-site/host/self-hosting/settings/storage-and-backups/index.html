@@ -553,7 +553,7 @@
 		<a href="#recipes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Recipes</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#checking-and-moving-key-value-namespaces" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Checking and moving key-value namespaces</span></a>
+		<a href="#maintenance-locks-and-the-install-identity" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Maintenance locks and the install identity</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#converting-presets-to-row-rules" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Converting presets to row rules</span></a>
@@ -588,7 +588,7 @@
 		<a href="#recipes" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Recipes</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#checking-and-moving-key-value-namespaces" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Checking and moving key-value namespaces</span></a>
+		<a href="#maintenance-locks-and-the-install-identity" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Maintenance locks and the install identity</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#converting-presets-to-row-rules" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Converting presets to row rules</span></a>
@@ -720,13 +720,7 @@ knows.</p>
 <td><code>STORAGE_RULES</code></td>
 <td><code>off</code></td>
 <td><code>off</code> / <code>on</code></td>
-<td>Accept owner-written row rules for SQLite databases and moved key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it. <strong>Security-sensitive.</strong></td>
-</tr>
-<tr>
-<td><code>KV_STORE</code></td>
-<td><code>postgres</code></td>
-<td><code>postgres</code> / <code>sqlite</code></td>
-<td>Store for newly created key-value namespaces. Existing namespaces follow their saved marker. Restart after changing the environment or Helm values.</td>
+<td>Accept owner-written row rules for SQLite databases and key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it. <strong>Security-sensitive.</strong></td>
 </tr>
 <tr>
 <td><code>DB_DSN</code></td>
@@ -801,70 +795,47 @@ knows.</p>
 <p><strong>Back up a small box</strong> (from <code>/opt/simple-host</code>, into the current folder):</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>sudo docker compose exec -T db pg_dump -U simplehost simplehost | gzip &gt; db-$(date +%F).sql.gz &amp;&amp; sudo docker run --rm -v simple-host_sites:/sites -v "$PWD":/out alpine tar czf /out/sites-$(date +%F).tar.gz -C /sites . &amp;&amp; sudo cp .env env-$(date +%F).bak</span></span></code></pre>
 <p>Keep all three together: the <code>.env</code> backup is what lets a restored database be opened.</p>
-<p>After a key-value namespace moves to SQLite, its data lives at
-<code>runtime/kv/&lt;namespace&gt;.sqlite</code>. The Postgres dump and matching data directory
-are one backup: restore them together. Stop the install before taking the pair
-for a consistent snapshot. A live SQLite copy must include its <code>-wal</code> file;
-copying the main file alone can lose committed writes. Stopping first avoids
-copying files while they change. Site exports combine both KV stores into
-<code>storage/kv.json</code> and omit the internal <code>runtime/kv/</code> files.</p>
-<p>Keep <code>KV_STORE=postgres</code> until the move and rehearsal are ready. This release
-adds export, deletion and authorship support; changing the flag does not move
-existing namespaces.</p>
-<h2 id="checking-and-moving-key-value-namespaces">Checking and moving key-value namespaces</h2>
-<p>Run <code>kv-move</code> with the currently installed program (<code>/usr/local/bin/simple-host</code>
-in the standard installs), using that install’s environment,
-including <code>DB_DSN</code> and <code>DATA_DIR</code>, and as the user the server runs as. Keep
-<code>KV_STORE=postgres</code> until the move and the rollback rehearsal have been approved.</p>
-<p><code>kv-move</code> refuses, changing nothing, when the user running it does not own
+<p>Each key-value namespace is one SQLite file,
+<code>runtime/kv/&lt;namespace&gt;.sqlite</code> in the site’s directory. The Postgres dump and
+matching data directory are one backup: restore them together. Stop the install
+before taking the pair for a consistent snapshot. A live SQLite copy must
+include its <code>-wal</code> file; copying the main file alone can lose committed writes.
+Stopping first avoids copying files while they change. Site exports write the
+entries to <code>storage/kv.json</code> and omit the internal <code>runtime/kv/</code> files.</p>
+<h2 id="maintenance-locks-and-the-install-identity">Maintenance locks and the install identity</h2>
+<p>A maintenance command that rewrites saved data (<code>migrate-rules --apply</code> and
+<code>--revert</code>) requires every server using the data directory to be stopped.
+Servers hold a shared lock on <code>DATA_DIR/.maintenance.lock</code> for their lifetime;
+the command takes an exclusive lock without waiting and exits 2 if it cannot. A
+server also refuses to start while the command holds that lock. The kernel
+releases the lock if the process dies; leave the lock file in place. The file
+is empty and world-readable, and a server opens it read-only, so a lock file
+created by another user does not stop the server. If the server cannot read
+the file, its error gives the file’s path, owner and mode.</p>
+<p>The command also requires every server using the <strong>database</strong> to be stopped,
+whichever data directory it serves from. A server holds a shared Postgres
+advisory lock on its database while it runs; the command takes that lock
+exclusively without waiting and exits 2 if it cannot, and a server refuses to
+start while a command holds it. Postgres releases the lock when the process’s
+connection ends.</p>
+<p>The command refuses, changing nothing, when the user running it does not own
 <code>DATA_DIR</code>: files created by another user (root, for example) could not be
 opened by the server afterwards.</p>
-<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>simple-host kv-move --dry-run --scratch /tmp/kv-check --log /tmp/kv-dry-run.jsonl</span></span>
-<span class="line"><span>simple-host kv-move --apply --log /tmp/kv-apply.jsonl</span></span>
-<span class="line"><span>simple-host kv-move --verify --log /tmp/kv-verify.jsonl</span></span>
-<span class="line"><span>simple-host kv-move --rollback --log /tmp/kv-rollback.jsonl</span></span></code></pre>
-<p>Repeat <code>--site &lt;id&gt;</code> to select sites; omitting it selects every key-value
-namespace, including sites in Recently deleted. Other resource kinds are
-unaffected.</p>
-<p>Dry run can run beside the server. It reads a repeatable Postgres snapshot,
-builds and checks temporary files under <code>--scratch</code>, and removes those files
-afterwards. Its JSON-lines report gives entry counts, logical bytes, copy
-hashes, whether Postgres’s key order equals byte order, and the number of keys
-that differ only by case. Keys, values and authors are not included in the log.
-A copy difference exits 3; other failures exit 1. A namespace whose Postgres
-order differs will list in byte order after moving, so old page cursors may
-skip or repeat keys.</p>
-<p>Apply requires every server using the data directory to be stopped. Servers
-hold a shared lock on <code>DATA_DIR/.maintenance.lock</code> for their lifetime; apply
-takes an exclusive lock without waiting and exits 2 if it cannot. A server
-also refuses to start while apply holds that lock. The kernel releases the
-lock if the process dies; leave the lock file in place. The file is empty and
-world-readable, and a server opens it read-only, so a lock file created by
-another user does not stop the server. If the server cannot read the file,
-its error gives the file’s path, owner and mode.</p>
-<p>Apply and rollback also require every server using the <strong>database</strong> to be
-stopped, whichever data directory it serves from. A server holds a shared
-Postgres advisory lock on its database while it runs; apply and rollback take
-that lock exclusively without waiting and exit 2 if they cannot, and a server
-refuses to start while a command holds it. Postgres releases the lock when
-the process’s connection ends.</p>
 <h3 id="the-database-and-the-data-directory-must-be-the-same-install">The database and the data directory must be the same install</h3>
 <p>Each install has an identity: one random id, saved in the file
 <code>DATA_DIR/.install-id</code> and in the single row of the <code>install_identity</code> table.
 The server creates both at start when neither exists, and never changes
 them. Back up and restore the database and the data directory together and
 the pair stays matched.</p>
-<p>Apply, rollback and verify refuse, changing nothing and exiting 1, unless both
-copies exist and are equal. This stops a command given one install’s <code>DB_DSN</code>
-and a different install’s <code>DATA_DIR</code> from moving data into the wrong place.
-Dry run is not tied to a data directory and does not check.</p>
+<p>The command refuses, changing nothing and exiting 1, unless both copies exist
+and are equal. This stops a command given one install’s <code>DB_DSN</code> and a
+different install’s <code>DATA_DIR</code> from changing data in the wrong place.</p>
 <p>The identity does <strong>not</strong> tell a data directory from a copy of it. A copy
-(a rehearsal’s scratch copy, a restored backup in another path) holds the same
-<code>.install-id</code> and passes the check. The database lock above stops a command
-pointed at a copy only while a server is running on that database; with the
-server stopped, nothing does. Before every <code>--apply</code> or <code>--rollback</code>, check
-that <code>DATA_DIR</code> in the env file the command reads is the directory the server
-serves from, not a copy.</p>
+(a restored backup in another path) holds the same <code>.install-id</code> and passes the
+check. The database lock above stops a command pointed at a copy only while a
+server is running on that database; with the server stopped, nothing does.
+Before running the command, check that <code>DATA_DIR</code> in the env file it reads is
+the directory the server serves from, not a copy.</p>
 <p>When neither copy exists, start the server once on that database and data
 directory, stop it, and run the command again.</p>
 <p>When exactly one copy exists, or the two differ, the server writes a
@@ -875,59 +846,6 @@ points at another install. Only when you are certain the two belong together,
 with the server stopped, make them agree by hand: copy the id from the
 <code>install_identity</code> row into <code>DATA_DIR/.install-id</code> (one line, owned by the
 server’s user), or the other way round.</p>
-<p>For each namespace, apply builds a file without a WAL, compares every key,
-normalized JSON value, author and timestamp, checks integrity and the logical
-byte count, and writes the copy proof to the log. It syncs and renames the
-file and syncs the containing directories through the site directory, then
-changes the store marker and deletes the Postgres rows in one
-transaction. Check the command’s exit status: the copy proof alone does not
-mean the final transaction committed. An unresolved site directory is
-reported and left on Postgres. Re-running apply removes interrupted copies
-for Postgres namespaces and skips namespaces already moved.</p>
-<p>Verify is read-only and can run beside the server after later writes. It
-checks the SQLite file, JSON values, entry and byte totals, and absence of
-Postgres rows for moved namespaces. It does not compare with the old source
-content. A leftover file for a Postgres namespace is a warning. A namespace
-changing during verification is retried once; a second change is reported
-as a warning, not corruption. Other health failures exit nonzero.</p>
-<p>Moving data on a live install is a separate operator step. Take the paired
-Postgres and data-directory backup while stopped before applying. This
-command includes rollback; production cutover remains a separate approved step.
-Once a namespace moves, use a program that understands its marker.</p>
-<p>Rollback also requires the exclusive maintenance lock. It checkpoints and checks
-each SQLite namespace, inserts every current entry into Postgres and reads those
-rows back in the same transaction. It compares values, authors and both timestamps
-before changing the marker to <code>postgres</code>. A mismatch or failed JSON cast rolls
-the transaction back and leaves the namespace on SQLite. Later writes, edits
-and deletes are preserved. Repeat <code>--site</code> to limit the rollback to selected sites.</p>
-<p>Two kinds of namespace are left as they are:</p>
-<ul>
-<li><strong>A namespace with saved rules is refused.</strong> Rules are enforced only on the
-SQLite store, so moving it back would stop enforcing them. The error and the
-log line name the site and the namespace, neither the file nor the database
-is touched for it, every other namespace is still rolled back, and the
-command exits 1.</li>
-<li><strong>A namespace that already has rows in Postgres is skipped.</strong> Nothing is
-changed and it is not a failure: the command exits 0 when that is all it
-reports. The log line’s status says which case it is. <code>skipped: already restored</code> means the namespace is already on Postgres. <code>skipped: still on SQLite; Postgres already holds rows for it (run --verify)</code> means it was
-<strong>not</strong> rolled back and is still served from SQLite. Exit 0 therefore does
-not prove every namespace is back on Postgres: read the log as well as the
-exit status, and run <code>--verify</code> afterwards, which reports a namespace still
-marked <code>sqlite</code> that has Postgres rows.</li>
-</ul>
-<p>After commit the old file is retained as <code>&lt;namespace&gt;.sqlite.rolledback-&lt;UTC time&gt;</code>
-and its directory is synced, so a crash cannot bring the old name back.
-If the rename fails, the leftover active file is ignored by the Postgres marker;
-a later apply removes it and rebuilds from Postgres. A kill between commit and
-rename has the same safe result. Repeating rollback skips namespaces already on
-Postgres. Set <code>KV_STORE=postgres</code> before restarting if new namespaces should use
-Postgres too.</p>
-<p>The upgrade journal and step list are not available in this release. When they
-land, the move registers as <code>OptIn</code> (<code>upgrade --with kv-move</code>), with progress per
-namespace, not a remembered install-wide completion. Every attempt must inspect
-the current markers and Postgres rows; successful verification must also require
-zero Postgres namespaces and rows. Standalone apply/rollback take their own lock;
-the future upgrade command holds it across its steps instead.</p>
 <h2 id="converting-presets-to-row-rules">Converting presets to row rules</h2>
 <p><code>migrate-rules</code> is a command for the person who runs the install. It turns the
 preset on a SQLite database or key-value namespace into row rules that decide
@@ -982,9 +900,7 @@ holds it. For each resource in the plan it checks again, before changing
 anything, that the settings and table columns are exactly what the dry run
 saw and that the rules it would write are the plan’s. A resource that an owner
 saved, or whose tables changed, since the dry run is skipped as “changed since
-the dry run” with nothing recorded; run a new dry run for it. A key-value
-namespace still stored in Postgres is skipped until it has been moved (see
-above). Then, in order:</p>
+the dry run” with nothing recorded; run a new dry run for it. Then, in order:</p>
 <ol>
 <li>the present settings are recorded on the resource (<code>rules_converted_from</code>);</li>
 <li>the database gets the columns a rules save adds, the author column and its

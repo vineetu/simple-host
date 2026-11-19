@@ -108,15 +108,6 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 		return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
 	}
 	x := rules.Resource{Name: name, Kind: in.Kind, SitePasscode: in.SitePasscode}
-	if x.Kind == "kv" {
-		x.KVStore = "postgres"
-		if s.deps.KVStore == "sqlite" {
-			x.KVStore = "sqlite"
-		}
-		if exists {
-			x.KVStore = old.KVStore
-		}
-	}
 	if x.SitePasscode == "" {
 		x.SitePasscode = "inherit"
 	}
@@ -290,7 +281,7 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 			}
 		}
 	} // preset preparation
-	if !exists && x.Kind == "kv" && x.KVStore == "sqlite" {
+	if !exists && x.Kind == "kv" {
 		if err := s.createKVSQLite(ctx, call, x.Name); err != nil {
 			var e *Error
 			if errors.As(err, &e) {
@@ -313,11 +304,9 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 			return internal
 		}
 		defer tx.Rollback()
-		if clearWriters {
-			for _, table := range map[string]string{"kv": "site_storage_kv", "files": "site_storage_files"} {
-				if _, e := repo.ClearResourceWriters(ctx, tx, table, call.SiteID, name); e != nil {
-					return internal
-				}
+		if clearWriters && x.Kind == "files" {
+			if _, e := repo.ClearFileWriters(ctx, tx, call.SiteID, name); e != nil {
+				return internal
 			}
 		}
 		result, e := repo.UpsertResource(ctx, tx, call.SiteID, x)
@@ -345,7 +334,7 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 		}
 		return nil
 	}
-	if clearWriters && x.Kind == "kv" && x.KVStore == "sqlite" {
+	if clearWriters && x.Kind == "kv" {
 		err = s.clearKVWritersSQLite(ctx, call, name, save)
 	} else {
 		err = save(nil)
@@ -381,7 +370,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 		return err
 	}
 	defer unlock()
-	staged, restore, err := runtime.StageRuntime(s.deps.Disk, call.OwnerID, call.SiteName, call.ResourceName, call.Resource.Kind, call.Resource.KVStore)
+	staged, restore, err := runtime.StageRuntime(s.deps.Disk, call.OwnerID, call.SiteName, call.ResourceName, call.Resource.Kind)
 	if err != nil {
 		return &Error{Code: "internal_error", Message: "internal server error"}
 	}

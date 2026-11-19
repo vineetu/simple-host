@@ -140,12 +140,6 @@ func presetPaths(kind, name, entry string) (one, list string) {
 }
 
 func TestStoragePresetsEveryActionAndCaller(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsEveryActionAndCaller(t) })
-	}
-}
-
-func runTestStoragePresetsEveryActionAndCaller(t *testing.T) {
 	s := newPresetSite(t)
 	for _, p := range storagePresets {
 		if p.ID == "comments" {
@@ -236,12 +230,6 @@ func runTestStoragePresetsEveryActionAndCaller(t *testing.T) {
 }
 
 func TestStoragePresetsRulesOnSave(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsRulesOnSave(t) })
-	}
-}
-
-func runTestStoragePresetsRulesOnSave(t *testing.T) {
 	valid := 0
 	for _, r := range presetWho {
 		for _, a := range presetWho {
@@ -327,7 +315,7 @@ func runTestStoragePresetsRulesOnSave(t *testing.T) {
 		t.Fatalf("open full: %v", r)
 	}
 	// A legacy resource is labelled and keeps its rules.
-	insertLegacyStorage(t, s.a.database, s.sid, "legacy-open", "kv", "anyone", "anyone", "full", "")
+	insertLegacyStorage(t, s.a.sites, s.sid, "legacy-open", "kv", "anyone", "anyone", "full", "")
 	list := s.must(t, "GET", "/resources", nil, s.key, 200)
 	if !strings.Contains(string(list.body), `"preset":"legacy"`) {
 		t.Fatalf("legacy label: %s", list.body)
@@ -441,12 +429,6 @@ func TestStoragePresetsSQLiteTablesAndStatements(t *testing.T) {
 }
 
 func TestStoragePresetsOwnerOnSiteLimits(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsOwnerOnSiteLimits(t) })
-	}
-}
-
-func runTestStoragePresetsOwnerOnSiteLimits(t *testing.T) {
 	s := newPresetSite(t)
 	own := s.callers["owner-site"]
 	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "kv", "preset": "private"}, s.key, 201)
@@ -499,7 +481,7 @@ func runTestStoragePresetsOwnerOnSiteLimits(t *testing.T) {
 		t.Fatalf("person host owner read: %d %s", r.status, r.body)
 	}
 	// A legacy resource gives no owner rights from the page.
-	insertLegacyStorage(t, s.a.database, s.sid, "old", "sqlite", "owner", "anyone", "full", "")
+	insertLegacyStorage(t, s.a.sites, s.sid, "old", "sqlite", "owner", "anyone", "full", "")
 	s.must(t, "POST", "/sqlite/old/query", map[string]string{"sql": "SELECT 1"}, own, 403)
 	// SH.me() says when the page is the owner's.
 	me := s.a.at(t, "GET", s.host, "/v1/sites/shop/me", nil, own).json(t)
@@ -512,12 +494,6 @@ func runTestStoragePresetsOwnerOnSiteLimits(t *testing.T) {
 }
 
 func TestStoragePresetsKVAndFilesOwnership(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsKVAndFilesOwnership(t) })
-	}
-}
-
-func runTestStoragePresetsKVAndFilesOwnership(t *testing.T) {
 	s := newPresetSite(t)
 	alice, bob := s.callers["alice"], s.callers["bob"]
 	for _, kind := range []string{"kv", "files"} {
@@ -558,12 +534,6 @@ func runTestStoragePresetsKVAndFilesOwnership(t *testing.T) {
 
 // Simple Hack uses presets too (owner decision 2026-10-10, replacing D2).
 func TestStoragePresetsProductUsesPresets(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsProductUsesPresets(t) })
-	}
-}
-
-func runTestStoragePresetsProductUsesPresets(t *testing.T) {
 	s := newPresetSite(t)
 	r := s.must(t, "PUT", "/resources/team", map[string]string{"kind": "sqlite", "read": "anyone", "write": "signed-in", "write_mode": "add"}, s.key, 201).json(t)
 	if r["preset"] != "wall" && r["preset"] != "custom" {
@@ -602,7 +572,7 @@ func TestStoragePresetsReviewFixes(t *testing.T) {
 	alice, bob, own := s.callers["alice"], s.callers["bob"], s.callers["owner-site"]
 	// A page wrote visitor_id freely on a legacy database; a later preset
 	// never lets that forged id count as the victim's own.
-	insertLegacyStorage(t, s.a.database, s.sid, "old", "sqlite", "anyone", "signed-in", "full", "")
+	insertLegacyStorage(t, s.a.sites, s.sid, "old", "sqlite", "anyone", "signed-in", "full", "")
 	s.must(t, "POST", "/sqlite/old/schema", map[string]string{"sql": "CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT, visitor_id TEXT)"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/old/execute", map[string]any{"sql": "INSERT INTO orders(item, visitor_id) VALUES('planted', ?)", "params": []any{s.aliceID}}, bob, 200)
 	s.must(t, "PUT", "/resources/old", map[string]string{"kind": "sqlite", "preset": "board"}, s.key, 200)
@@ -657,12 +627,6 @@ func TestStoragePresetsReviewFixes(t *testing.T) {
 
 // Fixes from the second security review (2026-10-10).
 func TestStoragePresetsReviewRound2(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetsReviewRound2(t) })
-	}
-}
-
-func runTestStoragePresetsReviewRound2(t *testing.T) {
 	s := newPresetSite(t)
 	bob, own := s.callers["bob"], s.callers["owner-site"]
 	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "kv", "preset": "private"}, s.key, 201)
@@ -683,7 +647,7 @@ func runTestStoragePresetsReviewRound2(t *testing.T) {
 	s.must(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite", "read": "anyone"}, s.key, 409)
 	// A legacy full-mode KV recorded whoever overwrote a key; the first preset
 	// forgets those writers, so own never hands someone else's key over.
-	insertLegacyStorage(t, s.a.database, s.sid, "oldkv", "kv", "anyone", "signed-in", "full", "")
+	insertLegacyStorage(t, s.a.sites, s.sid, "oldkv", "kv", "anyone", "signed-in", "full", "")
 	s.must(t, "PUT", "/kv/oldkv/keys/profile", `{"value":"bob wrote"}`, bob, 200)
 	s.must(t, "PUT", "/resources/oldkv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 200)
 	s.must(t, "GET", "/kv/oldkv/keys/profile", nil, bob, 404)

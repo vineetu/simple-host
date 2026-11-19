@@ -77,7 +77,7 @@ func TestMigrateRulesCommandModesAndExitCodes(t *testing.T) {
 	if err = db.QueryRow(`INSERT INTO sites(user_id,name) VALUES($1,'rules-command') RETURNING id`, owner).Scan(&site); err != nil {
 		t.Fatal(err)
 	}
-	insert := `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,kv_store) VALUES($1,$2,'kv','anyone','owner','add','anyone','owner','owner','owner','public','sqlite')`
+	insert := `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base) VALUES($1,$2,'kv','anyone','owner','add','anyone','owner','owner','owner','public')`
 	if _, err = db.Exec(insert, site, "menu"); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestMigrateRulesCommandModesAndExitCodes(t *testing.T) {
 	run(0, "--apply", "--plan", plan)
 	run(0, "--revert", "--plan", plan)
 	// A resource that needs a person: the plan is written and the exit is 3.
-	if _, err = db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,write_mode,kv_store) VALUES($1,'old','kv','signed-in','signed-in','full','sqlite')`, site); err != nil {
+	if _, err = db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,write_mode) VALUES($1,'old','kv','signed-in','signed-in','full')`, site); err != nil {
 		t.Fatal(err)
 	}
 	run(3, "--dry-run", "--plan", plan, "--account", handle)

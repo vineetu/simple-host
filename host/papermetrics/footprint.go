@@ -18,7 +18,7 @@ type SiteFootprint struct {
 	LiveFiles                                       int
 	LiveBytes, TotalBytes                           int64
 	HtmlBytes, JsBytes, CssBytes, MediaBytes, Other int64
-	SqliteBytes, FileStoreBytes, KvBytes            int64
+	SqliteBytes, FileStoreBytes                     int64
 	KvRows, LegacyRows                              int64
 	Views30d                                        int64
 	AgeDays                                         int
@@ -56,8 +56,6 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 			EXTRACT(day FROM now() - s.created_at)::int,
 			EXTRACT(day FROM now() - s.updated_at)::int,
 			COALESCE((SELECT sum(views) FROM site_view_hourly v WHERE v.site_id = s.id AND v.class = 'person' AND v.hour >= now() - interval '30 days'), 0),
-			COALESCE((SELECT count(*) FROM site_storage_kv k WHERE k.site_id = s.id), 0),
-			COALESCE((SELECT sum(pg_column_size(value)) FROM site_storage_kv k WHERE k.site_id = s.id), 0),
 			COALESCE((SELECT count(*) FROM collection_items ci WHERE ci.site_id = s.id AND ci.deleted_at IS NULL), 0)
 		FROM sites s WHERE s.deleted_at IS NULL`)
 	if err != nil {
@@ -68,7 +66,7 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 	for rows.Next() {
 		var id, user, name string
 		f := &SiteFootprint{}
-		if err := rows.Scan(&id, &user, &name, &f.AgeDays, &f.DaysSinceUpdate, &f.Views30d, &f.KvRows, &f.KvBytes, &f.LegacyRows); err != nil {
+		if err := rows.Scan(&id, &user, &name, &f.AgeDays, &f.DaysSinceUpdate, &f.Views30d, &f.LegacyRows); err != nil {
 			rows.Close()
 			return err
 		}
@@ -80,8 +78,8 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 		return err
 	}
 
-	// kv_bytes retains its historical Postgres binary-size definition.
-	// Only the row count adds moved namespaces; value text bytes are a daily series.
+	// kv_bytes was the Postgres binary size of KV values and is 0 since that
+	// store was removed; value text bytes are a daily series.
 	skipped := 0
 	if c.KVFileStats != nil {
 		for key, f := range sites {
@@ -91,7 +89,7 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 				skipped++
 				continue
 			}
-			f.KvRows += n
+			f.KvRows = n
 		}
 	}
 	log.Printf("paper metrics: footprint KV sites skipped=%d", skipped)
@@ -111,7 +109,7 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultE
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 			week, f.Versions, f.LiveFiles, f.LiveBytes, f.TotalBytes,
 			f.HtmlBytes, f.JsBytes, f.CssBytes, f.MediaBytes, f.Other,
-			f.SqliteBytes, f.FileStoreBytes, f.KvBytes, f.KvRows, f.LegacyRows, f.Views30d, f.AgeDays, f.DaysSinceUpdate); err != nil {
+			f.SqliteBytes, f.FileStoreBytes, 0, f.KvRows, f.LegacyRows, f.Views30d, f.AgeDays, f.DaysSinceUpdate); err != nil {
 			return fmt.Errorf("insert footprint: %w", err)
 		}
 	}

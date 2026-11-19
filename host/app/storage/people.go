@@ -51,15 +51,10 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 		return p
 	}
 
-	kvIDs, err := repository.DistinctKVWriters(ctx, s.db, c.SiteID)
-	if err != nil {
-		return nil, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	fileKV, err := s.sqliteKVVisitors(ctx, c)
+	kvIDs, err := s.sqliteKVVisitors(ctx, c)
 	if err != nil {
 		return nil, err
 	}
-	kvIDs = append(kvIDs, fileKV...)
 	fileIDs, err := repository.DistinctFileWriters(ctx, s.db, c.SiteID)
 	if err != nil {
 		return nil, &Error{Code: "internal_error", Message: "internal server error"}
@@ -230,7 +225,7 @@ func (s *Service) distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]s
 }
 
 func (s *Service) sqliteKVVisitors(ctx context.Context, c Call) ([]string, error) {
-	names, err := repository.SQLiteKVNamespaces(ctx, s.db, c.SiteID)
+	names, err := repository.KVNamespaces(ctx, s.db, c.SiteID)
 	if err != nil {
 		return nil, err
 	}

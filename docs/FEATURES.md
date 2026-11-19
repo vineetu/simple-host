@@ -2891,40 +2891,25 @@ are held until R4-S2 activation.
 Routes: `/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`.
 MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `storage_file_download_link`, `storage_get_usage`, `storage_list_file_objects`, `storage_list_kv_keys`.
 
-The server can keep a new key-value namespace in its own SQLite file, chosen by
-`KV_STORE` (default `postgres`). The setting exists for an upcoming change and
-must stay `postgres` until the move and rehearsal are ready. Site exports,
-namespace deletion (including WAL/SHM), authors and the people list cover both
-stores. Missing namespace files count as zero usage with a server log; reads
-report the missing file. Busy files return a retry response. Existing namespaces
-keep their store. Both stores charge key bytes plus PostgreSQL-normalized JSON
-text, and a site with both charges their sum. SQLite lists use byte order and
-indexed bounds for literal prefixes and cursors; author visibility is preserved during the move.
+The server keeps each key-value namespace in its own SQLite file,
+`runtime/kv/<name>.sqlite` in the site's directory. This is the only key-value
+store. Site exports, namespace deletion (including WAL/SHM), authors and the
+people list read it. Missing namespace files count as zero usage with a server
+log; reads report the missing file. Busy files return a retry response. A
+namespace is charged key bytes plus PostgreSQL-normalized JSON text. Lists use
+byte order and indexed bounds for literal prefixes and cursors.
 
-The operator's `kv-move` command can build and compare scratch copies, apply
-the move while the server is stopped, and verify namespace health after later
-writes. Servers hold a shared data-directory maintenance lock; apply requires
-the exclusive lock, as does rollback. Apply syncs the file and its directories through the site
-directory before removing the Postgres source. Interrupted moves can be rerun.
-Rollback restores every current entry and proves the copy inside its Postgres
-transaction before switching the marker, preserving later writes. Old SQLite files
-are retained after rollback. Production cutover remains a separate step. See
-`docs/advanced/storage-and-backups.md`.
-
-`kv-move` is tied to one install. The server saves a random install identity
-in `DATA_DIR/.install-id` and in the `install_identity` table when neither has
-one; apply, rollback and verify refuse unless both exist and match, and the
-server logs a warning at start when they do not. A serving program holds a
-shared Postgres advisory lock on its database and apply and rollback take it
-exclusively, so they cannot run against a database a server is using from
-another directory. The identity cannot tell a data directory from a copy of
-it, and the lock covers a copy only while a server runs, so the operator
-checks `DATA_DIR` before apply or rollback. The command refuses when its user does not own `DATA_DIR`.
-A server opens the maintenance lock file read-only. Rollback refuses a
-namespace that has saved rules (rules are enforced only on SQLite), naming it,
-and still rolls back the rest; a namespace that already has rows in Postgres
-is skipped and reported without failing the run, with a status that says
-whether it is already on Postgres or still on SQLite.
+Maintenance commands that rewrite saved data are tied to one install. The
+server saves a random install identity in `DATA_DIR/.install-id` and in the
+`install_identity` table when neither has one; such a command refuses unless
+both exist and match, and the server logs a warning at start when they do not.
+Servers hold a shared data-directory maintenance lock and a shared Postgres
+advisory lock on their database; the command takes both exclusively, so it
+cannot run against a database a server is using from another directory. The
+identity cannot tell a data directory from a copy of it, and the lock covers a
+copy only while a server runs, so the operator checks `DATA_DIR` first. The
+command refuses when its user does not own `DATA_DIR`. A server opens the
+maintenance lock file read-only. See `docs/advanced/storage-and-backups.md`.
 
 The operator's `migrate-rules` command converts the preset on a SQLite database
 or key-value namespace into row rules that decide the same. Its dry run runs

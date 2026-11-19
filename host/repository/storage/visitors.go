@@ -43,13 +43,6 @@ func CandidateVisitorIDsForEmail(ctx context.Context, db *sql.DB, siteID, email 
 	return out, rows.Err()
 }
 
-// DistinctKVWriters returns the visitor_id values with at least one key in
-// this site's KV storage (every resource), excluding the owner's own keys
-// (writer_id ”).
-func DistinctKVWriters(ctx context.Context, db *sql.DB, siteID string) ([]string, error) {
-	return distinctWriters(ctx, db, `SELECT DISTINCT writer_id FROM site_storage_kv WHERE site_id = $1 AND writer_id <> ''`, siteID)
-}
-
 // DistinctFileWriters returns the visitor_id values with at least one
 // stored file in this site's files storage (every resource), excluding the
 // owner's own uploads (writer_id ”).

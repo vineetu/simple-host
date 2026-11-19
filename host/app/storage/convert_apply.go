@@ -117,7 +117,7 @@ type convertRecord struct {
 // to stop a run after a step.
 type RulesConverter struct {
 	DB                 *sql.DB
-	db                 repo.KVMoveDB
+	db                 repo.TxQuerier
 	DataDir            string
 	Commit             string
 	SpamCheckAvailable bool
@@ -912,11 +912,6 @@ func (m *RulesConverter) DryRun(ctx context.Context, accounts []string, out io.W
 			}
 		default:
 			plan.Resources = append(plan.Resources, e.entry())
-			if e.x.Kind == "kv" && e.x.KVStore != "sqlite" {
-				reason := "this key-value namespace is still on Postgres; apply skips it until it has been moved"
-				plan.Notes = append(plan.Notes, e.note(reason))
-				fmt.Fprintf(out, "note: %s %s %s: %s\n", r.Account, r.SiteName, r.Name, reason)
-			}
 		}
 	}
 	fmt.Fprintf(out, "planned=%d needs_a_person=%d differences=%d failed=%d\n", len(plan.Resources), len(plan.NeedsPerson), len(plan.Differences), len(failures))
@@ -1013,9 +1008,6 @@ func (m *RulesConverter) applyEntry(ctx context.Context, entry ConvertPlanEntry)
 	}
 	if len(e.differences) != 0 {
 		return "conversion changes answers: " + e.differences[0].Line(), nil
-	}
-	if e.x.Kind == "kv" && e.x.KVStore != "sqlite" {
-		return "this key-value namespace is still on Postgres", nil
 	}
 	// A rerun after this plan's own additive step sees the schema that step left.
 	rerun := recorded && record.PlanEntrySHA256 == entry.SHA256 && record.SchemaDigest == entry.SchemaDigest

@@ -14,6 +14,5 @@ func TestServeStorageRulesBrowser(t *testing.T) {
 		t.Skip("STORAGE_RULES_FIXTURE unset")
 	}
 	t.Setenv("STORAGE_RULES", "on")
-	t.Setenv("KV_STORE", "sqlite")
 	serveVisitorRecordsBrowser(t, file)
 }

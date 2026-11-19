@@ -8,15 +8,6 @@ import (
 )
 
 func TestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			runTestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t)
-		})
-	}
-}
-
-func runTestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){
 		"GET /v1/sites/blog/storage/usage": func() (int, string) {
 			return 200, `{"used_bytes":7,"limit_bytes":1000000,"remaining_bytes":999993,"breakdown":{"kv_bytes":1,"sqlite_bytes":2,"files_bytes":4}}`
@@ -65,12 +56,6 @@ func runTestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 }
 
 func TestStorageToolsScopedToSelectedGroup(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageToolsScopedToSelectedGroup(t) })
-	}
-}
-
-func runTestStorageToolsScopedToSelectedGroup(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) }))
 	full, _, byName := s.forCaller(Caller{APIKey: "person", Mode: CallerModeEvents, GrantID: "grant", TeamAPIKey: "team"})
 	if len(full) == 0 || byName["storage_sql_schema"].Name == "" {
@@ -82,12 +67,6 @@ func runTestStorageToolsScopedToSelectedGroup(t *testing.T) {
 }
 
 func TestStorageToolRejectsOversizedInlineFile(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageToolRejectsOversizedInlineFile(t) })
-	}
-}
-
-func runTestStorageToolRejectsOversizedInlineFile(t *testing.T) {
 	s := newTestServer(&recordingUpstream{})
 	args := map[string]any{"site": "blog", "name": "assets", "path": "large.bin", "content_type": "application/octet-stream", "content_base64": strings.Repeat("A", 1400000)}
 	text, _, isErr := resultOf(t, send(t, s, toolCall("storage_put_file", args), nil, true))
@@ -97,12 +76,6 @@ func runTestStorageToolRejectsOversizedInlineFile(t *testing.T) {
 }
 
 func TestStorageListForwardsPagination(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageListForwardsPagination(t) })
-	}
-}
-
-func runTestStorageListForwardsPagination(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){
 		"GET /v1/sites/blog/storage/kv/items/keys": func() (int, string) { return 200, `{"items":[],"next_after":""}` },
 	}}

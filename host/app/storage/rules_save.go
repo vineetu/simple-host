@@ -80,9 +80,6 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 	if x.Kind == "files" || in.hasPresetFields() {
 		return invalidRules("shape", "", "rules cannot be combined with preset fields or used on files")
 	}
-	if x.Kind == "kv" && x.KVStore != "sqlite" {
-		return &Error{Code: "rules_unavailable", Message: "this namespace has not been moved yet"}
-	}
 	// Bound the serialized rules supplied to the service, including table names
 	// and wrappers. Raw bytes count before decoding/canonicalization.
 	size := len(*in.Rules) + len(`{"rules":}`)

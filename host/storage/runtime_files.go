@@ -48,10 +48,7 @@ func RuntimeSQLitePath(disk interface{ SiteDir(string, string) string }, ownerID
 }
 
 // StageRuntime moves a resource aside until its declaration is deleted.
-func StageRuntime(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, kind, kvStore string) (staged string, restore func(), err error) {
-	if kind == "kv" && kvStore != "sqlite" {
-		return "", func() {}, nil
-	}
+func StageRuntime(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, kind string) (staged string, restore func(), err error) {
 	root := RuntimeDir(disk, ownerID, siteName)
 	if err = os.MkdirAll(root, 0700); err != nil {
 		return "", nil, err

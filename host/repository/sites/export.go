@@ -46,29 +46,6 @@ func ExportFileOwners(ctx context.Context, q exportQuerier, siteID string) ([]ma
 	return fileOwners, nil
 }
 
-// ExportKV returns KV values and authors in archive order.
-func ExportKV(ctx context.Context, q exportQuerier, siteID string) ([]ExportKVEntry, error) {
-	kvRows, err := q.QueryContext(ctx, `SELECT resource_name,key,value,writer_id FROM site_storage_kv WHERE site_id=$1 ORDER BY resource_name,key`, siteID)
-	if err != nil {
-		return nil, err
-	}
-	entries := []ExportKVEntry{}
-	for kvRows.Next() {
-		var x ExportKVEntry
-		if err := kvRows.Scan(&x.Resource, &x.Key, &x.Value, &x.WriterID); err != nil {
-			kvRows.Close()
-			return nil, err
-		}
-		entries = append(entries, x)
-	}
-	err = kvRows.Err()
-	kvRows.Close()
-	if err != nil {
-		return nil, err
-	}
-	return entries, nil
-}
-
 type exportQuerier interface {
 	Querier
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -198,9 +175,9 @@ func ListExportItems(ctx context.Context, database *sql.DB, siteID string) ([]Ex
 	return out, rows.Err()
 }
 
-// ExportKVNamespaces lists only authoritative KV files, in resource order.
+// ExportKVNamespaces lists the declared KV files, in resource order.
 func ExportKVNamespaces(ctx context.Context, q exportQuerier, siteID string) ([]string, error) {
-	rows, err := q.QueryContext(ctx, `SELECT name FROM site_storage_resources WHERE site_id=$1 AND kind='kv' AND kv_store='sqlite' ORDER BY name`, siteID)
+	rows, err := q.QueryContext(ctx, `SELECT name FROM site_storage_resources WHERE site_id=$1 AND kind='kv' ORDER BY name`, siteID)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +193,7 @@ func ExportKVNamespaces(ctx context.Context, q exportQuerier, siteID string) ([]
 	return names, rows.Err()
 }
 
-// OrderExportKV retains the Postgres resource/key collation for mixed exports.
+// OrderExportKV sorts by the Postgres resource/key collation the archive has always used.
 func OrderExportKV(ctx context.Context, q exportQuerier, entries []ExportKVEntry) ([]ExportKVEntry, error) {
 	resources, keys := make([]string, len(entries)), make([]string, len(entries))
 	for i, e := range entries {

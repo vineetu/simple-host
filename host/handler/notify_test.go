@@ -287,12 +287,6 @@ func TestNotifyHeaderAndSecretRules(t *testing.T) {
 }
 
 func TestNotifyVisitorRoutes(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestNotifyVisitorRoutes(t) })
-	}
-}
-
-func runTestNotifyVisitorRoutes(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
@@ -377,12 +371,6 @@ func runTestNotifyVisitorRoutes(t *testing.T) {
 }
 
 func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestNotifyRetriesSuspensionAndResume(t) })
-	}
-}
-
-func runTestNotifyRetriesSuspensionAndResume(t *testing.T) {
 	l := notificationSettings(t, func(l *config.Limits) { l.NotifySuspendAttempts = 3 })
 	s, x := notificationFixture(t, edition.Default(l))
 	id := subscribeNotification(t, s, x)
@@ -434,12 +422,6 @@ func runTestNotifyRetriesSuspensionAndResume(t *testing.T) {
 }
 
 func TestNotifyCapsTruncationRotationAndControls(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestNotifyCapsTruncationRotationAndControls(t) })
-	}
-}
-
-func runTestNotifyCapsTruncationRotationAndControls(t *testing.T) {
 	l := notificationSettings(t, func(l *config.Limits) { l.NotifyMaxPerSite = 1; l.NotifyPerMinute = 2 })
 	s, x := notificationFixture(t, edition.Default(l))
 	id := subscribeNotification(t, s, x)
@@ -483,12 +465,6 @@ func runTestNotifyCapsTruncationRotationAndControls(t *testing.T) {
 }
 
 func TestNotifyMCPChallengeRefreshReplay(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestNotifyMCPChallengeRefreshReplay(t) })
-	}
-}
-
-func runTestNotifyMCPChallengeRefreshReplay(t *testing.T) {
 	s, x := notificationFixture(t)
 	backend := s.a.sites.EventsBackend()
 	caller := mcp.Caller{Owner: s.ownerID, AppName: "Test app"}
@@ -737,12 +713,6 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 }
 
 func TestNotifyDailyCapAndNoSubscribers(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestNotifyDailyCapAndNoSubscribers(t) })
-	}
-}
-
-func runTestNotifyDailyCapAndNoSubscribers(t *testing.T) {
 	l := notificationSettings(t, func(l *config.Limits) { l.NotifyPerDay = 1 })
 	s, x := notificationFixture(t, edition.Default(l))
 	s.must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 201)
@@ -1239,12 +1209,6 @@ func TestNotifyAcknowledgmentIgnoresBrokenBody(t *testing.T) {
 }
 
 func TestNotifyEmitAfterStorageRelease(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestNotifyEmitAfterStorageRelease(t) })
-	}
-}
-
-func runTestNotifyEmitAfterStorageRelease(t *testing.T) {
 	s, x := notificationFixture(t)
 	subscribeNotification(t, s, x)
 	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)

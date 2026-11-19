@@ -292,9 +292,9 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) (resultErr
 		}
 		switch m.Name {
 		case "kv_rows":
-			v.Float64 += float64(fileEntries)
+			v.Float64 = float64(fileEntries)
 		case "kv_value_text_bytes":
-			v.Float64 += float64(fileBytes)
+			v.Float64 = float64(fileBytes)
 		case "kv_file_sites_skipped":
 			v.Float64 = float64(skipped)
 		}
@@ -365,10 +365,9 @@ var dailyMetrics = []DailyMetric{
 	{Name: "resources_preset", Query: `SELECT count(*) FROM site_storage_resources r WHERE r.kind IN ('sqlite','kv') AND r.rules IS NULL AND r.preset_base <> 'rules'`},
 	{Name: "sites_suspended", Query: `SELECT count(*) FROM sites WHERE deleted_at IS NULL AND suspended_at IS NOT NULL`},
 	{Name: "accounts_suspended", Query: `SELECT count(*) FROM users WHERE suspended_at IS NOT NULL`},
-	{Name: "kv_rows", Query: `SELECT count(*) FROM site_storage_kv`},
-	{Name: "kv_value_bytes", Query: `SELECT COALESCE(sum(pg_column_size(value)), 0) FROM site_storage_kv`},
-	// Compressed Postgres bytes stay Postgres-only. Text bytes overlap both stores.
-	{Name: "kv_value_text_bytes", Query: `SELECT COALESCE(sum(octet_length(value::text)), 0) FROM site_storage_kv`},
+	// These three are filled from the sites' key-value files (kvFileTotals).
+	{Name: "kv_rows", Query: `SELECT 0`},
+	{Name: "kv_value_text_bytes", Query: `SELECT 0`},
 	{Name: "kv_file_sites_skipped", Query: `SELECT 0`},
 	{Name: "legacy_rows", Query: `SELECT count(*) FROM collection_items WHERE deleted_at IS NULL`},
 	{Name: "db_bytes", Query: `SELECT pg_database_size(current_database())`},
@@ -389,10 +388,10 @@ var dailyMetrics = []DailyMetric{
 	{Name: "sample_minutes_missing_day", Query: `SELECT GREATEST(0, 1440 - 5 * count(*)) FROM paper_process_sample WHERE at >= $1::date AND at < $1::date + 1`},
 }
 
-// Enumerate markers, never walk orphan files. Collection is best effort per
+// Enumerate declared namespaces, never walk orphan files. Collection is best effort per
 // site; skipped sites are recorded alongside the aggregate.
 func (c *Collector) kvFileTotals(ctx context.Context) (entries, bytes, skipped int64, err error) {
-	rows, err := c.db.QueryContext(ctx, `SELECT DISTINCT site_id::text FROM site_storage_resources WHERE kind='kv' AND kv_store='sqlite'`)
+	rows, err := c.db.QueryContext(ctx, `SELECT DISTINCT site_id::text FROM site_storage_resources WHERE kind='kv'`)
 	if err != nil {
 		return 0, 0, 0, err
 	}

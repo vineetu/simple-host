@@ -27,7 +27,7 @@ Other source files in the package:
 | `certreq.go` | Local certificate issuer hand-off; unchanged free functions, outside both interfaces. |
 | `import_staging.go` | Local private import scratch files; unchanged free functions, outside both interfaces. |
 | `maintenance_lock.go` | Rules-track local maintenance lock and install identity; unchanged, outside both interfaces. |
-| `sqlite_gate.go`, `export_sqlite.go`, `runtime_*.go`, `rules/` | Per-site runtime resources, SQLite admission/mechanics and the nested rules module; unchanged and outside the deploy backend. |
+| `sqlite_gate.go`, `export_sqlite.go`, `runtime_*.go`, `rules/` | Per-site runtime resources (SQLite databases, and key-value namespaces, each one SQLite file and the only key-value store), SQLite admission/mechanics and the nested rules module; unchanged and outside the deploy backend. |
 | `backend_disk.go`, `backend_open_*.go` (new) | Content reads, walks and version listing; platform search-only directory flags; local trash redirect-marker read and auxiliary-byte measurement. |
 | `access_marker.go` | Durable local access markers (`setAccessMarker`, `SetTrashedAccessMarker`); trash repair remains part of `LocalServing` before restore. |
 | `*_test.go` | Existing storage coverage plus the shared disk/in-memory contract suite. |

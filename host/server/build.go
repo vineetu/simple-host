@@ -159,7 +159,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	if err = logStoragePresetNotice(context.Background(), db); err != nil {
 		return nil, fmt.Errorf("count storage presets: %w", err)
 	}
-	// The install lock (shared): kv-move --apply and --rollback take it
+	// The install lock (shared): migrate-rules --apply and --revert take it
 	// exclusive, so they cannot rewrite this database while any server uses it,
 	// from this data directory or another. Every request/worker pool connection
 	// also holds it shared, including new connections after a database restart.
@@ -175,7 +175,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	// created once, when neither has one. A mismatch does not stop the server
 	// (it serves as before), but maintenance commands refuse until it is fixed.
 	if err := storageapp.EnsureInstallIdentity(context.Background(), db, cfg.DataDir); err != nil {
-		log.Printf("WARNING: INSTALL IDENTITY: %v. This server keeps serving; kv-move refuses to run on this database and data directory until they agree", err)
+		log.Printf("WARNING: INSTALL IDENTITY: %v. This server keeps serving; migrate-rules refuses to run on this database and data directory until they agree", err)
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
 	// registered, because the dashboard, the chrome and the host dispatch read it.

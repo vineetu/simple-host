@@ -107,7 +107,7 @@ func TestSiteStorageSQLErrorsAreActionable(t *testing.T) {
 // lists.
 func TestSiteStorageSQLErrorsVisitorSeesNoSchema(t *testing.T) {
 	s := newPresetSite(t)
-	insertLegacyStorage(t, s.a.database, s.sid, "old", "sqlite", "owner", "anyone", "full", "")
+	insertLegacyStorage(t, s.a.sites, s.sid, "old", "sqlite", "owner", "anyone", "full", "")
 	s.must(t, "POST", "/sqlite/old/schema", map[string]string{"sql": "CREATE TABLE secret_notes (id INTEGER PRIMARY KEY, body TEXT UNIQUE)"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/old/schema", map[string]string{"sql": "CREATE TABLE hidden (id INTEGER PRIMARY KEY, body TEXT, hidden_col TEXT NOT NULL, hidden_num INTEGER CHECK (hidden_num > 0) DEFAULT 1, strict_col INTEGER, UNIQUE (body, hidden_num))"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/old/schema", map[string]string{"sql": "CREATE TABLE strict_hidden (id INTEGER PRIMARY KEY, body TEXT, strict_hidden_col INTEGER DEFAULT 'oops') STRICT"}, s.key, 200)

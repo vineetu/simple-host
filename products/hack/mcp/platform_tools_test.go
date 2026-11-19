@@ -223,52 +223,47 @@ func TestHackOrganiserConnectionHasEventStorage(t *testing.T) {
 // Simple Hack does not offer the comments preset: its storage tools never
 // mention it, its checked value, or approve_first, while Simple Host's do.
 func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			s := newTestServer(nil)
-			schemaText := func(description string, schema map[string]any) string {
-				b, err := json.Marshal(schema)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return description + string(b)
+	s := newTestServer(nil)
+	schemaText := func(description string, schema map[string]any) string {
+		b, err := json.Marshal(schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return description + string(b)
+	}
+	_, hostTools := toolsAs(t, s, mcp.Caller{APIKey: "host"}, false)
+	host := schemaText(hostTools["storage_set_resource"].Description, hostTools["storage_set_resource"].InputSchema)
+	for _, want := range []string{`"comments"`, `"checked"`, `approve_first`} {
+		if !strings.Contains(host, want) {
+			t.Errorf("Host storage_set_resource lacks %s", want)
+		}
+	}
+	_, teamTools := toolsAs(t, s, mcp.Caller{APIKey: "team", Mode: mcp.CallerModeGroupSite}, false)
+	hack := map[string]string{}
+	for _, name := range []string{"storage_set_resource", "storage_sql_schema"} {
+		tool, ok := teamTools[name]
+		if !ok {
+			t.Fatalf("team connection lost %s", name)
+		}
+		hack[name] = schemaText(tool.Description, tool.InputSchema)
+	}
+	for _, tool := range hackEventStorageTools() {
+		if tool.Name == "hack_event_storage_set_resource" || tool.Name == "hack_event_storage_sql_schema" {
+			hack[tool.Name] = schemaText(tool.Description, tool.InputSchema)
+		}
+	}
+	if len(hack) != 4 {
+		t.Fatalf("found %d Hack tools, want 4", len(hack))
+	}
+	for name, text := range hack {
+		for _, banned := range []string{`"comments"`, "comments (", "wall, comments", `"checked"`, "or checked", "approve_first", "spam check", "Turnstile"} {
+			if strings.Contains(text, banned) {
+				t.Errorf("%s on Hack mentions %s", name, banned)
 			}
-			_, hostTools := toolsAs(t, s, mcp.Caller{APIKey: "host"}, false)
-			host := schemaText(hostTools["storage_set_resource"].Description, hostTools["storage_set_resource"].InputSchema)
-			for _, want := range []string{`"comments"`, `"checked"`, `approve_first`} {
-				if !strings.Contains(host, want) {
-					t.Errorf("Host storage_set_resource lacks %s", want)
-				}
-			}
-			_, teamTools := toolsAs(t, s, mcp.Caller{APIKey: "team", Mode: mcp.CallerModeGroupSite}, false)
-			hack := map[string]string{}
-			for _, name := range []string{"storage_set_resource", "storage_sql_schema"} {
-				tool, ok := teamTools[name]
-				if !ok {
-					t.Fatalf("team connection lost %s", name)
-				}
-				hack[name] = schemaText(tool.Description, tool.InputSchema)
-			}
-			for _, tool := range hackEventStorageTools() {
-				if tool.Name == "hack_event_storage_set_resource" || tool.Name == "hack_event_storage_sql_schema" {
-					hack[tool.Name] = schemaText(tool.Description, tool.InputSchema)
-				}
-			}
-			if len(hack) != 4 {
-				t.Fatalf("found %d Hack tools, want 4", len(hack))
-			}
-			for name, text := range hack {
-				for _, banned := range []string{`"comments"`, "comments (", "wall, comments", `"checked"`, "or checked", "approve_first", "spam check", "Turnstile"} {
-					if strings.Contains(text, banned) {
-						t.Errorf("%s on Hack mentions %s", name, banned)
-					}
-				}
-				if strings.HasSuffix(name, "set_resource") && !strings.Contains(text, "Lookalikes") {
-					t.Errorf("%s lost its other text", name)
-				}
-			}
-		})
+		}
+		if strings.HasSuffix(name, "set_resource") && !strings.Contains(text, "Lookalikes") {
+			t.Errorf("%s lost its other text", name)
+		}
 	}
 }
 
@@ -685,50 +680,45 @@ func TestRulesHackRecipeAdaptations(t *testing.T) {
 
 // The preset recipes and the event-website storage tools in Hack's wording.
 func TestHackStoragePresetRecipesAndTools(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			tools := hackEventStorageTools()
-			if len(tools) == 0 {
-				t.Fatal("no event-website storage tools")
+	tools := hackEventStorageTools()
+	if len(tools) == 0 {
+		t.Fatal("no event-website storage tools")
+	}
+	for _, tool := range tools {
+		if strings.Contains(tool.Description, "write_mode") || strings.Contains(tool.Description, " storage_") {
+			t.Fatalf("%s keeps older or Host wording: %s", tool.Name, tool.Description)
+		}
+		if tool.Name == "hack_event_storage_set_resource" && (!strings.Contains(tool.Description, "organisers") || !strings.Contains(tool.Description, "Lookalikes")) {
+			t.Fatalf("event set_resource: %s", tool.Description)
+		}
+	}
+	for _, topic := range mcp.RecipeTopics() {
+		if topic == "portal" {
+			continue // refused on Simple Hack (TestHackRefusesPortalRecipe)
+		}
+		if topic == "people" {
+			// for and the people pick list are Host only (review round 2);
+			// not offered on Simple Hack at all, not even in the enum.
+			if _, err := HackPageRecipe(topic, "team"); err == nil {
+				t.Fatal("people recipe served on Simple Hack")
 			}
-			for _, tool := range tools {
-				if strings.Contains(tool.Description, "write_mode") || strings.Contains(tool.Description, " storage_") {
-					t.Fatalf("%s keeps older or Host wording: %s", tool.Name, tool.Description)
-				}
-				if tool.Name == "hack_event_storage_set_resource" && (!strings.Contains(tool.Description, "organisers") || !strings.Contains(tool.Description, "Lookalikes")) {
-					t.Fatalf("event set_resource: %s", tool.Description)
-				}
+			continue
+		}
+		if topic == "comments" || topic == "guestbook" {
+			// Simple Hack runs no spam check, so the comments preset is
+			// not offered there.
+			if _, err := HackPageRecipe(topic, "team"); err == nil || !strings.Contains(err.Error(), "topic wall") {
+				t.Fatalf("hack %s: want a refusal naming wall, got %v", topic, err)
 			}
-			for _, topic := range mcp.RecipeTopics() {
-				if topic == "portal" {
-					continue // refused on Simple Hack (TestHackRefusesPortalRecipe)
-				}
-				if topic == "people" {
-					// for and the people pick list are Host only (review round 2);
-					// not offered on Simple Hack at all, not even in the enum.
-					if _, err := HackPageRecipe(topic, "team"); err == nil {
-						t.Fatal("people recipe served on Simple Hack")
-					}
-					continue
-				}
-				if topic == "comments" || topic == "guestbook" {
-					// Simple Hack runs no spam check, so the comments preset is
-					// not offered there.
-					if _, err := HackPageRecipe(topic, "team"); err == nil || !strings.Contains(err.Error(), "topic wall") {
-						t.Fatalf("hack %s: want a refusal naming wall, got %v", topic, err)
-					}
-					continue
-				}
-				text, err := HackPageRecipe(topic, "team")
-				if err != nil {
-					t.Fatal(err)
-				}
-				if strings.Contains(text, "https://simple-host.app/auth.js") || strings.Contains(text, "Simple Host account") || strings.Contains(text, "who_am_i") || !strings.HasPrefix(text, "On Simple Hack") {
-					t.Fatalf("hack recipe %s keeps Host wording", topic)
-				}
-			}
-		})
+			continue
+		}
+		text, err := HackPageRecipe(topic, "team")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(text, "https://simple-host.app/auth.js") || strings.Contains(text, "Simple Host account") || strings.Contains(text, "who_am_i") || !strings.HasPrefix(text, "On Simple Hack") {
+			t.Fatalf("hack recipe %s keeps Host wording", topic)
+		}
 	}
 }
 
@@ -737,26 +727,21 @@ func TestHackStoragePresetRecipesAndTools(t *testing.T) {
 // portal/comments/guestbook (listed, refused with a reason),
 // people is removed from hack_get_page_recipe's topic enum entirely.
 func TestHackPeopleRecipeNotOffered(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			if _, err := HackPageRecipe("people", "team"); err == nil {
-				t.Fatal("people recipe served on Simple Hack")
-			}
-			tool := hackPageRecipeTool()
-			topicEnum, _ := tool.InputSchema["properties"].(map[string]any)["topic"].(map[string]any)["enum"].([]string)
-			if len(topicEnum) == 0 {
-				t.Fatal("hack_get_page_recipe has no topic enum")
-			}
-			for _, topic := range topicEnum {
-				if topic == "people" {
-					t.Fatal("hack_get_page_recipe's topic enum still lists people")
-				}
-			}
-			if strings.Contains(tool.Description, "a coach and clients") {
-				t.Fatal("hack_get_page_recipe description still advertises the people recipe")
-			}
-		})
+	if _, err := HackPageRecipe("people", "team"); err == nil {
+		t.Fatal("people recipe served on Simple Hack")
+	}
+	tool := hackPageRecipeTool()
+	topicEnum, _ := tool.InputSchema["properties"].(map[string]any)["topic"].(map[string]any)["enum"].([]string)
+	if len(topicEnum) == 0 {
+		t.Fatal("hack_get_page_recipe has no topic enum")
+	}
+	for _, topic := range topicEnum {
+		if topic == "people" {
+			t.Fatal("hack_get_page_recipe's topic enum still lists people")
+		}
+	}
+	if strings.Contains(tool.Description, "a coach and clients") {
+		t.Fatal("hack_get_page_recipe description still advertises the people recipe")
 	}
 }
 

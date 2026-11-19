@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** Key-value storage has one store. Every key-value namespace is a SQLite file in its site's folder. The older Postgres store, the `KV_STORE` setting and the `kv-move` command are gone. Nothing changes for pages or tools.
+
 - **Nov 19:** Tidied the top of the repository. `FEATURES.md` is now `docs/FEATURES.md`, the ChatGPT plugin source is `plugins/openai/`, the plugin download site is `docs/brand/host-toolkit/` and the MCPJam eval suites are under `scripts/mcpjam/evals/`. Nothing changes for people using the service (C1-S1).
 
 - **Nov 19:** Simple Host retired the WordPress and Squarespace export importer. You can still publish a site from a ZIP file or an archive upload link.

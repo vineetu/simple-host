@@ -9,12 +9,6 @@ import (
 // presets, and so do Simple Hack's event tools and recipes (owner decision
 // 2026-10-10), with Hack's own meaning of owner.
 func TestStoragePresetRecipesAndTools(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStoragePresetRecipesAndTools(t) })
-	}
-}
-
-func runTestStoragePresetRecipesAndTools(t *testing.T) {
 	for _, topic := range recipeTopics {
 		text, err := PageRecipe(topic, "shop")
 		if err != nil {

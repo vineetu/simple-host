@@ -35,7 +35,7 @@ synthetic run; **manual** = gathered by hand for the paper.
 | Server process CPU and RSS over time vs number of sites | HotOS; FSE resources | `paper_process_sample` (5 min) joined to `paper_daily.sites_live` | built |
 | Box CPU, memory, load | FSE resources | `paper_process_sample` | built |
 | Postgres and nginx memory | FSE resources | `paper_process_sample` columns read 0 under the production sandbox (`ProtectProc=invisible`); `systemctl show postgresql nginx -p MemoryCurrent`, or the load-test box | manual |
-| Database size, KV rows and bytes, legacy rows | FSE storage | `paper_daily` (`db_bytes`, `kv_rows`, `kv_value_bytes`, `legacy_rows`) | built |
+| Database size, KV rows and bytes, legacy rows | FSE storage | `paper_daily` (`db_bytes`, `kv_rows`, `kv_value_text_bytes`, `legacy_rows`) | built |
 | Feature use: saved data (KV, SQLite, files), visitor sign-in, named viewers, passcodes, custom domains, notifications | FSE adoption; HotOS "rules, not code" | `paper_daily` (`sites_with_*`, `sites_access_specific`, `sites_custom_domain`) | built |
 | Access rules in use: resources readable or writable by anyone, add-only with spam check, signed-in, own-reads | HotOS security; FSE security | `paper_daily` (`resources_*`) | built |
 | Resources on rules, on presets, and with rules in a broken shape | FSE storage; HotOS security | `paper_daily` (`resources_rules`, `resources_preset`, `resources_rules_invalid`) | built |
@@ -93,35 +93,30 @@ query that fails on an instance without the table skips only that metric.
 
 **Weekly footprint.** Once per week (week starts Monday, UTC), one row per live site, walking
 the site's directory: `current/` is the live copy (split by extension), `vN/` folders are kept
-versions, `runtime/sqlite` and `runtime/files` are saved data on disk; KV is the summed
-`pg_column_size` of its values; views are person-class views in the last 30 days. The row has no
+versions, `runtime/sqlite` and `runtime/files` are saved data on disk; `kv_bytes` is 0 (see below); views are person-class views in the last 30 days. The row has no
 site id, owner or name and is returned in random order, so it cannot be joined back to a site.
 `total_bytes` includes every version and runtime data.
 
-**Key-value storage transition (R2-S4b, 2026-11-14).** This change arrives in
-the commit named `R2-S4b` in repository history (the build's exact revision is
-also recorded in run provenance). The daily `kv_rows` and weekly `kv_rows`
-include Postgres rows plus `kv_meta.entries` from namespaces marked `sqlite`.
-Files beside a Postgres marker and orphan files are not counted. The entry
-count keeps its meaning across the move.
+**Key-value storage (one store since 2026-11-19).** Key-value entries live
+only in per-namespace SQLite files. The daily `kv_rows` and weekly `kv_rows`
+are the sum of `kv_meta.entries` over declared namespaces; orphan files are not
+counted. Daily `kv_value_text_bytes` sums value text bytes, excluding keys.
+Physical KV files are included in total disk footprint, but not in the
+`runtime/sqlite` database counter.
 
-`kv_value_bytes` remains the sum of Postgres `pg_column_size(value)` only.
-That compressed binary size has no SQLite equivalent. Weekly `kv_bytes` and
-the KV component of Hack's `event_storage_bytes` also stay Postgres-only;
-they must not be read as the size of all KV after cutover. A new daily
-`kv_value_text_bytes` sums value text bytes across both stores, excluding
-keys. It starts before any production namespace moves, allowing an overlap
-with the old series. Physical KV files are included in total disk footprint,
-but not in the `runtime/sqlite` database counter.
+Ended on 2026-11-19 with the Postgres key-value store: daily `kv_value_bytes`
+(the sum of Postgres `pg_column_size(value)`) is no longer written; weekly
+`kv_bytes` is written as 0; and Hack's `event_storage_bytes` no longer has a
+KV component. Earlier values of the three covered Postgres rows only, and both
+installs had moved every namespace to SQLite on 2026-11-16, so they must not be
+read as the size of all KV after that date.
 
 The collector opens each KV file through the same site admission limit as
 requests. A busy or unreadable site's file contribution is skipped for that
 run; daily `kv_file_sites_skipped` records the number skipped. Weekly collection
-omits that site's row and logs its skipped-site count. Postgres contributions
-in daily totals are still measured. These are best-effort current-state
-snapshots, not a transaction across both stores. Existing `resources_*` by
-`acc_*` counts see `nobody` on rules resources. The owner must accept this
-series change before R2-C.
+omits that site's row and logs its skipped-site count. These are best-effort
+current-state snapshots. Existing `resources_*` by `acc_*` counts see `nobody`
+on rules resources.
 
 **Rules and presets (R4-S1, 2026-11-15).** Three daily counters split the
 SQLite and key-value resources by how their access is stored; file buckets
@@ -249,7 +244,7 @@ files only, no symlink following, live sites only).
 | `team_site_bytes_sum` | Sum of team-site `total_bytes` using the shared weekly footprint disk walk; KV is separate. |
 | `team_site_bytes_p50` | Discrete median of those byte sizes; zero with no team sites. |
 | `team_site_versions_sum` | Number of retained team-site `vN` directories, using exactly the footprint naming rules. |
-| `event_storage_bytes` | KV `pg_column_size(value)` plus `runtime/sqlite` and `runtime/files` bytes across all live sites of the holding account, including the event website. |
+| `event_storage_bytes` | `runtime/sqlite` and `runtime/files` bytes across all live sites of the holding account, including the event website. |
 | `submissions` | Current `event_entries` row count, including partial entries. |
 | `entries_with_code_url` | Entry rows with a nonempty code URL; URLs are never copied. |
 | `entries_with_video` | Entry rows with a nonempty video URL; URLs are never copied. |

@@ -92,7 +92,7 @@ func OpenRuntimeKV(ctx context.Context, path string, write, create bool) (*sqlit
 		}
 	}
 	if create {
-		// Creation happens before the Postgres marker is inserted. A previous failed
+		// Creation happens before the resource row is inserted. A previous failed
 		// save can leave an empty file; initialize it afresh for the new namespace.
 		if err = conn.Exec("BEGIN; DROP TABLE IF EXISTS kv; DROP TABLE IF EXISTS kv_meta;" + runtimeKVSchema + "COMMIT;"); err != nil {
 			return nil, nil, err

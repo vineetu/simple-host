@@ -36,10 +36,9 @@ for (const route of ['/hack-ink.css', '/og-hack.png', '/favicon-hack.svg', '/hac
   '/hack-connect-steps.json', '/hack-get-started-preview.png']) FIXED_GETS.add(route);
 const SCENARIOS = {
  notice: { env: { host: { STORAGE_RULES: 'on', STORAGE_SWITCH_AT: '2099-01-01T00:00:00Z' }, hack: { STORAGE_RULES: 'on', STORAGE_SWITCH_AT: '2099-01-01T00:00:00Z' } }, host: seedAndCallNotice, hack: seedAndCallNotice },
- 'converted': { env: { host: { STORAGE_RULES: 'on', KV_STORE: 'sqlite' }, hack: { STORAGE_RULES: 'on', KV_STORE: 'sqlite' } }, host: seedAndCallConverted, hack: seedAndCallConverted },
+ 'converted': { env: { host: { STORAGE_RULES: 'on' }, hack: { STORAGE_RULES: 'on' } }, host: seedAndCallConverted, hack: seedAndCallConverted },
  'rules-on': { env: { host: { STORAGE_RULES: 'on' }, hack: { STORAGE_RULES: 'on' } }, host: seedAndCallRulesOn, hack: seedAndCallRulesOn },
- base: { env: { host: { KV_STORE: 'postgres' }, hack: { KV_STORE: 'postgres' } }, host: seedAndCallHost, hack: seedAndCallHack },
- 'mixed-store': { env: { host: { KV_STORE: 'sqlite' }, hack: { KV_STORE: 'sqlite' } }, host: seedAndCallMixedStore, hack: seedAndCallMixedStore },
+ base: { env: { host: {}, hack: {} }, host: seedAndCallHost, hack: seedAndCallHack },
   'hosted-pages': {
     env: { host: { SITE_DOMAIN: 'simple-host.app' } },
     host: async ({ at }) => {
@@ -565,20 +564,6 @@ function finalizeCall(record, namer, knownTimestamps, writer) {
       return zipNorm(text);
     }, { accountExport: record.path === '/v1/me/export.zip' }); out.text = writer(record.name, out.body, 'json'); return out;
   }
-  if (record.name === 'mixed-site-export' && record.status === 200) {
-    // Tar headers contain capture-time mtimes. Compare every member name and
-    // full content, as for ZIP exports, excluding only archive metadata.
-    const names = execFileSync('tar', ['-tzf', '-'], { input: record.rawBody, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    out.body_kind = 'json';
-    out.body = { entries: names.map(name => {
-      const contents = execFileSync('tar', ['-xzOf', '-', '--', name], { input: record.rawBody });
-      let text = contents.toString('utf8');
-      if (name.endsWith('.json')) { text = JSON.stringify(normValue(JSON.parse(text)), null, 2) + '\n'; }
-      else { text = norm(text); }
-      return { name: norm(name), text };
-    }) };
-    out.text = writer(record.name, out.body, 'json'); return out;
-  }
   if (!isTextBody(record.contentType, record.rawBody)) {
     out.body_kind = 'binary'; out.body = { sha256: sha256hex(record.rawBody), length: record.rawBody.length }; return out;
   }
@@ -587,7 +572,6 @@ function finalizeCall(record, namer, knownTimestamps, writer) {
 
 // ---- Host instance: seed + request list -----------------------------------
 
-// R2-S4a: one pre-existing Postgres namespace beside a newly created file.
 // R2-S3 exercises owner saves and reads only. Visitor enforcement is added
 // by R3-S1a/R3-S1b/R3-S3, without changing these requests.
 async function seedAndCallRulesOn({ instance, at, registerSecret }) {
@@ -707,8 +691,8 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   { command: 'edit', using: 'auth.signed_in' },
   { command: 'delete', using: 'auth.signed_in' },
  ] });
- psql(instance.dbURL, `INSERT INTO site_storage_resources(site_id,name,kind,kv_store,acc_read,acc_add,acc_edit,acc_delete,preset_base,write_mode,rules)
- SELECT s.id,'rules_kv','kv','sqlite','nobody','nobody','nobody','nobody','rules','add','${kvRules}'::jsonb FROM ${siteWhere}`);
+ psql(instance.dbURL, `INSERT INTO site_storage_resources(site_id,name,kind,acc_read,acc_add,acc_edit,acc_delete,preset_base,write_mode,rules)
+ SELECT s.id,'rules_kv','kv','nobody','nobody','nobody','nobody','rules','add','${kvRules}'::jsonb FROM ${siteWhere}`);
  const kvBase = `/v1/sites/${name}/storage/kv/rules_kv/keys`;
  for (const [label, method, suffix, body, status] of [
   ['kv-add-public', 'PUT', '/public', { value: 1 }, 200],
@@ -820,51 +804,6 @@ async function seedAndCallConverted({ instance, at, registerSecret }) {
    }
   }
  }
-}
-
-async function seedAndCallMixedStore({ instance, at, registerSecret }) {
- const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['mixed-owner@example.com'] } });
- const owner = created.json.created[0].api_key;
- let base;
- const name = 'golden-mixed';
- if (instance.tag === 'hack') {
-  const event = await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
-  // The event's join and judge codes are random per run: hide them, as base does.
-  for (const code of [event.json?.organiser?.join_code, event.json?.organiser?.judge_code]) {
-   if (code) registerSecret('code', code);
-  }
-  await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Mixed storage</h1>' } } });
-  base = `/v1/hack/events/${name}/website/storage`;
- } else {
-  await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Mixed storage</h1>' } } });
-  base = `/v1/sites/${name}/storage`;
- }
- // Hack keeps an event's website under the event's holding account, named
- // by the event id, not the slug (ServeEventWebsiteStorage).
- const site = instance.tag === 'hack'
-  ? `sites s JOIN events e ON s.user_id=e.account_id AND s.name=e.id::text WHERE e.slug='${name}'`
-  : `sites s WHERE s.name='${name}'`;
- psql(instance.dbURL, `INSERT INTO site_storage_resources(site_id,name,kind,kv_store) SELECT s.id,'pg','kv','postgres' FROM ${site};
- INSERT INTO site_storage_kv(site_id,resource_name,key,value) SELECT s.id,'pg','seed','100'::jsonb FROM ${site}`);
- await at('create-file-namespace', 'PUT', `${base}/resources/file`, { apiKey: owner, body: { kind: 'kv', preset: 'private' } });
- for (const store of ['pg', 'file']) {
-  await at(`${store}-set`, 'PUT', `${base}/kv/${store}/keys/entry`, { apiKey: owner, body: { value: { n: 100, text: 'saved' } } });
-  await at(`${store}-get`, 'GET', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
-  await at(`${store}-list`, 'GET', `${base}/kv/${store}/keys`, { apiKey: owner });
- }
- await at('mixed-usage', 'GET', `${base}/usage`, { apiKey: owner });
- // Added by R2-S4b. Hack keeps people/email lookup unavailable; record that
- // boundary too. Its admin archive uses the same per-site exporter.
- await at('mixed-site-export', 'GET', instance.tag === 'hack' ? '/v1/admin/export.tar.gz' : `/v1/sites/${name}/export.tar.gz`, { apiKey: instance.tag === 'hack' ? instance.adminKey : owner });
- await at('mixed-people', 'GET', `${base}/people`, { apiKey: owner });
- const ownerID = psql(instance.dbURL, `SELECT id FROM users WHERE username='mixed-owner@example.com'`);
- await at('mixed-visitor-emails', 'GET', `${base}/visitors?id=${ownerID}`, { apiKey: owner });
-
- for (const store of ['pg', 'file']) {
-  await at(`${store}-delete`, 'DELETE', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
-  await at(`${store}-missing`, 'GET', `${base}/kv/${store}/keys/entry`, { apiKey: owner });
- }
- await at('usage-after-delete', 'GET', `${base}/usage`, { apiKey: owner });
 }
 
 async function seedAndCallHost({ instance: host, calls, usedNames, at }) {

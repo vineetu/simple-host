@@ -31,12 +31,6 @@ func TestStorageRound2Gallery150POC(t *testing.T) {
 }
 
 func TestStorageRound2WriteBucketsPerSite(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageRound2WriteBucketsPerSite(t) })
-	}
-}
-
-func runTestStorageRound2WriteBucketsPerSite(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "anyone", "signed-in", "add")
 	owner := person{key: s.key["X-API-Key"]}
@@ -133,12 +127,6 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 }
 
 func TestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageRound2OwnerTimeoutAndDeployWait(t) })
-	}
-}
-
-func runTestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "anyone", "anyone", "full")
 	release := s.a.sites.lockSite(s.ownerID, "shop")
@@ -155,12 +143,6 @@ func runTestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
 }
 
 func TestStorageRound2LegacyNFDNamesPOC(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageRound2LegacyNFDNamesPOC(t) })
-	}
-}
-
-func runTestStorageRound2LegacyNFDNamesPOC(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "photos", "files", "anyone", "anyone", "full")
 	s.resource(t, "kv", "kv", "anyone", "anyone", "full")
@@ -178,9 +160,7 @@ func runTestStorageRound2LegacyNFDNamesPOC(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(s.a.sites.storageFilesDir(c), nfd), []byte("legacy"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.a.database.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,'kv',$2,'2')`, s.siteID, nfd); err != nil {
-		t.Fatal(err)
-	}
+	seedStorageKV(t, s.a.sites, s.siteID, "kv", nfd, "2", "")
 	for _, kind := range []string{"files", "kv"} {
 		route := "/files/photos/objects/"
 		field := "path"

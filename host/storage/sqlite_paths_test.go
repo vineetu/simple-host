@@ -27,7 +27,6 @@ func TestSQLiteOpenAllowList(t *testing.T) {
 		"host/storage/runtime_matrix.go":      true,
 		"host/storage/export_sqlite.go":       true,
 		"host/storage/runtime_kv.go":          true,
-		"host/storage/runtime_kv_move.go":     true, // kv-move owns its process and SiteSlots.
 	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

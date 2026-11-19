@@ -75,8 +75,8 @@ with definition 1 values and no suppression.
 | `other_bytes` | bytes | Other live-file sizes. | 1 |
 | `sqlite_bytes` | bytes | Regular files under runtime/sqlite. | 1 |
 | `file_store_bytes` | bytes | Regular files under runtime/files. | 1 |
-| `kv_bytes` | bytes | Sum of pg_column_size(value) for the site’s KV values. | 1 |
-| `kv_rows` | records | KV rows in the live site. | 1 |
+| `kv_bytes` | bytes | 0 since 2026-11-19; before, the sum of pg_column_size(value) for the site’s Postgres KV values. | 1 |
+| `kv_rows` | records | KV entries in the live site’s namespace files. | 1 |
 | `legacy_rows` | records | Non-deleted legacy collection items in the live site. | 1 |
 | `views_30d` | page views | Person-class site views in the preceding 30 days, not distinct people. | 1 |
 | `age_days` | days | Site age when the weekly walk ran. | 1 |
@@ -127,7 +127,7 @@ with definition 1 values and no suppression.
 | `team_site_bytes_sum` | bytes | Sum of team-site `total_bytes` using the shared weekly footprint disk walk; KV is separate. | 4 |
 | `team_site_bytes_p50` | bytes | Discrete median of those byte sizes; zero with no team sites. | 4 |
 | `team_site_versions_sum` | count | Number of retained team-site `vN` directories, using exactly the footprint naming rules. | 4 |
-| `event_storage_bytes` | bytes | KV `pg_column_size(value)` plus `runtime/sqlite` and `runtime/files` bytes across all live sites of the holding account, including the event website. | 4 |
+| `event_storage_bytes` | bytes | `runtime/sqlite` and `runtime/files` bytes across all live sites of the holding account, including the event website. | 4 |
 | `submissions` | count | Current `event_entries` row count, including partial entries. | 4 |
 | `entries_with_code_url` | count | Entry rows with a nonempty code URL; URLs are never copied. | 4 |
 | `entries_with_video` | count | Entry rows with a nonempty video URL; URLs are never copied. | 4 |
@@ -338,8 +338,8 @@ The Hack-only provenance companion stamps their run without changing Host tables
 | `resources_preset` | count | `SELECT count(*) FROM site_storage_resources r WHERE r.kind IN ('sqlite','kv') AND r.rules IS NULL AND r.preset_base <> 'rules'` | 1 |
 | `sites_suspended` | count | `SELECT count(*) FROM sites WHERE deleted_at IS NULL AND suspended_at IS NOT NULL` | 1 |
 | `accounts_suspended` | count | `SELECT count(*) FROM users WHERE suspended_at IS NOT NULL` | 1 |
-| `kv_rows` | count | `SELECT count(*) FROM site_storage_kv` | 1 |
-| `kv_value_bytes` | bytes | `SELECT COALESCE(sum(pg_column_size(value)), 0) FROM site_storage_kv` | 1 |
+| `kv_rows` | count | Sum of `kv_meta.entries` over declared key-value namespace files | 1 |
+| `kv_value_bytes` | bytes | Ended 2026-11-19 (no longer written); before, the sum of Postgres `pg_column_size(value)` | 1 |
 | `legacy_rows` | count | `SELECT count(*) FROM collection_items WHERE deleted_at IS NULL` | 1 |
 | `db_bytes` | bytes | `SELECT pg_database_size(current_database())` | 1 |
 | `api_calls_day` | count | `SELECT COALESCE(sum(calls), 0) FROM api_request_daily WHERE day = $1::date` | 1 |

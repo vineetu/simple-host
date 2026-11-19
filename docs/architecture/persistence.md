@@ -11,11 +11,11 @@ Hack transitions and transaction boundaries.
 
 | Store | Contents | Implementation and workflow owner |
 |---|---|---|
-| PostgreSQL | Accounts, sites, versions, policies, KV, legacy data, Hack records, outboxes, metrics | Area packages in `host/repository/*`; application services orchestrate workflows |
+| PostgreSQL | Accounts, sites, versions, policies, resource declarations, legacy data, Hack records, outboxes, metrics | Area packages in `host/repository/*`; application services orchestrate workflows |
 | Per-resource SQLite | A site's tables, indexes, views and triggers | `host/storage/runtime_*.go` implements mechanics; `host/app/storage` owns policy, quotas and mutations |
 | Deploy files | Retained version trees and the live serving copy | `host/storage/disk.go`, called by `host/app/sites.Service` |
 | Runtime files | Uploaded bucket objects and SQLite database files | `host/storage` mechanics and `host/app/storage.Service`; image scanning also removes flagged bytes |
-| KV | Namespaced keys and JSONB values | PostgreSQL `site_storage_kv`, through `host/repository/storage` and `host/app/storage` |
+| KV | Namespaced keys and JSON values | One SQLite file per namespace (`runtime/kv/<name>.sqlite`), the only KV store: `host/storage/runtime_kv.go` implements mechanics; `host/app/storage` owns policy, quotas and mutations |
 
 PostgreSQL remains the main database in both editions. SQLite is local runtime
 storage for a website, not a replacement for PostgreSQL. Enterprise replicas/S3
@@ -56,7 +56,7 @@ are extended by later `ALTER TABLE` statements in that same file; read those too
 | `domain_cert_requests`, `event_domains` | Custom-domain issuer daily cap and hackathon hostname bindings |
 | `site_storage_resources` | Site/name identifies a KV, SQLite or files resource, its legacy policy fields, access matrix, preset and passcode inheritance |
 | `site_storage_tables` | SQLite table-specific matrices; absent overrides use the resource default |
-| `site_storage_kv` | Resource/key identifies a JSONB value with writer and timestamps |
+| `site_storage_kv` | Unused since 2026-11-19 (key-value entries live in per-namespace SQLite files); the empty table and the `site_storage_resources.kv_store` column stay until a later schema step |
 | `site_storage_files` | Resource/path identifies file authorship metadata; bytes live on disk |
 | `collection_items`, `collection_settings` | Legacy lists, boards, Personal records and private submissions; kind, version, private flag and submitter metadata |
 | `data_history`, `idempotency_keys` | Saved-data history for 30-day undo, and legacy mutation replay protection |
@@ -125,8 +125,9 @@ There is a short remove/rename gap; this is not an atomic symlink exchange.
 Evidence: `host/storage/disk.go`, functions named above.
 
 Rename, trash and restore move the site's directory, so runtime resources travel
-with it. Permanent deletion removes it. Resource declarations and KV are keyed
-by site ID and follow PostgreSQL lifecycle rules rather than path names.
+with it. Key-value namespace files are among them. Permanent deletion removes
+it. Resource declarations are keyed by site ID and follow PostgreSQL lifecycle
+rules rather than path names.
 Evidence: `host/storage/disk.go` (`RenameSite`, `DeleteSite`),
 `host/storage/trash.go`, `host/app/sites/deleted.go`.
 
@@ -192,7 +193,7 @@ storage-data authority. See `access.go`, `matrix.go` and `rows.go` in that packa
 
 | Counter | Charged bytes |
 |---|---|
-| KV | UTF-8 key bytes plus PostgreSQL-normalized JSONB value text |
+| KV | UTF-8 key bytes plus PostgreSQL-normalized JSON value text (Postgres only normalizes the text and does not store entries) |
 | SQLite | Main database file allocation after checkpoint; not logical row payload |
 | Files | Raw object lengths, also counted per bucket for object limits |
 
@@ -209,7 +210,7 @@ PostgreSQL; these steps are not a cross-store transaction. SQLite writes enforce
 page budgets and use transactions; fixed row writes commit before checkpointing,
 so a checkpoint error is logged rather than turning a committed write into a
 failed response. Runtime writes invalidate disk-usage caches.
-Evidence: `app/storage/kv.go`, `files.go:PutFile`, `row_write.go:finishTableWrite`,
+Evidence: `app/storage/kv.go`, `kv_sqlite.go`, `files.go:PutFile`, `row_write.go:finishTableWrite`,
 `host/storage/runtime_sql_cap.go`, `runtime_row_mechanics.go`.
 
 Deployment site/account file caps are separate: `app/sites/filecaps.go`
@@ -313,7 +314,7 @@ Older programs ignore this additive table; reverting the program preserves it.
 ## Backup and recovery boundary
 
 Back up PostgreSQL and the matching data directory together: rows alone lack
-SQLite and uploaded/deployed bytes; files alone lack identity, policy, KV, domain
+KV, SQLite and uploaded/deployed bytes; files alone lack identity, policy, domain
 and version metadata. Preserve encryption configuration through the operator's
 secret backup process too, or sealed passcodes/notification secrets are unusable.
 A binary rollback does not roll back schema or user data.

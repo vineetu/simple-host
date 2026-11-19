@@ -10,7 +10,7 @@ import (
 	platform "github.com/vsriram/simple-host/host/papermetrics"
 )
 
-func TestHackMixedKVStorageCounters(t *testing.T) {
+func TestHackKVStorageCounters(t *testing.T) {
 	db := isolatedDB(t)
 	var owner, site string
 	if err := db.QueryRow(`INSERT INTO users(username) VALUES('mixed-holder') RETURNING id`).Scan(&owner); err != nil {
@@ -19,14 +19,7 @@ func TestHackMixedKVStorageCounters(t *testing.T) {
 	if err := db.QueryRow(`INSERT INTO sites(user_id,name) VALUES($1,'team') RETURNING id`, owner).Scan(&site); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,kv_store) VALUES($1,'pg','kv','postgres'),($1,'file','kv','sqlite')`, site); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,'pg','key','"value"')`, site); err != nil {
-		t.Fatal(err)
-	}
-	var pgBytes int64
-	if err := db.QueryRow(`SELECT pg_column_size(value) FROM site_storage_kv WHERE site_id=$1`, site).Scan(&pgBytes); err != nil {
+	if _, err := db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind) VALUES($1,'file','kv')`, site); err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
@@ -42,8 +35,8 @@ func TestHackMixedKVStorageCounters(t *testing.T) {
 	c := Install(platform.New(db, dir))
 	e := hackSnapshotEvent{account: owner, id: "event", values: map[string]any{}}
 	c.hackSiteSnapshot(context.Background(), e)
-	if got := ToInt(e.values["event_storage_bytes"]); got != 16+pgBytes {
-		t.Fatalf("historical storage counter=%d want %d", got, 16+pgBytes)
+	if got := ToInt(e.values["event_storage_bytes"]); got != 16 {
+		t.Fatalf("storage counter=%d want 16", got)
 	}
 	if got := ToInt(e.values["team_site_bytes_sum"]); got != 116 {
 		t.Fatalf("physical bytes=%d", got)

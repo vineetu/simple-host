@@ -37,7 +37,7 @@ Source: `host/edition/{routes,presentation,identity,storage,notifications}.go`;
 | Component | Responsibility and source |
 |---|---|
 | Go service | HTTP pages/API, site-host files, OAuth/MCP, background work; `host/server/build.go` |
-| Postgres | Platform accounts, site metadata, resources, sessions, outboxes and aggregates in `host/db/schema.sql`; Hack adds state from `products/hack/db/schema.sql`. SQLite stores moved KV namespaces. |
+| Postgres | Platform accounts, site metadata, resources, sessions, outboxes and aggregates in `host/db/schema.sql`; Hack adds state from `products/hack/db/schema.sql`. Key-value entries are not in Postgres: each KV namespace is one SQLite file in its site's directory (`runtime/kv/<name>.sqlite`), the only KV store. |
 | Local disk | Deployment versions, links/markers, runtime SQLite and raw files; `host/storage` |
 | TLS reverse proxy | Hosted nginx routes hosts and serves some files directly; self-hosted Caddy configurations are in `deploy/` |
 | Certificate issuers | External root-owned request/ready-marker services; `deploy/site-certs/`, `domain-certs/`, `family-certs/` |

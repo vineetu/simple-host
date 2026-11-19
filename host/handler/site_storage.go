@@ -27,7 +27,6 @@ type storageResource struct {
 	Rules, ConvertedFrom json.RawMessage
 	Name                 string
 	Kind                 string
-	KVStore              string
 	Read                 string
 	Write                string
 	SitePasscode         string

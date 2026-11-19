@@ -54,7 +54,7 @@ func (s securityShop) call(t *testing.T, method, path string, body any, headers 
 func (s securityShop) resource(t *testing.T, name, kind, read, write, mode string) {
 	t.Helper()
 	if legacyStorageRules(kind, read, write, mode) {
-		insertLegacyStorage(t, s.a.sites.database, s.siteID, name, kind, read, write, mode, "")
+		insertLegacyStorage(t, s.a.sites, s.siteID, name, kind, read, write, mode, "")
 		return
 	}
 	s.call(t, "PUT", "/resources/"+name, map[string]string{"kind": kind, "read": read, "write": write, "write_mode": mode}, s.key, 201)
@@ -194,15 +194,6 @@ func TestStorageSecurityPolicyConversionAndOmittedMode(t *testing.T) {
 }
 
 func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			runTestStorageSecurityFileObjectsListingsAndUnicode(t)
-		})
-	}
-}
-
-func runTestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 	s := newSecurityShop(t)
 	lim := config.DefaultLimits()
 	lim.StorageFileObjects = 2
@@ -281,15 +272,6 @@ func runTestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 }
 
 func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			runTestStorageSecurityKVKeyQuotaAndConcurrentCreate(t)
-		})
-	}
-}
-
-func runTestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "own", "signed-in", "add")
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "5")
@@ -351,12 +333,6 @@ func runTestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 }
 
 func TestStorageSecurityVisitorRateLimits(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageSecurityVisitorRateLimits(t) })
-	}
-}
-
-func runTestStorageSecurityVisitorRateLimits(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "kv", "kv", "anyone", "anyone", "add")
 	s.resource(t, "files", "files", "anyone", "anyone", "add")
@@ -393,15 +369,6 @@ func (b *securitySlowBody) Read(p []byte) (int, error) {
 }
 func (b *securitySlowBody) Close() error { return nil }
 func TestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			t.Setenv("KV_STORE", store)
-			runTestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t)
-		})
-	}
-}
-
-func runTestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "db", "sqlite", "anyone", "anyone", "full")
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")
@@ -451,12 +418,6 @@ func runTestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t *testing.T) {
 }
 
 func TestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageSecurityReadsAndBoundedLockPOC(t) })
-	}
-}
-
-func runTestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "db", "sqlite", "anyone", "owner", "full")
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")
@@ -480,32 +441,6 @@ func runTestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
 		t.Fatal("storage requests did not complete while the deploy lock was held")
 	}
 	unlock()
-	// Wait until SQLite admits the slow query before issuing the owner write.
-	// The write must finish while the query still occupies its slot.
-	s.a.sites.limits.StorageVisitorQueryTimeout = 5 * time.Second
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		query := s.call(t, "POST", "/sqlite/db/query", `{"sql":"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT count(*) FROM c"}`, browser(s.host, ""), 400)
-		if !strings.Contains(string(query.body), `"sql_timeout"`) {
-			t.Errorf("expected the SQLite query to time out: %s", query.body)
-		}
-	}()
-	defer func() { <-done }()
-	slots := s.a.sites.sqliteGateFor().Slots
-	tick := time.NewTicker(5 * time.Millisecond)
-	defer tick.Stop()
-	for len(slots) == 0 {
-		select {
-		case <-done:
-			t.Fatal("query finished before the owner write started")
-		case <-tick.C:
-		}
-	}
-	s.call(t, "PUT", "/kv/kv/keys/available", `{"value":1}`, s.key, 200)
-	if len(slots) == 0 {
-		t.Fatal("owner write did not complete during the slow query")
-	}
 }
 
 func TestStorageSecurityWideTablesResultsAndGenericErrors(t *testing.T) {

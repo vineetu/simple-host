@@ -17,23 +17,27 @@ func runtimeKVListFixture(t *testing.T) (*sqlite3.Conn, []KVEntry) {
 	t.Helper()
 	keys := []string{"", "%", "%one", "A", "AA", "a", "aa", "_", "_one", `\`, `\one`, "x%_\\", "x%_\\one", "xAAone", "y", "z", "é", "éa", "ê", "ÿ", "ÿa", "中", "中文", "😀", "😀a", "\U0010ffff", "\U0010ffffz"}
 	sort.Strings(keys)
-	var snapshot []KVSnapshotEntry
-	var entries []KVEntry
-	for i, key := range keys {
-		writer := []string{"", "alice", "bob"}[i%3]
-		value := fmt.Sprint(i)
-		snapshot = append(snapshot, KVSnapshotEntry{key, value, writer, "2020-01-02T03:04:05.000000Z", "2020-01-02T03:04:05.000000Z"})
-		entries = append(entries, KVEntry{key, json.RawMessage(value), writer})
-	}
 	path := filepath.Join(t.TempDir(), "list.sqlite")
-	if err := WriteKVSnapshot(context.Background(), path, snapshot); err != nil {
-		t.Fatal(err)
-	}
-	conn, done, err := OpenRuntimeKV(context.Background(), path, false, false)
+	conn, done, err := OpenRuntimeKV(context.Background(), path, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(done)
+	if err = conn.Exec("BEGIN"); err != nil {
+		t.Fatal(err)
+	}
+	var entries []KVEntry
+	for i, key := range keys {
+		writer := []string{"", "alice", "bob"}[i%3]
+		value := fmt.Sprint(i)
+		if err = RuntimeKVPut(conn, key, value, writer, false, 0); err != nil {
+			t.Fatal(err)
+		}
+		entries = append(entries, KVEntry{key, json.RawMessage(value), writer})
+	}
+	if err = conn.Exec("COMMIT"); err != nil {
+		t.Fatal(err)
+	}
 	return conn, entries
 }
 

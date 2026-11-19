@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** Key-value storage has one store. Every key-value namespace is a SQLite file in its site's folder. The older Postgres store, the `KV_STORE` setting and the `kv-move` command are gone. Nothing changes for pages or tools.
+
 - **Nov 19:** Tidied the top of the repository, step 2. The Simple Hack skills install command now points at `products/hack/webassets/hack-toolkit` (the one copy of the skills; the root `hack-toolkit/` duplicate is gone), so copy the command from `/get-started` again if you saved the old one. `PARITY.md` and the key-value move rehearsal script are removed, and the browser scripts are under `scripts/e2e/` (C1-S2).
 
 - **Nov 19:** Tidied the top of the repository. `FEATURES.md` is now `docs/FEATURES.md`, the ChatGPT plugin source is `plugins/openai/`, the plugin download site is `docs/brand/host-toolkit/` and the MCPJam eval suites are under `scripts/mcpjam/evals/`. Nothing changes for people using the service (C1-S1).

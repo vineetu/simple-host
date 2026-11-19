@@ -10,11 +10,6 @@ import (
 	rules "github.com/vsriram/simple-host/host/rules/storage"
 )
 
-// KVUsage reads the durable bytes used by a site's KV entries.
-func KVUsage(ctx context.Context, db *sql.DB, siteID string, used *int64) error {
-	return db.QueryRowContext(ctx, `SELECT COALESCE(sum(octet_length(key)+octet_length(value::text)),0) FROM site_storage_kv WHERE site_id=$1`, siteID).Scan(used)
-}
-
 // ListResources reads resources in name order, followed by their table rules.
 func ListResources(ctx context.Context, db *sql.DB, siteID string) ([]Resource, error) {
 	rows, err := db.QueryContext(ctx, `SELECT `+ResourceColumns+` FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, siteID)
@@ -36,11 +31,6 @@ func ListResources(ctx context.Context, db *sql.DB, siteID string) ([]Resource, 
 		return nil, err
 	}
 	for i := range out {
-		if out[i].Kind == "kv" {
-			if err = db.QueryRowContext(ctx, `SELECT kv_store FROM site_storage_resources WHERE site_id=$1 AND name=$2 AND kind='kv'`, siteID, out[i].Name).Scan(&out[i].KVStore); err != nil {
-				return nil, err
-			}
-		}
 		if out[i].Kind == "sqlite" && (out[i].Access != nil || out[i].Rules != nil) {
 			if out[i].Tables, err = LoadTables(ctx, db, siteID, out[i].Name); err != nil {
 				return nil, err
@@ -50,18 +40,15 @@ func ListResources(ctx context.Context, db *sql.DB, siteID string) ([]Resource, 
 	return out, nil
 }
 
-// ClearResourceWriters clears legacy authors within the resource transaction.
-func ClearResourceWriters(ctx context.Context, tx *sql.Tx, table, siteID, name string) (sql.Result, error) {
-	return tx.ExecContext(ctx, `UPDATE `+table+` SET writer_id='' WHERE site_id=$1 AND resource_name=$2`, siteID, name)
+// ClearFileWriters clears legacy authors within the resource transaction.
+func ClearFileWriters(ctx context.Context, tx *sql.Tx, siteID, name string) (sql.Result, error) {
+	return tx.ExecContext(ctx, `UPDATE site_storage_files SET writer_id='' WHERE site_id=$1 AND resource_name=$2`, siteID, name)
 }
 
 // UpsertResource saves a resource without changing an existing resource's kind.
 func UpsertResource(ctx context.Context, tx *sql.Tx, siteID string, x rules.Resource) (sql.Result, error) {
 	m := x.Access
-	if x.KVStore == "" {
-		x.KVStore = "postgres"
-	}
-	return tx.ExecContext(ctx, `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first,rules,rules_converted_from,kv_store) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first,rules=EXCLUDED.rules,rules_converted_from=EXCLUDED.rules_converted_from WHERE site_storage_resources.kind=EXCLUDED.kind`, siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase, x.ApproveFirst, nullableJSON(x.Rules), nullableJSON(x.ConvertedFrom), x.KVStore)
+	return tx.ExecContext(ctx, `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first,rules,rules_converted_from,kv_store) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'sqlite') ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first,rules=EXCLUDED.rules,rules_converted_from=EXCLUDED.rules_converted_from WHERE site_storage_resources.kind=EXCLUDED.kind`, siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase, x.ApproveFirst, nullableJSON(x.Rules), nullableJSON(x.ConvertedFrom))
 }
 
 // DeleteResourceTables removes the existing per-table rules.
@@ -88,9 +75,9 @@ func nullableJSON(raw json.RawMessage) any {
 	return string(raw)
 }
 
-// SQLiteKVNamespaces enumerates declared files only; orphan files are not usage.
-func SQLiteKVNamespaces(ctx context.Context, db *sql.DB, siteID string) ([]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT name FROM site_storage_resources WHERE site_id=$1 AND kind='kv' AND kv_store='sqlite' ORDER BY name`, siteID)
+// KVNamespaces enumerates declared files only; orphan files are not usage.
+func KVNamespaces(ctx context.Context, db *sql.DB, siteID string) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT name FROM site_storage_resources WHERE site_id=$1 AND kind='kv' ORDER BY name`, siteID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +158,7 @@ var ErrConvertRowCount = errors.New("expected exactly one resource row to change
 // ConvertToRules is step 3 of a conversion, in one transaction: the default
 // set and the fill on the resource (only while it has no rules), and its
 // table rows replaced by the given ones.
-func ConvertToRules(ctx context.Context, db KVMoveDB, siteID, name string, set json.RawMessage, tables map[string]rules.TableRule, beforeCommit func() error) error {
+func ConvertToRules(ctx context.Context, db TxQuerier, siteID, name string, set json.RawMessage, tables map[string]rules.TableRule, beforeCommit func() error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -262,7 +249,7 @@ func LoadConvertOriginal(ctx context.Context, db Querier, siteID, name string) (
 // RevertFromRules restores the recorded configuration in one transaction:
 // every resource column and table row as it was, no rules on either, and the
 // record cleared.
-func RevertFromRules(ctx context.Context, db KVMoveDB, siteID, name string, o ConvertOriginal, beforeCommit func() error) error {
+func RevertFromRules(ctx context.Context, db TxQuerier, siteID, name string, o ConvertOriginal, beforeCommit func() error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

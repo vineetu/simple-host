@@ -47,7 +47,7 @@ func (u Usage) Total() int64 { return u.KV + u.SQLite + u.Files }
 // definition: normalized JSONB value text, SQLite main files after checkpoint,
 // and raw object bytes. WAL, retained deploys and legacy data are separate.
 func (s *Service) MeasureSiteStorage(ctx context.Context, siteID, root string) (Usage, error) {
-	names, err := storage.SQLiteKVNamespaces(ctx, s.db, siteID)
+	names, err := storage.KVNamespaces(ctx, s.db, siteID)
 	if err != nil {
 		return Usage{}, err
 	}
@@ -64,13 +64,10 @@ func (s *Service) MeasureSiteStorage(ctx context.Context, siteID, root string) (
 }
 
 // measureSiteStorageAdmitted never acquires a slot: its callers already own one
-// whenever the site has SQLite KV namespaces.
+// whenever the site has KV namespaces.
 func (s *Service) measureSiteStorageAdmitted(ctx context.Context, siteID, root string) (Usage, error) {
 	u := Usage{FileObjects: map[string]int{}}
-	if err := storage.KVUsage(ctx, s.db, siteID, &u.KV); err != nil {
-		return u, err
-	}
-	names, err := storage.SQLiteKVNamespaces(ctx, s.db, siteID)
+	names, err := storage.KVNamespaces(ctx, s.db, siteID)
 	if err != nil {
 		return u, err
 	}

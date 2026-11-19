@@ -17,7 +17,7 @@ import (
 	"github.com/vsriram/simple-host/host/testdb"
 )
 
-func TestKVMaintenanceServerLifetime(t *testing.T) {
+func TestMaintenanceServerLifetime(t *testing.T) {
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
@@ -90,7 +90,7 @@ func TestInstallIdentityAndLockServerLifetime(t *testing.T) {
 	}
 
 	// The same database with another data directory: the server starts and
-	// logs, writes no identity there, and kv-move's check refuses.
+	// logs, writes no identity there, and the maintenance check refuses.
 	other := servertest.Config(t, dsn)
 	app, err = server.Build(other, nil)
 	if err != nil {

@@ -79,14 +79,8 @@ connections is at most `SITE_STORAGE_SQL_CONCURRENCY` times the largest cap
 buffers, exports or other program memory. It is not the whole-install memory
 target measured separately for the self-hosted install.
 
-`KV_STORE` exists for an upcoming change and must stay `postgres` (the default).
-Do not set `sqlite` yet: site export, deleting a namespace and the people list
-do not cover a SQLite namespace until a later release. When that release
-arrives, the setting will choose the store for newly created key-value
-namespaces (set in the Compose environment or the Helm `kvStore` value, then
-restart), and existing namespaces will keep the store they have. A SQLite
-namespace is the file `runtime/kv/<name>.sqlite`; it is charged key bytes plus
-normalized JSON text bytes, with no cap on the file itself, and its lists are in
-byte order where Postgres lists follow the database collation.
+Each key-value namespace is the file `runtime/kv/<name>.sqlite` in its site's
+directory. It is charged key bytes plus normalized JSON text bytes, with no cap
+on the file itself, and its lists are in byte order.
 
 The settings command lists this program’s settings. Product programs compose the platform list with their own settings; the Hack list is generated at [products/hack/docs/advanced/settings.json](../products/hack/docs/advanced/settings.json).

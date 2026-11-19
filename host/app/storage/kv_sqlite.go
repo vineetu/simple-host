@@ -27,8 +27,8 @@ func (s *Service) createKVSQLite(ctx context.Context, call Call, resource string
 	})
 }
 
-// clearKVWritersSQLite forgets every writer of a namespace kept on SQLite, as
-// ClearResourceWriters does for one kept on Postgres. save does the Postgres
+// clearKVWritersSQLite forgets every writer of a namespace, as
+// ClearFileWriters does for a file bucket. save does the Postgres
 // work and calls commit right before its own commit; any earlier failure rolls
 // the file back with the Postgres transaction. The caller owns the site write
 // lock.
@@ -61,12 +61,6 @@ func (s *Service) clearKVWritersSQLite(ctx context.Context, call Call, resource 
 // withKV keeps the connection and all accounting reads inside one admission.
 // The caller already owns the site write lock for a mutation.
 func (s *Service) withKV(ctx context.Context, call Call, write bool, fn func(context.Context, *sqlite3.Conn, *Admission) error) error {
-	if kvHasRules(call) && call.Resource.KVStore != "sqlite" {
-		return rulesInvalid()
-	}
-	if call.Resource.KVStore != "sqlite" {
-		return fn(ctx, nil, nil)
-	}
 	err := s.deps.SiteSlots.Admit(ctx, call.SiteID, func(ctx context.Context, a *Admission) error {
 		if !write && s.deps.SQLiteTimeout > 0 {
 			var cancel context.CancelFunc
@@ -83,11 +77,8 @@ func (s *Service) withKV(ctx context.Context, call Call, write bool, fn func(con
 	return kvFileError(err)
 }
 
-func (s *Service) kvWriter(ctx context.Context, conn *sqlite3.Conn, siteID, resource, key string) (string, error) {
-	if conn == nil {
-		return repository.KVWriter(ctx, s.db, siteID, resource, key)
-	}
-	// Postgres rejects these during the same author lookup, before a write.
+func kvWriter(conn *sqlite3.Conn, key string) (string, error) {
+	// Reject these during the author lookup, before a write.
 	if !utf8.ValidString(key) {
 		return "", errors.New("invalid UTF-8 key")
 	}
@@ -190,7 +181,7 @@ func kvFileError(err error) error {
 // KVFileStats is the admitted disk half of paper metrics. A failure discards
 // this site's partial result; the collector can skip and count that site.
 func (s *Service) KVFileStats(ctx context.Context, siteID, root string) (entries, bytes int64, err error) {
-	names, err := repository.SQLiteKVNamespaces(ctx, s.db, siteID)
+	names, err := repository.KVNamespaces(ctx, s.db, siteID)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -223,9 +214,6 @@ func (s *Service) kvAccess(c *Call, action string, op ruleengine.Op) (string, er
 	}
 	if err := s.Gate(*c, op != ruleengine.OpRead); err != nil {
 		return "", err
-	}
-	if c.Resource.KVStore != "sqlite" {
-		return "", rulesInvalid()
 	}
 	if err := s.authorizeRuleOperation(c.Context, c, "kv", op); err != nil {
 		return "", err

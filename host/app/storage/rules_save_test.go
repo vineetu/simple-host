@@ -26,7 +26,7 @@ func readSet(using string) *json.RawMessage {
 }
 func rulesFixture(t *testing.T, schema string) (*Service, Call, ResourceInput) {
 	t.Helper()
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	s.deps.RulesEnabled = true
 	c.ResourceName = "rows"
 	s.deps.SQLitePath = filepath.Join(c.RuntimeDir, "sqlite", "rows.sqlite")
@@ -276,27 +276,16 @@ func TestRulesSaveShapes(t *testing.T) {
 	putRules(t, s, in)
 }
 
-func TestRulesSaveKVStoreAndBindings(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			s, c := kvFixture(t, store, false)
-			s.deps.RulesEnabled = true
-			in := ResourceInput{Call: c, Name: "data", Kind: "kv", Rules: readSet(`visitor_id == auth.id`)}
-			if store == "postgres" {
-				_, err := s.PutStorageResource(context.Background(), in)
-				if e, ok := err.(*Error); !ok || e.Code != "rules_unavailable" || !strings.Contains(e.Message, "has not been moved yet") {
-					t.Fatal(err)
-				}
-				return
-			}
-			x := putRules(t, s, in)
-			if x.RulesStatus() != "rules" {
-				t.Fatal(x.RulesStatus())
-			}
-			in.Rules = readSet(`approved_at is not null`)
-			ruleRefusal(t, s, in, "column")
-		})
+func TestRulesSaveKVAndBindings(t *testing.T) {
+	s, c := kvFixture(t, false)
+	s.deps.RulesEnabled = true
+	in := ResourceInput{Call: c, Name: "data", Kind: "kv", Rules: readSet(`visitor_id == auth.id`)}
+	x := putRules(t, s, in)
+	if x.RulesStatus() != "rules" {
+		t.Fatal(x.RulesStatus())
 	}
+	in.Rules = readSet(`approved_at is not null`)
+	ruleRefusal(t, s, in, "column")
 }
 
 func TestRulesSavePreparationBeforeMutation(t *testing.T) {
@@ -677,7 +666,7 @@ func TestRulesSaveLegacyProvenance(t *testing.T) {
 		})
 	}
 	// Full-mode KV writers are cleared in their own SQLite transaction too.
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	s.deps.RulesEnabled = true
 	kvPut(t, s, c, "old", `1`, "")
 	if err := s.withKV(context.Background(), c, true, func(_ context.Context, conn *sqlite3.Conn, _ *Admission) error {
@@ -788,7 +777,6 @@ func TestRulesPasscodeSaveMissingBindings(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			s, _, in := rulesFixture(t, "")
 			in.Kind = kind
-			s.deps.KVStore = "sqlite"
 			s.deps.BindingSchema = PlatformSchema(false)
 			s.deps.BindingSchema["event.member"] = ruleengine.Binding{Type: ruleengine.TypeBool}
 			in.Rules = readSet("event.member")

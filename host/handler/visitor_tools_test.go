@@ -161,12 +161,6 @@ func TestVisitorMCPNamedViewerPresetsAndRemoval(t *testing.T) {
 }
 
 func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestVisitorMCPKVOwnerIsolationAuditAndCap(t) })
-	}
-}
-
-func runTestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	f := newVisitorFixture(t)
 	f.must(t, "PUT", "/resources/notes", map[string]any{"kind": "kv", "preset": "personal"}, f.key, 201)
 	args := f.args("kv", "notes")

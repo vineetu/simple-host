@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestKVMixedInstallMetrics(t *testing.T) {
+func TestKVFileMetrics(t *testing.T) {
 	db := isolatedDB(t)
 	ctx := context.Background()
 	var owner, site, busy string
@@ -21,19 +21,9 @@ func TestKVMixedInstallMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []string{site, busy} {
-		if _, err := db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,kv_store) VALUES($1,'file','kv','sqlite')`, id); err != nil {
+		if _, err := db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind) VALUES($1,'file','kv')`, id); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if _, err := db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind) VALUES($1,'pg','kv')`, site); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,'pg','long-key','{"text":"é"}')`, site); err != nil {
-		t.Fatal(err)
-	}
-	var pgBytes, textBytes int64
-	if err := db.QueryRow(`SELECT pg_column_size(value),octet_length(value::text) FROM site_storage_kv WHERE site_id=$1`, site).Scan(&pgBytes, &textBytes); err != nil {
-		t.Fatal(err)
 	}
 	c := New(db, t.TempDir())
 	calls := map[string]int{}
@@ -50,7 +40,7 @@ func TestKVMixedInstallMetrics(t *testing.T) {
 	if err := c.dailySnapshot(ctx, now); err != nil {
 		t.Fatal(err)
 	}
-	for name, want := range map[string]int64{"kv_rows": 3, "kv_value_bytes": pgBytes, "kv_value_text_bytes": textBytes + 17, "kv_file_sites_skipped": 1} {
+	for name, want := range map[string]int64{"kv_rows": 2, "kv_value_text_bytes": 17, "kv_file_sites_skipped": 1} {
 		var got int64
 		if err := db.QueryRow(`SELECT value FROM paper_daily WHERE metric=$1`, name).Scan(&got); err != nil || got != want {
 			t.Fatalf("%s=%d want %d: %v", name, got, want, err)
@@ -63,7 +53,7 @@ func TestKVMixedInstallMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	var n, rows, bytes int64
-	if err := db.QueryRow(`SELECT count(*),sum(kv_rows),sum(kv_bytes) FROM paper_site_footprint`).Scan(&n, &rows, &bytes); err != nil || n != 1 || rows != 3 || bytes != pgBytes {
+	if err := db.QueryRow(`SELECT count(*),sum(kv_rows),sum(kv_bytes) FROM paper_site_footprint`).Scan(&n, &rows, &bytes); err != nil || n != 1 || rows != 2 || bytes != 0 {
 		t.Fatalf("footprint=%d/%d/%d: %v", n, rows, bytes, err)
 	}
 }

@@ -56,12 +56,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	exec(`INSERT INTO sites (user_id,name,site_url,active_version) VALUES ($1,$2,'',1),($1,'deleted','',1)`, account, event)
 	exec(`UPDATE sites SET deleted_at=now() WHERE name='deleted'`)
 	exec(`INSERT INTO site_storage_resources (site_id,name,kind) VALUES ($1,'kv','kv')`, site)
-	exec(`INSERT INTO site_storage_kv (site_id,resource_name,key,value) VALUES ($1,'kv','secret-key','"secret-value"')`, site)
 	exec(`INSERT INTO versions (site_id,version_number,disk_path,status,created_at) VALUES ($1,1,'source-path-not-copied','ready',$2),($1,2,'source-path-not-copied','active',$3)`, site, start.Add(34*time.Minute), start.Add(94*time.Minute))
-	var kvBytes int64
-	if err := d.QueryRow(`SELECT pg_column_size(value) FROM site_storage_kv WHERE site_id=$1`, site).Scan(&kvBytes); err != nil {
-		t.Fatal(err)
-	}
 	dir := t.TempDir()
 	write := func(name, path, body string) {
 		t.Helper()
@@ -127,7 +122,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	if values == nil {
 		t.Fatal("no oldest event")
 	}
-	expected := map[string]int64{"duration_hours": 24, "expected_participants": 100, "participants": 2, "organisers": 1, "judges": 1, "applications": 3, "applications_approved": 2, "teams": 2, "teams_with_entry": 1, "teams_kept_after_leave": 1, "team_size_p50": 0, "team_size_max": 2, "team_sites": 1, "team_site_bytes_sum": 21, "team_site_bytes_p50": 21, "team_site_versions_sum": 2, "event_storage_bytes": 19 + kvBytes, "submissions": 1, "entries_with_code_url": 1, "entries_with_video": 1, "scores": 1, "score_criteria": 1, "assignments": 1, "conflicts": 1, "votes": 1, "announcements": 1, "deploys_total": 3, "minutes_create_to_first_deploy": 30}
+	expected := map[string]int64{"duration_hours": 24, "expected_participants": 100, "participants": 2, "organisers": 1, "judges": 1, "applications": 3, "applications_approved": 2, "teams": 2, "teams_with_entry": 1, "teams_kept_after_leave": 1, "team_size_p50": 0, "team_size_max": 2, "team_sites": 1, "team_site_bytes_sum": 21, "team_site_bytes_p50": 21, "team_site_versions_sum": 2, "event_storage_bytes": 19, "submissions": 1, "entries_with_code_url": 1, "entries_with_video": 1, "scores": 1, "score_criteria": 1, "assignments": 1, "conflicts": 1, "votes": 1, "announcements": 1, "deploys_total": 3, "minutes_create_to_first_deploy": 30}
 	for col, want := range expected {
 		if got := ToInt(values[col]); got != want {
 			t.Errorf("%s=%v want %d", col, values[col], want)

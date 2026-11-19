@@ -255,9 +255,7 @@ func TestVisitorNumbersRemainExact(t *testing.T) {
 	f := newVisitorFixture(t)
 	f.must(t, "PUT", "/resources/numbers", map[string]any{"kind": "kv", "preset": "public"}, f.key, 201)
 	const exact = "9007199254740993"
-	if _, err := f.a.database.Exec(`INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,'numbers','big',$2::jsonb)`, f.sid, `{"nested":[`+exact+`]}`); err != nil {
-		t.Fatal(err)
-	}
+	seedStorageKV(t, f.a.sites, f.sid, "numbers", "big", `{"nested":[`+exact+`]}`, "")
 	response := f.a.rpc(t, f.token, "tools/call", map[string]any{"name": "visitor_read_site", "arguments": f.args("kv", "numbers")})
 	text, _, bad := toolResultOf(t, response)
 	if bad || !strings.Contains(text, exact) {

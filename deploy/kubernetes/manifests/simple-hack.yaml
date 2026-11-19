@@ -73,7 +73,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     helm.sh/chart: simple-hack-0.9.0
 data:
-  KV_STORE: "postgres"
   STORAGE_RULES: "off"
   STORAGE_SWITCH_AT: ""
   SITE_STORAGE_SITE_INFLIGHT: "1"

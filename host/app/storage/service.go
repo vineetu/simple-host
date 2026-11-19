@@ -28,7 +28,6 @@ type Deps struct {
 	SQLiteMaxMemory                          int64
 	Locks                                    *sync.Map
 	CombinedPool                             bool
-	KVStore                                  string
 	SiteLimit, FilesLimit                    string
 	SpamCheckedMaxBytes, SpamCheckedMaxLinks int
 	VisitorSessionIdle                       time.Duration

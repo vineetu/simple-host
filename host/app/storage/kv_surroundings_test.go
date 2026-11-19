@@ -20,7 +20,7 @@ func (d kvTestDisk) SiteDir(string, string) string { return string(d) }
 func TestKVResourceDeleteRestoresWALAndSHM(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "rollback"}[fail], func(t *testing.T) {
-			s, c := kvFixture(t, "sqlite", false)
+			s, c := kvFixture(t, false)
 			ctx := context.Background()
 			dir := t.TempDir()
 			root := filepath.Join(dir, "runtime")
@@ -103,7 +103,7 @@ func TestKVResourceDeleteRestoresWALAndSHM(t *testing.T) {
 }
 
 func TestKVConcurrentFileBusyWithMultipleSiteSlots(t *testing.T) {
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	ctx := context.Background()
 	kvPut(t, s, c, "key", "1", "")
 	s.deps.SiteSlots = NewSiteSlots(4, NewSQLiteGate(4, time.Second), time.Second)
@@ -160,7 +160,7 @@ func TestKVConcurrentFileBusyWithMultipleSiteSlots(t *testing.T) {
 }
 
 func TestKVMissingFileUsageDoesNotHideOtherFailures(t *testing.T) {
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	ctx := context.Background()
 	path := runtime.RuntimeKVPath(c.RuntimeDir, "data")
 	kvPut(t, s, c, "key", "1", "")
@@ -176,8 +176,7 @@ func TestKVMissingFileUsageDoesNotHideOtherFailures(t *testing.T) {
 	if !errors.As(err, &e) || e.Code != "storage_failed" {
 		t.Fatalf("missing read: %v", err)
 	}
-	// Another store can still write when only this file is missing.
-	s.deps.KVStore = "postgres"
+	// Another namespace can still write when only this file is missing.
 	result, err := s.PutStorageResource(ctx, ResourceInput{Call: c, Name: "pg", Kind: "kv"})
 	if err != nil {
 		t.Fatal(err)
@@ -198,7 +197,7 @@ func TestKVMissingFileUsageDoesNotHideOtherFailures(t *testing.T) {
 }
 
 func TestKVFileStatsValuesExcludeKeys(t *testing.T) {
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	kvPut(t, s, c, "long-key", `"é"`, "")
 	entries, valueBytes, err := s.KVFileStats(context.Background(), c.SiteID, c.RuntimeDir)
 	if err != nil || entries != 1 || valueBytes != 4 {

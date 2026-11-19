@@ -16,7 +16,7 @@ import (
 
 func kvRulesFixture(t *testing.T, set *json.RawMessage) (*Service, Call) {
 	t.Helper()
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	s.deps.RulesEnabled = true
 	s.deps.SpamCheckAvailable = true
 	s.deps.PasscodeAllows = func() bool { return true }
@@ -57,10 +57,29 @@ func kvRulesDelete(t *testing.T, s *Service, c Call, key, want string) {
 	}
 }
 
-func kvRulesSnapshot(t *testing.T, c Call) ([]runtime.KVSnapshotEntry, runtime.KVMeta) {
+type kvRulesRow struct{ Key, Value, Writer, Created, Updated string }
+
+func kvRulesSnapshot(t *testing.T, c Call) ([]kvRulesRow, runtime.KVMeta) {
 	t.Helper()
-	rows, meta, err := runtime.ReadKVSnapshot(context.Background(), runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName))
+	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName), false, false)
 	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	meta, err := runtime.RuntimeKVMeta(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stmt, _, err := conn.Prepare(`SELECT key,value,visitor_id,created_at,updated_at FROM kv ORDER BY key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	var rows []kvRulesRow
+	for stmt.Step() {
+		rows = append(rows, kvRulesRow{stmt.ColumnText(0), stmt.ColumnText(1), stmt.ColumnText(2), stmt.ColumnText(3), stmt.ColumnText(4)})
+	}
+	if err = stmt.Err(); err != nil {
 		t.Fatal(err)
 	}
 	return rows, meta
@@ -385,32 +404,15 @@ func TestKVRulesQuotaAtLimit(t *testing.T) {
 	}
 }
 
-func TestKVRulesPostgresSaveRefused(t *testing.T) {
-	s, c := kvFixture(t, "postgres", false)
-	s.deps.RulesEnabled = true
-	_, err := s.PutStorageResource(context.Background(), ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: readSet("true")})
-	if e, ok := err.(*Error); !ok || e.Code != "rules_unavailable" {
-		t.Fatalf("%v", err)
-	}
-}
-
 func TestKVRulesRejectAnonymousChangeAtSave(t *testing.T) {
 	for _, op := range []ruleengine.Command{ruleengine.CmdEdit, ruleengine.CmdDelete} {
 		t.Run(string(op), func(t *testing.T) {
-			s, c := kvFixture(t, "sqlite", false)
+			s, c := kvFixture(t, false)
 			s.deps.RulesEnabled = true
 			in := ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: saveSet(ruleengine.Policy{Command: op, Using: "true"})}
 			ruleRefusal(t, s, in, "anonymous_change")
 		})
 	}
-}
-
-func TestKVRulesPostgresMarkerFailsClosed(t *testing.T) {
-	s, c := kvRulesFixture(t, kvRuleSet("true", "true", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
-	c.Resource.KVStore = "postgres"
-	kvRulesGet(t, s, c, "key", "rules_invalid")
-	kvRulesPut(t, s, c, "key", `1`, "", "rules_invalid")
-	kvRulesDelete(t, s, c, "key", "rules_invalid")
 }
 
 func TestKVRulesWriteBindingSnapshot(t *testing.T) {

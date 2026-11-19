@@ -148,10 +148,7 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 			return e
 		}
 	}
-	entries, err := repo.ExportKV(ctx, s.database, siteID)
-	if err != nil {
-		return err
-	}
+	entries := []repo.ExportKVEntry{}
 	names, err := repo.ExportKVNamespaces(ctx, s.database, siteID)
 	if err != nil {
 		return err
@@ -176,8 +173,8 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 			return err
 		}
 	}
-	// Preserve the export's existing database collation, even when the keys
-	// were read from SQLite (whose visitor list uses byte order).
+	// Preserve the export's existing database collation: the keys are read
+	// from SQLite, whose visitor list uses byte order.
 	if len(names) > 0 {
 		entries, err = repo.OrderExportKV(ctx, s.database, entries)
 		if err != nil {

@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "hack.labels" . | nindent 4 }}
 data:
-  KV_STORE: {{ .Values.kvStore | quote }}
   STORAGE_RULES: {{ .Values.storageRules | quote }}
   STORAGE_SWITCH_AT: {{ .Values.storageSwitchAt | quote }}
   SITE_STORAGE_SITE_INFLIGHT: {{ .Values.storageSiteInflight | quote }}

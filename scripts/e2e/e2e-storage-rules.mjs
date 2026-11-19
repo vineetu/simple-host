@@ -4,7 +4,7 @@
 //   STORAGE_RULES_FIXTURE=/tmp/rules.json TEST_PKGS=./host/handler TEST_COUNT=1 bash scripts/test-integration.sh -run '^TestServeStorageRulesBrowser$' -timeout 35m
 // Then, in another shell:
 //   PLAYWRIGHT_DIR=/opt/pw/node_modules CHROMIUM=/usr/local/bin/chromium node scripts/e2e/e2e-storage-rules.mjs /tmp/rules.json --shots /tmp/rules-shots
-// TestServeStorageRulesBrowser sets STORAGE_RULES=on and KV_STORE=sqlite;
+// TestServeStorageRulesBrowser sets STORAGE_RULES=on;
 // canonical person/site hosts, captured mail and all data are fixture-local.
 // This script creates its own site/resources and stops the fixture on exit
 // (use --keep to leave it running). It tests 390px and 1280px in light theme.

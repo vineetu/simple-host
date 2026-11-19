@@ -7,12 +7,6 @@ import (
 )
 
 func TestStorageStoryShopAndRefusals(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageStoryShopAndRefusals(t) })
-	}
-}
-
-func runTestStorageStoryShopAndRefusals(t *testing.T) {
 	a, cert := newSiteApp(t, "canonical")
 	owner := a.newPerson(t, "story-owner")
 	alice := a.newPerson(t, "story-alice")
@@ -135,7 +129,7 @@ func runTestStorageStoryShopAndRefusals(t *testing.T) {
 	// A legacy database pages write with SQL keeps its raw routes until the
 	// owner sets a preset; own then needs it empty (a page could have
 	// forged visitor_id).
-	insertLegacyStorage(t, a.database, sid, "legacy", "sqlite", "anyone", "anyone", "full", "")
+	insertLegacyStorage(t, a.sites, sid, "legacy", "sqlite", "anyone", "anyone", "full", "")
 	check("POST", pcSiteDomain, "/sqlite/legacy/schema", `{"sql":"CREATE TABLE old (v TEXT)"}`, key, 200, "")
 	check("POST", host, "/sqlite/legacy/execute", `{"sql":"INSERT INTO old VALUES('old')"}`, browser(host, ""), 200, "")
 	check("POST", host, "/sqlite/legacy/execute", `{"sql":"UPDATE old SET v='updated'"}`, browser(host, ""), 200, "")
@@ -216,12 +210,6 @@ func runTestStorageStoryShopAndRefusals(t *testing.T) {
 }
 
 func TestStorageStorySeparateAllowances(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) { t.Setenv("KV_STORE", store); runTestStorageStorySeparateAllowances(t) })
-	}
-}
-
-func runTestStorageStorySeparateAllowances(t *testing.T) {
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "16384")
 	t.Setenv("SITE_STORAGE_FILES_MAX_BYTES", "10")
 	t.Setenv("SITE_STORAGE_FILE_MAX_BYTES", "100")

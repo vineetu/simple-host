@@ -8,7 +8,6 @@ import (
 
 func TestStorageKVRulesHTTP(t *testing.T) {
 	t.Setenv("STORAGE_RULES", "on")
-	t.Setenv("KV_STORE", "sqlite")
 	s := newPresetSite(t)
 	s.must(t, "PUT", "/resources/data", `{"kind":"kv","rules":{"policies":[{"command":"read","using":"key contains \"public\""},{"command":"add","check":"value == \"1\""},{"command":"edit","using":"auth.signed_in","check":"value == \"2\""},{"command":"delete","using":"auth.signed_in"}]}}`, s.key, 201)
 	s.must(t, "PUT", "/kv/data/keys/public", `{"value":1}`, s.callers["alice"], 200)

@@ -85,7 +85,7 @@ func equivalenceRefused(t *testing.T, result TableResult, err error) equivalence
 
 func equivalenceFixture(t *testing.T, kind string) equivalenceTwin {
 	t.Helper()
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	s.deps.RulesEnabled, s.deps.SpamCheckAvailable = true, true
 	s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks = 4096, 10
 	s.deps.PasscodeAllows = func() bool { return true }

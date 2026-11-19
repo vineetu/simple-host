@@ -1629,6 +1629,13 @@ Not doing: separate modules per product, a plugin framework, renamed tables, a q
   owner checking their own page several times a day was inflating People, the one number the
   product calls the audience. Owner approved through the Auto-ship label (SIM-151).
 
+- **2026-11-19. Key-value storage has one store.** Every key-value namespace is a SQLite file
+  in its site's directory. The Postgres key-value path, the `KV_STORE` setting and the
+  `kv-move` command are removed, with no upgrade path. The unused `site_storage_kv` table and
+  `kv_store` column stay until a later schema step. Reason: the owner ruled "the new storage
+  is the default, obviously; delete the old storage". Both installs moved on 2026-11-16 and
+  nobody else has installed the product.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

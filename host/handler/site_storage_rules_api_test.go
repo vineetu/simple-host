@@ -144,7 +144,6 @@ func TestStorageRulesAPIErrors(t *testing.T) {
 		{"shape", `{"kind":"sqlite","preset":"","rules":{"policies":[]}}`, "invalid_rules", "shape", ""},
 		{"files", `{"kind":"files","rules":{"policies":[]}}`, "invalid_rules", "shape", ""},
 		{"table", `{"kind":"sqlite","rules":{"policies":[]},"tables":{"notes":{"preset":"private","rules":{"policies":[]}}}}`, "invalid_rules", "shape", "notes"},
-		{"postgres", `{"kind":"kv","rules":{"policies":[]}}`, "rules_unavailable", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := s.must(t, "PUT", "/resources/"+tc.name, tc.body, s.key, 400).json(t)

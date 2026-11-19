@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -16,13 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
 	repository "github.com/vsriram/simple-host/host/repository/storage"
 	rules "github.com/vsriram/simple-host/host/rules/storage"
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
-func kvFixture(t *testing.T, store string, combined bool) (*Service, Call) {
+func kvFixture(t *testing.T, combined bool) (*Service, Call) {
 	t.Helper()
 	db := admissionDB(t)
 	var owner, site string
@@ -53,7 +51,7 @@ func kvFixture(t *testing.T, store string, combined bool) (*Service, Call) {
 			delete(held, id)
 		}
 	}
-	s := New(db, Deps{KVStore: store, CombinedPool: combined, SiteSlots: slots, Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: 30 * time.Second, SQLiteTimeout: 30 * time.Second, Committed: func(context.Context) {}, Notify: func(Call, string, map[string]any) {}, MarkChanged: func() {}})
+	s := New(db, Deps{CombinedPool: combined, SiteSlots: slots, Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: 30 * time.Second, SQLiteTimeout: 30 * time.Second, Committed: func(context.Context) {}, Notify: func(Call, string, map[string]any) {}, MarkChanged: func() {}})
 	c := Call{Owner: true, OwnerID: owner, SiteID: site, SiteName: "kv-test", ResourceName: "data", RuntimeDir: t.TempDir()}
 	result, err := s.PutStorageResource(context.Background(), ResourceInput{Call: c, Name: "data", Kind: "kv", AccessRequest: rules.AccessRequest{Preset: "private"}})
 	if err != nil {
@@ -80,167 +78,101 @@ func kvPut(t *testing.T, s *Service, c Call, key, value string, want string) {
 	}
 }
 
-func TestKVStoresNormalizationKeysAndOrdering(t *testing.T) {
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			s, c := kvFixture(t, store, false)
-			ctx := context.Background()
-			for _, key := range []string{"A", "a", "x%_\\one", "xAAone", "é", "中", "z"} {
-				kvPut(t, s, c, key, `{"b":1,"a":0,"b":1.0e2}`, "")
-			}
-			for _, key := range []string{"A", "a"} {
-				got, err := s.GetKV(ctx, KVReadInput{Call: c, Key: key})
-				if err != nil {
-					t.Fatal(err)
-				}
-				normalized, err := repository.KVNormalize(ctx, s.db, json.RawMessage(`{"b":1,"a":0,"b":1.0e2}`))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if string(got.Item.Value) != normalized {
-					t.Fatalf("normalized: %s != %s", got.Item.Value, normalized)
-				}
-			}
-			got, err := s.ListKV(ctx, KVListInput{Call: c, Prefix: "x%_\\", Limit: 100, ValidLimit: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(got.Items) != 1 || got.Items[0].Key != "x%_\\one" {
-				t.Fatalf("literal prefix: %+v", got)
-			}
-			all, err := s.ListKV(ctx, KVListInput{Call: c, Limit: 100, ValidLimit: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var keys []string
-			for _, item := range all.Items {
-				keys = append(keys, item.Key)
-			}
-			t.Logf("%s key order: %q", store, keys)
-			if store == "sqlite" && !sort.StringsAreSorted(keys) {
-				t.Fatal("not byte order")
-			}
-			kvPut(t, s, c, "nul", `"\u0000"`, "invalid_value")
-			kvPut(t, s, c, "huge", `1e1000000`, "invalid_value")
-			loaded, err := repository.LoadResource(ctx, s.db, c.SiteID, c.ResourceName)
-			if err != nil || loaded.KVStore != store {
-				t.Fatalf("marker: %+v %v", loaded, err)
-			}
-			before := loaded.Fingerprint()
-			loaded.KVStore = "other"
-			if before == loaded.Fingerprint() {
-				t.Fatal("marker missing from fingerprint")
-			}
-		})
-	}
-}
-
-func TestKVStoresQuotaBoundaries(t *testing.T) {
-	for _, combined := range []bool{false, true} {
-		for _, store := range []string{"postgres", "sqlite"} {
-			t.Run(fmt.Sprintf("%s/combined=%t", store, combined), func(t *testing.T) {
-				s, c := kvFixture(t, store, combined)
-				limit := SiteLimitBytes("", combined)
-				// A normal SQLite database consumes the rest of the actual product pool;
-				// KV has four bytes left. File bytes count only in Hack's combined pool.
-				if err := os.MkdirAll(filepath.Join(c.RuntimeDir, "files", "bucket"), 0700); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filepath.Join(c.RuntimeDir, "files", "bucket", "data"), []byte("123"), 0600); err != nil {
-					t.Fatal(err)
-				}
-				other := limit - 4
-				if combined {
-					other -= 3
-				}
-				if err := os.MkdirAll(filepath.Join(c.RuntimeDir, "sqlite"), 0700); err != nil {
-					t.Fatal(err)
-				}
-				f, err := os.Create(filepath.Join(c.RuntimeDir, "sqlite", "other.sqlite"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err = f.Truncate(other); err != nil {
-					t.Fatal(err)
-				}
-				f.Close()
-				kvPut(t, s, c, "key", "10", "site_full") // five bytes, one over
-				kvPut(t, s, c, "key", "1", "")           // four bytes, exact boundary
-				u, err := s.MeasureSiteStorage(context.Background(), c.SiteID, c.RuntimeDir)
-				if err != nil || s.BudgetUsed(u) != limit {
-					t.Fatalf("boundary: %+v %v", u, err)
-				}
-				if _, err = s.DeleteKV(context.Background(), KVDeleteInput{Call: c, Key: "key"}); err != nil {
-					t.Fatal(err)
-				}
-				u, err = s.MeasureSiteStorage(context.Background(), c.SiteID, c.RuntimeDir)
-				if err != nil || u.KV != 0 || s.BudgetUsed(u) != limit-4 {
-					t.Fatalf("delete charge: %+v %v", u, err)
-				}
-			})
-		}
-	}
-}
-
-func TestKVMixedStoreMarkersAndAdmission(t *testing.T) {
-	s, c := kvFixture(t, "postgres", false)
+func TestKVNormalizationKeysAndOrdering(t *testing.T) {
+	s, c := kvFixture(t, false)
 	ctx := context.Background()
-	kvPut(t, s, c, "pg", "100", "")
-	// A leftover file beside the Postgres marker must be ignored completely.
-	if err := s.createKVSQLite(ctx, c, "data"); err != nil {
-		t.Fatal(err)
+	for _, key := range []string{"A", "a", "x%_\\one", "xAAone", "é", "中", "z"} {
+		kvPut(t, s, c, key, `{"b":1,"a":0,"b":1.0e2}`, "")
 	}
-	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
-		conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(c.RuntimeDir, "data"), true, false)
+	for _, key := range []string{"A", "a"} {
+		got, err := s.GetKV(ctx, KVReadInput{Call: c, Key: key})
 		if err != nil {
-			return err
+			t.Fatal(err)
 		}
-		defer done()
-		if err = conn.Exec("BEGIN"); err != nil {
-			return err
+		normalized, err := repository.KVNormalize(ctx, s.db, json.RawMessage(`{"b":1,"a":0,"b":1.0e2}`))
+		if err != nil {
+			t.Fatal(err)
 		}
-		if err = runtime.RuntimeKVPut(conn, "leftover", `"not authoritative"`, "", false, 0); err != nil {
-			return err
+		if string(got.Item.Value) != normalized {
+			t.Fatalf("normalized: %s != %s", got.Item.Value, normalized)
 		}
-		return conn.Exec("COMMIT; PRAGMA wal_checkpoint(TRUNCATE)")
-	})
+	}
+	got, err := s.ListKV(ctx, KVListInput{Call: c, Prefix: "x%_\\", Limit: 100, ValidLimit: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.deps.KVStore = "sqlite"
-	result, err := s.PutStorageResource(ctx, ResourceInput{Call: c, Name: "file", Kind: "kv"})
+	if len(got.Items) != 1 || got.Items[0].Key != "x%_\\one" {
+		t.Fatalf("literal prefix: %+v", got)
+	}
+	all, err := s.ListKV(ctx, KVListInput{Call: c, Limit: 100, ValidLimit: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	fc := c
-	fc.ResourceName = "file"
-	fc.Resource = result.Resource
-	if _, err = os.Stat(runtime.RuntimeKVPath(c.RuntimeDir, "file")); err != nil {
-		t.Fatal(err)
+	var keys []string
+	for _, item := range all.Items {
+		keys = append(keys, item.Key)
 	}
-	kvPut(t, s, fc, "sqlite", "1", "")
-	kvPut(t, s, c, "pg", "1000", "") // Postgres mutation calls external measurement
-	u, err := s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir)
-	if err != nil || u.KV != 13 {
-		t.Fatalf("mixed: %+v %v", u, err)
+	if !sort.StringsAreSorted(keys) {
+		t.Fatal("not byte order")
 	}
-	var rows int
-	if err = s.db.QueryRow(`SELECT count(*) FROM site_storage_kv WHERE site_id=$1 AND resource_name='file'`, c.SiteID).Scan(&rows); err != nil || rows != 0 {
-		t.Fatalf("SQLite namespace has PG rows: %d %v", rows, err)
+	kvPut(t, s, c, "nul", `"\u0000"`, "invalid_value")
+	kvPut(t, s, c, "huge", `1e1000000`, "invalid_value")
+}
+
+func TestKVQuotaBoundaries(t *testing.T) {
+	for _, combined := range []bool{false, true} {
+		s, c := kvFixture(t, combined)
+		limit := SiteLimitBytes("", combined)
+		// A normal SQLite database consumes the rest of the actual product pool;
+		// KV has four bytes left. File bytes count only in Hack's combined pool.
+		if err := os.MkdirAll(filepath.Join(c.RuntimeDir, "files", "bucket"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(c.RuntimeDir, "files", "bucket", "data"), []byte("123"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		other := limit - 4
+		if combined {
+			other -= 3
+		}
+		if err := os.MkdirAll(filepath.Join(c.RuntimeDir, "sqlite"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.Create(filepath.Join(c.RuntimeDir, "sqlite", "other.sqlite"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = f.Truncate(other); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+		kvPut(t, s, c, "key", "10", "site_full") // five bytes, one over
+		kvPut(t, s, c, "key", "1", "")           // four bytes, exact boundary
+		u, err := s.MeasureSiteStorage(context.Background(), c.SiteID, c.RuntimeDir)
+		if err != nil || s.BudgetUsed(u) != limit {
+			t.Fatalf("boundary: %+v %v", u, err)
+		}
+		if _, err = s.DeleteKV(context.Background(), KVDeleteInput{Call: c, Key: "key"}); err != nil {
+			t.Fatal(err)
+		}
+		u, err = s.MeasureSiteStorage(context.Background(), c.SiteID, c.RuntimeDir)
+		if err != nil || u.KV != 0 || s.BudgetUsed(u) != limit-4 {
+			t.Fatalf("delete charge: %+v %v", u, err)
+		}
 	}
-	// Flag changes and policy saves keep the existing marker.
-	s.deps.KVStore = "postgres"
-	result, err = s.PutStorageResource(ctx, ResourceInput{Call: c, Name: "file", Kind: "kv"})
-	if err != nil || result.Resource.KVStore != "sqlite" {
-		t.Fatalf("resave: %+v %v", result, err)
-	}
+}
+
+func TestKVAdmissionBesideOtherStorage(t *testing.T) {
+	s, c := kvFixture(t, false)
+	ctx := context.Background()
+	kvPut(t, s, c, "key", "1", "")
 	// Owner SQL, row write budget and preset preparation each exercise their
 	// designated admission form while the site also has a KV file.
 	s.deps.SQLitePath = filepath.Join(c.RuntimeDir, "sqlite", "rows.sqlite")
 	rc := c
 	rc.ResourceName = "rows"
 	rc.Resource = rules.Resource{Kind: "sqlite"}
-	_, err = s.LegacySQL(ctx, LegacySQLInput{Call: rc, Mode: "schema", ReadBody: func() ([]byte, error) {
+	_, err := s.LegacySQL(ctx, LegacySQLInput{Call: rc, Mode: "schema", ReadBody: func() ([]byte, error) {
 		return []byte(`{"sql":"CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}`), nil
 	}})
 	if err != nil {
@@ -255,7 +187,7 @@ func TestKVMixedStoreMarkersAndAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Upload accounting takes and releases its own admission before staging.
-	result, err = s.PutStorageResource(ctx, ResourceInput{Call: c, Name: "uploads", Kind: "files"})
+	result, err := s.PutStorageResource(ctx, ResourceInput{Call: c, Name: "uploads", Kind: "files"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +206,7 @@ func TestKVMixedStoreMarkersAndAdmission(t *testing.T) {
 }
 
 func TestKVMetaRandomOperations(t *testing.T) {
-	s, c := kvFixture(t, "sqlite", false)
+	s, c := kvFixture(t, false)
 	rng := rand.New(rand.NewSource(20401))
 	expected := map[string]string{}
 	for i := 0; i < 1000; i++ {
@@ -325,7 +257,7 @@ func TestKVMetaRandomOperations(t *testing.T) {
 
 // Fill with one-byte values and shortest keys (all non-NUL ASCII, then
 // two-byte keys, then three-byte keys). The fixture writes every entry through
-// each native store, checking the same logical allowance at every prefix. The
+// the store, checking the same logical allowance at every prefix. The
 // final boundary and refusal go through the service's ordinary write path.
 func TestKVTinyEntriesLogicalPool(t *testing.T) {
 	const limit int64 = 1000000
@@ -357,82 +289,49 @@ func TestKVTinyEntriesLogicalPool(t *testing.T) {
 			break
 		}
 	}
-	for _, store := range []string{"postgres", "sqlite"} {
-		t.Run(store, func(t *testing.T) {
-			s, c := kvFixture(t, store, true)
-			ctx := context.Background()
-			if store == "postgres" {
-				tx, err := s.db.BeginTx(ctx, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer tx.Rollback()
-				stmt, err := tx.Prepare(pq.CopyIn("site_storage_kv", "site_id", "resource_name", "key", "value"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				var used int64
-				for _, key := range keys {
-					used += int64(len(key) + 1)
-					if used > limit {
-						t.Fatal("fixture exceeded logical pool")
-					}
-					if _, err = stmt.Exec(c.SiteID, c.ResourceName, key, "1"); err != nil {
-						t.Fatal(err)
-					}
-				}
-				if _, err = stmt.Exec(); err != nil {
-					t.Fatal(err)
-				}
-				stmt.Close()
-				if err = tx.Commit(); err != nil {
-					t.Fatal(err)
-				}
-			} else {
-				err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
-					conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName), true, false)
-					if err != nil {
-						return err
-					}
-					defer done()
-					if err = conn.Exec("BEGIN"); err != nil {
-						return err
-					}
-					defer conn.Exec("ROLLBACK")
-					var used int64
-					for _, key := range keys {
-						used += int64(len(key) + 1)
-						if used > limit {
-							t.Fatal("fixture exceeded logical pool")
-						}
-						if err = runtime.RuntimeKVPut(conn, key, "1", "", false, 0); err != nil {
-							return err
-						}
-					}
-					return conn.Exec("COMMIT; PRAGMA wal_checkpoint(TRUNCATE)")
-				})
-				if err != nil {
-					t.Fatal(err)
-				}
-				fi, err := os.Stat(runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if fi.Size() <= 4*limit {
-					t.Fatalf("fixture did not exceed old physical cap: %d", fi.Size())
-				}
-				t.Logf("%d entries, %d charged bytes, %d physical bytes", len(keys), charged, fi.Size())
+	s, c := kvFixture(t, true)
+	ctx := context.Background()
+	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
+		conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName), true, false)
+		if err != nil {
+			return err
+		}
+		defer done()
+		if err = conn.Exec("BEGIN"); err != nil {
+			return err
+		}
+		defer conn.Exec("ROLLBACK")
+		var used int64
+		for _, key := range keys {
+			used += int64(len(key) + 1)
+			if used > limit {
+				t.Fatal("fixture exceeded logical pool")
 			}
-			u, err := s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir)
-			if err != nil || u.KV != charged {
-				t.Fatalf("charge=%+v want %d: %v", u, charged, err)
+			if err = runtime.RuntimeKVPut(conn, key, "1", "", false, 0); err != nil {
+				return err
 			}
-			// A three-byte key exists; extend its value to consume any remainder.
-			last := keys[len(keys)-1]
-			value := strings.Repeat("1", int(limit-charged)+1)
-			kvPut(t, s, c, last, value, "")
-			kvPut(t, s, c, last, value+"1", "site_full")
-			kvPut(t, s, c, "not-yet-present", "1", "site_full")
-		})
+		}
+		return conn.Exec("COMMIT; PRAGMA wal_checkpoint(TRUNCATE)")
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
+	fi, err := os.Stat(runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Size() <= 4*limit {
+		t.Fatalf("fixture did not exceed old physical cap: %d", fi.Size())
+	}
+	t.Logf("%d entries, %d charged bytes, %d physical bytes", len(keys), charged, fi.Size())
+	u, err := s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir)
+	if err != nil || u.KV != charged {
+		t.Fatalf("charge=%+v want %d: %v", u, charged, err)
+	}
+	// A three-byte key exists; extend its value to consume any remainder.
+	last := keys[len(keys)-1]
+	value := strings.Repeat("1", int(limit-charged)+1)
+	kvPut(t, s, c, last, value, "")
+	kvPut(t, s, c, last, value+"1", "site_full")
+	kvPut(t, s, c, "not-yet-present", "1", "site_full")
 }

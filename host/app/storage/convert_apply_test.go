@@ -1251,10 +1251,6 @@ func TestMigrateRulesNeedsAPersonAndDifferences(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// A namespace still on Postgres is planned, and apply leaves it alone.
-	if _, err := f.db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,acc_read,acc_add,acc_edit,acc_delete,preset_base,kv_store) VALUES($1,'pg','kv','owner','owner','owner','owner','private','postgres')`, site); err != nil {
-		t.Fatal(err)
-	}
 	rows := convertRows(t, f.db, site)
 	plan, out, err := f.dryRun(t)
 	if !errors.Is(err, ErrConvertAttention) {
@@ -1264,7 +1260,7 @@ func TestMigrateRulesNeedsAPersonAndDifferences(t *testing.T) {
 	for _, e := range plan.Resources {
 		planned[e.Name] = true
 	}
-	if len(planned) != 3 || !planned["rows"] || !planned["data"] || !planned["pg"] || planned["legacy_inbox"] {
+	if len(planned) != 2 || !planned["rows"] || !planned["data"] || planned["legacy_inbox"] {
 		t.Fatalf("planned %v\n%s", planned, out)
 	}
 	needs := map[string]string{}
@@ -1276,7 +1272,7 @@ func TestMigrateRulesNeedsAPersonAndDifferences(t *testing.T) {
 			t.Fatalf("%s: %q", name, needs[name])
 		}
 	}
-	if len(needs) != 4 || len(plan.Differences) == 0 || len(plan.Notes) != 1 || plan.Notes[0].Resource != "pg" {
+	if len(needs) != 4 || len(plan.Differences) == 0 || len(plan.Notes) != 0 {
 		t.Fatalf("needs=%v differences=%d notes=%v", needs, len(plan.Differences), plan.Notes)
 	}
 	differing := map[string]bool{}
@@ -1294,11 +1290,11 @@ func TestMigrateRulesNeedsAPersonAndDifferences(t *testing.T) {
 	}
 	var report bytes.Buffer
 	err = f.conv.Apply(ctx, plan, &report)
-	if !errors.Is(err, ErrConvertIncomplete) || !strings.Contains(report.String(), "skipped "+f.handle+" kv-test pg: this key-value namespace is still on Postgres") || !strings.Contains(report.String(), "converted=2 already_converted=0 skipped=1 failed=0") {
+	if err != nil || !strings.Contains(report.String(), "converted=2 already_converted=0 skipped=0 failed=0") {
 		t.Fatalf("%v\n%s", err, report.String())
 	}
 	var untouched int
-	if err := f.db.QueryRow(`SELECT count(*) FROM site_storage_resources WHERE site_id=$1 AND name IN ('legacy_sql','legacy_read','legacy_kv','legacy_open','legacy_inbox','odd','pg','uploads') AND rules IS NULL AND rules_converted_from IS NULL`, site).Scan(&untouched); err != nil || untouched != 8 {
+	if err := f.db.QueryRow(`SELECT count(*) FROM site_storage_resources WHERE site_id=$1 AND name IN ('legacy_sql','legacy_read','legacy_kv','legacy_open','legacy_inbox','odd','uploads') AND rules IS NULL AND rules_converted_from IS NULL`, site).Scan(&untouched); err != nil || untouched != 7 {
 		t.Fatalf("untouched=%d %v", untouched, err)
 	}
 	// Revert restores converted resources; rejected legacy settings stay intact.
@@ -1401,7 +1397,7 @@ func TestMigrateRulesRefusesWrongOwner(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			// Simulate another effective user, as in the kv-move ownership test.
+			// Simulate another effective user.
 			f.conv.euid = func() int { return os.Geteuid() + 1 }
 			files := convertTree(t, f.dataDir) + convertTree(t, twin.call.RuntimeDir)
 			rows := convertRows(t, f.db, twin.call.SiteID)
