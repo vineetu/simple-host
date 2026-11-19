@@ -42,8 +42,8 @@ var invitedAnswer = map[string]any{
 	"note":            "Nothing is sent. Whoever signs in with that email sees the invitation when signed in and can accept or decline it.",
 }
 
-// teamPerson lets a person's own credential through: never the admin, a
-// credential acting for one site, or a team.
+// teamPerson lets a person's own credential through, an admin's included:
+// never a credential acting for one site, a team, or a member acting for one.
 func teamPerson(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := auth.GetUser(r.Context())
@@ -51,7 +51,7 @@ func teamPerson(next http.HandlerFunc) http.HandlerFunc {
 			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 			return
 		}
-		if user.IsAdmin || user.Team != nil || user.EventWebsite != nil || user.Member != nil {
+		if user.Team != nil || user.EventWebsite != nil || user.Member != nil {
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: "teams are managed with a person's own sign-in or key", Code: "forbidden"})
 			return
 		}

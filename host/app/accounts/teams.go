@@ -79,8 +79,8 @@ func actingFor(ctx context.Context, apiKey string) (model.User, bool) {
 // ResolveOwner answers a request that names owner (a handle) as the owner of
 // the sites it acts on. A nil user and nil refusal leave the request as it
 // is: the key is not one this check reads (an unknown, expired or suspended
-// key, the admin key, a visitor credential), the caller is an admin, or owner
-// is the caller's own handle; the route then does exactly what it did before.
+// key, the admin key, a visitor credential), or owner is the caller's own
+// handle; the route then does exactly what it did before.
 // Otherwise the caller must be a member of the team owner names, with a full
 // key or their own connection: the answer is then the team's account acting
 // for them. lenient (the analytics routes, where owner already meant "an
@@ -99,9 +99,24 @@ func (s *Service) ResolveOwner(ctx context.Context, apiKey, owner string, keyIdl
 		}
 		return nil, nil, err
 	}
-	if person.IsAdmin || strings.EqualFold(person.Handle.String, owner) {
+	if strings.EqualFold(person.Handle.String, owner) {
 		return nil, nil, nil
 	}
+	user, refusal, err := s.teamOwner(ctx, person, owner, lenient)
+	if refusal != nil && person.IsAdmin && lenient {
+		// An admin's owner on the analytics routes may name any account
+		// (an admin reads another account's analytics): unless it named a
+		// team they belong to, the route answers as before.
+		return nil, nil, nil
+	}
+	return user, refusal, err
+}
+
+// teamOwner is ResolveOwner for an owner that is not the caller's own handle:
+// the team's account acting for person when person is a member of it with a
+// full key or their own connection, else a refusal. An admin is a person
+// here like anyone else, with no power over teams they are not a member of.
+func (s *Service) teamOwner(ctx context.Context, person model.User, owner string, lenient bool) (*model.User, *OwnerRefusal, error) {
 	if person.Team != nil || person.EventWebsite != nil {
 		return nil, &OwnerRefusal{http.StatusForbidden, "owner_not_allowed", "this credential acts for one site only; owner cannot name another account"}, nil
 	}

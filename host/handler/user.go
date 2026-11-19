@@ -474,7 +474,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	if hasHome && h.ed.Identity().PersonalSites {
 		resp.HomeSite = &home.Name
 	}
-	if h.ed.Identity().PersonalSites && !user.IsAdmin {
+	if h.ed.Identity().PersonalSites {
 		teams, err := h.accounts.TeamsOf(r.Context(), user.ID)
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})

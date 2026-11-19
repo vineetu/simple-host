@@ -650,3 +650,55 @@ func TestTeamSiteOffersNoPush(t *testing.T) {
 		t.Fatalf("push on a team site: %d %s", r.status, r.body)
 	}
 }
+
+// An admin's own account is a person: it creates, invites, is invited and
+// acts for its teams with owner=<team>, and has no power over other teams.
+func TestTeamAdminAccountIsAPerson(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	boss, ann, ben := a.newPerson(t, "team-admin"), a.newPerson(t, "team-admin-ann"), a.newPerson(t, "team-admin-ben")
+	bossID, _ := a.userID(t, boss)
+	if _, err := a.database.Exec(`UPDATE users SET is_admin = true WHERE id = $1`, bossID); err != nil {
+		t.Fatal(err)
+	}
+	own := newTeam(t, a, boss, "admin-own")
+	addMember(t, a, boss, own, ben)
+	if r := teamDeploy(t, a, boss, own, "shop"); r.status >= 300 || !strings.Contains(r.json(t)["site_url"].(string), own) {
+		t.Fatalf("admin publish for own team: %d %s", r.status, r.body)
+	}
+	joined := newTeam(t, a, ann, "admin-joined")
+	addMember(t, a, ann, joined, boss)
+	if r := teamDeploy(t, a, boss, joined, "shop"); r.status >= 300 || !strings.Contains(r.json(t)["site_url"].(string), joined) {
+		t.Fatalf("admin publish for joined team: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", teamAPIHost, "/v1/me", nil, teamKey(boss)); !strings.Contains(string(r.body), own) || !strings.Contains(string(r.body), joined) {
+		t.Fatalf("admin's teams on /v1/me: %s", r.body)
+	}
+
+	// Not a member: the same refusal as anyone on the /v1/sites routes.
+	other := newTeam(t, a, ann, "admin-other")
+	if r := teamDeploy(t, a, ann, other, "shop"); r.status >= 300 {
+		t.Fatalf("publish: %d %s", r.status, r.body)
+	}
+	for _, c := range []struct{ method, path string }{
+		{"GET", "/v1/sites?owner=" + other},
+		{"PUT", "/v1/sites/shop/files?owner=" + other},
+		{"DELETE", "/v1/sites/shop?owner=" + other},
+		{"GET", "/v1/teams/" + other + "/members"},
+	} {
+		r := a.at(t, c.method, teamAPIHost, c.path, map[string]any{"files": map[string]string{"index.html": "x"}}, teamKey(boss))
+		if r.status != http.StatusNotFound {
+			t.Fatalf("admin outsider %s %s: %d %s", c.method, c.path, r.status, r.body)
+		}
+	}
+
+	// owner on the analytics routes keeps meaning "an admin reads another
+	// account's analytics" for an account that is not one of the admin's teams.
+	a.deploy(t, ben, "bens")
+	_, benHandle := a.userID(t, ben)
+	if r := a.at(t, "GET", teamAPIHost, "/v1/sites/bens/analytics?days=7&owner="+benHandle, nil, teamKey(boss)); r.status != http.StatusOK {
+		t.Fatalf("admin analytics for another account: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", teamAPIHost, "/v1/sites/shop/analytics?days=7&owner="+own, nil, teamKey(boss)); r.status != http.StatusOK {
+		t.Fatalf("admin analytics for own team: %d %s", r.status, r.body)
+	}
+}
