@@ -717,15 +717,15 @@ func siteTools(limits Limits) []Tool {
 		{
 			OutputSchema: outObject(map[string]any{
 				"site": outString(outSiteName),
-				"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after " + span(limits.IdleAfter) + " without visits or updates."),
+				"keep": outBool("true: kept up for good, never removed as idle; false: moved to Recently deleted after " + span(limits.IdleAfter+limits.IdleGrace) + " without visits or updates."),
 			}, "site", "keep"),
 			Name:  "keep_site",
 			Title: "Keep a site up for good",
-			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for " + span(limits.IdleAfter) + " and moves it to Recently deleted " + span(limits.IdleGrace) + " later unless it is kept; a site marked Keep is never flagged. " +
-				"Sites with their own domain or claimed name are never flagged either.",
+			Description: "Mark a site Keep (or clear the mark). Simple Host moves a site nobody has visited or updated for " + span(limits.IdleAfter+limits.IdleGrace) + " to Recently deleted unless it is marked Keep. " +
+				"Sites with their own domain or claimed name are never removed either.",
 			InputSchema: object(map[string]any{
 				"site": str(siteDesc),
-				"keep": map[string]any{"type": "boolean", "description": "true (default) keeps the site up for good; false lets it be flagged again when idle."},
+				"keep": map[string]any{"type": "boolean", "description": "true (default) keeps the site up for good; false lets it be removed again when idle."},
 			}, "site"),
 			// Changes a flag on the person's own site; reversible.
 			Annotations: writes(true, false, true),
@@ -749,7 +749,7 @@ func siteTools(limits Limits) []Tool {
 				}
 				text := name + " is marked Keep: it stays up even if nobody visits it."
 				if !keep {
-					text = name + " is no longer marked Keep: if nobody visits or updates it for " + span(limits.IdleAfter) + ", its owner is emailed before anything happens."
+					text = name + " is no longer marked Keep: if nobody visits or updates it for " + span(limits.IdleAfter) + ", it moves to Recently deleted."
 				}
 				return output{Text: text, Structured: map[string]any{"site": name, "keep": keep}}, nil
 			},

@@ -143,13 +143,11 @@ func TestRulesSaveRequestSemantics(t *testing.T) {
 	tableSets := map[string]ResourceTableInput{"Notes": {Rules: saveSet()}}
 	in.Tables = &tableSets
 	x = putRules(t, s, in)
-	// The older columns get the fill that makes an older program deny every
-	// visitor, on the resource and its table overrides.
-	var fill int
+	// A rules save marks the resource as saved after presets.
+	var saved int
 	if err := s.db.QueryRow(`SELECT count(*) FROM site_storage_resources r JOIN site_storage_tables t ON t.site_id=r.site_id AND t.resource_name=r.name
- WHERE r.site_id=$1 AND r.name=$2 AND r.read_policy='owner' AND r.write_policy='owner' AND r.write_mode='add' AND r.acc_read='nobody' AND r.acc_add='nobody' AND r.acc_edit='nobody' AND r.acc_delete='nobody' AND r.preset_base='rules' AND NOT r.approve_first
- AND t.table_name='notes' AND t.acc_read='nobody' AND t.acc_add='nobody' AND t.acc_edit='nobody' AND t.acc_delete='nobody' AND t.preset_base='rules'`, c.SiteID, in.Name).Scan(&fill); err != nil || fill != 1 {
-		t.Fatalf("fill: %d %v", fill, err)
+ WHERE r.site_id=$1 AND r.name=$2 AND r.acc_read='nobody' AND t.table_name='notes'`, c.SiteID, in.Name).Scan(&saved); err != nil || saved != 1 {
+		t.Fatalf("saved: %d %v", saved, err)
 	}
 	in.Tables = nil
 	in.Rules = saveSet()
@@ -169,10 +167,8 @@ func TestRulesSaveRequestSemantics(t *testing.T) {
 		t.Fatalf("passcode: %+v", x)
 	}
 	var err error
-	// An older program's save overwrites only the fill; the status reads the rules alone.
-	if _, err := s.db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first)
- VALUES($1,$2,'sqlite','anyone','owner','inherit','add','anyone','owner','owner','owner','public',false)
- ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first`, c.SiteID, in.Name); err != nil {
+	// The older columns never decide access; the status reads the rules alone.
+	if _, err := s.db.Exec(`UPDATE site_storage_resources SET read_policy='anyone',write_policy='anyone',acc_read='anyone' WHERE site_id=$1 AND name=$2`, c.SiteID, in.Name); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.Exec(`DELETE FROM site_storage_tables WHERE site_id=$1 AND resource_name=$2`, c.SiteID, in.Name); err != nil {
@@ -557,7 +553,7 @@ func TestRulesSaveLegacyProvenance(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.Exec(`UPDATE site_storage_resources SET acc_read=NULL,acc_add=NULL,acc_edit=NULL,acc_delete=NULL,write_policy='anyone',write_mode='full' WHERE site_id=$1 AND name='data'`, c.SiteID); err != nil {
+	if _, err := s.db.Exec(`UPDATE site_storage_resources SET acc_read=NULL,write_policy='anyone',write_mode='full' WHERE site_id=$1 AND name='data'`, c.SiteID); err != nil {
 		t.Fatal(err)
 	}
 	putRules(t, s, ResourceInput{Call: c, Name: "data", Kind: "kv", Rules: saveSet()})

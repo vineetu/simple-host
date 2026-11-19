@@ -134,3 +134,4 @@ zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_
 0022-platform-parts.sql | platform | creates shared paper_run provenance from the historical mixed migration
 0023-install-product.sql | platform | install product identity
 0025-teams.sql | platform | teams: users.is_team, team_members, team_invitations, team_audit and their guard triggers
+0026-drop-storage-presets-columns.sql | platform | drop unused storage presets columns

@@ -347,11 +347,8 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     <div class="sec" id="idle" hidden>
       <h2>Idle sites</h2>
       <p class="ph" id="idle-note"></p>
-      <details class="box" id="idle-warn-d"><summary id="idle-warn-s">Sites that would be warned</summary>
-        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th>Last activity</th></tr></thead><tbody id="idle-warn"></tbody></table></div>
-      </details>
       <details class="box" id="idle-remove-d"><summary id="idle-remove-s">Sites that would be removed</summary>
-        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th>Warned</th></tr></thead><tbody id="idle-remove"></tbody></table></div>
+        <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Website</th><th>Owner</th><th>Last activity</th></tr></thead><tbody id="idle-remove"></tbody></table></div>
       </details>
     </div>
   </section>
@@ -1204,15 +1201,13 @@ async function loadIdle(){
   try{
     var res=await api('GET','/v1/admin/idle-sites');
     if(!res.ok) return;
-    var d=await res.json(), warn=d.would_warn||[], rm=d.would_remove||[];
-    var state=d.enabled?'On: every 6 hours, owners of sites with no visitors, no new version and no saved data for '+d.idle_days+' days are emailed (at most '+d.max_emails_per_run+' emails per run), and sites still idle '+d.grace_days+' days after the email move to Recently deleted.':
-      'Off (IDLE_CLEANUP is not "on"). Nothing is emailed or removed. This is what a run would do now.';
+    var d=await res.json(), rm=d.would_remove||[];
+    var state=d.enabled?'On: every 6 hours, sites with no visitors, no new version and no saved data for '+d.idle_days+' days move to Recently deleted, unless marked Keep. Nobody is emailed.':
+      'Off (IDLE_CLEANUP is not "on"). Nothing is removed. This is what a run would do now.';
     if(!d.visit_data_ok) state+=' Right now nothing would happen: '+(d.visit_data_note||'visit records cannot be trusted')+'.';
     $('idle-note').textContent=state+' Sites with their own domain or name, sites marked Keep, admin, event and reviewer accounts, handles in IDLE_CLEANUP_EXEMPT_HANDLES, and taken-down or offline sites are never included. Saves, list entries and restores count as activity.';
-    $('idle-warn-s').textContent='Sites that would be warned ('+warn.length+(warn.length>=500?'+':'')+')';
     $('idle-remove-s').textContent='Sites that would be removed ('+rm.length+(rm.length>=500?'+':'')+')';
-    $('idle-warn').innerHTML=warn.map(function(x){ return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(dateOf(x.last_activity))+'</td></tr>'; }).join('')||'<tr><td colspan="3" class="empty">None.</td></tr>';
-    $('idle-remove').innerHTML=rm.map(function(x){ return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(dateOf(x.warned_at))+'</td></tr>'; }).join('')||'<tr><td colspan="3" class="empty">None.</td></tr>';
+    $('idle-remove').innerHTML=rm.map(function(x){ return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.owner)+'</td><td>'+esc(dateOf(x.last_activity))+'</td></tr>'; }).join('')||'<tr><td colspan="3" class="empty">None.</td></tr>';
     $('idle').hidden=false;
   }catch(e){}
 }

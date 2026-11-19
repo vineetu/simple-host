@@ -56,7 +56,7 @@ func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmai
 			return err
 		}
 	}
-	return CancelIdleLinks(ctx, tx, userID)
+	return nil
 }
 
 func GetEmailChangeUndo(ctx context.Context, q Querier, tokenHash string) (EmailChangeUndo, error) {
@@ -70,14 +70,6 @@ func EmailInUseByOther(ctx context.Context, q Querier, userID, address string) (
 	var taken bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE username = $1 AND id <> $2)`, address, userID).Scan(&taken)
 	return taken, err
-}
-
-func CancelIdleLinks(ctx context.Context, q Querier, userID string) error {
-	_, err := q.ExecContext(ctx, `UPDATE sites
-		   SET idle_token_hash = NULL,
-		       idle_warned_at = CASE WHEN deleted_at IS NULL THEN NULL ELSE idle_warned_at END
-		 WHERE user_id = $1 AND (idle_token_hash IS NOT NULL OR (deleted_at IS NULL AND idle_warned_at IS NOT NULL))`, userID)
-	return err
 }
 
 func UndoEmailChangeInTx(ctx context.Context, tx *sql.Tx, tokenHash string) (EmailChangeUndo, error) {
@@ -116,9 +108,6 @@ func UndoEmailChangeInTx(ctx context.Context, tx *sql.Tx, tokenHash string) (Ema
 		if _, err := tx.ExecContext(ctx, st.q, st.args...); err != nil {
 			return u, err
 		}
-	}
-	if err := CancelIdleLinks(ctx, tx, u.UserID); err != nil {
-		return u, err
 	}
 	return u, nil
 }

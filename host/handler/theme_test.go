@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"github.com/vsriram/simple-host/host/config"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/config"
 
 	"github.com/vsriram/simple-host/host/edition"
 )

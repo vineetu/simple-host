@@ -43,6 +43,12 @@ var reportReasons = map[string]string{
 	"other":      "Other",
 }
 
+// replyNoticeSender is the part of the mailer that sends a notice people can
+// answer (Reply-To support).
+type replyNoticeSender interface {
+	SendNoticeReplyTo(toEmail, replyTo, subject, text string) error
+}
+
 // reportHandler holds what POST /report needs, so tests can swap each part.
 type reportHandler struct {
 	mailer replyNoticeSender

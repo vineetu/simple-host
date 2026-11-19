@@ -31,11 +31,11 @@ var requiredColumns = map[string][]string{
 	// check; never delivered to any subscriber).
 	"site_events":           {"seq", "event_id", "site_id", "name", "storage", "data", "created_at", "push_actor", "push_target"},
 	"site_event_deliveries": {"event_seq", "subscription_id", "state", "attempts", "next_attempt_at", "lease_until", "last_attempt_at", "last_http", "last_category", "duration_ms"},
-	// zd-storage-access-presets.sql adds the acc_* matrix, preset_base,
-	// site_storage_tables and the created_at columns.
-	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base", "approve_first", "rules", "rules_converted_from", "kv_store"},
-	"site_storage_tables":    {"site_id", "resource_name", "table_name", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base", "rules"},
-	"site_storage_kv":        {"site_id", "resource_name", "key", "value", "writer_id", "created_at"},
+	// 0026-drop-storage-presets-columns.sql dropped the acc_* matrix (acc_read
+	// stays, as the saved-before-presets flag), preset_base, approve_first,
+	// kv_store and site_storage_kv.
+	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode", "acc_read", "rules"},
+	"site_storage_tables":    {"site_id", "resource_name", "table_name", "rules"},
 	// 0021-install-identity.sql: the install's id, also in <DATA_DIR>/.install-id.
 	"install_identity": {"id"},
 	// 0025-teams.sql adds users.is_team (in the users entry) and these three.

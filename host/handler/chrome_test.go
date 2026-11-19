@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 	"html"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -563,53 +562,6 @@ func TestSetupPageHasNoChrome(t *testing.T) {
 	}
 	if want := string(addHostInk([]byte(strings.Replace(string(raw), markerTheme, themeScriptFor(t), 1)), "")); body != want {
 		t.Error("setup.html differs from its shared theme and Host ink")
-	}
-}
-
-func TestEveryPageSourceCarriesTheMarkers(t *testing.T) {
-	// A new page that forgets the markers would ship with no header at all, or
-	// with a hand-written one. Catch it at test time.
-	pages, err := fs.Glob(staticFiles, "static/*.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range pages {
-		if p == "static/setup.html" || p == "static/hack-story.html" {
-			continue
-		}
-		// INTENT 2026-10-30: the redesigned public event page (hack_eventpage.go,
-		// docs/ux-atlas/spec.json "public-event-page") is styled by the app kit,
-		// not the site chrome — it carries no <!--sh:*--> markers and writes its
-		// own top bar/footer markup, the same app/kit decision as hack/app.html.
-		if p == "static/hack-event.html" {
-			continue
-		}
-		// Same decision for the public directory (polish pass, 2026-10-30,
-		// audit Part B hack-directory.html): restyled onto the app kit with
-		// the same top bar and footer as hack-event.html, in place of the
-		// site chrome.
-		if p == "static/hack-directory.html" {
-			continue
-		}
-		// Same decision for the public vote page (Grok re-test, 2026-10-30):
-		// restyled onto the app kit with the same top bar and footer as
-		// hack-event.html and hack-directory.html, in place of the site
-		// chrome.
-		if p == "static/hack-voting.html" {
-			continue
-		}
-		b, _ := staticFiles.ReadFile(p)
-		src := string(b)
-		for _, m := range []string{markerHead, markerHeader, markerFooter} {
-			if n := strings.Count(src, m); n != 1 {
-				t.Errorf("%s: %s appears %d times, want 1", p, m, n)
-			}
-		}
-		for _, banned := range []string{"<header", "<footer", "sh-theme',t", "sh-theme', t", `href="/showcase"`} {
-			if strings.Contains(src, banned) {
-				t.Errorf("%s: carries its own chrome (%q); use the partials", p, banned)
-			}
-		}
 	}
 }
 

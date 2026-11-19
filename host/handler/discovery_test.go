@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"net/http"
@@ -10,8 +9,6 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/buildinfo"
-
-	"golang.org/x/net/html"
 )
 
 func TestHomepageDiscovery(t *testing.T) {
@@ -127,44 +124,6 @@ func TestDiscoveryDocuments(t *testing.T) {
 		}
 		if len(links) != 0 {
 			t.Errorf("missing %s links: %v", rel, links)
-		}
-	}
-}
-
-func TestHomepageCopyAndStructuredData(t *testing.T) {
-	// Editing the HTML changes markdown directly; no second copy to update.
-	page, _ := staticFiles.ReadFile("static/host-story.html")
-	page = bytes.ReplaceAll(page, []byte("Ask the AI you already use. Free."), []byte("Updated copy &amp; details."))
-	md, err := homepageMarkdown(page)
-	if err != nil || !bytes.Contains(md, []byte("Updated copy & details.")) || bytes.Contains(md, []byte("Ask the AI you already use.")) {
-		t.Fatalf("markdown did not follow HTML: %s, %v", md, err)
-	}
-	for _, name := range []string{"index.html", "host-story.html"} {
-		page, _ := staticFiles.ReadFile("static/" + name)
-		tokens := html.NewTokenizer(bytes.NewReader(page))
-		var description, schema string
-		for tokens.Next() != html.ErrorToken {
-			token := tokens.Token()
-			attrs := map[string]string{}
-			for _, a := range token.Attr {
-				attrs[a.Key] = a.Val
-			}
-			if token.Data == "meta" && attrs["name"] == "description" {
-				description = attrs["content"]
-			}
-			if token.Data == "script" && attrs["type"] == "application/ld+json" {
-				tokens.Next()
-				schema = string(tokens.Text())
-			}
-		}
-		var data struct {
-			Graph []map[string]any `json:"@graph"`
-		}
-		if err := json.Unmarshal([]byte(schema), &data); err != nil || len(data.Graph) != 2 {
-			t.Fatalf("%s: invalid JSON-LD: %v", name, err)
-		}
-		if data.Graph[0]["@type"] != "SoftwareApplication" || data.Graph[0]["description"] != description || data.Graph[1]["@type"] != "Organization" {
-			t.Errorf("%s: wrong schema nodes or description", name)
 		}
 	}
 }

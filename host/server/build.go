@@ -326,7 +326,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	} else {
 		siteHandler.SetPlatformZones(cfg.EventDomains...)
 	}
-	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
+	siteHandler.SetIdleCleanup(cfg.IdleCleanup)
 	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	siteHandler.SetTurnstile(cfg.TurnstileSiteKey, cfg.TurnstileSecret, cfg.PublicBaseURL)

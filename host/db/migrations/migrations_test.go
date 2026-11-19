@@ -146,8 +146,18 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 		t.Errorf("second run: ran %v, err %v; want a no-op", ran, err)
 	}
 
-	// A box installed before tracking existed: no table at all.
+	// A box installed before tracking existed: no table at all, and the
+	// columns 0026 drops from site_storage_tables are still there (ze-spam-
+	// checked-posts.sql alters them).
 	if _, err := db.Exec(`DROP TABLE schema_migrations`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`ALTER TABLE site_storage_tables
+		ADD COLUMN IF NOT EXISTS acc_read TEXT NOT NULL DEFAULT 'nobody',
+		ADD COLUMN IF NOT EXISTS acc_add TEXT NOT NULL DEFAULT 'nobody',
+		ADD COLUMN IF NOT EXISTS acc_edit TEXT NOT NULL DEFAULT 'nobody',
+		ADD COLUMN IF NOT EXISTS acc_delete TEXT NOT NULL DEFAULT 'nobody',
+		ADD COLUMN IF NOT EXISTS preset_base TEXT NOT NULL DEFAULT ''`); err != nil {
 		t.Fatal(err)
 	}
 	if p := pending(t, set, db); len(p) != len(set.Tracked()) {

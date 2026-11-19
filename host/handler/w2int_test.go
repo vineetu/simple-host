@@ -17,9 +17,7 @@ import (
 func TestIdleCleanupMeetsOfflineRenameAndPreview(t *testing.T) {
 	a, dir := newSiteApp(t, "canonical")
 	ctx := context.Background()
-	m := &replyMailer{}
-	a.sites.mailer = m
-	a.sites.SetIdleCleanup(true, 50)
+	a.sites.SetIdleCleanup(true)
 
 	olive := a.newPerson(t, "olive")
 	uid, oh := a.userID(t, olive)
@@ -41,8 +39,8 @@ func TestIdleCleanupMeetsOfflineRenameAndPreview(t *testing.T) {
 	for _, n := range names {
 		a.deploy(t, olive, n)
 		ids[n] = a.siteID(t, olive, n)
-		exec(`UPDATE sites SET created_at = now() - interval '100 days', updated_at = now() - interval '100 days' WHERE id = $1`, ids[n])
-		exec(`UPDATE versions SET created_at = now() - interval '100 days' WHERE site_id = $1`, ids[n])
+		exec(`UPDATE sites SET created_at = now() - interval '130 days', updated_at = now() - interval '130 days' WHERE id = $1`, ids[n])
+		exec(`UPDATE versions SET created_at = now() - interval '130 days' WHERE site_id = $1`, ids[n])
 	}
 	exec(`INSERT INTO site_view_hourly (site_id, hour, class, views) VALUES ($1, date_trunc('hour', now() - interval '200 days'), 'person', 1) ON CONFLICT DO NOTHING`, ids["keepme"])
 	exec(`INSERT INTO analytics_ingest_state (logfile, updated_at) VALUES ('w2int-test', now()) ON CONFLICT (logfile) DO UPDATE SET updated_at = now()`)
@@ -67,7 +65,7 @@ func TestIdleCleanupMeetsOfflineRenameAndPreview(t *testing.T) {
 
 	eligible := func() map[string]bool {
 		t.Helper()
-		list, err := sitesrepo.ListIdleSitesToWarn(ctx, a.database, model.IdleExempt{}, time.Now().Add(-a.sites.idleAfter()), 0)
+		list, err := sitesrepo.ListIdleSitesToRemove(ctx, a.database, model.IdleExempt{}, time.Now().Add(-120*24*time.Hour), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,34 +81,24 @@ func TestIdleCleanupMeetsOfflineRenameAndPreview(t *testing.T) {
 		t.Fatalf("idle candidates: %v", got)
 	}
 
-	a.sites.runIdleCleanup(ctx, time.Now())
-	if m.last("warnoff") == "" || m.last("oldname") == "" || m.last("offsite") != "" || m.last("prevsite") != "" || m.last("keptnew") != "" {
-		t.Fatalf("warnings: %v", m.sent)
-	}
-
-	// Taken offline after the warning: the warning is dropped and the site
-	// is never removed.
-	if r := a.at(t, "PATCH", apex, "/v1/sites/warnoff", map[string]bool{"offline": true}, okey); r.status != 200 {
-		t.Fatalf("offline after warning: %d %s", r.status, r.body)
-	}
-	// Renamed after the warning: the owner acting on a site counts as
-	// activity; backdated here so the removal still comes, under the site's
-	// current name.
+	// Renamed: the owner acting on a site counts as activity; backdated here
+	// so it is idle again, under the site's current name.
 	if r := a.at(t, "PATCH", apex, "/v1/sites/oldname", map[string]string{"name": "newname"}, okey); r.status != 200 {
-		t.Fatalf("rename warned: %d %s", r.status, r.body)
+		t.Fatalf("rename: %d %s", r.status, r.body)
 	}
-	exec(`UPDATE sites SET idle_warned_at = now() - interval '31 days', idle_remove_at = now() - interval '1 day', updated_at = now() - interval '100 days' WHERE id = ANY($1::uuid[])`, "{"+ids["warnoff"]+","+ids["oldname"]+"}")
+	exec(`UPDATE sites SET updated_at = now() - interval '130 days' WHERE id = $1`, ids["oldname"])
+	// The cleanup removes it, and a site taken offline after being idle stays.
+	if r := a.at(t, "PATCH", apex, "/v1/sites/warnoff", map[string]bool{"offline": true}, okey); r.status != 200 {
+		t.Fatalf("offline: %d %s", r.status, r.body)
+	}
+	exec(`INSERT INTO site_view_hourly (site_id, hour, class, views) VALUES ($1, date_trunc('hour', now() - interval '200 days'), 'person', 1) ON CONFLICT DO NOTHING`, ids["keepme"])
 	a.sites.runIdleCleanup(ctx, time.Now())
-	var warned, deleted bool
-	if err := a.database.QueryRow(`SELECT idle_warned_at IS NOT NULL, deleted_at IS NOT NULL FROM sites WHERE id = $1`, ids["warnoff"]).Scan(&warned, &deleted); err != nil {
+	var offDeleted, renamedDeleted bool
+	if err := a.database.QueryRow(`SELECT (SELECT deleted_at IS NOT NULL FROM sites WHERE id = $1), (SELECT deleted_at IS NOT NULL FROM sites WHERE id = $2)`, ids["warnoff"], ids["oldname"]).Scan(&offDeleted, &renamedDeleted); err != nil {
 		t.Fatal(err)
 	}
-	if warned || deleted {
-		t.Fatalf("offline site: warned=%v deleted=%v", warned, deleted)
-	}
-	gone := m.last("newname")
-	if !strings.Contains(gone, "moved to Recently deleted") {
-		t.Fatalf("renamed idle site not removed: %v", m.sent)
+	if offDeleted || !renamedDeleted {
+		t.Fatalf("offline site deleted=%v, renamed idle site deleted=%v", offDeleted, renamedDeleted)
 	}
 
 	// In Recently deleted its old name stops redirecting; the Restore link
@@ -119,8 +107,7 @@ func TestIdleCleanupMeetsOfflineRenameAndPreview(t *testing.T) {
 	if r := a.at(t, "GET", oldHost, "/a?x=1", nil, nil); r.status == http.StatusFound {
 		t.Fatalf("old name of a removed site still redirects to %q", r.header.Get("Location"))
 	}
-	restore := idleLinks(gone)["restore"]
-	if r := idleAct(t, a, restore); r.status != http.StatusOK {
+	if r := a.at(t, "POST", apex, "/v1/sites/newname/restore", nil, okey); r.status != http.StatusOK {
 		t.Fatalf("restore: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "GET", oldHost, "/a?x=1", nil, nil); r.status != http.StatusFound || r.header.Get("Location") != "https://newname."+person+"/a?x=1" {

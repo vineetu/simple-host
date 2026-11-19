@@ -214,7 +214,9 @@ var limitPhrases = []limitPhrase{
 	phrase("for 90 days gets its owner", knob("IDLE_AFTER_DAYS"), func(l *edition.Limits) string { return "for " + limitSpan(l.IdleAfter) + " gets its owner" }),
 	phrase("no new version for 90 days", knob("IDLE_AFTER_DAYS"), func(l *edition.Limits) string { return "no new version for " + limitSpan(l.IdleAfter) }),
 	phrase("under 90 days of visit records", knob("IDLE_AFTER_DAYS"), func(l *edition.Limits) string { return "under " + limitSpan(l.IdleAfter) + " of visit records" }),
-	phrase("updates for 90 days", knob("IDLE_AFTER_DAYS"), func(l *edition.Limits) string { return "updates for " + limitSpan(l.IdleAfter) }),
+	phrase("no saved data for 120 days moves to Recently deleted", []string{"IDLE_AFTER_DAYS", "IDLE_GRACE_DAYS"}, func(l *edition.Limits) string {
+		return "no saved data for " + limitSpan(l.IdleAfter+l.IdleGrace) + " moves to Recently deleted"
+	}),
 	phrase("30 days later with nothing done", knob("IDLE_GRACE_DAYS"), func(l *edition.Limits) string { return limitSpan(l.IdleGrace) + " later with nothing done" }),
 	phrase("warned 30 days ago", knob("IDLE_GRACE_DAYS"), func(l *edition.Limits) string { return "warned " + limitSpan(l.IdleGrace) + " ago" }),
 

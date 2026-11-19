@@ -267,7 +267,7 @@ func TestServedTextFollowsLimits(t *testing.T) {
 		want, not []string
 	}{
 		{"/llms.txt",
-			[]string{"Recently deleted for 30 days", "After 30 days it is removed for good", "for 180 days gets its owner", "14 days later with nothing done",
+			[]string{"Recently deleted for 30 days", "After 30 days it is removed for good", "no saved data for 194 days moves to Recently deleted",
 				"9-day undo link", "once every 45 days", "link that works for 25 minutes", "has it, for 2 hours", "at most 8 new domain certificates a day"},
 			[]string{"for 7 days", "for 90 days", "7-day undo link", "once every 30 days", "works for 10 minutes", "for one hour", "at most 5 new domain"}},
 		{"/openapi.json",
@@ -330,7 +330,7 @@ func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, w := range []string{"kept for 30 days with their saved data", "Recently deleted for 30 days", "Recently deleted within 30 days", "updates for 180 days", "change it again after 45 days"} {
+	for _, w := range []string{"kept for 30 days with their saved data", "Recently deleted for 30 days", "Recently deleted within 30 days", "change it again after 45 days"} {
 		if !strings.Contains(string(page), w) {
 			t.Errorf("showcase: missing %q", w)
 		}
@@ -354,11 +354,11 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 	tools := string(b)
 	for _, w := range []string{
 		"Recently deleted for 30 days", "deleted within the last 30 days", // delete_site, list_deleted_sites
-		"updated for 180 days and moves it to Recently deleted 14 days later", // keep_site
-		"The link works for 25 minutes",                                       // export_site
-		"can open it, for 2 hours", "for anyone who has it, for 2 hours",      // deploy preview, preview_version
+		"updated for 194 days to Recently deleted unless it is marked Keep", // keep_site
+		"The link works for 25 minutes",                                     // export_site
+		"can open it, for 2 hours", "for anyone who has it, for 2 hours",    // deploy preview, preview_version
 		"The owner is emailed after 2 days; after 5 days", // domain output schema
-		"after 180 days without visits",                   // keep output schema
+		"after 194 days without visits",                   // keep output schema
 		"25 minutes after it was made",                    // export output schema
 	} {
 		if !strings.Contains(tools, w) {

@@ -170,62 +170,6 @@ func TestDomainFailingEmailFollowsSetting(t *testing.T) {
 	}
 }
 
-// The idle-cleanup emails state IDLE_AFTER_DAYS, IDLE_GRACE_DAYS and
-// DELETED_RETENTION_DAYS, go out with IDLE_REPLY_TO, and the run uses the
-// configured windows.
-func TestIdleCleanupFollowsSettings(t *testing.T) {
-	l := withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "10", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
-	a := newPersonApp(t, "canonical", edition.Default(l))
-	ctx := context.Background()
-	m := &replyMailer{}
-	a.sites.mailer = m
-	a.sites.SetIdleCleanup(true, 50)
-	olive := a.newPerson(t, "idleknobs")
-	uid, _ := a.userID(t, olive)
-	site := "quiet" + uniq("")
-	a.deploy(t, olive, site)
-	id := a.siteID(t, olive, site)
-	exec := func(q string, args ...any) {
-		t.Helper()
-		if _, err := a.database.ExecContext(ctx, q, args...); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
-	}
-	t.Cleanup(func() { exec(`UPDATE sites SET idle_keep = true WHERE user_id = $1`, uid) })
-	exec(`INSERT INTO site_view_hourly (site_id, hour, class, views) VALUES ($1, date_trunc('hour', now() - interval '200 days'), 'person', 1) ON CONFLICT DO NOTHING`, id)
-	exec(`INSERT INTO analytics_ingest_state (logfile, updated_at) VALUES ('idle-test', now()) ON CONFLICT (logfile) DO UPDATE SET updated_at = now()`)
-	exec(`UPDATE sites SET created_at = now() - interval '45 days', updated_at = now() - interval '45 days' WHERE id = $1`, id)
-	exec(`UPDATE versions SET created_at = now() - interval '45 days' WHERE site_id = $1`, id)
-	exec(`DELETE FROM site_view_hourly WHERE site_id = $1 AND hour > now() - interval '100 days'`, id)
-
-	a.sites.runIdleCleanup(ctx, time.Now())
-	warn := m.last(site)
-	if warn == "" || !strings.Contains(warn, "|help@example.org|") || !strings.Contains(warn, "restored for 20 days before") {
-		t.Fatalf("warning after 40 idle days: %q (all: %d)", warn, len(m.sent))
-	}
-	// The warning's date is kept: a shorter IDLE_GRACE_DAYS set after it
-	// does not bring the removal forward. The removal below still runs
-	// against the stored idle_remove_at (10 days out), but the message text
-	// recomputes "total days silent" from the current snapshot, so a.sites
-	// does need the new grace value for the final assertion.
-	var removeAt time.Time
-	if err := a.database.QueryRowContext(ctx, `SELECT idle_remove_at FROM sites WHERE id = $1`, id).Scan(&removeAt); err != nil || !near(removeAt, time.Now().Add(10*24*time.Hour)) {
-		t.Fatalf("stored removal date %v (%v), want 10 days out", removeAt, err)
-	}
-	setAppLimits(a, withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "1", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"}))
-	exec(`UPDATE sites SET idle_warned_at = now() - interval '2 days' WHERE id = $1`, id)
-	a.sites.runIdleCleanup(ctx, time.Now())
-	if got := m.last(site); got != warn {
-		t.Fatalf("removed before the date the warning gave: %q", got)
-	}
-	exec(`UPDATE sites SET idle_warned_at = now() - interval '10 days 1 hour', idle_remove_at = now() - interval '1 hour' WHERE id = $1`, id)
-	a.sites.runIdleCleanup(ctx, time.Now())
-	gone := m.last(site)
-	if !strings.Contains(gone, "no visitors for over 41 days") || !strings.Contains(gone, "our email 10 days ago") {
-		t.Fatalf("removal email: %q", gone)
-	}
-}
-
 // A deleted site keeps the purge date it was promised when it was deleted: a
 // shorter DELETED_RETENTION_DAYS set later applies to new deletions only.
 // Rows deleted before the date was stored fall back to the setting.

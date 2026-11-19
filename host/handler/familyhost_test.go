@@ -742,7 +742,7 @@ func TestFamilyBaseMoveOneHop(t *testing.T) {
 func TestFamilyIdleExempt(t *testing.T) {
 	a, _, _, _ := newFamilyApp(t)
 	ctx := context.Background()
-	a.sites.SetIdleCleanup(true, 50)
+	a.sites.SetIdleCleanup(true)
 	a.sites.SetIdleExempt(nil, "")
 	olive := a.newPerson(t, "olive")
 	a.deploy(t, olive, "voucher-meera")
@@ -750,10 +750,10 @@ func TestFamilyIdleExempt(t *testing.T) {
 	uid, _ := a.userID(t, olive)
 	for _, s := range []string{"voucher-meera", "quiet"} {
 		id := a.siteID(t, olive, s)
-		if _, err := a.database.ExecContext(ctx, `UPDATE sites SET created_at = now() - interval '100 days', updated_at = now() - interval '100 days' WHERE id = $1`, id); err != nil {
+		if _, err := a.database.ExecContext(ctx, `UPDATE sites SET created_at = now() - interval '130 days', updated_at = now() - interval '130 days' WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := a.database.ExecContext(ctx, `UPDATE versions SET created_at = now() - interval '100 days' WHERE site_id = $1`, id); err != nil {
+		if _, err := a.database.ExecContext(ctx, `UPDATE versions SET created_at = now() - interval '130 days' WHERE site_id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
 	}

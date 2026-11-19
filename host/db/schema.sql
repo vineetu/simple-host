@@ -1134,15 +1134,6 @@ CREATE TABLE IF NOT EXISTS site_storage_resources (
   site_passcode TEXT NOT NULL DEFAULT 'inherit' CHECK (site_passcode IN ('inherit','off')),
   PRIMARY KEY (site_id,name)
 );
-CREATE TABLE IF NOT EXISTS site_storage_kv (
-  site_id UUID NOT NULL,
-  resource_name TEXT NOT NULL,
-  key TEXT NOT NULL,
-  value JSONB NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (site_id,resource_name,key),
-  FOREIGN KEY (site_id,resource_name) REFERENCES site_storage_resources(site_id,name) ON DELETE CASCADE
-);
 
 -- Account home follows the site through rename; deletion restores the showcase.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS home_site_id uuid REFERENCES sites(id) ON DELETE SET NULL;
@@ -1157,8 +1148,6 @@ ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_order integer NOT NULL DEFAU
 ALTER TABLE site_storage_resources DROP CONSTRAINT IF EXISTS site_storage_resources_read_policy_check;
 ALTER TABLE site_storage_resources ADD CONSTRAINT site_storage_resources_read_policy_check CHECK (read_policy IN ('anyone','signed-in','owner','own'));
 ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS write_mode TEXT NOT NULL DEFAULT 'full' CHECK (write_mode IN ('full','add'));
-ALTER TABLE site_storage_kv ADD COLUMN IF NOT EXISTS writer_id TEXT NOT NULL DEFAULT '';
-CREATE INDEX IF NOT EXISTS site_storage_kv_writer_idx ON site_storage_kv(site_id,resource_name,writer_id,key);
 CREATE TABLE IF NOT EXISTS site_storage_files (
  site_id UUID NOT NULL,
  resource_name TEXT NOT NULL,
@@ -1169,38 +1158,30 @@ CREATE TABLE IF NOT EXISTS site_storage_files (
 );
 CREATE INDEX IF NOT EXISTS site_storage_files_writer_idx ON site_storage_files(site_id,resource_name,writer_id,path);
 
--- Storage access presets (mirrors zd-storage-access-presets.sql).
+-- Storage access presets (mirrors zd-storage-access-presets.sql; 0026-drop-storage-presets-columns.sql
+-- drops the columns nothing reads). acc_read stays: NULL marks a resource saved before presets.
 ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_read TEXT CHECK (acc_read IN ('nobody','owner','own','signed-in','anyone'));
-ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_add TEXT CHECK (acc_add IN ('nobody','owner','signed-in','anyone'));
-ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_edit TEXT CHECK (acc_edit IN ('nobody','owner','own','signed-in'));
-ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_delete TEXT CHECK (acc_delete IN ('nobody','owner','own','signed-in'));
-ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS preset_base TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS site_storage_tables (
  site_id UUID NOT NULL,
  resource_name TEXT NOT NULL,
  table_name TEXT NOT NULL,
- acc_read TEXT NOT NULL CHECK (acc_read IN ('nobody','owner','own','signed-in','anyone')),
- acc_add TEXT NOT NULL CHECK (acc_add IN ('nobody','owner','signed-in','anyone')),
- acc_edit TEXT NOT NULL CHECK (acc_edit IN ('nobody','owner','own','signed-in')),
- acc_delete TEXT NOT NULL CHECK (acc_delete IN ('nobody','owner','own','signed-in')),
+ -- acc_* and preset_base: dropped by 0026-drop-storage-presets-columns.sql. They stay
+ -- here (with a default, so inserts need not name them) because a fresh install
+ -- replays zd/ze, which alter them, before 0026 runs.
+ acc_read TEXT NOT NULL DEFAULT 'nobody' CHECK (acc_read IN ('nobody','owner','own','signed-in','anyone')),
+ acc_add TEXT NOT NULL DEFAULT 'nobody' CHECK (acc_add IN ('nobody','owner','signed-in','anyone')),
+ acc_edit TEXT NOT NULL DEFAULT 'nobody' CHECK (acc_edit IN ('nobody','owner','own','signed-in')),
+ acc_delete TEXT NOT NULL DEFAULT 'nobody' CHECK (acc_delete IN ('nobody','owner','own','signed-in')),
  preset_base TEXT NOT NULL DEFAULT '',
  PRIMARY KEY (site_id,resource_name,table_name),
  FOREIGN KEY (site_id,resource_name) REFERENCES site_storage_resources(site_id,name) ON DELETE CASCADE
 );
 ALTER TABLE site_storage_files ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
-ALTER TABLE site_storage_kv ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
--- Spam-checked posting (mirrors ze-spam-checked-posts.sql).
-ALTER TABLE site_storage_resources DROP CONSTRAINT IF EXISTS site_storage_resources_acc_add_check;
-ALTER TABLE site_storage_resources ADD CONSTRAINT site_storage_resources_acc_add_check CHECK (acc_add IN ('nobody','owner','signed-in','checked','anyone'));
-ALTER TABLE site_storage_tables DROP CONSTRAINT IF EXISTS site_storage_tables_acc_add_check;
-ALTER TABLE site_storage_tables ADD CONSTRAINT site_storage_tables_acc_add_check CHECK (acc_add IN ('nobody','owner','signed-in','checked','anyone'));
-ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS approve_first BOOLEAN NOT NULL DEFAULT FALSE;
 
--- R2-S1: nullable rule sets and the original configuration retained by conversion.
+-- R2-S1: nullable rule sets.
 ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS rules JSONB;
 ALTER TABLE site_storage_tables ADD COLUMN IF NOT EXISTS rules JSONB;
-ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS rules_converted_from JSONB;
 
 CREATE TABLE IF NOT EXISTS site_notifications (
  id TEXT PRIMARY KEY,
@@ -1449,8 +1430,6 @@ CREATE TABLE IF NOT EXISTS account_passwords (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS account_passwords_login_idx ON account_passwords (login);
--- Per-namespace KV store (R2-S4a).
-ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS kv_store TEXT NOT NULL DEFAULT 'postgres' CHECK (kv_store IN ('postgres','sqlite'));
 
 -- host/db/migrations/0021-install-identity.sql (R2-S5c): one random id per install,
 -- also written to <DATA_DIR>/.install-id, so a maintenance command can refuse

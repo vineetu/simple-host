@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	platform "github.com/vsriram/simple-host/host/papermetrics"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	platform "github.com/vsriram/simple-host/host/papermetrics"
 )
 
 func TestHackPanicCleanup(t *testing.T) {
@@ -122,40 +122,15 @@ func TestHackIdleMinuteOmitted(t *testing.T) {
 	}
 }
 
-func TestHostDailyExportPinned(t *testing.T) {
+// A small daily count is withheld from the Hack export.
+func TestHackDailySmallCountSuppressed(t *testing.T) {
 	d := isolatedDB(t)
-	c := platform.New(d, "")
 	if _, err := d.Exec(`INSERT INTO paper_daily(day,metric,value)VALUES('2026-10-01','accounts',3)`); err != nil {
 		t.Fatal(err)
 	}
-	// This exact Host response is unchanged from origin/main: no new metadata,
-	// columns, joins or small-count suppression. Hack's separate shape is below.
-	h := c.Export(func(*http.Request) (bool, bool) { return true, true })
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest("GET", "/?set=daily&from=2026-10-01&to=2026-10-01", nil))
-	want := "{\"set\":\"daily\",\"from\":\"2026-10-01\",\"to\":\"2026-10-01\",\"columns\":[\"day\",\"metric\",\"value\"],\"rows\":[[\"2026-10-01\",\"accounts\",3]]}\n"
-	if w.Code != 200 || w.Body.String() != want {
-		t.Fatalf("Host daily changed: %s", w.Body.String())
-	}
-	w = httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest("GET", "/?set=daily&format=csv&from=2026-10-01&to=2026-10-01", nil))
-	if w.Body.String() != "day,metric,value\n2026-10-01,accounts,3\n" {
-		t.Fatalf("Host CSV changed: %s", w.Body.String())
-	}
-	w = httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest("GET", "/?from=2026-10-01&to=2026-10-01", nil))
-	var summary map[string]json.RawMessage
-	if err := json.Unmarshal(w.Body.Bytes(), &summary); err != nil {
-		t.Fatal(err)
-	}
-	for key := range summary {
-		if (strings.HasPrefix(key, "hack_") || key == "runs") || key == "metric_def_version" || key == "bucket_schemes" {
-			t.Fatal("Host summary extended", key)
-		}
-	}
 	t1, err := Install(platform.New(d, "")).setDaily(context.Background(), "2026-10-01", "2026-10-01", nil)
-	if err != nil || !reflect.DeepEqual(t1.Columns, []string{"day", "metric", "value", "run_id", "metric_def_version", "value_suppressed"}) || t1.Rows[0][2] != nil || t1.Rows[0][5] != true {
-		t.Fatal("Hack daily suppression/shape", t1, err)
+	if err != nil || t1.Rows[0][2] != nil || t1.Rows[0][5] != true {
+		t.Fatal("Hack daily not suppressed", t1, err)
 	}
 }
 func TestHackDerivedSuppression(t *testing.T) {

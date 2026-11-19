@@ -32,7 +32,7 @@ func TestRulesStatusMetrics(t *testing.T) {
 		}
 	}
 	for _, row := range []string{`('tables','a','` + set + `')`, `('bad-table','a',NULL)`} {
-		if _, err := db.Exec(`INSERT INTO site_storage_tables(resource_name,table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base,rules,site_id) SELECT v.c1,v.c2,'nobody','nobody','nobody','nobody','rules',v.c3::jsonb,$1::uuid FROM (VALUES `+row+`) v(c1,c2,c3)`, site); err != nil {
+		if _, err := db.Exec(`INSERT INTO site_storage_tables(resource_name,table_name,rules,site_id) SELECT v.c1,v.c2,v.c3::jsonb,$1::uuid FROM (VALUES `+row+`) v(c1,c2,c3)`, site); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -2336,7 +2336,7 @@
     {
       "name": "IDLE_AFTER_DAYS",
       "group": "cleanup",
-      "description": "Idle cleanup: a site unused this long gets its owner a warning email.",
+      "description": "Idle cleanup: a site unused this long, plus IDLE_GRACE_DAYS, moves to Recently deleted unless its owner marked it Keep.",
       "type": "duration",
       "default": "90",
       "min": 7,
@@ -2350,7 +2350,7 @@
     {
       "name": "IDLE_GRACE_DAYS",
       "group": "cleanup",
-      "description": "Idle cleanup: how long after the warning an unused site moves to Recently deleted.",
+      "description": "Idle cleanup: days added to IDLE_AFTER_DAYS before an unused site moves to Recently deleted.",
       "type": "duration",
       "default": "30",
       "min": 1,
@@ -2406,26 +2406,13 @@
     {
       "name": "IDLE_CLEANUP",
       "group": "cleanup",
-      "description": "on warns owners of long-unused sites, then moves them to Recently deleted.",
+      "description": "on moves long-unused sites to Recently deleted unless their owner marked them Keep.",
       "type": "bool",
       "default": "off",
       "allowed": [
         "on",
         "off"
       ],
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
-      "name": "IDLE_CLEANUP_MAX_EMAILS",
-      "group": "cleanup",
-      "description": "Idle-cleanup emails one run sends.",
-      "type": "int",
-      "default": "50",
-      "min": 1,
-      "unit": "emails",
       "security_sensitive": false,
       "required": false,
       "basic": false,
@@ -2445,7 +2432,7 @@
     {
       "name": "IDLE_REPLY_TO",
       "group": "email",
-      "description": "Reply-To address of the idle-cleanup emails.",
+      "description": "Reply-To address of the event-archive removal warning, and the support contact when SUPPORT_EMAIL is unset.",
       "type": "string",
       "default": "support@simple-host.app",
       "unit": "email address",

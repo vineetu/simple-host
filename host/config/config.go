@@ -178,11 +178,10 @@ type Config struct {
 	// app, ready/<suffix> and failed/<suffix> from the issuer. Empty: no
 	// family is ever served.
 	FamilyCertDir string
-	// IdleCleanup is IDLE_CLEANUP=on (default off): warn owners of sites
-	// idle for IDLE_AFTER_DAYS (90), move them to Recently deleted
-	// IDLE_GRACE_DAYS (30) later unless kept (limits.go). IdleCleanupMaxEmails caps the emails one run sends (default 50).
-	IdleCleanup          bool
-	IdleCleanupMaxEmails int
+	// IdleCleanup is IDLE_CLEANUP=on (default off): move sites idle for
+	// IDLE_AFTER_DAYS (90) plus IDLE_GRACE_DAYS (30) to Recently deleted
+	// unless kept (limits.go). Nobody is emailed.
+	IdleCleanup bool
 	// IdleCleanupExemptHandles is IDLE_CLEANUP_EXEMPT_HANDLES (comma list):
 	// accounts whose sites the cleanup never warns or removes.
 	IdleCleanupExemptHandles []string
@@ -530,13 +529,6 @@ func loadServerSiteAddresses(cfg *Config) error {
 
 func loadCleanup(cfg *Config) error {
 	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
-	if v := strings.TrimSpace(os.Getenv("IDLE_CLEANUP_MAX_EMAILS")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.IdleCleanupMaxEmails = n
-		} else {
-			log.Printf("warning: invalid IDLE_CLEANUP_MAX_EMAILS %q; using the default", v)
-		}
-	}
 	for _, hd := range strings.Split(os.Getenv("IDLE_CLEANUP_EXEMPT_HANDLES"), ",") {
 		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
 			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)

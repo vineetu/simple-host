@@ -103,13 +103,9 @@ func TestEmailChangeMovesAccountAndTellsOldAddress(t *testing.T) {
 	mb.mu.Lock()
 	staleCode := mb.codes[p.email]
 	mb.mu.Unlock()
-	// Another key of the account, and an emailed idle-cleanup link.
+	// Another key of the account.
 	other, _ := auth.GenerateAPIKey()
 	if err := accountsrepo.AddAPIKey(ctx, a.database, uid, other, "agent sign-in"); err != nil {
-		t.Fatal(err)
-	}
-	a.deploy(t, p, "quiet")
-	if _, err := a.database.Exec(`UPDATE sites SET idle_warned_at = now(), idle_token_hash = '\x01' WHERE user_id = $1`, uid); err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,17 +149,13 @@ func TestEmailChangeMovesAccountAndTellsOldAddress(t *testing.T) {
 		t.Fatal("old-address notice shows the new address unmasked")
 	}
 	// This key still works and /v1/me names the new address; the other key
-	// was signed out; the idle link ended.
+	// was signed out.
 	me := a.at(t, "GET", host, "/v1/me", nil, key)
 	if me.status != 200 || me.json(t)["username"] != newAddr {
 		t.Fatalf("me after change: %d %s", me.status, me.body)
 	}
 	if r := a.at(t, "GET", host, "/v1/me", nil, map[string]string{"X-API-Key": other}); r.status != 401 {
 		t.Fatalf("other key after change: %d", r.status)
-	}
-	var links int
-	if err := a.database.QueryRow(`SELECT count(*) FROM sites WHERE user_id = $1 AND (idle_token_hash IS NOT NULL OR idle_warned_at IS NOT NULL)`, uid).Scan(&links); err != nil || links != 0 {
-		t.Fatalf("idle links after change: %d %v", links, err)
 	}
 	// The old address's outstanding code is spent: it signs nobody in and
 	// creates no account.

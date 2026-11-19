@@ -109,8 +109,8 @@ run "connector grants"    "SELECT g.id, g.user_id, g.client_id, c.client_name FR
 run "connection device"   "SELECT (array_agg(g.device ORDER BY g.created_at DESC) FILTER (WHERE g.device IS NOT NULL))[1] FROM oauth_grants g WHERE g.user_id='$NIL'"
 run "connector codes"     "SELECT client_id, user_id, redirect_uri, code_challenge, resource, grant_id FROM oauth_codes WHERE code_hash='x' AND used_at IS NULL"
 run "connector tokens"    "SELECT t.kind, t.expires_at, g.user_id FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id WHERE t.token_hash='x'"
-run "storage presets"     "SELECT name, kind, read_policy, write_policy, site_passcode, write_mode, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_resources WHERE site_id = '00000000-0000-0000-0000-000000000000'"
-run "storage table presets" "SELECT table_name, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_tables WHERE site_id = '00000000-0000-0000-0000-000000000000'"
+run "storage presets"     "SELECT name, kind, read_policy, write_policy, site_passcode, write_mode, acc_read FROM site_storage_resources WHERE site_id = '00000000-0000-0000-0000-000000000000'"
+run "storage table rules" "SELECT table_name, rules FROM site_storage_tables WHERE site_id = '00000000-0000-0000-0000-000000000000'"
 # The platform half has now passed alone. Hack adds its own objects afterwards.
 echo "== applying the Hack schema after the platform schema =="
 if ! psql_run -d "$DB" -v ON_ERROR_STOP=1 -f products/hack/db/schema.sql >/dev/null; then

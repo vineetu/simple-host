@@ -233,7 +233,7 @@ func TestIdleOwnerViewCountsAsActivity(t *testing.T) {
 	// mine: old, but its owner opened it last week (class owner, no person).
 	exec(`INSERT INTO site_view_hourly (site_id, hour, class, views) VALUES ($1, date_trunc('hour', now() - interval '7 days'), 'owner', 2) ON CONFLICT DO NOTHING`, mine)
 
-	idle, err := sitesrepo.ListIdleSitesToWarn(ctx, a.database, model.IdleExempt{}, time.Now().AddDate(0, 0, -90), 0)
+	idle, err := sitesrepo.ListIdleSitesToRemove(ctx, a.database, model.IdleExempt{}, time.Now().AddDate(0, 0, -90), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

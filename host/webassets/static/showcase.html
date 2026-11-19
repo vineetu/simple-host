@@ -2045,8 +2045,6 @@ function parseAnalyticsSummary(data) {
             (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
               '. Every address shows a &ldquo;taken down&rdquo; page and changes are refused until it is restored. Nothing has been deleted.</div>' :
               (s.offline ? '<div class="inv-offline">Offline. Every address shows &ldquo;This site is offline&rdquo; and visitors can&rsquo;t save anything. Its files, versions and saved data are kept.</div>' : '')) +
-            (s.idle_removal_at && own ? '<div class="inv-down" data-idle-note="' + name + '">No visitors or updates for 90 days: this site moves to Recently deleted on ' +
-              esc(new Date(s.idle_removal_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) + ' unless you keep it.</div>' : '') +
           '</div>' +
         '</div>' +
         (s.suspended ? (own ? '<div class="inv-actions">' +
@@ -3167,8 +3165,8 @@ function parseAnalyticsSummary(data) {
       });
     })();
 
-    // Keep for good (PUT /v1/sites/{site}/keep): a kept site is never flagged
-    // as idle; keeping it also ends a pending idle warning.
+    // Keep for good (PUT /v1/sites/{site}/keep): a kept site is never removed
+    // as idle.
     async function toggleKeep(name, kept) {
       var next = !kept;
       try {

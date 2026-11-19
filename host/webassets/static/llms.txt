@@ -232,9 +232,7 @@ PUT /v1/sites/<name>?create=1 (archive body) or PUT /v1/sites/<name>/files?creat
 
 DELETE /v1/sites/<name> takes a site offline at once and keeps it, with every version and all its saved data, in Recently deleted for 7 days; its name stays taken until then (a POST with that name answers 409 with "recently_deleted": true). GET /v1/me/deleted-sites lists them with purge_at; POST /v1/sites/<name>/restore brings one back exactly as it was.
 
-After 7 days it is removed for good. Idle sites (available on every install, off unless the operator sets IDLE_CLEANUP=on): where it is on, a site with no visitors, no new version and no saved data for 90 days gets its owner an email with a Keep it link (and a link to their page, where they can sign in and download it); 30 days later with nothing done it moves to Recently deleted (a second email has a Restore it link).
-
-Each link opens a page whose button does the action. Any restore restarts the clock. GET /v1/sites shows idle_removal_at on such a site. Sites with their own domain or name, or whose main address is an address family, are never flagged; PUT /v1/sites/<name>/keep {"keep":true} (connector: keep_site) keeps any site up for good.
+After 7 days it is removed for good. Idle sites (available on every install, off unless the operator sets IDLE_CLEANUP=on): where it is on, a site with no visitors, no new version and no saved data for 120 days moves to Recently deleted, with no email first, unless it is marked Keep. Sites with their own domain or name, or whose main address is an address family, are never removed; PUT /v1/sites/<name>/keep {"keep":true} (connector: keep_site) keeps any site up for good.
 
 ## YOUR DATA
 

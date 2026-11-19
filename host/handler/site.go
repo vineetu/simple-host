@@ -181,11 +181,9 @@ type SiteHandler struct {
 	families               familyIndex
 	familyCheckLimiter     *rateLimiter
 	familyCheckUserLimiter *rateLimiter
-	// idleCleanup is IDLE_CLEANUP=on and idleMaxEmails its per-run email cap
-	// (idle.go).
-	idleCleanup   bool
-	idleMaxEmails int
-	idleExempt    model.IdleExempt
+	// idleCleanup is IDLE_CLEANUP=on (idle.go).
+	idleCleanup bool
+	idleExempt  model.IdleExempt
 
 	// exportKey signs short-lived export download links (exportlink.go); per
 	// process, used for nothing else. publicBaseURL is the apex they point at.
@@ -319,11 +317,8 @@ type siteResponse struct {
 	// certificate is not ready yet — waiting or failing, with a rough time.
 	AddressState *addressState `json:"address_state,omitempty"`
 	// Keep: the owner marked the site to stay up for good; it is never
-	// warned or removed as idle. IdleRemovalAt: the site was found idle and
-	// its owner emailed; it moves to Recently deleted then unless kept,
-	// visited or updated (site list only).
-	Keep          bool       `json:"keep,omitempty"`
-	IdleRemovalAt *time.Time `json:"idle_removal_at,omitempty"`
+	// removed as idle (site list only).
+	Keep bool `json:"keep,omitempty"`
 	// KeepVersions: how many deploys of this site are kept, when the owner
 	// set it (PUT .../keep-versions); absent = the instance setting.
 	KeepVersions int   `json:"keep_versions,omitempty"`
@@ -536,19 +531,12 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// actually named "analytics".
 	mux.Handle("GET /v1/analytics/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getAnalyticsSummary))))
 	mux.Handle("PUT /v1/sites/{sitename}/visibility", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setVisibility))))
-	// Idle-site cleanup (idle.go): the Keep flag, the admin dry run, and the
-	// emailed links, which need no sign-in (the token is the authorization).
+	// Idle-site cleanup (idle.go): the Keep flag and the admin dry run.
 	mux.Handle("PUT /v1/sites/{sitename}/keep", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setSiteKeep))))
 	// Deploys kept for this site (0 = the instance's KEEP_VERSIONS); setting
 	// it prunes at once, and every later deploy prunes to it (versions.go).
 	mux.Handle("PUT /v1/sites/{sitename}/keep-versions", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.setKeepVersions)))))
 	mux.Handle("GET /v1/admin/idle-sites", authMiddleware(http.HandlerFunc(h.adminIdleSites)))
-	idleLinkLimiter := newRateLimiter(10, 0.1)
-	h.httpCaches.rate("http.site.idleLinkLimiter", idleLinkLimiter, 10*time.Minute, 30*time.Minute)
-	mux.Handle("GET /v1/idle/keep", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleKeep)))
-	mux.Handle("POST /v1/idle/keep", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleKeep)))
-	mux.Handle("GET /v1/idle/restore", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleRestore)))
-	mux.Handle("POST /v1/idle/restore", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleRestore)))
 
 	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
 	// rate-limit chain as the archive upload; CORS preflight is handled by the
@@ -1712,7 +1700,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	if allAccounts {
 		flagsFor = ""
 	}
-	flags, err := h.sitesSvc().ListSiteIdleFlags(r.Context(), flagsFor)
+	kept, err := h.sitesSvc().ListSiteKeep(r.Context(), flagsFor)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1753,13 +1741,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		if user.Member != nil {
 			resp.Owner, resp.AccessRole = user.Handle.String, "member"
 		}
-		if f, ok := flags[site.ID]; ok {
-			resp.Keep = f.Keep
-			if f.WarnedAt.Valid && !f.Keep {
-				t := f.RemovalAt(h.idleGrace()).UTC()
-				resp.IdleRemovalAt = &t
-			}
-		}
+		resp.Keep = kept[site.ID]
 		response = append(response, resp)
 	}
 

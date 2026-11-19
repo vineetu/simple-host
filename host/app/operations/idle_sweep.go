@@ -2,38 +2,42 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/edition"
 	"log"
 	"time"
 )
 
-// idleEvidenceOK says whether visit data can be trusted to call sites idle,
-// and why not.
+// IdleRemoveAfter is how long a site goes unused before the cleanup moves it
+// to Recently deleted: IDLE_AFTER_DAYS plus IDLE_GRACE_DAYS.
+func IdleRemoveAfter(ed *edition.Edition) time.Duration {
+	return ed.Limits().IdleAfter + ed.Limits().IdleGrace
+}
+
+// idleBatch caps the sites one run moves, so a first run on a long-neglected
+// server does not remove everything at once.
+const idleBatch = 50
+
+// IdleEvidenceStatus says whether visit data can be trusted to call sites
+// idle, and why not.
 func (h *Reporting) IdleEvidenceStatus(ctx context.Context, now time.Time, ed *edition.Edition) (bool, string, time.Time, time.Time, error) {
 	since, last, err := h.IdleEvidence(ctx)
 	if err != nil {
 		return false, "", since, last, err
 	}
 	switch {
-	case since.IsZero() || since.After(now.Add(-ed.Limits().IdleAfter)):
-		return false, "fewer than " + ed.Span(ed.Limits().IdleAfter) + " of visit records on this server, so nothing can be called idle yet", since, last, nil
+	case since.IsZero() || since.After(now.Add(-IdleRemoveAfter(ed))):
+		return false, "fewer than " + ed.Span(IdleRemoveAfter(ed)) + " of visit records on this server, so nothing can be called idle yet", since, last, nil
 	case last.IsZero() || now.Sub(last) > 6*time.Hour:
 		return false, "visit records are not being read (the analytics ingester has not run for six hours), so nothing is called idle", since, last, nil
 	}
 	return true, "", since, last, nil
 }
 
-// runIdleCleanup is one pass: drop warnings of sites active again, remove
-// sites warned idleGrace ago, warn newly idle sites, within the email cap.
-func (h *Reporting) RunIdleCleanup(ctx context.Context, now time.Time, ed *edition.Edition, on, hasMailer bool, ex sites.IdleExempt, budget int, archive *sites.Service) {
+// RunIdleCleanup is one pass: move the sites unused for IdleRemoveAfter to
+// Recently deleted.
+func (h *Reporting) RunIdleCleanup(ctx context.Context, now time.Time, ed *edition.Edition, on bool, ex sites.IdleExempt, archive *sites.Service) {
 	if !on {
-		return
-	}
-	ok := hasMailer
-	if !ok {
-		sites.ReportWorkerFailure(ctx, "send idle notices", errors.New("no mailer configured"))
 		return
 	}
 	trusted, why, _, _, err := h.IdleEvidenceStatus(ctx, now, ed)
@@ -45,41 +49,12 @@ func (h *Reporting) RunIdleCleanup(ctx context.Context, now time.Time, ed *editi
 		log.Printf("idle-site cleanup: skipped: %s", why)
 		return
 	}
-	if n, err := h.ClearStaleIdleWarnings(ctx, ex); err != nil {
-		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
-		return
-	} else if n > 0 {
-		sites.ReportWorkerProgress(ctx)
-		log.Printf("idle-site cleanup: %d warned site(s) active again", n)
-	}
-
-	remove, err := h.ListIdleSitesToRemove(ctx, ex, now, ed.Limits().IdleGrace, budget)
+	remove, err := h.ListIdleSitesToRemove(ctx, ex, now.Add(-IdleRemoveAfter(ed)), idleBatch)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
 		return
 	}
 	for _, s := range remove {
-		if budget <= 0 {
-			break
-		}
-		budget--
 		archive.RemoveIdleSite(ctx, sites.IdleArchiveInput{Site: s, Now: now})
-	}
-
-	if budget <= 0 {
-		log.Printf("idle-site cleanup: email cap reached; the rest wait for the next run")
-		return
-	}
-	warn, err := h.ListIdleSitesToWarn(ctx, ex, now.Add(-ed.Limits().IdleAfter), budget)
-	if err != nil {
-		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
-		return
-	}
-	for _, s := range warn {
-		if budget <= 0 {
-			break
-		}
-		budget--
-		archive.WarnIdleSite(ctx, sites.IdleArchiveInput{Site: s, Now: now})
 	}
 }

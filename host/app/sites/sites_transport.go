@@ -68,8 +68,8 @@ func (s *Service) SetSiteOffline(ctx context.Context, siteID string, on bool) er
 	return repo.SetSiteOffline(ctx, s.database, siteID, on)
 }
 
-func (s *Service) ListSiteIdleFlags(ctx context.Context, userID string) (map[string]model.SiteIdleFlags, error) {
-	return repo.ListSiteIdleFlags(ctx, s.database, userID)
+func (s *Service) ListSiteKeep(ctx context.Context, userID string) (map[string]bool, error) {
+	return repo.ListSiteKeep(ctx, s.database, userID)
 }
 
 func (s *Service) AllowDomainCertRequest(ctx context.Context, userID, domain string, dailyCap int) (bool, error) {

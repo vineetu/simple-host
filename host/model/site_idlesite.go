@@ -1,9 +1,6 @@
 package model
 
-import (
-	"database/sql"
-	"time"
-)
+import "time"
 
 type IdleSite struct {
 	SiteID       string
@@ -12,6 +9,4 @@ type IdleSite struct {
 	OwnerEmail   string
 	OwnerHandle  string
 	LastActivity time.Time
-	WarnedAt     sql.NullTime
-	RemoveAt     sql.NullTime // the removal date the warning email gave
 }

@@ -147,9 +147,9 @@ var knobDocs = map[string]knobDoc{
 	"REDIRECTS_MAX_RULES":                    {"sites", "Maximum root _redirects rules per site; default 1000. File limit 128 KiB, line limit 2048 bytes.", false, false},
 
 	"DELETED_RETENTION_DAYS":           {"cleanup", "How long a deleted site stays restorable in Recently deleted.", false, true},
-	"IDLE_AFTER_DAYS":                  {"cleanup", "Idle cleanup: a site unused this long gets its owner a warning email.", false, true},
-	"IDLE_GRACE_DAYS":                  {"cleanup", "Idle cleanup: how long after the warning an unused site moves to Recently deleted.", false, true},
-	"IDLE_REPLY_TO":                    {"email", "Reply-To address of the idle-cleanup emails.", false, true},
+	"IDLE_AFTER_DAYS":                  {"cleanup", "Idle cleanup: a site unused this long, plus IDLE_GRACE_DAYS, moves to Recently deleted unless its owner marked it Keep.", false, true},
+	"IDLE_GRACE_DAYS":                  {"cleanup", "Idle cleanup: days added to IDLE_AFTER_DAYS before an unused site moves to Recently deleted.", false, true},
+	"IDLE_REPLY_TO":                    {"email", "Reply-To address of the event-archive removal warning, and the support contact when SUPPORT_EMAIL is unset.", false, true},
 	"SUPPORT_EMAIL":                    {"email", "This install's own support contact, shown on its pages, in its emails and in error messages instead of ours. Unset: IDLE_REPLY_TO if that is set, else \"whoever runs this server\" on a self-hosted install (unchanged on the hosted service).", false, true},
 	"PRIVACY_URL":                      {"server", "This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link.", false, true},
 	"ANALYTICS_RETENTION_DAYS":         {"cleanup", "How long visit analytics are kept.", false, true},
@@ -366,9 +366,7 @@ func otherSettings() []Setting {
 			Description: "Zones (comma-separated) event hostnames are handed out under."},
 
 		{Name: "IDLE_CLEANUP", Group: "cleanup", Type: "bool", Default: "off", Allowed: []string{"on", "off"},
-			Description: "on warns owners of long-unused sites, then moves them to Recently deleted."},
-		{Name: "IDLE_CLEANUP_MAX_EMAILS", Group: "cleanup", Type: "int", Default: "50", Min: i64(1), Unit: "emails",
-			Description: "Idle-cleanup emails one run sends."},
+			Description: "on moves long-unused sites to Recently deleted unless their owner marked them Keep."},
 		{Name: "IDLE_CLEANUP_EXEMPT_HANDLES", Group: "cleanup", Type: "string",
 			Description: "Accounts (comma-separated handles) whose sites the idle cleanup never touches. An account that later changes its handle stays exempt under the old one."},
 

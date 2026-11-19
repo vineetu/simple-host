@@ -54,13 +54,13 @@ INSERT INTO oauth_tokens (token_hash, grant_id, kind, expires_at, created_at) VA
   ('FAKE-NOT-A-HASH-REFRESH-32', '00000000-0000-4000-8000-000000000032', 'refresh', now() + interval '30 days', '2026-01-15 12:00:00+00');
 
 -- Resource declarations and SQLite table policy metadata (no KV or SQLite files).
-INSERT INTO site_storage_resources (site_id, name, kind, acc_read, acc_add, acc_edit, acc_delete) VALUES
-  ('00000000-0000-4000-8000-000000000021', 'settings', 'kv', 'anyone', 'owner', 'owner', 'owner'),
-  ('00000000-0000-4000-8000-000000000021', 'records', 'sqlite', 'anyone', 'owner', 'owner', 'owner'),
-  ('00000000-0000-4000-8000-000000000021', 'uploads', 'files', 'anyone', 'owner', 'owner', 'owner');
-INSERT INTO site_storage_tables (site_id, resource_name, table_name, acc_read, acc_add, acc_edit, acc_delete) VALUES
-  ('00000000-0000-4000-8000-000000000021', 'records', 'notes', 'owner', 'owner', 'owner', 'owner'),
-  ('00000000-0000-4000-8000-000000000021', 'records', 'tasks', 'owner', 'owner', 'owner', 'owner');
+INSERT INTO site_storage_resources (site_id, name, kind, acc_read) VALUES
+  ('00000000-0000-4000-8000-000000000021', 'settings', 'kv', 'anyone'),
+  ('00000000-0000-4000-8000-000000000021', 'records', 'sqlite', 'anyone'),
+  ('00000000-0000-4000-8000-000000000021', 'uploads', 'files', 'anyone');
+INSERT INTO site_storage_tables (site_id, resource_name, table_name) VALUES
+  ('00000000-0000-4000-8000-000000000021', 'records', 'notes'),
+  ('00000000-0000-4000-8000-000000000021', 'records', 'tasks');
 
 -- Legacy Postgres collections/settings in addition to sites.state; byte counters are maintained by dump triggers.
 INSERT INTO collection_settings (site_id, collection, private, kind, declared_at, updated_at) VALUES

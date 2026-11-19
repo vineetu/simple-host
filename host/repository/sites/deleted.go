@@ -20,8 +20,7 @@ const notTakenDown = `suspended_at IS NULL
 
 // MarkSiteDeleted moves a live site to Recently deleted, recording when it
 // will be removed for good. sql.ErrNoRows when there is no live site with
-// that id. An emailed idle-cleanup link ("Keep
-// it") ends with it; the cleanup's own removal sets a restore link after.
+// that id.
 //
 // SIM-360: web-push subscriptions (owner and visitor devices) are deleted
 // in this same statement's transaction, not left for the eventual physical
@@ -30,7 +29,7 @@ const notTakenDown = `suspended_at IS NULL
 // does not restore them, the same as it never resurrects any other write
 // that happened after deletion.
 func MarkSiteDeleted(ctx context.Context, q Querier, siteID string, retention time.Duration) error {
-	res, err := q.ExecContext(ctx, `WITH cleared AS (UPDATE users SET home_site_id = NULL WHERE home_site_id = $1) UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second'), idle_token_hash = NULL
+	res, err := q.ExecContext(ctx, `WITH cleared AS (UPDATE users SET home_site_id = NULL WHERE home_site_id = $1) UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second')
 		 WHERE id = $1 AND deleted_at IS NULL`, siteID, int64(retention.Seconds()))
 	if err := oneRow(res, err); err != nil {
 		return err
@@ -41,11 +40,10 @@ func MarkSiteDeleted(ctx context.Context, q Querier, siteID string, retention ti
 
 // RestoreDeletedSite brings a site back from Recently deleted. sql.ErrNoRows
 // when the site is not (or no longer) in Recently deleted. Every restore
-// (owner app, API, MCP, the emailed link) counts as the owner keeping it: the
-// idle warning, removal and link end and the idle clock restarts.
+// (owner app, API, MCP) counts as the owner keeping it: the idle clock restarts.
 func RestoreDeletedSite(ctx context.Context, q Querier, siteID string) error {
 	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = NULL, purge_at = NULL, updated_at = now(),
-		       idle_kept_at = now(), idle_warned_at = NULL, idle_removed_at = NULL, idle_token_hash = NULL
+		       idle_kept_at = now(), idle_removed_at = NULL
 		 WHERE id = $1 AND deleted_at IS NOT NULL`, siteID)
 	return oneRow(res, err)
 }

@@ -256,7 +256,7 @@ func TestHandleChangeAfterPurgeKeepsAlias(t *testing.T) {
 // fragment and posts it back; that post (peek=1) only shows the confirmation.
 func TestFragmentLinkPage(t *testing.T) {
 	a := newPrivateApp(t)
-	for _, path := range []string{"/v1/idle/keep", "/v1/idle/restore", "/v1/me/email/undo"} {
+	for _, path := range []string{"/v1/me/email/undo"} {
 		r := a.at(t, "GET", "simple-host.test", path, nil, nil)
 		body := string(r.body)
 		if r.status != 200 || !strings.Contains(body, `action="`+path+`"`) || !strings.Contains(body, `name="peek" value="1"`) || !strings.Contains(body, "location.hash") {

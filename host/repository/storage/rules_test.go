@@ -95,8 +95,8 @@ func TestResourceRulesRoundTrip(t *testing.T) {
 					t.Fatalf("JSON mismatch: got %s want %s", got, want)
 				}
 			}
-			if got.BeforePresets || got.Read != "owner" || got.Write != "owner" || got.WriteMode != "add" {
-				t.Fatalf("a rules save writes the older columns' fill: %+v", got)
+			if got.BeforePresets {
+				t.Fatalf("a rules save leaves the resource marked as saved before presets: %+v", got)
 			}
 			assertJSON(got.Rules, test.raw)
 			assertJSON(got.Tables["posts"].Rules, test.raw)

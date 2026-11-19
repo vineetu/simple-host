@@ -352,11 +352,6 @@ var dailyMetrics = []DailyMetric{
 	{Name: "connector_grants_active_30d", Query: `SELECT count(*) FROM oauth_grants WHERE last_used_at >= $1::date - 29`},
 	{Name: "connector_accounts_active_30d", Query: `SELECT count(DISTINCT user_id) FROM oauth_grants WHERE last_used_at >= $1::date - 29`},
 	{Name: "storage_resources", Query: `SELECT count(*) FROM site_storage_resources`},
-	{Name: "resources_read_anyone", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_read = 'anyone'`},
-	{Name: "resources_add_anyone", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_add = 'anyone'`},
-	{Name: "resources_add_checked", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_add = 'checked'`},
-	{Name: "resources_add_signed_in", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_add = 'signed-in'`},
-	{Name: "resources_own_reads", Query: `SELECT count(*) FROM site_storage_resources WHERE acc_read = 'own'`},
 	// Resources of every kind by rules status, as the model's RulesStatus
 	// reads the stored rules (no stored rules: owner only, which counts as
 	// rules).
