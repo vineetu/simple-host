@@ -65,7 +65,7 @@ work = Path(scratch.name)
 attempt_dir = None
 
 def normalize_release(value):
-    # Match the Go floor check: release workflows stamp vX.Y.Z or hack-vX.Y.Z,
+    # Release workflows stamp vX.Y.Z or hack-vX.Y.Z,
     # while image tags and wrapper targets omit those prefixes.
     return value.removeprefix('hack-').removeprefix('v')
 

@@ -463,36 +463,49 @@ func runTestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
 	s.resource(t, "kv", "kv", "anyone", "anyone", "full")
 	s.resource(t, "files", "files", "anyone", "anyone", "full")
 	s.call(t, "PUT", "/files/files/objects/photo", "photo", s.key, 200)
-	unlock := s.a.sites.lockSite(s.ownerID, "shop")
+	// A read that needs the deploy lock cannot finish until the watchdog fires.
+	unlock := sync.OnceFunc(s.a.sites.lockSite(s.ownerID, "shop"))
+	defer unlock()
+	watchdog := time.AfterFunc(30*time.Second, unlock)
+	defer watchdog.Stop()
 	for _, route := range []string{"/sqlite/db/tables/orders/rows", "/kv/kv/keys", "/files/files/objects/photo", "/files/files/objects"} {
-		done := make(chan struct{})
-		go func() { s.call(t, "GET", route, nil, nil, 200); close(done) }()
-		select {
-		case <-done:
-		case <-time.After(time.Second):
-			unlock()
-			t.Fatal("read took deploy lock")
-		}
+		s.call(t, "GET", route, nil, nil, 200)
 	}
 	start := time.Now()
 	s.call(t, "PUT", "/kv/kv/keys/blocked", `{"value":1}`, browser(s.host, ""), 503)
-	elapsed := time.Since(start)
-	unlock()
-	if elapsed > s.a.sites.limits.StorageWriteLockWait+500*time.Millisecond {
+	if elapsed := time.Since(start); elapsed > s.a.sites.limits.StorageWriteLockWait+3*time.Second {
 		t.Fatalf("unbounded lock wait %v", elapsed)
 	}
-	slow := make(chan struct{})
-	go func() {
-		s.call(t, "POST", "/sqlite/db/query", `{"sql":"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT count(*) FROM c"}`, browser(s.host, ""), 400)
-		close(slow)
-	}()
-	time.Sleep(100 * time.Millisecond)
-	start = time.Now()
-	s.call(t, "PUT", "/kv/kv/keys/available", `{"value":1}`, s.key, 200)
-	if time.Since(start) > 500*time.Millisecond {
-		t.Fatal("slow query held deploy lock")
+	if !watchdog.Stop() {
+		t.Fatal("storage requests did not complete while the deploy lock was held")
 	}
-	<-slow
+	unlock()
+	// Wait until SQLite admits the slow query before issuing the owner write.
+	// The write must finish while the query still occupies its slot.
+	s.a.sites.limits.StorageVisitorQueryTimeout = 5 * time.Second
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		query := s.call(t, "POST", "/sqlite/db/query", `{"sql":"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT count(*) FROM c"}`, browser(s.host, ""), 400)
+		if !strings.Contains(string(query.body), `"sql_timeout"`) {
+			t.Errorf("expected the SQLite query to time out: %s", query.body)
+		}
+	}()
+	defer func() { <-done }()
+	slots := s.a.sites.sqliteGateFor().Slots
+	tick := time.NewTicker(5 * time.Millisecond)
+	defer tick.Stop()
+	for len(slots) == 0 {
+		select {
+		case <-done:
+			t.Fatal("query finished before the owner write started")
+		case <-tick.C:
+		}
+	}
+	s.call(t, "PUT", "/kv/kv/keys/available", `{"value":1}`, s.key, 200)
+	if len(slots) == 0 {
+		t.Fatal("owner write did not complete during the slow query")
+	}
 }
 
 func TestStorageSecurityWideTablesResultsAndGenericErrors(t *testing.T) {

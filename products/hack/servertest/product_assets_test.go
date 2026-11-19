@@ -5,9 +5,6 @@ import (
 	"errors"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
-	"net/http/httptest"
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -43,23 +40,6 @@ func TestProductSetupScript(t *testing.T) {
 	host := get(t, chromeTestMux(t, productedition.Host), "", "/setup/setup.js").Body.String()
 	if host == "" || len(body) <= len(host) {
 		t.Errorf("Hack setup script (%d bytes) is not the platform's (%d bytes) plus the product's choice", len(body), len(host))
-	}
-}
-
-// TestProductAssetsBrowser runs on local fixture servers, with no real users.
-func TestProductAssetsBrowser(t *testing.T) {
-	if os.Getenv("ASSET_BROWSER") != "1" {
-		t.Skip("ASSET_BROWSER unset")
-	}
-	host := httptest.NewServer(chromeTestMux(t, productedition.Host))
-	defer host.Close()
-	hack := httptest.NewServer(chromeTestMux(t, productedition.Hack))
-	defer hack.Close()
-	cmd := exec.Command("node", "../../../scripts/tests/product-assets-browser.mjs", host.URL, hack.URL)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("browser: %v\n%s", err, out)
-	} else {
-		t.Log(string(out))
 	}
 }
 

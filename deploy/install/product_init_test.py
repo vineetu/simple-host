@@ -290,7 +290,8 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                                     else:
                                         run(compose + ['up', '-d', '--no-build'], env=compose_env)
                                     address = run(compose + ['port', 'app', target_port], env=compose_env).strip()
-                                    for attempt in range(300):
+                                    deadline = time.monotonic() + 120
+                                    while time.monotonic() < deadline:
                                         try:
                                             with urllib.request.urlopen('http://' + address + '/readyz', timeout=0.5) as response:
                                                 if response.status == 200:
@@ -298,7 +299,7 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
                                         except (OSError, urllib.error.URLError):
                                             time.sleep(0.1)
                                     else:
-                                        raise RuntimeError('Compose app did not become ready')
+                                        raise RuntimeError('Compose /readyz did not return 200 within 120 seconds')
                                     states = [json.loads(line) for line in run(compose + ['ps', '-a', '--format', 'json'], env=compose_env).splitlines()]
                                     state = next(row for row in states if row['Service'] == migration)
                                     assert state['State'] == 'exited' and state['ExitCode'] == 0, state

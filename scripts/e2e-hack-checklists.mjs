@@ -41,7 +41,7 @@ async function home(page, role) {
  await page.locator(role === 'participant' ? 'main h1' : '[data-checklist-id]').first().waitFor()
 }
 async function state(page, id, done) {
- await page.waitForFunction(({id, done}) => document.querySelector(`[data-checklist-id="${id}"]`)?.classList.contains('done') === done, {id, done})
+ await page.waitForFunction(({id, done}) => document.querySelector(`[data-checklist-id="${id}"]`)?.classList.contains('done') === done, {id, done}, {timeout: 120_000})
  assert.equal(await page.locator(`[data-checklist-id="${id}"]`).evaluate(el => el.classList.contains('done')), done, id)
 }
 async function rowPresentation(page, width) {
@@ -144,7 +144,9 @@ try {
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=event-page&tab=faq`)
  await org.page.locator('#fq-add').click()
  await org.page.locator('#d-q').fill('When?'); await org.page.locator('#d-a').fill('Today.')
+ const faqSaved = org.page.waitForResponse(r => r.request().method() === 'PUT' && new URL(r.url()).pathname === base + '/content')
  await org.page.getByRole('dialog').getByRole('button',{name:'Add question',exact:true}).click()
+ assert.ok((await faqSaved).ok())
  await org.page.getByRole('dialog').waitFor({state:'hidden'})
  await home(org.page,'organiser'); await state(org.page,'o.faq',true)
  assert.equal(await org.page.locator('[data-checklist-id="o.faq"] button').count(),0)

@@ -7,12 +7,14 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	storagerepo "github.com/vsriram/simple-host/host/repository/storage"
 	"github.com/vsriram/simple-host/host/server"
 	"github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/host/storage"
+	"github.com/vsriram/simple-host/host/testdb"
 )
 
 func TestKVMaintenanceServerLifetime(t *testing.T) {
@@ -51,20 +53,13 @@ func TestKVMaintenanceServerLifetime(t *testing.T) {
 // the data directory has one, and holds the install advisory lock shared for
 // as long as it lives. A mismatch is logged and does not stop it.
 func TestInstallIdentityAndLockServerLifetime(t *testing.T) {
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
+	dsn := testdb.Fresh(t)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 	ctx := context.Background()
-	if _, err = db.Exec(`DELETE FROM install_identity`); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Exec(`DELETE FROM install_identity`) })
 	cfg := servertest.Config(t, dsn)
 	app, err := server.Build(cfg, nil)
 	if err != nil {
@@ -110,6 +105,13 @@ func TestInstallIdentityAndLockServerLifetime(t *testing.T) {
 	}
 
 	// Closed servers have released the lock; a command holding it stops a start.
+	// Wait for Postgres to process the closed pool connections. The probe's
+	// transaction-scoped lock is released as soon as the statement returns.
+	wait, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if _, err := db.ExecContext(wait, "SELECT pg_advisory_xact_lock($1)", storagerepo.InstallLockKey); err != nil {
+		t.Fatalf("waiting for closed servers to release the install lock: %v", err)
+	}
 	lock, err = storagerepo.LockInstall(ctx, db, true)
 	if err != nil {
 		t.Fatalf("install lock not released by closed servers: %v", err)

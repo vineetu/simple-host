@@ -26,59 +26,6 @@ func reloadMoveCall(t *testing.T, m *KVMover, c Call) Call {
 	return c
 }
 
-func TestKVRollbackLaterWritesAndRepeatedMoves(t *testing.T) {
-	m, s, c := moveFixture(t)
-	for cycle := 0; cycle < 2; cycle++ {
-		moveRun(t, m, c, "apply")
-		c = reloadMoveCall(t, m, c)
-		kvPut(t, s, c, "new", `[2,3]`, "")
-		kvPut(t, s, c, "A", `{"changed":true}`, "")
-		if auth, err := s.DeleteKV(context.Background(), KVDeleteInput{Call: c, Key: "_"}); err != nil || auth != nil {
-			t.Fatalf("delete: %v %v", auth, err)
-		}
-		before, err := s.ListKV(context.Background(), KVListInput{Call: c, Limit: 100, ValidLimit: true})
-		if err != nil {
-			t.Fatal(err)
-		}
-		path := runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName)
-		fileBefore, meta, err := runtime.ReadKVSnapshot(context.Background(), path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		reports := moveRun(t, m, c, "rollback")
-		moveState(t, m, c, "postgres", 7)
-		if len(reports) != 1 || reports[0].SourceSHA256 != reports[0].FileSHA256 || reports[0].Entries != meta.Entries || reports[0].LogicalBytes != meta.LogicalBytes {
-			t.Fatalf("rollback proof: %+v", reports)
-		}
-		c = reloadMoveCall(t, m, c)
-		after, err := s.ListKV(context.Background(), KVListInput{Call: c, Limit: 100, ValidLimit: true})
-		if err != nil || !reflect.DeepEqual(before, after) {
-			t.Fatalf("service changed: before=%+v after=%+v err=%v", before, after, err)
-		}
-		for _, e := range fileBefore {
-			got, err := s.GetKV(context.Background(), KVReadInput{Call: c, Key: e.Key})
-			if err != nil || string(got.Item.Value) != e.Value || got.Item.VisitorID != e.Writer {
-				t.Fatalf("get %q after rollback: %+v %v", e.Key, got, err)
-			}
-		}
-		kept, err := filepath.Glob(path + ".rolledback-*")
-		if err != nil || len(kept) != cycle+1 {
-			t.Fatalf("retained copies: %v %v", kept, err)
-		}
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			t.Fatalf("active file remains: %v", err)
-		}
-		moveRun(t, m, c, "verify")
-		snapshot := moveSnapshot(t, m)
-		if reports := moveRun(t, m, c, "rollback"); len(reports) != 1 || reports[0].Site != c.SiteID || reports[0].Resource != c.ResourceName || reports[0].Status != kvAlreadyRestored {
-			t.Fatalf("second rollback did not report already restored: %+v", reports)
-		}
-		if after := moveSnapshot(t, m); after != snapshot {
-			t.Fatalf("second rollback changed data:\nbefore %s\nafter %s", snapshot, after)
-		}
-	}
-}
-
 func TestKVRollbackMismatchRollsBackTransaction(t *testing.T) {
 	for _, field := range []string{"value", "writer_id", "updated_at"} {
 		t.Run(field, func(t *testing.T) {

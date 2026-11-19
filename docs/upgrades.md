@@ -155,8 +155,3 @@ window, one installation at a time:
    without rerunning migrations. Release the lock, start one replica and require
    `/readyz` before closing the attempt. A Helm rollback by itself does not
    restore the data.
-
-The Compose rehearsal is `python3 deploy/shared/upgrade_test.py`, using only
-throwaway databases on `TEST_PG_URL`. It covers interrupted backups, lock refusal,
-immutable retries, a conflicting target, consecutive upgrades and a real paired
-restore followed by the tagged old server answering `/readyz`.
