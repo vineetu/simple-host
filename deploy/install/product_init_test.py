@@ -136,24 +136,6 @@ with tempfile.TemporaryDirectory(prefix='d3s6a-init-') as tmp:
             print('PASS: ' + MODE + (' existing install and re-run' if existing else ' fresh install and re-run'))
 
     if MODE == 'root':
-        # Other Host release hooks and Coolify's published-image command use
-        # the same locally built program against fresh and unrecorded installs.
-        template = yaml.safe_load((ROOT / 'deploy/platforms/coolify/service-template.yaml').read_text())
-        assert 'schema' not in template['services']
-        hooks = [(name, ['sh', str(ROOT / 'deploy/platforms' / name / 'start.sh'), 'release'])
-                 for name in ('railway', 'render', 'fly', 'coolify')]
-        hooks.append(('coolify-template', [str(binary)] + template['services']['migrate']['command']))
-        for name, hook in hooks:
-            for existing in (False, True):
-                with database() as url:
-                    env['DB_DSN'] = url
-                    if existing:
-                        sql(url, (ROOT / 'host/db/schema.sql').read_text())
-                        sql(url, 'DROP TABLE install_product')
-                    for _ in range(2):
-                        run(hook, env=env)
-                        assert sql(url, 'SELECT product FROM install_product') == 'simple-host'
-                    print('PASS: ' + name + (' adoption and rerun' if existing else ' fresh install and rerun'))
         # The instance setup has its own filesystem/systemd sandbox test. Run
         # its real database phase here without performing any host setup.
         source = (ROOT / 'deploy/hack/setup-instance.sh').read_text()

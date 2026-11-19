@@ -45,7 +45,7 @@ standalone = package / "deploy/hack/standalone"
 compose = (standalone / "compose.yaml").read_text()
 source_image = re.search(r"\$\{SIMPLE_HACK_IMAGE:-([^}]+)\}", compose)[1]
 source_version = source_image.rsplit(":", 1)[1]
-for name in ("install.sh", "upgrade.sh", "compose.yaml", ".env.example", "coolify/compose.yaml",
+for name in ("install.sh", "upgrade.sh", "compose.yaml", ".env.example",
              "digitalocean/template.json", "digitalocean/prepare.sh"):
     path = standalone / name
     body = path.read_text().replace(source_image, hack_image)
@@ -86,25 +86,6 @@ if count != 1:
 body = body.replace(source_image.rsplit(":", 1)[0] + ":$VERSION",
                     hack_image.rsplit(":", 1)[0] + ":$VERSION")
 guide.write_text(body)
-guide = docs / "simple-hack-coolify.md"
-body = guide.read_text().replace(source_image, hack_image)
-body, count = re.subn(r"(?ms)^## Upgrade\n.*?(?=^## )", """## Upgrade
-
-For an existing Coolify installation, wait for a supported paired-upgrade
-procedure for Coolify before switching to the shared release. It must back up
-the database, files and configuration together, run the candidate's upgrade
-command and verify the installation before restarting the app.
-
-""", body)
-if count != 1:
-    raise SystemExit(f"expected one upgrade section in {guide}")
-guide.write_text(body)
-template = standalone / "coolify/service-template.yaml"
-body, count = re.subn(r"^(    image: )ghcr\.io/vineetu/simple-hack:[^\s]+$",
-                      lambda match: match[1] + hack_image, template.read_text(), flags=re.M)
-if count != 2:
-    raise SystemExit(f"expected two Simple Hack images in {template}")
-template.write_text(body)
 
 upgrades = package / "docs/upgrades.md"
 hack_args = f'--to "$VERSION" --image "{source_image.rsplit(":", 1)[0]}:$VERSION"'

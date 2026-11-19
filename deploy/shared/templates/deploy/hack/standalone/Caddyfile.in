@@ -3,7 +3,7 @@
 	http_port @HACK_HTTP_PORT@
 	https_port @HACK_HTTPS_PORT@
 	auto_https disable_redirects
-	# Empty for a direct VPS; Coolify supplies a servers/listener_wrappers
+	# Empty for a direct VPS; a proxy in front supplies a servers/listener_wrappers
 	# stanza to accept PROXY protocol only from its private proxy network.
 	{$CADDY_PROXY_PROTOCOL}
 	on_demand_tls {

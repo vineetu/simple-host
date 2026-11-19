@@ -11,11 +11,6 @@ Choose a provider guide below.
 |---|---|
 | UpCloud or any Ubuntu VPS | [Install Simple Host](upcloud.md) |
 | DigitalOcean | [Install Simple Host](digitalocean.md) |
-| Coolify | [Install Simple Host](coolify.md) |
-| Fly.io | [Install Simple Host](fly.md) |
-| Railway | [Install Simple Host](railway.md) |
-| Render | [Install Simple Host](render.md) |
-| Coolify | [Install Simple Hack](simple-hack-coolify.md) |
 | DigitalOcean | [Install Simple Hack](simple-hack-digitalocean.md) |
 
 Vercel, Netlify and shared PHP hosting do not provide the persistent disk and

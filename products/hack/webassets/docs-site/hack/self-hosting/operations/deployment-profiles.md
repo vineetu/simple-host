@@ -94,17 +94,14 @@ acceptance belong to D4-S5a, so enabling the profile alone does not change
 Caddy's upstream.
 Workers run inside the server process, as listed below.
 
-Standalone Hack and its Coolify variant are the same Compose profile, with a
-different package: Postgres plus an app container running both Caddy and the
+Standalone Hack is a Compose profile with its own package: Postgres plus an app container running both Caddy and the
 server, and a one-shot `release` container. Build the root Dockerfile's `hack`
 target, then use it as the standalone Dockerfile's `SIMPLE_HOST_IMAGE` build
 argument. The standalone entrypoint starts `simple-hack` beside Caddy.
 Its `/data` volume holds sites, logs and Caddy state; the server listens on
 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080. Default published ports
-are 80/443 and loopback 18080. Coolify uses Traefik and TLS passthrough instead
-of those host port bindings (`deploy/hack/standalone/compose.yaml:9`,
-`deploy/hack/standalone/Dockerfile:12`, `deploy/hack/standalone/start.sh:68`,
-`deploy/hack/standalone/coolify/compose.yaml:133`).
+are 80/443 and loopback 18080 (`deploy/hack/standalone/compose.yaml:9`,
+`deploy/hack/standalone/Dockerfile:12`, `deploy/hack/standalone/start.sh:68`).
 
 ### How settings are supplied
 
@@ -258,6 +255,6 @@ no database and prints release/commit plus embedded migration information
 ## Password sign-in by profile
 
 Hosted systemd: leave `PASSWORD_SIGNIN=off` (binary default); existing email and provider sign-ins continue.
-Docker Compose small box, standalone Hack and Coolify: `PASSWORD_SIGNIN` and `PASSWORD_SELF_SIGNUP` default to `on` and are passed through. No mail or identity provider is required for password sign-in.
+Docker Compose small box and standalone Hack: `PASSWORD_SIGNIN` and `PASSWORD_SELF_SIGNUP` default to `on` and are passed through. No mail or identity provider is required for password sign-in.
 Kubernetes: `signIn.password.enabled: true` and `signIn.password.selfSignup: true` render both settings as `on`; setting either false renders `off`. Password sign-in satisfies the chart's sign-in requirement without OIDC or Resend.
 An operator may set `PASSWORD_SELF_SIGNUP=off` and create/reset accounts through Admin Users. People must change temporary passwords before completing sign-in. Existing email accounts can receive passwords by admin reset; existing keys and sessions continue to work.

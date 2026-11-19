@@ -76,7 +76,7 @@
       "method": "DELETE",
       "path": "/v1/admin/users/{id}",
       "feature_id": "account-data",
-      "source": "host/handler/site.go:483",
+      "source": "host/handler/site.go:484",
       "package": "host/handler",
       "dynamic": false
     },
@@ -236,7 +236,7 @@
       "method": "DELETE",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "host/handler/site.go:494",
+      "source": "host/handler/site.go:495",
       "package": "host/handler",
       "dynamic": false
     },
@@ -276,7 +276,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:470",
+      "source": "host/handler/site.go:471",
       "package": "host/handler",
       "dynamic": false
     },
@@ -284,7 +284,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "host/handler/site.go:570",
+      "source": "host/handler/site.go:571",
       "package": "host/handler",
       "dynamic": false
     },
@@ -292,7 +292,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "host/handler/site.go:601",
+      "source": "host/handler/site.go:602",
       "package": "host/handler",
       "dynamic": false
     },
@@ -324,7 +324,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:454",
+      "source": "host/handler/site.go:455",
       "package": "host/handler",
       "dynamic": false
     },
@@ -332,7 +332,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:442",
+      "source": "host/handler/site.go:443",
       "package": "host/handler",
       "dynamic": false
     },
@@ -340,7 +340,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:438",
+      "source": "host/handler/site.go:439",
       "package": "host/handler",
       "dynamic": false
     },
@@ -348,7 +348,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "host/handler/site.go:448",
+      "source": "host/handler/site.go:449",
       "package": "host/handler",
       "dynamic": false
     },
@@ -356,7 +356,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/versions/{version}",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:526",
+      "source": "host/handler/site.go:527",
       "package": "host/handler",
       "dynamic": false
     },
@@ -364,7 +364,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/viewers/{email}",
       "feature_id": "access-named-viewers",
-      "source": "host/handler/site.go:612",
+      "source": "host/handler/site.go:613",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1708,7 +1708,7 @@
       "method": "GET",
       "path": "/internal/domain-redirect/{handle}/{sitename}",
       "feature_id": "address-families",
-      "source": "host/handler/site.go:577",
+      "source": "host/handler/site.go:578",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1724,7 +1724,7 @@
       "method": "GET",
       "path": "/internal/domain-redirect/{handle}/{sitename}/{rest...}",
       "feature_id": "address-families",
-      "source": "host/handler/site.go:578",
+      "source": "host/handler/site.go:579",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1764,7 +1764,7 @@
       "method": "GET",
       "path": "/internal/notfound",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:587",
+      "source": "host/handler/site.go:588",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1780,7 +1780,7 @@
       "method": "GET",
       "path": "/internal/offline",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:592",
+      "source": "host/handler/site.go:593",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1796,7 +1796,7 @@
       "method": "GET",
       "path": "/internal/passcode/{rest...}",
       "feature_id": "access-passcode",
-      "source": "host/handler/site.go:595",
+      "source": "host/handler/site.go:596",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1812,7 +1812,7 @@
       "method": "GET",
       "path": "/internal/showcase/{handle}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "host/handler/site.go:582",
+      "source": "host/handler/site.go:583",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1820,7 +1820,7 @@
       "method": "GET",
       "path": "/internal/site-redirect/{handle}",
       "feature_id": "site-url",
-      "source": "host/handler/site.go:584",
+      "source": "host/handler/site.go:585",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1836,7 +1836,7 @@
       "method": "GET",
       "path": "/internal/site-redirect/{handle}/{sitename}",
       "feature_id": "site-url",
-      "source": "host/handler/site.go:585",
+      "source": "host/handler/site.go:586",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1852,7 +1852,7 @@
       "method": "GET",
       "path": "/internal/site-redirect/{handle}/{sitename}/{rest...}",
       "feature_id": "site-url",
-      "source": "host/handler/site.go:586",
+      "source": "host/handler/site.go:587",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1868,7 +1868,7 @@
       "method": "GET",
       "path": "/internal/suspended",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:590",
+      "source": "host/handler/site.go:591",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1884,7 +1884,7 @@
       "method": "GET",
       "path": "/internal/tls-ask",
       "feature_id": "address-families",
-      "source": "host/handler/site.go:576",
+      "source": "host/handler/site.go:577",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2516,7 +2516,7 @@
       "method": "GET",
       "path": "/v1/admin/export.tar.gz",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:510",
+      "source": "host/handler/site.go:511",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2540,7 +2540,7 @@
       "method": "GET",
       "path": "/v1/admin/idle-sites",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:544",
+      "source": "host/handler/site.go:545",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2548,7 +2548,7 @@
       "method": "GET",
       "path": "/v1/admin/image-scan",
       "feature_id": "abuse-limits-and-hardening",
-      "source": "host/handler/site.go:617",
+      "source": "host/handler/site.go:618",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2564,7 +2564,7 @@
       "method": "GET",
       "path": "/v1/admin/signups",
       "feature_id": "admin-signup-source",
-      "source": "host/handler/site.go:498",
+      "source": "host/handler/site.go:499",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2572,7 +2572,7 @@
       "method": "GET",
       "path": "/v1/admin/signups.csv",
       "feature_id": "admin-signup-source",
-      "source": "host/handler/site.go:499",
+      "source": "host/handler/site.go:500",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2580,7 +2580,7 @@
       "method": "GET",
       "path": "/v1/admin/sites",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:495",
+      "source": "host/handler/site.go:496",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2596,7 +2596,7 @@
       "method": "GET",
       "path": "/v1/admin/usage",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:512",
+      "source": "host/handler/site.go:513",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2604,7 +2604,7 @@
       "method": "GET",
       "path": "/v1/admin/users",
       "feature_id": "admin-signup-source",
-      "source": "host/handler/site.go:497",
+      "source": "host/handler/site.go:498",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2612,7 +2612,7 @@
       "method": "GET",
       "path": "/v1/analytics/sites",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "host/handler/site.go:536",
+      "source": "host/handler/site.go:537",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2652,7 +2652,7 @@
       "method": "GET",
       "path": "/v1/export",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:519",
+      "source": "host/handler/site.go:520",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3196,7 +3196,7 @@
       "method": "GET",
       "path": "/v1/idle/keep",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:547",
+      "source": "host/handler/site.go:548",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3204,7 +3204,7 @@
       "method": "GET",
       "path": "/v1/idle/restore",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:549",
+      "source": "host/handler/site.go:550",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3236,7 +3236,7 @@
       "method": "GET",
       "path": "/v1/me/bio",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/handler/site.go:474",
+      "source": "host/handler/site.go:475",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3252,7 +3252,7 @@
       "method": "GET",
       "path": "/v1/me/deleted-sites",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:480",
+      "source": "host/handler/site.go:481",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3268,7 +3268,7 @@
       "method": "GET",
       "path": "/v1/me/export.tar.gz",
       "feature_id": "account-data",
-      "source": "host/handler/site.go:493",
+      "source": "host/handler/site.go:494",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3276,7 +3276,7 @@
       "method": "GET",
       "path": "/v1/me/export.zip",
       "feature_id": "account-data",
-      "source": "host/handler/site.go:491",
+      "source": "host/handler/site.go:492",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3284,7 +3284,7 @@
       "method": "GET",
       "path": "/v1/me/home",
       "feature_id": "your-home-page",
-      "source": "host/handler/site.go:478",
+      "source": "host/handler/site.go:479",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3348,7 +3348,7 @@
       "method": "GET",
       "path": "/v1/sites",
       "feature_id": "publish-file-limits",
-      "source": "host/handler/site.go:481",
+      "source": "host/handler/site.go:482",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3356,7 +3356,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/access",
       "feature_id": "access-named-viewers",
-      "source": "host/handler/site.go:609",
+      "source": "host/handler/site.go:610",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3364,7 +3364,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:529",
+      "source": "host/handler/site.go:530",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3372,7 +3372,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics/geo",
       "feature_id": "analytics-own-visits",
-      "source": "host/handler/site.go:530",
+      "source": "host/handler/site.go:531",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3380,7 +3380,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics/top",
       "feature_id": "analytics-and-geo",
-      "source": "host/handler/site.go:533",
+      "source": "host/handler/site.go:534",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3388,7 +3388,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "host/handler/site.go:569",
+      "source": "host/handler/site.go:570",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3396,7 +3396,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/export.tar.gz",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:515",
+      "source": "host/handler/site.go:516",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3404,7 +3404,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "host/handler/site.go:599",
+      "source": "host/handler/site.go:600",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3412,7 +3412,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/me",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:620",
+      "source": "host/handler/site.go:621",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3460,7 +3460,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/showcase",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/handler/site.go:476",
+      "source": "host/handler/site.go:477",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3468,7 +3468,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:451",
+      "source": "host/handler/site.go:452",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3476,7 +3476,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:452",
+      "source": "host/handler/site.go:453",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3484,7 +3484,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:439",
+      "source": "host/handler/site.go:440",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3492,7 +3492,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:440",
+      "source": "host/handler/site.go:441",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3500,7 +3500,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/people",
       "feature_id": "storage-owner-for-visitor",
-      "source": "host/handler/site.go:436",
+      "source": "host/handler/site.go:437",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3508,7 +3508,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/resources",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:433",
+      "source": "host/handler/site.go:434",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3516,7 +3516,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
       "feature_id": "storage-owner-for-visitor",
-      "source": "host/handler/site.go:445",
+      "source": "host/handler/site.go:446",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3524,7 +3524,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "host/handler/site.go:446",
+      "source": "host/handler/site.go:447",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3532,7 +3532,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/usage",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:434",
+      "source": "host/handler/site.go:435",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3540,7 +3540,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/visitors",
       "feature_id": "storage-visitor-emails",
-      "source": "host/handler/site.go:435",
+      "source": "host/handler/site.go:436",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3548,7 +3548,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:520",
+      "source": "host/handler/site.go:521",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3556,7 +3556,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions/{version}/files",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:521",
+      "source": "host/handler/site.go:522",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3564,7 +3564,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions/{version}/files/{path...}",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:522",
+      "source": "host/handler/site.go:523",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3628,7 +3628,7 @@
       "method": "GET",
       "path": "/v1/storage-download",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:456",
+      "source": "host/handler/site.go:457",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3636,7 +3636,7 @@
       "method": "GET",
       "path": "/v1/turnstile/frame",
       "feature_id": "storage-comments",
-      "source": "host/handler/site.go:463",
+      "source": "host/handler/site.go:464",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3644,7 +3644,7 @@
       "method": "GET",
       "path": "/v1/u/{handle}/showcase.json",
       "feature_id": "showcase-feed",
-      "source": "host/handler/site.go:473",
+      "source": "host/handler/site.go:474",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3652,7 +3652,7 @@
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/me",
       "feature_id": "visitor-sign-in",
-      "source": "host/handler/site.go:628",
+      "source": "host/handler/site.go:629",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3660,7 +3660,7 @@
       "method": "GET",
       "path": "/v1/visitor/establish",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:639",
+      "source": "host/handler/site.go:640",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3716,7 +3716,7 @@
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/me",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:621",
+      "source": "host/handler/site.go:622",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3724,7 +3724,7 @@
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/visitor/auth",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:623",
+      "source": "host/handler/site.go:624",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3732,7 +3732,7 @@
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/visitor/auth/verify",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:625",
+      "source": "host/handler/site.go:626",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3740,7 +3740,7 @@
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/me",
       "feature_id": "visitor-sign-in",
-      "source": "host/handler/site.go:629",
+      "source": "host/handler/site.go:630",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3748,7 +3748,7 @@
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
       "feature_id": "visitor-sign-in",
-      "source": "host/handler/site.go:631",
+      "source": "host/handler/site.go:632",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3756,7 +3756,7 @@
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
       "feature_id": "visitor-sign-in",
-      "source": "host/handler/site.go:633",
+      "source": "host/handler/site.go:634",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3844,7 +3844,7 @@
       "method": "PATCH",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "host/handler/site.go:485",
+      "source": "host/handler/site.go:486",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3860,7 +3860,7 @@
       "method": "PATCH",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:471",
+      "source": "host/handler/site.go:472",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3876,7 +3876,7 @@
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "host/handler/site.go:447",
+      "source": "host/handler/site.go:448",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3980,7 +3980,7 @@
       "method": "POST",
       "path": "/v1/admin/image-scan/{id}/report",
       "feature_id": "abuse-limits-and-hardening",
-      "source": "host/handler/site.go:618",
+      "source": "host/handler/site.go:619",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4004,7 +4004,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/restore",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:503",
+      "source": "host/handler/site.go:504",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4012,7 +4012,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/suspend",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:502",
+      "source": "host/handler/site.go:503",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4028,7 +4028,7 @@
       "method": "POST",
       "path": "/v1/admin/users",
       "feature_id": "admin-signup-source",
-      "source": "host/handler/site.go:482",
+      "source": "host/handler/site.go:483",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4044,7 +4044,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/enable",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:505",
+      "source": "host/handler/site.go:506",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4052,7 +4052,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/key",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:484",
+      "source": "host/handler/site.go:485",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4068,7 +4068,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/suspend",
       "feature_id": "moderation",
-      "source": "host/handler/site.go:504",
+      "source": "host/handler/site.go:505",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4484,7 +4484,7 @@
       "method": "POST",
       "path": "/v1/idle/keep",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:548",
+      "source": "host/handler/site.go:549",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4492,7 +4492,7 @@
       "method": "POST",
       "path": "/v1/idle/restore",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:550",
+      "source": "host/handler/site.go:551",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4612,7 +4612,7 @@
       "method": "POST",
       "path": "/v1/site-signin",
       "feature_id": "access-named-viewers",
-      "source": "host/handler/site.go:613",
+      "source": "host/handler/site.go:614",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4620,7 +4620,7 @@
       "method": "POST",
       "path": "/v1/site-signout",
       "feature_id": "access-named-viewers",
-      "source": "host/handler/site.go:614",
+      "source": "host/handler/site.go:615",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4628,7 +4628,7 @@
       "method": "POST",
       "path": "/v1/site-unlock",
       "feature_id": "access-passcode",
-      "source": "host/handler/site.go:606",
+      "source": "host/handler/site.go:607",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4636,7 +4636,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:464",
+      "source": "host/handler/site.go:465",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4644,7 +4644,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "host/handler/site.go:568",
+      "source": "host/handler/site.go:569",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4652,7 +4652,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/domain/check",
       "feature_id": "address-families",
-      "source": "host/handler/site.go:573",
+      "source": "host/handler/site.go:574",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4660,7 +4660,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/export-link",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:518",
+      "source": "host/handler/site.go:519",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4668,7 +4668,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/files",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:555",
+      "source": "host/handler/site.go:556",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4676,7 +4676,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/lock/sign-out-everyone",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:602",
+      "source": "host/handler/site.go:603",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4708,7 +4708,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/photos",
       "feature_id": "dashboard-add-photos",
-      "source": "host/handler/site.go:558",
+      "source": "host/handler/site.go:559",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4740,7 +4740,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/restore",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:472",
+      "source": "host/handler/site.go:473",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4748,7 +4748,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/files/{name}/download-link",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:455",
+      "source": "host/handler/site.go:456",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4756,7 +4756,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/execute",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:449",
+      "source": "host/handler/site.go:450",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4764,7 +4764,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/query",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:443",
+      "source": "host/handler/site.go:444",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4772,7 +4772,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/schema",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:450",
+      "source": "host/handler/site.go:451",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4780,7 +4780,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
       "feature_id": "storage-owner-for-visitor",
-      "source": "host/handler/site.go:444",
+      "source": "host/handler/site.go:445",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4788,7 +4788,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/versions/{version}/preview-link",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:528",
+      "source": "host/handler/site.go:529",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4796,7 +4796,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/viewers",
       "feature_id": "access-named-viewers",
-      "source": "host/handler/site.go:611",
+      "source": "host/handler/site.go:612",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4804,7 +4804,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/visitor/auth",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:622",
+      "source": "host/handler/site.go:623",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4812,7 +4812,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/visitor/auth/verify",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:624",
+      "source": "host/handler/site.go:625",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4844,7 +4844,7 @@
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
       "feature_id": "visitor-sign-in",
-      "source": "host/handler/site.go:630",
+      "source": "host/handler/site.go:631",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4852,7 +4852,7 @@
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
       "feature_id": "visitor-sign-in",
-      "source": "host/handler/site.go:632",
+      "source": "host/handler/site.go:633",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4868,7 +4868,7 @@
       "method": "POST",
       "path": "/v1/visitor/logout",
       "feature_id": "access-signin-card",
-      "source": "host/handler/site.go:640",
+      "source": "host/handler/site.go:641",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5116,7 +5116,7 @@
       "method": "PUT",
       "path": "/v1/me/bio",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/handler/site.go:475",
+      "source": "host/handler/site.go:476",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5124,7 +5124,7 @@
       "method": "PUT",
       "path": "/v1/me/home",
       "feature_id": "your-home-page",
-      "source": "host/handler/site.go:479",
+      "source": "host/handler/site.go:480",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5132,7 +5132,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:465",
+      "source": "host/handler/site.go:466",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5140,7 +5140,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/access",
       "feature_id": "access-named-viewers",
-      "source": "host/handler/site.go:610",
+      "source": "host/handler/site.go:611",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5148,7 +5148,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/active-version",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:523",
+      "source": "host/handler/site.go:524",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5156,7 +5156,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/allowed-origins",
       "feature_id": "abuse-limits-and-hardening",
-      "source": "host/handler/site.go:563",
+      "source": "host/handler/site.go:564",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5164,7 +5164,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/files",
       "feature_id": "site-drafts",
-      "source": "host/handler/site.go:556",
+      "source": "host/handler/site.go:557",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5172,7 +5172,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/keep",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:540",
+      "source": "host/handler/site.go:541",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5180,7 +5180,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/keep-versions",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:543",
+      "source": "host/handler/site.go:544",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5188,7 +5188,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "host/handler/site.go:600",
+      "source": "host/handler/site.go:601",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5204,7 +5204,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/showcase",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/handler/site.go:477",
+      "source": "host/handler/site.go:478",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5212,7 +5212,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:453",
+      "source": "host/handler/site.go:454",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5220,7 +5220,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:441",
+      "source": "host/handler/site.go:442",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5228,7 +5228,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
       "feature_id": "storage-sql-errors",
-      "source": "host/handler/site.go:437",
+      "source": "host/handler/site.go:438",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5236,7 +5236,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/visibility",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/handler/site.go:537",
+      "source": "host/handler/site.go:538",
       "package": "host/handler",
       "dynamic": false
     },

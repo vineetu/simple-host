@@ -171,9 +171,7 @@ both aggregate targets and skips if the directory is unreadable.
 ## Cut a release
 
 Both products use one tag. `hack-v0.8.20` was the last tag of the separate Hack
-release family. The Railway, Render, Fly and Coolify platform recipes still
-install the earlier platform release until they are reworked.
-
+release family. 
 Run the release checks and rehearse with an approved `vX.Y.Z-rc.1` tag first.
 The release workflow builds all assets from the tagged commit and verifies the
 tag and commit by running every downloadable binary on its native Linux or

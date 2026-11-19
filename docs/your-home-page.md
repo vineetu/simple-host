@@ -19,7 +19,7 @@ stay hidden.
 
 On hosted Simple Host, the selected site serves at the person-host root and
 keeps its normal URL; sign-in and data on that origin cover the selected site
-only. On a small-box install, including Droplet 1-Click and Coolify, the default
+only. On a small-box install, including Droplet 1-Click, the default
 path model remains: `https://sites.<domain>/<handle>` opens the selected site's
 normal URL. The owner dashboard remains `https://<domain>/<handle>`.
 No wildcard DNS or extra certificate is required for path-model home selection.

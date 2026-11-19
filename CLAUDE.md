@@ -66,7 +66,7 @@ https://simple-host.app and runs in production for real users.
 
 ### Self-hosted releases
 
-A release bumps the version in the pinned files (`deploy/hack/standalone/{compose.yaml,install.sh,Dockerfile,coolify/compose.yaml,digitalocean/*}`, `products/hack/webassets/static/setup/simple-hack.json`, and the `VERSION=` line in `docs/platforms/simple-hack-standalone.md`); `scripts/check-hack-setup.py` checks they agree. Write what was tested to `docs/history/simple-hack-release-vX.Y.Z.md` and add a `CHANGELOG.md` entry. Never add release-status or "checked on" prose to `docs/platforms/`; the check fails on it.
+A release bumps the version in the pinned files (`deploy/hack/standalone/{compose.yaml,install.sh,Dockerfile,digitalocean/*}`, `products/hack/webassets/static/setup/simple-hack.json`, and the `VERSION=` line in `docs/platforms/simple-hack-standalone.md`); `scripts/check-hack-setup.py` checks they agree. Write what was tested to `docs/history/simple-hack-release-vX.Y.Z.md` and add a `CHANGELOG.md` entry. Never add release-status or "checked on" prose to `docs/platforms/`; the check fails on it.
 
 ## Build, test, deploy (as actually done on this box)
 

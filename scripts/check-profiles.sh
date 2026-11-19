@@ -61,8 +61,7 @@ def setting_names(text, key, source):
         errors.append(f'{source}: empty or missing {key} settings block')
     return names
 
-for path in ['compose.yaml', 'deploy/hack/standalone/compose.yaml',
-             'deploy/hack/standalone/coolify/compose.yaml']:
+for path in ['compose.yaml', 'deploy/hack/standalone/compose.yaml']:
     text = read(path)
     config = yaml.safe_load(text)
     if 'app' not in config['services']:

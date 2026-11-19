@@ -158,7 +158,7 @@ stay hidden.
 
 On hosted Simple Host, the selected site serves at the person-host root and
 keeps its normal URL; sign-in and data on that origin cover the selected site
-only. On a small-box install, including Droplet 1-Click and Coolify, the default
+only. On a small-box install, including Droplet 1-Click, the default
 path model remains: `https://sites.<domain>/<handle>` opens the selected site's
 normal URL. The owner dashboard remains `https://<domain>/<handle>`.
 No wildcard DNS or extra certificate is required for path-model home selection.
@@ -169,7 +169,7 @@ Simple Hack accounts own no personal sites, so this feature does not apply.
 ## MCP Apps in installed copies
 
 The original four `MCP_APP_*` flags are off by default in every package. Set `on` or
-`accounts:alice,bob` in the installation's `.env` or Coolify environment settings,
+`accounts:alice,bob` in the installation's `.env`,
 then recreate the app container. Host and Hack installer reruns preserve these
 values. Dashboard also needs My sites. Forwarding flags does not enable screens
 for Hack callers; its product gates still apply. Leave site preview off unless

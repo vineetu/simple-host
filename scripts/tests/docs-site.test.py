@@ -162,15 +162,15 @@ class RepoPagesLinkRewriteTest(unittest.TestCase):
         self.assertEqual(out, 'See [settings](https://github.com/vineetu/simple-host/blob/main/docs/advanced/settings.json).')
 
     def test_directory_link_becomes_a_github_tree_link(self):
-        out = self.rewrite('See [deploy](../../deploy/platforms/coolify/).')
-        self.assertEqual(out, 'See [deploy](https://github.com/vineetu/simple-host/tree/main/deploy/platforms/coolify/).')
+        out = self.rewrite('See [deploy](../../deploy/digitalocean/).')
+        self.assertEqual(out, 'See [deploy](https://github.com/vineetu/simple-host/tree/main/deploy/digitalocean/).')
 
     def test_absolute_diagram_image_is_rewritten(self):
-        out = self.rewrite('![a diagram](https://simple-host.app/diagrams/coolify.svg)')
-        self.assertEqual(out, '![a diagram](/diagrams/coolify.svg)')
+        out = self.rewrite('![a diagram](https://simple-host.app/diagrams/upcloud.svg)')
+        self.assertEqual(out, '![a diagram](/diagrams/upcloud.svg)')
 
     def test_repo_image_is_copied_and_linked(self):
-        out = self.rewrite('![shot](assets/shot.png)', repo_path='docs/platforms/coolify.md')
+        out = self.rewrite('![shot](assets/shot.png)', repo_path='docs/platforms/upcloud.md')
         self.assertEqual(out, '![shot](/docs/self-hosting/assets/shot.png)')
         self.assertEqual(self.copied, ['docs/platforms/assets/shot.png'])
 

@@ -122,7 +122,7 @@ Deleting the volumes deletes your data.
 ## Troubleshooting
 
 - **DNS or certificates:** check that the platform, event and nested team addresses point at this server. Remove conflicting records and check certificate capacity.
-- **Ports busy:** stop the service using ports 80 or 443, or use the [Coolify guide](/docs/self-hosting/platforms/simple-hack-coolify.md) with its existing proxy.
+- **Ports busy:** stop the service using ports 80 or 443,.
 - **Migration failure:** the installer leaves the app stopped and both volumes intact. Fix the reported cause and rerun the installer or upgrade.
 - **Logs:** run the command below to read app logs.
 

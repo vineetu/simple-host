@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1ngqqee" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ppere3" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -417,33 +417,8 @@
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/coolify/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Coolify</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/digitalocean/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Install Simple Host on DigitalOcean</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/fly/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Fly.io</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/railway/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Railway</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/render/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Render</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/simple-hack-coolify/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Hack on Coolify</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -699,17 +674,14 @@ separate writable state volume. It is off by default; routing and end-to-end
 acceptance belong to D4-S5a, so enabling the profile alone does not change
 Caddy’s upstream.
 Workers run inside the server process, as listed below.</p>
-<p>Standalone Hack and its Coolify variant are the same Compose profile, with a
-different package: Postgres plus an app container running both Caddy and the
+<p>Standalone Hack is a Compose profile with its own package: Postgres plus an app container running both Caddy and the
 server, and a one-shot <code>release</code> container. Build the root Dockerfile’s <code>hack</code>
 target, then use it as the standalone Dockerfile’s <code>SIMPLE_HOST_IMAGE</code> build
 argument. The standalone entrypoint starts <code>simple-hack</code> beside Caddy.
 Its <code>/data</code> volume holds sites, logs and Caddy state; the server listens on
 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080. Default published ports
-are 80/443 and loopback 18080. Coolify uses Traefik and TLS passthrough instead
-of those host port bindings (<code>deploy/hack/standalone/compose.yaml:9</code>,
-<code>deploy/hack/standalone/Dockerfile:12</code>, <code>deploy/hack/standalone/start.sh:68</code>,
-<code>deploy/hack/standalone/coolify/compose.yaml:133</code>).</p>
+are 80/443 and loopback 18080 (<code>deploy/hack/standalone/compose.yaml:9</code>,
+<code>deploy/hack/standalone/Dockerfile:12</code>, <code>deploy/hack/standalone/start.sh:68</code>).</p>
 <h3 id="how-settings-are-supplied-1">How settings are supplied</h3>
 <p>Compose substitutes <code>.env</code>/shell values into explicit container environment
 entries. Root Compose requires <code>DB_PASSWORD</code> and <code>ADMIN_API_KEY</code>, constructs
@@ -891,7 +863,7 @@ no database and prints release/commit plus embedded migration information
 </table>
 <h2 id="password-sign-in-by-profile">Password sign-in by profile</h2>
 <p>Hosted systemd: leave <code>PASSWORD_SIGNIN=off</code> (binary default); existing email and provider sign-ins continue.
-Docker Compose small box, standalone Hack and Coolify: <code>PASSWORD_SIGNIN</code> and <code>PASSWORD_SELF_SIGNUP</code> default to <code>on</code> and are passed through. No mail or identity provider is required for password sign-in.
+Docker Compose small box and standalone Hack: <code>PASSWORD_SIGNIN</code> and <code>PASSWORD_SELF_SIGNUP</code> default to <code>on</code> and are passed through. No mail or identity provider is required for password sign-in.
 Kubernetes: <code>signIn.password.enabled: true</code> and <code>signIn.password.selfSignup: true</code> render both settings as <code>on</code>; setting either false renders <code>off</code>. Password sign-in satisfies the chart’s sign-in requirement without OIDC or Resend.
 An operator may set <code>PASSWORD_SELF_SIGNUP=off</code> and create/reset accounts through Admin Users. People must change temporary passwords before completing sign-in. Existing email accounts can receive passwords by admin reset; existing keys and sessions continue to work.</p>
 </div>

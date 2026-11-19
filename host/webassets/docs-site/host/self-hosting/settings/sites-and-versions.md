@@ -111,8 +111,7 @@ Small-box installer and DigitalOcean installations:
 docker compose --project-directory /opt/simple-host --env-file /opt/simple-host/.env run --rm --no-deps -T app site-summary-backfill
 ```
 
-For either Coolify recipe, open the app service's terminal after migration and
-run `simple-host site-summary-backfill`. For a manual Compose checkout, run
+For a manual Compose checkout, run
 `docker compose run --rm --no-deps -T app site-summary-backfill` from its directory.
 The old pinned releases do not contain this command; run it after installing
 the new release. New deploys populate summaries automatically.

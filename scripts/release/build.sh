@@ -125,14 +125,6 @@ with open_tar(f'{base}.tar.gz') as tar, ZipFile(f'{base}.zip') as zip_file:
     for read in (lambda name: tar.extractfile(name).read(), zip_file.read):
         if read(f'{package}/db/schema.sql') != schema:
             raise SystemExit('Packaged db/schema.sql differs from the combined Host and Hack schema')
-        services = yaml.safe_load(read(f'{package}/deploy/hack/standalone/coolify/service-template.yaml'))['services']
-        for service in ('app', 'release'):
-            if services[service]['image'] != hack_image:
-                raise SystemExit(f'Packaged Coolify {service} must use {hack_image}')
-        coolify = read(f'{package}/docs/platforms/simple-hack-coolify.md').decode()
-        upgrade = coolify.split('## Upgrade\n', 1)[1].split('\n## ', 1)[0]
-        if 'supported paired-upgrade' not in upgrade or 'SIMPLE_HACK_IMAGE' in upgrade:
-            raise SystemExit('The packaged Coolify guide must require a supported paired upgrade')
         guide = read(f'{package}/docs/kubernetes.md').decode()
         intro = guide.split('\n## ', 1)[0]
         renderer = 'deploy/kubernetes/render.sh'
@@ -186,7 +178,7 @@ with open_tar(f'{base}.tar.gz') as tar, ZipFile(f'{base}.zip') as zip_file:
             for path in (command[2], command[command.index('--compose') + 1],
                          command[command.index('--caddyfile') + 1]):
                 read(f'{package}/{path}')
-print('Verified schema, Coolify images and upgrade instructions in both installation archives')
+print('Verified schema and upgrade instructions in both installation archives')
 
 for product, expected in (('simple-host', host_image), ('simple-hack', hack_base_image)):
     chart = Path(out, f'{product}-{version}.tgz')

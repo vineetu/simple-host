@@ -153,11 +153,11 @@ without credentials. Its `handle`, `bio` and `sites` include each visible site's
 a 30-second cache. Sites with List on my profile off, offline, passcode-protected, named-viewers-only and taken-down sites
 stay hidden.
 
-On hosted Simple Host, the selected site serves at the person-host root and keeps its normal URL; sign-in and data on that origin cover the selected site only. On a small-box install, including Droplet 1-Click and Coolify, the default path model remains: `https://sites.<domain>/<handle>` opens the selected site's normal URL. The owner dashboard remains `https://<domain>/<handle>`. No wildcard DNS or extra certificate is required for path-model home selection. Person-host installations keep the hosted behavior when configured. A domain for a whole personal space has not shipped; existing per-site domains remain.
+On hosted Simple Host, the selected site serves at the person-host root and keeps its normal URL; sign-in and data on that origin cover the selected site only. On a small-box install, including Droplet 1-Click, the default path model remains: `https://sites.<domain>/<handle>` opens the selected site's normal URL. The owner dashboard remains `https://<domain>/<handle>`. No wildcard DNS or extra certificate is required for path-model home selection. Person-host installations keep the hosted behavior when configured. A domain for a whole personal space has not shipped; existing per-site domains remain.
 
 ## MCP Apps in installed copies
 
-The original four `MCP_APP_*` flags are off by default in every package. Set `on` or `accounts:alice,bob` in the installation's `.env` or Coolify environment settings, then recreate the app container. Dashboard also needs My sites. Leave site preview off unless both the client and the site permit framing. Configured instance hosts determine its frame origins; this setting does not change site framing headers.
+The original four `MCP_APP_*` flags are off by default in every package. Set `on` or `accounts:alice,bob` in the installation's `.env`, then recreate the app container. Dashboard also needs My sites. Leave site preview off unless both the client and the site permit framing. Configured instance hosts determine its frame origins; this setting does not change site framing headers.
 
 The Passcode screen is a separate opt-in: pass `MCP_APP_PASSCODE` to the server
 process as `on` or `accounts:alice,bob`. It defaults off and is personal Simple Host

@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1ngqqee" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ppere3" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -417,33 +417,8 @@
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/coolify/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Coolify</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/self-hosting/platforms/digitalocean/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Install Simple Host on DigitalOcean</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/fly/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Fly.io</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/railway/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Railway</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/render/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Host on Render</span>
-				
-			</a>
-	</li><li class="astro-rmhv4bp6">
-		<a href="/docs/self-hosting/platforms/simple-hack-coolify/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Install Simple Hack on Coolify</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -888,8 +863,7 @@ connection string needs to be copied.</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">docker</span><span style="color:#9ECBFF"> compose</span><span style="color:#79B8FF"> --project-directory</span><span style="color:#9ECBFF"> /opt/simple-host</span><span style="color:#79B8FF"> --env-file</span><span style="color:#9ECBFF"> /opt/simple-host/.env</span><span style="color:#9ECBFF"> run</span><span style="color:#79B8FF"> --rm</span><span style="color:#79B8FF"> --no-deps</span><span style="color:#79B8FF"> -T</span><span style="color:#9ECBFF"> app</span><span style="color:#9ECBFF"> site-summary-backfill</span></span></code></pre>
 <p>Standalone Hack installations, including its DigitalOcean package:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">docker</span><span style="color:#9ECBFF"> compose</span><span style="color:#79B8FF"> --project-directory</span><span style="color:#9ECBFF"> /opt/simple-hack</span><span style="color:#79B8FF"> --env-file</span><span style="color:#9ECBFF"> /opt/simple-hack/.env</span><span style="color:#9ECBFF"> run</span><span style="color:#79B8FF"> --rm</span><span style="color:#79B8FF"> --no-deps</span><span style="color:#79B8FF"> -T</span><span style="color:#9ECBFF"> app</span><span style="color:#9ECBFF"> site-summary-backfill</span></span></code></pre>
-<p>For either Coolify recipe, open the app service’s terminal after migration and
-run <code>simple-host site-summary-backfill</code>. For a manual Compose checkout, run
+<p>For a manual Compose checkout, run
 <code>docker compose run --rm --no-deps -T app site-summary-backfill</code> from its directory.
 The old pinned releases do not contain this command; run it after installing
 the new release. New deploys populate summaries automatically.</p>

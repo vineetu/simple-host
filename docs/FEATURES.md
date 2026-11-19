@@ -984,14 +984,11 @@ Clients without a screen get `https://<APIHost>/<handle>?site=<site>&open=passco
 opens that site's existing Passcode dialog once after loading the owner's sites, then removes
 the query parameter. The link grants no access by itself.
 
-Install plumbing (unreleased): root Compose, both Coolify recipes, DigitalOcean,
+Install plumbing (unreleased): root Compose, DigitalOcean,
 and the standalone Hack package forward the original four flags, default off. Installer
 reruns preserve account allowlists. The setup registry and configuration tables
 also include photo limits. Hack product gates still apply, so forwarding a flag
-does not offer a screen to Hack callers. Coolify generates and keeps
-`PASSCODE_ENC_KEY` for passcodes and notification sealing, forwards OIDC and
-notification limits, and pins a schema containing notification and summary
-columns. Release versions are unchanged. Existing sites need the documented
+does not offer a screen to Hack callers. Release versions are unchanged. Existing sites need the documented
 `site-summary-backfill` command after migration, once per unsummarised site.
 Preview frame origins and the browser URL check use this instance's served
 site bases and separate content host; the dashboard origin is not an exact
@@ -1867,7 +1864,7 @@ at this stage; runtime acceptance is D4-S5a and default traffic stays on the app
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
-the DigitalOcean and Coolify guides describe their separate paths. The unified
+the DigitalOcean guide describes its separate path. The unified
 `v*` release workflow builds the base and standalone Simple Hack images from
 one checkout and packages the installers, schema, and guides as ZIP and tar.gz
 downloads. v0.8.13 (2026-10-31) carries the new default Simple Hack web app,

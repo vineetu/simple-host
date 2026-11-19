@@ -38,7 +38,7 @@ acceptance belong to D4-S5a, so enabling the profile alone does not change
 Caddy's upstream.
 Workers run inside the server process, as listed below.
 
-Its `/data` volume holds sites, logs and Caddy state; the server listens on 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080. Default published ports are 80/443 and loopback 18080.
+Its `/data` volume holds sites, logs and Caddy state; the server listens on 127.0.0.1:8090, Caddy on 8081/8443 with health on 8080.
 
 ### How settings are supplied
 

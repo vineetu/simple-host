@@ -15,7 +15,6 @@ cleanup() {
     docker compose --env-file "$INSTALL/.env" -f "$INSTALL/compose.yaml" logs --tail 30 app >&2 || true
   fi
   [ ! -f "$INSTALL/.env" ] || docker compose --env-file "$INSTALL/.env" -f "$INSTALL/compose.yaml" down -v --remove-orphans >/dev/null 2>&1 || true
-  docker network rm sh-hack-package-proxy >/dev/null 2>&1 || true
   docker image rm "$PREVIOUS_FIXTURE" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
@@ -83,17 +82,4 @@ if [ "${TEST_HACK_PRESENTATION:-0}" = 1 ]; then
 fi
 if [ -n "${TEST_BROWSER_SCRIPT:-}" ]; then
   TEST_INSTALL_DIR="$INSTALL" node "$TEST_BROWSER_SCRIPT"
-fi
-if [ "${TEST_COOLIFY_PROXY:-0}" = 1 ]; then
-  compose stop app
-  python3 "$HERE/tests/proxy_fixture.py" "$HERE/coolify/compose.yaml" "$INSTALL/proxy.yaml"
-  docker network create sh-hack-package-proxy >/dev/null
-  docker compose --env-file "$INSTALL/.env" -f "$INSTALL/proxy.yaml" up -d --wait --wait-timeout 180
-  # Docker provider updates asynchronously after the proxy starts.
-  sleep 3
-  python3 "$HERE/tests/smoke.py" "$INSTALL" verify
-  proxy_id=$(docker compose --env-file "$INSTALL/.env" -f "$INSTALL/proxy.yaml" ps -q proxy)
-  proxy_ip=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$proxy_id")
-  compose exec -T app tail -n 5 /data/logs/access.log | python3 -c 'import json,sys; rows=[json.loads(s) for s in sys.stdin]; assert rows; assert all(r["request"]["remote_ip"] != sys.argv[1] for r in rows); assert all("X-Api-Key" not in r["request"]["headers"] for r in rows); print("PASS: proxy preserves visitor address and does not log API keys")' "$proxy_ip"
-  echo 'PASS: Coolify Raw Compose routing through real Traefik with TLS passthrough and PROXY protocol'
 fi

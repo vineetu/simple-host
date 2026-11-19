@@ -181,7 +181,7 @@ func TestPhotoDecoderSafety(t *testing.T) {
 }
 
 func TestPhotoStaticServingNoSniff(t *testing.T) {
-	for _, file := range []string{"../../deploy/compose/Caddyfile", "../../deploy/platforms/coolify/Caddyfile", "../../deploy/platforms/fly/Caddyfile", "../../deploy/platforms/render/Caddyfile", "../../deploy/Caddyfile.v3-content-host.example"} {
+	for _, file := range []string{"../../deploy/compose/Caddyfile", "../../deploy/Caddyfile.v3-content-host.example"} {
 		b, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)

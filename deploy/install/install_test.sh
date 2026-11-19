@@ -81,21 +81,12 @@ with tempfile.TemporaryDirectory(prefix='notify-install-test-') as tmp:
         assert compose['services']['app']['environment'][n] == '${' + n + ':-off}'
     assert compose['services']['app']['environment']['PASSCODE_ENC_KEY'] == '${PASSCODE_ENC_KEY:-}'
     assert 'fetch "$DIR/compose.yaml" compose.yaml' in (root / 'deploy/install/install.sh').read_text()
-    for path in ('deploy/platforms/coolify/compose.yaml', 'deploy/platforms/coolify/service-template.yaml',
-                 'deploy/hack/standalone/compose.yaml', 'deploy/hack/standalone/coolify/compose.yaml',
-                 'deploy/hack/standalone/coolify/service-template.yaml'):
+    for path in ('deploy/hack/standalone/compose.yaml',):
         config = yaml.safe_load((root / path).read_text())
         app_env = config['services']['app']['environment']
         if isinstance(app_env, list): app_env = dict(line.split('=', 1) for line in app_env)
         for n in flags:
             assert app_env[n] == '${' + n + ':-off}', path + ': ' + n
-        if path.startswith('deploy/platforms/coolify/'):
-            assert app_env['PASSCODE_ENC_KEY'] == '${SERVICE_REALBASE64_32_PASSCODE}'
-            for n in ('OIDC_ISSUER','OIDC_CLIENT_ID','OIDC_CLIENT_SECRET','OIDC_LABEL','OIDC_INSECURE_ALLOWED','ALLOWED_EMAIL_DOMAINS','EMAIL_SIGNIN'):
-                assert app_env[n] == '${' + n + ':-}', path + ': ' + n
-            for n in compose['services']['app']['environment']:
-                if n.startswith('NOTIFY_') or n == 'WEB_PUSH_ACCOUNTS':
-                    assert app_env[n] == '${' + n + ':-}', path + ': ' + n
 
 print('PASS: installer generates and preserves PASSCODE_ENC_KEY, upgrades existing .env, passes the key through compose, and replaces .env privately and atomically')
 PY
