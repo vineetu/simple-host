@@ -183,7 +183,7 @@ Website Deploy serves files. There is no rewrite layer. Because sites live under
 
 - **Multi-page static site**: every page is a real `index.html` under a directory. `about/` resolves to `about/index.html` under the site path.
 - **SPA with framework router**: build for static export (see the `website-deploy` skill's framework section) **with a relative base**. Use the framework's hash-router mode or generate a `404.html` that bootstraps the app.
-- **Pretty URLs for plain HTML**: put each "page" in its own folder with an `index.html` (`about/index.html`, `pricing/index.html`).
+- **Pretty URLs for plain HTML**: use `about.html` for `/about` or `about/index.html` for `/about/`.
 
 ### 8. A nicer address: free name or custom domain
 

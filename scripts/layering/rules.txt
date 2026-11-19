@@ -13,7 +13,7 @@ extension -> config edition email handler mcp storage workers papermetrics model
 @/cmd/simple-hack -> server extension brain @/products/hack
 handler -> app/** auth httpx edition model webassets buildinfo workers
 @/products/hack/hackhttp -> app/** auth httpx edition model webassets buildinfo workers
-handler -> mcp redirects
+handler -> mcp redirects pagepath
 auth -> app/accounts httpx edition model rules/auth rules/sites
 @/products/hack/hackhttp -> rules/sites
 mcp -> app/** edition model httpx buildinfo brain webassets workers
@@ -25,7 +25,7 @@ app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model
 @/products/hack/app/members -> app/errors model edition workers repository/sqlkit
 @/products/hack/app/entries -> app/errors model edition workers repository/sqlkit
 app/accounts -> repository/{accounts,sites} rules/auth oauth email geoip
-app/sites -> redirects app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball eventdns capacity
+app/sites -> redirects pagepath app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/storage -> @/host/storage/rules
 @/products/hack/app/storagebind -> app/storage @/products/hack/repository/hackevents repository/sqlkit @/host/storage/rules
@@ -54,7 +54,7 @@ storage -> @/host/storage/rules
 geoip -> workers
 {app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
 {brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,testdb,geoip/geoiptest} -> -
-{llm,redirects} -> -
+{llm,redirects,pagepath} -> -
 # Permanent module-specific packages and command rows.
 @/scripts/split/sqlcheck -> @/host/db/migrations @/products/hack/db/migrations
 @/cmd/analytics-rebuild -> analytics config

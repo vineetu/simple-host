@@ -290,6 +290,13 @@ func TestVisitorDiscoveryLimit(t *testing.T) {
 func TestVisitorPageTruncationAndUppercaseText(t *testing.T) {
 	f := newVisitorFixture(t)
 	root := filepath.Join(f.a.sites.disk.SiteDir(f.ownerID, "shop"), "current")
+	if err := os.WriteFile(filepath.Join(root, "about.html"), []byte("<main>About the shop</main>"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out := f.call(t, "visitor_read_site", map[string]any{"address": "https://" + f.host, "page": "about"}, "")["visitor_data"].(map[string]any)
+	if out["page_text"] != "About the shop" {
+		t.Fatalf("about: %v", out["page_text"])
+	}
 	for _, tc := range []struct {
 		name, text string
 		truncated  bool

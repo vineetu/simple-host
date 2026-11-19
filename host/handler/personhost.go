@@ -400,6 +400,28 @@ func (h *SiteHandler) renderPersonNotFound(w http.ResponseWriter, r *http.Reques
 		"Back to @"+handle+"’s sites")
 }
 
+// escapedPageTail removes an internal rewrite prefix while retaining the
+// visitor's spelling of the decoded, site-relative path.
+func escapedPageTail(u *url.URL, rel string) string {
+	escaped := u.EscapedPath()
+	if u.Path == rel {
+		return escaped
+	}
+	prefix, ok := strings.CutSuffix(u.Path, rel)
+	if !ok {
+		return (&url.URL{Path: rel}).EscapedPath()
+	}
+	// Skip the prefix and the leading slash of rel in decoded bytes.
+	for range len(prefix) + 1 {
+		if escaped[0] == '%' {
+			escaped = escaped[3:]
+		} else {
+			escaped = escaped[1:]
+		}
+	}
+	return "/" + escaped
+}
+
 // contentHostRedirect answers an old content-host address once nginx sends it
 // here (docs/designs/per-person-subdomains-nginx.md; not wired tonight):
 // GET /internal/site-redirect/{handle} and /{handle}/{sitename}/{rest...}.
@@ -471,7 +493,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	}
 	// A directory redirect must name the public address (/<handle>/<site>/...),
 	// never this internal route; it is rebuilt from validated parts only.
-	escRest := (&url.URL{Path: rest}).EscapedPath()
+	escRest := escapedPageTail(r.URL, rest)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	h.serveSiteFile(w, r, site.UserID, site.Name, rest, "/"+handle+"/"+name+escRest)
 }

@@ -102,7 +102,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.115`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.116`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -317,7 +317,7 @@ Storage table row POSTs also accept Idempotency-Key for an owner or signed-in vi
 
 Publish a root `_redirects` text file with `FROM [key=value ...] TO [STATUS]`, one rule per line. Paths, `:name` segments and final `*` splats are supported; use `:splat` in targets. Targets are local paths or absolute HTTP(S) URLs with a literal host. Status is 301 by default, or 302, 404 or 410; append `!` to override existing content. 404/410 serve a local page. First match wins; matching ignores trailing slashes. Rules run after site access gates. Query strings carry over only without query conditions or a target query.
 
-The file is validated on publish and never served. Limits: 128 KiB, 2048 bytes per line, 1000 rules by default (`REDIRECTS_MAX_RULES` on self-hosted installs). Fix publish errors at their reported line numbers. `/faq` serves `faq.html` directly with 200; directory-only `faq/index.html` keeps the 301 to `/faq/` for relative links.
+The file is validated on publish and never served. Limits: 128 KiB, 2048 bytes per line, 1000 rules by default (`REDIRECTS_MAX_RULES` on self-hosted installs). Fix publish errors at their reported line numbers. When the program serves pages, `faq.html` lives at `/faq` and `faq/index.html` at `/faq/`. If only one exists, the other spelling redirects there. If both exist, each address serves its own page. Explicit filenames such as `/faq.html` also work. Rules ignore trailing slashes. Both spellings shadow a rule unless it ends in `!`.
 
 **List on my profile:** `set_visibility` keeps its public/unlisted values: public = on (shows on the owner’s profile page), unlisted = off (does not). New sites start off. Every open site can be found by search engines on every address. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.
 

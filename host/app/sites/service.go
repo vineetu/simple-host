@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"path"
@@ -21,6 +22,7 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/eventdns"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/pagepath"
 	"github.com/vsriram/simple-host/host/redirects"
 	accounts "github.com/vsriram/simple-host/host/repository/accounts"
 	repo "github.com/vsriram/simple-host/host/repository/sites"
@@ -1287,35 +1289,47 @@ func (s *Service) validateRedirects(files map[string][]byte) error {
 		if max == 0 {
 			max = 1000
 		}
-		if _, err := redirects.ParseWith(data, redirects.Options{MaxRules: max, Exists: filesResolve(files)}); err != nil {
+		tree := newPublishedTree(files)
+		exists := func(p string) bool { return pagepath.Taken(tree, p) }
+		if _, err := redirects.ParseWith(data, redirects.Options{MaxRules: max, Exists: exists}); err != nil {
 			return &Error{Code: "redirects_invalid", Message: "_redirects: " + err.Error()}
 		}
 	}
 	return nil
 }
 
-// filesResolve reports whether a decoded site path serves content in files
-// (a file, path.html, or a folder holding a file): a non-forced redirect rule
-// is shadowed there, so a chain of rules stops at it.
-func filesResolve(files map[string][]byte) func(string) bool {
-	dirs := map[string]bool{"": true}
+// publishedTree is the files being published, as the page-address rule reads
+// a version tree: every file, and every folder that holds one.
+type publishedTree struct {
+	files map[string][]byte
+	dirs  map[string]bool
+}
+
+func newPublishedTree(files map[string][]byte) publishedTree {
+	dirs := map[string]bool{".": true}
 	for name := range files {
-		for d := path.Dir(name); d != "." && d != "/" && !dirs[d]; d = path.Dir(d) {
+		for d := path.Dir(name); !dirs[d] && d != "/"; d = path.Dir(d) {
 			dirs[d] = true
 		}
 	}
-	return func(p string) bool {
-		name := strings.Trim(path.Clean("/"+p), "/")
-		if name == "_redirects" {
-			return false
-		}
-		if dirs[name] {
-			return true
-		}
-		if _, ok := files[name]; ok {
-			return true
-		}
-		_, ok := files[name+".html"]
-		return ok && !strings.HasSuffix(p, "/")
-	}
+	return publishedTree{files, dirs}
 }
+
+func (t publishedTree) Stat(name string) (fs.FileInfo, error) {
+	if _, ok := t.files[name]; ok {
+		return publishedInfo(0), nil
+	}
+	if t.dirs[name] {
+		return publishedInfo(fs.ModeDir), nil
+	}
+	return nil, fs.ErrNotExist
+}
+
+type publishedInfo fs.FileMode
+
+func (i publishedInfo) Name() string       { return "" }
+func (i publishedInfo) Size() int64        { return 0 }
+func (i publishedInfo) Mode() fs.FileMode  { return fs.FileMode(i) }
+func (i publishedInfo) ModTime() time.Time { return time.Time{} }
+func (i publishedInfo) IsDir() bool        { return fs.FileMode(i).IsDir() }
+func (i publishedInfo) Sys() any           { return nil }

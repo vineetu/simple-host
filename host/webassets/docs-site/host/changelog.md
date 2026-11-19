@@ -8,6 +8,8 @@
 
 - **Nov 19:** Simple Host retired the WordPress and Squarespace export importer. You can still publish a site from a ZIP file or an archive upload link.
 
+- **Nov 18:** On pages served by the program, `/faq/` redirects to `/faq` when the site publishes `faq.html` and there is no `faq/index.html`. Folder pages keep their trailing slash. Both redirects preserve the query string and let browsers recheck after a publish. The visitor reader and selected home page now find extensionless HTML pages too. A page read through the visitor tools is refused when the site's passcode or access changes while the read is under way.
+
 - **Nov 17:** Fix interrupted Compose upgrade recovery, nonroot maintenance-lock ownership and private atomic configuration publication. Preserve environment substitutions and the original service set across retries; resume incomplete first installations and their release recording (D4-S10a review).
 
 - **Nov 17:** Add the self-hosted upgrade compatibility check and Compose backup/restore protocol. Retries preserve the original paired backup; restore puts database, files, configuration and image digests back together. Command registration follows separately (D4-S10a).

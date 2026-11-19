@@ -129,7 +129,7 @@ func TestSiteHostsCanonical(t *testing.T) {
 	if r := a.at(t, "GET", shop, "/", nil, nil); r.status != 200 || string(r.body) != "<h1>shop</h1>" || r.header.Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("site host: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", shop, "/sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/sub/" {
+	if r := a.at(t, "GET", shop, "/sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/sub/" || r.header.Get("Cache-Control") != publicPageCache {
 		t.Fatalf("dir without slash: %d %q", r.status, r.header.Get("Location"))
 	}
 	if r := a.at(t, "GET", shop, "/sub/", nil, nil); r.status != 200 || string(r.body) != "sub" {

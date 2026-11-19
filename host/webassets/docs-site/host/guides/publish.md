@@ -1,6 +1,6 @@
 # Sites and deploy
 
-For old links and extension-free page addresses, see [Redirects and plain addresses](/docs/guides/redirects.md).
+For old links and extension-free page addresses, see [redirect rules and page addresses](/docs/guides/redirects.md#how-page-addresses-work).
 
 ## Publish a site
 [What this is](/features.html#deploy-inline-files)

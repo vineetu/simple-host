@@ -25,6 +25,12 @@ func TestHackFlatHostsRealEventWins(t *testing.T) {
 	if r.status != 200 || !strings.Contains(string(r.body), "team content") {
 		t.Fatalf("flat team: %d %s", r.status, r.body)
 	}
+	for _, method := range []string{"GET", "HEAD"} {
+		r := a.on(t, method, flat+"."+tsDomain, "/index.html/?q=a%2Fb", nil, "")
+		if r.status != 301 || r.header.Get("Location") != "/index.html?q=a%2Fb" || r.header.Get("Cache-Control") != "public, max-age=0, must-revalidate" || method == "HEAD" && len(r.body) != 0 {
+			t.Fatalf("%s flat team file: %d %v %q", method, r.status, r.header, r.body)
+		}
+	}
 	otherOrg := a.newPerson(t, "legacy-flat-org")
 	legacy := a.makeEvent(t, otherOrg)
 	var account string

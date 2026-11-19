@@ -7,12 +7,12 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path"
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/pagepath"
 )
 
 func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
@@ -90,36 +90,15 @@ func (h *SiteHandler) openProbeCurrent(siteRoot *os.Root, site model.Site) (*os.
 	return os.OpenRoot(h.disk.SiteDir(site.UserID, site.Name) + "/current")
 }
 
-// homePathExists mirrors file/directory lookup without escaping the site's root.
+// homePathExists reports whether the home site has a page at rel, at either
+// spelling of its address.
 func (h *SiteHandler) homePathExists(siteRoot *os.Root, s model.Site, rel string) bool {
 	root, err := h.openProbeCurrent(siteRoot, s)
 	if err != nil {
 		return false
 	}
 	defer root.Close()
-	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
-	if name == "" {
-		name = "."
-	}
-	f, err := root.Open(name)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	if !st.IsDir() {
-		return true
-	}
-	ix, err := root.Open(path.Join(name, "index.html"))
-	if err != nil {
-		return false
-	}
-	defer ix.Close()
-	st, err = ix.Stat()
-	return err == nil && !st.IsDir()
+	return pagepath.Resolve(root, rel).Kind != pagepath.NotFound
 }
 
 func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user model.User, base string) bool {

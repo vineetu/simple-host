@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -331,30 +330,15 @@ func (h *SiteHandler) oldAddressPrefix(siteRoot *os.Root, handle string, site mo
 	return "", false
 }
 
-// siteHasPath reports whether rel names a file or directory in the site's
-// live version (os.Root refuses escapes).
+// siteHasPath reports whether the site's live version has something at rel
+// (os.Root refuses escapes).
 func (h *SiteHandler) siteHasPath(siteRoot *os.Root, site model.Site, rel string) bool {
 	root, err := h.openProbeCurrent(siteRoot, site)
 	if err != nil {
 		return false
 	}
 	defer root.Close()
-	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
-	if name == "" {
-		return true
-	}
-	if name == "_redirects" {
-		if st, err := root.Stat(name); err != nil || !st.IsDir() {
-			return false
-		}
-	}
-	if !strings.HasSuffix(rel, "/") && !strings.HasSuffix(name, ".html") {
-		if st, e := root.Stat(name + ".html"); e == nil && st.Mode().IsRegular() {
-			return true
-		}
-	}
-	_, err = root.Stat(name)
-	return err == nil
+	return rootContentExists(root, rel)
 }
 
 // renamedSiteAddress: name is an old name of a renamed site of this account

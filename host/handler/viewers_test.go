@@ -185,6 +185,19 @@ func TestViewersGateEveryPath(t *testing.T) {
 			t.Fatalf("%s leaked: %d %s", what, r.status, r.body)
 		}
 	}
+	// The other spelling of a page: the gate answers first, and only a
+	// listed viewer learns where the page lives.
+	for from, to := range map[string]string{"/app.js/": "/app.js", "/days": "/days/"} {
+		if r := p.at(t, "GET", p.host, from, nil, nil); r.status != 401 || r.header.Get("Location") != "" {
+			t.Fatalf("signed out %s: %d %v", from, r.status, r.header)
+		}
+		if r := p.at(t, "GET", p.host, from, nil, cookieOf(dadHost)); r.status != 403 || r.header.Get("Location") != "" {
+			t.Fatalf("dad %s: %d %v", from, r.status, r.header)
+		}
+		if r := p.at(t, "GET", p.host, from, nil, cookieOf(momHost)); r.status != 301 || r.header.Get("Location") != to || r.header.Get("Cache-Control") != "private, no-cache" {
+			t.Fatalf("mom %s: %d %v", from, r.status, r.header)
+		}
+	}
 	paths := []string{"/", "/index.html", "/app.js", "/data.json", "/img.svg", "/days/", "/nope"}
 	for _, path := range paths {
 		// Signed out: the sign-in page, nothing of the site.

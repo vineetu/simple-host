@@ -7,13 +7,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"strings"
 	"time"
 
 	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/pagepath"
 )
 
 // A free <name>.<SITE_DOMAIN> address (owner decision 2026-09-24).
@@ -163,20 +163,19 @@ func (h *SiteHandler) BoundSubdomains(api, fallback http.Handler) http.Handler {
 	})
 }
 
-// serveSiteFile serves one file of a site's live version, like nginx's
-// `try_files $uri $uri/ =404` with `index index.html`: no directory listings,
-// nothing outside the site's current directory (os.Root refuses escapes,
-// symlinks included), GET and HEAD only.
+// serveSiteFileRel serves one page of a site's live version: no directory
+// listings, nothing outside the site's current directory (os.Root refuses
+// escapes, symlinks included), GET and HEAD only.
 //
-// rel is the path inside the site ("/" is its root); a directory without its
-// trailing slash redirects to the request's own path plus "/", so it works for
-// a site served at a host's root and for one served under /<site>/.
+// rel is the path inside the site ("/" is its root). A redirect to a page's
+// other spelling is built from the request's own path, so it works for a
+// site served at a host's root and for one served under /<site>/.
 func (h *SiteHandler) serveSiteFileRel(w http.ResponseWriter, r *http.Request, userID, siteName, rel string) {
 	h.serveSiteFile(w, r, userID, siteName, rel, r.URL.EscapedPath())
 }
 
 // serveSiteFile is serveSiteFileRel with the (escaped, server-built) public
-// path a directory redirect appends its "/" to.
+// path a page redirect adds its "/" to or removes it from.
 func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) {
 	h.serveSiteFileWithProbe(w, r, userID, siteName, rel, publicPath, nil)
 }
@@ -252,70 +251,56 @@ func (h *SiteHandler) serveDirFile(w http.ResponseWriter, r *http.Request, dir, 
 	h.serveRootFile(w, r, root, rel, publicPath)
 }
 
+// revalidatePage lets a later publish change a redirect or a rule's answer
+// at once; a gate's private policy stands.
+func revalidatePage(w http.ResponseWriter) {
+	if w.Header().Get("Cache-Control") == "" {
+		w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
+	}
+}
+
+// serveRootFile answers rel inside one version tree as pagepath.Resolve
+// decides: the page's file, the redirect to its other spelling, or the
+// site's 404. publicPath is the escaped address being asked for; a redirect
+// only adds or removes its trailing slash, so it lands on the page itself.
 func (h *SiteHandler) serveRootFile(w http.ResponseWriter, r *http.Request, root *os.Root, rel, publicPath string) {
-	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
-	if name == "" {
-		name = "."
-	}
-	// The root _redirects file (rules) is never served; a folder of that
-	// name is ordinary content.
-	if name == "_redirects" {
-		if st, err := root.Stat(name); err != nil || !st.IsDir() {
-			h.siteNotFound(w, r, root)
-			return
-		}
-	}
-	f, err := root.Open(name)
-	var st os.FileInfo
-	if err == nil {
-		st, err = f.Stat()
-	}
-	if (err != nil || st.IsDir()) && !strings.HasSuffix(r.URL.Path, "/") && !strings.HasSuffix(name, ".html") {
-		if candidate, e := root.Open(name + ".html"); e == nil {
-			if info, e := candidate.Stat(); e == nil && info.Mode().IsRegular() {
-				if f != nil {
-					f.Close()
+	page := pagepath.Resolve(root, rel)
+	switch page.Kind {
+	case pagepath.NotFound:
+		h.siteNotFound(w, r, root)
+		return
+	case pagepath.AddSlash, pagepath.DropSlash:
+		target := publicPath + "/"
+		if page.Kind == pagepath.DropSlash {
+			// Every trailing slash goes, however it was spelled.
+			for target = publicPath; ; {
+				t := strings.TrimSuffix(strings.TrimSuffix(strings.TrimRight(target, "/"), "%2F"), "%2f")
+				if t == target {
+					break
 				}
-				f, st, err = candidate, info, nil
-			} else {
-				candidate.Close()
+				target = t
 			}
 		}
-	}
-	if err != nil {
-		if f != nil {
-			f.Close()
+		// Only ever a path on this host: "//x" would leave it.
+		target = "/" + strings.TrimLeft(target, "/")
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
 		}
+		revalidatePage(w)
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+		return
+	}
+	f, err := root.Open(page.File)
+	if err != nil {
 		h.siteNotFound(w, r, root)
 		return
 	}
-	if st.IsDir() {
-		f.Close()
-		// A directory without its trailing slash: redirect so relative links
-		// resolve, as nginx does.
-		if !strings.HasSuffix(r.URL.Path, "/") {
-			// Only ever a path on this host: "//x" would leave it.
-			target := "/" + strings.TrimLeft(publicPath, "/") + "/"
-			if r.URL.RawQuery != "" {
-				target += "?" + r.URL.RawQuery
-			}
-			http.Redirect(w, r, target, http.StatusMovedPermanently)
-			return
-		}
-		name = path.Join(name, "index.html")
-		f, err = root.Open(name)
-		if err != nil {
-			h.siteNotFound(w, r, root)
-			return
-		}
-		st, err = f.Stat()
-		if err != nil || st.IsDir() {
-			f.Close()
-			h.siteNotFound(w, r, root)
-			return
-		}
-	}
 	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || !st.Mode().IsRegular() {
+		h.siteNotFound(w, r, root)
+		return
+	}
 	http.ServeContent(w, r, st.Name(), st.ModTime(), f)
 }
 

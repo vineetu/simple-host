@@ -122,3 +122,7 @@ Never ask visitors for payment details, ID numbers or health information, in any
 - Semantic HTML, alt text on images, focus styles kept, `lang` and viewport meta set.
 
 **List on my profile:** `set_visibility` keeps its public/unlisted values: public = on (shows on the owner’s profile page), unlisted = off (does not). New sites start off. Every open site can be found by search engines on every address. To keep a site out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex.
+
+## Redirects and plain addresses
+
+When the program serves pages, `faq.html` lives at `/faq` and `faq/index.html` at `/faq/`. If only one exists, the other spelling redirects there. If both exist, each address serves its own page. Explicit filenames such as `/faq.html` also work. Root `_redirects` rules ignore trailing slashes. Both spellings shadow a rule unless it ends in `!`.

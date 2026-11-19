@@ -311,7 +311,8 @@ func TestPreviewBeforeLive(t *testing.T) {
 	if r.status != 200 || string(r.body) != "v2" || r.header.Get("Cache-Control") != "no-store" || !strings.Contains(r.header.Get("X-Robots-Tag"), "noindex") {
 		t.Fatalf("preview: %d %s %v", r.status, r.body, r.header)
 	}
-	if r := a.at(t, "GET", shop, path+"sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != path+"sub/" {
+	checkPageRedirect(t, a, shop, path+"index.html/", path+"index.html", "no-store")
+	if r := a.at(t, "GET", shop, path+"sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != path+"sub/" || r.header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("preview dir: %d %q", r.status, r.header.Get("Location"))
 	}
 	if r := a.at(t, "GET", shop, path+"sub/", nil, nil); r.status != 200 || string(r.body) != "sub2" {

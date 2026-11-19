@@ -554,6 +554,9 @@
 	<li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
 		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#how-page-addresses-work" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">How page addresses work</span></a>
+		
 	</li>
 </ul></div>
 		</details>
@@ -570,6 +573,9 @@
 		<ul class="astro-jugkfwgx" style="--depth: 0;">
 	<li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#how-page-addresses-work" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">How page addresses work</span></a>
 		
 	</li>
 </ul>
@@ -593,7 +599,7 @@
 </div>
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
-								<div class="sl-markdown-content"><a class="what-link" href="/features.html#redirects-and-plain-addresses" data-pagefind-ignore>What this is</a>
+								<div class="sl-markdown-content">
 <p>When moving a site, collect the old addresses and publish a root <code>_redirects</code> text file with the new files:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span># FROM [query conditions] TO [status]</span></span>
 <span class="line"><span>/old /new 301</span></span>
@@ -607,7 +613,11 @@
 <p>Request query strings carry over only when the rule has no query conditions and the target has no query of its own. Local targets stay inside the site’s public path on every address. Passcodes, named viewers, offline and take-down gates run before rules.</p>
 <p>Team and event sites follow the same rules.</p>
 <p>The file is validated before creating a version. Fix <code>redirects_invalid</code> errors at the listed line numbers and publish again. Limits are 128 KiB per file, 2048 bytes per line and 1000 rules by default; self-hosted operators can change <code>REDIRECTS_MAX_RULES</code>. Loops, and chains of more than 10 redirects in a row, are rejected. The file is never served to visitors; versions, file reads and exports retain it.</p>
-<p>For plain addresses, <code>/faq</code> serves <code>faq.html</code> with 200 without changing the address. <code>/faq/</code> keeps working as before. When only <code>faq/index.html</code> exists, <code>/faq</code> keeps the 301 to <code>/faq/</code> so existing relative links continue to resolve. An exact file wins first, then <code>faq.html</code>, then the directory. No setting is needed.</p></div>
+<h2 id="how-page-addresses-work">How page addresses work</h2>
+<a class="what-link" href="/features.html#redirects-and-plain-addresses" data-pagefind-ignore>What this is</a>
+<p>When the program serves a page, <code>faq.html</code> lives at <code>/faq</code>. When there is no <code>faq/index.html</code>, a request for <code>/faq/</code> redirects to <code>/faq</code>. A folder page such as <code>faq/index.html</code> lives at <code>/faq/</code>. If only the folder page exists, <code>/faq</code> redirects to <code>/faq/</code>.</p>
+<p>If both pages exist, <code>/faq</code> serves the file and <code>/faq/</code> serves the folder index. A folder needs an <code>index.html</code> to count as a page. An exact filename takes precedence over a sibling with an added <code>.html</code>. Explicit filenames such as <code>/faq.html</code>, <code>/faq/index.html</code> and <code>/style.css</code> work directly. A slash after a filename redirects to its address without the slash.</p>
+<p>These redirects use 301, keep the query string and tell browsers to recheck the address. Redirect rules ignore trailing slashes when matching. Both spellings of a page take precedence over a rule unless its status ends in <code>!</code>. Rules are applied first and the slash redirect last, so it never joins a chain of rules. If you publish <code>faq.html</code> and there is no <code>faq/index.html</code>, you can remove the rule <code>/faq/ /faq</code>. The program already sends visitors there.</p></div>
 								<footer class="sl-flex astro-ddtxxk7k">
 	<div class="meta sl-flex astro-ddtxxk7k">
 		

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/host/pagepath"
 	"github.com/vsriram/simple-host/host/redirects"
 )
 
@@ -64,29 +65,10 @@ func loadRedirects(root *os.Root, max int) *redirects.Rules {
 	return rules
 }
 
-func siteContentExists(dir, rel string) bool {
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return false
-	}
-	defer root.Close()
-	return rootContentExists(root, rel)
-}
-
+// rootContentExists: something of the site is already at rel, so a rule
+// that is not forced stands aside (pagepath.Taken).
 func rootContentExists(root *os.Root, rel string) bool {
-	name := strings.TrimPrefix(path.Clean("/"+rel), "/")
-	if name == "" {
-		name = "."
-	}
-	// The root _redirects file is never content; a folder of that name is.
-	if st, err := root.Stat(name); err == nil && (name != "_redirects" || st.IsDir()) {
-		return true
-	}
-	if !strings.HasSuffix(rel, "/") && !strings.HasSuffix(name, ".html") {
-		st, err := root.Stat(name + ".html")
-		return err == nil && st.Mode().IsRegular()
-	}
-	return false
+	return pagepath.Taken(root, rel)
 }
 
 func (h *SiteHandler) applyRedirect(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) bool {
@@ -124,14 +106,8 @@ func (h *SiteHandler) applyRootRedirect(w http.ResponseWriter, r *http.Request, 
 			prefix = (&url.URL{Path: strings.TrimRight(p, "/")}).EscapedPath()
 		}
 	}
-	// Rule responses (redirects and 404/410 pages) are revalidated, so a
-	// later publish or gate takes effect at once; a gate's private policy
-	// stands.
-	revalidate := func() {
-		if w.Header().Get("Cache-Control") == "" {
-			w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
-		}
-	}
+	// Rule responses (redirects and 404/410 pages) are revalidated.
+	revalidate := func() { revalidatePage(w) }
 	location := m.Location(prefix, r.URL.RawQuery)
 	if m.Status == 301 || m.Status == 302 {
 		u, err := url.Parse(location)

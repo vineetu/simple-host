@@ -1,5 +1,7 @@
 # Domains and addresses
 
+For page paths within a site, see [How page addresses work](/docs/guides/redirects.md#how-page-addresses-work).
+
 <!--sh:hosted-->
 
 ## Take a free short name

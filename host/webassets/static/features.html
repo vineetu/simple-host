@@ -496,7 +496,7 @@
       <details class="feat" id="redirects-and-plain-addresses">
         <summary><span class="fname">Redirects and plain addresses</span><span class="fline">Keep old links working when pages move.</span></summary>
         <div class="fbody">
-          <p class="how">Publish a root _redirects file with paths, splats, placeholders and query rules. Rules run after access gates; existing content wins unless forced.</p>
+          <p class="how">Publish a root _redirects file with paths, splats, placeholders and query rules. Rules run after access gates. On program-served pages, faq.html lives at /faq and faq/index.html at /faq/. With only one page, the other spelling redirects there. Both spellings take precedence over an ordinary rule.</p>
           <p class="ex"><b>Example.</b> /old/* /articles/:splat 301 sends old blog links to their new pages.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Anyone moving or reorganising a site.</dd>

@@ -62,6 +62,12 @@ func TestHomeSettingServingAndIsolation(t *testing.T) {
 	}
 	id := a.siteID(t, owner, "home")
 	// A file wins over the old path link, and the site's own 404 is used.
+	if err := writeTestHomeFile(a.sites, id, "blog.html", "home blog file"); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "GET", host, "/blog", nil, nil); r.status != 200 || string(r.body) != "home blog file" {
+		t.Fatal(r.status, string(r.body))
+	}
 	for name, content := range map[string]string{"blog/index.html": "home blog", "404.html": "home 404"} {
 		if err := writeTestHomeFile(a.sites, id, name, content); err != nil {
 			t.Fatal(err)

@@ -15,6 +15,7 @@ if the idea is clear, go straight to building.
 - **Static files**: HTML, CSS, JS, images, fonts, served at the site's own address
   `https://<site>.<handle>.simple-host.app/`, or optionally at a short `<name>.simple-host.app`
   or the person's own domain. Any number of pages.
+- **Pretty URLs for plain HTML** use `about.html` for `/about` or `about/index.html` for `/about/`.
 - **Deprecated shared state on existing sites**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
   vote tallies, settings, a short list.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.

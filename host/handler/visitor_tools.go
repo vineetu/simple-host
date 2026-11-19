@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -22,6 +23,7 @@ import (
 	httpx "github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/pagepath"
 	"golang.org/x/net/html"
 )
 
@@ -79,6 +81,11 @@ func visitorResult(data any, owner bool) map[string]any {
 	return map[string]any{"visitor_data": visitorPrivateData(data), "note": note}
 }
 
+const (
+	visitorSiteGone   = "site_not_found: that site no longer exists; ask the person for the current address, or call visitor_read_site with no address to list sites shared with you"
+	visitorSiteLocked = "site_locked: this site asks for a passcode; the person can open it in their browser and enter it there, or call again with passcode set if they already gave it to you"
+)
+
 func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool string, args map[string]any, oauth *OAuthHandler) (map[string]any, error) {
 	user, err := h.storeAccounts().GetUserByID(orig.Context(), caller.Owner)
 	if err != nil || user.Suspended {
@@ -110,7 +117,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	}
 	_, ownerID, siteName, err := h.sitesSvc().GetSiteOwner(orig.Context(), id.String)
 	if err != nil {
-		return nil, mcp.CodedError("site_not_found", "site_not_found: that site no longer exists; ask the person for the current address, or call visitor_read_site with no address to list sites shared with you")
+		return nil, mcp.CodedError("site_not_found", visitorSiteGone)
 	}
 	pass, revoke, err := h.storeAccounts().IssueInternalVisitorKey(model.InternalVisitorPass{UserID: user.ID, SiteID: id.String, Host: host, AppName: caller.AppName})
 	if err != nil {
@@ -129,12 +136,8 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	req.Header.Set("X-SH-CSRF", "1")
 	req.SetPathValue("sitename", siteName)
 	req.Method = http.MethodGet
-	gate := httptest.NewRecorder()
-	if h.refuseSuspendedSiteID(gate, req, id.String) || h.refuseOffline(gate, req, id.String) {
-		return nil, visitorResponseError(gate)
-	}
-	if !h.ViewersLetIn(req, id.String) {
-		return nil, mcp.CodedError("site_private", "site_private: this site is open only to its named viewers; ask the owner to add you as a named viewer, or to open the site to anyone")
+	if err := h.visitorSiteOpen(req, id.String); err != nil {
+		return nil, err
 	}
 	row, err := h.sitesSvc().GetSitePasscode(req.Context(), id.String)
 	if err != nil {
@@ -164,7 +167,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 			return nil, err
 		}
 		if _, provided := args["passcode"]; !provided {
-			return nil, mcp.CodedError("site_locked", "site_locked: this site asks for a passcode; the person can open it in their browser and enter it there, or call again with passcode set if they already gave it to you")
+			return nil, mcp.CodedError("site_locked", visitorSiteLocked)
 		}
 		wait, matched, err := h.checkVisitorPasscode(req, row, supplied)
 		if err != nil {
@@ -196,6 +199,18 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	}
 	h.recordVisitorSite(req, caller, id.String)
 	return visitorResult(result, user.ID == ownerID), nil
+}
+
+// visitorSiteOpen: the site is up and lets this visitor in, its passcode aside.
+func (h *SiteHandler) visitorSiteOpen(req *http.Request, siteID string) error {
+	gate := httptest.NewRecorder()
+	if h.refuseSuspendedSiteID(gate, req, siteID) || h.refuseOffline(gate, req, siteID) {
+		return visitorResponseError(gate)
+	}
+	if !h.ViewersLetIn(req, siteID) {
+		return mcp.CodedError("site_private", "site_private: this site is open only to its named viewers; ask the owner to add you as a named viewer, or to open the site to anyone")
+	}
+	return nil
 }
 
 func (h *SiteHandler) recordVisitorSite(r *http.Request, caller mcp.Caller, siteID string) {
@@ -323,7 +338,7 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 	}
 	out := map[string]any{}
 	if page != "" {
-		text, truncated, err := h.visitorPageText(ownerID, siteName, page)
+		text, truncated, err := h.visitorPageText(r, siteID, ownerID, siteName, page)
 		if err != nil {
 			return nil, err
 		}
@@ -635,17 +650,49 @@ func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool st
 	})
 }
 
-func (h *SiteHandler) visitorPageText(ownerID, siteName, page string) (string, bool, error) {
-	page = strings.TrimPrefix(page, "/")
-	if page == "" || strings.HasSuffix(page, "/") {
-		page += "index.html"
+// openVisitorPage opens the file a visitor's browser gets at page, the way
+// the site's own address serves it. A passcode change, rename, take-down or
+// publish holds the site's lock, so the access decided earlier is confirmed
+// again and the file opened under that lock: none of them can land between.
+func (h *SiteHandler) openVisitorPage(r *http.Request, siteID, ownerID, siteName, page string) (*os.File, string, error) {
+	unlock := h.lockSite(ownerID, siteName)
+	defer unlock()
+	if _, owner, name, err := h.sitesSvc().GetSiteOwner(r.Context(), siteID); err != nil || owner != ownerID || name != siteName {
+		return nil, "", mcp.CodedError("site_not_found", visitorSiteGone)
 	}
-	f, _, err := h.disk.OpenFile(context.Background(), sites.FileVersion{UserID: ownerID, SiteName: siteName}, page)
+	if err := h.visitorSiteOpen(r, siteID); err != nil {
+		return nil, "", err
+	}
+	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
 	if err != nil {
-		return "", false, fmt.Errorf("page not found")
+		return nil, "", err
+	}
+	if row.Enc != nil && !h.unlocked(r, siteID, row.Generation) {
+		return nil, "", mcp.CodedError("site_locked", visitorSiteLocked)
+	}
+	root, err := os.OpenRoot(filepath.Join(h.disk.SiteDir(ownerID, siteName), "current"))
+	if err != nil {
+		return nil, "", fmt.Errorf("page not found")
+	}
+	defer root.Close()
+	found := pagepath.Resolve(root, page)
+	if found.Kind == pagepath.NotFound {
+		return nil, "", fmt.Errorf("page not found")
+	}
+	f, err := root.Open(found.File)
+	if err != nil {
+		return nil, "", fmt.Errorf("page not found")
+	}
+	return f, found.File, nil
+}
+
+func (h *SiteHandler) visitorPageText(r *http.Request, siteID, ownerID, siteName, page string) (string, bool, error) {
+	f, filename, err := h.openVisitorPage(r, siteID, ownerID, siteName, page)
+	if err != nil {
+		return "", false, err
 	}
 	defer f.Close()
-	ext := strings.ToLower(filepath.Ext(page))
+	ext := strings.ToLower(filepath.Ext(filename))
 	if ext != ".html" && ext != ".htm" && ext != ".txt" {
 		return "", false, fmt.Errorf("page must be HTML or plain text")
 	}

@@ -59,7 +59,7 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	if r := a.at(t, "GET", host, "/shop", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/shop/" {
 		t.Fatalf("site without slash: %d %s", r.status, r.header.Get("Location"))
 	}
-	if r := a.at(t, "GET", host, "/shop/sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/shop/sub/" {
+	if r := a.at(t, "GET", host, "/shop/sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/shop/sub/" || r.header.Get("Cache-Control") != publicPageCache {
 		t.Fatalf("dir without slash: %d %q", r.status, r.header.Get("Location"))
 	}
 	if r := a.at(t, "GET", host, "/shop/sub/", nil, nil); r.status != 200 || string(r.body) != "sub" {

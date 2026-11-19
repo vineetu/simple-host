@@ -753,8 +753,7 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	escRest := (&url.URL{Path: rest}).EscapedPath()
-	h.serveSiteFile(w, r, info.UserID, info.Name, rest, escRest)
+	h.serveSiteFile(w, r, info.UserID, info.Name, rest, r.URL.EscapedPath())
 }
 
 // withVisitorPath is r with nginx's or Caddy's /internal/passcode rewrite

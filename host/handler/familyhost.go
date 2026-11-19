@@ -516,7 +516,7 @@ func (h *SiteHandler) serveFamilyFile(w http.ResponseWriter, r *http.Request, m 
 		return
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	h.serveSiteFile(w, r, m.Site.UserID, m.Site.Name, rel, escaped)
+	h.serveSiteFile(w, r, m.Site.UserID, m.Site.Name, rel, escapedPageTail(r.URL, rel))
 }
 
 // familyPageHandler answers /internal/family/{rest...}, where nginx sends a

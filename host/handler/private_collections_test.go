@@ -318,7 +318,7 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if r := a.at(t, "GET", dom, "/", nil, nil); r.status != 200 || string(r.body) != "<h1>shop</h1>" {
 		t.Fatalf("serve root: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", dom, "/sub", nil, nil); r.status != http.StatusMovedPermanently {
+	if r := a.at(t, "GET", dom, "/sub", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Cache-Control") != publicPageCache {
 		t.Fatalf("dir without slash: %d", r.status)
 	}
 	if r := a.at(t, "GET", dom, "/sub/", nil, nil); r.status != 200 || string(r.body) != "sub" {

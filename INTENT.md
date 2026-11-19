@@ -130,6 +130,8 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-18 (SIM-470). Page addresses.** On program-served pages a file uses `/x` and a folder index uses `/x/`. The other spelling redirects permanently and keeps the query. A1 keeps explicit `/x.html` available. B1 keeps both pages when both exist. C1 is the proposed follow-up for the six hand-managed web servers. Web-server changes are on hold pending the front-door decision. A site's own redirect rules are decided first, exactly as before. The slash redirect happens only where the file lookup would otherwise serve or miss, so it is always the last hop and the publish-time rule check does not model it. A folder without a page still hides a rule that is not forced.
+
 ### 2026-11-12 — Re-architecture: platform, products, add-ons
 
 Agreed with the owner on 2026-11-12. Source of truth for the refactor; where the older plans (SIM-401, SIM-413) disagree, these win. Entries below that they replace are marked "Replaced 2026-11-12".

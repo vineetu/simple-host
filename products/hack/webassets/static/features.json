@@ -836,7 +836,7 @@
      "name": "Redirects and plain addresses",
      "line": "Keep old links working when pages move.",
      "who": "Anyone moving or reorganising a site.",
-     "how": "Publish a root _redirects file with paths, splats, placeholders and query rules. Rules run after access gates; existing content wins unless forced.",
+     "how": "Publish a root _redirects file with paths, splats, placeholders and query rules. Rules run after access gates. On program-served pages, faq.html lives at /faq and faq/index.html at /faq/. With only one page, the other spelling redirects there. Both spellings take precedence over an ordinary rule.",
      "example": "/old/* /articles/:splat 301 sends old blog links to their new pages.",
      "where": "The root _redirects file sent with your site.",
      "limits": "1000 rules by default; 128 KiB file; 2048 bytes per line. Supports 301, 302, 404 and 410.",

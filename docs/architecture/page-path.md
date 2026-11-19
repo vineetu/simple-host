@@ -4,33 +4,21 @@ D4-B1 preserves the single-process page path. The production server uses
 `postgresFacts`, which delegates to the existing services with the same query
 order. `copyFacts` is also used by the optional `static` subcommand. Neither normal program startup nor the deployment recipes start Static.
 
-## Recorded baseline
+## Page address resolution
 
-`host/handler/testdata/pagepath-matrix.txt` was recorded from commit
-`33d59927538cb199abcb7a0a6ec48ede7a4599f0`, before the routing extraction.
-The original recording used that commit's page handlers through a Go overlay and a
-throwaway database on `TEST_PG_URL`. It originally contained 608 responses: nineteen address
-variants, sixteen states, and a TLS question for each combination. Review added
-four nginx `/internal/notfound` hand-offs with `X-Original-URI` (renamed site,
-handle alias, missing file, missing site), recorded before the correction from
-`5f4ec62c8cf0af85599c2c26ede0c3773cb70c4a`. All original rows are unchanged;
-the complete matrix now has 736 responses. Each cell
-records status, Location, cache, framing, indexing, resource-policy and Vary
-headers, a SHA-256 body hash, and the ordered SQL statement numbers. Queries
-contain placeholders only. The fixture normalizes its ephemeral listener URL,
-owner/site UUIDs and the viewer's generated email in bodies; no other body text
-is normalized. TLS rate limits are raised in the fixture so every cell reaches
-its handler. The fixture fixes the unconfigured-install chrome flag used in
-the baseline, so earlier tests cannot change the rendered owner line.
-Notification work is joined before reading the statement log.
+`host/pagepath.Resolve` takes one published version and a decoded path inside it. It answers with the file to serve, a redirect that adds or removes the trailing slash, or a miss. A file page is served at `/faq` and a folder index at `/faq/`. The other spelling redirects there. When both exist, each address serves its own page. An exact filename takes priority over an HTML sibling. The root serves `index.html` and the root `_redirects` file is never a page. A redirect always names an address that serves a file.
 
-`TestPagePathMatrix` verifies that baseline, then serves every cell with the
-copy and compares the same response fields and the full body. Protection reads
-still use the database during the copy comparison. The content-host miss
-hand-offs additionally run the copy against a closed database, preserving both
-rename redirects and owner-specific 404 wording. Product group routing uses
-the existing `GroupHosts` test seam, with no product tables in the platform's
-fixture. Product routing-table SQL stays in the product repository.
+Every program path that serves or reads a page asks this one function:
+
+- `serveRootFile` serves site hosts, person paths, selected homes, claimed names, family hosts, custom domains, previews and Static. It resolves and opens on the same confined version root. A redirect is the escaped public path with its trailing slash added or removed, so the mount, the visitor's spelling and the query string are kept. It sets revalidation headers unless a gate already set a private policy.
+- The selected-home check (`homePathExists`) uses it to decide whether the home has a page before a sibling site is tried.
+- `visitor_read_site` reads the file it names. It re-confirms access and opens the file under the site's lock, so a passcode change, rename, take-down or publish cannot land between the check and the read.
+
+Access gates (take-down, offline, passcode, named viewers) answer before any of this.
+
+`pagepath.Taken` answers a second question from the same lookup: is something already at this path, either a page at either spelling or a folder. A site's own redirect rule that is not forced stands aside there. Serving (`applyRootRedirect`), the old-address check on site hosts (`siteHasPath`) and the publish-time rule check (`validateRedirects`, over the files being published) all use it.
+
+Rules are decided first, for the path as requested. The slash redirect happens only afterwards, where the file lookup would otherwise serve or miss. Rule matching ignores trailing slashes, so the address the slash redirect names gets the same rule decision as the request did, and it holds a page, so it serves. So a slash redirect is always the last hop and cannot be part of a loop. The publish-time loop check does not model it.
 
 ## Which front door answers
 
@@ -49,12 +37,12 @@ fixture. Product routing-table SQL stays in the product repository.
 
 The content path has no `/u/` prefix. A retained previous custom domain is
 still served while its replacement is pending; an old claimed name that was
-released redirects through `legacy_hostnames`. The matrix distinguishes those
-cases, and also records the custom-domain, family and content-host gate hand-offs. It does not claim to exercise a running nginx, Caddy or certificate issuer.
+released redirects through `legacy_hostnames`. The route tests in `host/handler` cover those
+cases and the custom-domain, family and content-host gate hand-offs. They do not exercise a running nginx, Caddy or certificate issuer.
 
 ## Read inventory and classification
 
-The statement numbers below are the recording's numbered SQL list. A query
+The statement numbers below come from the numbered SQL list of the D4-S1a recording (`pagepath-matrix.txt`), which X4-S1 removed together with its test once the page-address tests covered each address. A query
 returning mixed columns is classified by how its consumer uses each field.
 Unused columns from the original service queries do not enter the snapshot.
 

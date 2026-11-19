@@ -7,6 +7,8 @@
 
 2026-11-19: Simple Host retired the WordPress and Squarespace export importer. You can still publish a site from a ZIP file or an archive upload link.
 
+2026-11-18: On pages served by the program, `/faq/` redirects to `/faq` when the site publishes `faq.html` and there is no `faq/index.html`. Folder pages keep their trailing slash. Both redirects preserve the query string and let browsers recheck after a publish. The visitor reader and selected home page now find extensionless HTML pages too. A page read through the visitor tools is refused when the site's passcode or access changes while the read is under way (SIM-470).
+
 2026-11-18: Version 0.9.0. One release version now covers both programs, both charts and the Simple Hack install download; the separate platform (`v0.7.22`) and Hack (`hack-v0.8.20`) release families end. `simple-host` is the platform alone and `simple-hack` is the platform plus Simple Hack, both built from one `v0.9.0` tag. Install fresh: there is no upgrade path from an earlier release. Storage uses row rules, and presets end on hosted Simple Host on 17 December 2026. Key-value data lives in one file per site. A backup and restore script ships. The static file server ships switched off and is not for production use yet. The Railway, Render, Fly and Coolify recipes still install the earlier platform release. Release notes: `docs/releases/v0.9.0.md` (D4-S11v).
 
 2026-11-17: Fix interrupted Compose upgrade recovery, nonroot maintenance-lock ownership and private atomic configuration publication. Preserve environment substitutions and the original service set across retries; resume incomplete first installations and their release recording (D4-S10a review).

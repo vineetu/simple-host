@@ -46,7 +46,7 @@ Conventions:
 
 **Redirects and plain addresses** <a id="redirects-and-plain-addresses"></a>
 
-Publish root `_redirects` rules for old paths, splats, placeholders and query links; 301/302 redirects or local 404/410 pages, with `!` to override content. Rules are validated with line errors and run after access gates on every site address, including Hack sites. The file is never served. `/faq` serves `faq.html` with 200; directory-only pages retain the slash redirect. Default limits: 1000 rules, 128 KiB per file, 2048 bytes per line. [Guide](/docs/guides/redirects/).
+Publish root `_redirects` rules for old paths, splats, placeholders and query links; 301/302 redirects or local 404/410 pages, with `!` to override content. Rules are validated with line errors and run after access gates on every site address, including Hack sites. The file is never served. When the program serves pages, `faq.html` lives at `/faq` and `faq/index.html` at `/faq/`. If only one exists, the other spelling redirects there. If both exist, each address serves its own page. Explicit filenames such as `/faq.html` also work. Default limits: 1000 rules, 128 KiB per file, 2048 bytes per line. [Guide](/docs/guides/redirects/).
 
 
 Upload a static site (tar.gz/zip or inline JSON files); versions, rollback, rename, delete,

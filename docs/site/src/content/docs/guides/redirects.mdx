@@ -4,8 +4,6 @@ title: "Redirects and plain addresses"
 
 import What from '@docs/What.astro';
 
-<What id="redirects-and-plain-addresses" />
-
 When moving a site, collect the old addresses and publish a root `_redirects` text file with the new files:
 
 ```text
@@ -30,4 +28,12 @@ Team and event sites follow the same rules.
 
 The file is validated before creating a version. Fix `redirects_invalid` errors at the listed line numbers and publish again. Limits are 128 KiB per file, 2048 bytes per line and 1000 rules by default; self-hosted operators can change `REDIRECTS_MAX_RULES`. Loops, and chains of more than 10 redirects in a row, are rejected. The file is never served to visitors; versions, file reads and exports retain it.
 
-For plain addresses, `/faq` serves `faq.html` with 200 without changing the address. `/faq/` keeps working as before. When only `faq/index.html` exists, `/faq` keeps the 301 to `/faq/` so existing relative links continue to resolve. An exact file wins first, then `faq.html`, then the directory. No setting is needed.
+## How page addresses work
+
+<What id="redirects-and-plain-addresses" />
+
+When the program serves a page, `faq.html` lives at `/faq`. When there is no `faq/index.html`, a request for `/faq/` redirects to `/faq`. A folder page such as `faq/index.html` lives at `/faq/`. If only the folder page exists, `/faq` redirects to `/faq/`.
+
+If both pages exist, `/faq` serves the file and `/faq/` serves the folder index. A folder needs an `index.html` to count as a page. An exact filename takes precedence over a sibling with an added `.html`. Explicit filenames such as `/faq.html`, `/faq/index.html` and `/style.css` work directly. A slash after a filename redirects to its address without the slash.
+
+These redirects use 301, keep the query string and tell browsers to recheck the address. Redirect rules ignore trailing slashes when matching. Both spellings of a page take precedence over a rule unless its status ends in `!`. Rules are applied first and the slash redirect last, so it never joins a chain of rules. If you publish `faq.html` and there is no `faq/index.html`, you can remove the rule `/faq/ /faq`. The program already sends visitors there.

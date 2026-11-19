@@ -16,3 +16,7 @@ For personal photos, give the person `create_upload_link`'s `photos_url`; the pa
 If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
 
 <a id="shop-with-orders"></a>
+
+## Redirects and plain addresses
+
+When the program serves pages, `faq.html` lives at `/faq` and `faq/index.html` at `/faq/`. If only one exists, the other spelling redirects there. If both exist, each address serves its own page. Explicit filenames such as `/faq.html` also work. Root `_redirects` rules ignore trailing slashes. Both spellings shadow a rule unless it ends in `!`.

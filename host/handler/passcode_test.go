@@ -691,7 +691,20 @@ func TestPasscodeOtherAddresses(t *testing.T) {
 		if r := get("/app.js", ck); r.status != 200 || !strings.Contains(string(r.body), passcodeCanary) {
 			t.Fatalf("%s unlocked: %d %s", domain, r.status, r.body)
 		}
-		if r := get("/days", ck); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/days/" {
+		path := "/%61pp.js/?from=a%2Fb"
+		if !strings.HasSuffix(domain, pcSiteDomain) {
+			path = "/internal/passcode" + path
+		}
+		for _, method := range []string{"GET", "HEAD"} {
+			if r := p.at(t, method, domain, path, nil, nil); r.status != 401 || r.header.Get("Location") != "" {
+				t.Fatalf("%s locked %s: %d %v", domain, method, r.status, r.header)
+			}
+			r := p.at(t, method, domain, path, nil, ck)
+			if r.status != 301 || r.header.Get("Location") != "/%61pp.js?from=a%2Fb" || r.header.Get("Cache-Control") != "private, no-cache" || method == "HEAD" && len(r.body) != 0 {
+				t.Fatalf("%s unlocked %s: %d %v", domain, method, r.status, r.header)
+			}
+		}
+		if r := get("/days", ck); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "/days/" || r.header.Get("Cache-Control") != "private, no-cache" {
 			t.Fatalf("%s directory redirect: %d %s", domain, r.status, r.header.Get("Location"))
 		}
 		if r := p.at(t, "GET", domain, "/v1/sites/trip/state", nil, map[string]string{"Cookie": ck["Cookie"], "Origin": "https://" + domain}); r.status != 200 {
