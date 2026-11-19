@@ -2,14 +2,12 @@ package handler
 
 import (
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/edition"
 )
 
 type bodyDeadlineRecorder struct {
@@ -29,38 +27,6 @@ func checkBodyDeadline(t *testing.T, w *bodyDeadlineRecorder, start time.Time, w
 	}
 	if got := w.deadlines[0]; got.Before(start.Add(want)) || got.After(time.Now().Add(want)) {
 		t.Fatalf("deadline %v, want %v after admission", got, want)
-	}
-}
-
-func TestImportReceivingBodyAllowanceDeadline(t *testing.T) {
-	old := config.DefaultLimits()
-	for _, tc := range []struct {
-		mb   int
-		want time.Duration
-	}{
-		{1, 15 * time.Minute},
-		{500, 44*time.Minute + 57*time.Second + 152*time.Millisecond},
-		{1024, 81*time.Minute + 34*time.Second + 967296*time.Microsecond},
-		{10240, 725*time.Minute + 49*time.Second + 672960*time.Microsecond},
-	} {
-		t.Run(fmt.Sprint(tc.mb), func(t *testing.T) {
-			l := old
-			l.ImportMaxUploadMB = tc.mb
-			h, root, caller := newImportTest(t, edition.Default(l))
-			token, _ := mintImportTest(t, h, caller)
-			// Malformed multipart stops before conversion, after deadline setup.
-			r := httptest.NewRequest("POST", "/v1/imports/"+token, strings.NewReader("bad body"))
-			w := &bodyDeadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
-			start := time.Now()
-			root.ServeHTTP(w, r)
-			if w.Code != http.StatusBadRequest {
-				t.Fatal(w.Code, w.Body.String())
-			}
-			checkBodyDeadline(t, w, start, tc.want)
-			if len(h.imports.Slots) != 0 {
-				t.Fatal("receiving admission leaked")
-			}
-		})
 	}
 }
 

@@ -29,7 +29,7 @@ func runTestStoragePresetRecipesAndTools(t *testing.T) {
 		if preset == "" {
 			preset = topic
 		}
-		if topic != "admin" && topic != "people" && topic != "gallery" && topic != "wordpress" && !strings.Contains(text, `"preset": "`+preset+`"`) {
+		if topic != "admin" && topic != "people" && topic != "gallery" && !strings.Contains(text, `"preset": "`+preset+`"`) {
 			t.Fatalf("%s: does not set preset %s", topic, preset)
 		}
 	}

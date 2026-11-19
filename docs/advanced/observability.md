@@ -68,10 +68,9 @@ the connector schemas and outputs on 2026-10-29, is:
   `;base64,` replace whole string values in arguments and structured/JSON results, including
   sponsor `logo_data`, and whole non-JSON text blocks. They are not searched for inside
   ordinary prose. Intent uses the same data-URI check (`[file: N bytes, <type>]`) and SDK
-  large-base64 check before its length cap, with no other processing. WordPress and photo
-  upload bytes travel over their upload HTTP routes, not tool calls; the tool returns
-  only the link or report. Unlabelled base64 strings at least 10 KB long use the SDK's
-  binary-data placeholder instead.
+  large-base64 check before its length cap, with no other processing. Photo upload bytes travel over
+  the upload HTTP route. The tool returns the link. Unlabelled base64 strings at least
+  10 KB long use the SDK's binary-data placeholder instead.
 - Emails: `email` and `emails` in account, named-viewer, storage, and Hack tools;
   Hack `contact_email` (event create/update arguments and `organiser.contact_email` in
   event results); `visitor_email` and `visitor_emails`; and viewer `added`, `already_listed`, and `removed`
@@ -82,7 +81,7 @@ the connector schemas and outputs on 2026-10-29, is:
   `set_site_access` (including non-JSON errors), and visitor-lookup prose uses
   the sanitized structured copy; JSON text results receive the same field treatment.
 
-Passcode, upload/import link, preview/export, unpublished update, Hack team-key, archive,
+Passcode, upload link, preview/export, unpublished update, Hack team-key, archive,
 invitation, event detail, and code-regeneration tools can repeat secrets in prose, so their
 telemetry text blocks are replaced with `[removed: contains a secret]`. The client's text,
 structured result, and metadata are unchanged. UI metadata is not included in telemetry.

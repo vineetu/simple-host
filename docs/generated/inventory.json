@@ -28,7 +28,7 @@
       "method": "DELETE",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/handler/connector.go:372",
+      "source": "host/handler/connector.go:361",
       "package": "host/handler",
       "dynamic": true
     },
@@ -259,8 +259,8 @@
     {
       "method": "DELETE",
       "path": "/v1/me/connections/{client_id}",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:386",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:371",
       "package": "host/handler",
       "dynamic": false
     },
@@ -547,16 +547,16 @@
     {
       "method": "GET",
       "path": "/.well-known/muse-client.json",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:357",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:346",
       "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:354",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:343",
       "package": "host/handler",
       "dynamic": false
     },
@@ -571,16 +571,16 @@
     {
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/mcp",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:356",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:345",
       "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:352",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:341",
       "package": "host/handler",
       "dynamic": false
     },
@@ -595,8 +595,8 @@
     {
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/mcp",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:353",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:342",
       "package": "host/handler",
       "dynamic": false
     },
@@ -1786,14 +1786,6 @@
     },
     {
       "method": "GET",
-      "path": "/import/{token}",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:375",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "GET",
       "path": "/index.md",
       "feature_id": "agents-discovery",
       "source": "host/handler/ui.go:240",
@@ -2092,7 +2084,7 @@
       "method": "GET",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/handler/connector.go:372",
+      "source": "host/handler/connector.go:361",
       "package": "host/handler",
       "dynamic": true
     },
@@ -2107,8 +2099,8 @@
     {
       "method": "GET",
       "path": "/oauth/authorize",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:360",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:349",
       "package": "host/handler",
       "dynamic": false
     },
@@ -2155,7 +2147,7 @@
     {
       "method": "GET",
       "path": "/photos",
-      "feature_id": "publish-wordpress-import",
+      "feature_id": "agents-data-minimisation",
       "source": "host/handler/photos_ui.go:14",
       "package": "host/handler",
       "dynamic": false
@@ -3410,14 +3402,6 @@
     },
     {
       "method": "GET",
-      "path": "/v1/imports/status/{import_id}",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:377",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "GET",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
       "source": "host/handler/user.go:180",
@@ -3451,8 +3435,8 @@
     {
       "method": "GET",
       "path": "/v1/me/connections",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:385",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:370",
       "package": "host/handler",
       "dynamic": false
     },
@@ -3523,8 +3507,8 @@
     {
       "method": "GET",
       "path": "/v1/photo-links",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:380",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:365",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4524,23 +4508,23 @@
       "method": "POST",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/handler/connector.go:372",
+      "source": "host/handler/connector.go:361",
       "package": "host/handler",
       "dynamic": true
     },
     {
       "method": "POST",
       "path": "/oauth/authorize/decision",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:361",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:350",
       "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/oauth/register",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:359",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:348",
       "package": "host/handler",
       "dynamic": false
     },
@@ -4548,23 +4532,23 @@
       "method": "POST",
       "path": "/oauth/reviewer-signin",
       "feature_id": "visitor-signin",
-      "source": "host/handler/connector.go:364",
+      "source": "host/handler/connector.go:353",
       "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/oauth/revoke",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:366",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:355",
       "package": "host/handler",
       "dynamic": false
     },
     {
       "method": "POST",
       "path": "/oauth/token",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:365",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:354",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5146,14 +5130,6 @@
     },
     {
       "method": "POST",
-      "path": "/v1/imports/{token}",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:376",
-      "package": "host/handler",
-      "dynamic": false
-    },
-    {
-      "method": "POST",
       "path": "/v1/me/address-families",
       "feature_id": "address-families",
       "source": "host/handler/familyapi.go:954",
@@ -5227,8 +5203,8 @@
     {
       "method": "POST",
       "path": "/v1/photo-links",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:381",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:366",
       "package": "host/handler",
       "dynamic": false
     },
@@ -5651,8 +5627,8 @@
     {
       "method": "POST",
       "path": "/v1/uploads/{token}",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:383",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:368",
       "package": "host/handler",
       "dynamic": false
     },
@@ -6099,8 +6075,8 @@
     {
       "method": "PUT",
       "path": "/v1/uploads/{token}",
-      "feature_id": "publish-wordpress-import",
-      "source": "host/handler/connector.go:382",
+      "feature_id": "agents-data-minimisation",
+      "source": "host/handler/connector.go:367",
       "package": "host/handler",
       "dynamic": false
     }
@@ -6992,7 +6968,7 @@
       "name": "hack_select_team",
       "family": "hack-events",
       "edition": "hack",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "hack_set_assignments",
@@ -7208,25 +7184,19 @@
       "name": "list_notifications",
       "family": "notifications",
       "edition": "hack",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "remove_notification",
       "family": "notifications",
       "edition": "hack",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "connect_domain",
       "family": "access",
       "edition": "host",
       "feature_id": "address-families"
-    },
-    {
-      "name": "create_import_link",
-      "family": "imports",
-      "edition": "host",
-      "feature_id": "publish-idle-cleanup"
     },
     {
       "name": "create_site",
@@ -7271,12 +7241,6 @@
       "feature_id": "site-drafts"
     },
     {
-      "name": "get_import_report",
-      "family": "imports",
-      "edition": "host",
-      "feature_id": "publish-idle-cleanup"
-    },
-    {
       "name": "get_page_recipe",
       "family": "storage",
       "edition": "host",
@@ -7316,7 +7280,7 @@
       "name": "list_notifications",
       "family": "notifications",
       "edition": "host",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "list_site_viewers",
@@ -7358,7 +7322,7 @@
       "name": "remove_notification",
       "family": "notifications",
       "edition": "host",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "remove_site_passcode",
@@ -7454,7 +7418,7 @@
       "name": "site_analytics",
       "family": "sites",
       "edition": "host",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "storage_delete_file",
@@ -7484,7 +7448,7 @@
       "name": "storage_get_kv",
       "family": "storage",
       "edition": "host",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "storage_get_usage",
@@ -7514,7 +7478,7 @@
       "name": "storage_put_file",
       "family": "storage",
       "edition": "host",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-data-minimisation"
     },
     {
       "name": "storage_put_kv",
@@ -7526,7 +7490,7 @@
       "name": "storage_set_resource",
       "family": "storage",
       "edition": "host",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "site-storage-primitives"
     },
     {
       "name": "storage_sql_execute",
@@ -7544,7 +7508,7 @@
       "name": "storage_sql_schema",
       "family": "storage",
       "edition": "host",
-      "feature_id": "publish-wordpress-import"
+      "feature_id": "agents-coded-refusals-and-aliases"
     },
     {
       "name": "storage_visitor_emails",

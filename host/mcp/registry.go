@@ -11,7 +11,7 @@ const (
 	famStorage       toolFamily = "storage"       // current storage (KV, SQLite, files) and visitor tools
 	famLegacy        toolFamily = "legacy"        // legacy Host storage
 	famAccounts      toolFamily = "accounts"      // who am I, profile, connections
-	famImports       toolFamily = "imports"       // imports and photo uploads
+	famImports       toolFamily = "imports"       // archive and photo uploads
 	famNotifications toolFamily = "notifications" // notifications and MCP Events
 	famAdmin         toolFamily = "admin"         // admin and brain
 	famDiscovery     toolFamily = "discovery"     // find_tools, run_tool

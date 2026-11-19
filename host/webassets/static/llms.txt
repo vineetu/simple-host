@@ -336,7 +336,7 @@ CLAUDE SETUP: Install the Simple Host plugin (Customize, then Plugins, then Disc
 
 Chat apps (ChatGPT, Claude, Grok, Gemini, Meta Muse, Mistral Vibe) and agents (Claude Code, Codex, OpenClaw, Hermes Agent, GitHub Copilot) add https://simple-host.app/mcp as a remote MCP connector (also reachable at https://mcp.simple-host.app/mcp). It uses OAuth 2.1 (discovery at /.well-known/oauth-protected-resource/mcp, dynamic registration, PKCE S256): the person signs in once in a browser window and every later chat is signed in.
 
-ChatGPT, OpenAI, and Codex connections list every permitted Host operation individually, with its own schema and annotations. Other connections keep the compact listing of 21 tools: the building ones (who_am_i, list_sites, get_site, read_site_file (or paths, for several files), create_site, update_site (or edits, for a small change), get_page_recipe, create_upload_link, visitor_read_site, list_versions, site_analytics, set_site_access, grant_site_viewer, and the storage_* tools a page needs) plus find_tools and run_tool. Everything else (rollback, previews, rename, delete and restore, offline, visibility, passcode, viewers, home page, own domain or short address, export, WordPress import, notifications, more storage) is found with find_tools and called with run_tool {"name": ..., "arguments": {...}}; a client may also call any of them directly by name.
+ChatGPT, OpenAI, and Codex connections list every permitted Host operation individually, with its own schema and annotations. Other connections keep the compact listing of 21 tools: the building ones (who_am_i, list_sites, get_site, read_site_file (or paths, for several files), create_site, update_site (or edits, for a small change), get_page_recipe, create_upload_link, visitor_read_site, list_versions, site_analytics, set_site_access, grant_site_viewer, and the storage_* tools a page needs) plus find_tools and run_tool. Everything else (rollback, previews, rename, delete and restore, offline, visibility, passcode, viewers, home page, own domain or short address, export, notifications, more storage) is found with find_tools and called with run_tool {"name": ..., "arguments": {...}}; a client may also call any of them directly by name.
 
 All call this same API as that person; there are no tools for older saved data. An access token issued without a resource (a GPT Action) is also accepted as Authorization: Bearer on /v1 with exactly the person's API-key permissions.
 
@@ -412,13 +412,7 @@ CHATGPT SETUP: Open [ChatGPT Plugins](https://chatgpt.com/plugins). Click Add, t
 
 Older saved-data endpoints (state and collections) still work for sites that already use them; new sites use storage resources.
 
-## MOVE A WORDPRESS SITE
-
-Follow the [WordPress recipe](https://simple-host.app/recipes/wordpress.md). Move a WordPress site with create_import_link (Simple Host only): give the person its one-time GET /import/<token> browser page; they download their own XML/ZIP export and optional media TAR/ZIP, then upload with POST /v1/imports/<token>.
-
-It publishes the converted site and may replace the live version. The page polls GET /v1/imports/status/<import_id>; after the person says done, call get_import_report, run its feature setup calls, check the pages, show the live address and offer connect_domain.
-
-Links recheck sign-in and expire after 30 minutes. Never paste them into a web page.
+## PARTIAL FILE UPDATES
 
 To change a few files of a big site, use update_site with keep_other_files: true; optionally remove_files lists paths to drop. For a small change to one file, send edits instead: each {path, find, replace} replaces text that occurs exactly once in the live file. REST equivalent: PUT /v1/sites/<sitename>/files?keep=1. The merged files meet the usual caps.
 

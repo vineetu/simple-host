@@ -132,7 +132,7 @@
       <div class="tree">
         <div class="root"><b>Simple Host</b><span>Hosting for the sites your AI made</span></div>
         <ol class="branches">
-          <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">26</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
+          <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">25</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
           <li><a class="node" href="#addresses"><b>Domains and addresses</b><span class="n">13</span><span class="l">Where a site answers: its own address from the first minute, a short free name, your own domain, or one wildcard for every site you own.</span></a></li>
           <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">28</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
           <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">21</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
@@ -486,21 +486,6 @@
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy">FEATURES: Sites and deploy</a> <a href="/docs/guides/publish/">Docs</a></span></p>
-        </div>
-      </details>
-      <details class="feat" id="publish-wordpress-import">
-        <summary><span class="fname">Move a WordPress site</span><span class="fline">Upload the export of a WordPress site you own and Simple Host turns it into static pages at the same permalinks, with photos and menus.</span></summary>
-        <div class="fbody">
-          <p class="how">Ask your AI app to start a WordPress import for a site name. It gives you a one-time page where you upload the export: the WXR <code>.xml</code> file, WordPress.com&#x27;s <code>.zip</code> of XML files, and the media library as a <code>.tar</code>, <code>.zip</code>, or <code>.tar.gz</code> of <code>wp-content/uploads</code>. Conversion runs without AI and publishes through the normal deploy path, as a new site or a new version. Pages and posts land at their permalinks with category and tag archives, the menu, photos shrunk to 1600 px, galleries, YouTube and Vimeo embeds, approved comments as text, a search page, a sitemap, and a <code>404.html</code>, in the built-in look or the old theme&#x27;s stylesheets. A Squarespace export is recognised too, with its photos copied while the old site is still live. Afterwards your AI app reads the import report, which names the exact storage setup for each dynamic part: contact and subscribe forms become an inbox, comments and guestbooks become a comments preset, a forum becomes a wall.</p>
-          <p class="ex"><b>Example.</b> A yoga studio moves its 40-post WordPress blog with class schedule and contact form; the posts keep their addresses and the form keeps taking messages into the owner&#x27;s inbox.</p>
-          <dl class="fm">
-            <dt>Who</dt><dd>Someone moving a WordPress or Squarespace site they own, with only a chat app.</dd>
-            <dt>Where</dt><dd>Ask your AI app. It calls <code>create_import_link</code>, hands you the upload page, then reads <code>get_import_report</code>.</dd>
-            <dt>Limits</dt><dd class="lim">Only public items are written: drafts, scheduled, pending, private, and password-protected pages and posts are left out, and the report counts the password-protected ones. Page-builder layouts (Elementor, Divi, WPBakery, Beaver Builder, and others) do not carry over; the report names those pages, forms whose fields were not in the export, and galleries it could not rebuild. Shops stay as pages with a Buy button only when you map products to payment links; cart, checkout, and account pages are left out. Donation forms are not supported. Photos missing from the upload are fetched only from the export&#x27;s own hosts, WordPress.com&#x27;s media hosts, or Squarespace&#x27;s image servers. The upload page lasts 30 minutes, at most 20 import links per account, one conversion runs at a time, the report is kept 24 hours, and the usual site size caps apply.</dd>
-          </dl>
-          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="no"><b>Small box</b>no</li></ul>
-          <p class="ednote">WordPress import is a simple-host.app feature; Simple Hack team sites are new builds and Enterprise does not have it.</p>
-          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/skills/website-deploy/SKILL.md">Deploy skill</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps">FEATURES: MCP connector</a> <a href="/docs/guides/publish/">Docs</a></span></p>
         </div>
       </details>
       <details class="feat" id="publish-idle-cleanup">

@@ -40,9 +40,8 @@ func CORS(next http.Handler) http.Handler {
 
 		// The consent screen's decision endpoint is same-origin only: it is
 		// the one place a signed-in person's click mints a code, so no other
-		// origin gets a CORS grant to call it. WordPress import routes also
-		// enforce their own API-origin policy.
-		if strings.HasPrefix(r.URL.Path, "/oauth/authorize") || strings.HasPrefix(r.URL.Path, "/v1/imports/") || strings.HasPrefix(r.URL.Path, "/import/") {
+		// origin gets a CORS grant to call it.
+		if strings.HasPrefix(r.URL.Path, "/oauth/authorize") {
 			next.ServeHTTP(w, r)
 			return
 		}

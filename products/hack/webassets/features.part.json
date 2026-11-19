@@ -284,37 +284,22 @@
     },
     {
       "op": "set",
+      "path": "/areas/0/features/23/example",
+      "value": "A developer's three test sites from a hackathon weekend are warned at 90 days; they keep the one they still show to clients and let the others go."
+    },
+    {
+      "op": "set",
       "path": "/areas/0/features/23/editions/hack",
       "value": "no"
     },
     {
       "op": "set",
       "path": "/areas/0/features/23/editions_note",
-      "value": "WordPress import is a simple-host.app feature; Simple Hack team sites are new builds and Enterprise does not have it."
-    },
-    {
-      "op": "set",
-      "path": "/areas/0/features/23/evidence",
-      "value": "FEATURES.md L931-935 (create_import_link, accepted files, safety checks, conversion without AI, Squarespace, output list, get_import_report mapping, page-builder notes, 30 minutes, 20 links, 24-hour report, IMPORT_MAX_CONCURRENT); PARITY row 'WordPress import from the owner's export' (not on Hack, Enterprise not built). Small box: the lead says Simple Host only and the import URL is the simple-host.app apex; read as no. Upload-safety internals (zip-bomb caps, entity refusal) covered silently. Not rendered."
-    },
-    {
-      "op": "set",
-      "path": "/areas/0/features/24/example",
-      "value": "A developer's three test sites from a hackathon weekend are warned at 90 days; they keep the one they still show to clients and let the others go."
-    },
-    {
-      "op": "set",
-      "path": "/areas/0/features/24/editions/hack",
-      "value": "no"
-    },
-    {
-      "op": "set",
-      "path": "/areas/0/features/24/editions_note",
       "value": "Simple Hack team sites are removed 30 days after an event is archived, with one warning 14 days before; Enterprise sets the idle period itself and shows a Not used lately card instead of emailing only."
     },
     {
       "op": "set",
-      "path": "/areas/0/features/25/editions/hack",
+      "path": "/areas/0/features/24/editions/hack",
       "value": "yes"
     },
     {

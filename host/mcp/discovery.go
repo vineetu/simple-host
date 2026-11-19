@@ -41,8 +41,6 @@ var toolAliases = map[string][]string{
 	"set_bio":                    {"bio", "biography", "profile description"},
 	"set_showcase_site":          {"pin", "showcase", "profile order"},
 	"keep_site":                  {"keep site", "renew", "expiry", "stop expiring", "never expire", "permanent"},
-	"create_import_link":         {"wordpress", "squarespace", "import", "move my site", "migrate"},
-	"get_import_report":          {"import report", "migration result", "wordpress progress", "import finish", "import done", "import status"},
 	"storage_list_resources":     {"saved data", "presets", "who can read", "access", "resources", "database permissions", "visitors read"},
 	"storage_get_usage":          {"space", "usage", "quota", "full", "storage left"},
 	"storage_list_file_objects":  {"uploads", "uploaded photos", "files", "photos visitors uploaded", "pictures", "images", "show uploads"},
@@ -83,7 +81,7 @@ func discoveryTools() []Tool {
 			policy: toolPolicy{flatList: flatFindTool, discovery: true, unlisted: true,
 				notSearchable: true},
 			Name: "find_tools", Title: "Find more Simple Host tools",
-			Description: "Find tools for a job: own domain or short free address, passcode, rollback, rename, delete and restore, visitor numbers, adding or editing your own entry on a shared site, home page, export, notifications, moving a WordPress site, or more storage. Returns matching tools and arguments; call your pick with run_tool.",
+			Description: "Find tools for a job: own domain or short free address, passcode, rollback, rename, delete and restore, visitor numbers, adding or editing your own entry on a shared site, home page, export, notifications, or more storage. Returns matching tools and arguments; call your pick with run_tool.",
 			InputSchema: object(map[string]any{
 				"query": str("The job in a few words; empty lists the other tools."),
 				"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10, "default": 3},

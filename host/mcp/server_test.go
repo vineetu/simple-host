@@ -316,8 +316,6 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"create_site":            {false, false, true},
 		"update_site":            {false, true, true},
 		"create_upload_link":     {false, true, true},
-		"create_import_link":     {false, true, true},
-		"get_import_report":      {true, false, false},
 		"rollback_site":          {false, true, true},
 		"delete_site":            {false, true, true},
 		"list_deleted_sites":     {true, false, false},

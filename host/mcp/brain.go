@@ -137,7 +137,7 @@ func BrainTools(q BrainQuery) []Tool {
 			}, "products", "freshness"), q),
 
 		brainTool("feature_lookup", "Look up a feature",
-			"Find features by name or keyword, for example \"WordPress importer\", \"site passcode\" or \"Turnstile comments\". Returns how each one works and where it lives (from both repos' FEATURES.md), which edition it is from, and the matching PARITY.md rows that say which editions have it. Read a whole section with get_doc.",
+			"Find features by name or keyword, for example \"archive upload\", \"site passcode\" or \"Turnstile comments\". Returns how each one works and where it lives (from both repos' FEATURES.md), which edition it is from, and the matching PARITY.md rows that say which editions have it. Read a whole section with get_doc.",
 			object(map[string]any{"query": str("Feature name or keywords."), "limit": brainLimit(5, 15)}, "query"),
 			outObject(map[string]any{
 				"query": outString("The query."),

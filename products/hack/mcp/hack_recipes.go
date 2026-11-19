@@ -56,11 +56,6 @@ func HackPageRecipe(topic, site string) (string, error) {
 	}
 	// The comments preset needs the spam check, which Simple Hack does not
 	// run; people sign in to post there (wall).
-	// Moving a WordPress site uses create_import_link, which Simple Hack
-	// does not offer: team sites are new builds.
-	if topic == "wordpress" {
-		return "", fmt.Errorf("topic wordpress is not available on Simple Hack (team sites are built new there); use another topic")
-	}
 	if topic == "comments" || topic == "guestbook" {
 		return "", fmt.Errorf("topic %s is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post", topic)
 	}
@@ -102,7 +97,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 // review round 2 item D): for and the people pick list are Host only
 // (named viewers and the canonical-email resolution behind both are not a
 // Simple Hack concept), so there is no Simple Hack version of this recipe
-// to offer, unlike portal/comments/guestbook/wordpress below, which stay
+// to offer, unlike portal/comments/guestbook below, which stay
 // listed and are refused with a reason when picked.
 func hackPageRecipeTool() mcp.Tool {
 	tool := mcp.PageRecipeTool()

@@ -15,7 +15,7 @@ import (
 
 	// Decoders register themselves with package image on import. BMP and
 	// TIFF are left out on purpose: registering them changes image decoding
-	// for the whole binary (WordPress import included).
+	// for the whole binary.
 	_ "golang.org/x/image/webp"
 	_ "image/gif"
 )

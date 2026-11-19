@@ -31,7 +31,6 @@ func TestRulesRecipesFlagOffBytes(t *testing.T) {
   "portal": "dfcf9251cd73da3ab26537fc20c4b8c4adec3b8f745d83b60dbeb44df39b797c",
   "comments": "45480a914a5348ae2d1dc6a5d3052182867eee9a7ba8bf659869282e1d62aeac",
   "personal": "5b6b7c76e6e0d345f39e590f91cbbab9e19a41afbf733f930bc2ec88c58313e7",
-  "wordpress": "926e080dec7524a594b29c0f276f5e7b4f97a0ea990924747e13fae700829a36",
   "booking": "f0f9d2b6b0443732244febdda99125594df0ad49cdccf4697cae354f1bb39f63"
 }`
 	var hashes map[string]string
@@ -209,55 +208,14 @@ func TestRulesRecipeExamples(t *testing.T) {
 					}
 				}
 			}
-			// Presets describe files or fields to remove from an old import report,
+			// Presets describe files,
 			// never an access choice for data rows.
 			for _, line := range strings.Split(text, "\n") {
-				if topic == "wordpress" && strings.Contains(line, "remove preset and approve_first; send rules instead") {
-					continue
-				}
 				if strings.Contains(strings.ToLower(line), "preset") && !strings.Contains(strings.ToLower(line), "file") && topic != "gallery" {
 					t.Errorf("data access still names a preset: %s", line)
 				}
 			}
 		})
-	}
-}
-
-func TestRulesWordPressImportSetupAdvice(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	defer NewServer(testConfig(Config{}))
-	NewServer(testConfig(Config{}))
-	text, err := PageRecipe("wordpress", "shop")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, advice := range []string{
-		"keep the report's site and resource names",
-		"run its storage_sql_schema calls unchanged",
-		"remove preset and approve_first; send rules instead",
-		"Use the corresponding policies in the mapping below",
-		"when approve_first is true or the feature is marked moderated, include the restrictive approval policy",
-		"guestbooks always need it unless the person asks otherwise",
-		"Keep the spam check on comments and guestbooks",
-	} {
-		if !strings.Contains(text, advice) {
-			t.Errorf("WordPress recipe lacks %q", advice)
-		}
-	}
-	if strings.Contains(text, "run the setup calls the report gives, exactly") {
-		t.Error("WordPress recipe still directs agents to replay legacy access fields")
-	}
-	for _, line := range strings.Split(text, "\n") {
-		if !strings.HasPrefix(line, "|") {
-			continue
-		}
-		if strings.Count(strings.ReplaceAll(line, `\|`, ""), "|") != 4 {
-			t.Errorf("WordPress mapping must have three cells: %s", line)
-		}
-		if strings.HasPrefix(line, "| Comments on posts and pages |") &&
-			!strings.Contains(line, `auth.role == "owner" \|\| approved_at is not null | name "comments" |`) {
-			t.Error("comments mapping lost the approval expression or setup cell")
-		}
 	}
 }
 

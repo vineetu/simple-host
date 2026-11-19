@@ -26,11 +26,11 @@ func brainFixture(t *testing.T) string {
 	}
 	root := t.TempDir()
 	parity := "# PARITY\n\n## Feature table\n\n| Area | Hosted | Enterprise | Status |\n|---|---|---|---|\n" +
-		"| WordPress import (2026-10-14) | `create_import_link` | Not built | `gap → enterprise` |\n"
+		"| Archive upload (2026-10-14) | `create_upload_link` | Not built | `gap → enterprise` |\n"
 	files := map[string]map[string]string{
 		"host": {
 			"INTENT.md":    "# INTENT\n\n## What this is, and why it exists\n\nSimple Host hosts sites.\n\n## Non-goals\n\n- Server code.\n\n## Decisions already made\n\n- **2026-10-14. Comments use Cloudflare Turnstile.** Never home-built.\n",
-			"FEATURES.md":  "# FEATURES\n\n## 1. Sites\n\n### WordPress import\n\nConverts an export.\n",
+			"FEATURES.md":  "# FEATURES\n\n## 1. Sites\n\n### Archive upload\n\nPublishes a site archive.\n",
 			"PARITY.md":    parity,
 			"CHANGELOG.md": "# Changelog\n\n## 2026-10-16: Brain\n\n- Owner knowledge.\n",
 		},
@@ -229,9 +229,9 @@ func TestBrainToolOutputsMatchSchemas(t *testing.T) {
 	}{
 		{"product_overview", map[string]any{"product": "host"}},
 		{"product_overview", map[string]any{"product": "all"}},
-		{"feature_lookup", map[string]any{"query": "WordPress importer"}},
+		{"feature_lookup", map[string]any{"query": "archive upload"}},
 		{"parity", map[string]any{}},
-		{"parity", map[string]any{"feature": "WordPress"}},
+		{"parity", map[string]any{"feature": "Archive upload"}},
 		{"decisions", map[string]any{"query": "Turnstile"}},
 		{"decisions", map[string]any{"since": "3d"}},
 		{"recent_changes", map[string]any{"since": "2026-10-01"}},

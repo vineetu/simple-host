@@ -167,7 +167,7 @@ Serving passcode sites in Static is deferred to later work tracked in Linear.
 
 API routes, sign-in, previews,
 showcases and person roots without a home also go to the API. An unavailable API
-answers 503. Requests and responses stream, including imports. Original Host is
+answers 503. Requests and responses stream, including uploads. Original Host is
 preserved, X-Forwarded-Host is removed, and forwarding uses the existing trusted
 client-address rule. Forwarded protocol is accepted only from a configured
 trusted front; otherwise Static uses its incoming transport scheme. The API

@@ -13,6 +13,20 @@ import (
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
 )
 
+// Use the real HTTP read deadline, shortened for a stalled-body regression.
+type shortPhotoDeadline struct {
+	http.ResponseWriter
+	set chan time.Time
+}
+
+func (w shortPhotoDeadline) SetReadDeadline(deadline time.Time) error {
+	if !deadline.IsZero() {
+		w.set <- deadline
+		deadline = time.Now().Add(200 * time.Millisecond)
+	}
+	return http.NewResponseController(w.ResponseWriter).SetReadDeadline(deadline)
+}
+
 func TestPhotoStalledBodyReleasesSlot(t *testing.T) {
 	a := newConnectorApp(t)
 	owner := a.newPerson(t, "photo-deadline")
@@ -34,7 +48,7 @@ func TestPhotoStalledBodyReleasesSlot(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Preserve the connector's apex Host check, with the real metrics/notice wrappers.
 				r.Host = strings.TrimPrefix(a.srv.URL, "http://")
-				a.srv.Config.Handler.ServeHTTP(&statusCapture{ResponseWriter: shortImportDeadline{w, set}, status: 200}, r)
+				a.srv.Config.Handler.ServeHTTP(&statusCapture{ResponseWriter: shortPhotoDeadline{w, set}, status: 200}, r)
 				close(done)
 			}))
 			defer server.Close()

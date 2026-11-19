@@ -48,16 +48,6 @@ type Limits struct {
 	NotifyPushPerPersonPerDay int
 	NotifySuspendAfter        time.Duration
 
-	// WordPress imports (browser upload and background conversion).
-	ImportLinkTTL           time.Duration // IMPORT_LINK_TTL_MINUTES
-	ImportMaxUploadMB       int           // IMPORT_MAX_UPLOAD_MB
-	ImportMaxXMLMB          int           // IMPORT_MAX_XML_MB
-	ImportMaxArchiveEntries int           // IMPORT_MAX_ARCHIVE_ENTRIES
-	ImportMaxUnpackedMB     int           // IMPORT_MAX_UNPACKED_MB
-	ImportMaxConcurrent     int           // IMPORT_MAX_CONCURRENT
-	ImportFetchMaxMB        int           // IMPORT_FETCH_MAX_MB
-	ImportFetchTotalMB      int           // IMPORT_FETCH_TOTAL_MB
-
 	// Accounts and keys.
 	SigninCodeTTL      time.Duration // SIGNIN_CODE_TTL_MINUTES
 	MaxKeysPerAccount  int           // MAX_KEYS_PER_ACCOUNT
@@ -327,15 +317,6 @@ func DefaultLimits() Limits {
 		NotifySuspendAfter:          3 * 24 * time.Hour,
 		NotifyPushPerSitePerDay:     2000,
 		NotifyPushPerPersonPerDay:   200,
-
-		ImportLinkTTL:           30 * time.Minute,
-		ImportMaxUploadMB:       1024,
-		ImportMaxXMLMB:          100,
-		ImportMaxArchiveEntries: 20000,
-		ImportMaxUnpackedMB:     2048,
-		ImportMaxConcurrent:     1,
-		ImportFetchMaxMB:        40,
-		ImportFetchTotalMB:      1500,
 
 		SigninCodeTTL:      15 * time.Minute,
 		MaxKeysPerAccount:  50,
@@ -715,15 +696,6 @@ func Knobs() []Knob {
 		durKnob("NOTIFY_SUSPEND_DAYS", "days", 24*time.Hour, 1, 365, func(l *Limits) *time.Duration { return &l.NotifySuspendAfter }),
 		intKnob("NOTIFY_PUSH_PER_SITE_PER_DAY", "pushes", 1, 10000000, func(l *Limits) *int { return &l.NotifyPushPerSitePerDay }),
 		intKnob("NOTIFY_PUSH_PER_PERSON_PER_DAY", "pushes", 1, 100000, func(l *Limits) *int { return &l.NotifyPushPerPersonPerDay }),
-
-		durKnob("IMPORT_LINK_TTL_MINUTES", "minutes", m, 1, 1440, func(l *Limits) *time.Duration { return &l.ImportLinkTTL }),
-		intKnob("IMPORT_MAX_UPLOAD_MB", "MB", 1, 10240, func(l *Limits) *int { return &l.ImportMaxUploadMB }),
-		intKnob("IMPORT_MAX_XML_MB", "MB", 1, 1024, func(l *Limits) *int { return &l.ImportMaxXMLMB }),
-		intKnob("IMPORT_MAX_ARCHIVE_ENTRIES", "count", 1, 100000, func(l *Limits) *int { return &l.ImportMaxArchiveEntries }),
-		intKnob("IMPORT_MAX_UNPACKED_MB", "MB", 1, 20480, func(l *Limits) *int { return &l.ImportMaxUnpackedMB }),
-		intKnob("IMPORT_MAX_CONCURRENT", "count", 1, 16, func(l *Limits) *int { return &l.ImportMaxConcurrent }),
-		intKnob("IMPORT_FETCH_MAX_MB", "MB", 1, 200, func(l *Limits) *int { return &l.ImportFetchMaxMB }),
-		intKnob("IMPORT_FETCH_TOTAL_MB", "MB", 1, 10240, func(l *Limits) *int { return &l.ImportFetchTotalMB }),
 
 		durKnob("SIGNIN_CODE_TTL_MINUTES", "minutes", m, 5, 60, func(l *Limits) *time.Duration { return &l.SigninCodeTTL }),
 		intKnob("MAX_KEYS_PER_ACCOUNT", "keys", 1, 1000, func(l *Limits) *int { return &l.MaxKeysPerAccount }),

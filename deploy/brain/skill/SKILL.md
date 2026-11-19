@@ -41,8 +41,8 @@ arguments and `Content-Type: application/json`; the answer is `{"text": "...", "
 | `search` | full-text search over every source | `query` |
 | `get_doc` | read a document or one section | `path` such as `simple-host/PARITY.md`, `section` (optional) |
 
-Example: "Does Enterprise have the WordPress importer?" is
-`POST /v1/brain/parity` with `{"feature":"WordPress importer"}`.
+Example: "Does Enterprise have the archive upload?" is
+`POST /v1/brain/parity` with `{"feature":"archive upload"}`.
 
 In parity answers, "hosted" means simple-host.app and the small box (the same binary, which also runs
 Simple Hack) and "enterprise" is the Kubernetes edition. "gap → enterprise" means Enterprise should get

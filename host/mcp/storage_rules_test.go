@@ -23,19 +23,17 @@ import (
 // discovery.go's aliases match search terms, rather than teach access choices.
 // hack_entry/event_tools.go and apps/*.css: entry evidence and CSS, not access.
 // Existing preset/self-hosted tests still exercise the flag-off/file behavior.
-// imports.go had no literal preset hit; generated setup advice is rendered in
-// app/sites/import_rules.go without changing the recorded import report.
 //
 // Hashes were captured at 40077d00 before R3-S6a changed server text, then
-// updated for D3-S3's approved Host description-only changes. Refusal hints
+// updated for D3-S3's Host descriptions and X6-S1's tool and recipe removals. Refusal hints
 // and every schema field other than its description retain their old checks.
 func TestStorageRulesFlagOffHashes(t *testing.T) {
-	want := map[string]string{"false//false//": "573856e4a7a437f726677f6c02d136654300bcbad94e54a00d3e3ca56275ec93",
-		"false//true//":         "573856e4a7a437f726677f6c02d136654300bcbad94e54a00d3e3ca56275ec93",
-		"false//false/ChatGPT/": "19e76f5226bb343af1abb1142e6d1d984a90c094c864fc14fa87cb080a6a35d8",
-		"true//false//":         "0d55dd605a859513bb5a0dbdd64a3311587477d91d6fd1fe264be7f1122103c1",
-		"true//true//":          "0d55dd605a859513bb5a0dbdd64a3311587477d91d6fd1fe264be7f1122103c1",
-		"true//false/ChatGPT/":  "7c3e39a6cf0c0dc61755d375e032d38dc92ef05a9d461026bce04651b38bade2"}
+	want := map[string]string{"false//false//": "97f25a33654ec6a79b3804d56049ad371cb89726a113e72b5c4d81c6019485df",
+		"false//true//":         "97f25a33654ec6a79b3804d56049ad371cb89726a113e72b5c4d81c6019485df",
+		"false//false/ChatGPT/": "717dadfb52ef3833224510c597da4f7f7f9b0e45a9accffb65bc794de74e2d56",
+		"true//false//":         "e3156de7d7a8220ac066b843e7f616289776e00e3d59b5fd572c55b983ed8b23",
+		"true//true//":          "e3156de7d7a8220ac066b843e7f616289776e00e3d59b5fd572c55b983ed8b23",
+		"true//false/ChatGPT/":  "eb22d3ca3cbcab72502741416ce63c45201ffc916b586001337cdb152bc22242"}
 	t.Setenv("STORAGE_RULES", "off")
 	for _, noSpam := range []bool{false, true} {
 		s := NewServer(testConfig(Config{NoSpamCheck: noSpam}))

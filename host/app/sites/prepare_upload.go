@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"path"
 	"sort"
 	"strings"
 
@@ -111,4 +112,25 @@ func digestFiles(files map[string][]byte) string {
 		sum.Write([]byte{0})
 	}
 	return hex.EncodeToString(sum.Sum(nil))
+}
+
+// FilePatchPath normalizes a path used to replace or remove a site file.
+func FilePatchPath(name string) (string, error) {
+	if len(name) > tarball.MaxPathLen {
+		return "", errors.New("archive path exceeds 1024 bytes")
+	}
+	name = strings.ReplaceAll(name, `\`, "/")
+	if strings.ContainsRune(name, 0) || strings.HasPrefix(name, "/") || (len(name) > 1 && name[1] == ':') {
+		return "", errors.New("archive contains an unsafe path")
+	}
+	for _, part := range strings.Split(name, "/") {
+		if part == ".." {
+			return "", errors.New("archive contains a parent path")
+		}
+	}
+	clean := path.Clean(name)
+	if clean == "." {
+		return "", nil
+	}
+	return clean, nil
 }

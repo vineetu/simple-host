@@ -25,7 +25,7 @@ app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model
 @/products/hack/app/members -> app/errors model edition workers repository/sqlkit
 @/products/hack/app/entries -> app/errors model edition workers repository/sqlkit
 app/accounts -> repository/{accounts,sites} rules/auth oauth email geoip
-app/sites -> redirects app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball wpimport eventdns capacity
+app/sites -> redirects app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/storage -> @/host/storage/rules
 @/products/hack/app/storagebind -> app/storage @/products/hack/repository/hackevents repository/sqlkit @/host/storage/rules
@@ -54,7 +54,6 @@ storage -> @/host/storage/rules
 geoip -> workers
 {app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
 {brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,testdb,geoip/geoiptest} -> -
-wpimport -> redirects
 {llm,redirects} -> -
 # Permanent module-specific packages and command rows.
 @/scripts/split/sqlcheck -> @/host/db/migrations @/products/hack/db/migrations

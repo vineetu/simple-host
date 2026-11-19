@@ -25,7 +25,7 @@ row or a replacement site at that name leaves the old candidate untouched.
 | Path | Marker before publication |
 | --- | --- |
 | First create, including create-or-update when new | `Service.Create` writes and verifies the marker before committing; `UpdateCurrent` and the existing settle pause follow. The SIM-448 flow is retained. |
-| Update, archive upload and import | `Service.Update` writes the version, then repairs and verifies access before commit and `UpdateCurrent`. `ConnectorHandler.publishImport` uses the archive upload path. |
+| Update and archive upload | `Service.Update` writes the version, then repairs and verifies access before commit and `UpdateCurrent`. |
 | Activate or roll back a version | `activateVersion` repairs and verifies access before `UpdateCurrent`. Compensation uses the same marked directory. |
 | Rename | `Service.Rename` writes and verifies access in the old directory before `RenameSite` moves it, holding both name locks. |
 | Restore Recently deleted | `RestoreTrashed` repairs access in the deleted directory before `RestoreSite` moves it. The existing effective suspension repair stays before the move too. |

@@ -673,7 +673,7 @@ func TestRulesHackRecipes(t *testing.T) {
 	for _, topic := range append(mcp.RecipeTopics(), "event") {
 		text, err := HackPageRecipe(topic, "my-event")
 		switch topic {
-		case "portal", "comments", "guestbook", "people", "wordpress":
+		case "portal", "comments", "guestbook", "people":
 			if err == nil {
 				t.Errorf("%s product refusal lost", topic)
 			}
@@ -741,13 +741,6 @@ func TestHackStoragePresetRecipesAndTools(t *testing.T) {
 					}
 					continue
 				}
-				if topic == "wordpress" {
-					// Simple Hack has no import link: team sites are new builds.
-					if _, err := HackPageRecipe(topic, "team"); err == nil {
-						t.Fatal("wordpress recipe served on Simple Hack")
-					}
-					continue
-				}
 				if topic == "comments" || topic == "guestbook" {
 					// Simple Hack runs no spam check, so the comments preset is
 					// not offered there.
@@ -785,7 +778,7 @@ func TestHackRefusesPortalRecipe(t *testing.T) {
 
 // Simple Hack does not offer the people recipe at all (review round 2,
 // item D): for and the people pick list are Host only, so unlike
-// portal/comments/guestbook/wordpress (listed, refused with a reason),
+// portal/comments/guestbook (listed, refused with a reason),
 // people is removed from hack_get_page_recipe's topic enum entirely.
 func TestHackPeopleRecipeNotOffered(t *testing.T) {
 	for _, store := range []string{"postgres", "sqlite"} {

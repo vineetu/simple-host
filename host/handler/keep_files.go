@@ -9,7 +9,7 @@ import (
 func normalizeFilePatch(files map[string][]byte, remove []string) (map[string]bool, error) {
 	removed := map[string]bool{}
 	for _, raw := range remove {
-		clean, err := sites.ImportPath(raw)
+		clean, err := sites.FilePatchPath(raw)
 		if err != nil || clean == "" {
 			return nil, errors.New("unsafe path in remove_files")
 		}
@@ -18,7 +18,7 @@ func normalizeFilePatch(files map[string][]byte, remove []string) (map[string]bo
 	// Normalize the patch before merging so ./about.html replaces about.html.
 	patch := map[string][]byte{}
 	for raw, b := range files {
-		clean, err := sites.ImportPath(raw)
+		clean, err := sites.FilePatchPath(raw)
 		if err != nil || clean == "" {
 			return nil, errors.New("unsafe file path")
 		}

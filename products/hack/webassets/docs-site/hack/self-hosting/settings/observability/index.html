@@ -741,10 +741,9 @@ uses the resulting metadata. Data URIs beginning with <code>data:</code> and con
 <code>;base64,</code> replace whole string values in arguments and structured/JSON results, including
 sponsor <code>logo_data</code>, and whole non-JSON text blocks. They are not searched for inside
 ordinary prose. Intent uses the same data-URI check (<code>[file: N bytes, &lt;type&gt;]</code>) and SDK
-large-base64 check before its length cap, with no other processing. WordPress and photo
-upload bytes travel over their upload HTTP routes, not tool calls; the tool returns
-only the link or report. Unlabelled base64 strings at least 10 KB long use the SDK’s
-binary-data placeholder instead.</li>
+large-base64 check before its length cap, with no other processing. Photo upload bytes travel over
+the upload HTTP route. The tool returns the link. Unlabelled base64 strings at least
+10 KB long use the SDK’s binary-data placeholder instead.</li>
 <li>Emails: <code>email</code> and <code>emails</code> in account, named-viewer, storage, and Hack tools;
 Hack <code>contact_email</code> (event create/update arguments and <code>organiser.contact_email</code> in
 event results); <code>visitor_email</code> and <code>visitor_emails</code>; and viewer <code>added</code>, <code>already_listed</code>, and <code>removed</code>
@@ -755,7 +754,7 @@ generic walk of <code>rows</code>. The owner’s email in <code>who_am_i</code> 
 <code>set_site_access</code> (including non-JSON errors), and visitor-lookup prose uses
 the sanitized structured copy; JSON text results receive the same field treatment.</li>
 </ul>
-<p>Passcode, upload/import link, preview/export, unpublished update, Hack team-key, archive,
+<p>Passcode, upload link, preview/export, unpublished update, Hack team-key, archive,
 invitation, event detail, and code-regeneration tools can repeat secrets in prose, so their
 telemetry text blocks are replaced with <code>[removed: contains a secret]</code>. The client’s text,
 structured result, and metadata are unchanged. UI metadata is not included in telemetry.</p>

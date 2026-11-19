@@ -87,7 +87,6 @@ type ConnectorHandler struct {
 	adminAPIKey   string
 	mcp           *mcp.Server
 	mcpConfig     mcp.Config
-	imports       *appsites.ImportManager
 	upstream      http.Handler
 	skillVersion  string
 
@@ -103,19 +102,17 @@ type ConnectorHandler struct {
 	// alerts emails the owner when an app is connected (signin_alert.go).
 	alerts *SignInAlerts
 
-	registerLimiter     *rateLimiter
-	authorizeLimiter    *rateLimiter
-	tokenLimiter        *rateLimiter
-	uploadLimiter       *rateLimiter
-	importStatusLimiter *rateLimiter
+	registerLimiter  *rateLimiter
+	authorizeLimiter *rateLimiter
+	tokenLimiter     *rateLimiter
+	uploadLimiter    *rateLimiter
 
 	now func() time.Time
 	// teamConnections is on when the product has team connections: a new
 	// grant is personal and selects a team (SetTeamConnections).
 	teamConnections bool
 
-	// assets is the asset/chrome pipeline for ed and issuer (the consent
-	// screen and import page); read it through pipeline().
+	// assets is the asset/chrome pipeline for the consent screen. Read it through pipeline().
 	assets     *assetPipeline
 	assetsOnce sync.Once
 }
@@ -181,37 +178,29 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// Registration: a chat app registers once per install, so a handful
 		// an hour per address is plenty. Authorize and token: one person's
 		// sign-in or a client's refresh loop, with room for retries.
-		registerLimiter:     newRateLimiterFor(lim.RateOAuthRegister),
-		authorizeLimiter:    newRateLimiterFor(lim.RateOAuthAuthorize),
-		tokenLimiter:        newRateLimiterFor(lim.RateOAuthToken),
-		uploadLimiter:       newRateLimiterFor(lim.RateOAuthToken),
-		importStatusLimiter: newRateLimiter(60, 1),
-		now:                 time.Now,
+		registerLimiter:  newRateLimiterFor(lim.RateOAuthRegister),
+		authorizeLimiter: newRateLimiterFor(lim.RateOAuthAuthorize),
+		tokenLimiter:     newRateLimiterFor(lim.RateOAuthToken),
+		uploadLimiter:    newRateLimiterFor(lim.RateOAuthToken),
+		now:              time.Now,
 	}
 	h.httpCaches.rate("http.connector.registerLimiter", h.registerLimiter, 10*time.Minute, 2*time.Hour)
 	h.httpCaches.rate("http.connector.authorizeLimiter", h.authorizeLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.rate("http.connector.tokenLimiter", h.tokenLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.rate("http.connector.uploadLimiter", h.uploadLimiter, 10*time.Minute, 30*time.Minute)
-	h.httpCaches.rate("http.connector.importStatusLimiter", h.importStatusLimiter, 10*time.Minute, 30*time.Minute)
-	h.imports = appsites.NewImportManager(lim.ImportMaxConcurrent)
 	h.upstream = upstream
 	h.skillVersion = skillVersion
 	mcpSnapshot := mcpLimits(lim)
 	h.mcpConfig = mcp.Config{
-		Limits:              &mcpSnapshot,
-		AnalyticsProjectID:  strings.TrimSpace(os.Getenv("AGENTCAT_PROJECT_ID")),
-		AnalyticsEnv:        analyticsEnv(issuer),
-		AnalyticsPepper:     analyticsPepper(adminAPIKey),
-		ImportLinkTTL:       lim.ImportLinkTTL,
-		ImportCreated:       func(link mcp.ImportLink) error { return h.imports.Created(importJobLink(link)) },
-		ImportReceiving:     h.imports.Receiving,
-		ImportReport:        h.imports.Report,
-		ValidateImportNames: true,
-		Upstream:            upstream,
-		APIHost:             apiHost,
-		ContentOrigin:       "https://" + contentHost,
-		SiteBases:           []string{siteDomain},
-		SkillVersion:        skillVersion,
+		Limits:             &mcpSnapshot,
+		AnalyticsProjectID: strings.TrimSpace(os.Getenv("AGENTCAT_PROJECT_ID")),
+		AnalyticsEnv:       analyticsEnv(issuer),
+		AnalyticsPepper:    analyticsPepper(adminAPIKey),
+		Upstream:           upstream,
+		APIHost:            apiHost,
+		ContentOrigin:      "https://" + contentHost,
+		SiteBases:          []string{siteDomain},
+		SkillVersion:       skillVersion,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
 		ServerName:     "simple-host",
@@ -371,10 +360,6 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	for _, m := range []string{"POST", "GET", "DELETE"} {
 		mux.HandleFunc(m+" /mcp", h.serveMCP)
 	}
-
-	mux.Handle("GET /import/{token}", h.importOrigin(h.pipeline().adminUICSP(http.HandlerFunc(h.importPage))))
-	mux.Handle("POST /v1/imports/{token}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.receiveImport))))
-	mux.Handle("GET /v1/imports/status/{import_id}", h.importOrigin(rateLimitByIP(h.importStatusLimiter, http.HandlerFunc(h.importStatus))))
 
 	photoLinks := photosHostOnly(!h.hostedEvents, accountAuthOnly(h.issuer, rateLimitByIP(h.uploadLimiter, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.mcp.ServePhotoLink(w, r) }))))
 	mux.Handle("GET /v1/photo-links", photoLinks)

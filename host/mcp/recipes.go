@@ -18,7 +18,7 @@ var recipeFiles embed.FS
 // per remaining storage preset, the owner's admin page, the files gallery,
 // and the owner/visitor page on one site (people). The aliases are the plain
 // words people use for the same jobs; form is the earlier name of inbox.
-var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "people", "gallery", "wordpress",
+var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "people", "gallery",
 	"reservation", "appointment", "quote", "waitlist", "contact", "form", "menu", "guestbook"}
 
 var recipeAliases = map[string]string{"form": "inbox", "quote": "inbox", "waitlist": "inbox", "contact": "inbox",
@@ -78,12 +78,11 @@ func pageRecipeTool() Tool {
 			"personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner's own notes or log on the site), " +
 			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), " +
 			"people (one page, two views, for many signed-in visitors the owner also works with directly — a coach and clients, a tutor and students, a trainer and members: the owner picks a person, sees and adds to their rows, assigns from a template, replies by adding a row for them; each visitor sees only their own, marked as the owner's when the owner added it), " +
-			"gallery (photos visitors upload that everyone sees; the owner's own photos go through create_upload_link, no page code), " +
-			"wordpress (moving the person's WordPress site here from their own export: the import link, the export clicks, and which Simple Host feature replaces each WordPress feature). " +
+			"gallery (photos visitors upload that everyone sees; the owner's own photos go through create_upload_link, no page code). " +
 			"Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. " +
 			"Call it before writing any page that saves what visitors send, shows saved data, or takes visitors' uploads; then run its setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
-			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, people, gallery, or wordpress. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
+			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, people, or gallery. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),
 		}, "topic"),
 		OutputSchema: outObject(map[string]any{

@@ -24,7 +24,7 @@ FAMILY_LABELS = {
     'access': 'Passcodes, viewers and domains',
     'storage': 'Storage',
     'accounts': 'Account',
-    'imports': 'Imports and uploads',
+    'imports': 'Photo and archive uploads',
     'notifications': 'Notifications',
     'discovery': 'Finding tools',
     'hack-events': 'Events, teams and members',

@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0nyzcyd" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ic2n7f" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -306,7 +306,7 @@
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/mcp/imports/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Imports and uploads</span>
+				<span class="astro-rmhv4bp6">Photo and archive uploads</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -1506,7 +1506,7 @@
 </table>
 <h2 id="get_page_recipe">get_page_recipe</h2>
 <div data-tool="get_page_recipe"></div>
-<p>Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Pick the topic from what the person asked for: booking (any booking, appointment, or table reservation, even a “booking request”: the customer signs in with their email when they book and sees their bookings and status; the owner confirms from chat), inbox (a quote request, contact form, waitlist, sign-up, volunteer or job application form, feedback: anyone sends without signing in, only the owner reads), public (a menu, prices, opening hours, or stock list the owner changes from chat and everyone reads), portal (a client portal or client documents: one private page per client, opened only to that client’s email), comments (a guestbook, comments, reviews, or questions anyone posts without signing in, after a spam check; the owner removes or approves posts), wall (reviews, comments, community posts everyone reads; people sign in to post, and can take back their own), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner’s own notes or log on the site), records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), people (one page, two views, for many signed-in visitors the owner also works with directly — a coach and clients, a tutor and students, a trainer and members: the owner picks a person, sees and adds to their rows, assigns from a template, replies by adding a row for them; each visitor sees only their own, marked as the owner’s when the owner added it), gallery (photos visitors upload that everyone sees; the owner’s own photos go through create_upload_link, no page code), wordpress (moving the person’s WordPress site here from their own export: the import link, the export clicks, and which Simple Host feature replaces each WordPress feature). Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. Call it before writing any page that saves what visitors send, shows saved data, or takes visitors’ uploads; then run its setup calls, adapt its page to the person’s site, and publish. After building a records form, offer notifications through MCP Events if the app supports them, or the dashboard Notifications panel.</p>
+<p>Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Pick the topic from what the person asked for: booking (any booking, appointment, or table reservation, even a “booking request”: the customer signs in with their email when they book and sees their bookings and status; the owner confirms from chat), inbox (a quote request, contact form, waitlist, sign-up, volunteer or job application form, feedback: anyone sends without signing in, only the owner reads), public (a menu, prices, opening hours, or stock list the owner changes from chat and everyone reads), portal (a client portal or client documents: one private page per client, opened only to that client’s email), comments (a guestbook, comments, reviews, or questions anyone posts without signing in, after a spam check; the owner removes or approves posts), wall (reviews, comments, community posts everyone reads; people sign in to post, and can take back their own), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner’s own notes or log on the site), records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), people (one page, two views, for many signed-in visitors the owner also works with directly — a coach and clients, a tutor and students, a trainer and members: the owner picks a person, sees and adds to their rows, assigns from a template, replies by adding a row for them; each visitor sees only their own, marked as the owner’s when the owner added it), gallery (photos visitors upload that everyone sees; the owner’s own photos go through create_upload_link, no page code). Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. Call it before writing any page that saves what visitors send, shows saved data, or takes visitors’ uploads; then run its setup calls, adapt its page to the person’s site, and publish. After building a records form, offer notifications through MCP Events if the app supports them, or the dashboard Notifications panel.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1526,9 +1526,9 @@
 </tr>
 <tr>
 <td>topic</td>
-<td>string, one of <code>booking</code>, <code>inbox</code>, <code>public</code>, <code>portal</code>, <code>wall</code>, <code>comments</code>, <code>board</code>, <code>personal</code>, <code>private</code>, <code>records</code>, <code>admin</code>, <code>people</code>, <code>gallery</code>, <code>wordpress</code>, <code>reservation</code>, <code>appointment</code>, <code>quote</code>, <code>waitlist</code>, <code>contact</code>, <code>form</code>, <code>menu</code>, <code>guestbook</code></td>
+<td>string, one of <code>booking</code>, <code>inbox</code>, <code>public</code>, <code>portal</code>, <code>wall</code>, <code>comments</code>, <code>board</code>, <code>personal</code>, <code>private</code>, <code>records</code>, <code>admin</code>, <code>people</code>, <code>gallery</code>, <code>reservation</code>, <code>appointment</code>, <code>quote</code>, <code>waitlist</code>, <code>contact</code>, <code>form</code>, <code>menu</code>, <code>guestbook</code></td>
 <td>yes</td>
-<td>booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, people, gallery, or wordpress. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments.</td>
+<td>booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, people, or gallery. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments.</td>
 </tr>
 </tbody>
 </table>

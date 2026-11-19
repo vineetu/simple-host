@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0nyzcyd" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="0ic2n7f" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -306,7 +306,7 @@
 			</a>
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/mcp/imports/" class="astro-rmhv4bp6">
-				<span class="astro-rmhv4bp6">Imports and uploads</span>
+				<span class="astro-rmhv4bp6">Photo and archive uploads</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -550,15 +550,6 @@
 		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#get-importtoken" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /import/{token}</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#get-v1importsstatusimport_id" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/imports/status/{import_id}</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#post-v1importstoken" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/imports/{token}</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#get-v1photo-links" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/photo-links</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
@@ -601,15 +592,6 @@
 		<ul class="astro-jugkfwgx" style="--depth: 0;">
 	<li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">Overview</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#get-importtoken" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /import/{token}</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#get-v1importsstatusimport_id" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/imports/status/{import_id}</span></a>
-		
-	</li><li style="--depth: 0;" class="astro-jugkfwgx">
-		<a href="#post-v1importstoken" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">POST /v1/imports/{token}</span></a>
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#get-v1photo-links" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">GET /v1/photo-links</span></a>
@@ -661,167 +643,6 @@
 							<div class="content-panel astro-a7po4psb">
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><p>Publish inline JSON files or a tar.gz/zip archive.</p>
-<h2 id="get-importtoken">GET /import/{token}</h2>
-<div data-operation="GET /import/{token}"></div>
-<p>Does not consume the link. No-store and no-referrer; token authority, no cookies or API key on the page.</p>
-<p>No authentication required.</p>
-<p><strong>Parameters:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>In</th>
-<th>Type</th>
-<th>Required</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>token</td>
-<td>path</td>
-<td>string</td>
-<td>yes</td>
-<td></td>
-</tr>
-</tbody>
-</table>
-<p><strong>Responses:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>200</td>
-<td>Shared-theme HTML upload page</td>
-</tr>
-<tr>
-<td>404</td>
-<td>Link expired</td>
-</tr>
-</tbody>
-</table>
-<h2 id="get-v1importsstatusimport_id">GET /v1/imports/status/{import_id}</h2>
-<div data-operation="GET /v1/imports/status/{import_id}"></div>
-<p>Public by a random 128-bit ID; same-origin browsers only. Returns stages, counts and at most 10 plain warnings, with no owner, report, credentials or filenames. Finished imports expire after 24 hours; accounts retain at most 20 records. Usable links and receiving/queued/running imports retain their records. Expired unused links are swept. Status reads have a separate per-IP limiter (60 burst, one per second); retry after the Retry-After header on 429.</p>
-<p>No authentication required.</p>
-<p><strong>Parameters:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>In</th>
-<th>Type</th>
-<th>Required</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>import_id</td>
-<td>path</td>
-<td>string</td>
-<td>yes</td>
-<td></td>
-</tr>
-</tbody>
-</table>
-<p><strong>Responses:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>200</td>
-<td>Current progress</td>
-</tr>
-<tr>
-<td>404</td>
-<td>Not found</td>
-</tr>
-<tr>
-<td>429</td>
-<td>Too many status reads from this address</td>
-</tr>
-</tbody>
-</table>
-<h2 id="post-v1importstoken">POST /v1/imports/{token}</h2>
-<div data-operation="POST /v1/imports/{token}"></div>
-<p>Same-origin browser upload, authorized by the one-time token from create_import_link. Checks the creating connection’s sign-in again. Streams up to 10 files to disk, sniffs XML, ZIP, TAR and gzip TAR, validates archive paths and byte limits, then converts and publishes asynchronously. Invalid files and a full queue leave the link usable. A reserved link returns 409. Publishing can replace the live version.</p>
-<p>No authentication required.</p>
-<p><strong>Parameters:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>In</th>
-<th>Type</th>
-<th>Required</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>token</td>
-<td>path</td>
-<td>string</td>
-<td>yes</td>
-<td></td>
-</tr>
-</tbody>
-</table>
-<p><strong>Request body:</strong> multipart/form-data</p>
-<p><strong>Responses:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>202</td>
-<td>Files validated and import queued</td>
-</tr>
-<tr>
-<td>400</td>
-<td>Invalid request. A saved-data write whose JSON holds a NUL character (\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.</td>
-</tr>
-<tr>
-<td>403</td>
-<td>Sign-in ended (import_link_signed_out) or another browser origin</td>
-</tr>
-<tr>
-<td>404</td>
-<td>Import link expired</td>
-</tr>
-<tr>
-<td>409</td>
-<td>Already uploading</td>
-</tr>
-<tr>
-<td>413</td>
-<td>Payload too large (on saved data, code item_too_large; on a deploy: site_too_large (per-upload limit), site_total_too_large (whole website footprint for sites created from SITE_TOTAL_CAP_FROM), or account_storage_full (all account website files including Recently deleted). Totals count the separate live copy and kept versions after pruning; backend storage and saved data are excluded. The error names the limit and current size for total caps, and hint gives photo-compression and file-cleanup tips)</td>
-</tr>
-<tr>
-<td>429</td>
-<td>Too many uploads from this address</td>
-</tr>
-<tr>
-<td>503</td>
-<td>Busy; try again in a few minutes with the same link</td>
-</tr>
-</tbody>
-</table>
 <h2 id="get-v1photo-links">GET /v1/photo-links</h2>
 <div data-operation="GET /v1/photo-links"></div>
 <p>The create_upload_link photos_url opens /photos?site=&lt;name&gt;#t=&lt;token&gt;. The page sends the fragment token in X-Photo-Token, never in a request URL or Referer, and immediately removes the fragment from browser history. No browser sign-in is needed. The link lasts 60 minutes for OAuth callers; API-key links are capped at the key’s known expiry (reported in expires_at), and permits up to 10 successful saves to one site. The creating OAuth grant (not the original access token) or API key is checked again on every request; only the site name is returned, with no account data or keys. The binding is to the site name for the link’s lifetime: renaming and recreating that name sends later photos to the replacement site within the same account. Apex Host and Origin checks and IP rate limits apply.</p>

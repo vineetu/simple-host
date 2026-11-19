@@ -128,30 +128,6 @@
         "destructive_justification": "Uploads can replace existing files, and archive mode can replace the whole live version, even though retained versions allow rollback."
       }
     },
-    "create_import_link": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Creates a WordPress import workflow and a new upload link for each call.",
-        "open_world_justification": "The import can publish a new site or replace an existing site at its public address.",
-        "destructive_justification": "An import can replace the live version of an existing site. Retaining the previous version does not remove that destructive effect."
-      }
-    },
-    "get_import_report": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Reads an owned import job progress and report.",
-        "open_world_justification": "Reads the account import record without fetching external WordPress sites.",
-        "destructive_justification": "Does not start, retry, or change the import."
-      }
-    },
     "update_site": {
       "annotations": {
         "readOnlyHint": false,

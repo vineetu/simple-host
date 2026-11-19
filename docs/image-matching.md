@@ -5,7 +5,7 @@
 Every image written to a site is checked after the write against hash sets of known child
 sexual abuse material (CSAM) through Microsoft PhotoDNA Cloud Service. Covered writes: site
 deploys (`PUT /v1/sites/...`, the connector's `create_site` and `update_site`, the photos page
-and upload links, WordPress and Squarespace imports), files-storage objects (`storage_put_file`
+and upload links), files-storage objects (`storage_put_file`
 and the REST PUT), and on Simple Hack every event icon and entry screenshot. The request never
 waits. The image is queued, its SHA-256 is checked against a local table of earlier verdicts,
 and an unknown image is sent as bytes (WebP re-encoded as PNG, large images scaled to 1600 px,

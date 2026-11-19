@@ -50,14 +50,6 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 <!-- settings:group=sites -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
-| `IMPORT_LINK_TTL_MINUTES` | `30` | 1–1440 minutes | How long a WordPress import page link works. **Security-sensitive.** |
-| `IMPORT_MAX_UPLOAD_MB` | `1024` | 1–10240 MB | Maximum bytes in a WordPress import upload, in MiB. |
-| `IMPORT_MAX_XML_MB` | `100` | 1–1024 MB | Maximum combined WordPress XML bytes, in MiB. |
-| `IMPORT_MAX_ARCHIVE_ENTRIES` | `20000` | 1–100000 count | Maximum entries across import archives. |
-| `IMPORT_MAX_UNPACKED_MB` | `2048` | 1–20480 MB | Maximum unpacked import bytes, in MiB. |
-| `IMPORT_MAX_CONCURRENT` | `1` | 1–16 count | WordPress imports converting and publishing at once. |
-| `IMPORT_FETCH_MAX_MB` | `40` | 1–200 MB | Maximum bytes fetched for one import file, in MiB. |
-| `IMPORT_FETCH_TOTAL_MB` | `1500` | 1–10240 MB | Combined download budget for one import, in MiB. |
 | `MAX_SITES_PER_ACCOUNT` | `100` | 1–100000 sites | Sites one account may hold (sites in Recently deleted count). |
 | `MAX_SITES_OVERRIDES` | none | handle:sites | Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated &lt;handle>:&lt;sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one. |
 | `MAX_ARCHIVE_MB_OVERRIDES` | none | handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated &lt;handle>:&lt;MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
@@ -129,7 +121,7 @@ the new release. New deploys populate summaries automatically.
 
 `PHOTO_MAX_BYTES` sets the maximum bytes per prepared photo (default 1,000,000). `PHOTO_MAX_DIMENSION` sets the longest allowed side in pixels (default 2048). `PHOTO_MAX_CONCURRENT` bounds photo saves across the process (default 3). `PHOTO_BODY_TIMEOUT_SECONDS` sets the body-read deadline at both the owner and photo-token entry points (default 60 seconds; positive integers). Unsupported response writers continue without a deadline. Both signed-in and token saves acquire a slot before reading the request body; full capacity returns 429 "Busy, try again in a moment" and `Retry-After: 2` without queueing. A slot is held through commit. Each request still allows 30 photos of 1,000,000 bytes plus bounded multipart overhead by default. The Add photos page prepares small WebP or JPEG copies on the device. The server validates them without decoding pixels or resizing. Each request takes up to 30 photos; the normal site upload, retained-version, account, and deploy rate limits also apply.
 
-## Upload and import behavior
+## Upload behavior
 
 `MAX_SITES_PER_ACCOUNT` applies to non-admin accounts; exceeding it returns
 403 `site_quota_reached`. Malformed `MAX_SITES_OVERRIDES` or
@@ -146,11 +138,7 @@ The upload pipeline and disk are sized for at most 50,000 files. When
 `MAX_ARCHIVE_MB` is set, the effective file cap is the smaller of
 `MAX_FILES_PER_SITE` and one file per 4 KB of that budget.
 
-`create_import_link` creates a link spent by one import. The proxy must accept
-`IMPORT_MAX_UPLOAD_MB` request bodies on `/v1/imports/`. Up to five imports wait
-behind the concurrent conversions; further requests ask the person to try again
-in a few minutes. Downloaded import files include photos missing from the media
-file and theme stylesheets. Export links are reusable and may hold private
+Export links are reusable and may hold private
 collections, so their lifetime is capped at an hour.
 
 The longest site passcode is 128 characters, independently of the configured

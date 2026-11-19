@@ -1,40 +1,9 @@
 package mcp
 
-// Imports family: WordPress imports and photo upload links.
+// Photo and archive upload links.
 
 func importTools() []Tool {
 	return []Tool{
-		{
-			policy: toolPolicy{analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
-			OutputSchema: outObject(map[string]any{
-				"import_url": outString("Private one-time browser upload page."),
-				"import_id":  outString("Import report identifier."),
-				"expires_at": outString("Expiry in RFC 3339."),
-				"site":       outString(outSiteName),
-				"how":        outString("Instructions for the person and chat."),
-			}, "import_url", "import_id", "expires_at", "site", "how"),
-			Name: "create_import_link", Title: "Move a WordPress site",
-			Description: "Move a WordPress site here from the export the person downloads from WordPress themselves (WordPress.com: Tools > Export). Each call makes a new link. Returns a one-time page link (30 minutes, this site only) for them to open in their browser and drop the files on. The import creates the site, or publishes a new version of it, at its public address, so it can replace what is live (the previous version is kept for rollback_site). When they say it finished, call get_import_report. Never paste the link into a web page.",
-			InputSchema: object(map[string]any{"site": str(siteDesc), "theme_url": str("Optional old site's address, prefilled on the upload page to copy its look.")}, "site"),
-			Annotations: writes(true, false, true), run: createImportLink,
-		},
-		{
-			policy: toolPolicy{groupSiteExcluded: true},
-			OutputSchema: outObject(map[string]any{
-				"state":       outString("Import state."),
-				"message":     outString("Plain progress or failure."),
-				"site":        outString(outSiteName),
-				"site_url":    outString("Live address."),
-				"started_at":  outString("Start in RFC 3339, or empty."),
-				"finished_at": outString("Finish in RFC 3339, or empty."),
-				"report":      map[string]any{"type": "object", "additionalProperties": true},
-				"next_steps":  outArray("Feature setup steps and live address handoff.", outString("Step.")),
-			}, "state", "message", "site", "site_url", "started_at", "finished_at", "next_steps"),
-			Name: "get_import_report", Title: "Read the WordPress import report",
-			Description: "Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages. Write root _redirects rules from the old address list for any changed paths (including wildcards and ?p=123 query links); fix publish errors at their line numbers.",
-			InputSchema: object(map[string]any{"import_id": str("The import_id returned by create_import_link.")}, "import_id"),
-			Annotations: readOnly(), run: getImportReport,
-		},
 		{
 			policy: toolPolicy{screen: "photo-picker", flatList: flatUploadTool, analytics: analyticsPolicy{secretText: true, secretHow: true}},
 			OutputSchema: outObject(map[string]any{

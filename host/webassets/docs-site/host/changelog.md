@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** Simple Host retired the WordPress and Squarespace export importer. You can still publish a site from a ZIP file or an archive upload link.
+
 - **Nov 17:** Fix interrupted Compose upgrade recovery, nonroot maintenance-lock ownership and private atomic configuration publication. Preserve environment substitutions and the original service set across retries; resume incomplete first installations and their release recording (D4-S10a review).
 
 - **Nov 17:** Add the self-hosted upgrade compatibility check and Compose backup/restore protocol. Retries preserve the original paired backup; restore puts database, files, configuration and image digests back together. Command registration follows separately (D4-S10a).

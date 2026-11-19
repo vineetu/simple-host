@@ -35,7 +35,6 @@ func TestAnalyticsPostedConversation(t *testing.T) {
 		{"storage_get_kv", map[string]any{"image": "data:image/png;base64," + encoded, "blob": strings.Repeat("A", 10240)}, map[string]any{"image": "data:image/png;base64," + encoded, "blob": strings.Repeat("A", 10240)}, "ordinary text"},
 		{"get_site_passcode", map[string]any{"site": "ordinary-site"}, map[string]any{"passcode": planted}, planted},
 		{"create_upload_link", map[string]any{"site": "ordinary-site"}, map[string]any{"upload_url": planted, "photos_url": planted, "how": "curl " + planted}, planted},
-		{"create_import_link", map[string]any{"site": "ordinary-site"}, map[string]any{"import_url": planted}, planted},
 		{"storage_file_download_link", map[string]any{"site": "ordinary-site"}, map[string]any{"url": planted}, planted},
 		{"grant_site_viewer", map[string]any{"emails": []any{planted}}, map[string]any{"added": []any{planted}, "already_listed": []any{planted}}, planted},
 		{"revoke_site_viewer", map[string]any{"email": planted}, map[string]any{"removed": planted}, planted},
@@ -198,7 +197,7 @@ func TestAnalyticsFileMetadataAndFields(t *testing.T) {
 			t.Fatalf("bad file metadata %v", got)
 		}
 	}
-	for _, name := range []string{"Pass-Code", "PASSWORD", "client_secret", "token", "api-key", "authorization", "cookie", "code", "sign_in_code", "verification_code", "team_key", "signing_key", "private_key", "auth_header", "upload_url", "photos_url", "import_url", "download_url", "signed_url", "preview_url", "pinned_url", "join_code", "judge_code", "join_url", "judge_url", "invite_url", "city", "country", "age_range", "gender"} {
+	for _, name := range []string{"Pass-Code", "PASSWORD", "client_secret", "token", "api-key", "authorization", "cookie", "code", "sign_in_code", "verification_code", "team_key", "signing_key", "private_key", "auth_header", "upload_url", "photos_url", "download_url", "signed_url", "preview_url", "pinned_url", "join_code", "judge_code", "join_url", "judge_url", "invite_url", "city", "country", "age_range", "gender"} {
 		if !analyticsSecretField("storage_put_kv", name) {
 			t.Errorf("not removed: %s", name)
 		}

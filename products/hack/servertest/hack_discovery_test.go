@@ -154,7 +154,7 @@ func TestHackPublicDiscovery(t *testing.T) {
 					t.Errorf("missing Hack tool %s", name)
 				}
 			}
-			for _, name := range []string{"find_tools", "run_tool", "hack_create_team_key", "create_import_link", "list_notifications"} {
+			for _, name := range []string{"find_tools", "run_tool", "hack_create_team_key", "list_notifications"} {
 				if seen[name] {
 					t.Errorf("unexpected tool %s", name)
 				}

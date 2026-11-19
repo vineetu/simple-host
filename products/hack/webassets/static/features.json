@@ -792,44 +792,7 @@
       }
      ],
      "covers": [],
-     "evidence": "features.html #site-notfound-page; FEATURES.md \u00a71 Routes row (GET /internal/notfound, nginx @notfound, renamed site's old name 302s), Pages row (st/notfound.html), \u00a715 Caddy hand-off for a missing site on event and small-box instances. Enterprise: not stated, same binary lineage. The 404.html clause comes from the WordPress import output list (FEATURES.md L931), which ships a 404.html. Not rendered."
-    },
-    {
-     "id": "publish-wordpress-import",
-     "name": "Move a WordPress site",
-     "line": "Upload the export of a WordPress site you own and Simple Host turns it into static pages at the same permalinks, with photos and menus.",
-     "who": "Someone moving a WordPress or Squarespace site they own, with only a chat app.",
-     "how": "Ask your AI app to start a WordPress import for a site name. It gives you a one-time page where you upload the export: the WXR `.xml` file, WordPress.com's `.zip` of XML files, and the media library as a `.tar`, `.zip`, or `.tar.gz` of `wp-content/uploads`. Conversion runs without AI and publishes through the normal deploy path, as a new site or a new version. Pages and posts land at their permalinks with category and tag archives, the menu, photos shrunk to 1600 px, galleries, YouTube and Vimeo embeds, approved comments as text, a search page, a sitemap, and a `404.html`, in the built-in look or the old theme's stylesheets. A Squarespace export is recognised too, with its photos copied while the old site is still live. Afterwards your AI app reads the import report, which names the exact storage setup for each dynamic part: contact and subscribe forms become an inbox, comments and guestbooks become a comments preset, a forum becomes a wall.",
-     "example": "A yoga studio moves its 40-post WordPress blog with class schedule and contact form; the posts keep their addresses and the form keeps taking messages into the owner's inbox.",
-     "where": "Ask your AI app. It calls `create_import_link`, hands you the upload page, then reads `get_import_report`.",
-     "limits": "Only public items are written: drafts, scheduled, pending, private, and password-protected pages and posts are left out, and the report counts the password-protected ones. Page-builder layouts (Elementor, Divi, WPBakery, Beaver Builder, and others) do not carry over; the report names those pages, forms whose fields were not in the export, and galleries it could not rebuild. Shops stay as pages with a Buy button only when you map products to payment links; cart, checkout, and account pages are left out. Donation forms are not supported. Photos missing from the upload are fetched only from the export's own hosts, WordPress.com's media hosts, or Squarespace's image servers. The upload page lasts 30 minutes, at most 20 import links per account, one conversion runs at a time, the report is kept 24 hours, and the usual site size caps apply.",
-     "editions": {
-      "host": "yes",
-      "hack": "no",
-      "enterprise": "no",
-      "smallbox": "no"
-     },
-     "editions_note": "WordPress import is a simple-host.app feature; Simple Hack team sites are new builds and Enterprise does not have it.",
-     "status": "live",
-     "status_note": "",
-     "docs": [
-      {
-       "label": "Deploy skill",
-       "href": "/skills/website-deploy/SKILL.md"
-      },
-      {
-       "label": "FEATURES: MCP connector",
-       "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#8-mcp-connector-and-oauth-chat-apps"
-      },
-      {
-       "label": "Docs",
-       "href": "/docs/guides/publish/"
-      }
-     ],
-     "covers": [
-      "publish-wordpress-import"
-     ],
-     "evidence": "FEATURES.md L931-935 (create_import_link, accepted files, safety checks, conversion without AI, Squarespace, output list, get_import_report mapping, page-builder notes, 30 minutes, 20 links, 24-hour report, IMPORT_MAX_CONCURRENT); PARITY row 'WordPress import from the owner's export' (not on Hack, Enterprise not built). Small box: the lead says Simple Host only and the import URL is the simple-host.app apex; read as no. Upload-safety internals (zip-bomb caps, entity refusal) covered silently. Not rendered."
+     "evidence": "features.html #site-notfound-page; FEATURES.md \u00a71 Routes row (GET /internal/notfound, nginx @notfound, renamed site's old name 302s), Pages row (st/notfound.html), \u00a715 Caddy hand-off for a missing site on event and small-box instances. Enterprise: not stated, same binary lineage. Not rendered."
     },
     {
      "id": "publish-idle-cleanup",

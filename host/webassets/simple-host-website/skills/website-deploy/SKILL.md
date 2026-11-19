@@ -35,8 +35,7 @@ rules, sign-in only where the row says, and a line telling the owner how they se
 | the owner's own notes or log on the site | `private` | only the owner, signed in on the site |
 | a shop with a cart and orders | `records` | each customer sees their own orders; the owner sees all |
 | one page for an owner who works directly with many signed-in people (a coach and clients, a tutor and students) | `people` | the owner picks a person and adds to their rows (a program, a reply); each person sees only their own, marked as the owner's when the owner added it |
-| moving a WordPress or Squarespace site they own | `references/move-from-wordpress.md` (topic `wordpress`) | they export it, drop the files on a one-time page from `create_import_link`; then switch on each feature `get_import_report` lists |
-| moving another site they already have (Squarespace, Wix), "keep everything" | `references/move-a-site.md` | the same pages, look and paths; its forms, comments, guestbook and forum rebuilt with the topics above in the same pass |
+| moving a site they already have, "keep everything" | `references/move-a-site.md` | the same pages, look and paths; its forms, comments, guestbook and forum rebuilt with the topics above in the same pass |
 
 ## 2. Do the job
 
@@ -48,11 +47,8 @@ rules, sign-in only where the row says, and a line telling the owner how they se
   update that existing private site.
 - **A big site** (many photos, or a site being moved) is too large to send inline. With a shell,
   pack the folder (`tar -czf site.tar.gz -C <folder> .`), call `create_upload_link` with `archive: true` and the site
-  name, and run the one-line `curl` it returns; it creates or updates the site. Moving an existing
-  site: a WordPress or Squarespace site moves from its own export through `create_import_link`, from any chat app
-  (`references/move-from-wordpress.md`); any other site follows `references/move-a-site.md` (polite
-  crawl that obeys robots.txt, same paths, forms rebuilt). Without a shell, say a whole site that is not
-  WordPress or Squarespace needs a coding app.
+  name, and run the one-line `curl` it returns; it creates or updates the site. To move an existing site from its link, follow
+  `references/move-a-site.md` in a coding app.
 - **"My site" or "our site".** It already exists: `list_sites`, `get_site`, then `read_site_file`
   for only the files you will change (`paths` reads several at once). For a small change, skip
   reading and send `update_site`'s `edits` ({path, find, replace}) instead; otherwise send
@@ -140,14 +136,13 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.114` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.115` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 
 | Job | Reference |
 |---|---|
 | REST deploys, archives, CI, addresses, the two sign-ins, full rules and checks | `references/publishing.md` · https://simple-host.app/v1/skills/website-deploy/references/publishing.md |
-| Moving a WordPress site from its export: import link, export clicks, report, features, domain | `references/move-from-wordpress.md` · https://simple-host.app/v1/skills/website-deploy/references/move-from-wordpress.md |
 | Moving another existing site: crawl, convert, replace forms, publish, domain | `references/move-a-site.md` · https://simple-host.app/v1/skills/website-deploy/references/move-a-site.md |
 | Row rules, per-table sets, file-bucket presets, each person's records | `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
 | Versions and previews, rollback, offline, delete and restore, exports, analytics, named viewers, passcode, handle | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |

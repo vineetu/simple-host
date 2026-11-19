@@ -20,7 +20,7 @@ func fixtureRepos(t *testing.T) (string, string) {
 	host := filepath.Join(root, "host")
 	ent := filepath.Join(root, "ent")
 	parity := "# PARITY\n\n## Feature table\n\n| Area | Hosted | Enterprise | Status |\n|---|---|---|---|\n" +
-		"| WordPress import from the owner's export (2026-10-14) | `create_import_link` and `get_import_report` | Not built | `gap → enterprise` |\n" +
+		"| Site archive upload (2026-10-14) | `create_upload_link` | Not built | `gap → enterprise` |\n" +
 		"| Site passcode | one passcode per site | same | `same` |\n" +
 		"| Sign-in | email codes and Google | OIDC only | `different on purpose` (companies sign in their own way) |\n\n## Security fixes checked across\n\n| Date | Repo | Fix |\n|---|---|---|\n| 2026-10-01 | hosted | x |\n"
 	write := func(dir, name, body string) {
@@ -39,7 +39,7 @@ func fixtureRepos(t *testing.T) (string, string) {
 		"- **2026-10-14. Visitors may post without signing in where the owner opts in, spam-checked by\n  Cloudflare Turnstile.** A comments preset. Reason: anonymous posting, never home-built.\n"+
 		"- **2026-10-16. Simple Hack for companies is the Docker package, not Kubernetes.** Because one small server is enough.\n"+
 		"- an undated item ends the one before\n")
-	write(host, "FEATURES.md", "# FEATURES\n\n## 1. Sites and deploy\n\nDeploy a tarball.\n\n### WordPress import\n\nThe converter `internal/wpimport` turns a WordPress export into a site.\n")
+	write(host, "FEATURES.md", "# FEATURES\n\n## 1. Sites and deploy\n\nDeploy a tarball.\n\n### Archive upload\n\nUpload a static site archive through a one-time link.\n")
 	write(host, "PARITY.md", parity)
 	write(host, "CHANGELOG.md", "# Changelog\n\n## 2026-10-16: Simple Hack for companies\n\n- Company sign-in.\n- A /companies page\n  with a film.\n\n## 2026-09-01: Old\n\n- Old thing.\n")
 	write(host, "products/hack/webassets/static/hack-llms.txt", "Simple Hack (https://simple-hack.app): hackathons for everyone.\n\nSimple Hack for companies: the self-hosted package.\n")
@@ -184,15 +184,15 @@ func TestGetDocOnlyReadsTheBundle(t *testing.T) {
 
 func TestQueries(t *testing.T) {
 	s, _ := buildFixture(t)
-	res, err := s.Call("feature_lookup", map[string]any{"query": "WordPress importer"})
+	res, err := s.Call("feature_lookup", map[string]any{"query": "archive upload"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rows := res.Structured["parity"].([]any)
 	if len(rows) == 0 || rows[0].(map[string]any)["state"] != "gap_enterprise" {
-		t.Errorf("WordPress parity: %v", rows)
+		t.Errorf("Archive parity: %v", rows)
 	}
-	if f := res.Structured["features"].([]any); len(f) == 0 || f[0].(map[string]any)["name"] != "WordPress import" {
+	if f := res.Structured["features"].([]any); len(f) == 0 || f[0].(map[string]any)["name"] != "Archive upload" {
 		t.Errorf("features: %v", f)
 	}
 	res, err = s.Call("decisions", map[string]any{"query": "Turnstile"})

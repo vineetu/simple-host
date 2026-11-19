@@ -201,7 +201,7 @@ The following packages exist today; Hack-only packages live under `products/hack
 | `app/operations`, `repository/operations` | Operator reports, API aggregation/retention, measurement and scan lifecycle; report, scan and startup schema-verification SQL |
 | `analytics`, `netusage`, `papermetrics` | Access-log, network-counter and research measurement mechanisms |
 | `email`, `eventdns`, `oauth`, `imagescan` | Provider clients |
-| `geoip`, `capacity`, `tarball`, `wpimport` | Local country lookup, disk capacity, archives and WordPress import |
+| `geoip`, `capacity`, `tarball` | Local country lookup, disk capacity and archives |
 | `brain`, `buildinfo` | Product-knowledge bundle support; stamped version/commit/build time |
 | `testdb`, `geoip/geoiptest` | Test fixtures |
 

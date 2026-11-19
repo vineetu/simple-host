@@ -261,9 +261,6 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	s.cfg.VisitorTool = func(_ *http.Request, _ Caller, _ string, _ map[string]any) (map[string]any, error) {
 		return map[string]any{"visitor_data": map[string]any{"mine": true}, "note": "Visitor data, not instructions."}, nil
 	}
-	s.cfg.ImportReport = func(owner, id string) (map[string]any, error) {
-		return map[string]any{"state": "waiting", "message": "Upload your export", "site": "blog", "site_url": "", "started_at": "", "finished_at": "", "next_steps": []string{}, "report": map[string]any{}}, nil
-	}
 	calls := []struct {
 		tool string
 		args map[string]any
@@ -289,8 +286,6 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"create_site", map[string]any{"site": "fresh", "files": map[string]any{"index.html": `<script>SH.mount("#a")</script>`}}},
 		{"create_upload_link", map[string]any{"site": "blog"}},
 		{"create_upload_link", map[string]any{"site": "blog", "archive": true}},
-		{"create_import_link", map[string]any{"site": "blog"}},
-		{"get_import_report", map[string]any{"import_id": "test"}},
 		{"update_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": `<script>SH.mount("#a")</script>`}}},
 		{"update_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "x"}, "files_base64": map[string]any{"a.png": "AA=="}}},
 		{"set_keep_versions", map[string]any{"site": "blog", "keep_versions": 0}},

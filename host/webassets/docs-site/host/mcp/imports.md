@@ -1,29 +1,4 @@
-# Imports and uploads
-
-## create_import_link
-
-<div data-tool="create_import_link"></div>
-
-Move a WordPress site here from the export the person downloads from WordPress themselves (WordPress.com: Tools &gt; Export). Each call makes a new link. Returns a one-time page link (30 minutes, this site only) for them to open in their browser and drop the files on. The import creates the site, or publishes a new version of it, at its public address, so it can replace what is live (the previous version is kept for rollback_site). When they say it finished, call get_import_report. Never paste the link into a web page.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
-| theme_url | string |  | Optional old site's address, prefilled on the upload page to copy its look. |
-
-## get_import_report
-
-<div data-tool="get_import_report"></div>
-
-Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages. Write root _redirects rules from the old address list for any changed paths (including wildcards and ?p=123 query links); fix publish errors at their line numbers.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| import_id | string | yes | The import_id returned by create_import_link. |
+# Photo and archive uploads
 
 ## create_upload_link
 
